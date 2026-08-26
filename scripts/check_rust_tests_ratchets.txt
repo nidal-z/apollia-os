@@ -23,42 +23,6 @@
 #   reader is argued rather than discovered after the fact.
 
 [gwt-markers]
-crates/apollia-loom-models/tests/models.rs 7
-crates/apollia-tools/src/agent_repository.rs 8
-crates/apollia-tools/src/chat_libre_config.rs 1
-crates/apollia-tools/src/descriptor.rs 2
-crates/apollia-tools/src/dispatcher_invoker.rs 3
-crates/apollia-tools/src/executor.rs 2
-crates/apollia-tools/src/project_repository.rs 1
-crates/apollia-tools/src/tool_registry.rs 1
-crates/apollia-tools/src/tools/ask_user.rs 1
-crates/apollia-tools/src/tools/file_glob.rs 1
-crates/apollia-tools/src/tools/file_grep.rs 1
-crates/apollia-tools/src/tools/file_list.rs 1
-crates/apollia-tools/src/tools/http_fetch.rs 1
-crates/apollia-tools/src/tools/memory_search.rs 1
-crates/apollia-tools/src/tools/notebook_edit.rs 1
-crates/apollia-tools/src/tools/notebook_read.rs 1
-crates/apollia-tools/src/tools/permission_rules.rs 5
-crates/apollia-tools/src/tools/python_executor.rs 1
-crates/apollia-tools/src/tools/risk_classifier.rs 2
-crates/apollia-tools/src/tools/rlimits.rs 1
-crates/apollia-tools/src/tools/web_read/mod.rs 15
-crates/apollia-tools/src/tools/web_read/ssrf.rs 16
-crates/apollia-tools/src/tools/web_search/backend.rs 4
-crates/apollia-tools/src/tools/web_search/brave.rs 12
-crates/apollia-tools/src/tools/web_search/duckduckgo.rs 10
-crates/apollia-tools/src/tools/web_search/mod.rs 9
-crates/apollia-tools/tests/integration_tool_registry.rs 5
-crates/apollia-triggers/src/definition_repository.rs 2
-crates/apollia-triggers/src/engine.rs 2
-crates/apollia-triggers/src/toml_config.rs 1
-crates/apollia-triggers/src/validation.rs 8
-crates/apollia-workspace/src/commands.rs 5
-tests/integration/test_agent_persistence.rs 1
-tests/integration/test_chat.rs 4
-tests/integration/test_config_crud.rs 7
-tests/integration/test_hello_agent.rs 1
 
 [home-read]
 crates/apollia-cli/src/commands/doctor.rs 1

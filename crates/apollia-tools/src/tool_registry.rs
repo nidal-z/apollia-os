@@ -703,6 +703,7 @@ mod tests {
         store.set("http_fetch", "auth.token", "v2").expect("b");
 
         // WHEN listing filtered, then deleting, then listing again.
+        // THEN the filter returns only its own tool, and the delete reports the hit
         let only_search = store.list(Some("web_search")).expect("list filtered");
         assert_eq!(only_search.len(), 1);
         assert_eq!(only_search[0].key_name, "brave.api_key");

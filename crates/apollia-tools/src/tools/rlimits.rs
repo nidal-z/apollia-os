@@ -128,6 +128,7 @@ mod tests {
     fn test_v0_defaults_disable_nproc() {
         // GIVEN the shipped defaults
         let limits = ResourceLimits::v0_defaults();
+        // WHEN the four limits are read
         // THEN NPROC is disabled (per-UID semantics) and the rest are set
         assert_eq!(limits.max_processes, None);
         assert_eq!(limits.cpu_seconds, 120);

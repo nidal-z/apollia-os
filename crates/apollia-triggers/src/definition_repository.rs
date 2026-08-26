@@ -745,6 +745,7 @@ mod tests {
     #[test]
     fn test_validation_webhook_short_secret() {
         let (_dir, repo) = open_test_repo();
+        // GIVEN a webhook trigger whose secret is shorter than the floor
         let def = TriggerDefinitionRow {
             id: "webhook-short".to_string(),
             agent: Some("agent".to_string()),
@@ -802,6 +803,7 @@ mod tests {
     #[test]
     fn test_webhook_valid_secret() {
         let (_dir, repo) = open_test_repo();
+        // GIVEN a webhook trigger whose secret is exactly the minimum length
         let secret = "a".repeat(32);
         let def = TriggerDefinitionRow {
             id: "webhook-valid".to_string(),
@@ -815,8 +817,10 @@ mod tests {
             updated_at: String::new(),
         };
 
+        // WHEN it is inserted, then read back
         repo.insert(&def).expect("insert valid webhook");
         let got = repo.get("webhook-valid").expect("get").expect("exists");
+        // THEN the insert is accepted and the row is stored
         assert_eq!(got.source_type, "webhook");
     }
 

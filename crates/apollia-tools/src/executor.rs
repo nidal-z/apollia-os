@@ -724,19 +724,21 @@ mod tests {
             read_only: false,
             delay_ms: 0,
         };
+        // WHEN its read-only flag is read
         // THEN - tools that don't override is_read_only return false
         assert!(!executor.is_read_only());
     }
 
     #[test]
     fn test_read_only_executors_return_true() {
-        // GIVEN
+        // GIVEN an executor that declares itself read-only
         let ro_executor = TimedEchoExecutor {
             tool_name: "ro",
             read_only: true,
             delay_ms: 0,
         };
-        // THEN
+        // WHEN its read-only flag is read
+        // THEN it answers true, so the dispatcher may run it in parallel
         assert!(ro_executor.is_read_only());
     }
 

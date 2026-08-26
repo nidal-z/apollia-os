@@ -364,6 +364,7 @@ schedule = "not-valid"
     fn test_parse_empty_triggers_returns_empty_vec() {
         // GIVEN a TOML without a [[triggers]] section
         let result = parse_triggers_from_toml_str("[agents]\ndirectory = \"agents/\"");
+        // WHEN it is parsed
         // THEN empty vec, no error
         let defs = result.expect("doit parser sans erreur");
         assert!(defs.is_empty());

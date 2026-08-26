@@ -962,6 +962,7 @@ mod tests {
         // Migration is embedded in open(), so re-applying on the same path must succeed.
         // For :memory: this means a fresh DB - but tests above already verify idempotency
         // via seed_builtin_templates. This test just ensures open() itself is safe.
+        // THEN the second open succeeds: replaying the migration is safe
         ProjectRepository::open(path).expect("open 2");
     }
 }

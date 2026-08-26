@@ -269,6 +269,7 @@ async fn test_sync_run_fails_validation() {
     tmp.write_all(invalid_code.as_bytes())
         .expect("failed to write temp file");
 
+    // WHEN the module is loaded and validated
     let agent_obj = load_agent_module(tmp.path()).expect("load should succeed");
     let result = validate_agent(&agent_obj);
 

@@ -154,8 +154,10 @@ mod tests {
 
     #[test]
     fn test_save_overwrites_existing_row() {
+        // GIVEN a repository on a throwaway directory
         let dir = TempDir::new().expect("tempdir");
         let repo = open_repo(&dir);
+        // WHEN two configurations are saved in a row
         repo.save(&ChatLibreConfig {
             system_prompt: "first".into(),
             allowed_tools: vec!["a".into()],
@@ -170,6 +172,7 @@ mod tests {
         .expect("save second");
 
         let loaded = repo.load().expect("load");
+        // THEN only the second one is held: the table carries a single row
         assert_eq!(loaded.system_prompt, "second");
         assert_eq!(loaded.allowed_tools, vec!["b".to_string(), "c".to_string()]);
         assert!(loaded.llm_backend.is_none());

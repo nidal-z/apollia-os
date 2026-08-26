@@ -322,6 +322,7 @@ async fn cleanup(handle: APIServerHandle, socket_path: &Path) {
 
 #[tokio::test]
 async fn test_create_and_list_trigger() {
+    // GIVEN a runtime started on empty trigger and notification databases
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
     let notifications_db = dir.path().join("notifications.db");
@@ -329,6 +330,7 @@ async fn test_create_and_list_trigger() {
     let (handle, port, socket_path) =
         start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
+    // WHEN a cron trigger is created, then read back by id
     let (status, resp) = http_post(
         port,
         "/api/v1/triggers",
@@ -344,6 +346,7 @@ async fn test_create_and_list_trigger() {
     )
     .await;
 
+    // THEN the creation answers 201 with the stored fields and their defaults
     assert_eq!(status, 201, "expected 201 Created, got {status}: {resp}");
     assert_eq!(resp["id"], "test-cron");
     assert_eq!(resp["agent"], "hello-agent");
@@ -354,6 +357,7 @@ async fn test_create_and_list_trigger() {
     );
     assert_eq!(resp["on_busy"], "queue");
 
+    // THEN the read answers 200, and the row carries a creation timestamp
     let (get_status, get_resp) = http_get(port, "/api/v1/triggers/test-cron").await;
     assert_eq!(
         get_status, 200,
@@ -375,6 +379,7 @@ async fn test_create_and_list_trigger() {
 
 #[tokio::test]
 async fn test_update_trigger() {
+    // GIVEN a runtime holding one cron trigger
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
     let notifications_db = dir.path().join("notifications.db");
@@ -397,6 +402,7 @@ async fn test_update_trigger() {
     .await;
     assert_eq!(create_status, 201);
 
+    // WHEN its schedule is replaced through a put
     let (update_status, update_resp) = http_put(
         port,
         "/api/v1/triggers/test-trigger",
@@ -415,6 +421,7 @@ async fn test_update_trigger() {
         "expected 200 OK, got {update_status}: {update_resp}"
     );
 
+    // THEN the update answers 200, and the new schedule is persisted in its normalised form
     let (get_status, get_resp) = http_get(port, "/api/v1/triggers/test-trigger").await;
     assert_eq!(get_status, 200);
     let source_config = &get_resp["source_config"];
@@ -434,6 +441,7 @@ async fn test_update_trigger() {
 
 #[tokio::test]
 async fn test_delete_trigger() {
+    // GIVEN a runtime holding one cron trigger
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
     let notifications_db = dir.path().join("notifications.db");
@@ -456,6 +464,7 @@ async fn test_delete_trigger() {
     .await;
     assert_eq!(create_status, 201);
 
+    // WHEN it is deleted
     let (delete_status, delete_resp) = http_delete(port, "/api/v1/triggers/test-trigger").await;
     assert_eq!(
         delete_status, 200,
@@ -463,6 +472,7 @@ async fn test_delete_trigger() {
     );
     assert_eq!(delete_resp["deleted"], "test-trigger");
 
+    // THEN the delete answers 200 naming the row, and the read that follows answers 404
     let (get_status, _) = http_get(port, "/api/v1/triggers/test-trigger").await;
     assert_eq!(get_status, 404, "deleted trigger should return 404");
 
@@ -475,6 +485,7 @@ async fn test_delete_trigger() {
 
 #[tokio::test]
 async fn test_create_channel_and_verify_logs_endpoint() {
+    // GIVEN a runtime started on empty trigger and notification databases
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
     let notifications_db = dir.path().join("notifications.db");
@@ -482,6 +493,7 @@ async fn test_create_channel_and_verify_logs_endpoint() {
     let (handle, port, socket_path) =
         start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
+    // WHEN a desktop channel is created, listed, and a delivery log written behind it
     let (status, resp) = http_post(
         port,
         "/api/v1/notifications/channels",
@@ -495,6 +507,7 @@ async fn test_create_channel_and_verify_logs_endpoint() {
     )
     .await;
 
+    // THEN the creation answers 201 and the listing carries the single channel
     assert_eq!(status, 201, "expected 201 Created, got {status}: {resp}");
     assert_eq!(resp["id"], "desktop-test");
     assert_eq!(resp["channel_type"], "desktop");
@@ -526,6 +539,7 @@ async fn test_create_channel_and_verify_logs_endpoint() {
         repo.write_log(&log).expect("write log");
     }
 
+    // THEN the logs endpoint serves the row written straight into the repository
     let (logs_status, logs_resp) = http_get(port, "/api/v1/notifications/logs?last=10").await;
     assert_eq!(
         logs_status, 200,
@@ -546,6 +560,7 @@ async fn test_create_channel_and_verify_logs_endpoint() {
 
 #[tokio::test]
 async fn test_validation_errors() {
+    // GIVEN a running runtime
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
     let notifications_db = dir.path().join("notifications.db");
@@ -553,6 +568,7 @@ async fn test_validation_errors() {
     let (handle, port, socket_path) =
         start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
+    // WHEN a trigger carrying an unparseable cron expression is posted
     let (trigger_status, trigger_resp) = http_post(
         port,
         "/api/v1/triggers",
@@ -566,6 +582,7 @@ async fn test_validation_errors() {
         }),
     )
     .await;
+    // THEN it is refused with 422, and the message names the validation
     assert_eq!(
         trigger_status, 422,
         "invalid cron should return 422, got {trigger_status}: {trigger_resp}"
@@ -578,6 +595,7 @@ async fn test_validation_errors() {
         "error message should mention validation: {trigger_resp}"
     );
 
+    // THEN a webhook channel with no URL is refused too, or accepted where the check is deferred
     let (notif_status, notif_resp) = http_post(
         port,
         "/api/v1/notifications/channels",
@@ -602,6 +620,7 @@ async fn test_validation_errors() {
 
 #[tokio::test]
 async fn test_boot_with_prepopulated_db() {
+    // GIVEN databases already holding one trigger and one channel, written outside the runtime
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
     let notifications_db = dir.path().join("notifications.db");
@@ -639,9 +658,11 @@ async fn test_boot_with_prepopulated_db() {
         repo.insert_channel(&row).expect("insert channel");
     }
 
+    // WHEN the runtime boots on them
     let (handle, port, socket_path) =
         start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
+    // THEN the trigger and the channel are both served, so boot reads what was there
     let (trigger_status, trigger_resp) =
         http_get(port, "/api/v1/triggers/pre-existing-trigger").await;
     assert_eq!(
@@ -668,13 +689,16 @@ async fn test_boot_with_prepopulated_db() {
 
 #[tokio::test]
 async fn test_boot_with_empty_db() {
+    // GIVEN two database paths that do not exist yet
     let dir = tempfile::tempdir().expect("tempdir");
     let triggers_db = dir.path().join("triggers.db");
     let notifications_db = dir.path().join("notifications.db");
 
+    // WHEN the runtime boots on them
     let (handle, port, socket_path) =
         start_test_server_with_repos(&triggers_db, &notifications_db).await;
 
+    // THEN it starts healthy, and the channel listing is empty rather than absent
     let (health_status, _) = http_get(port, "/api/v1/health").await;
     assert_eq!(health_status, 200, "runtime should start without errors");
 

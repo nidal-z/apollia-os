@@ -810,9 +810,10 @@ mod tests {
 
     #[test]
     fn test_python_unavailable_detected_at_construction() {
-        // GIVEN: we test the happy path: if a system Python is present, new() succeeds.
-        // The error case (PythonUnavailable) is covered implicitly by make_executor! in other tests.
+        // GIVEN an agent name and a throwaway virtual environment directory
+        // WHEN an executor is built on them
         let result = PythonExecutor::new("test-agent-ac2", &test_venv_dir());
+        // THEN construction either succeeds or reports the absent interpreter, and nothing else
         match result {
             Ok(_) => { /* system Python present - construction succeeded as expected */ }
             Err(PythonExecutorError::PythonUnavailable { .. }) => {

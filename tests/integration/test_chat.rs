@@ -659,6 +659,7 @@ async fn test_chat_libre_always_accept_persists_for_session() {
     .await;
     let session_id = session["id"].as_str().expect("session id");
 
+    // WHEN the first tool call is authorised with always_accept, then a second exchange runs
     // Exchange 1: send message, wait for approval, always_accept
     let _ = http_post(
         port,
@@ -722,6 +723,7 @@ async fn test_chat_libre_always_accept_persists_for_session() {
     )
     .await;
 
+    // THEN the second exchange asks for no approval and runs to completion
     let had_approval = events2
         .iter()
         .any(|e| matches!(e, RuntimeEvent::ChatApprovalRequired { .. }));
@@ -833,6 +835,7 @@ async fn test_chat_history_accumulation() {
     .await;
     let session_id = session["id"].as_str().expect("session id");
 
+    // WHEN three messages are sent in turn, each awaited before the next
     // Send 3 messages, waiting for each response before sending the next
     for i in 1..=3 {
         let _ = http_post(
@@ -885,6 +888,7 @@ async fn test_chat_history_accumulation() {
 /// Close session: DELETE → ChatSessionClosed → 409 on subsequent message.
 #[tokio::test]
 async fn test_chat_close_session() {
+    // GIVEN an open libre session
     let model = MockChatModel::new(vec![]);
     let (handle, port, socket_path, mut event_rx) = start_chat_server_default(model).await;
 
@@ -966,6 +970,7 @@ async fn test_chat_budget_exhausted() {
     // After that, subsequent calls in this and future exchanges are auto-authorized,
     // allowing the ReAct loop to hit the budget limit without HITL blocking.
 
+    // WHEN the loop is started and the first tool call authorised for the session
     let _ = http_post(
         port,
         &format!("/api/v1/sessions/{session_id}/messages"),
@@ -1029,6 +1034,7 @@ async fn test_chat_budget_exhausted() {
     )
     .await;
 
+    // THEN the run stops on a budget error rather than looping on the model's tool calls
     let budget_error = events.iter().find(|e| {
         matches!(
             e,

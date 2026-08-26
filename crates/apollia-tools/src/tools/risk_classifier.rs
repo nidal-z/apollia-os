@@ -508,6 +508,9 @@ mod tests_filesystem {
 
     #[test]
     fn filesystem_op_as_str() {
+        // GIVEN the four filesystem operations the classifier knows
+        // WHEN each is rendered as its stored string
+        // THEN the four persisted forms come out, lower case
         assert_eq!(FilesystemOp::Read.as_str(), "read");
         assert_eq!(FilesystemOp::Write.as_str(), "write");
         assert_eq!(FilesystemOp::Delete.as_str(), "delete");
@@ -516,6 +519,9 @@ mod tests_filesystem {
 
     #[test]
     fn risk_level_as_str() {
+        // GIVEN the five risk levels
+        // WHEN each is rendered as its stored string
+        // THEN the five persisted forms come out, lower case
         assert_eq!(RiskLevel::Safe.as_str(), "safe");
         assert_eq!(RiskLevel::Low.as_str(), "low");
         assert_eq!(RiskLevel::Medium.as_str(), "medium");

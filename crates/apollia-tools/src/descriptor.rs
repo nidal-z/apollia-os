@@ -286,15 +286,17 @@ mod tests {
     fn test_is_read_only_defaults_to_false() {
         // GIVEN: descriptor built without specifying is_read_only
         let d = make_valid_descriptor();
+        // WHEN the flag is read
         // THEN: conservative default, never parallelised if flag omitted
         assert!(!d.is_read_only);
     }
 
     #[test]
     fn test_risk_score_defaults_to_zero() {
-        // GIVEN
+        // GIVEN a descriptor built without naming a risk score
         let d = make_valid_descriptor();
-        // THEN
+        // WHEN the score is read
+        // THEN it defaults to zero, so a tool is harmless until it says otherwise
         assert_eq!(d.risk_score, 0);
     }
 

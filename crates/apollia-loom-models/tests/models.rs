@@ -61,6 +61,7 @@ mod registry_serial_consistency {
         loom::model(|| {
             // The command queue is the only shared state: producers enqueue
             // concurrently, the actor thread drains and applies logic serially.
+            // GIVEN two producers registering the same agent name concurrently, through the actor's queue
             let queue: Arc<Mutex<VecDeque<Cmd>>> = Arc::new(Mutex::new(VecDeque::new()));
 
             let q1 = Arc::clone(&queue);
@@ -79,6 +80,7 @@ mod registry_serial_consistency {
             p1.join().unwrap();
             p2.join().unwrap();
 
+            // WHEN the actor drains the queue and applies the eviction rule
             // Actor: drain FIFO, apply the real eviction rule (registry.rs:151).
             let mut agents: std::collections::HashMap<u32, &'static str> =
                 std::collections::HashMap::new();
@@ -101,6 +103,7 @@ mod registry_serial_consistency {
             // Invariant: exactly one live entry for the name, and the index
             // resolves to an id that exists in `agents` (no dangling pointer,
             // no orphan).
+            // THEN whatever the interleaving, one entry is live and the index points at it
             assert_eq!(name_index.len(), 1);
             assert_eq!(agents.len(), 1);
             let idx_id = name_index["x"];
@@ -139,9 +142,11 @@ mod coordinator_semaphore {
     #[test]
     fn try_acquire_never_exceeds_capacity() {
         loom::model(|| {
+            // GIVEN a permit counter at capacity, and more workers than permits
             let permits = Arc::new(AtomicUsize::new(N));
             let live = Arc::new(AtomicUsize::new(0));
 
+            // WHEN every worker tries to acquire, hold and release
             let workers: Vec<_> = (0..2)
                 .map(|_| {
                     let permits = Arc::clone(&permits);
@@ -165,6 +170,7 @@ mod coordinator_semaphore {
             }
 
             // No permit leaked or duplicated.
+            // THEN the live count never passed the ceiling, and no permit leaked or doubled
             assert_eq!(permits.load(Ordering::Acquire), N);
             assert_eq!(live.load(Ordering::Acquire), 0);
         });
@@ -201,6 +207,7 @@ mod mailbox_lease_exclusivity {
     fn fenced_ack_never_deletes_a_live_reassigned_lease() {
         loom::model(|| {
             // Pre-condition: consumer A (id 1) holds an EXPIRED lease.
+            // GIVEN a message in flight whose lease has expired, still recorded to consumer A
             let msg = Arc::new(Mutex::new(Msg {
                 state: State::InFlight,
                 owner: 1,
@@ -211,6 +218,7 @@ mod mailbox_lease_exclusivity {
             // is still the recorded owner. Prod is UNFENCED and would delete
             // unconditionally here -> F4. Under the unfenced rule the B-then-A
             // interleaving leaves the message Gone while owner == 2.
+            // WHEN A acknowledges under the fenced rule while B re-leases it, in either order
             let a = {
                 let msg = Arc::clone(&msg);
                 loom::thread::spawn(move || {
@@ -242,6 +250,7 @@ mod mailbox_lease_exclusivity {
             // if B re-leased first, A's fenced ack sees owner==2 and is a no-op.
             let m = msg.lock().unwrap();
             let deleted_under_b = m.state == State::Gone && m.owner == 2;
+            // THEN no interleaving leaves the message gone while another consumer owns it
             assert!(
                 !deleted_under_b,
                 "fenced ack deleted a message re-leased to another consumer"
@@ -277,10 +286,12 @@ mod router_terminal_status_guard {
     #[test]
     fn late_completion_never_overwrites_terminal_status() {
         loom::model(|| {
+            // GIVEN a task still working, with a cancellation and a completion racing on it
             let status = Arc::new(Mutex::new(Status::Working));
 
             // Cancel path (handle_cancel): only Submitted/Working/InputRequired
             // may transition to Canceled.
+            // WHEN both run, in either order
             let cancel = {
                 let status = Arc::clone(&status);
                 loom::thread::spawn(move || {
@@ -308,6 +319,7 @@ mod router_terminal_status_guard {
             // Invariant: the outcome is terminal and, once set, unchanged. There
             // is no interleaving that flips one terminal state into another.
             let final_status = *status.lock().unwrap();
+            // THEN a terminal status is never overwritten by the late event
             assert!(
                 matches!(final_status, Status::Canceled | Status::Completed),
                 "unexpected non-sticky status: {final_status:?}"
@@ -329,9 +341,11 @@ mod shutdown_force_exit_flag {
     #[test]
     fn force_exit_latch_is_monotonic() {
         loom::model(|| {
+            // GIVEN a disarmed force-exit latch, one writer arming it and one watcher reading it twice
             let armed = Arc::new(AtomicBool::new(false));
 
             // First-signal handler arms the latch (shutdown.rs:334).
+            // WHEN both run, in either order
             let writer = {
                 let armed = Arc::clone(&armed);
                 loom::thread::spawn(move || {
@@ -356,6 +370,7 @@ mod shutdown_force_exit_flag {
             writer.join().unwrap();
             reader.join().unwrap();
 
+            // THEN the latch never reads disarmed after reading armed, and ends armed
             assert!(armed.load(Ordering::SeqCst));
         });
     }
@@ -375,10 +390,12 @@ mod plan_gate_single_decision {
     fn concurrent_decide_delivers_exactly_once() {
         loom::model(|| {
             // Some(()) == a registered gate whose receiver is alive.
+            // GIVEN one registered approval gate and two deciders racing to resolve it
             let gate: Arc<Mutex<Option<()>>> = Arc::new(Mutex::new(Some(())));
             let delivered = Arc::new(AtomicUsize::new(0));
             let winners = Arc::new(AtomicUsize::new(0));
 
+            // WHEN both decide, in either order
             let deciders: Vec<_> = (0..2)
                 .map(|_| {
                     let gate = Arc::clone(&gate);
@@ -400,6 +417,7 @@ mod plan_gate_single_decision {
             }
 
             // Exactly one decider resolved the gate; the other saw it gone.
+            // THEN exactly one wins and exactly one delivery happens
             assert_eq!(winners.load(Ordering::Acquire), 1);
             assert_eq!(delivered.load(Ordering::Acquire), 1);
         });
@@ -427,6 +445,7 @@ mod shutdown_drain_snapshot_gap {
     #[test]
     fn subscribe_before_snapshot_never_misses_a_completion() {
         loom::model(|| {
+            // GIVEN a drain that subscribes before snapshotting, and a task completing alongside
             let st = Arc::new(Mutex::new(Drain {
                 subscribed: false,
                 task_done: false,
@@ -434,6 +453,7 @@ mod shutdown_drain_snapshot_gap {
             }));
 
             // Drain: FIXED order. Subscribe first, then snapshot.
+            // WHEN both run, in either order
             let drain = {
                 let st = Arc::clone(&st);
                 loom::thread::spawn(move || {
@@ -466,6 +486,7 @@ mod shutdown_drain_snapshot_gap {
 
             // Invariant: the completed task is always accounted for; it is never
             // left in `remaining` to be force-canceled after timeout.
+            // THEN the completed task is always accounted for, never left to be force-cancelled
             let s = st.lock().unwrap();
             assert!(
                 !s.remaining,

@@ -193,16 +193,20 @@ mod tests {
 
     #[test]
     fn safe_search_default_is_moderate() {
+        // GIVEN a safe-search setting left at its default
+        // WHEN it is compared to the moderate level
+        // THEN a search filters moderately unless the caller says otherwise
         assert_eq!(SafeSearch::default(), SafeSearch::Moderate);
     }
 
     #[test]
     fn safe_search_serializes_as_snake_case() {
-        // GIVEN each variant
+        // GIVEN the three safe-search levels
+        // WHEN each is serialised
         let off = serde_json::to_string(&SafeSearch::Off).unwrap();
         let moderate = serde_json::to_string(&SafeSearch::Moderate).unwrap();
         let strict = serde_json::to_string(&SafeSearch::Strict).unwrap();
-        // THEN
+        // THEN the three go out in snake case, as the backends expect
         assert_eq!(off, "\"off\"");
         assert_eq!(moderate, "\"moderate\"");
         assert_eq!(strict, "\"strict\"");
@@ -210,9 +214,10 @@ mod tests {
 
     #[test]
     fn time_range_serializes_as_snake_case() {
-        // GIVEN each variant
+        // GIVEN the day time range
+        // WHEN it is serialised
         let json = serde_json::to_string(&TimeRange::Day).unwrap();
-        // THEN
+        // THEN it goes out in snake case
         assert_eq!(json, "\"day\"");
     }
 
@@ -264,6 +269,7 @@ mod tests {
                 what: "BRAVE_SEARCH_API_KEY".to_string(),
             },
         ];
+        // WHEN each is rendered
         // THEN every message mentions the backend name (needed for tracing)
         for e in errors {
             let s = e.to_string();

@@ -507,7 +507,10 @@ mod tests {
 
     #[test]
     fn descriptor_passes_validation() {
+        // GIVEN the descriptor the memory_search tool publishes
         let descriptor = MemorySearchTool::descriptor();
+        // WHEN it is validated
+        // THEN it passes, so the registry will accept it
         assert!(
             descriptor.validate().is_ok(),
             "descriptor must be valid for ToolRegistry registration"

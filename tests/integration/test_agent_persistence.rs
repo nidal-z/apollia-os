@@ -405,6 +405,7 @@ async fn test_corrupted_agent_graceful_degradation() {
     drop(repo);
 
     // Subscribe to events before starting Supervisor
+    // WHEN the supervisor starts on that repository
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
     let reserved_port = reserve_port();
     let port = reserved_port.port();

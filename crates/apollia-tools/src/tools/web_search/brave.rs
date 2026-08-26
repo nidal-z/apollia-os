@@ -364,6 +364,7 @@ pub(crate) mod tests {
     #[test]
     fn parses_fixture_response() {
         // GIVEN the canned Brave JSON body
+        // WHEN it is parsed
         let results = parse_brave_json(FIXTURE, 20).expect("parse ok");
         // THEN every web result is surfaced with rank starting at 1
         assert_eq!(results.len(), 3);
@@ -373,6 +374,8 @@ pub(crate) mod tests {
 
     #[test]
     fn strips_strong_tags_from_description() {
+        // GIVEN the canned Brave body, whose descriptions carry markup
+        // WHEN it is parsed
         let results = parse_brave_json(FIXTURE, 20).expect("parse ok");
         // THEN `<strong>` wrappers are gone
         assert!(!results[0].snippet.contains("<strong>"));
@@ -382,7 +385,10 @@ pub(crate) mod tests {
 
     #[test]
     fn prefers_age_over_page_age() {
+        // GIVEN a body whose three results carry both age fields, one, and neither
+        // WHEN it is parsed
         let results = parse_brave_json(FIXTURE, 20).expect("parse ok");
+        // THEN the human-readable age wins, the machine one is the fallback, and neither is invented
         // First result has both `age` and `page_age`: human-readable `age` wins.
         assert_eq!(results[0].age.as_deref(), Some("2 days ago"));
         // Second result has only `page_age`.
@@ -393,27 +399,39 @@ pub(crate) mod tests {
 
     #[test]
     fn honours_max_results_cap() {
+        // GIVEN a body holding three results, and a cap of two
+        // WHEN it is parsed under that cap
         let results = parse_brave_json(FIXTURE, 2).expect("parse ok");
+        // THEN only two come back
         assert_eq!(results.len(), 2);
     }
 
     #[test]
     fn empty_web_block_returns_empty_vec() {
+        // GIVEN a body whose web block holds no result
         let body = r#"{"type":"search","query":{},"web":{"type":"search","results":[]}}"#;
+        // WHEN it is parsed
         let results = parse_brave_json(body, 10).expect("parse ok");
+        // THEN the parse succeeds and returns nothing
         assert!(results.is_empty());
     }
 
     #[test]
     fn missing_web_block_returns_empty_vec() {
+        // GIVEN a body carrying no web block at all
         let body = r#"{"type":"search","query":{}}"#;
+        // WHEN it is parsed
         let results = parse_brave_json(body, 10).expect("parse ok");
+        // THEN the parse succeeds and returns nothing, rather than failing
         assert!(results.is_empty());
     }
 
     #[test]
     fn invalid_json_returns_parse_error() {
+        // GIVEN a body that is not JSON
+        // WHEN it is parsed
         let err = parse_brave_json("{ not json", 10).expect_err("should fail");
+        // THEN the failure is a parse error naming this backend
         assert!(
             matches!(err, SearchBackendError::ParseError { ref backend, .. } if backend == BACKEND_NAME)
         );
@@ -421,6 +439,7 @@ pub(crate) mod tests {
 
     #[test]
     fn from_env_fails_when_unset() {
+        // GIVEN the API key variable removed from the environment
         let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let prev = std::env::var(ENV_API_KEY).ok();
         // SAFETY: the file-wide ENV_LOCK serialises mutation across tests.
@@ -428,7 +447,9 @@ pub(crate) mod tests {
             std::env::remove_var(ENV_API_KEY);
         }
 
+        // WHEN the backend is built from the environment
         let result = BraveBackend::from_env();
+        // THEN it reports the missing credential by name, rather than starting keyless
         match result {
             Err(SearchBackendError::MissingCredential { ref what, .. }) if what == ENV_API_KEY => {}
             Err(other) => panic!("expected MissingCredential, got: {other}"),
@@ -445,7 +466,10 @@ pub(crate) mod tests {
 
     #[test]
     fn build_params_translates_region_and_freshness() {
+        // GIVEN a query carrying a region and a time range
+        // WHEN the request parameters are built from it
         let params = build_params(&sample_query(), sample_query().max_results);
+        // THEN the region becomes a country, the range a freshness, and the web filter is always set
         // region "fr-fr" → country "FR"
         assert!(params.iter().any(|(k, v)| *k == "country" && v == "FR"));
         // time_range Week → freshness pw
@@ -458,6 +482,7 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn network_happy_path_returns_results() {
+        // GIVEN a loopback server answering the canned Brave body
         let (listener, port) = bind_local().await;
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
@@ -471,12 +496,15 @@ pub(crate) mod tests {
             format!("http://127.0.0.1:{port}/res/v1/web/search"),
         );
 
+        // WHEN a search runs against that endpoint
         let results = backend.search(&sample_query()).await.expect("ok");
+        // THEN the three results come back
         assert_eq!(results.len(), 3);
     }
 
     #[tokio::test]
     async fn network_401_maps_to_missing_credential() {
+        // GIVEN a loopback server answering 401
         let (listener, port) = bind_local().await;
         let response = b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n".to_vec();
         tokio::spawn(respond_once(listener, response));
@@ -484,12 +512,15 @@ pub(crate) mod tests {
         let backend =
             BraveBackend::with_endpoint("bad-key", format!("http://127.0.0.1:{port}/search"));
 
+        // WHEN a search runs against that endpoint
         let err = backend.search(&sample_query()).await.expect_err("401");
+        // THEN the failure is reported as a missing credential, not as a bad status
         assert!(matches!(err, SearchBackendError::MissingCredential { .. }));
     }
 
     #[tokio::test]
     async fn network_429_maps_to_rate_limited() {
+        // GIVEN a loopback server answering 429
         let (listener, port) = bind_local().await;
         let response = b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\n\r\n".to_vec();
         tokio::spawn(respond_once(listener, response));
@@ -497,7 +528,9 @@ pub(crate) mod tests {
         let backend =
             BraveBackend::with_endpoint("test-key", format!("http://127.0.0.1:{port}/search"));
 
+        // WHEN a search runs against that endpoint
         let err = backend.search(&sample_query()).await.expect_err("429");
+        // THEN the failure is reported as rate limiting, carrying the status
         assert!(matches!(
             err,
             SearchBackendError::RateLimited { status: 429, .. }

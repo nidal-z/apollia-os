@@ -211,19 +211,26 @@ mod tests {
     #[test]
     fn extract_template_args_finds_all_placeholders() {
         // GIVEN template with two placeholders
+        // WHEN the placeholder names are extracted
         let args = extract_template_args("Hello {{name}}, topic is {{topic}}.");
+        // THEN both come back, in the order they appear
         assert_eq!(args, vec!["name".to_string(), "topic".to_string()]);
     }
 
     #[test]
     fn extract_template_args_deduplicates() {
         // GIVEN template repeating the same placeholder
+        // WHEN the placeholder names are extracted
         let args = extract_template_args("{{x}} and {{x}} again");
+        // THEN the repeated name is listed once
         assert_eq!(args, vec!["x".to_string()]);
     }
 
     #[test]
     fn parse_yaml_string_array_handles_comma_separated() {
+        // GIVEN an inline YAML array of two bare words
+        // WHEN it is parsed as a string array
+        // THEN both words come back, split on the comma
         assert_eq!(
             parse_yaml_string_array("[focus, depth]"),
             vec!["focus".to_string(), "depth".to_string()]
@@ -232,6 +239,9 @@ mod tests {
 
     #[test]
     fn parse_yaml_string_array_handles_quoted_values() {
+        // GIVEN an inline YAML array holding one quoted value
+        // WHEN it is parsed as a string array
+        // THEN the quotes are stripped from the value
         assert_eq!(
             parse_yaml_string_array(r#"["focus"]"#),
             vec!["focus".to_string()]
@@ -240,7 +250,10 @@ mod tests {
 
     #[test]
     fn parse_yaml_string_array_empty_returns_empty_vec() {
+        // GIVEN an empty inline YAML array
+        // WHEN it is parsed as a string array
         let result: Vec<String> = parse_yaml_string_array("[]");
+        // THEN nothing comes back, rather than one empty entry
         assert!(result.is_empty());
     }
 }

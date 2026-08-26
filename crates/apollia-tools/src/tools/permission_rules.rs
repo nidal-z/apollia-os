@@ -621,8 +621,10 @@ mod tests {
 
     #[test]
     fn add_invalid_action_fails() {
+        // GIVEN an add request naming an action the engine does not define
         let db = tmp_db();
         let tool = PermissionRuleAdd::new(db.path().to_path_buf(), "agent".into());
+        // WHEN the rule is added
         let err = tool
             .run(PermissionRuleAddInput {
                 tool_name: "x".into(),
@@ -634,13 +636,16 @@ mod tests {
                 expires_at: None,
             })
             .expect_err("must reject");
+        // THEN the add is refused, and the error names the invalid action
         assert!(matches!(err, PermissionRuleToolError::InvalidAction { .. }));
     }
 
     #[test]
     fn add_project_scope_requires_path() {
+        // GIVEN an add request at the project scope, carrying no project path
         let db = tmp_db();
         let tool = PermissionRuleAdd::new(db.path().to_path_buf(), "agent".into());
+        // WHEN the rule is added
         let err = tool
             .run(PermissionRuleAddInput {
                 tool_name: "x".into(),
@@ -652,6 +657,7 @@ mod tests {
                 expires_at: None,
             })
             .expect_err("must reject");
+        // THEN the add is refused: a project rule with no project matches everything
         assert!(matches!(err, PermissionRuleToolError::MissingProjectPath));
     }
 
@@ -679,6 +685,7 @@ mod tests {
                 rule_id: added.rule_id,
             })
             .expect("remove");
+        // THEN the first removal reports a hit, and the second reports none
         assert!(out.removed);
 
         // AND second remove → false
@@ -734,6 +741,7 @@ mod tests {
 
     #[test]
     fn list_no_filter_returns_all_persisted() {
+        // GIVEN two rules added by two different agents
         let db = tmp_db();
         PermissionRuleAdd::new(db.path().to_path_buf(), "a".into())
             .run(PermissionRuleAddInput {
@@ -757,13 +765,18 @@ mod tests {
                 expires_at: None,
             })
             .expect("add");
+        // WHEN they are listed with no filter
         let list = PermissionRuleList::new(db.path().to_path_buf());
         let out = list.run(PermissionRuleListInput::default()).expect("list");
+        // THEN both come back, whoever added them
         assert_eq!(out.rules.len(), 2);
     }
 
     #[test]
     fn descriptors_are_valid() {
+        // GIVEN the descriptors of the three permission-rule tools
+        // WHEN each is validated
+        // THEN all three pass, so the registry will accept them
         assert!(PermissionRuleAdd::descriptor().validate().is_ok());
         assert!(PermissionRuleRemove::descriptor().validate().is_ok());
         assert!(PermissionRuleList::descriptor().validate().is_ok());

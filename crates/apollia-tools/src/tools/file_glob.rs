@@ -447,7 +447,10 @@ mod tests {
 
     #[test]
     fn descriptor_is_valid() {
+        // GIVEN the descriptor the file_glob tool publishes
         let descriptor = FileGlob::descriptor();
+        // WHEN it is validated
+        // THEN it passes, so the registry will accept it
         assert!(descriptor.validate().is_ok());
     }
 }

@@ -394,6 +394,7 @@ mod tests {
     #[test]
     fn decodes_uddg_redirect_into_target_url() {
         // GIVEN the fixture whose first row wraps its URL in /l/?uddg=...
+        // WHEN the page is parsed
         let results = parse_ddg_html(FIXTURE_RESULTS, 20).expect("parse ok");
         // THEN the target URL is the decoded original, not the DDG wrapper
         assert_eq!(results[0].url, "https://github.com/Apollia-OS/apollia-os");
@@ -404,6 +405,7 @@ mod tests {
     #[test]
     fn strips_html_entities_from_title_and_snippet() {
         // GIVEN the fixture whose third result uses `&amp;` and `&#39;`
+        // WHEN the page is parsed
         let results = parse_ddg_html(FIXTURE_RESULTS, 20).expect("parse ok");
         let third = &results[2];
         // THEN entities are decoded (scraper `.text()` resolves them)
@@ -422,6 +424,7 @@ mod tests {
     #[test]
     fn handles_missing_snippet_gracefully() {
         // GIVEN the fixture's fourth row has no .result__snippet element
+        // WHEN the page is parsed
         let results = parse_ddg_html(FIXTURE_RESULTS, 20).expect("parse ok");
         let fourth = &results[3];
         // THEN title is still extracted, snippet is empty
@@ -432,6 +435,7 @@ mod tests {
     #[test]
     fn empty_results_fixture_returns_empty_vec() {
         // GIVEN a fixture with <div class="no-results"> and a >5 KB body
+        // WHEN the page is parsed
         let results = parse_ddg_html(FIXTURE_EMPTY, 20).expect("parse ok");
         // THEN Ok(empty)
         assert!(results.is_empty());
@@ -440,6 +444,7 @@ mod tests {
     #[test]
     fn blocked_fixture_raises_blocked() {
         // GIVEN a short WAF challenge body with `anomaly` and a meta-refresh
+        // WHEN the page is parsed
         let err = parse_ddg_html(FIXTURE_BLOCKED, 20).expect_err("should detect block");
         // THEN we report Blocked (not ParseError) so the agent falls back
         assert!(
@@ -466,26 +471,38 @@ mod tests {
 
     #[test]
     fn extract_target_url_handles_protocol_relative() {
+        // GIVEN a protocol-relative redirect wrapping the real target
+        // WHEN the target URL is extracted
         let decoded =
             extract_target_url("//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpath&rut=x");
+        // THEN the wrapped URL comes back decoded
         assert_eq!(decoded.as_deref(), Some("https://example.com/path"));
     }
 
     #[test]
     fn extract_target_url_handles_root_relative() {
+        // GIVEN a root-relative redirect wrapping the real target
+        // WHEN the target URL is extracted
         let decoded = extract_target_url("/l/?uddg=https%3A%2F%2Fexample.com%2Fx");
+        // THEN the wrapped URL comes back decoded
         assert_eq!(decoded.as_deref(), Some("https://example.com/x"));
     }
 
     #[test]
     fn extract_target_url_passes_naked_url_through() {
+        // GIVEN a link that is already the target, with no redirect around it
+        // WHEN the target URL is extracted
         let decoded = extract_target_url("https://example.com/direct");
+        // THEN it comes back untouched
         assert_eq!(decoded.as_deref(), Some("https://example.com/direct"));
     }
 
     #[test]
     fn extract_target_url_rejects_unparseable_input() {
+        // GIVEN a link that does not parse as a URL at all
+        // WHEN the target URL is extracted
         let decoded = extract_target_url("not a url !!!");
+        // THEN nothing comes back, rather than the raw text
         assert!(decoded.is_none());
     }
 
@@ -616,6 +633,7 @@ mod tests {
     async fn network_name_returns_duckduckgo() {
         // GIVEN a backend instance
         let backend = DuckDuckGoBackend::new();
+        // WHEN its name is read
         // THEN the name is the stable identifier used in error attribution
         assert_eq!(backend.name(), BACKEND_NAME);
     }

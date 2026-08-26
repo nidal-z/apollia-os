@@ -433,8 +433,9 @@ mod tests {
     // Migration creates the installed_agents table
     #[test]
     fn test_open_creates_table() {
+        // GIVEN a repository opened on a throwaway database
         let repo = open_test_repo();
-        // Checks the table exists by querying without error
+        // WHEN the installed-agents table is counted
         let count: i64 = {
             let conn = repo.conn.lock().expect("lock");
             conn.query_row("SELECT COUNT(*) FROM installed_agents", [], |row| {
@@ -442,6 +443,7 @@ mod tests {
             })
             .expect("table installed_agents should exist")
         };
+        // THEN the query runs, so the table exists, and it is empty
         assert_eq!(count, 0);
     }
 
@@ -449,20 +451,22 @@ mod tests {
     #[test]
     fn test_save_and_get_roundtrip() {
         let repo = open_test_repo();
+        // GIVEN an installed agent record
         let agent = test_agent("hello-agent");
 
+        // WHEN it is saved, then read back by name
         repo.save(&agent).expect("save should succeed");
         let loaded = repo
             .get("hello-agent")
             .expect("get should succeed")
             .expect("agent should exist");
 
+        // THEN every field survives, the embedded manifest included
         assert_eq!(loaded.name, "hello-agent");
         assert_eq!(loaded.version, "1.0.0");
         assert_eq!(loaded.install_path, agent.install_path);
         assert_eq!(loaded.source_path, agent.source_path);
         assert!(loaded.enabled);
-        // round-trip manifest
         assert_eq!(loaded.manifest.name, "hello-agent");
         assert_eq!(loaded.manifest.description, "Test agent hello-agent");
         assert_eq!(loaded.manifest.tools_required, vec!["bash"]);
@@ -471,12 +475,15 @@ mod tests {
     // list() retourne tous les agents
     #[test]
     fn test_list_all_agents() {
+        // GIVEN three saved agents
         let repo = open_test_repo();
         repo.save(&test_agent("agent-a")).expect("save a");
         repo.save(&test_agent("agent-b")).expect("save b");
         repo.save(&test_agent("agent-c")).expect("save c");
 
+        // WHEN the repository is listed
         let agents = repo.list().expect("list should succeed");
+        // THEN all three come back, in name order
         assert_eq!(agents.len(), 3);
         assert_eq!(agents[0].name, "agent-a");
         assert_eq!(agents[1].name, "agent-b");
@@ -486,17 +493,21 @@ mod tests {
     // delete() supprime l'agent
     #[test]
     fn test_delete_agent() {
+        // GIVEN one saved agent
         let repo = open_test_repo();
         repo.save(&test_agent("to-delete")).expect("save");
         assert!(repo.get("to-delete").expect("get").is_some());
 
+        // WHEN it is deleted
         repo.delete("to-delete").expect("delete should succeed");
+        // THEN the read no longer finds it
         assert!(repo.get("to-delete").expect("get after delete").is_none());
     }
 
     // list_enabled() filtre les disabled
     #[test]
     fn test_list_enabled_filters_disabled() {
+        // GIVEN two enabled agents and one disabled
         let repo = open_test_repo();
         repo.save(&test_agent("enabled-1")).expect("save 1");
         repo.save(&test_agent("enabled-2")).expect("save 2");
@@ -505,7 +516,9 @@ mod tests {
         disabled.enabled = false;
         repo.save(&disabled).expect("save disabled");
 
+        // WHEN only the enabled ones are listed
         let enabled_agents = repo.list_enabled().expect("list_enabled");
+        // THEN the disabled one is left out
         assert_eq!(enabled_agents.len(), 2);
         assert!(enabled_agents.iter().all(|a| a.enabled));
     }
@@ -513,22 +526,22 @@ mod tests {
     // set_enabled() toggle + updated_at
     #[test]
     fn test_set_enabled_toggle() {
+        // GIVEN a saved agent, enabled as saved
         let repo = open_test_repo();
         repo.save(&test_agent("toggle-agent")).expect("save");
 
-        // Check initial state: enabled
         let agent = repo.get("toggle-agent").expect("get").expect("exists");
         assert!(agent.enabled);
 
-        // Disable
+        // WHEN it is disabled, then enabled again
         repo.set_enabled("toggle-agent", false)
             .expect("set_enabled false");
         let agent = repo.get("toggle-agent").expect("get").expect("exists");
+        // THEN the flag follows both moves, and the update timestamp is refreshed
         assert!(!agent.enabled);
         // updated_at changed (datetime('now') != original timestamp)
         assert_ne!(agent.updated_at, "2026-03-17T10:00:00Z");
 
-        // Re-enable
         repo.set_enabled("toggle-agent", true)
             .expect("set_enabled true");
         let agent = repo.get("toggle-agent").expect("get").expect("exists");
@@ -539,19 +552,20 @@ mod tests {
     #[test]
     fn test_save_upsert_existing() {
         let repo = open_test_repo();
+        // GIVEN an agent already saved once
         let mut agent = test_agent("upsert-agent");
         repo.save(&agent).expect("save v1");
 
-        // Update the version
+        // WHEN it is saved again under a new version
         agent.version = "2.0.0".to_string();
         agent.updated_at = "2026-03-17T12:00:00Z".to_string();
         repo.save(&agent).expect("save v2");
 
         let loaded = repo.get("upsert-agent").expect("get").expect("exists");
+        // THEN the row is updated in place, rather than duplicated
         assert_eq!(loaded.version, "2.0.0");
         assert_eq!(loaded.updated_at, "2026-03-17T12:00:00Z");
 
-        // A single agent in the store
         let all = repo.list().expect("list");
         assert_eq!(all.len(), 1);
     }
@@ -559,8 +573,11 @@ mod tests {
     // get() returns None for a non-existent agent
     #[test]
     fn test_get_nonexistent_returns_none() {
+        // GIVEN an empty repository
         let repo = open_test_repo();
+        // WHEN an agent that was never saved is read
         let result = repo.get("does-not-exist").expect("get should not error");
+        // THEN the read succeeds and yields nothing
         assert!(result.is_none());
     }
 

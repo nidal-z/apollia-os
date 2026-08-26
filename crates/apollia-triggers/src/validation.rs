@@ -240,15 +240,21 @@ mod tests {
 
     #[test]
     fn test_validate_valid_definition() {
+        // GIVEN a well-formed trigger definition
         let def = make_valid_def();
+        // WHEN it is validated
+        // THEN it is accepted
         assert!(validate_trigger(&def).is_ok());
     }
 
     #[test]
     fn test_validate_empty_id() {
+        // GIVEN a trigger definition whose id is empty
         let mut def = make_valid_def();
         def.id = String::new();
+        // WHEN it is validated
         let result = validate_trigger(&def);
+        // THEN it is refused, and the message names the empty id
         assert!(matches!(
             result,
             Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("id cannot be empty")
@@ -257,9 +263,12 @@ mod tests {
 
     #[test]
     fn test_validate_unknown_source_type() {
+        // GIVEN a trigger definition naming a source type the engine does not carry
         let mut def = make_valid_def();
         def.source_type = "unknown".to_string();
+        // WHEN it is validated
         let result = validate_trigger(&def);
+        // THEN it is refused, and the message names the unknown source
         assert!(matches!(
             result,
             Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("unknown source type")
@@ -269,8 +278,11 @@ mod tests {
     #[test]
     fn test_validate_cron_5_fields_normalized() {
         // 5-field cron "0 8 * * MON" → normalized to "0 0 8 * * MON" (6-field)
+        // GIVEN a cron schedule written in the five-field form
+        // WHEN the source configuration is validated
         let result =
             validate_trigger_source("cron", &serde_json::json!({ "schedule": "0 8 * * MON" }));
+        // THEN it is accepted, the missing seconds field being filled in
         assert!(
             result.is_ok(),
             "5-field cron should be auto-normalized: {result:?}"
@@ -279,19 +291,28 @@ mod tests {
 
     #[test]
     fn test_validate_interval_valid() {
+        // GIVEN an interval source carrying a well-formed duration
+        // WHEN the source configuration is validated
         let result = validate_trigger_source("interval", &serde_json::json!({ "every": "30m" }));
+        // THEN it is accepted
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_validate_interval_invalid() {
+        // GIVEN an interval source whose duration does not parse
+        // WHEN the source configuration is validated
         let result = validate_trigger_source("interval", &serde_json::json!({ "every": "bad" }));
+        // THEN it is refused rather than falling back on a default period
         assert!(result.is_err());
     }
 
     #[test]
     fn test_validate_file_watch_empty_path() {
+        // GIVEN a file-watch source whose path is empty
+        // WHEN the source configuration is validated
         let result = validate_trigger_source("file_watch", &serde_json::json!({ "path": "" }));
+        // THEN it is refused, and the message says the path is required
         assert!(matches!(
             result,
             Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("path is required")
@@ -300,8 +321,11 @@ mod tests {
 
     #[test]
     fn test_validate_oneshot_invalid_timestamp() {
+        // GIVEN a one-shot source whose firing instant is not a date
+        // WHEN the source configuration is validated
         let result =
             validate_trigger_source("oneshot", &serde_json::json!({ "fire_at": "not-a-date" }));
+        // THEN it is refused, and the message names the offending field
         assert!(matches!(
             result,
             Err(TriggerDefinitionError::ValidationError(ref msg)) if msg.contains("invalid fire_at")

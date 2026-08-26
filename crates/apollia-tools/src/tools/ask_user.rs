@@ -360,7 +360,10 @@ mod tests {
 
     #[test]
     fn descriptor_is_valid() {
+        // GIVEN the descriptor the ask_user tool publishes
         let d = AskUser::descriptor();
+        // WHEN its fields are read and it is validated
+        // THEN it is named, read-only, harmless, and fit for registration
         assert_eq!(d.name, "ask_user");
         assert!(d.is_read_only);
         assert!(!d.dangerous);

@@ -464,6 +464,7 @@ mod tests {
     #[test]
     fn extracts_article_from_fixture() {
         // GIVEN an article with clear <article> block, nav, sidebar, footer
+        // WHEN the article text is extracted, metadata included
         let extraction =
             extract_article_text(ARTICLE_FIXTURE.as_bytes(), "https://example.com/post", true)
                 .expect("extraction ok");
@@ -490,12 +491,15 @@ mod tests {
 
     #[test]
     fn include_metadata_false_drops_title_and_byline() {
+        // GIVEN the same article fixture, and metadata turned off
+        // WHEN the article text is extracted
         let extraction = extract_article_text(
             ARTICLE_FIXTURE.as_bytes(),
             "https://example.com/post",
             false,
         )
         .expect("ok");
+        // THEN neither the title nor the byline is carried out
         assert!(extraction.title.is_none());
         assert!(extraction.byline.is_none());
     }
@@ -503,6 +507,7 @@ mod tests {
     #[test]
     fn landing_page_body_is_too_short() {
         // GIVEN a page with no article content, only buttons and nav
+        // WHEN the article text is extracted
         let extraction =
             extract_article_text(LANDING_FIXTURE.as_bytes(), "https://example.com/", true);
         // THEN either extraction fails, or the extracted text is under the minimum threshold
@@ -522,7 +527,10 @@ mod tests {
 
     #[test]
     fn classify_content_type_refuses_pdf() {
+        // GIVEN a PDF content type
+        // WHEN it is classified
         let err = classify_content_type("application/pdf").expect_err("pdf");
+        // THEN it is refused, and the kind is named so the caller can say why
         assert!(matches!(
             err,
             WebReadError::UnsupportedContentType { ref kind } if kind == "pdf"
@@ -531,7 +539,10 @@ mod tests {
 
     #[test]
     fn classify_content_type_refuses_json() {
+        // GIVEN a JSON content type, charset and all
+        // WHEN it is classified
         let err = classify_content_type("application/json; charset=utf-8").expect_err("json");
+        // THEN it is refused, and the kind is named
         assert!(matches!(
             err,
             WebReadError::UnsupportedContentType { ref kind } if kind == "json"
@@ -540,12 +551,15 @@ mod tests {
 
     #[test]
     fn classify_content_type_refuses_binary() {
+        // GIVEN four binary content types
+        // WHEN each is classified
         for ct in [
             "image/png",
             "video/mp4",
             "audio/mpeg",
             "application/octet-stream",
         ] {
+            // THEN every one is refused under the single binary kind
             let err = classify_content_type(ct).expect_err("binary");
             assert!(matches!(
                 err,
@@ -556,6 +570,9 @@ mod tests {
 
     #[test]
     fn classify_content_type_allows_html() {
+        // GIVEN the three textual content types the tool reads
+        // WHEN each is classified
+        // THEN all three are accepted
         assert!(classify_content_type("text/html; charset=utf-8").is_ok());
         assert!(classify_content_type("application/xhtml+xml").is_ok());
         assert!(classify_content_type("text/plain").is_ok());
@@ -563,15 +580,21 @@ mod tests {
 
     #[test]
     fn truncate_chars_respects_cap() {
-        let input = "abcdef".repeat(100); // 600 chars
+        // GIVEN a text of six hundred characters, far longer than the cap
+        let input = "abcdef".repeat(100);
+        // WHEN it is truncated to fifty characters
         let (trunc, was_truncated) = truncate_chars(&input, 50);
+        // THEN exactly fifty characters remain, and the truncation is reported
         assert_eq!(trunc.chars().count(), 50);
         assert!(was_truncated);
     }
 
     #[test]
     fn truncate_chars_no_truncation_when_short() {
+        // GIVEN a text shorter than the cap
+        // WHEN it is truncated
         let (trunc, was_truncated) = truncate_chars("hello", 100);
+        // THEN it comes back whole, and no truncation is reported
         assert_eq!(trunc, "hello");
         assert!(!was_truncated);
     }
@@ -580,6 +603,7 @@ mod tests {
     fn collapse_whitespace_preserves_paragraphs() {
         // GIVEN text with runs of whitespace and blank lines separating paragraphs
         let input = "\n\n  hello   world   \n   \n\n   second line  ";
+        // WHEN the whitespace is collapsed
         let out = collapse_whitespace(input);
         // THEN inner whitespace is collapsed and blank lines become a single
         // newline separator (paragraph break preserved, extra blanks removed).
@@ -588,6 +612,9 @@ mod tests {
 
     #[test]
     fn sniff_html_recognises_doctype() {
+        // GIVEN two HTML openings and the magic bytes of a PNG
+        // WHEN each is sniffed
+        // THEN the two HTML forms are recognised, and the binary one is not
         assert!(sniff_looks_like_html(b"<!DOCTYPE html><html>"));
         assert!(sniff_looks_like_html(b"<html>"));
         assert!(!sniff_looks_like_html(b"\x89PNG\r\n"));
@@ -595,7 +622,10 @@ mod tests {
 
     #[test]
     fn descriptor_is_valid() {
+        // GIVEN the descriptor the web_read tool publishes
         let descriptor = WebRead::descriptor();
+        // WHEN it is validated and its fields read
+        // THEN it passes, and it declares itself a named read-only tool
         assert!(descriptor.validate().is_ok());
         assert_eq!(descriptor.name, "web_read");
         assert!(descriptor.is_read_only);
@@ -705,6 +735,7 @@ mod tests {
 
     #[tokio::test]
     async fn network_html_happy_path_extracts_article() {
+        // GIVEN a loopback server answering the article fixture as HTML
         let (listener, port) = bind_local().await;
         let response = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}",
@@ -713,12 +744,14 @@ mod tests {
         );
         tokio::spawn(respond_once(listener, response.into_bytes()));
 
+        // WHEN the tool fetches that URL
         let tool = loopback_web_read();
         let out = tool
             .fetch_raw_for_test(&format!("http://127.0.0.1:{port}/post"))
             .await
             .expect("happy path");
 
+        // THEN the title and the article body come back, untruncated
         assert!(out.title.is_some());
         assert!(out
             .content
@@ -728,18 +761,21 @@ mod tests {
 
     #[tokio::test]
     async fn network_pdf_returns_unsupported_content_type() {
+        // GIVEN a loopback server answering with a PDF content type
         let (listener, port) = bind_local().await;
         let response =
             b"HTTP/1.1 200 OK\r\nContent-Type: application/pdf\r\nContent-Length: 0\r\n\r\n"
                 .to_vec();
         tokio::spawn(respond_once(listener, response));
 
+        // WHEN the tool fetches that URL
         let tool = loopback_web_read();
         let err = tool
             .fetch_raw_for_test(&format!("http://127.0.0.1:{port}/doc.pdf"))
             .await
             .expect_err("pdf");
 
+        // THEN the fetch fails on the content type, and names the kind
         assert!(matches!(
             err,
             WebReadError::UnsupportedContentType { ref kind } if kind == "pdf"
@@ -748,16 +784,19 @@ mod tests {
 
     #[tokio::test]
     async fn network_bad_status_surfaced() {
+        // GIVEN a loopback server answering 404
         let (listener, port) = bind_local().await;
         let response = b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec();
         tokio::spawn(respond_once(listener, response));
 
+        // WHEN the tool fetches that URL
         let tool = loopback_web_read();
         let err = tool
             .fetch_raw_for_test(&format!("http://127.0.0.1:{port}/missing"))
             .await
             .expect_err("404");
 
+        // THEN the status is surfaced as such, rather than as an extraction failure
         assert!(matches!(err, WebReadError::BadStatus(404)));
     }
 

@@ -358,7 +358,10 @@ mod tests {
 
     #[test]
     fn descriptor_is_valid() {
+        // GIVEN the descriptor the notebook_read tool publishes
         let desc = NotebookRead::descriptor();
+        // WHEN it is validated and its read-only flag read
+        // THEN it passes, and it declares itself a reader
         assert!(desc.validate().is_ok());
         assert!(desc.is_read_only);
     }

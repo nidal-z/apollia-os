@@ -721,6 +721,7 @@ mod tests {
 
     #[tokio::test]
     async fn pinned_unknown_backend_errors() {
+        // GIVEN a tool holding one backend, and a request pinned to another
         let backends: Vec<Box<dyn SearchBackend>> = vec![Box::new(MockBackend {
             name: "duckduckgo",
             fixed: sample_results(1, "ddg"),
@@ -730,8 +731,10 @@ mod tests {
 
         let mut input = basic_input("hello");
         input.backend = Some("tavily".to_string());
+        // WHEN the search runs
         let err = tool.run(input).await.expect_err("unknown backend");
 
+        // THEN it fails naming the backend, rather than falling back on the one present
         assert!(
             matches!(err, WebSearchError::BackendNotAvailable { ref name } if name == "tavily")
         );
@@ -739,6 +742,7 @@ mod tests {
 
     #[tokio::test]
     async fn empty_query_rejected() {
+        // GIVEN a tool with one backend, and a query made only of spaces
         let backends: Vec<Box<dyn SearchBackend>> = vec![Box::new(MockBackend {
             name: "duckduckgo",
             fixed: vec![],
@@ -746,13 +750,16 @@ mod tests {
         })];
         let tool = WebSearch::new(backends, None).unwrap();
 
+        // WHEN the search runs
         let err = tool.run(basic_input("   ")).await.expect_err("empty");
 
+        // THEN the query is refused before any backend is called
         assert!(matches!(err, WebSearchError::InvalidQuery { .. }));
     }
 
     #[tokio::test]
     async fn too_long_query_rejected() {
+        // GIVEN a tool with one backend, and a query one character past the limit
         let backends: Vec<Box<dyn SearchBackend>> = vec![Box::new(MockBackend {
             name: "duckduckgo",
             fixed: vec![],
@@ -761,13 +768,16 @@ mod tests {
         let tool = WebSearch::new(backends, None).unwrap();
 
         let long = "x".repeat(501);
+        // WHEN the search runs
         let err = tool.run(basic_input(&long)).await.expect_err("too long");
 
+        // THEN the query is refused before any backend is called
         assert!(matches!(err, WebSearchError::InvalidQuery { .. }));
     }
 
     #[tokio::test]
     async fn all_backends_failing_surfaces_all_backends_failed() {
+        // GIVEN two backends, both of which refuse the request
         let backends: Vec<Box<dyn SearchBackend>> = vec![
             Box::new(MockBackend {
                 name: "brave",
@@ -786,13 +796,18 @@ mod tests {
         ];
         let tool = WebSearch::new(backends, None).unwrap();
 
+        // WHEN the search runs
         let err = tool.run(basic_input("hi")).await.expect_err("all failed");
 
+        // THEN the failure says every backend failed, rather than reporting only the last
         assert!(matches!(err, WebSearchError::AllBackendsFailed { .. }));
     }
 
     #[test]
     fn new_with_empty_backend_list_errors() {
+        // GIVEN an empty backend list
+        // WHEN the tool is built on it
+        // THEN construction fails: a search tool with no backend can never answer
         match WebSearch::new(vec![], None) {
             Err(WebSearchError::NoBackends) => {}
             Err(other) => panic!("expected NoBackends, got: {other}"),
@@ -837,6 +852,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         let prev = std::env::var(brave::ENV_API_KEY).ok();
 
+        // WHEN the default backends are built, once without the key and once with it
         // GIVEN unset, THEN only DDG is registered.
         // SAFETY: the file-wide mutex makes env mutation effectively serial.
         unsafe {
@@ -914,6 +930,7 @@ mod tests {
             std::env::remove_var(brave::ENV_API_KEY);
         }
 
+        // WHEN the tool is built with the Brave backend required
         let result = WebSearch::try_with_default_backends(true);
 
         if let Some(v) = prev {
@@ -935,13 +952,17 @@ mod tests {
     fn require_configured_succeeds_when_not_required() {
         // GIVEN require_brave = false
         // THEN the tool builds with whatever backends are available (always DDG).
+        // WHEN the tool is built without requiring Brave
         let tool = WebSearch::try_with_default_backends(false).expect("build ok");
         assert!(tool.backends.iter().any(|b| b.name() == "duckduckgo"));
     }
 
     #[test]
     fn descriptor_is_valid() {
+        // GIVEN the descriptor the web_search tool publishes
         let descriptor = WebSearch::descriptor();
+        // WHEN it is validated and its fields read
+        // THEN it passes, and declares itself a named read-only tool carrying its risk score
         assert!(descriptor.validate().is_ok());
         assert_eq!(descriptor.name, "web_search");
         assert!(descriptor.is_read_only);

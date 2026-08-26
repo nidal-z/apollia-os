@@ -91,28 +91,35 @@ mod tests {
 
     #[tokio::test]
     async fn invokes_through_dispatcher_and_returns_json_string() {
+        // GIVEN an invoker over a dispatcher holding one echo executor
         let dispatcher = Arc::new(ToolDispatcher::new(vec![Box::new(EchoExecutor)]));
         let invoker = DispatcherToolInvoker::new(dispatcher);
 
+        // WHEN a tool is invoked through it
         let result = invoker.invoke("echo", &json!({"hello": "world"})).await;
 
+        // THEN the call succeeds and the payload comes back rendered as JSON
         assert!(result.is_ok());
         assert!(result.unwrap().contains("hello"));
     }
 
     #[tokio::test]
     async fn unknown_tool_propagates_clear_error() {
+        // GIVEN an invoker over an empty dispatcher
         let dispatcher = Arc::new(ToolDispatcher::new(vec![]));
         let invoker = DispatcherToolInvoker::new(dispatcher);
 
+        // WHEN a tool nobody registered is invoked
         let err = invoker.invoke("nope", &json!({})).await.unwrap_err();
 
+        // THEN the error says the tool is unknown, and names it
         assert!(err.contains("unknown tool"));
         assert!(err.contains("nope"));
     }
 
     #[tokio::test]
     async fn pure_string_output_is_passed_through_unquoted() {
+        // GIVEN an executor whose result is a bare JSON string
         struct PlainExecutor;
         impl ToolExecutor for PlainExecutor {
             fn name(&self) -> &str {
@@ -130,8 +137,10 @@ mod tests {
         let dispatcher = Arc::new(ToolDispatcher::new(vec![Box::new(PlainExecutor)]));
         let invoker = DispatcherToolInvoker::new(dispatcher);
 
+        // WHEN it is invoked through the dispatcher
         let result = invoker.invoke("plain", &json!({})).await.unwrap();
 
+        // THEN the string comes out unquoted, as the streaming clients expect
         // Streaming clients expect the raw string, not `"hello"`.
         assert_eq!(result, "hello");
     }

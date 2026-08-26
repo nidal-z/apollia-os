@@ -825,6 +825,7 @@ mod tests {
             .await
             .expect("second fire failed");
 
+        // THEN the counter carries both fires, not just the last one
         let list = handle.list().await;
         assert_eq!(list[0].fire_count, 2, "fire_count doit être 2");
     }
@@ -832,6 +833,8 @@ mod tests {
     #[tokio::test]
     async fn test_handle_is_clone_send_sync() {
         // THEN TriggerEngineHandle is Clone + Send + Sync (checked at compile time)
+        // GIVEN the trigger engine handle, which callers clone across tasks
+        // WHEN it is instantiated behind a Clone + Send + Sync bound
         fn assert_send_sync<T: Clone + Send + Sync>() {}
         assert_send_sync::<TriggerEngineHandle>();
     }

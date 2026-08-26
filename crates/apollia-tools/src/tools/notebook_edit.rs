@@ -538,7 +538,10 @@ mod tests {
 
     #[test]
     fn descriptor_is_valid() {
+        // GIVEN the descriptor the notebook_edit tool publishes
         let desc = NotebookEdit::descriptor();
+        // WHEN it is validated and its read-only flag read
+        // THEN it passes, and it declares itself a writer
         assert!(desc.validate().is_ok());
         assert!(!desc.is_read_only);
     }

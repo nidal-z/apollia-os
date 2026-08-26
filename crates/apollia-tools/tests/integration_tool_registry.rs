@@ -57,6 +57,7 @@ fn dispatcher_config(
 
 #[tokio::test]
 async fn test_disabled_tool_returns_unknown_tool() {
+    // GIVEN a governance database in which bash_executor is disabled
     let tmp = TempDir::new().expect("tempdir");
     let governance = GovernanceDb::open(tmp.path()).expect("open governance.db");
     let mut registry =
@@ -66,6 +67,7 @@ async fn test_disabled_tool_returns_unknown_tool() {
         .expect("disable bash_executor");
 
     let snapshot = apollia_tools::load_governance_snapshot(tmp.path()).expect("load snapshot");
+    // THEN the call fails as an unknown tool, so a disabled tool is invisible rather than refused
     assert!(snapshot.disabled_tools.iter().any(|t| t == "bash_executor"));
 
     let sandbox = tmp.path().join("sandbox");
@@ -76,6 +78,7 @@ async fn test_disabled_tool_returns_unknown_tool() {
     let dispatcher =
         build_native_dispatcher(&dispatcher_config(sandbox, venv, snapshot.disabled_tools));
 
+    // WHEN a dispatcher built from that snapshot is asked to run it
     let err = dispatcher
         .dispatch("bash_executor", json!({"cmd": "echo disabled"}))
         .await
@@ -89,6 +92,7 @@ async fn test_disabled_tool_returns_unknown_tool() {
 
 #[tokio::test]
 async fn test_credential_roundtrip_survives_db_reload() {
+    // GIVEN a credential written through one store instance
     let tmp = TempDir::new().expect("tempdir");
     let _ = GovernanceDb::open(tmp.path()).expect("init governance.db");
     let db = tmp.path().join(GOVERNANCE_DB_FILENAME);
@@ -101,17 +105,20 @@ async fn test_credential_roundtrip_survives_db_reload() {
             .expect("write credential");
     }
 
+    // WHEN the store is reopened on the same database and key file
     let store = ToolCredentialStore::new(&db, &keyfile).expect("reopen store");
     let value = store
         .get("web_search", "brave.api_key")
         .expect("read credential");
 
+    // THEN the value comes back decrypted, so the key file is what unlocks it
     assert_eq!(value.as_deref(), Some("BSA-roundtrip-secret"));
 }
 
 #[cfg(feature = "web-search")]
 #[tokio::test]
 async fn test_web_search_uses_ddg_when_no_brave_key() {
+    // GIVEN an auto-backend configuration whose Brave key variable is never set
     let mut cfg = WebSearchConfig {
         backend: WebSearchBackend::Auto,
         ..Default::default()
@@ -120,6 +127,7 @@ async fn test_web_search_uses_ddg_when_no_brave_key() {
 
     let tool = WebSearch::from_config(&cfg, None).expect("build web_search");
 
+    // WHEN a search is pinned to Brave
     let err = tool
         .run(apollia_tools::tools::web_search::WebSearchInput {
             query: "apollia".into(),
@@ -132,6 +140,7 @@ async fn test_web_search_uses_ddg_when_no_brave_key() {
         .await
         .expect_err("brave must not be registered without a key");
 
+    // THEN Brave is not registered at all, and the error names it
     assert!(
         matches!(err, WebSearchError::BackendNotAvailable { ref name } if name == "brave"),
         "unexpected error variant: {err:?}"
@@ -141,6 +150,7 @@ async fn test_web_search_uses_ddg_when_no_brave_key() {
 #[cfg(feature = "web-search")]
 #[tokio::test]
 async fn test_web_search_brave_401_falls_back_to_ddg() {
+    // GIVEN a Brave-pinned configuration whose key variable is never set
     let mut cfg = WebSearchConfig {
         backend: WebSearchBackend::Brave,
         require_configured: false,
@@ -150,6 +160,7 @@ async fn test_web_search_brave_401_falls_back_to_ddg() {
 
     let tool = WebSearch::from_config(&cfg, None).expect("fallback to ddg when brave unkeyed");
 
+    // WHEN a search is pinned to Brave
     let err = tool
         .run(apollia_tools::tools::web_search::WebSearchInput {
             query: "apollia".into(),
@@ -162,6 +173,7 @@ async fn test_web_search_brave_401_falls_back_to_ddg() {
         .await
         .expect_err("brave is not registered when its key is missing");
 
+    // THEN the tool still builds on DuckDuckGo, and only the pinned backend is missing
     assert!(
         matches!(err, WebSearchError::BackendNotAvailable { ref name } if name == "brave"),
         "unexpected error variant: {err:?}"
@@ -170,6 +182,7 @@ async fn test_web_search_brave_401_falls_back_to_ddg() {
 
 #[tokio::test]
 async fn test_migration_from_permissions_db() {
+    // GIVEN a legacy permissions database holding one rule in the old schema
     let tmp = TempDir::new().expect("tempdir");
     let legacy = tmp.path().join(LEGACY_PERMISSIONS_FILENAME);
     {
@@ -193,8 +206,10 @@ async fn test_migration_from_permissions_db() {
         .expect("seed legacy rule");
     }
 
+    // WHEN the governance database is opened on that directory
     let _governance_db = GovernanceDb::open(tmp.path()).expect("migrate");
 
+    // THEN the new database is created, the legacy one is backed up and renamed away
     let governance_path = tmp.path().join(GOVERNANCE_DB_FILENAME);
     let backup = tmp.path().join(LEGACY_BACKUP_FILENAME);
     assert!(governance_path.exists(), "governance.db must be created");
@@ -204,6 +219,7 @@ async fn test_migration_from_permissions_db() {
     );
     assert!(!legacy.exists(), "permissions.db must have been renamed");
 
+    // THEN the rule is carried over, and the columns the old schema lacked are filled
     let conn = Connection::open(&governance_path).expect("open migrated db");
     let (tool, scope, project_path, expires_at): (String, String, Option<String>, Option<i64>) =
         conn.query_row(
