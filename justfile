@@ -559,6 +559,7 @@ guards:
       "scripts/check_optional_builders.py --strict"
       "scripts/check_panic_free.py"
       "scripts/check_prose.py"
+      "scripts/check_pub_unreferenced.py"
       "scripts/check_python_rules.py"
       "scripts/check_release_artifacts.py"
       "scripts/check_rust_rules.py"

@@ -156,6 +156,18 @@ repos:
         files: '^(crates/.+\.rs|scripts/check_optional_builders\.py)$'
         pass_filenames: false
 
+      # A `pub` item of a library crate gets no compiler warning when nobody
+      # calls it, and no warning at all when only a test does. Eleven items and
+      # forty-three methods were dead on the tree this entry landed on, and one
+      # of the test-only ones was the purge pass `manifest.rs` promised runs at
+      # startup. Half a second on the crates it touches.
+      - id: check-pub-unreferenced
+        name: exported items have a caller outside the tests
+        entry: python3 scripts/check_pub_unreferenced.py
+        language: system
+        files: '^(crates/.+\.rs|tests/.+\.rs|fuzz/.+\.rs|scripts/check_pub_unreferenced\.py)$'
+        pass_filenames: false
+
       - id: check-desktop-csp
         name: the desktop production CSP keeps its second-belt form
         entry: python3 scripts/check_desktop_csp.py

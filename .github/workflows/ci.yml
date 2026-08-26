@@ -398,6 +398,14 @@ jobs:
       # tells the truth. New instances now fail here instead of in a doc audit.
       - name: Optional-capability builders have a production caller
         run: python3 scripts/check_optional_builders.py --strict
+      # The same failure one level out: `dead_code` stops at the crate boundary,
+      # so a `pub` item nothing calls, or one only a test calls, compiles clean
+      # forever. This crosses every exported item with its uses and holds two
+      # ratchets that can only shrink.
+      - name: Exported items have a caller outside the tests
+        run: |
+          python3 scripts/check_pub_unreferenced.py --selftest
+          python3 scripts/check_pub_unreferenced.py
       # The desktop owns no console on Windows, so every console-subsystem child
       # it starts is given a visible window. A first sweep hid ten spawn sites
       # and left four crates listed as remaining; nobody took them, and a later
