@@ -96,7 +96,7 @@ impl BuiltInChatAgent {
             summary_chars,
             original_messages,
             session_id = %session_id,
-            "ReAct context compacted before LLM call"
+            "chat.context.compacted"
         );
         let _ = self
             .event_bus

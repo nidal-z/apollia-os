@@ -111,7 +111,7 @@ fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Pa
         if apollia_permissions::is_code_executor(&tool) {
             warn!(
                 tool = %tool,
-                "skipping pre-authorization of a code executor from chat config: per-invocation approval required"
+                "chat.rule.preauth.refused"
             );
             continue;
         }
@@ -146,7 +146,7 @@ pub(in crate::chat::manager) fn apply_chat_prefix_allow_rules(
             if apollia_permissions::is_code_executor(&r.tool_name) {
                 warn!(
                     tool = %r.tool_name,
-                    "ignoring persisted blanket allow-rule for a code executor: per-invocation approval required"
+                    "chat.rule.blanket.ignored"
                 );
                 continue;
             }
@@ -172,7 +172,7 @@ pub(in crate::chat::manager) fn apply_chat_prefix_allow_rules(
             if apollia_permissions::is_code_executor(&r.tool_name) {
                 warn!(
                     tool = %r.tool_name,
-                    "ignoring persisted global allow-rule for a code executor: per-invocation approval required"
+                    "chat.rule.global.ignored"
                 );
                 continue;
             }
@@ -330,7 +330,11 @@ async fn resolve_exchange_summary(params: ExchangeSummaryParams<'_>) -> Option<S
             Some(s)
         }
         Err(e) => {
-            warn!(error = %e, "Context window summarization failed, proceeding without summary");
+            warn!(
+                error = %e,
+                detail = "proceeding without a summary",
+                "chat.context.summarization.failed"
+            );
             None
         }
     }
@@ -397,8 +401,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         (LoadingMode::Deferred, None) => {
             warn!(
                 mode = "deferred",
-                "MCP deferred mode active but no manager handle is configured; \
-                 tool_search will be exposed over an empty index"
+                detail = "tool_search exposed over an empty index",
+                "mcp.deferred.manager.missing"
             );
             Vec::new()
         }
@@ -497,7 +501,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         inject_project_context,
         has_project = session_project_id.is_some(),
         has_provider = project_ctx.is_some(),
-        "Chat send: project-context gate"
+        "chat.project_context.gate"
     );
     let system_prompt = maybe_inject_project_context(
         system_prompt,
@@ -597,7 +601,7 @@ pub(in crate::chat::manager) fn log_resolution_metadata(
                 message_id,
                 tool_name,
                 reject_reason = %r,
-                "chat tool rejected with reason"
+                "chat.tool.rejected"
             );
         }
         ToolDecision::AlwaysAccept { scope } => {
@@ -606,7 +610,7 @@ pub(in crate::chat::manager) fn log_resolution_metadata(
                 message_id,
                 tool_name,
                 always_accept_scope = ?scope,
-                "chat tool always-accept rule installed"
+                "chat.tool.always_accept.installed"
             );
         }
         _ => {}
@@ -634,7 +638,7 @@ pub(in crate::chat::manager) fn persist_chat_allow_rule(
     if apollia_permissions::is_code_executor(tool_name) {
         warn!(
             tool = %tool_name,
-            "refusing to persist a blanket allow-rule for a code executor; each invocation requires approval"
+            detail = "code executor, each invocation requires approval", "chat.rule.persist.refused"
         );
         return;
     }
@@ -642,7 +646,10 @@ pub(in crate::chat::manager) fn persist_chat_allow_rule(
     let db_path = match governance_db {
         Some(p) => p,
         None => {
-            warn!("no governance database configured; skipping chat rule persistence");
+            warn!(
+                reason = "no governance database configured",
+                "chat.rule.persist.skipped"
+            );
             return;
         }
     };
@@ -650,21 +657,22 @@ pub(in crate::chat::manager) fn persist_chat_allow_rule(
         Some(dir) => dir,
         None => {
             warn!(
-                "governance database path has no parent directory; skipping chat rule persistence"
+                reason = "governance database path has no parent directory",
+                "chat.rule.persist.skipped"
             );
             return;
         }
     };
 
     if let Err(e) = apollia_tools::governance_db::GovernanceDb::open(base_dir) {
-        warn!(error = %e, "failed to open governance.db for chat rule persistence");
+        warn!(error = %e, "chat.rule.store.open.failed");
         return;
     }
 
     let mut engine = match PrefixRuleEngine::new(db_path) {
         Ok(e) => e,
         Err(e) => {
-            warn!(error = %e, "failed to open prefix rule engine for chat rule persistence");
+            warn!(error = %e, "chat.rule.engine.open.failed");
             return;
         }
     };
@@ -688,9 +696,9 @@ pub(in crate::chat::manager) fn persist_chat_allow_rule(
             rule_id,
             scope = %scope.as_str(),
             tool = %tool_name,
-            "persisted scoped allow rule from chat AlwaysAccept"
+            "chat.rule.persisted"
         ),
-        Err(e) => warn!(error = %e, "failed to persist scoped allow rule"),
+        Err(e) => warn!(error = %e, "chat.rule.persist.failed"),
     }
 }
 

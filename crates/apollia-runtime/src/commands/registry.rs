@@ -153,7 +153,7 @@ impl CommandRegistry {
         tracing::debug!(
             cwd = %cwd_dir.display(),
             command_count = commands.len(),
-            "command registry loaded"
+            "command.registry.loaded"
         );
 
         Self {

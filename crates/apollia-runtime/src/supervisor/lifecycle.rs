@@ -27,7 +27,7 @@ impl Supervisor {
         let repo = match McpServerRepository::open(&mcp_db_path) {
             Ok(repo) => repo,
             Err(e) => {
-                warn!(error = %e, "failed to open mcp.db - continuing without MCP");
+                warn!(error = %e, detail = "continuing without MCP", "mcp.store.open.failed");
                 return (None, None);
             }
         };
@@ -39,7 +39,7 @@ impl Supervisor {
         let server_configs = match repo.list() {
             Ok(v) => v,
             Err(e) => {
-                warn!(error = %e, "failed to list MCP servers from mcp.db");
+                warn!(error = %e, "mcp.servers.list.failed");
                 Vec::new()
             }
         };
@@ -66,7 +66,8 @@ impl Supervisor {
     ) -> Result<Option<NotificationEngineHandle>, SupervisorError> {
         let Some(notif_config) = notif_config else {
             tracing::info!(
-                "Supervisor: aucun canal de notification en base - NotificationEngine désactivé"
+                reason = "no channel in the database",
+                "notification.engine.disabled"
             );
             return Ok(None);
         };
@@ -101,7 +102,7 @@ impl Supervisor {
             notif_log_db_path,
         );
         let handle = engine.spawn();
-        tracing::info!(channels = active, "NotificationEngine démarré");
+        tracing::info!(channels = active, "notification.engine.started");
         Ok(Some(handle))
     }
 
@@ -122,7 +123,7 @@ impl Supervisor {
                     .purge_older_than(self.config.obs_config.retention_days, now_unix)
                     .await
                 {
-                    warn!(error = %e, "runtime_events retention purge failed");
+                    warn!(error = %e, "events.retention.purge.failed");
                 }
                 crate::observability::spawn_runtime_events_subscriber(
                     handle,
@@ -131,14 +132,15 @@ impl Supervisor {
                 );
                 info!(
                     path = %db_path.display(),
-                    "Supervisor: EventPersistor ready (runtime_events subscriber spawned)"
+                    "supervisor.event_persistor.ready"
                 );
             }
             Err(e) => {
                 warn!(
                     error = %e,
                     path = %db_path.display(),
-                    "EventPersistor failed to open - runtime_events persistence disabled"
+                    detail = "runtime_events persistence disabled",
+                    "supervisor.event_persistor.failed"
                 );
             }
         }
@@ -158,11 +160,15 @@ impl Supervisor {
             Ok(repo) => {
                 let repo = Arc::new(std::sync::Mutex::new(repo));
                 apollia_llm::spawn_llm_subscriber(repo.clone(), event_sender);
-                info!("Supervisor: LlmCallRepository ready (subscriber spawned)");
+                info!("supervisor.llm_calls.ready");
                 Some(repo)
             }
             Err(e) => {
-                warn!(error = %e, "LlmCallRepository failed to open - LLM call persistence disabled");
+                warn!(
+                    error = %e,
+                    detail = "LLM call persistence disabled",
+                    "supervisor.llm_calls.failed"
+                );
                 None
             }
         }
@@ -206,11 +212,11 @@ impl Supervisor {
         let repo = match LlmBackendRepository::open(system_db_path) {
             Ok(repo) => repo,
             Err(e) => {
-                warn!(error = %e, "failed to open system.db - LLM disabled");
+                warn!(error = %e, detail = "LLM disabled", "supervisor.system_db.open.failed");
                 return (None, None);
             }
         };
-        info!("Supervisor: starting LlmRouter from system.db");
+        info!("supervisor.llm_router.starting");
 
         // Migration: if system.db has no backends and apollia.toml has backends,
         // import them. Handles first-boot and the onboarding case where
@@ -231,11 +237,15 @@ impl Supervisor {
         match router_result {
             Ok(router) => {
                 let router = self.finalize_llm_router(router);
-                info!("Supervisor: LlmRouter ready");
+                info!("supervisor.llm_router.ready");
                 (Some(Arc::new(router)), Some(repo))
             }
             Err(e) => {
-                warn!(error = %e, "LlmRouter failed to initialize - continuing without LLM");
+                warn!(
+                    error = %e,
+                    detail = "continuing without LLM",
+                    "supervisor.llm_router.failed"
+                );
                 (None, Some(repo))
             }
         }
@@ -253,7 +263,7 @@ impl Supervisor {
         if !existing.is_empty() {
             return;
         }
-        info!("Supervisor: no LLM backends in system.db - migrating from apollia.toml");
+        info!("llm.backends.migration.started");
         for db_cfg in llm_cfg.to_db_configs() {
             let backend_name = db_cfg.name.clone();
             let is_default = db_cfg.is_default;
@@ -261,12 +271,12 @@ impl Supervisor {
                 Ok(()) => info!(
                     backend = %backend_name,
                     is_default,
-                    "LLM backend migrated from TOML to system.db"
+                    "llm.backend.migrated"
                 ),
                 Err(e) => warn!(
                     backend = %backend_name,
                     error = %e,
-                    "failed to migrate LLM backend from TOML to system.db"
+                    "llm.backend.migration.failed"
                 ),
             }
         }
@@ -281,7 +291,7 @@ impl Supervisor {
                 tracing::info!(
                     precise = %routing.precise,
                     fast = %routing.fast,
-                    "Supervisor: [llm.routing] propagated to LlmRouter"
+                    "llm.routing.propagated"
                 );
             }
         }
@@ -289,7 +299,7 @@ impl Supervisor {
             tracing::info!(
                 backend = %info.name,
                 model = %info.model_id,
-                "LLM backend ready"
+                "llm.backend.ready"
             );
         }
         router
@@ -309,12 +319,12 @@ impl Supervisor {
         let agents = match repo.list_enabled() {
             Ok(agents) => agents,
             Err(e) => {
-                warn!(error = %e, "Failed to list installed agents - skipping auto-load");
+                warn!(error = %e, detail = "skipping the auto-load", "agent.list.failed");
                 return;
             }
         };
         if agents.is_empty() {
-            info!("No installed agents to load");
+            info!("agent.autoload.empty");
         }
         for agent in &agents {
             Self::load_one_installed_agent(agent, &ctx).await;
@@ -330,13 +340,13 @@ impl Supervisor {
         ctx: &AutoLoadCtx<'_, B>,
     ) {
         if !agent.enabled {
-            warn!(name = %agent.name, "Skipping disabled installed agent");
+            warn!(name = %agent.name, "agent.autoload.skipped");
             return;
         }
         let manifest = match ctx.agent_loader.load_and_validate(&agent.install_path) {
             Ok(m) => m,
             Err(e) => {
-                warn!(name = %agent.name, error = %e, "Failed to load installed agent");
+                warn!(name = %agent.name, error = %e, "agent.load.failed");
                 let _ = ctx.event_sender.send(RuntimeEvent::AgentLoadFailed {
                     name: agent.name.clone(),
                     error: e.to_string(),
@@ -356,7 +366,7 @@ impl Supervisor {
         let agent_id = match ctx.registry_handle.register(manifest).await {
             Ok(id) => id,
             Err(e) => {
-                warn!(name = %agent_name, error = %e, "Failed to register installed agent");
+                warn!(name = %agent_name, error = %e, "agent.register.failed");
                 return;
             }
         };
@@ -367,7 +377,7 @@ impl Supervisor {
             .update_state(agent_id.as_str(), ProcessState::Active)
             .await
         {
-            warn!(name = %agent_name, error = %e, "Failed to activate agent");
+            warn!(name = %agent_name, error = %e, "agent.activate.failed");
             return;
         }
 
@@ -377,7 +387,7 @@ impl Supervisor {
                 .update_state(agent_id.as_str(), ProcessState::Degraded)
                 .await
                 .unwrap_or_else(
-                    |e| warn!(name = %agent_name, error = %e, "failed to set Degraded state"),
+                    |e| warn!(name = %agent_name, error = %e, "agent.state.degraded.failed"),
                 );
         }
 
@@ -407,7 +417,7 @@ impl Supervisor {
             .register_coordinator(agent_id.clone(), coordinator)
             .await;
 
-        info!(name = %agent_name, id = %agent_id, "Auto-loaded installed agent");
+        info!(name = %agent_name, id = %agent_id, "agent.autoloaded");
     }
 
     /// Install an agent's pip packages into its venv. Returns `Some(reason)`
@@ -430,7 +440,7 @@ impl Supervisor {
                 warn!(
                     agent = %manifest.name,
                     error = %e,
-                    "failed to create PythonExecutor for venv - agent will start in DEGRADED state"
+                    detail = "the agent starts degraded", "agent.venv.create.failed"
                 );
                 return Some(e.to_string());
             }
@@ -440,7 +450,7 @@ impl Supervisor {
                 info!(
                     agent = %manifest.name,
                     packages = ?manifest.packages,
-                    "agent packages installed"
+                    "agent.packages.installed"
                 );
                 None
             }
@@ -448,7 +458,7 @@ impl Supervisor {
                 warn!(
                     agent = %manifest.name,
                     error = %e,
-                    "package installation failed - agent will start in DEGRADED state"
+                    detail = "the agent starts degraded", "agent.packages.install.failed"
                 );
                 Some(e.to_string())
             }

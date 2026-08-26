@@ -8,11 +8,15 @@ pub(in crate::supervisor) fn open_trigger_persistence(
         &data_dir.join(apollia_core::paths::DataFile::Triggers.file_name()),
     ) {
         Ok(p) => {
-            info!("Supervisor: TriggerPersistence ready");
+            info!("supervisor.trigger_persistence.ready");
             Some(p)
         }
         Err(e) => {
-            warn!(error = %e, "TriggerPersistence failed to open - trigger history disabled");
+            warn!(
+                error = %e,
+                detail = "trigger history disabled",
+                "supervisor.trigger_persistence.failed"
+            );
             None
         }
     }
@@ -26,11 +30,11 @@ pub(in crate::supervisor) async fn open_audit_trail(
         .await
     {
         Ok(handle) => {
-            info!("Supervisor: AuditTrail ready");
+            info!("supervisor.audit_trail.ready");
             Some(handle)
         }
         Err(e) => {
-            warn!(error = %e, "AuditTrail failed to open - audit disabled");
+            warn!(error = %e, detail = "audit disabled", "supervisor.audit_trail.failed");
             None
         }
     }
@@ -50,7 +54,7 @@ pub(in crate::supervisor) async fn open_audit_journal(
     match load_or_create_journal_key(data_dir) {
         Some(key) => match AuditJournalHandle::open_with_key_bytes(&db_path, key).await {
             Ok(handle) => {
-                info!("Supervisor: AuditJournal ready (signed)");
+                info!("supervisor.audit_journal.ready");
                 Some(handle)
             }
             Err(e) => {
@@ -73,7 +77,7 @@ async fn open_unsigned_journal(db_path: &std::path::Path) -> Option<AuditJournal
     match AuditJournalHandle::open(db_path).await {
         Ok(handle) => Some(handle),
         Err(e) => {
-            warn!(error = %e, "AuditJournal failed to open - journal disabled");
+            warn!(error = %e, detail = "journal disabled", "supervisor.audit_journal.failed");
             None
         }
     }
@@ -93,7 +97,7 @@ fn load_or_create_journal_key(data_dir: &std::path::Path) -> Option<Vec<u8>> {
     if let Ok(contents) = std::fs::read_to_string(&key_path) {
         match base64::engine::general_purpose::STANDARD.decode(contents.trim()) {
             Ok(bytes) if !bytes.is_empty() => return Some(bytes),
-            _ => warn!("audit journal: existing key file is unreadable, regenerating"),
+            _ => warn!(detail = "regenerating", "audit.journal.key.unreadable"),
         }
     }
 
@@ -104,10 +108,10 @@ fn load_or_create_journal_key(data_dir: &std::path::Path) -> Option<Vec<u8>> {
         // Sign this session with the in-memory key even if it cannot be
         // persisted (rare: data dir not writable, in which case the db write
         // would also fail).
-        warn!(error = %e, "audit journal: could not persist signing key");
+        warn!(error = %e, "audit.journal.key.persist.failed");
         return Some(key.to_vec());
     }
-    info!("Supervisor: audit journal signing key generated");
+    info!("audit.journal.key.generated");
     Some(key.to_vec())
 }
 
@@ -146,11 +150,11 @@ pub(in crate::supervisor) async fn open_task_repository(
         .await
     {
         Ok(repo) => {
-            info!("Supervisor: TaskRepository ready (HITL enabled)");
+            info!("supervisor.task_repository.ready");
             Some(Arc::new(repo))
         }
         Err(e) => {
-            warn!(error = %e, "TaskRepository failed to open - HITL disabled");
+            warn!(error = %e, detail = "HITL disabled", "supervisor.task_repository.failed");
             None
         }
     }
@@ -165,11 +169,11 @@ pub(in crate::supervisor) fn open_user_memory(
     ) {
         Ok(repo) => {
             migrate_legacy_user_profile(data_dir, &repo);
-            info!("Supervisor: UserMemoryRepository ready");
+            info!("supervisor.user_memory.ready");
             Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
         }
         Err(e) => {
-            warn!(error = %e, "UserMemoryRepository failed to open - user memory disabled");
+            warn!(error = %e, detail = "user memory disabled", "supervisor.user_memory.failed");
             None
         }
     }
@@ -194,14 +198,22 @@ fn migrate_legacy_user_profile(
     let legacy = match apollia_memory::user_memory::UserMemoryRepository::new(&legacy_path) {
         Ok(repo) => repo,
         Err(e) => {
-            warn!(error = %e, "legacy __user__.db present but unreadable - skipping profile migration");
+            warn!(
+                error = %e,
+                detail = "skipping the profile migration",
+                "memory.legacy.unreadable"
+            );
             return;
         }
     };
     let entries = match legacy.list_all() {
         Ok(entries) => entries,
         Err(e) => {
-            warn!(error = %e, "failed to read legacy user profile - skipping migration");
+            warn!(
+                error = %e,
+                detail = "skipping the profile migration",
+                "memory.legacy.read.failed"
+            );
             return;
         }
     };
@@ -212,23 +224,25 @@ fn migrate_legacy_user_profile(
             Ok(None) => match canonical.set(&entry.key, &entry.value, entry.written_by) {
                 Ok(()) => migrated += 1,
                 Err(e) => {
-                    warn!(key = %entry.key, error = %e, "failed to migrate a legacy profile entry")
+                    warn!(key = %entry.key, error = %e, "memory.legacy.entry.migrate.failed")
                 }
             },
             Err(e) => {
-                warn!(key = %entry.key, error = %e, "failed to probe canonical profile entry")
+                warn!(key = %entry.key, error = %e, "memory.legacy.entry.probe.failed")
             }
         }
     }
     let retired = legacy_path.with_extension("db.migrated");
     if let Err(e) = std::fs::rename(&legacy_path, &retired) {
-        warn!(error = %e, "migrated legacy user profile but could not retire the old db file");
+        warn!(
+            error = %e,
+            detail = "entries migrated,
+            the old file stays",
+            "memory.legacy.retire.failed"
+        );
     }
     if migrated > 0 {
-        info!(
-            count = migrated,
-            "migrated legacy user profile entries into user_memory.db"
-        );
+        info!(count = migrated, "memory.legacy.migrated");
     }
 }
 
@@ -240,11 +254,11 @@ pub(in crate::supervisor) fn open_plan_cache(
         &data_dir.join(apollia_core::paths::DataFile::PlanCache.file_name()),
     ) {
         Ok(repo) => {
-            info!("Supervisor: PlanCacheRepository ready");
+            info!("supervisor.plan_cache.ready");
             Some(Arc::new(std::sync::Mutex::new(repo)))
         }
         Err(e) => {
-            warn!(error = %e, "PlanCacheRepository failed to open - plan caching disabled");
+            warn!(error = %e, detail = "plan caching disabled", "supervisor.plan_cache.failed");
             None
         }
     }
@@ -259,13 +273,13 @@ pub(in crate::supervisor) fn open_sidechain_logger(
         &data_dir.join(apollia_core::paths::DataFile::Sidechains.file_name()),
     ) {
         Ok(repo) => {
-            info!("Supervisor: SidechainRepository ready");
+            info!("supervisor.sidechain.ready");
             Some(crate::a2a::SidechainLogger::new(std::sync::Arc::new(
                 std::sync::Mutex::new(repo),
             )))
         }
         Err(e) => {
-            warn!(error = %e, "SidechainRepository failed to open - sidechain logging disabled");
+            warn!(error = %e, detail = "sidechain logging disabled", "supervisor.sidechain.failed");
             None
         }
     }
@@ -280,13 +294,13 @@ pub(in crate::supervisor) fn open_project_repository(
     match apollia_tools::ProjectRepository::open(&db_path) {
         Ok(repo) => {
             if let Err(e) = repo.seed_builtin_templates() {
-                warn!(error = %e, "ProjectRepository: seed_builtin_templates failed");
+                warn!(error = %e, "project.templates.seed.failed");
             }
-            info!("Supervisor: ProjectRepository ready");
+            info!("supervisor.projects.ready");
             Some(std::sync::Arc::new(repo))
         }
         Err(e) => {
-            warn!(error = %e, "ProjectRepository failed to open - projects disabled");
+            warn!(error = %e, detail = "projects disabled", "supervisor.projects.failed");
             None
         }
     }

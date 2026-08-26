@@ -36,7 +36,7 @@ pub async fn generate_a2a_tool_specs(a2a_invoker: &A2AInvoker) -> Vec<ToolSpec> 
     let skills = match a2a_invoker.list_skills().await {
         Ok(skills) => skills,
         Err(e) => {
-            warn!(error = %e, "Failed to list A2A skills for tool spec generation");
+            warn!(error = %e, "a2a.skills.list.failed");
             return vec![];
         }
     };

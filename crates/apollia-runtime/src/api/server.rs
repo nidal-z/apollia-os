@@ -519,7 +519,7 @@ pub(crate) async fn health_handler() -> Json<HealthResponse> {
 pub(crate) async fn shutdown_handler<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
 ) -> Json<ShutdownResponse> {
-    info!("Shutdown requested via API");
+    info!("api.shutdown.requested");
     let _ = state
         .event_sender
         .send(apollia_core::RuntimeEvent::ShutdownRequested);
@@ -859,7 +859,7 @@ impl APIServer {
             socket_path = %config.socket_path.display(),
             auth_enabled = config.api_token.is_some(),
             tcp_enabled = config.tcp_port.is_some(),
-            "APIServer started"
+            "api.server.started"
         );
 
         // Spawn Unix socket listener task (manual accept loop with hyper-util).
@@ -937,9 +937,9 @@ fn build_tls_acceptor(
 fn log_tcp_conn_error<E: std::fmt::Display>(e: &E) {
     let msg = e.to_string();
     if msg.contains("shut") || msg.contains("broken pipe") || msg.contains("connection reset") {
-        tracing::debug!(error = %e, "TCP connection closed by client");
+        tracing::debug!(error = %e, "api.tcp.connection.closed");
     } else {
-        tracing::error!(error = %e, "TCP connection error");
+        tracing::error!(error = %e, "api.tcp.connection.failed");
     }
 }
 
@@ -977,7 +977,10 @@ async fn serve_tcp(
                                     let tls_stream = match acceptor.accept(stream).await {
                                         Ok(s) => s,
                                         Err(e) => {
-                                            tracing::debug!(error = %e, "TCP TLS handshake failed");
+                                            tracing::debug!(
+                                                error = %e,
+                                                "api.tcp.tls.handshake.failed"
+                                            );
                                             return;
                                         }
                                     };
@@ -996,7 +999,7 @@ async fn serve_tcp(
                         });
                     }
                     Err(e) => {
-                        tracing::error!(error = %e, "TCP accept error");
+                        tracing::error!(error = %e, "api.tcp.accept.failed");
                     }
                 }
             }
@@ -1038,15 +1041,15 @@ async fn serve_unix(
                                 // so we match on "shut" to cover both variants.
                                 let msg = e.to_string();
                                 if msg.contains("shut") || msg.contains("broken pipe") || msg.contains("connection reset") {
-                                    tracing::debug!(error = %e, "Unix socket connection closed by client");
+                                    tracing::debug!(error = %e, "api.unix.connection.closed");
                                 } else {
-                                    tracing::error!(error = %e, "Unix socket connection error");
+                                    tracing::error!(error = %e, "api.unix.connection.failed");
                                 }
                             }
                         });
                     }
                     Err(e) => {
-                        tracing::error!(error = %e, "Unix socket accept error");
+                        tracing::error!(error = %e, "api.unix.accept.failed");
                     }
                 }
             }

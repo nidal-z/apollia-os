@@ -99,7 +99,7 @@ pub fn load_or_generate_token(data_dir: &Path) -> Result<String, TokenFileError>
 
     let token = generate_hex_token();
     write_token_file(&token_path, &token)?;
-    tracing::info!(path = %token_path.display(), "API token generated and written");
+    tracing::info!(path = %token_path.display(), "api.token.generated");
     Ok(token)
 }
 
@@ -221,14 +221,14 @@ where
         Box::pin(async move {
             let token = match auth_result {
                 Err(e) => {
-                    tracing::warn!(reason = %e, "TCP API auth rejected");
+                    tracing::warn!(reason = %e, "api.tcp.auth.rejected");
                     return Ok(e.into_response());
                 }
                 Ok(t) => t,
             };
 
             if !constant_time_eq::constant_time_eq(token.as_bytes(), expected.as_bytes()) {
-                tracing::warn!("TCP API auth rejected: invalid token");
+                tracing::warn!(reason = "invalid token", "api.tcp.auth.rejected");
                 return Ok(AuthError::InvalidToken.into_response());
             }
 

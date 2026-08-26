@@ -108,6 +108,8 @@ that introduces it and update this file.
 | `provider` | `&str` | upstream provider (`anthropic`, `openai`, `ollama`, ...) |
 | `scope` | `&str` | permission scope (`session`, `project`, `global`) |
 | `decision` | `&str` | permission decision (`allow`, `ask`, `deny`) |
+| `reason` | `&str` | why the event happened, when the label cannot say it |
+| `detail` | `&str` | the consequence the label does not carry (`"agent starts degraded"`) |
 
 ### Network
 

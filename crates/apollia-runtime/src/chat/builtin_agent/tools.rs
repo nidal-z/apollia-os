@@ -35,7 +35,7 @@ impl BuiltInChatAgent {
             reasoning_len = reasoning_text.trim().len(),
             tool_count = tool_calls.len(),
             session_id = %ids.session_id,
-            "ReAct turn: captured reasoning before tool calls"
+            "chat.react.reasoning.captured"
         );
         if !reasoning_text.trim().is_empty() {
             // Captured before this step's tool calls are dispatched, so the
@@ -209,7 +209,7 @@ impl BuiltInChatAgent {
                 tracing::warn!(
                     tool_name = %call.name,
                     session_id = %session_id,
-                    "chat.budget.tool_calls_exhausted: tool call truncated"
+                    "chat.budget.tool_calls.exhausted"
                 );
                 continue;
             }
@@ -234,7 +234,7 @@ impl BuiltInChatAgent {
                     decision = "deny",
                     reason = %reason,
                     session_id = %session_id,
-                    "hook.pretooluse.deny: tool call blocked"
+                    "hook.pretooluse.deny"
                 );
                 continue;
             }
@@ -634,7 +634,7 @@ impl BuiltInChatAgent {
                 (s, !tool_failed)
             }
             Err(e) => {
-                warn!(tool = %call.name, error = %e, "Tool call failed");
+                warn!(tool = %call.name, error = %e, "tool.call.failed");
                 (format!("tool error: {e}"), false)
             }
         };

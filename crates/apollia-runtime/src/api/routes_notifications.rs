@@ -664,7 +664,7 @@ fn write_test_log<B: ExecutionBackend + Clone>(
         Err(e) => e.into_inner(),
     };
     if let Err(e) = guard.write_log(&row) {
-        tracing::warn!(error = %e, "notification_logs : impossible d'écrire le log de test");
+        tracing::warn!(error = %e, "notification.test_log.write.failed");
     }
 }
 
@@ -853,7 +853,7 @@ async fn reload_notification_engine<B: ExecutionBackend + Clone>(
     let channels = match build_channels(&config.channels) {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!(error = %e, "notification reload: failed to build channels");
+            tracing::warn!(error = %e, "notification.channels.build.failed");
             return;
         }
     };

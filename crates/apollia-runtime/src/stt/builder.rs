@@ -37,10 +37,10 @@ pub async fn build_stt_engine(
     Option<Arc<Mutex<apollia_stt::SttRepository>>>,
 ) {
     let Some(cfg) = stt_cfg.filter(|c| c.enabled) else {
-        info!("STT disabled in config - engine not started");
+        info!(reason = "disabled in configuration", "stt.engine.disabled");
         return (None, None);
     };
-    info!("starting SttEngine");
+    info!("stt.engine.starting");
 
     // The transcription repository (history) is independent of the whisper
     // model: past transcriptions stay viewable even when the model file is
@@ -55,7 +55,9 @@ pub async fn build_stt_engine(
     if !model_path.exists() {
         error!(
             path = %model_path.display(),
-            "STT model file not found - dictation disabled, transcription history still available"
+            detail = "dictation disabled,
+            transcription history still available",
+            "stt.model.missing"
         );
         return (None, api_repo);
     }
@@ -63,7 +65,7 @@ pub async fn build_stt_engine(
     let repository = match apollia_stt::SttRepository::open(&repo_path) {
         Ok(repository) => repository,
         Err(e) => {
-            error!(error = %e, "SttRepository failed to open - SttEngine disabled");
+            error!(error = %e, detail = "engine disabled", "stt.repository.open.failed");
             return (None, api_repo);
         }
     };
@@ -74,7 +76,7 @@ pub async fn build_stt_engine(
         .unwrap_or_else(|| "whisper".to_string());
 
     let Some(proxy) = runner_proxy else {
-        warn!("STT engine disabled (runner sidecar unavailable)");
+        warn!(reason = "runner sidecar unavailable", "stt.engine.disabled");
         return (None, api_repo);
     };
     let backend: Box<dyn apollia_stt::SttBackend> = Box::new(RunnerSttBackend::new(
@@ -84,7 +86,7 @@ pub async fn build_stt_engine(
     ));
 
     let handle = SttEngineHandle::start(backend, repository, cfg.clone(), event_sender.clone());
-    info!("SttEngine ready");
+    info!("stt.engine.ready");
     (Some(handle), api_repo)
 }
 

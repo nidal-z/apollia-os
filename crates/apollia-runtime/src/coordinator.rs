@@ -220,7 +220,7 @@ async fn run_submitted_task<B: ExecutionBackend>(
     // Record the run_id so a task_id can be resolved to it (`audit verify`).
     if let (Some(repo), Some(run_id)) = (task_repo.as_deref(), task.run_id.as_ref()) {
         if let Err(e) = repo.set_run_id(task_id.as_str(), run_id.as_str()).await {
-            tracing::warn!(task_id = %task_id, error = %e, "failed to persist run_id");
+            tracing::warn!(task_id = %task_id, error = %e, "task.run_id.persist.failed");
         }
     }
 
@@ -235,7 +235,7 @@ async fn run_submitted_task<B: ExecutionBackend>(
             .append_transition(task_id.as_str(), "running", &now_rfc3339())
             .await
         {
-            tracing::warn!(task_id = %task_id, error = %e, "failed to persist running transition");
+            tracing::warn!(task_id = %task_id, error = %e, "task.run.transition.persist.failed");
         }
     }
 
@@ -280,21 +280,21 @@ async fn persist_submission(
         .save_input(task_id.as_str(), input_text, obs_config)
         .await
     {
-        tracing::warn!(task_id = %task_id, error = %e, "failed to persist task input");
+        tracing::warn!(task_id = %task_id, error = %e, "task.input.persist.failed");
     }
     if !agent_name_for_db.is_empty() {
         if let Err(e) = repo
             .set_agent_name(task_id.as_str(), agent_name_for_db)
             .await
         {
-            tracing::warn!(task_id = %task_id, error = %e, "failed to persist agent_name");
+            tracing::warn!(task_id = %task_id, error = %e, "task.agent_name.persist.failed");
         }
     }
     if let Err(e) = repo
         .append_transition(task_id.as_str(), "submitted", &now_rfc3339())
         .await
     {
-        tracing::warn!(task_id = %task_id, error = %e, "failed to persist submitted transition");
+        tracing::warn!(task_id = %task_id, error = %e, "task.submit.transition.persist.failed");
     }
 }
 
@@ -326,17 +326,17 @@ async fn persist_completion(record: CompletionRecord<'_>) {
             .save_output(task_id.as_str(), output_text, obs_config)
             .await
         {
-            tracing::warn!(task_id = %task_id, error = %e, "failed to persist task output");
+            tracing::warn!(task_id = %task_id, error = %e, "task.output.persist.failed");
         }
     }
     if let Err(e) = repo
         .append_transition(task_id.as_str(), terminal_status, &now_rfc3339())
         .await
     {
-        tracing::warn!(task_id = %task_id, error = %e, "failed to persist terminal transition");
+        tracing::warn!(task_id = %task_id, error = %e, "task.terminal.transition.persist.failed");
     }
     if let Err(e) = repo.set_duration(task_id.as_str(), elapsed_ms).await {
-        tracing::warn!(task_id = %task_id, error = %e, "failed to persist task duration");
+        tracing::warn!(task_id = %task_id, error = %e, "task.duration.persist.failed");
     }
 }
 
@@ -361,7 +361,7 @@ fn task_is_success(
                 agent_id = %agent_id,
                 task_id  = %task_id,
                 error    = %e,
-                "task execution failed"
+                "task.execution.failed"
             );
             false
         }

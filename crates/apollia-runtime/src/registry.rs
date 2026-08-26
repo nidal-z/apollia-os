@@ -101,7 +101,7 @@ impl AgentRegistry {
     }
 
     async fn run(mut self, mut rx: mpsc::Receiver<RegistryMessage>) {
-        info!("AgentRegistry démarré");
+        info!("registry.started");
         while let Some(msg) = rx.recv().await {
             match msg {
                 RegistryMessage::Register { manifest, reply } => {
@@ -138,12 +138,12 @@ impl AgentRegistry {
                     let _ = reply.send(list);
                 }
                 RegistryMessage::Shutdown => {
-                    info!("AgentRegistry arrêt demandé");
+                    info!("registry.stop.requested");
                     break;
                 }
             }
         }
-        info!("AgentRegistry arrêté");
+        info!("registry.stopped");
     }
 
     fn handle_register(&mut self, manifest: AgentManifest) -> Result<AgentId, AgentRegistryError> {
@@ -164,7 +164,7 @@ impl AgentRegistry {
         };
         self.agents.insert(id.clone(), entry);
         let _ = self.bus.send(RuntimeEvent::AgentRegistered(id.clone()));
-        info!(agent_id = %id, "Agent enregistré");
+        info!(agent_id = %id, "agent.registered");
         Ok(id)
     }
 
@@ -175,7 +175,7 @@ impl AgentRegistry {
             .ok_or_else(|| AgentRegistryError::NotFound(id.clone()))?;
         self.name_index.remove(&entry.manifest.name);
         let _ = self.bus.send(RuntimeEvent::AgentStopped(id.clone()));
-        info!(agent_id = %id, "Agent désenregistré");
+        info!(agent_id = %id, "agent.unregistered");
         Ok(())
     }
 
@@ -198,7 +198,7 @@ impl AgentRegistry {
 
         let prev = entry.process_state.clone();
         entry.process_state = new_state.clone();
-        info!(agent_id = %id, from = ?prev, to = ?new_state, "Transition ProcessState");
+        info!(agent_id = %id, from = ?prev, to = ?new_state, "agent.state.changed");
 
         let event = match &new_state {
             ProcessState::Active => RuntimeEvent::AgentReady(id.clone()),

@@ -6,7 +6,7 @@ impl ChatSessionManager {
         match self.repository.orphan_project_sessions(project_id) {
             Ok(count) => {
                 if count > 0 {
-                    info!(project_id = %project_id, count, "Orphaned chat sessions after project deletion");
+                    info!(project_id = %project_id, count, "chat.sessions.orphaned");
                     // Also update in-memory cache
                     for session in self.sessions.values_mut() {
                         if session.project_id.as_deref() == Some(project_id) {
@@ -16,7 +16,7 @@ impl ChatSessionManager {
                 }
             }
             Err(e) => {
-                warn!(project_id = %project_id, error = %e, "Failed to orphan sessions");
+                warn!(project_id = %project_id, error = %e, "chat.sessions.orphan.failed");
             }
         }
     }
@@ -247,7 +247,7 @@ impl ChatSessionManager {
             session.llm_backend = backend.clone();
         }
 
-        info!(session_id = %session_id, "chat session config updated");
+        info!(session_id = %session_id, "chat.session.config.updated");
         Ok(())
     }
 }
@@ -330,7 +330,7 @@ impl ChatSessionManager {
                 })
                 .collect(),
             Err(e) => {
-                error!(error = %e, "Failed to list sessions from SQLite");
+                error!(error = %e, "chat.sessions.list.failed");
                 Vec::new()
             }
         }
@@ -546,7 +546,7 @@ impl ChatSessionManager {
             session_id: session_id.to_string(),
         });
 
-        info!(session_id = %session_id, "chat session deleted");
+        info!(session_id = %session_id, "chat.session.deleted");
         Ok(())
     }
 
@@ -564,7 +564,7 @@ impl ChatSessionManager {
             session.title = Some(title.to_string());
         }
 
-        info!(session_id = %session_id, title = %title, "chat session renamed");
+        info!(session_id = %session_id, title = %title, "chat.session.renamed");
         Ok(())
     }
 }
@@ -600,7 +600,7 @@ impl ChatSessionManager {
                 warn!(
                     session_id = %session_id,
                     error = %e,
-                    "Failed to reset Processing session to Active in SQLite during resume"
+                    "chat.session.status.reset.failed"
                 );
             }
             session.status = SessionStatus::Active;
@@ -615,7 +615,7 @@ impl ChatSessionManager {
 
         self.sessions.insert(session_id.to_string(), session);
 
-        info!(session_id = %session_id, "chat session resumed from SQLite");
+        info!(session_id = %session_id, "chat.session.resumed");
 
         Ok(detail)
     }
@@ -661,7 +661,7 @@ impl ChatSessionManager {
             parent_id = %parent_id,
             child_id = %child_id,
             messages_copied = messages_copied,
-            "session forked"
+            "chat.session.forked"
         );
 
         let _ = self.event_bus.send(RuntimeEvent::ChatSessionCreated {
@@ -699,7 +699,7 @@ impl ChatSessionManager {
                 })
                 .collect(),
             Err(e) => {
-                error!(parent_id = %parent_id, error = %e, "Failed to list session children");
+                error!(parent_id = %parent_id, error = %e, "chat.session.children.list.failed");
                 Vec::new()
             }
         }
@@ -751,7 +751,7 @@ impl ChatSessionManager {
                 })
                 .collect(),
             Err(e) => {
-                error!(project_id = %project_id, error = %e, "Failed to list sessions by project");
+                error!(project_id = %project_id, error = %e, "chat.sessions.list.failed");
                 Vec::new()
             }
         }

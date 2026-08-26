@@ -16,21 +16,21 @@ pub(in crate::supervisor) fn auto_load_bundled_agents(
     let bundled_dir = match bundled_agents_path {
         Some(d) => d,
         None => {
-            tracing::debug!("no bundled agents path configured");
+            tracing::debug!("bundled.path.missing");
             return;
         }
     };
 
     let manifest_path = bundled_dir.join("manifest.json");
     if !manifest_path.exists() {
-        tracing::debug!("no bundled agents manifest found");
+        tracing::debug!("bundled.manifest.missing");
         return;
     }
 
     let manifest_content = match std::fs::read_to_string(&manifest_path) {
         Ok(c) => c,
         Err(e) => {
-            warn!(error = %e, "failed to read bundled agents manifest");
+            warn!(error = %e, "bundled.manifest.read.failed");
             return;
         }
     };
@@ -38,7 +38,7 @@ pub(in crate::supervisor) fn auto_load_bundled_agents(
     let manifest: BundledManifest = match serde_json::from_str(&manifest_content) {
         Ok(m) => m,
         Err(e) => {
-            warn!(error = %e, "failed to parse bundled agents manifest");
+            warn!(error = %e, "bundled.manifest.parse.failed");
             return;
         }
     };
@@ -50,23 +50,23 @@ pub(in crate::supervisor) fn auto_load_bundled_agents(
 
         match repo.get(&entry.name) {
             Ok(Some(_)) => {
-                tracing::debug!(agent = %entry.name, "bundled agent already installed");
+                tracing::debug!(agent = %entry.name, "bundled.agent.already_installed");
                 continue;
             }
             Ok(None) => {}
             Err(e) => {
-                warn!(agent = %entry.name, error = %e, "failed to check bundled agent in repository");
+                warn!(agent = %entry.name, error = %e, "bundled.agent.check.failed");
                 continue;
             }
         }
 
         let source_path = bundled_dir.join(&entry.file);
-        info!(agent = %entry.name, "installing bundled agent");
+        info!(agent = %entry.name, "bundled.agent.installing");
 
         let agent_manifest = match loader.load_and_validate(&source_path) {
             Ok(m) => m,
             Err(e) => {
-                warn!(agent = %entry.name, error = %e, "failed to load bundled agent manifest");
+                warn!(agent = %entry.name, error = %e, "bundled.agent.manifest.load.failed");
                 continue;
             }
         };
@@ -84,11 +84,11 @@ pub(in crate::supervisor) fn auto_load_bundled_agents(
         };
 
         if let Err(e) = repo.save(&installed) {
-            warn!(agent = %entry.name, error = %e, "failed to persist bundled agent to repository");
+            warn!(agent = %entry.name, error = %e, "bundled.agent.persist.failed");
             continue;
         }
 
-        info!(agent = %entry.name, "bundled agent registered for auto-load");
+        info!(agent = %entry.name, "bundled.agent.registered");
     }
 }
 
@@ -101,7 +101,7 @@ pub(in crate::supervisor) async fn register_builtin_tools(
 ) {
     for descriptor in native_tool_descriptors() {
         if let Err(e) = tool_registry_handle.register(descriptor).await {
-            warn!(error = %e, "failed to register native tool");
+            warn!(error = %e, "tool.native.register.failed");
         }
     }
     let connector_descriptor_count = crate::connectors_bridge::all_connector_descriptors().len();
@@ -111,7 +111,7 @@ pub(in crate::supervisor) async fn register_builtin_tools(
             warn!(
                 error = %e,
                 tool = %tool_name,
-                "failed to register connector tool descriptor"
+                "tool.connector.register.failed"
             );
         }
     }
@@ -124,13 +124,13 @@ pub(in crate::supervisor) async fn register_builtin_tools(
             warn!(
                 error = %e,
                 tool = %tool_name,
-                "failed to register MCP resource tool descriptor"
+                "tool.mcp_resource.register.failed"
             );
         }
     }
     info!(
         connector_tools = connector_descriptor_count,
-        "Supervisor: ToolRegistry ready (native + connector + MCP resource tools registered)"
+        "supervisor.tool_registry.ready"
     );
 }
 
@@ -146,7 +146,7 @@ pub(in crate::supervisor) fn validate_installed_packages(
     let packages = match pkg_repo.list() {
         Ok(p) => p,
         Err(e) => {
-            warn!(error = %e, "Phase 10.6: failed to list packages");
+            warn!(error = %e, "package.list.failed");
             return;
         }
     };
@@ -155,14 +155,14 @@ pub(in crate::supervisor) fn validate_installed_packages(
             warn!(
                 package = %pkg.name,
                 path = %pkg.root_path.display(),
-                "Phase 10.6: package root_path missing - disabling agents"
+                detail = "disabling its agents", "package.root.missing"
             );
             let agent_names = pkg_repo
                 .list_agents_for_package(&pkg.name)
                 .unwrap_or_default();
             for agent_name in &agent_names {
                 if let Err(e) = agent_repo.set_enabled(agent_name, false) {
-                    warn!(agent = %agent_name, error = %e, "Phase 10.6: failed to disable agent");
+                    warn!(agent = %agent_name, error = %e, "agent.disable.failed");
                 }
             }
         }

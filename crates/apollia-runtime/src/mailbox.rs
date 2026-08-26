@@ -230,7 +230,7 @@ impl AgentMailboxHandle {
             let conn = match open_and_init(db_path.as_deref()) {
                 Some(c) => c,
                 None => {
-                    warn!("mailbox: failed to open any SQLite store, actor not started");
+                    warn!(detail = "actor not started", "mailbox.store.open.failed");
                     let _ = init_tx.send(());
                     return;
                 }
@@ -412,7 +412,12 @@ fn open_and_init(db_path: Option<&std::path::Path>) -> Option<Connection> {
         Some(p) => match Connection::open(p) {
             Ok(c) => c,
             Err(e) => {
-                warn!(error = %e, path = %p.display(), "mailbox: durable open failed, using in-memory");
+                warn!(
+                    error = %e,
+                    path = %p.display(),
+                    detail = "falling back to an in-memory store",
+                    "mailbox.store.durable.failed"
+                );
                 Connection::open_in_memory().ok()?
             }
         },
@@ -426,7 +431,7 @@ fn open_and_init(db_path: Option<&std::path::Path>) -> Option<Connection> {
         SCHEMA_VERSION,
         &MIGRATIONS,
     ) {
-        warn!(error = %e, "mailbox: schema init failed");
+        warn!(error = %e, "mailbox.schema.init.failed");
         return None;
     }
     Some(conn)
@@ -526,7 +531,7 @@ impl MailboxActor {
                 MailboxMessage::Shutdown => break,
             }
         }
-        warn!("mailbox channel closed, actor exiting");
+        warn!("mailbox.channel.closed");
     }
 
     fn handle_send(

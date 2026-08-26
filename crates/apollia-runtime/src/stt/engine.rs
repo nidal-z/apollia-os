@@ -243,7 +243,7 @@ struct SttEngine {
 impl SttEngine {
     /// Main actor loop, processes commands until `Shutdown` or channel close.
     async fn run(self, mut rx: mpsc::Receiver<SttCommand>) {
-        info!("SttEngine started");
+        info!("stt.engine.started");
         while let Some(cmd) = rx.recv().await {
             match cmd {
                 SttCommand::Transcribe {
@@ -278,7 +278,7 @@ impl SttEngine {
                 }
             }
         }
-        info!("SttEngine stopped");
+        info!("stt.engine.stopped");
     }
 
     /// Runs transcription in `spawn_blocking`, persists result, and emits event.
@@ -307,11 +307,15 @@ impl SttEngine {
                     Ok(repo) => {
                         if let Err(e) = repo.insert(source_str, transcript, Some(&self.model_name))
                         {
-                            warn!(error = %e, "failed to persist STT transcription");
+                            warn!(error = %e, "stt.transcription.persist.failed");
                         }
                     }
                     Err(e) => {
-                        warn!(error = %e, "SttRepository lock poisoned - skipping persistence");
+                        warn!(
+                            error = %e,
+                            detail = "skipping persistence",
+                            "stt.repository.lock.poisoned"
+                        );
                     }
                 }
                 let _ = self.event_bus.send(RuntimeEvent::SttTranscribed {

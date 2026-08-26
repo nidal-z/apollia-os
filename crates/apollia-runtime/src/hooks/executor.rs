@@ -160,7 +160,7 @@ impl HookExecutor {
                         tool_name = %tool_name,
                         handler_kind = %handler.kind.type_str(),
                         session_id = %session_id,
-                        "hook.pretooluse.parse_error: defaulting to allow"
+                        decision = "allow", "hook.pretooluse.parse_error"
                     );
                 }
             }
@@ -323,7 +323,7 @@ impl HookExecutor {
                     handler_kind = %handler.kind.type_str(),
                     timeout_ms,
                     reason = %reason,
-                    "hook.delivery_error: defaulting to safe behavior"
+                    "hook.delivery.failed"
                 );
                 None
             }
@@ -332,7 +332,7 @@ impl HookExecutor {
                     event = %event,
                     handler_kind = %handler.kind.type_str(),
                     timeout_ms,
-                    "hook.timeout: defaulting to safe behavior"
+                    "hook.delivery.timeout"
                 );
                 None
             }

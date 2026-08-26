@@ -64,7 +64,7 @@ impl RunnerSupervisor {
         tracing::info!(
             backend = ?self.backend,
             binary = %bin_path.display(),
-            "spawning apollia-runner"
+            "runner.spawning"
         );
 
         let mut runner_cmd = Command::new(&bin_path);
@@ -79,7 +79,7 @@ impl RunnerSupervisor {
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| {
-                tracing::error!(error = %e, "failed to spawn runner");
+                tracing::error!(error = %e, "runner.spawn.failed");
                 RunnerError::Io(e)
             })?;
 
@@ -145,7 +145,7 @@ impl RunnerSupervisor {
             backend = ?self.backend,
             port,
             protocol_version = %proto,
-            "runner handshake successful"
+            "runner.handshake.completed"
         );
 
         *self.inner.write().await = Some(RunnerInnerHandle { client, port });
@@ -185,7 +185,7 @@ impl RunnerSupervisor {
                             Ok(Some(status)) => Some(Some(status)),
                             Ok(None) => None,
                             Err(e) => {
-                                tracing::warn!(error = %e, "runner try_wait failed");
+                                tracing::warn!(error = %e, "runner.wait.failed");
                                 Some(None)
                             }
                         },
@@ -207,11 +207,11 @@ impl RunnerSupervisor {
                     Some(status) => tracing::error!(
                         backend = ?self.backend,
                         ?status,
-                        "runner exited unexpectedly, respawning"
+                        "runner.exited.unexpected"
                     ),
                     None => tracing::warn!(
                         backend = ?self.backend,
-                        "runner handle missing, respawning"
+                        "runner.handle.missing"
                     ),
                 }
 
@@ -227,11 +227,15 @@ impl RunnerSupervisor {
 
                 match self.spawn_runner().await {
                     Ok(()) => {
-                        tracing::info!(backend = ?self.backend, "runner respawned");
+                        tracing::info!(backend = ?self.backend, "runner.respawned");
                         backoff = MIN_BACKOFF;
                     }
                     Err(e) => {
-                        tracing::error!(backend = ?self.backend, error = %e, "runner respawn failed");
+                        tracing::error!(
+                            backend = ?self.backend,
+                            error = %e,
+                            "runner.respawn.failed"
+                        );
                         backoff = (backoff * 2).min(MAX_BACKOFF);
                     }
                 }
@@ -320,9 +324,12 @@ impl RunnerSupervisor {
         };
 
         if shutdown_ok {
-            tracing::info!("runner shutdown HTTP sent, waiting for exit");
+            tracing::info!("runner.shutdown.sent");
         } else {
-            tracing::warn!("runner shutdown HTTP failed, will force kill");
+            tracing::warn!(
+                detail = "falling back to a forced kill",
+                "runner.shutdown.failed"
+            );
         }
 
         // 2. Take the Child and wait for exit with a timeout, otherwise kill.
@@ -330,12 +337,12 @@ impl RunnerSupervisor {
         if let Some(mut child) = child_guard.take() {
             match tokio::time::timeout(Duration::from_secs(3), child.wait()).await {
                 Ok(Ok(status)) => {
-                    tracing::info!(?status, "runner exited gracefully");
+                    tracing::info!(?status, "runner.exited.graceful");
                 }
                 _ => {
                     let _ = child.kill().await;
                     let _ = child.wait().await;
-                    tracing::info!("runner killed forcefully after timeout");
+                    tracing::info!("runner.killed");
                 }
             }
         }
@@ -394,7 +401,7 @@ pub(super) fn locate_runner_binary(
         tracing::warn!(
             requested = %bin_name,
             fallback = %dev_fallback.display(),
-            "runner binary not found with backend suffix, using unsuffixed dev binary"
+            "runner.binary.dev_fallback"
         );
         return Ok(dev_fallback);
     }
@@ -453,10 +460,20 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(
                 match kind {
                     // The runner emits JSON Lines on stderr; forward as-is.
                     PipeKind::Stderr => {
-                        tracing::info!(target: "runner", backend = ?backend, line = %line);
+                        tracing::info!(
+                            target: "runner",
+                            backend = ?backend,
+                            line = %line,
+                            "runner.stderr.line"
+                        );
                     }
                     PipeKind::Stdout => {
-                        tracing::trace!(target: "runner", backend = ?backend, line = %line);
+                        tracing::trace!(
+                            target: "runner",
+                            backend = ?backend,
+                            line = %line,
+                            "runner.stdout.line"
+                        );
                     }
                 }
             }

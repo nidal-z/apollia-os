@@ -296,7 +296,7 @@ impl LlamaServerSupervisor {
                     tracing::error!(
                         model = %model_path,
                         reason = %reason,
-                        "llama-server exited, respawning"
+                        "llama.server.exited"
                     );
                     if !owed.contains(&model_path) {
                         owed.push(model_path);
@@ -324,12 +324,12 @@ impl LlamaServerSupervisor {
                         continue;
                     }
                     match self.spawn_instance(model_path.clone()).await {
-                        Ok(_) => tracing::info!(model = %model_path, "llama-server respawned"),
+                        Ok(_) => tracing::info!(model = %model_path, "llama.server.respawned"),
                         Err(e) => {
                             tracing::error!(
                                 model = %model_path,
                                 error = %e,
-                                "llama-server respawn failed"
+                                "llama.server.respawn.failed"
                             );
                             still_owed.push(model_path);
                         }
@@ -481,7 +481,7 @@ impl LlamaServerSupervisor {
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| {
-                tracing::error!(error = %e, "failed to spawn llama-server");
+                tracing::error!(error = %e, "llama.server.spawn.failed");
                 LlamaServerError::Io(e)
             })?;
 
@@ -503,7 +503,7 @@ impl LlamaServerSupervisor {
             last_used: self.next_tick(),
         };
         let url = instance.base_url();
-        tracing::info!(port, model = %instance.model_path, "llama-server healthy");
+        tracing::info!(port, model = %instance.model_path, "llama.server.healthy");
         self.instances.lock().await.push(instance);
         Ok(url)
     }
@@ -571,12 +571,12 @@ fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
     if let Some(bin) = std::env::var_os("APOLLIA_LLAMA_SERVER_BIN") {
         let path = PathBuf::from(bin);
         if path.is_file() {
-            tracing::info!(path = %path.display(), "using llama-server from APOLLIA_LLAMA_SERVER_BIN");
+            tracing::info!(path = %path.display(), "llama.server.binary.from_env");
             return Ok(path);
         }
         tracing::warn!(
             path = %path.display(),
-            "APOLLIA_LLAMA_SERVER_BIN is set but not a file, falling back to auto-detection"
+            detail = "falling back to auto-detection", "llama.server.binary.env_invalid"
         );
     }
 
@@ -597,7 +597,7 @@ fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
     if let Ok(path) = which_on_path(&name) {
         tracing::warn!(
             path = %path.display(),
-            "bundled llama-server not found, using the one on PATH (dev fallback)"
+            detail = "bundled binary absent, dev fallback", "llama.server.binary.path_fallback"
         );
         return Ok(path);
     }
@@ -616,7 +616,7 @@ fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
     if let Some(found) = common.iter().map(PathBuf::from).find(|c| c.is_file()) {
         tracing::warn!(
             path = %found.display(),
-            "bundled llama-server not found, using a system install (dev fallback)"
+            detail = "bundled binary absent, dev fallback", "llama.server.binary.system_fallback"
         );
         return Ok(found);
     }
@@ -656,7 +656,7 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
             Ok(_) => {
                 let line = String::from_utf8_lossy(&buf);
                 let line = line.trim_end_matches(['\r', '\n']);
-                tracing::info!(target: "llama-server", line = %line);
+                tracing::info!(target: "llama-server", line = %line, "llama.server.line");
             }
         }
     }

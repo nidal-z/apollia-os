@@ -40,11 +40,11 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
         let detail = match tokio::task::spawn_blocking(move || repo.get_project(&pid)).await {
             Ok(Ok(d)) => d,
             Ok(Err(e)) => {
-                warn!(project_id = %pid_for_log, error = %e, "project context: get_project failed");
+                warn!(project_id = %pid_for_log, error = %e, "project.context.read.failed");
                 return None;
             }
             Err(e) => {
-                warn!(project_id = %pid_for_log, error = %e, "project context: join failure");
+                warn!(project_id = %pid_for_log, error = %e, "project.context.join.failed");
                 return None;
             }
         };
@@ -55,7 +55,7 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
             providers_total = detail.providers.len(),
             providers_enabled = detail.providers.iter().filter(|p| p.enabled).count(),
             workspace_path = ?detail.workspace_path,
-            "project context: building"
+            "project.context.building"
         );
 
         let mut block = String::from(
@@ -80,15 +80,16 @@ impl ProjectContextProvider for DefaultProjectContextProvider {
             info!(
                 project_id = %pid_for_log,
                 context_bytes = block.len(),
-                "project context: injected into system prompt"
+                "project.context.injected"
             );
             Some(block)
         } else {
             warn!(
                 project_id = %pid_for_log,
-                "project context: built block is empty - \
-                 no instructions, documents, or applicable provider sections; \
-                 check provider configuration and workspace_path"
+                detail = "no instructions,
+                no documents,
+                no applicable provider section",
+                "project.context.empty"
             );
             None
         }

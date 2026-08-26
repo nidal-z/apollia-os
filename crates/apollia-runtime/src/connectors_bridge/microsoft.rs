@@ -51,7 +51,8 @@ async fn ms_resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String
     if accounts.len() > 1 {
         tracing::warn!(
             count = accounts.len(),
-            "multiple Microsoft accounts connected - using the first"
+            detail = "using the first",
+            "connector.microsoft.accounts.ambiguous"
         );
     }
     accounts.into_iter().next().ok_or_else(|| {

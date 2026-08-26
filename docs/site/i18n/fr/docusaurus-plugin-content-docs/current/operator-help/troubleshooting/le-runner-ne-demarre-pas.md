@@ -62,13 +62,13 @@ APOLLIA_LOG=debug apollia-os start 2>&1 | tee /tmp/apollia.log
 
 Cherchez :
 
-- `Supervisor: runner spawned successfully` (le démon l'a démarré)
-- `Supervisor: runner spawn failed, continuing without runner` (il n'a pas
-  démarré, et le démon continue sans STT locale)
-- `failed to spawn runner` (le binaire n'a pas pu être lancé du tout)
+- `supervisor.runner.spawned` (le démon l'a démarré)
+- `supervisor.runner.spawn.failed` (il n'a pas démarré, et le démon continue
+  sans STT locale)
+- `runner.spawn.failed` (le binaire n'a pas pu être lancé du tout)
 - `runner handshake timeout after 10s` (il a démarré mais n'a jamais annoncé son
   port)
-- `runner respawned` / `runner respawn failed` (il est mort et le démon a
+- `runner.respawned` / `runner.respawn.failed` (il est mort et le démon a
   réessayé)
 
 La sortie du runner lui-même est réémise sous la cible de log `runner` : son

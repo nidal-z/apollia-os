@@ -74,7 +74,7 @@ pub async fn handle_webhook<B: ExecutionBackend + Clone>(
         TriggerSourceConfig::Webhook { secret } => secret.clone(),
         _ => {
             // Unreachable: find_webhook already filters out non-webhook sources
-            tracing::error!(trigger_id = %trigger_id, "source non-webhook retournée par find_webhook");
+            tracing::error!(trigger_id = %trigger_id, "trigger.webhook.source.mismatch");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };

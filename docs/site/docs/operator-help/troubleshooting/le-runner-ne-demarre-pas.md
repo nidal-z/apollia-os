@@ -63,12 +63,12 @@ APOLLIA_LOG=debug apollia-os start 2>&1 | tee /tmp/apollia.log
 
 Look for:
 
-- `Supervisor: runner spawned successfully` (the daemon started it)
-- `Supervisor: runner spawn failed, continuing without runner` (it did not start,
-  and the daemon carries on without local STT)
-- `failed to spawn runner` (the binary could not be launched at all)
+- `supervisor.runner.spawned` (the daemon started it)
+- `supervisor.runner.spawn.failed` (it did not start, and the daemon carries on
+  without local STT)
+- `runner.spawn.failed` (the binary could not be launched at all)
 - `runner handshake timeout after 10s` (it started but never announced its port)
-- `runner respawned` / `runner respawn failed` (it died and the daemon retried)
+- `runner.respawned` / `runner.respawn.failed` (it died and the daemon retried)
 
 The runner's own output is forwarded under the `runner` log target, so its
 stderr appears in the same file.

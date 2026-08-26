@@ -52,7 +52,7 @@ fn apply(layer: &Mutex<ResilienceLayer>, event: RuntimeEvent) {
         Err(e) => {
             tracing::error!(
                 error = %e,
-                "resilience subscriber: mutex poisoned, snapshot updates stop"
+                detail = "snapshot updates stop", "resilience.lock.poisoned"
             );
             return;
         }
@@ -61,12 +61,12 @@ fn apply(layer: &Mutex<ResilienceLayer>, event: RuntimeEvent) {
     match outcome {
         Outcome::Ok => {
             if let Err(e) = guard.record_success(&tool_name) {
-                tracing::debug!(tool = %tool_name, error = %e, "record_success failed");
+                tracing::debug!(tool = %tool_name, error = %e, "resilience.success.record.failed");
             }
         }
         Outcome::Fail => {
             if let Err(e) = guard.record_failure(&tool_name, &ErrorClass::Transient) {
-                tracing::debug!(tool = %tool_name, error = %e, "record_failure failed");
+                tracing::debug!(tool = %tool_name, error = %e, "resilience.failure.record.failed");
             }
         }
     }

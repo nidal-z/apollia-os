@@ -354,7 +354,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
     let child_chain = validate_chain(parent_chain, current_agent, &agent_id, max_hops)?;
     let agent_id = agent_id.to_string();
 
-    info!(skill_id = %skill_id, agent = %agent_name, "A2A delegation initiated");
+    info!(skill_id = %skill_id, agent = %agent_name, "a2a.delegation.started");
 
     // 3. Subscribe to the EventBus before submitting (avoids a race condition).
     let mut event_rx = subscribe_resilient(event_bus, "a2a.delegation");
@@ -383,7 +383,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
         })?;
 
     let task_id_str = task_id.to_string();
-    info!(task_id = %task_id_str, agent = %agent_name, "A2A task submitted");
+    info!(task_id = %task_id_str, agent = %agent_name, "a2a.task.submitted");
 
     // 6. Wait for TaskCompleted with a timeout via the EventBus.
     let wait_result = tokio::time::timeout(Duration::from_secs(timeout_secs), async {
@@ -441,7 +441,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
         Err(_elapsed) => return Err(A2aError::Timeout { timeout_secs }),
     };
 
-    info!(task_id = %task_id_str, agent = %agent_name, "A2A delegation completed");
+    info!(task_id = %task_id_str, agent = %agent_name, "a2a.delegation.completed");
 
     Ok(A2aDelegateResult {
         task_id: task_id_str,

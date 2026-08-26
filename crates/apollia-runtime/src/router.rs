@@ -118,7 +118,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
     /// Processes mpsc messages AND EventBus events (TaskCompleted/TaskFailed).
     async fn run(mut self) {
         use apollia_core::RuntimeEvent;
-        info!("TaskRouter demarre");
+        info!("router.started");
         loop {
             tokio::select! {
                 msg = self.rx.recv() => {
@@ -167,18 +167,18 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                             let _ = reply.send(all);
                         }
                         RouterMessage::RegisterCoordinator { agent_id, coordinator } => {
-                            info!(agent_id = %agent_id, "Coordinator enregistre");
+                            info!(agent_id = %agent_id, "router.coordinator.registered");
                             self.coordinators.insert(agent_id, coordinator);
                         }
                         RouterMessage::UnregisterCoordinator { agent_id } => {
-                            info!(agent_id = %agent_id, "Coordinator retire");
+                            info!(agent_id = %agent_id, "router.coordinator.removed");
                             self.coordinators.remove(&agent_id);
                         }
                         RouterMessage::GetBudget { reply } => {
                             let _ = reply.send(self.latest_budget.clone());
                         }
                         RouterMessage::Shutdown => {
-                            info!("TaskRouter arret demande");
+                            info!("router.stop.requested");
                             break;
                         }
                     }
@@ -222,7 +222,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 }
             }
         }
-        info!("TaskRouter arrete");
+        info!("router.stopped");
     }
 
     /// Handle a task submission.
@@ -279,7 +279,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 return Err(SubmitError::AgentUnavailable(agent_id));
             }
             ProcessState::Degraded => {
-                warn!(agent_id = %agent_id, "task submitted to degraded agent");
+                warn!(agent_id = %agent_id, "task.submitted.degraded_agent");
                 let _ = self.event_bus.send(RuntimeEvent::AgentDegraded {
                     agent_id: agent_id.clone(),
                     reason: "task submitted to degraded agent".into(),
@@ -323,7 +323,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             .insert(task_id.clone(), TaskStatus::Working);
         self.task_agents.insert(task_id.clone(), agent_id.clone());
 
-        info!(task_id = %task_id, agent_id = %agent_id, "Task dispatched");
+        info!(task_id = %task_id, agent_id = %agent_id, "task.dispatched");
         Ok(task_id)
     }
 
@@ -336,7 +336,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         match status {
             TaskStatus::Submitted | TaskStatus::Working | TaskStatus::InputRequired => {
                 *status = TaskStatus::Canceled;
-                info!(task_id = %task_id, "Task canceled");
+                info!(task_id = %task_id, "task.canceled");
                 Some(TaskStatus::Canceled)
             }
             _ => Some(status.clone()),

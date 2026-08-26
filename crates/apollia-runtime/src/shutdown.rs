@@ -143,15 +143,15 @@ impl<B: ExecutionBackend> ShutdownController<B> {
     /// Returns `Err(ShutdownError::DrainTimeout)` if some tasks had to be force-canceled,
     /// but the shutdown still completes.
     pub async fn shutdown(self) -> Result<(), ShutdownError> {
-        info!("Shutdown sequence started");
+        info!("shutdown.started");
 
         // Step 1: Broadcast ShutdownRequested
         let _ = self.event_sender.send(RuntimeEvent::ShutdownRequested);
-        info!("ShutdownRequested broadcast on EventBus");
+        info!("shutdown.event.broadcast");
 
         // Step 2: Stop API server (reject new connections)
         self.api_handle.shutdown();
-        info!("APIServer stopped accepting connections");
+        info!("shutdown.api.stopped");
 
         // Step 3: Drain in-progress tasks
         let drain_result = self.drain_tasks().await;
@@ -164,14 +164,14 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         // (macOS Notification Center buffers osascript calls asynchronously).
         if let Some(ref notif_handle) = self.notification_engine {
             notif_handle.shutdown().await;
-            info!("NotificationEngine stopped");
+            info!("shutdown.notifications.stopped");
         }
 
         // Step 6: Stop the MCP client manager, killing all child server processes.
         if let Some(mcp_handle) = self.mcp_handle {
-            info!("Shutting down MCP client manager");
+            info!("shutdown.mcp.stopping");
             mcp_handle.shutdown().await;
-            info!("McpClientManager stopped");
+            info!("shutdown.mcp.stopped");
         }
 
         // Step 7: Kill the child processes this runtime spawned.
@@ -187,20 +187,20 @@ impl<B: ExecutionBackend> ShutdownController<B> {
                 self.llama_server_supervisor.as_deref(),
             )
             .await;
-            info!("Child process supervisors stopped");
+            info!("shutdown.children.stopped");
         }
 
         // Step 8: Stop actors in reverse startup order
         // APIServer already stopped in step 2
         // TaskRouter
         self.router_handle.shutdown();
-        info!("TaskRouter stopped");
+        info!("shutdown.router.stopped");
         // AgentRegistry
         self.registry_handle.shutdown();
-        info!("AgentRegistry stopped");
+        info!("shutdown.registry.stopped");
         // EventBus is a broadcast channel, it stops when all senders are dropped
 
-        info!("Shutdown sequence completed");
+        info!("shutdown.completed");
         drain_result
     }
 
@@ -231,11 +231,11 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             .collect();
 
         if remaining.is_empty() {
-            info!("No active tasks to drain");
+            info!("shutdown.drain.empty");
             return Ok(());
         }
 
-        info!(count = remaining.len(), "Draining active tasks");
+        info!(count = remaining.len(), "shutdown.drain.started");
 
         let deadline = tokio::time::Instant::now() + timeout;
 
@@ -255,7 +255,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
                         }
                     }
                     if remaining.is_empty() {
-                        info!("All tasks drained successfully");
+                        info!("shutdown.drain.completed");
                         return Ok(());
                     }
                 }
@@ -271,7 +271,8 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         warn!(
             count = count,
             timeout_secs = self.config.drain_timeout_secs,
-            "Drain timeout expired, canceling remaining tasks"
+            detail = "canceling the remaining tasks",
+            "shutdown.drain.timeout"
         );
         self.cancel_tasks(&active).await;
         Err(ShutdownError::DrainTimeout {
@@ -287,7 +288,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
             let _ = self.event_sender.send(RuntimeEvent::TaskCanceled {
                 task_id: task_id.clone(),
             });
-            warn!(task_id = %task_id, "Task canceled during shutdown (task_canceled_shutdown)");
+            warn!(task_id = %task_id, "task.canceled.shutdown");
         }
     }
 
@@ -296,7 +297,7 @@ impl<B: ExecutionBackend> ShutdownController<B> {
         let agents = match self.registry_handle.list_agents().await {
             Ok(agents) => agents,
             Err(e) => {
-                warn!(error = %e, "Failed to list agents during shutdown");
+                warn!(error = %e, "shutdown.agents.list.failed");
                 return;
             }
         };
@@ -327,12 +328,12 @@ impl<B: ExecutionBackend> ShutdownController<B> {
                         agent_id = %agent.id,
                         target_state = ?state,
                         error = %e,
-                        "Failed to transition agent during shutdown"
+                        "shutdown.agent.transition.failed"
                     );
                     break;
                 }
             }
-            info!(agent_id = %agent.id, "Agent stopped during shutdown");
+            info!(agent_id = %agent.id, "shutdown.agent.stopped");
         }
     }
 }

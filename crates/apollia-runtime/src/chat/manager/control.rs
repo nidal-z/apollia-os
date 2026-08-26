@@ -139,7 +139,7 @@ impl ChatSessionManager {
         match self.repository.list_recent_summaries(limit) {
             Ok(summaries) => summaries,
             Err(e) => {
-                error!(error = %e, "Failed to list recent session summaries from SQLite");
+                error!(error = %e, "chat.summaries.list.failed");
                 Vec::new()
             }
         }

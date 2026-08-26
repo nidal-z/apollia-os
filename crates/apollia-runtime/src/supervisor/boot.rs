@@ -33,19 +33,19 @@ impl Supervisor {
         let timeout = Duration::from_secs(self.config.startup_timeout_secs);
 
         // Phase 1: EventBus
-        info!("Supervisor: starting EventBus");
+        info!("supervisor.eventbus.starting");
         let (event_sender, startup_rx) =
             EventBus::with_capacity(self.config.runtime_config.eventbus_capacity);
         let mut startup_rx = resilient(startup_rx, "supervisor.startup");
-        info!("Supervisor: EventBus ready");
+        info!("supervisor.eventbus.ready");
 
         // Phase 2: AgentRegistry
-        info!("Supervisor: starting AgentRegistry");
+        info!("supervisor.registry.starting");
         let registry_handle = AgentRegistry::spawn(event_sender.clone());
-        info!("Supervisor: AgentRegistry ready");
+        info!("supervisor.registry.ready");
 
         // Phase 3: ToolRegistry + native tool registration
-        info!("Supervisor: starting ToolRegistry");
+        info!("supervisor.tool_registry.starting");
         let tool_registry_handle = ToolRegistryHandle::start();
         register_builtin_tools(&tool_registry_handle).await;
 
@@ -126,16 +126,16 @@ impl Supervisor {
             shared_resilience_layer.clone(),
             &event_sender,
         );
-        info!("Supervisor: shared ResilienceLayer ready (event subscriber spawned)");
+        info!("supervisor.resilience.ready");
 
         // Phase 5 (pos 6): TaskRouter
-        info!("Supervisor: starting TaskRouter");
+        info!("supervisor.router.starting");
         let router_handle: TaskRouterHandle<B> =
             TaskRouterHandle::spawn(registry_handle.clone(), event_sender.clone(), 256);
-        info!("Supervisor: TaskRouter ready");
+        info!("supervisor.router.ready");
 
         // Phase 6 (pos 7): TriggerEngine, started after TaskRouter (needs the submitter).
-        info!("Supervisor: starting TriggerEngine");
+        info!("supervisor.triggers.starting");
         // Open the trigger definition repository from SQLite.
         let trigger_def_db_path = self
             .config
@@ -161,27 +161,27 @@ impl Supervisor {
             self.config.obs_config.clone(),
         )
         .await;
-        tracing::info!(active = enabled_count, "TriggerEngine started");
+        tracing::info!(active = enabled_count, "trigger.engine.started");
         let _ = event_sender.send(RuntimeEvent::TriggersReloaded {
             count: enabled_count,
         });
 
         // Phase 8 (pos 9): AuditTrail, opened before APIServer so it's injectable into AppState.
-        info!("Supervisor: opening AuditTrail");
+        info!("supervisor.audit_trail.opening");
         let audit_trail_handle = open_audit_trail(&self.config.data_dir).await;
 
         // Phase 8b: hash-chained, signed AuditJournal + its EventBus subscriber.
-        info!("Supervisor: opening AuditJournal");
+        info!("supervisor.audit_journal.opening");
         let audit_journal_handle = open_audit_journal(&self.config.data_dir).await;
         if let Some(journal) = &audit_journal_handle {
             AuditJournalSubscriber::spawn(journal.clone(), event_sender.subscribe());
-            info!("audit journal subscriber started");
+            info!("audit.journal.subscriber.started");
         } else {
-            warn!("audit journal disabled, subscriber not started");
+            warn!(detail = "subscriber not started", "audit.journal.disabled");
         }
 
         // Phase 9 (pos 10): APIServer
-        info!("Supervisor: starting APIServer");
+        info!("supervisor.api.starting");
         // Open TaskRepository (HITL persistence).
         // Shared between AppState (resume handler) and TimeoutWatcher.
         let task_repository = open_task_repository(&self.config.data_dir).await;
@@ -275,7 +275,7 @@ impl Supervisor {
             mailbox_config,
         )
         .await;
-        info!("Supervisor: AgentMailbox ready");
+        info!("supervisor.mailbox.ready");
 
         // Phase 13: UserMemoryRepository was promoted above (before notifications)
         // to support the seed bootstrap of the default desktop channel. Variable
@@ -285,7 +285,7 @@ impl Supervisor {
         let project_repository = open_project_repository(&self.config.data_dir);
 
         // Phase 14: ChatSessionManager, spawned before APIServer to inject handle into AppState.
-        info!("Supervisor: starting ChatSessionManager");
+        info!("supervisor.chat.starting");
         let chat_db_path = self
             .config
             .data_dir
@@ -353,11 +353,11 @@ impl Supervisor {
                 self.config.plan_mode_default,
             ) {
                 Ok(handle) => {
-                    info!("Supervisor: ChatSessionManager ready");
+                    info!("supervisor.chat.ready");
                     Some(handle)
                 }
                 Err(e) => {
-                    warn!(error = %e, "ChatSessionManager failed to start - chat disabled");
+                    warn!(error = %e, detail = "chat disabled", "supervisor.chat.failed");
                     None
                 }
             };
@@ -371,11 +371,15 @@ impl Supervisor {
         // `enabled = true` and the model file exists on disk.
         let stt_config_repo = match SttConfigRepository::open(&system_db_path) {
             Ok(repo) => {
-                info!("Supervisor: SttConfigRepository opened");
+                info!("supervisor.stt_config.ready");
                 Some(std::sync::Arc::new(std::sync::Mutex::new(repo)))
             }
             Err(e) => {
-                warn!(error = %e, "SttConfigRepository failed to open - STT config disabled");
+                warn!(
+                    error = %e,
+                    detail = "STT configuration disabled",
+                    "supervisor.stt_config.failed"
+                );
                 None
             }
         };
@@ -460,11 +464,11 @@ impl Supervisor {
                 return Err(e);
             }
         };
-        info!("Supervisor: APIServer ready");
+        info!("supervisor.api.ready");
 
         // Phase 8 (pos 9): TimeoutWatcher, started when task_repository is configured.
         if let Some(ref repo) = task_repository {
-            info!("Supervisor: starting TimeoutWatcher");
+            info!("supervisor.timeout_watcher.starting");
             let watcher = TimeoutWatcher::new(
                 TimeoutWatcherConfig {
                     input_required_timeout: self
@@ -478,12 +482,12 @@ impl Supervisor {
                 event_sender.clone(),
             );
             tokio::spawn(watcher.run());
-            info!("Supervisor: TimeoutWatcher started");
+            info!("supervisor.timeout_watcher.started");
         }
 
         // Emit AllReady
         let _ = event_sender.send(RuntimeEvent::AllReady);
-        info!("Supervisor: all actors ready, emitted AllReady");
+        info!("supervisor.all_ready");
 
         // Drain the AllReady event from the startup receiver
         drain_until_all_ready(&mut startup_rx, timeout).await;

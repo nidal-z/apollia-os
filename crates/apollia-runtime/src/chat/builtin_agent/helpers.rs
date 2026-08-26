@@ -403,10 +403,10 @@ pub(in crate::chat::builtin_agent) async fn build_tool_specs(
                 });
             }
             Ok(None) => {
-                info!(tool = %name, "Tool not found in registry, skipping");
+                info!(tool = %name, "tool.descriptor.missing");
             }
             Err(e) => {
-                warn!(tool = %name, error = %e, "Failed to get tool descriptor, skipping");
+                warn!(tool = %name, error = %e, "tool.descriptor.read.failed");
             }
         }
     }

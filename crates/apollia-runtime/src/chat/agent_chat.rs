@@ -151,7 +151,7 @@ impl AgentChatExecutor {
         info!(
             session_id = %session.id,
             agent = %agent_name,
-            "Chat Agent: executing run()"
+            "chat.agent.run.started"
         );
 
         let result = tokio::time::timeout(
@@ -228,7 +228,7 @@ impl AgentChatExecutor {
                     session_id = %session.id,
                     agent = %agent_name,
                     error = %error_msg,
-                    "Chat Agent: run() failed"
+                    "chat.agent.run.failed"
                 );
                 Err(ChatError::InternalError(error_msg))
             }

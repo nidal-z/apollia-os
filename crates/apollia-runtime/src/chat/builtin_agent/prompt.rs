@@ -58,12 +58,12 @@ impl BuiltInChatAgent {
                         }
                         Ok(_) => None,
                         Err(e) => {
-                            warn!(error = %e, "Failed to read user memory for injection, skipping");
+                            warn!(error = %e, "memory.user.read.failed");
                             None
                         }
                     },
                     Err(e) => {
-                        warn!(error = %e, "User memory mutex poisoned, skipping injection");
+                        warn!(error = %e, "memory.user.lock.poisoned");
                         None
                     }
                 })

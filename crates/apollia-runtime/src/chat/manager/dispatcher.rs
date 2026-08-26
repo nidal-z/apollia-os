@@ -132,7 +132,8 @@ async fn resolve_workspace_path(
             if detail.workspace_path.is_none() {
                 warn!(
                     project_id = %pid,
-                    "project has no workspace_path configured - falling back to current_dir()"
+                    detail = "falling back to the process working directory",
+                    "project.workspace_path.missing"
                 );
             }
             Ok(detail.workspace_path.map(std::path::PathBuf::from))

@@ -226,7 +226,7 @@ impl ChatSessionManager {
                     summary,
                 } => {
                     if let Err(e) = self.repository.update_summary(&session_id, &summary) {
-                        warn!(session_id = %session_id, error = %e, "Failed to persist conversation summary");
+                        warn!(session_id = %session_id, error = %e, "chat.summary.persist.failed");
                     }
                 }
                 ChatCommand::GetRecentSummaries { limit, reply } => {
@@ -293,7 +293,7 @@ impl ChatSessionManager {
                     self.handle_check_a2a_compatibility(skill_id, required_version, reply);
                 }
                 ChatCommand::ReloadLlm { router } => {
-                    info!("ChatSessionManager: LLM router reloaded");
+                    info!("chat.router.reloaded");
                     self.llm_router = router;
                 }
                 ChatCommand::ResolveFsHitl {
@@ -357,11 +357,11 @@ impl ChatSessionManager {
                     let _ = reply.send(result);
                 }
                 ChatCommand::Shutdown => {
-                    info!("ChatSessionManager: shutting down");
+                    info!("chat.manager.stopping");
                     break;
                 }
             }
         }
-        info!("ChatSessionManager: actor stopped");
+        info!("chat.manager.stopped");
     }
 }

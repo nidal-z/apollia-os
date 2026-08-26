@@ -61,7 +61,7 @@ impl ChatSessionManager {
             .repository
             .update_status(session_id, &SessionStatus::Processing)
         {
-            warn!(error = %e, "Failed to update session status to Processing in SQLite");
+            warn!(error = %e, "chat.session.status.persist.failed");
         }
 
         // Emit event
@@ -97,7 +97,7 @@ impl ChatSessionManager {
                 .repository
                 .update_status(session_id, &SessionStatus::Active)
             {
-                warn!(error = %persist_err, "Failed to reset session status to Active after dispatch error");
+                warn!(error = %persist_err, "chat.session.status.reset.failed");
             }
             return Err(e);
         }
@@ -234,7 +234,7 @@ impl ChatSessionManager {
             .repository
             .update_status(session_id, &SessionStatus::Processing)
         {
-            warn!(error = %e, "Failed to update session status to Processing in SQLite");
+            warn!(error = %e, "chat.session.status.persist.failed");
         }
 
         let session = self
@@ -256,7 +256,7 @@ impl ChatSessionManager {
                 .repository
                 .update_status(session_id, &SessionStatus::Active)
             {
-                warn!(error = %persist_err, "Failed to reset session status to Active after dispatch error");
+                warn!(error = %persist_err, "chat.session.status.reset.failed");
             }
             return Err(e);
         }
@@ -477,7 +477,7 @@ impl ChatSessionManager {
         let agent_runner = match self.agent_runner.clone() {
             Some(r) => r,
             None => {
-                warn!(session_id = %session_id, "Agent mode requested but no ChatAgentRunner configured");
+                warn!(session_id = %session_id, "chat.agent.runner.missing");
                 if let Some(s) = self.sessions.get_mut(session_id) {
                     s.status = SessionStatus::Active;
                     s.active_exchange = None;
@@ -486,7 +486,7 @@ impl ChatSessionManager {
                     .repository
                     .update_status(session_id, &SessionStatus::Active)
                 {
-                    warn!(error = %e, "Failed to reset session status to Active in SQLite");
+                    warn!(error = %e, "chat.session.status.reset.failed");
                 }
                 return Err(ChatError::AgentLoadFailed(
                     "no ChatAgentRunner configured - Agent mode unavailable".into(),
@@ -545,7 +545,7 @@ impl ChatSessionManager {
         let session = match self.sessions.get_mut(session_id) {
             Some(s) => s,
             None => {
-                warn!(session_id = %session_id, "ExchangeComplete for unknown session");
+                warn!(session_id = %session_id, "chat.exchange.session.unknown");
                 return;
             }
         };
@@ -553,7 +553,7 @@ impl ChatSessionManager {
         // A closed session must never be resurrected by a late in-flight event.
         // The exchange spawned before close can still deliver here; drop it.
         if session.status == SessionStatus::Closed {
-            warn!(session_id = %session_id, "ExchangeComplete delivered to closed session, ignoring");
+            warn!(session_id = %session_id, "chat.exchange.session.closed");
             return;
         }
 
@@ -621,7 +621,7 @@ impl ChatSessionManager {
                 });
             }
             Err(e) => {
-                error!(error = %e, "Failed to persist assistant message to SQLite");
+                error!(error = %e, "chat.message.persist.failed");
             }
         }
 
@@ -631,7 +631,9 @@ impl ChatSessionManager {
             if apollia_permissions::is_code_executor(tool_name) {
                 warn!(
                     tool = %tool_name,
-                    "'always accept' not honored for a code executor; each invocation requires approval"
+                    detail = "code executor,
+                    each invocation requires approval",
+                    "chat.approval.always_accept.refused"
                 );
                 continue;
             }
@@ -640,7 +642,7 @@ impl ChatSessionManager {
                 .repository
                 .authorize_tool(session_id, tool_name, &auth_now)
             {
-                warn!(error = %e, tool = %tool_name, "Failed to persist tool authorization");
+                warn!(error = %e, tool = %tool_name, "chat.authorization.persist.failed");
             }
             session.authorized_tools.insert(tool_name.clone());
         }
@@ -652,7 +654,7 @@ impl ChatSessionManager {
             .repository
             .update_status(session_id, &SessionStatus::Active)
         {
-            warn!(error = %e, "Failed to reset session status to Active in SQLite");
+            warn!(error = %e, "chat.session.status.reset.failed");
         }
 
         // Record the cooperative pause disposition of the turn. A paused turn
@@ -684,7 +686,7 @@ impl ChatSessionManager {
             } else {
                 session.plan_phase = phase;
                 if let Err(e) = self.repository.set_plan_phase(session_id, phase) {
-                    warn!(error = %e, "Failed to persist plan phase in SQLite");
+                    warn!(error = %e, "chat.plan.phase.persist.failed");
                 }
             }
         }
@@ -697,7 +699,7 @@ impl ChatSessionManager {
             prompt_tokens = tokens_used.prompt_tokens,
             completion_tokens = tokens_used.completion_tokens,
             usage_reported = tokens_used.prompt_tokens + tokens_used.completion_tokens > 0,
-            "Chat exchange complete"
+            "chat.exchange.completed"
         );
 
         // ── accumulate session metrics ─────────────────────
@@ -738,7 +740,7 @@ impl ChatSessionManager {
             .get(session_id)
             .is_some_and(|s| s.status == SessionStatus::Closed)
         {
-            warn!(session_id = %session_id, "ExchangeError delivered to closed session, ignoring");
+            warn!(session_id = %session_id, "chat.exchange.session.closed");
             return;
         }
 
@@ -746,7 +748,7 @@ impl ChatSessionManager {
             session_id = %session_id,
             message_id = %message_id,
             error = %error,
-            "Chat exchange failed"
+            "chat.exchange.failed"
         );
 
         let _ = self.event_bus.send(RuntimeEvent::ChatError {
@@ -780,7 +782,7 @@ impl ChatSessionManager {
             .repository
             .update_status(session_id, &SessionStatus::Active)
         {
-            warn!(error = %e, "Failed to reset session status to Active after error");
+            warn!(error = %e, "chat.session.status.reset.failed");
         }
     }
 
@@ -826,7 +828,9 @@ impl ChatSessionManager {
             if apollia_permissions::is_code_executor(tool_name) {
                 warn!(
                     tool = %tool_name,
-                    "'always accept' not honored for a code executor; treated as a one-time approval"
+                    detail = "code executor,
+                    treated as a one-time approval",
+                    "chat.approval.always_accept.downgraded"
                 );
             } else {
                 // Always update the current session (immediate authorization).
@@ -845,7 +849,7 @@ impl ChatSessionManager {
                 // side effect, to be cleaned up later.
                 let now = now_rfc3339();
                 if let Err(e) = self.repository.authorize_tool(session_id, tool_name, &now) {
-                    warn!(error = %e, "Failed to persist tool authorization");
+                    warn!(error = %e, "chat.authorization.persist.failed");
                 }
 
                 self.persist_always_accept_scope(AlwaysAcceptScopeCtx {
@@ -880,7 +884,7 @@ impl ChatSessionManager {
             resolved_at: &resolved_at,
             reason,
         }) {
-            warn!(error = %e, "Failed to persist chat approval log");
+            warn!(error = %e, "chat.approval.log.persist.failed");
         }
 
         let _ = self.event_bus.send(RuntimeEvent::ChatApprovalResolved {
@@ -945,7 +949,8 @@ impl ChatSessionManager {
                         warn!(
                             session_id,
                             tool_name,
-                            "ThisProject scope requested but session has no resolvable workspace_path; falling back to session-only authorization"
+                            detail = "no resolvable workspace_path, session-only authorization",
+                            "chat.approval.scope.downgraded"
                         );
                     }
                 }

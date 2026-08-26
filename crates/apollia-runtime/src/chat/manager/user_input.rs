@@ -101,7 +101,7 @@ impl ChatSessionManager {
         let rows = match self.repository.list_sessions(Some("active")) {
             Ok(r) => r,
             Err(e) => {
-                warn!(error = %e, "Failed to restore active sessions from SQLite");
+                warn!(error = %e, "chat.sessions.restore.failed");
                 return;
             }
         };
@@ -187,10 +187,7 @@ impl ChatSessionManager {
         }
 
         if !self.sessions.is_empty() {
-            info!(
-                count = self.sessions.len(),
-                "ChatSessionManager: restored active sessions from SQLite"
-            );
+            info!(count = self.sessions.len(), "chat.sessions.restored");
         }
     }
 }

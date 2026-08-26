@@ -13,16 +13,20 @@ pub(in crate::supervisor) async fn spawn_runner_supervisor(
         vendor = ?detected.vendor,
         model = %detected.model,
         backend = ?detected.recommended_backend,
-        "Supervisor Phase 4.5: GPU detected, spawning runner"
+        "supervisor.runner.spawning"
     );
 
     match RunnerSupervisor::start(detected.clone(), detected.recommended_backend).await {
         Ok(sup) => {
-            info!("Supervisor: runner spawned successfully");
+            info!("supervisor.runner.spawned");
             Some(sup)
         }
         Err(e) => {
-            warn!(error = %e, "Supervisor: runner spawn failed, continuing without runner (LLM/STT local disabled)");
+            warn!(
+                error = %e,
+                detail = "local LLM and STT disabled",
+                "supervisor.runner.spawn.failed"
+            );
             None
         }
     }
@@ -76,17 +80,21 @@ pub(in crate::supervisor) fn emit_onboarding_if_needed(
     let repo = match um.lock() {
         Ok(repo) => repo,
         Err(e) => {
-            warn!(error = %e, "user memory lock poisoned - skipping onboarding check");
+            warn!(
+                error = %e,
+                detail = "skipping the onboarding check",
+                "memory.user.lock.poisoned"
+            );
             return;
         }
     };
     match repo.is_empty() {
         Ok(true) => {
             let _ = event_sender.send(RuntimeEvent::OnboardingRequired);
-            info!("first launch detected - onboarding required");
+            info!("onboarding.required");
         }
-        Ok(false) => info!("user memory populated - skipping onboarding"),
-        Err(e) => warn!(error = %e, "failed to check user memory for onboarding - skipping"),
+        Ok(false) => info!("onboarding.skipped"),
+        Err(e) => warn!(error = %e, "onboarding.check.failed"),
     }
 }
 
@@ -103,7 +111,7 @@ pub(in crate::supervisor) fn load_trigger_definitions(
     for row in rows {
         match apollia_triggers::TriggerDefinition::try_from(row) {
             Ok(def) => defs.push(def),
-            Err(e) => warn!(error = %e, "Skipping invalid trigger definition"),
+            Err(e) => warn!(error = %e, "trigger.definition.invalid"),
         }
     }
     Ok(defs)
@@ -119,7 +127,7 @@ pub(in crate::supervisor) fn migrate_mcp_from_toml(
     let existing = match repo.list() {
         Ok(v) => v,
         Err(e) => {
-            warn!(error = %e, "failed to check mcp.db for migration - skipping");
+            warn!(error = %e, "mcp.migration.check.failed");
             return;
         }
     };
@@ -131,11 +139,8 @@ pub(in crate::supervisor) fn migrate_mcp_from_toml(
         _ => return,
     };
     match repo.import_from_toml(toml_config.servers) {
-        Ok(n) => info!(
-            count = n,
-            "imported MCP servers from mcp.toml (one-time migration)"
-        ),
-        Err(e) => warn!(error = %e, "MCP migration from mcp.toml failed - skipping"),
+        Ok(n) => info!(count = n, "mcp.migration.completed"),
+        Err(e) => warn!(error = %e, "mcp.migration.failed"),
     }
 }
 
@@ -170,7 +175,7 @@ pub(in crate::supervisor) async fn start_mcp_manager(
                 servers = server_count,
                 connected = status.len(),
                 tools = total_tools,
-                "MCP Phase 3b complete"
+                "mcp.bootstrap.completed"
             );
             // Start MCP config watcher only when the legacy mcp.toml exists.
             // Config is now stored in mcp.db (SQLite), mcp.toml is a
@@ -184,7 +189,7 @@ pub(in crate::supervisor) async fn start_mcp_manager(
             Some(handle)
         }
         Err(e) => {
-            warn!(error = %e, "MCP Phase 3b failed - continuing without MCP");
+            warn!(error = %e, detail = "continuing without MCP", "mcp.bootstrap.failed");
             None
         }
     }
@@ -205,11 +210,11 @@ pub async fn watch(event_sender: &EventBusSender) -> Result<(), SupervisorError>
     while let Some(event) = rx.recv().await {
         // Non-terminal events are not acted on: no restart-on-crash.
         if matches!(event, RuntimeEvent::ShutdownRequested) {
-            info!("Supervisor watch: shutdown requested");
+            info!("supervisor.watch.shutdown");
             return Ok(());
         }
     }
-    info!("Supervisor watch: event bus closed");
+    info!("supervisor.watch.bus.closed");
     Ok(())
 }
 
@@ -270,7 +275,7 @@ pub(in crate::supervisor) fn seed_default_desktop_channel_if_needed(
         Ok(Some(_)) => return, // already seeded, leave the user's setup alone
         Ok(None) => {}
         Err(e) => {
-            warn!(error = %e, "seed default desktop channel: marker read failed - skipping");
+            warn!(error = %e, "notification.seed.marker.read.failed");
             return;
         }
     }
@@ -280,7 +285,7 @@ pub(in crate::supervisor) fn seed_default_desktop_channel_if_needed(
     let channels = match notif_repo.list_channels() {
         Ok(rows) => rows,
         Err(e) => {
-            warn!(error = %e, "seed default desktop channel: list_channels failed - skipping");
+            warn!(error = %e, "notification.seed.channels.list.failed");
             return;
         }
     };
@@ -316,7 +321,7 @@ pub(in crate::supervisor) fn seed_default_desktop_channel_if_needed(
         updated_at: String::new(),
     };
     if let Err(e) = notif_repo.insert_channel(&row) {
-        warn!(error = %e, "seed default desktop channel: insert failed - skipping marker");
+        warn!(error = %e, "notification.seed.insert.failed");
         return;
     }
 
@@ -324,8 +329,10 @@ pub(in crate::supervisor) fn seed_default_desktop_channel_if_needed(
     if let Err(e) = um.set_internal(SEEDED_DESKTOP_CHANNEL_MARKER, "true") {
         warn!(
             error = %e,
-            "seed default desktop channel: marker write failed - channel inserted but re-seed possible on next boot"
+            detail = "channel inserted,
+            a re-seed is possible on the next boot",
+            "notification.seed.marker.write.failed"
         );
     }
-    info!("Supervisor: seeded default desktop notification channel");
+    info!("notification.seed.completed");
 }

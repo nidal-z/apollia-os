@@ -261,7 +261,7 @@ pub async fn transcribe_audio<B: ExecutionBackend + Clone + From<DynBackend>>(
         .transcribe_with_language(audio, 16000, TranscriptSource::Api, language)
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, "STT transcription failed");
+            tracing::error!(error = %e, "stt.transcription.failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(SttErrorResponse {
@@ -366,7 +366,7 @@ pub async fn list_transcriptions<B: ExecutionBackend + Clone + From<DynBackend>>
         })?
         .list(limit, offset)
         .map_err(|e| {
-            tracing::error!(error = %e, "failed to list transcriptions");
+            tracing::error!(error = %e, "stt.transcriptions.list.failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(SttErrorResponse {
@@ -418,7 +418,7 @@ pub async fn delete_transcription<B: ExecutionBackend + Clone + From<DynBackend>
         })?
         .delete(&id)
         .map_err(|e| {
-            tracing::error!(error = %e, id = %id, "failed to delete transcription");
+            tracing::error!(error = %e, id = %id, "stt.transcription.delete.failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(SttErrorResponse {
@@ -454,7 +454,7 @@ pub async fn list_models<B: ExecutionBackend + Clone + From<DynBackend>>(
 
     if let Some(models_dir) = models_dir.filter(|d| d.is_dir()) {
         let entries = std::fs::read_dir(&models_dir).map_err(|e| {
-            tracing::error!(error = %e, path = %models_dir.display(), "failed to read models directory");
+            tracing::error!(error = %e, path = %models_dir.display(), "stt.models.read.failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(SttErrorResponse {
@@ -526,7 +526,7 @@ pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
         })?
         .get_or_default()
         .map_err(|e| {
-            tracing::error!(error = %e, "failed to read STT config from database");
+            tracing::error!(error = %e, "stt.config.read.failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(SttErrorResponse {
@@ -580,7 +580,7 @@ pub async fn update_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
     })?;
 
     guard.upsert(&new_config).map_err(|e| {
-        tracing::error!(error = %e, "failed to persist STT config");
+        tracing::error!(error = %e, "stt.config.persist.failed");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(SttErrorResponse {
@@ -598,7 +598,7 @@ pub async fn update_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
         )
     })?;
 
-    tracing::info!(enabled = updated.enabled, "STT configuration updated");
+    tracing::info!(enabled = updated.enabled, "stt.config.updated");
     Ok((StatusCode::OK, Json(updated)))
 }
 
@@ -650,7 +650,7 @@ pub async fn reload_stt_engine<B: ExecutionBackend + Clone + From<DynBackend>>(
             )
         })?;
         guard.get_or_default().map_err(|e| {
-            tracing::error!(error = %e, "failed to read STT config from database");
+            tracing::error!(error = %e, "stt.config.read.failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(SttErrorResponse {
@@ -683,7 +683,7 @@ pub async fn reload_stt_engine<B: ExecutionBackend + Clone + From<DynBackend>>(
         old.shutdown().await;
     }
 
-    tracing::info!(loaded, "STT engine reloaded");
+    tracing::info!(loaded, "stt.engine.reloaded");
     Ok((StatusCode::OK, Json(SttReloadResponse { loaded })))
 }
 

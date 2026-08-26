@@ -491,7 +491,7 @@ impl A2AInvoker {
             agent = %agent_name,
             caller = %caller,
             a2a_depth = a2a_depth,
-            "A2A invocation starting"
+            "a2a.invocation.started"
         );
 
         let _ = self.event_bus.send(RuntimeEvent::A2AInvocationStarted {

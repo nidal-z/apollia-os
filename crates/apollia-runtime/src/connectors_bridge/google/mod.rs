@@ -107,7 +107,8 @@ async fn resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String> {
     if accounts.len() > 1 {
         tracing::warn!(
             count = accounts.len(),
-            "multiple Google accounts connected - using the first"
+            detail = "using the first",
+            "connector.google.accounts.ambiguous"
         );
     }
     accounts.into_iter().next().ok_or_else(|| {

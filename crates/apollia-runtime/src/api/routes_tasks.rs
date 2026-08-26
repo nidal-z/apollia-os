@@ -442,7 +442,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
 
     // Check the status via the TaskRepository.
     let db_status = repo.get_task_status(&task_id).await.map_err(|e| {
-        tracing::error!(task_id = %task_id, error = %e, "get_task_status failed");
+        tracing::error!(task_id = %task_id, error = %e, "task.status.read.failed");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
@@ -488,7 +488,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
     repo.save_input_response(&task_id, &input_response)
         .await
         .map_err(|e| {
-            tracing::error!(task_id = %task_id, error = %e, "save_input_response failed");
+            tracing::error!(task_id = %task_id, error = %e, "task.input_response.save.failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
@@ -523,7 +523,7 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
                         tracing::info!(
                             task_id = %task_id,
                             approved = body.approved,
-                            "PendingApprovals resolved - ORIA execute_direct unblocked"
+                            "task.approval.resolved"
                         );
                     }
                     Err(e) => {
@@ -532,19 +532,20 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
                         tracing::warn!(
                             task_id = %task_id,
                             error = %e,
-                            "PendingApprovals.resolve failed - task may not be suspended via ORIA"
+                            "task.approval.resolve.failed"
                         );
                     }
                 }
             } else {
                 tracing::warn!(
                     task_id = %task_id,
-                    "PendingApprovals not configured in AppState - ORIA will not be unblocked"
+                    detail = "the suspended ORIA run stays blocked",
+                    "task.approval.resolver.missing"
                 );
             }
         }
         Err(e) => {
-            tracing::error!(task_id = %task_id, error = %e, "rebuild_for_resume failed");
+            tracing::error!(task_id = %task_id, error = %e, "task.resume.rebuild.failed");
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {

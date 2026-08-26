@@ -132,13 +132,16 @@ pub fn detect_gpu() -> GpuInfo {
             model = %info.model,
             memory_mb = info.memory_total_mb,
             backend = ?info.recommended_backend,
-            "GPU detected",
+            "gpu.detected",
         );
         info
     }
     #[cfg(not(target_arch = "aarch64"))]
     {
-        tracing::warn!("macOS x86_64 non supporté en v0.1.0, fallback CPU");
+        tracing::warn!(
+            detail = "macOS x86_64, falling back to CPU",
+            "gpu.platform.unsupported"
+        );
         GpuInfo::cpu_fallback()
     }
 }
@@ -256,7 +259,7 @@ fn log_detected(info: &GpuInfo) {
         model = %info.model,
         memory_mb = info.memory_total_mb,
         backend = ?info.recommended_backend,
-        "GPU detected",
+        "gpu.detected",
     );
 }
 
@@ -274,7 +277,7 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
     if raw.is_empty() || raw.eq_ignore_ascii_case("auto") {
         tracing::info!(
             backend = ?detected.recommended_backend,
-            "runner backend = auto, using detected backend",
+            "runner.backend.auto",
         );
         return detected.recommended_backend;
     }
@@ -284,7 +287,7 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
         Err(()) => {
             tracing::warn!(
                 requested = %raw,
-                "runner backend override invalid, falling back to auto-detect",
+                detail = "falling back to auto-detection", "runner.backend.override.invalid",
             );
             return detected.recommended_backend;
         }
@@ -293,7 +296,7 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
     if !is_backend_available(parsed) {
         tracing::warn!(
             requested = ?parsed,
-            "runner backend override not available on this build, using detected",
+            detail = "using the detected backend", "runner.backend.override.unavailable",
         );
         return detected.recommended_backend;
     }
@@ -301,7 +304,7 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
     tracing::info!(
         requested = ?parsed,
         detected = ?detected.recommended_backend,
-        "runner backend override applied",
+        "runner.backend.override.applied",
     );
     parsed
 }
@@ -420,7 +423,7 @@ fn probe_nvidia_linux() -> Option<GpuInfo> {
             driver = %parsed.driver_version,
             cuda_major = cuda_version.0,
             cuda_minor = cuda_version.1,
-            "CUDA driver < 12.0 detected, falling back to Vulkan if available",
+            detail = "falling back to Vulkan if available", "gpu.cuda.driver.outdated",
         );
         if vulkan_loader_present_linux() {
             RunnerBackend::Vulkan

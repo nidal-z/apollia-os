@@ -153,7 +153,7 @@ impl UserMemoryExtractor {
                 tracing::debug!(
                     elapsed_secs = %last.elapsed().as_secs(),
                     cooldown_secs = %EXTRACTION_COOLDOWN.as_secs(),
-                    "extraction rate limited"
+                    "memory.extraction.rate_limited"
                 );
                 return Ok(0);
             }
@@ -168,10 +168,7 @@ impl UserMemoryExtractor {
 
         self.last_extraction = Some(Instant::now());
         if count > 0 {
-            tracing::info!(
-                entries_created = count,
-                "user memory enriched from conversation"
-            );
+            tracing::info!(entries_created = count, "memory.user.enriched");
         }
 
         Ok(count)
@@ -195,13 +192,13 @@ impl UserMemoryExtractor {
 
             match result {
                 Ok(Ok(count)) => {
-                    tracing::debug!(count, "passive enrichment completed");
+                    tracing::debug!(count, "memory.enrichment.completed");
                 }
                 Ok(Err(e)) => {
-                    warn!(error = %e, "passive enrichment failed");
+                    warn!(error = %e, "memory.enrichment.failed");
                 }
                 Err(_) => {
-                    warn!("passive enrichment timed out");
+                    warn!("memory.enrichment.timeout");
                 }
             }
         });
@@ -224,7 +221,7 @@ impl UserMemoryExtractor {
         for &entry in entries {
             match repo.get(&entry.key) {
                 Ok(Some(existing)) if existing.value == entry.value => {
-                    tracing::debug!(key = %entry.key, "duplicate skipped - same value");
+                    tracing::debug!(key = %entry.key, "memory.entry.duplicate");
                 }
                 Ok(Some(existing))
                     if matches!(existing.written_by, WrittenBy::Onboarding | WrittenBy::User) =>
@@ -232,14 +229,14 @@ impl UserMemoryExtractor {
                     tracing::debug!(
                         key = %entry.key,
                         provenance = %existing.written_by.tag(),
-                        "higher-trust entry exists, skipping"
+                        "memory.entry.lower_trust"
                     );
                 }
                 Ok(_) => {
                     new_entries.push(entry.clone());
                 }
                 Err(e) => {
-                    warn!(key = %entry.key, error = %e, "deduplication lookup failed, skipping entry");
+                    warn!(key = %entry.key, error = %e, "memory.entry.dedup.failed");
                 }
             }
         }
@@ -257,7 +254,7 @@ impl UserMemoryExtractor {
         let mut stored = 0;
         for entry in entries {
             if let Err(e) = repo.set(&entry.key, &entry.value, chat_extractor_provenance()) {
-                warn!(key = %entry.key, error = %e, "failed to store enrichment entry");
+                warn!(key = %entry.key, error = %e, "memory.entry.store.failed");
             } else {
                 stored += 1;
             }
@@ -332,10 +329,10 @@ pub fn spawn_extraction(
                 store_extraction(&user_memory, &extraction);
             }
             Ok(Err(e)) => {
-                warn!(error = %e, "Memory extraction failed");
+                warn!(error = %e, "memory.extraction.failed");
             }
             Err(_) => {
-                warn!("Memory extraction timed out");
+                warn!("memory.extraction.timeout");
             }
         }
     });
@@ -403,7 +400,7 @@ fn store_extraction(
     let repo = match user_memory.lock() {
         Ok(r) => r,
         Err(e) => {
-            warn!(error = %e, "Failed to acquire user memory lock for extraction");
+            warn!(error = %e, "memory.user.lock.failed");
             return;
         }
     };
@@ -414,14 +411,14 @@ fn store_extraction(
             warn!(
                 key = %entry.key,
                 error = %e,
-                "Failed to store extracted memory entry"
+                "memory.entry.store.failed"
             );
         }
     }
 
     let count = entries.len();
     if count > 0 {
-        tracing::info!(count, "Stored extracted user memory entries from chat");
+        tracing::info!(count, "memory.entries.stored");
     }
 }
 

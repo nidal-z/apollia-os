@@ -129,7 +129,7 @@ impl BuiltInChatAgent {
             available = available_tools.len(),
             resolved = tool_specs.len(),
             tool_names = ?tool_specs.iter().map(|s| &s.name).collect::<Vec<_>>(),
-            "Chat ReAct loop: tool specs resolved"
+            "chat.react.tools.resolved"
         );
         let mut llm_messages = build_llm_messages(
             &effective_prompt,
@@ -390,7 +390,7 @@ impl BuiltInChatAgent {
                 tracing::warn!(
                     %reason,
                     session_id = %session_id,
-                    "chat step budget exhausted"
+                    "chat.budget.steps.exhausted"
                 );
                 return Err(ChatError::BudgetExhausted);
             }
@@ -955,7 +955,7 @@ impl BuiltInChatAgent {
             has_trace = thinking_trace.is_some(),
             trace_len = thinking_trace.as_ref().map(|t| t.len()).unwrap_or(0),
             session_id = %session_id,
-            "ReAct complete: thinking_trace summary"
+            "chat.react.completed"
         );
 
         ChatAgentResponse {

@@ -112,7 +112,7 @@ impl BuiltInChatAgent {
                     warn!(
                         session_id = %session_id,
                         error = %e,
-                        "LLM stream interrupted"
+                        "llm.stream.interrupted"
                     );
                     return Err(e.to_string());
                 }

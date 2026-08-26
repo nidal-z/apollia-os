@@ -67,7 +67,7 @@ pub async fn list_tools<B: ExecutionBackend + Clone + From<DynBackend>>(
     })?;
 
     let tools = registry.list().await.map_err(|e| {
-        tracing::error!(error = %e, "tool registry actor error in list_tools");
+        tracing::error!(error = %e, "tool.list.failed");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
@@ -109,7 +109,7 @@ pub async fn describe_tool<B: ExecutionBackend + Clone + From<DynBackend>>(
     })?;
 
     let tool = registry.get(&name).await.map_err(|e| {
-        tracing::error!(error = %e, tool = %name, "tool registry actor error in describe_tool");
+        tracing::error!(error = %e, tool = %name, "tool.describe.failed");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {

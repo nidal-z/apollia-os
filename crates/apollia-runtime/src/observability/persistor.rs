@@ -120,7 +120,7 @@ impl EventPersistor {
                             error = %e,
                             event_id = %record.event_id,
                             kind = %record.kind,
-                            "runtime_events insert failed",
+                            "events.insert.failed",
                         );
                     }
                 }
@@ -242,10 +242,10 @@ impl EventPersistorHandle {
         {
             Ok(()) => {}
             Err(mpsc::error::TrySendError::Full(_)) => {
-                tracing::warn!("runtime_events persistor channel full, event dropped");
+                tracing::warn!(detail = "event dropped", "events.channel.full");
             }
             Err(mpsc::error::TrySendError::Closed(_)) => {
-                tracing::warn!("runtime_events persistor disconnected, event dropped");
+                tracing::warn!(detail = "event dropped", "events.channel.disconnected");
             }
         }
     }

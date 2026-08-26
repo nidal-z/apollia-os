@@ -111,11 +111,11 @@ impl TimeoutWatcher {
             interval.tick().await;
             match self.scan_and_cancel().await {
                 Ok(n) if n > 0 => {
-                    tracing::info!(cancelled = n, "tâches HITL expirées annulées");
+                    tracing::info!(cancelled = n, "task.hitl.expired.canceled");
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    tracing::warn!(error = %e, "erreur scan timeout watcher");
+                    tracing::warn!(error = %e, "task.hitl.scan.failed");
                 }
             }
         }
@@ -146,14 +146,14 @@ impl TimeoutWatcher {
                 tracing::warn!(
                     task_id = %task_id_str,
                     error = %e,
-                    "erreur annulation tâche HITL expirée"
+                    "task.hitl.cancel.failed"
                 );
                 continue;
             }
 
             tracing::warn!(
                 task_id = %task_id_str,
-                "tâche annulée - timeout input_required"
+                reason = "input_required timeout", "task.hitl.canceled"
             );
 
             let task_id: TaskId = task_id_str.as_str().into();

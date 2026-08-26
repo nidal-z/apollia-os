@@ -786,7 +786,7 @@ fn sync_toml_after_mutation<B: ExecutionBackend + Clone>(
 ) {
     if let Some(path) = &state.config_path {
         if let Err(e) = guard.sync_to_toml(path) {
-            tracing::warn!(error = %e, "failed to sync llm backends to apollia.toml");
+            tracing::warn!(error = %e, "llm.backends.sync.failed");
         }
     }
 }
@@ -1219,7 +1219,7 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
     tracing::info!(
         backend_count = backends.len(),
         default = %default,
-        "LLM router reloaded"
+        "llm.router.reloaded"
     );
 
     Ok(Json(ReloadRouterResponse {
