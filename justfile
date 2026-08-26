@@ -540,6 +540,7 @@ guards:
       "scripts/check_claims.py"
       "scripts/check_cli_e2e_coverage.py"
       "scripts/check_cli_json_contract.py"
+      "scripts/check_cli_parse_tests.py"
       "scripts/check_crate_lints.py"
       "scripts/check_ctx_contract.py"
       "scripts/check_data_layout.py"

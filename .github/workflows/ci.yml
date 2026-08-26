@@ -248,6 +248,10 @@ jobs:
         run: |
           python3 scripts/check_cli_json_contract.py --selftest
           python3 scripts/check_cli_json_contract.py
+      - name: Every CLI leaf has a parsing test
+        run: |
+          python3 scripts/check_cli_parse_tests.py --selftest
+          python3 scripts/check_cli_parse_tests.py
       - name: Run CLI E2E (Track 1, offline, seeded)
         run: bash tests/cli/cli-e2e.sh
       - name: Upload E2E report

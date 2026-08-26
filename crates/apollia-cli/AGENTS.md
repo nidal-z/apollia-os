@@ -117,9 +117,10 @@ Scripts depend on this mapping.
 
 ## 4. Parsing tests
 
-Every sub-command has parsing tests in
-`crates/apollia-cli/src/commands/<noun>.rs` or in a sibling
-`<noun>_tests.rs` module.
+Every leaf command has at least one parsing test, in
+`crates/apollia-cli/src/commands/<noun>.rs`, in a sibling `<noun>_tests.rs`
+module, or in `crates/apollia-cli/src/parse_tests.rs` for the leaves whose
+noun file carries no test module of its own.
 
 ```rust
 #[test]
@@ -133,8 +134,11 @@ fn test_agent_logs_parse_with_id_and_json() {
 }
 ```
 
-Target : 150+ parsing tests in this crate. Acquired during the
-CLI sweep. Do not regress.
+The floor is the leaves, not the total. `scripts/check_cli_parse_tests.py`
+enumerates them from the built binary by walking `--help`, reads the argv
+literal of every `parse_from` in the crate, and refuses a leaf that no sequence
+drives. Counting the total is what let the statement above be false for 59 of
+the 199 leaves while the crate carried 247 sequences against a target of 150.
 
 ---
 
