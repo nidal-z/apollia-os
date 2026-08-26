@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
 import { parse } from "svelte/compiler";
-import { llmSectionView, sttSectionView } from "./OnboardingAiSetup.svelte";
+import { llmSectionView, sttSectionView } from "./aiSetupRules";
 
 // DOM rendering is exercised by the gestural corpus of scripts/automation
 // (vitest runs in `node`). These tests lock the branch decisions the template
@@ -109,78 +109,173 @@ describe("OnboardingAiSetup - sttSectionView", () => {
 // !llmSuccess}` and the voice list inside `{:else if sttEnabled}`. So the
 // template is parsed and each region is asked which conditions stand above it.
 
-const SOURCE = readFileSync(
-  fileURLToPath(new URL("./OnboardingAiSetup.svelte", import.meta.url)),
-  "utf8",
-);
-const TEMPLATE = parse(SOURCE, { modern: true }).fragment;
+/**
+ * One probe per component of the step.
+ *
+ * The step is three files: the shell, the language-engine section and the voice
+ * section. Every assertion below names the file that carries the code it is
+ * about, so a region moved between them fails here rather than passing on an
+ * empty read.
+ */
+function probe(file: string) {
+  const source = readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8");
+  const ast = parse(source, { modern: true });
+
+  /**
+   * Source text of every `{#if}` condition standing above the element carrying
+   * `testid`, outermost first. `null` when no such element exists, so a renamed
+   * or deleted region fails loudly instead of passing on an empty list.
+   */
+  function conditionsAbove(testid: string): string[] | null {
+    let hit: string[] | null = null;
+
+    const walk = (node: unknown, stack: string[]): void => {
+      if (Array.isArray(node)) {
+        for (const child of node) walk(child, stack);
+        return;
+      }
+      if (node === null || typeof node !== "object") return;
+      const record = node as Record<string, unknown>;
+
+      if (record.type === "Attribute" && record.name === "data-testid") {
+        const value = record.value;
+        const first = Array.isArray(value) ? (value[0] as Record<string, unknown>) : null;
+        if (first?.type === "Text" && first.data === testid) hit = stack;
+      }
+
+      let inner = stack;
+      if (record.type === "IfBlock") {
+        const condition = record.test as { start: number; end: number };
+        inner = [...stack, source.slice(condition.start, condition.end)];
+      }
+
+      for (const key of Object.keys(record)) {
+        if (key === "parent") continue;
+        walk(record[key], inner);
+      }
+    };
+
+    walk(ast.fragment, []);
+    return hit;
+  }
+
+  /** Top-level functions of the instance script, by name. */
+  const functions = new Map<string, Record<string, unknown>>(
+    ((ast.instance?.content.body ?? []) as unknown as Record<string, unknown>[])
+      .filter((node) => node.type === "FunctionDeclaration")
+      .map((node) => [(node.id as { name: string }).name, node]),
+  );
+
+  /** Source text of a top-level function of the instance script, `null` if absent. */
+  function functionSource(name: string): string | null {
+    const node = functions.get(name) as { start: number; end: number } | undefined;
+    return node ? source.slice(node.start, node.end) : null;
+  }
+
+  /**
+   * Source text of the condition of a leading `if (...) return;` guard, `null`
+   * when the function does not exist or does not open with one.
+   */
+  function guardExpression(name: string): string | null {
+    const node = functions.get(name) as
+      | { body: { body: Record<string, unknown>[] } }
+      | undefined;
+    const first = node?.body.body[0];
+    if (first?.type !== "IfStatement") return null;
+    const consequent = first.consequent as { type: string };
+    if (consequent.type !== "ReturnStatement") return null;
+    const test = first.test as { start: number; end: number };
+    return source.slice(test.start, test.end);
+  }
+
+  /**
+   * Source text of one attribute of the element carrying `testid`, `null` when
+   * the element has no such attribute, and `null` too when nothing carries the
+   * identifier, which the tests separate by asking for the element first.
+   */
+  function attributeSource(testid: string, attribute: string): string | null {
+    let hit: string | null = null;
+    let seen = false;
+
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        for (const child of node) walk(child);
+        return;
+      }
+      if (node === null || typeof node !== "object") return;
+      const record = node as Record<string, unknown>;
+      const attributes = record.attributes;
+
+      if (Array.isArray(attributes)) {
+        const identifier = attributes.find(
+          (a: Record<string, unknown>) => a.type === "Attribute" && a.name === "data-testid",
+        ) as Record<string, unknown> | undefined;
+        const value = identifier?.value;
+        const first = Array.isArray(value) ? (value[0] as Record<string, unknown>) : null;
+        if (first?.type === "Text" && first.data === testid) {
+          seen = true;
+          const wanted = attributes.find(
+            (a: Record<string, unknown>) => a.type === "Attribute" && a.name === attribute,
+          ) as { start: number; end: number } | undefined;
+          if (wanted) hit = source.slice(wanted.start, wanted.end);
+        }
+      }
+
+      for (const key of Object.keys(record)) {
+        if (key === "parent") continue;
+        walk(record[key]);
+      }
+    };
+
+    walk(ast.fragment);
+    return seen ? hit : null;
+  }
+
+  /** Elements a test asks about must exist before its answer means anything. */
+  const carriesTestid = (testid: string): boolean => conditionsAbove(testid) !== null;
+
+  return {
+    functionNames: () => [...functions.keys()],
+    conditionsAbove,
+    functionSource,
+    guardExpression,
+    attributeSource,
+    carriesTestid,
+  };
+}
+
+const LLM = probe("./OnboardingLlmSection.svelte");
+const STT = probe("./OnboardingSttSection.svelte");
 
 /** Reactive state that must never gate a list or a way of adding a model. */
 const SCAN_STATE = /ggufModels|whisperModels|llmSuccess|sttEnabled/;
-
-/**
- * Source text of every `{#if}` condition standing above the element carrying
- * `testid`, outermost first. `null` when no such element exists, so a renamed
- * or deleted region fails loudly instead of passing on an empty list.
- */
-function conditionsAbove(testid: string): string[] | null {
-  let hit: string[] | null = null;
-
-  const walk = (node: unknown, stack: string[]): void => {
-    if (Array.isArray(node)) {
-      for (const child of node) walk(child, stack);
-      return;
-    }
-    if (node === null || typeof node !== "object") return;
-    const record = node as Record<string, unknown>;
-
-    if (record.type === "Attribute" && record.name === "data-testid") {
-      const value = record.value;
-      const first = Array.isArray(value) ? (value[0] as Record<string, unknown>) : null;
-      if (first?.type === "Text" && first.data === testid) hit = stack;
-    }
-
-    let inner = stack;
-    if (record.type === "IfBlock") {
-      const condition = record.test as { start: number; end: number };
-      inner = [...stack, SOURCE.slice(condition.start, condition.end)];
-    }
-
-    for (const key of Object.keys(record)) {
-      if (key === "parent") continue;
-      walk(record[key], inner);
-    }
-  };
-
-  walk(TEMPLATE, []);
-  return hit;
-}
 
 describe("OnboardingAiSetup - template branches", () => {
   test("the walker reads real conditions, and the matcher matches the old ones", () => {
     // GIVEN two regions that legitimately keep a condition
     // THEN the walker returns their condition source, so an empty answer below
     // cannot be an artefact of a walker that finds nothing
-    expect(conditionsAbove("llm-download-progress")).toContain("llmDownloadId");
-    expect(conditionsAbove("stt-hotkey-block")).toContain("sttView.showHotkeyBlock");
+    expect(LLM.conditionsAbove("llm-download-progress")).toContain("llmDownloadId");
+    expect(STT.conditionsAbove("stt-hotkey-block")).toContain("sttView.showHotkeyBlock");
 
     // AND the matcher does match the conditions this lot removed, verbatim
     expect(SCAN_STATE.test("ggufModels.length === 0 && !llmSuccess")).toBe(true);
     expect(SCAN_STATE.test("sttEnabled")).toBe(true);
 
     // AND an absent region is reported as absent, not as unconditioned
-    expect(conditionsAbove("no-such-testid")).toBeNull();
+    expect(LLM.conditionsAbove("no-such-testid")).toBeNull();
+    expect(STT.conditionsAbove("no-such-testid")).toBeNull();
   });
 
   test("no way of adding a model is gated by what the scan found", () => {
     // GIVEN the three language-engine add means and the voice one
-    for (const testid of [
-      "llm-load-model-btn",
-      "curated-llm-list",
-      "search-results",
-      "stt-load-model-btn",
-    ]) {
-      const conditions = conditionsAbove(testid);
+    for (const [where, testid] of [
+      [LLM, "llm-load-model-btn"],
+      [LLM, "curated-llm-list"],
+      [LLM, "search-results"],
+      [STT, "stt-load-model-btn"],
+    ] as const) {
+      const conditions = where.conditionsAbove(testid);
       // THEN the region exists
       expect(conditions, testid).not.toBeNull();
       // AND nothing above it depends on the scan or on the dictation toggle
@@ -190,8 +285,11 @@ describe("OnboardingAiSetup - template branches", () => {
 
   test("neither detected list is gated by the scan state or the toggle", () => {
     // GIVEN the two lists of models found on disk
-    for (const testid of ["llm-model-list", "whisper-model-list"]) {
-      const conditions = conditionsAbove(testid);
+    for (const [where, testid] of [
+      [LLM, "llm-model-list"],
+      [STT, "whisper-model-list"],
+    ] as const) {
+      const conditions = where.conditionsAbove(testid);
       // THEN they render off their own decision flag only
       expect(conditions, testid).not.toBeNull();
       expect(conditions?.filter((c) => SCAN_STATE.test(c)), testid).toEqual([]);
@@ -209,86 +307,7 @@ describe("OnboardingAiSetup - template branches", () => {
 // paths delegate to it; both halves are asserted, since a correct decision
 // nothing calls would change nothing.
 
-import { reconcileWhisperScan } from "./OnboardingAiSetup.svelte";
-
-const AST = parse(SOURCE, { modern: true });
-
-/** Top-level functions of the instance script, by name. */
-const INSTANCE_FUNCTIONS = new Map<string, Record<string, unknown>>(
-  ((AST.instance?.content.body ?? []) as unknown as Record<string, unknown>[])
-    .filter((node) => node.type === "FunctionDeclaration")
-    .map((node) => [(node.id as { name: string }).name, node]),
-);
-
-/** Source text of a top-level function of the instance script, `null` if absent. */
-function functionSource(name: string): string | null {
-  const node = INSTANCE_FUNCTIONS.get(name) as { start: number; end: number } | undefined;
-  return node ? SOURCE.slice(node.start, node.end) : null;
-}
-
-/**
- * Source text of the condition of a leading `if (...) return;` guard, `null`
- * when the function does not exist or does not open with one.
- */
-function guardExpression(name: string): string | null {
-  const node = INSTANCE_FUNCTIONS.get(name) as
-    | { body: { body: Record<string, unknown>[] } }
-    | undefined;
-  const first = node?.body.body[0];
-  if (first?.type !== "IfStatement") return null;
-  const consequent = first.consequent as { type: string };
-  if (consequent.type !== "ReturnStatement") return null;
-  const test = first.test as { start: number; end: number };
-  return SOURCE.slice(test.start, test.end);
-}
-
-/**
- * Source text of one attribute of the element carrying `testid`, `null` when
- * the element has no such attribute, and `null` too when nothing carries the
- * identifier, which the tests separate by asking for the element first.
- */
-function attributeSource(testid: string, attribute: string): string | null {
-  let hit: string | null = null;
-  let seen = false;
-
-  const walk = (node: unknown): void => {
-    if (Array.isArray(node)) {
-      for (const child of node) walk(child);
-      return;
-    }
-    if (node === null || typeof node !== "object") return;
-    const record = node as Record<string, unknown>;
-    const attributes = record.attributes;
-
-    if (Array.isArray(attributes)) {
-      const identifier = attributes.find(
-        (a: Record<string, unknown>) => a.type === "Attribute" && a.name === "data-testid",
-      ) as Record<string, unknown> | undefined;
-      const value = identifier?.value;
-      const first = Array.isArray(value) ? (value[0] as Record<string, unknown>) : null;
-      if (first?.type === "Text" && first.data === testid) {
-        seen = true;
-        const wanted = attributes.find(
-          (a: Record<string, unknown>) => a.type === "Attribute" && a.name === attribute,
-        ) as { start: number; end: number } | undefined;
-        if (wanted) hit = SOURCE.slice(wanted.start, wanted.end);
-      }
-    }
-
-    for (const key of Object.keys(record)) {
-      if (key === "parent") continue;
-      walk(record[key]);
-    }
-  };
-
-  walk(AST.fragment);
-  return seen ? hit : null;
-}
-
-/** Elements a test asks about must exist before its answer means anything. */
-function carriesTestid(testid: string): boolean {
-  return conditionsAbove(testid) !== null;
-}
+import { reconcileWhisperScan } from "./aiSetupRules";
 
 describe("OnboardingAiSetup - reconcileWhisperScan", () => {
   const first = { path: "/models/ggml-base.bin", recommended: false };
@@ -348,7 +367,7 @@ describe("OnboardingAiSetup - both scan paths delegate the choice", () => {
 
   test("the matcher matches where the assignment is, and the walker reads code", () => {
     // GIVEN the one function that is supposed to assign the voice choice
-    const applier = functionSource("applyWhisperScan");
+    const applier = STT.functionSource("applyWhisperScan");
 
     // THEN it exists, it is where the assignments live, and it decides through
     // the exported function, so the absence asserted below is a measurement
@@ -356,13 +375,13 @@ describe("OnboardingAiSetup - both scan paths delegate the choice", () => {
     expect(ASSIGNS_VOICE_CHOICE.test(applier ?? "")).toBe(true);
     expect(applier).toContain("reconcileWhisperScan(");
     // AND a function that does not exist is reported as absent
-    expect(functionSource("noSuchFunction")).toBeNull();
+    expect(STT.functionSource("noSuchFunction")).toBeNull();
   });
 
   test("neither scan path writes the voice choice itself", () => {
     // GIVEN the two functions the five triggers of the step reach
     for (const name of ["loadData", "rescanStt"]) {
-      const source = functionSource(name);
+      const source = STT.functionSource(name);
       // THEN each exists and hands the scan result to the shared applier
       expect(source, name).not.toBeNull();
       expect(source, name).toContain("applyWhisperScan(");
@@ -373,8 +392,8 @@ describe("OnboardingAiSetup - both scan paths delegate the choice", () => {
 
   test("the applier is the only function that writes the voice choice", () => {
     // GIVEN every top-level function of the instance script
-    const writers = [...INSTANCE_FUNCTIONS.keys()].filter((name) =>
-      ASSIGNS_VOICE_CHOICE.test(functionSource(name) ?? ""),
+    const writers = STT.functionNames().filter((name) =>
+      ASSIGNS_VOICE_CHOICE.test(STT.functionSource(name) ?? ""),
     );
 
     // THEN exactly one writes it, so no path can grow its own overwrite again
@@ -383,11 +402,11 @@ describe("OnboardingAiSetup - both scan paths delegate the choice", () => {
 
   test("the operator keeps the one write that is his", () => {
     // GIVEN the row of a detected voice model
-    expect(carriesTestid("whisper-model-row")).toBe(true);
+    expect(STT.carriesTestid("whisper-model-row")).toBe(true);
 
     // THEN clicking it still sets the selection, which is the write the two
     // scan paths were undoing
-    expect(attributeSource("whisper-model-row", "onclick")).toContain(
+    expect(STT.attributeSource("whisper-model-row", "onclick")).toContain(
       "selectedWhisper = model",
     );
   });
@@ -397,32 +416,32 @@ describe("OnboardingAiSetup - the detected engines stay selectable", () => {
   test("the probes read real attributes and real guards", () => {
     // GIVEN two places that legitimately carry what the tests below ask for
     // THEN the attribute probe returns an expression rather than nothing
-    expect(carriesTestid("stt-toggle")).toBe(true);
-    expect(attributeSource("stt-toggle", "disabled")).toContain("whisperModels.length");
+    expect(STT.carriesTestid("stt-toggle")).toBe(true);
+    expect(STT.attributeSource("stt-toggle", "disabled")).toContain("whisperModels.length");
     // AND the guard probe returns the condition of a leading early return
-    expect(guardExpression("loadSttModelFile")).toBe("importingStt");
+    expect(STT.guardExpression("loadSttModelFile")).toBe("importingStt");
     // AND both report absence when there is nothing to read
-    expect(attributeSource("llm-model-row", "no-such-attribute")).toBeNull();
-    expect(guardExpression("noSuchFunction")).toBeNull();
+    expect(LLM.attributeSource("llm-model-row", "no-such-attribute")).toBeNull();
+    expect(LLM.guardExpression("noSuchFunction")).toBeNull();
   });
 
   test("a configured session no longer disables the rows it just used", () => {
     // GIVEN the row of an engine found on disk
-    expect(carriesTestid("llm-model-row")).toBe(true);
-    const disabled = attributeSource("llm-model-row", "disabled");
+    expect(LLM.carriesTestid("llm-model-row")).toBe(true);
+    const disabled = LLM.attributeSource("llm-model-row", "disabled");
 
     // THEN it still declines a click while a configuration is in flight
     expect(disabled).toContain("llmConfiguring");
     // AND it no longer locks itself on the success of this session, which is
     // the answer the two other lists of the step already gave
     expect(disabled).not.toContain("llmSuccess");
-    expect(attributeSource("whisper-model-row", "disabled")).toBeNull();
-    expect(attributeSource("curated-stt-row", "disabled")).toBeNull();
+    expect(STT.attributeSource("whisper-model-row", "disabled")).toBeNull();
+    expect(STT.attributeSource("curated-stt-row", "disabled")).toBeNull();
   });
 
   test("the click handler no longer refuses a second engine either", () => {
     // GIVEN the handler behind those rows
-    const guard = guardExpression("selectGgufModel");
+    const guard = LLM.guardExpression("selectGgufModel");
 
     // THEN it opens on a guard that still ignores a click mid-configuration
     expect(guard).toContain("llmConfiguring");
@@ -444,7 +463,7 @@ describe("OnboardingAiSetup - the detected engines stay selectable", () => {
 import {
   runLlmConfiguration,
   type LlmConfigurationState,
-} from "./OnboardingAiSetup.svelte";
+} from "./aiSetupRules";
 
 describe("OnboardingAiSetup - runLlmConfiguration", () => {
   const IDLE: LlmConfigurationState = {
@@ -554,7 +573,7 @@ describe("OnboardingAiSetup - the click handler delegates that lifecycle", () =>
 
   test("the handler hands the whole run to the exported lifecycle", () => {
     // GIVEN the function behind a row of the detected engines
-    const source = functionSource("selectGgufModel");
+    const source = LLM.functionSource("selectGgufModel");
 
     // THEN it exists and runs the configuration through the exported function
     expect(source).not.toBeNull();
@@ -566,8 +585,8 @@ describe("OnboardingAiSetup - the click handler delegates that lifecycle", () =>
 
   test("no function of the step raises the lock on its own", () => {
     // GIVEN every top-level function of the instance script
-    const writers = [...INSTANCE_FUNCTIONS.keys()].filter((name) =>
-      SETS_LOCK_TO_LITERAL.test(functionSource(name) ?? ""),
+    const writers = LLM.functionNames().filter((name) =>
+      SETS_LOCK_TO_LITERAL.test(LLM.functionSource(name) ?? ""),
     );
 
     // THEN none of them sets the lock to a literal: the only writes left mirror

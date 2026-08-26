@@ -1,0 +1,180 @@
+/* Onboarding step 3, the voice controls.
+   The hotkey capture row, the microphone picker and the live dictation test.
+   Every rule is namespaced under `.ai-setup`, the root of the step, the way
+   `markdown-prose.css` namespaces under `.apollia-prose`. */
+
+/* STT hotkey + test */
+.ai-setup .stt-hotkey-block {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed hsl(var(--border) / 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ai-setup .hotkey-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-setup .hotkey-label {
+  font-size: var(--text-body-xs);
+  color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+}
+
+.ai-setup .hotkey-capture {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px dashed hsl(var(--border));
+  background: hsl(var(--background));
+  font-size: var(--text-body-xs);
+  color: hsl(var(--muted-foreground));
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--motion-fast) ease;
+}
+
+.ai-setup .hotkey-capture:hover {
+  border-color: hsl(var(--primary) / 0.6);
+}
+
+.ai-setup .hotkey-capture:focus {
+  outline: none;
+  border-style: solid;
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+}
+
+.ai-setup .hotkey-display {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--text-body-xs);
+  color: hsl(var(--foreground));
+  padding: 0.0625rem 0.375rem;
+  border-radius: 0.25rem;
+  background: hsl(var(--muted) / 0.6);
+}
+
+.ai-setup .hotkey-placeholder {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.ai-setup .hotkey-save {
+  padding: 0.25rem 0.625rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  font-size: var(--text-body-xs);
+  color: hsl(var(--foreground));
+}
+
+.ai-setup .hotkey-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-setup .hotkey-save:not(:disabled):hover {
+  background: hsl(var(--muted));
+}
+
+.ai-setup .hotkey-hint {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: hsl(var(--muted-foreground));
+}
+
+.ai-setup .mic-select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  font-size: var(--text-body-xs);
+  color: hsl(var(--foreground));
+  cursor: pointer;
+}
+
+.ai-setup .mic-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-setup .stt-no-mic {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid hsl(var(--warning) / 0.3);
+  background: hsl(var(--warning) / 0.1);
+  font-size: var(--text-caption);
+  color: hsl(var(--warning-foreground));
+}
+
+.ai-setup .stt-test-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ai-setup .stt-test-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  font-size: var(--text-body-xs);
+  color: hsl(var(--foreground));
+}
+
+.ai-setup .stt-test-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-setup .stt-test-stop {
+  background: hsl(var(--destructive) / 0.15);
+  color: hsl(var(--destructive));
+  border-color: hsl(var(--destructive) / 0.3);
+  animation: mic-pulse 1.4s ease-out infinite;
+}
+
+@keyframes mic-pulse {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px hsl(var(--destructive) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0);
+  }
+}
+
+.ai-setup .stt-test-transcript {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--text-body-xs);
+  color: hsl(var(--success));
+  font-style: italic;
+}
+
+.ai-setup .stt-test-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--text-body-xs);
+  color: hsl(var(--destructive));
+}

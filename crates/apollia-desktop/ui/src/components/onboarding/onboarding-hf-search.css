@@ -1,0 +1,229 @@
+/* Onboarding step 3, the HuggingFace search panel.
+   The search bar, the result rows and the per-file compatibility chips.
+   Every rule is namespaced under `.ai-setup`, the root of the step, the way
+   `markdown-prose.css` namespaces under `.apollia-prose`. */
+
+.ai-setup .btn-search-hf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  background: hsl(var(--card));
+  color: hsl(var(--muted-foreground));
+  font-size: var(--text-body-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
+}
+
+.ai-setup .btn-search-hf:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--primary) / 0.25);
+}
+
+/* Search bar */
+.ai-setup .search-bar {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+}
+
+.ai-setup .btn-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid hsl(var(--border));
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--motion-fast) ease;
+}
+
+.ai-setup .btn-back:hover {
+  background: hsl(var(--muted));
+}
+
+.ai-setup .search-input {
+  flex: 1;
+  height: 1.875rem;
+  padding: 0 0.625rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  font-size: var(--text-body-sm);
+  outline: none;
+  transition: border-color var(--motion-fast) ease;
+}
+
+.ai-setup .search-input:focus {
+  border-color: hsl(var(--primary) / 0.5);
+}
+
+.ai-setup .btn-search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: none;
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--motion-fast) ease;
+}
+
+.ai-setup .btn-search:hover:not(:disabled) {
+  background: hsl(var(--primary) / 0.2);
+}
+
+.ai-setup .btn-search:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Search results */
+.ai-setup .search-result-item {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  overflow: hidden;
+  background: hsl(var(--card));
+}
+
+.ai-setup .search-result-item.is-expanded {
+  border-color: hsl(var(--primary) / 0.3);
+}
+
+.ai-setup .search-result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.45rem 0.625rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-fast) ease;
+}
+
+.ai-setup .search-result-header:hover:not(:disabled) {
+  background: hsl(var(--primary) / 0.04);
+}
+
+.ai-setup .search-result-header:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ai-setup .badge-gated {
+  font-size: var(--text-micro-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: hsl(var(--warning));
+  background: hsl(var(--warning) / 0.12);
+  padding: 0.15rem 0.4rem;
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+
+.ai-setup .search-result-files {
+  padding: 0 0.625rem 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ai-setup .files-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0;
+}
+
+.ai-setup .file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.35rem;
+  border: 1px solid transparent;
+  background: hsl(var(--muted) / 0.5);
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--text-body-xs);
+  color: hsl(var(--foreground));
+  transition:
+    background 100ms ease,
+    border-color 100ms ease;
+}
+
+.ai-setup .file-row:hover:not(:disabled) {
+  background: hsl(var(--primary) / 0.06);
+  border-color: hsl(var(--primary) / 0.18);
+}
+
+.ai-setup .file-row:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ai-setup .file-row.compat-fits {
+  border-color: hsl(var(--success) / 0.25);
+}
+
+.ai-setup .file-row.compat-large {
+  opacity: 0.4;
+}
+
+.ai-setup .file-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-setup .file-size {
+  font-size: var(--text-caption);
+  color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+}
+
+.ai-setup .compat-chip {
+  font-size: var(--text-micro-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+
+.ai-setup .compat-chip-fits {
+  color: hsl(var(--success));
+  background: hsl(var(--success) / 0.12);
+}
+
+.ai-setup .compat-chip-might_fit {
+  color: hsl(var(--warning));
+  background: hsl(var(--warning) / 0.12);
+}
+
+.ai-setup .compat-chip-too_large {
+  color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.1);
+}
