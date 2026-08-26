@@ -333,7 +333,12 @@ pub(crate) async fn reload_stt_inner(
         let flow_state = Arc::clone(stt_flow_state);
         let cfg_for_hotkey = cfg.clone();
         app.run_on_main_thread(move || {
-            crate::setup_stt_hotkey(&app_for_main, &cfg_for_hotkey, &runtime_handle, &flow_state);
+            crate::bootstrap::setup_stt_hotkey(
+                &app_for_main,
+                &cfg_for_hotkey,
+                &runtime_handle,
+                &flow_state,
+            );
         })
         .map_err(|e| format!("failed to arm STT hotkey: {e}"))?;
     } else if !cfg.enabled && armed_config.is_some() {
