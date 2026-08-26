@@ -1852,9 +1852,14 @@ mod proofs {
 
 
 def _accused(text: str) -> list[int]:
-    return [
-        s.line for s in panicfree.sites(text) if s.form == "unwrap" and not s.exempt
-    ]
+    """The lines the sweep refuses in a file no `EXPECT_RATCHET` entry covers.
+
+    The verdict comes from `panicfree.refuses` rather than a copy of it here,
+    so the day the rule changes this block measures the new rule. The default
+    path is under no ratchet entry, which is where `expect()` is held to what
+    `unwrap()` has always been held to.
+    """
+    return [s.line for s in panicfree.sites(text) if panicfree.refuses(s)]
 
 
 def check_panic_sweep_fires() -> None:
@@ -1866,6 +1871,7 @@ def check_panic_sweep_fires() -> None:
         ("an unwrap whose SAFETY line is four lines up", PANIC_SAFETY_TOO_FAR, 6),
         ("an unwrap after a closed test module", PANIC_AFTER_TEST_MOD, 10),
         ("an unwrap under cfg(any(<target>, test)), production on that target", PANIC_CFG_ANY_TARGET, 3),
+        ("a bare expect in production", PANIC_EXPECT, 2),
     ):
         case(
             f"accuses {name}",
@@ -1903,6 +1909,16 @@ def check_panic_sweep_fires() -> None:
         f"covers, so a sweep that drops it leaves the larger hole open while "
         f"looking closed",
     )
+
+    ratcheted = next(iter(panicfree.EXPECT_RATCHET), None)
+    if ratcheted is not None:
+        case(
+            "counts, rather than refuses, an expect under a ratcheted crate",
+            not panicfree.refuses(expect_sites[0], f"{ratcheted}src/lib.rs"),
+            f"the sweep refused a site under {ratcheted}, which the ratchet "
+            f"still covers. A ratchet that refuses what it is counting turns "
+            f"the whole tree red and gets the guard switched off",
+        )
 
 
 def check_panic_sweep_scope() -> None:
@@ -2146,12 +2162,12 @@ def main() -> int:
         "assertion reaches the artifact with its cause while a passing one adds "
         "nothing to it, every tracked guard is named by a file that launches "
         "it, every tracked script answers --help without measuring, "
-        "the panic-free sweep names the sites a lint gracies while "
-        "keeping the production an attribute read by proximity would drop, "
-        "the desktop automation verdict is read with staleness treated "
-        "as nothing measured, and the design token guard reads what can style "
-        "something rather than what is written about it, behind a ratchet "
-        "that fails in both directions"
+        "the panic-free sweep names the sites a lint gracies, refuses an "
+        "expect on the same terms as an unwrap, and keeps the production an "
+        "attribute read by proximity would drop, the desktop automation "
+        "verdict is read with staleness treated as nothing measured, and the "
+        "design token guard reads what can style something rather than what "
+        "is written about it, behind a ratchet that fails in both directions"
     )
     return 0
 
