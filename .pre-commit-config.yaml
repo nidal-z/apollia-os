@@ -70,11 +70,11 @@ repos:
         types: [rust]
         pass_filenames: false
 
-      # Porte les cinq regles de prose : tiret cadratin, PII, domaine mort,
-      # slug perime et renvoi de suivi interne. Il existe en script pour etre
-      # lancable hors commit : la phase qui produit la prose ne commite pas,
-      # donc un hook seul ne peut pas l'attraper la ou le defaut nait. Le
-      # travail Prose Guard de la chaine lance ce meme script.
+      # Carries the five prose rules: em-dash, PII, dead domain, stale slug and
+      # internal tracker reference. It exists as a script so it can run outside
+      # a commit: the phase that produces the prose does not commit, so a hook
+      # alone cannot catch the defect where it is born. The Prose Guard job of
+      # the pipeline runs this same script.
       - id: check-prose
         name: prose rules (em-dash, PII, dead domain, stale slug, tracker ref)
         entry: python3 scripts/check_prose.py
