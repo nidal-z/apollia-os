@@ -571,6 +571,9 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
 
 /// Run a memory subcommand, printing its output or error.
 fn run_memory(command: &commands::memory::MemoryCommand, json: bool) -> i32 {
+    if let Some(code) = commands::memory::confirmation(command, json) {
+        return code;
+    }
     match commands::memory::run(command, json) {
         Ok(output) => {
             println!("{output}");
@@ -1330,8 +1333,28 @@ mod tests {
         // THEN Commands::Agent { command: AgentCommand::Uninstall { name } }
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Uninstall { name } => {
+                AgentCommand::Uninstall { name, confirm } => {
                     assert_eq!(name, "mon-agent");
+                    assert!(!confirm, "the confirmation is opt-in, never the default");
+                }
+                other => panic!("expected AgentCommand::Uninstall, got {other:?}"),
+            },
+            other => panic!("expected Commands::Agent, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cli_parses_agent_uninstall_with_confirmation() {
+        // GIVEN "apollia-os agent uninstall mon-agent --confirm", the flag the
+        // destruction rule of crates/apollia-cli/AGENTS.md section 2 publishes
+        // WHEN parse
+        let cli = parse(&["apollia-os", "agent", "uninstall", "mon-agent", "--confirm"]);
+        // THEN the flag is carried on the variant
+        match &cli.command {
+            Commands::Agent { command } => match command {
+                AgentCommand::Uninstall { name, confirm } => {
+                    assert_eq!(name, "mon-agent");
+                    assert!(confirm);
                 }
                 other => panic!("expected AgentCommand::Uninstall, got {other:?}"),
             },
@@ -1438,8 +1461,9 @@ mod tests {
         // THEN Commands::Task { command: TaskCommand::Cancel { task_id: "t-001" } }
         match &cli.command {
             Commands::Task { command } => match command {
-                TaskCommand::Cancel { task_id } => {
+                TaskCommand::Cancel { task_id, confirm } => {
                     assert_eq!(task_id, "t-001");
+                    assert!(!confirm, "the confirmation is opt-in, never the default");
                 }
                 other => panic!("expected TaskCommand::Cancel, got {other:?}"),
             },

@@ -28,6 +28,10 @@ pub enum ResilienceCommand {
     Reset {
         /// Tool name to reset.
         tool_name: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -39,7 +43,9 @@ pub async fn run(cmd: &ResilienceCommand, socket: Option<PathBuf>, json: bool) -
     match cmd {
         ResilienceCommand::List => run_list(&client, json).await,
         ResilienceCommand::Show { tool_name } => run_show(&client, tool_name, json).await,
-        ResilienceCommand::Reset { tool_name } => run_reset(&client, tool_name, json).await,
+        ResilienceCommand::Reset { tool_name, confirm } => {
+            run_reset(&client, tool_name, *confirm, json).await
+        }
     }
 }
 
@@ -124,7 +130,14 @@ async fn run_show(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
 }
 
 /// `apollia-os resilience reset <tool>`: reset a circuit breaker to CLOSED.
-async fn run_reset(client: &RuntimeClient, tool_name: &str, json: bool) -> i32 {
+async fn run_reset(client: &RuntimeClient, tool_name: &str, confirm: bool, json: bool) -> i32 {
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!("reset the circuit breaker of '{tool_name}'"),
+    ) {
+        return code;
+    }
     match client.resilience_reset(tool_name).await {
         Ok(resp) => {
             if json {
@@ -209,7 +222,10 @@ mod tests {
         let cli = TestCli::parse_from(["test", "reset", "mcp_erp"]);
         // THEN ResilienceCommand::Reset with correct tool_name
         match cli.cmd {
-            ResilienceCommand::Reset { tool_name } => assert_eq!(tool_name, "mcp_erp"),
+            ResilienceCommand::Reset { tool_name, confirm } => {
+                assert_eq!(tool_name, "mcp_erp");
+                assert!(!confirm, "the confirmation is opt-in, never the default");
+            }
             other => panic!("expected Reset, got {other:?}"),
         }
     }
@@ -267,7 +283,7 @@ mod tests {
         // GIVEN a client pointing to a nonexistent socket
         let client = RuntimeClient::new(PathBuf::from("/tmp/apollia-test-nonexistent-9999.sock"));
         // WHEN run_reset is called with an unknown tool
-        let code = run_reset(&client, "unknown_tool", false).await;
+        let code = run_reset(&client, "unknown_tool", true, false).await;
         // THEN returns RUNTIME_ERROR (runtime not running)
         assert_eq!(code, exit_codes::RUNTIME_ERROR);
     }

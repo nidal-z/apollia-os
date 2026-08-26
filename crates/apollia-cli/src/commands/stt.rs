@@ -63,6 +63,10 @@ pub enum TranscriptionsCommand {
     Delete {
         /// Transcription identifier.
         id: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -113,8 +117,8 @@ pub async fn run(cmd: &SttCommand, socket: Option<PathBuf>, json: bool) -> i32 {
             TranscriptionsCommand::List { limit } => {
                 run_transcriptions_list(*limit, socket, json).await
             }
-            TranscriptionsCommand::Delete { id } => {
-                run_transcription_delete(id, socket, json).await
+            TranscriptionsCommand::Delete { id, confirm } => {
+                run_transcription_delete(id, *confirm, socket, json).await
             }
         },
         SttCommand::Model { command } => match command {
@@ -484,7 +488,17 @@ fn fetch_model(repo_id: &str, filename: &str) -> Result<PathBuf, String> {
 }
 
 /// `apollia-os stt transcriptions delete <id>`: delete a transcription.
-async fn run_transcription_delete(id: &str, socket: Option<PathBuf>, json: bool) -> i32 {
+async fn run_transcription_delete(
+    id: &str,
+    confirm: bool,
+    socket: Option<PathBuf>,
+    json: bool,
+) -> i32 {
+    if let Some(code) =
+        crate::output::require_confirmation(confirm, json, &format!("delete transcription '{id}'"))
+    {
+        return code;
+    }
     let client = make_client(socket);
 
     match client.delete_transcription(id).await {
@@ -495,7 +509,7 @@ async fn run_transcription_delete(id: &str, socket: Option<PathBuf>, json: bool)
                     serde_json::to_string_pretty(&resp).unwrap_or_default()
                 );
             } else {
-                println!("✔ Transcription '{id}' deleted");
+                note!("✔ Transcription '{id}' deleted");
             }
             exit_codes::SUCCESS
         }
@@ -782,7 +796,10 @@ mod tests {
         // THEN TranscriptionsCommand::Delete { id: "t-abc123" }
         match &cli.command {
             SttCommand::Transcriptions { command } => match command {
-                TranscriptionsCommand::Delete { id } => assert_eq!(id, "t-abc123"),
+                TranscriptionsCommand::Delete { id, confirm } => {
+                    assert_eq!(id, "t-abc123");
+                    assert!(!confirm, "the confirmation is opt-in, never the default");
+                }
                 other => panic!("expected Delete, got {other:?}"),
             },
             other => panic!("expected Transcriptions, got {other:?}"),

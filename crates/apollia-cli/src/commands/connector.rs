@@ -168,6 +168,10 @@ pub enum DriveFolderCommand {
     Reset {
         /// Account id.
         account: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 
     /// Manage the picked-folder list captured via the Desktop Drive Picker.
@@ -193,6 +197,10 @@ pub enum PickedFolderCommand {
         account: String,
         /// Drive folder id (the same id surfaced by `picked list`).
         folder_id: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -810,7 +818,9 @@ async fn run_drive_folder(cmd: &DriveFolderCommand, json: bool) -> i32 {
     match cmd {
         DriveFolderCommand::List => run_drive_folder_list(json).await,
         DriveFolderCommand::Set { account, path } => run_drive_folder_set(account, path, json),
-        DriveFolderCommand::Reset { account } => run_drive_folder_reset(account, json),
+        DriveFolderCommand::Reset { account, confirm } => {
+            run_drive_folder_reset(account, *confirm, json)
+        }
         DriveFolderCommand::Picked { command } => run_drive_picked(command, json),
     }
 }
@@ -901,7 +911,14 @@ fn run_drive_folder_set(account: &str, path: &str, json: bool) -> i32 {
     }
 }
 
-fn run_drive_folder_reset(account: &str, json: bool) -> i32 {
+fn run_drive_folder_reset(account: &str, confirm: bool, json: bool) -> i32 {
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!("reset the Drive folder override of '{account}'"),
+    ) {
+        return code;
+    }
     match apollia_auth::drive_prefs::reset_folder_path("google", account) {
         Ok(()) => {
             if json {
@@ -929,9 +946,11 @@ fn run_drive_folder_reset(account: &str, json: bool) -> i32 {
 fn run_drive_picked(cmd: &PickedFolderCommand, json: bool) -> i32 {
     match cmd {
         PickedFolderCommand::List { account } => run_drive_picked_list(account, json),
-        PickedFolderCommand::Remove { account, folder_id } => {
-            run_drive_picked_remove(account, folder_id, json)
-        }
+        PickedFolderCommand::Remove {
+            account,
+            folder_id,
+            confirm,
+        } => run_drive_picked_remove(account, folder_id, *confirm, json),
     }
 }
 
@@ -956,7 +975,7 @@ fn run_drive_picked_list(account: &str, json: bool) -> i32 {
         println!("No picked Drive folders for google / {account}.");
         println!("  -> Use the Desktop app to pick folders (the CLI has no Picker UI).");
     } else {
-        println!("  Picked Drive folders (google / {account}):");
+        note!("  Picked Drive folders (google / {account}):");
         for f in &folders {
             println!("  * {} ({})", f.name, f.id);
             println!("      mime: {}", f.mime_type);
@@ -965,7 +984,14 @@ fn run_drive_picked_list(account: &str, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-fn run_drive_picked_remove(account: &str, folder_id: &str, json: bool) -> i32 {
+fn run_drive_picked_remove(account: &str, folder_id: &str, confirm: bool, json: bool) -> i32 {
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!("remove picked Drive folder '{folder_id}' of '{account}'"),
+    ) {
+        return code;
+    }
     match apollia_auth::drive_prefs::remove_picked_folder("google", account, folder_id) {
         Ok(()) => {
             if json {
@@ -1207,10 +1233,11 @@ mod tests {
             ConnectorCommand::Drive {
                 command:
                     DriveCommand::Folder {
-                        command: DriveFolderCommand::Reset { account },
+                        command: DriveFolderCommand::Reset { account, confirm },
                     },
             } => {
                 assert_eq!(account, "alice@example.com");
+                assert!(!confirm, "the confirmation is opt-in, never the default");
             }
             other => panic!("unexpected: {other:?}"),
         }
@@ -1257,12 +1284,18 @@ mod tests {
                     DriveCommand::Folder {
                         command:
                             DriveFolderCommand::Picked {
-                                command: PickedFolderCommand::Remove { account, folder_id },
+                                command:
+                                    PickedFolderCommand::Remove {
+                                        account,
+                                        folder_id,
+                                        confirm,
+                                    },
                             },
                     },
             } => {
                 assert_eq!(account, "alice@example.com");
                 assert_eq!(folder_id, "1abcDEFghi");
+                assert!(!confirm, "the confirmation is opt-in, never the default");
             }
             other => panic!("unexpected: {other:?}"),
         }

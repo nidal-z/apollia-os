@@ -49,7 +49,7 @@ if [[ "$RUNNER_OK" == "1" ]]; then
         && "${Q[@]}" agent start e2e-hello >/dev/null 2>&1; then
         capture_stream "run --stream (echo stub)" 90 1 "ping" -- \
             "${Q[@]}" run e2e-hello "ping" --stream
-        "${Q[@]}" agent uninstall e2e-hello >/dev/null 2>&1 || true
+        "${Q[@]}" agent uninstall e2e-hello --confirm >/dev/null 2>&1 || true
     else
         skip "run --stream" "echo stub could not be started (Python runner)"
     fi

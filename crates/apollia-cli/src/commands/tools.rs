@@ -121,6 +121,10 @@ pub enum ToolsCredentialsCmd {
         tool: String,
         /// Logical key name.
         key: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
     /// Validate a credential with a live call against the backend it targets.
     Test {
@@ -714,7 +718,9 @@ async fn run_credentials(cmd: &ToolsCredentialsCmd, json: bool) -> i32 {
     match cmd {
         ToolsCredentialsCmd::List { tool } => run_credentials_list(tool.as_deref(), json),
         ToolsCredentialsCmd::Set { tool, key } => run_credentials_set(tool, key, json),
-        ToolsCredentialsCmd::Delete { tool, key } => run_credentials_delete(tool, key, json),
+        ToolsCredentialsCmd::Delete { tool, key, confirm } => {
+            run_credentials_delete(tool, key, *confirm, json)
+        }
         ToolsCredentialsCmd::Test { tool } => run_credentials_test(tool, json).await,
     }
 }
@@ -810,12 +816,19 @@ fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else {
-        println!("✔ credential {tool}/{key} stored (encrypted)");
+        note!("✔ credential {tool}/{key} stored (encrypted)");
     }
     exit_codes::SUCCESS
 }
 
-fn run_credentials_delete(tool: &str, key: &str, json: bool) -> i32 {
+fn run_credentials_delete(tool: &str, key: &str, confirm: bool, json: bool) -> i32 {
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!("delete the credential '{tool}/{key}'"),
+    ) {
+        return code;
+    }
     let data_dir = match resolve_data_dir() {
         Ok(d) => d,
         Err(code) => return code,

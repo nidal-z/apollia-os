@@ -519,11 +519,15 @@ Accepts a local filesystem path (e.g. `./agents/my-agent.py`) or a Git remote UR
 
 Uninstall a permanently installed agent
 
-**Usage:** `apollia-os agent uninstall <NAME>`
+**Usage:** `apollia-os agent uninstall [OPTIONS] <NAME>`
 
 ###### **Arguments:**
 
 * `<NAME>` - Agent name (as declared in manifest)
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -620,11 +624,15 @@ Show details for an installed package
 
 Uninstall a package and all its agents and triggers
 
-**Usage:** `apollia-os agent package uninstall <NAME>`
+**Usage:** `apollia-os agent package uninstall [OPTIONS] <NAME>`
 
 ###### **Arguments:**
 
 * `<NAME>` - Package name
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -766,11 +774,15 @@ Display the status of a specific task
 
 Cancel a running task
 
-**Usage:** `apollia-os task cancel <TASK_ID>`
+**Usage:** `apollia-os task cancel [OPTIONS] <TASK_ID>`
 
 ###### **Arguments:**
 
 * `<TASK_ID>` - Task identifier (UUID)
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -1003,12 +1015,16 @@ Store a credential `(tool, key)` after an interactive masked prompt
 
 Delete the credential `(tool, key)`
 
-**Usage:** `apollia-os tools credentials delete <TOOL> <KEY>`
+**Usage:** `apollia-os tools credentials delete [OPTIONS] <TOOL> <KEY>`
 
 ###### **Arguments:**
 
 * `<TOOL>` - Owning tool name
 * `<KEY>` - Logical key name
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -1328,6 +1344,7 @@ Example: `apollia-os memory purge --namespace my-agent --older-than 30` Filtered
     All memory types
 
 * `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -1399,6 +1416,7 @@ Searches `episodic_memories`, `semantic_memories`, and `procedural_memories` in 
 ###### **Options:**
 
 * `--data-dir <DIR>` - Memory data directory (default: ~/.apollia/memory/)
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -2116,11 +2134,15 @@ List recent transcriptions
 
 Delete a transcription by its ID
 
-**Usage:** `apollia-os stt transcriptions delete <ID>`
+**Usage:** `apollia-os stt transcriptions delete [OPTIONS] <ID>`
 
 ###### **Arguments:**
 
 * `<ID>` - Transcription identifier
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -2503,12 +2525,16 @@ List active in-memory session authorizations (requires runtime route)
 
 Revoke a single in-memory session authorization (requires runtime route)
 
-**Usage:** `apollia-os chat config authorizations revoke <SESSION_ID> <TOOL>`
+**Usage:** `apollia-os chat config authorizations revoke [OPTIONS] <SESSION_ID> <TOOL>`
 
 ###### **Arguments:**
 
 * `<SESSION_ID>` - Session id
 * `<TOOL>` - Tool name
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -2824,11 +2850,15 @@ The env var is the same one the connector wizard surfaces (e.g. `APOLLIA_FIGMA_C
 
 Remove the persisted client id stored under `<env_var>`
 
-**Usage:** `apollia-os mcp oauth client-id clear <ENV_VAR>`
+**Usage:** `apollia-os mcp oauth client-id clear [OPTIONS] <ENV_VAR>`
 
 ###### **Arguments:**
 
 * `<ENV_VAR>` - Env var name
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -2885,12 +2915,16 @@ The value is written to the OS keychain under service `apollia-mcp` and composit
 
 Delete the stored secret for `(<server>, <env_var>)`
 
-**Usage:** `apollia-os mcp secret delete <SERVER> <ENV_VAR>`
+**Usage:** `apollia-os mcp secret delete [OPTIONS] <SERVER> <ENV_VAR>`
 
 ###### **Arguments:**
 
 * `<SERVER>` - MCP server name
 * `<ENV_VAR>` - Environment variable name
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -3015,11 +3049,15 @@ Show the state of a single circuit breaker
 
 Reset a circuit breaker to CLOSED state immediately
 
-**Usage:** `apollia-os resilience reset <TOOL_NAME>`
+**Usage:** `apollia-os resilience reset [OPTIONS] <TOOL_NAME>`
 
 ###### **Arguments:**
 
 * `<TOOL_NAME>` - Tool name to reset
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -3061,13 +3099,13 @@ Display cache statistics (total entries, hits, oldest/newest entry)
 
 Remove all cached plans.
 
-Prompts for confirmation unless `--force` is passed.
+Prompts for confirmation unless `--confirm` is passed.
 
 **Usage:** `apollia-os plan cache clear [OPTIONS]`
 
 ###### **Options:**
 
-* `--force` - Skip interactive confirmation (non-interactive / CI-friendly)
+* `--confirm` - Skip the interactive confirmation prompt. `--force` is the name this flag published before the rule of section 2 and stays accepted
 
 
 
@@ -3082,6 +3120,7 @@ Evict entries older than `--max-age-days` days (default: 7)
 * `--max-age-days <DAYS>` - Maximum entry age in days before eviction
 
   Default value: `7`
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -3362,11 +3401,15 @@ Set the folder path override for `<account>`
 
 Reset the folder override for `<account>` (falls back to the default)
 
-**Usage:** `apollia-os connector drive folder reset <ACCOUNT>`
+**Usage:** `apollia-os connector drive folder reset [OPTIONS] <ACCOUNT>`
 
 ###### **Arguments:**
 
 * `<ACCOUNT>` - Account id
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -3399,12 +3442,16 @@ List the picked Drive folders persisted for `<account>`
 
 Remove a picked folder from the persisted list
 
-**Usage:** `apollia-os connector drive folder picked remove <ACCOUNT> <FOLDER_ID>`
+**Usage:** `apollia-os connector drive folder picked remove [OPTIONS] <ACCOUNT> <FOLDER_ID>`
 
 ###### **Arguments:**
 
 * `<ACCOUNT>` - Account id
 * `<FOLDER_ID>` - Drive folder id (the same id surfaced by `picked list`)
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -3583,6 +3630,7 @@ Remove the entry stored at `KEY`
 
 ###### **Options:**
 
+* `--confirm` - Skip the interactive confirmation prompt
 * `--db <PATH>`
 
 
@@ -3805,6 +3853,7 @@ Unlink an agent from a project
 
 ###### **Options:**
 
+* `--confirm` - Skip the interactive confirmation prompt
 * `--db <PATH>`
 
 

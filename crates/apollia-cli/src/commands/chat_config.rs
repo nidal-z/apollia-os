@@ -101,6 +101,10 @@ pub enum ChatConfigAuthorizationsCommand {
         session_id: String,
         /// Tool name.
         tool: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -528,10 +532,16 @@ mod tests {
         let cli = TestCli::parse_from(["x", "authorizations", "revoke", "sess-1", "file_read"]);
         match cli.cmd {
             ChatConfigCommand::Authorizations {
-                command: ChatConfigAuthorizationsCommand::Revoke { session_id, tool },
+                command:
+                    ChatConfigAuthorizationsCommand::Revoke {
+                        session_id,
+                        tool,
+                        confirm,
+                    },
             } => {
                 assert_eq!(session_id, "sess-1");
                 assert_eq!(tool, "file_read");
+                assert!(!confirm, "the confirmation is opt-in, never the default");
             }
             other => panic!("unexpected: {other:?}"),
         }

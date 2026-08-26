@@ -34,6 +34,11 @@ pub enum UserMemoryCommand {
     Forget {
         /// Profile key to remove.
         key: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
+
         #[arg(long, value_name = "PATH")]
         db: Option<PathBuf>,
     },
@@ -76,7 +81,9 @@ pub fn run(cmd: &UserMemoryCommand, json: bool) -> i32 {
     match cmd {
         UserMemoryCommand::Show { db } => run_show(db.as_deref(), json),
         UserMemoryCommand::Set { key, value, db } => run_set(db.as_deref(), key, value, json),
-        UserMemoryCommand::Forget { key, db } => run_forget(db.as_deref(), key, json),
+        UserMemoryCommand::Forget { key, confirm, db } => {
+            run_forget(db.as_deref(), key, *confirm, json)
+        }
         UserMemoryCommand::Reset { confirm, db } => run_reset(db.as_deref(), *confirm, json),
         UserMemoryCommand::Schema { db } => run_schema(db.as_deref(), json),
         UserMemoryCommand::Export { output, db } => {
@@ -182,7 +189,14 @@ fn run_set(db_path: Option<&Path>, key: &str, value: &str, json: bool) -> i32 {
 
 // ─── forget ───────────────────────────────────────────────────────────────────
 
-fn run_forget(db_path: Option<&Path>, key: &str, json: bool) -> i32 {
+fn run_forget(db_path: Option<&Path>, key: &str, confirm: bool, json: bool) -> i32 {
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!("forget the profile entry '{key}'"),
+    ) {
+        return code;
+    }
     let Some(repo) = open_repo(db_path, json) else {
         return exit_codes::GENERAL_ERROR;
     };
@@ -445,6 +459,6 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("um.db");
         run_set(Some(&db), "x", "y", true);
-        assert_eq!(run_forget(Some(&db), "x", true), exit_codes::SUCCESS);
+        assert_eq!(run_forget(Some(&db), "x", true, true), exit_codes::SUCCESS);
     }
 }

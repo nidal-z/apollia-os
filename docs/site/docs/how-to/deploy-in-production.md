@@ -169,7 +169,7 @@ the [HTTP API reference](/reference/api/apollia-os-runtime-api).
 
   ```sh
   apollia-os plan cache stats
-  apollia-os plan cache clear
+  apollia-os plan cache clear --confirm
   ```
 
 - **Audit.** Every governed action is recorded in a signed, hash-chained journal.

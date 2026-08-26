@@ -143,6 +143,11 @@ pub enum ProjectAgentsCommand {
         project: String,
         /// Agent name.
         agent: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
+
         #[arg(long, value_name = "PATH")]
         db: Option<PathBuf>,
     },
@@ -609,9 +614,12 @@ fn run_agents(cmd: &ProjectAgentsCommand, json: bool) -> i32 {
         ProjectAgentsCommand::Add { project, agent, db } => {
             run_agents_add(db.as_deref(), project, agent, json)
         }
-        ProjectAgentsCommand::Remove { project, agent, db } => {
-            run_agents_remove(db.as_deref(), project, agent, json)
-        }
+        ProjectAgentsCommand::Remove {
+            project,
+            agent,
+            confirm,
+            db,
+        } => run_agents_remove(db.as_deref(), project, agent, *confirm, json),
     }
 }
 
@@ -661,7 +669,20 @@ fn run_agents_add(db: Option<&Path>, project: &str, agent: &str, json: bool) -> 
     }
 }
 
-fn run_agents_remove(db: Option<&Path>, project: &str, agent: &str, json: bool) -> i32 {
+fn run_agents_remove(
+    db: Option<&Path>,
+    project: &str,
+    agent: &str,
+    confirm: bool,
+    json: bool,
+) -> i32 {
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!("unlink agent '{agent}' from project '{project}'"),
+    ) {
+        return code;
+    }
     let Some(repo) = open_repo(db, json) else {
         return exit_codes::GENERAL_ERROR;
     };

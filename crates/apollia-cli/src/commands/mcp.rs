@@ -214,6 +214,10 @@ pub enum McpSecretCommand {
         server: String,
         /// Environment variable name.
         env_var: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -396,7 +400,11 @@ fn run_secret(cmd: &McpSecretCommand, json: bool) -> i32 {
             env_var,
             value,
         } => run_secret_set(server, env_var, value, json),
-        McpSecretCommand::Delete { server, env_var } => run_secret_delete(server, env_var, json),
+        McpSecretCommand::Delete {
+            server,
+            env_var,
+            confirm,
+        } => run_secret_delete(server, env_var, *confirm, json),
     }
 }
 
@@ -441,12 +449,19 @@ fn run_secret_set(server: &str, env_var: &str, value: &str, json: bool) -> i32 {
     }
 }
 
-fn run_secret_delete(server: &str, env_var: &str, json: bool) -> i32 {
+fn run_secret_delete(server: &str, env_var: &str, confirm: bool, json: bool) -> i32 {
     if server.trim().is_empty() {
         return emit_secret_error("server name must not be empty".into(), json);
     }
     if env_var.trim().is_empty() {
         return emit_secret_error("env_var must not be empty".into(), json);
+    }
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!("delete the stored secret '{env_var}' of MCP server '{server}'"),
+    ) {
+        return code;
     }
     let store = match apollia_auth::select_secret_store() {
         Ok(s) => s,
@@ -1586,10 +1601,16 @@ mod tests {
         let cli = TestCli::parse_from(["x", "secret", "delete", "notion", "NOTION_API_KEY"]);
         match cli.cmd {
             McpCommand::Secret {
-                command: McpSecretCommand::Delete { server, env_var },
+                command:
+                    McpSecretCommand::Delete {
+                        server,
+                        env_var,
+                        confirm,
+                    },
             } => {
                 assert_eq!(server, "notion");
                 assert_eq!(env_var, "NOTION_API_KEY");
+                assert!(!confirm, "the confirmation is opt-in, never the default");
             }
             other => panic!("unexpected: {other:?}"),
         }

@@ -183,7 +183,7 @@ intégration côté hôte ; voir la
 
   ```sh
   apollia-os plan cache stats
-  apollia-os plan cache clear
+  apollia-os plan cache clear --confirm
   ```
 
 - **Audit.** Chaque action gouvernée est enregistrée dans un journal signé et

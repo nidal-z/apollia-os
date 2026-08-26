@@ -73,7 +73,7 @@ pub(in crate::commands::agent) fn run_package_info(name: &str, json: bool) -> i3
         println!("Package: {} v{}", pkg.name, pkg.version);
         println!("  Installed: {}", pkg.installed_at);
         println!("  Path:      {}", pkg.root_path.display());
-        println!("  Agents ({}):", agents.len());
+        note!("  Agents ({}):", agents.len());
         for a in &agents {
             println!("    - {a}");
         }
@@ -82,7 +82,11 @@ pub(in crate::commands::agent) fn run_package_info(name: &str, json: bool) -> i3
 }
 
 /// `apollia-os agent package uninstall <name>`: remove package, all its agents and triggers.
-pub(in crate::commands::agent) async fn run_package_uninstall(name: &str, json: bool) -> i32 {
+pub(in crate::commands::agent) async fn run_package_uninstall(
+    name: &str,
+    confirm: bool,
+    json: bool,
+) -> i32 {
     let data_dir = apollia_data_dir();
     let pkg_repo = match open_package_repository_or_create(&data_dir) {
         Ok(r) => r,
@@ -95,6 +99,17 @@ pub(in crate::commands::agent) async fn run_package_uninstall(name: &str, json: 
         Err(e) => return print_error_and_exit(&format!("database error: {e}"), json),
     };
     let agent_names = pkg_repo.list_agents_for_package(name).unwrap_or_default();
+
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!(
+            "uninstall package '{name}' and its {} agent(s)",
+            agent_names.len()
+        ),
+    ) {
+        return code;
+    }
 
     // Delete agents from AgentRepository.
     let agent_repo = match open_repository_or_create(&data_dir) {
@@ -135,7 +150,7 @@ pub(in crate::commands::agent) async fn run_package_uninstall(name: &str, json: 
 // ─── Trigger injection ───────────────────────────────────────────────────────
 
 /// `apollia-os agent uninstall <name>`: remove an installed agent.
-pub(in crate::commands::agent) fn run_uninstall(name: &str, json: bool) -> i32 {
+pub(in crate::commands::agent) fn run_uninstall(name: &str, confirm: bool, json: bool) -> i32 {
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
         Ok(r) => r,
@@ -152,6 +167,12 @@ pub(in crate::commands::agent) fn run_uninstall(name: &str, json: bool) -> i32 {
             );
         }
         Err(e) => return print_error_and_exit(&format!("database error: {e}"), json),
+    }
+
+    if let Some(code) =
+        crate::output::require_confirmation(confirm, json, &format!("uninstall agent '{name}'"))
+    {
+        return code;
     }
 
     // Delete from repository.

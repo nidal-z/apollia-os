@@ -3,7 +3,6 @@
 //! Accesses `~/.apollia/plan_cache.db` directly (no runtime connection required).
 //! Exposes the `stats`, `clear`, and `evict` operations from [`PlanCacheRepository`].
 
-use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use apollia_oria::plan_cache::PlanCacheRepository;
@@ -37,17 +36,22 @@ pub enum PlanCacheCommand {
     Stats,
     /// Remove all cached plans.
     ///
-    /// Prompts for confirmation unless `--force` is passed.
+    /// Prompts for confirmation unless `--confirm` is passed.
     Clear {
-        /// Skip interactive confirmation (non-interactive / CI-friendly).
-        #[arg(long)]
-        force: bool,
+        /// Skip the interactive confirmation prompt. `--force` is the name this
+        /// flag published before the rule of section 2 and stays accepted.
+        #[arg(long, alias = "force")]
+        confirm: bool,
     },
     /// Evict entries older than `--max-age-days` days (default: 7).
     Evict {
         /// Maximum entry age in days before eviction.
         #[arg(long, default_value = "7", value_name = "DAYS")]
         max_age_days: u32,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -58,8 +62,11 @@ pub fn run(cmd: &PlanCacheCommand, json: bool) -> i32 {
 
     match cmd {
         PlanCacheCommand::Stats => run_stats(&db_path, json),
-        PlanCacheCommand::Clear { force } => run_clear(&db_path, *force, json),
-        PlanCacheCommand::Evict { max_age_days } => run_evict(&db_path, *max_age_days, json),
+        PlanCacheCommand::Clear { confirm } => run_clear(&db_path, *confirm, json),
+        PlanCacheCommand::Evict {
+            max_age_days,
+            confirm,
+        } => run_evict(&db_path, *max_age_days, *confirm, json),
     }
 }
 
@@ -104,28 +111,12 @@ fn run_stats(db_path: &Path, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
-/// `apollia-os plan-cache clear [--force]`: remove all cached plans.
-fn run_clear(db_path: &Path, force: bool, json: bool) -> i32 {
-    if !force {
-        // Machine mode never asks: a question glued to the JSON document broke
-        // the one-document contract, and a pipe cannot answer anyway.
-        if json {
-            return crate::output::emit_error(
-                json,
-                exit_codes::GENERAL_ERROR,
-                "use --force to clear without prompt",
-            );
-        }
-        eprint!("This will delete all cached plans. Continue? [y/N] ");
-        let _ = io::stderr().flush();
-        let mut input = String::new();
-        if io::stdin().read_line(&mut input).is_err() {
-            return print_error_and_exit("failed to read confirmation input", json);
-        }
-        if !input.trim().eq_ignore_ascii_case("y") {
-            println!("Cancelled.");
-            return exit_codes::SUCCESS;
-        }
+/// `apollia-os plan-cache clear [--confirm]`: remove all cached plans.
+fn run_clear(db_path: &Path, confirm: bool, json: bool) -> i32 {
+    if let Some(code) =
+        crate::output::require_confirmation(confirm, json, "clear every cached plan")
+    {
+        return code;
     }
 
     let repo = match open_repo(db_path, json) {
@@ -150,7 +141,14 @@ fn run_clear(db_path: &Path, force: bool, json: bool) -> i32 {
 }
 
 /// `apollia-os plan-cache evict [--max-age-days N]`: evict entries older than N days.
-fn run_evict(db_path: &Path, max_age_days: u32, json: bool) -> i32 {
+fn run_evict(db_path: &Path, max_age_days: u32, confirm: bool, json: bool) -> i32 {
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!("evict plan cache entries older than {max_age_days} day(s)"),
+    ) {
+        return code;
+    }
     let repo = match open_repo(db_path, json) {
         Some(r) => r,
         None => return exit_codes::GENERAL_ERROR,
@@ -246,8 +244,8 @@ mod tests {
         // GIVEN "clear --force"
         // WHEN parsed
         let cli = TestCli::parse_from(["test", "clear", "--force"]);
-        // THEN PlanCacheCommand::Clear { force: true }
-        assert!(matches!(cli.cmd, PlanCacheCommand::Clear { force: true }));
+        // THEN PlanCacheCommand::Clear { confirm: true }
+        assert!(matches!(cli.cmd, PlanCacheCommand::Clear { confirm: true }));
     }
 
     #[test]
@@ -255,8 +253,21 @@ mod tests {
         // GIVEN "clear" without --force
         // WHEN parsed
         let cli = TestCli::parse_from(["test", "clear"]);
-        // THEN force defaults to false
-        assert!(matches!(cli.cmd, PlanCacheCommand::Clear { force: false }));
+        // THEN confirm defaults to false
+        assert!(matches!(
+            cli.cmd,
+            PlanCacheCommand::Clear { confirm: false }
+        ));
+    }
+
+    // GIVEN "clear --force", the flag name this leaf published before the
+    // destruction rule named --confirm
+    // WHEN parsed
+    // THEN the alias still resolves, so no script written against it breaks
+    #[test]
+    fn test_plan_cache_clear_still_accepts_the_force_alias() {
+        let cli = TestCli::parse_from(["test", "clear", "--force"]);
+        assert!(matches!(cli.cmd, PlanCacheCommand::Clear { confirm: true }));
     }
 
     #[test]
@@ -266,7 +277,13 @@ mod tests {
         let cli = TestCli::parse_from(["test", "evict"]);
         // THEN max_age_days defaults to 7
         match cli.cmd {
-            PlanCacheCommand::Evict { max_age_days } => assert_eq!(max_age_days, 7),
+            PlanCacheCommand::Evict {
+                max_age_days,
+                confirm,
+            } => {
+                assert_eq!(max_age_days, 7);
+                assert!(!confirm, "the confirmation is opt-in, never the default");
+            }
             other => panic!("expected Evict, got {other:?}"),
         }
     }
@@ -278,7 +295,13 @@ mod tests {
         let cli = TestCli::parse_from(["test", "evict", "--max-age-days", "14"]);
         // THEN max_age_days is 14
         match cli.cmd {
-            PlanCacheCommand::Evict { max_age_days } => assert_eq!(max_age_days, 14),
+            PlanCacheCommand::Evict {
+                max_age_days,
+                confirm,
+            } => {
+                assert_eq!(max_age_days, 14);
+                assert!(!confirm, "the confirmation is opt-in, never the default");
+            }
             other => panic!("expected Evict, got {other:?}"),
         }
     }
@@ -361,7 +384,7 @@ mod tests {
             .path()
             .join(apollia_core::paths::DataFile::PlanCache.file_name());
         // WHEN evict with default age is called
-        let code = run_evict(&db_path, 7, false);
+        let code = run_evict(&db_path, 7, true, false);
         // THEN exit code is SUCCESS
         assert_eq!(code, exit_codes::SUCCESS);
     }

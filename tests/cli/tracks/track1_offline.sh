@@ -75,7 +75,7 @@ PID=$("$BIN" project create e2e-tmp --description demo --json 2>/dev/null | /usr
 check         "project update --name e2e-tmp2"         "$BIN" project update "$PID" --name e2e-tmp2
 check         "project agents add"                     "$BIN" project agents add "$PID" my-agent
 check_content "project agents list has my-agent" "my-agent" "$BIN" project agents list "$PID"
-check         "project agents remove"                  "$BIN" project agents remove "$PID" my-agent
+check         "project agents remove"                  "$BIN" project agents remove "$PID" my-agent --confirm
 check         "project templates list"                 "$BIN" project templates list
 check         "project templates seed-builtins"        "$BIN" project templates seed-builtins
 # Link a seeded chat session to the seeded project, list, unlink.
@@ -97,7 +97,7 @@ check         "profile export"                       "$BIN" profile export --out
 PDB="$SCRATCH/profile.db"
 check        "profile set name Alice"                "$BIN" profile set name Alice --db "$PDB"
 check_content "profile show throwaway has Alice" "Alice" "$BIN" profile show --db "$PDB"
-check        "profile forget name"                   "$BIN" profile forget name --db "$PDB"
+check        "profile forget name"                   "$BIN" profile forget name --confirm --db "$PDB"
 check        "profile import --overwrite"            "$BIN" profile import --db "$SCRATCH/prof-imported.db" --input "$SCRATCH/u.json" --overwrite
 check_exit   "profile reset (no --confirm)"  1       "$BIN" profile reset --db "$PDB"
 check        "profile reset --confirm"               "$BIN" profile reset --confirm --db "$PDB"
@@ -118,7 +118,7 @@ check_exit   "chat config permissions delete (no id) → 1" 1 "$BIN" chat config
 # not wired for v0.1.0: both leaves refuse with that explanation, exit 1. The
 # assertion pins the documented refusal, so wiring the route flips it loudly.
 check_exit   "chat config authorizations list → 1 (route not wired)"   1 "$BIN" chat config authorizations list
-check_exit   "chat config authorizations revoke → 1 (route not wired)" 1 "$BIN" chat config authorizations revoke seed-session-1 bash_executor
+check_exit   "chat config authorizations revoke → 1 (route not wired)" 1 "$BIN" chat config authorizations revoke seed-session-1 bash_executor --confirm
 
 # ── A.6 permissions (4 seeded rules) ────────────────────────────────────────
 section "A.6 permissions"
@@ -142,7 +142,7 @@ check         "memory inspect __user__"             "$BIN" memory inspect __user
 check_content "memory search __user__ onboarding hit" "ep-user-01|onboarding" "$BIN" memory search __user__ onboarding --data-dir "$MEM"
 check_json    "memory search --json"                "$BIN" memory search __user__ onboarding --data-dir "$MEM" --json
 check_exit    "memory search bad --source"  1       "$BIN" memory search __user__ x --source procedural --data-dir "$MEM"
-check_exit    "memory forget unknown uuid → 1"  1   "$BIN" memory forget __user__ 00000000-0000-0000-0000-000000000000 --data-dir "$MEM"
+check_exit    "memory forget unknown uuid → 1"  1   "$BIN" memory forget __user__ 00000000-0000-0000-0000-000000000000 --confirm --data-dir "$MEM"
 # Mutations on a throwaway namespace (bootstrap its db first, like a first run:
 # learn-procedure refuses a namespace whose <ns>.db does not exist yet).
 /usr/bin/touch "$MEM/e2e-scratch.db"
@@ -151,7 +151,7 @@ check         "memory learn-procedure (scratch ns)" "$BIN" memory learn-procedur
 check         "memory export scratch ns"            "$BIN" memory export --namespace e2e-scratch --output "$SCRATCH/m.apollia-memory" --data-dir "$MEM"
 check         "memory import scratch2 ns"           "$BIN" memory import --namespace e2e-scratch2 --input "$SCRATCH/m.apollia-memory" --replace --data-dir "$MEM"
 check         "memory clear scratch ns --confirm"   "$BIN" memory clear --agent e2e-scratch --confirm --data-dir "$MEM"
-check         "memory purge scratch2 ns"            "$BIN" memory purge --namespace e2e-scratch2 --older-than 0 --data-dir "$MEM"
+check         "memory purge scratch2 ns"            "$BIN" memory purge --namespace e2e-scratch2 --older-than 0 --confirm --data-dir "$MEM"
 
 # ── A.8 connector ───────────────────────────────────────────────────────────
 section "A.8 connector"
@@ -167,9 +167,9 @@ check        "connector client-secret set"           "$BIN" connector client-sec
 check        "connector api-key set"                 "$BIN" connector api-key set google "stub-api-key-e2e"
 check        "connector drive folder list"           "$BIN" connector drive folder list
 check        "connector drive folder set"            "$BIN" connector drive folder set alice@example.invalid "Apollia/Workspace"
-check        "connector drive folder reset"          "$BIN" connector drive folder reset alice@example.invalid
+check        "connector drive folder reset"          "$BIN" connector drive folder reset alice@example.invalid --confirm
 check        "connector drive folder picked list"    "$BIN" connector drive folder picked list alice@example.invalid
-check        "connector drive folder picked remove"  "$BIN" connector drive folder picked remove alice@example.invalid ghost-folder-id
+check        "connector drive folder picked remove"  "$BIN" connector drive folder picked remove alice@example.invalid ghost-folder-id --confirm
 # Revoking an absent account exits 0: the storage contract is idempotent
 # ("Returns Ok(()) even if the token was already gone",
 # crates/apollia-auth/src/multi_account.rs, delete). The same contract is
@@ -198,9 +198,9 @@ check        "mcp list-pending --db"                 "$BIN" mcp list-pending --d
 check        "mcp revoke-approval"                   "$BIN" mcp revoke-approval code-tools bash_exec --db "$MAPPR"
 check        "mcp secret set"                        "$BIN" mcp secret set notion NOTION_API_KEY "stub-value-e2e"
 check_exit   "mcp secret set empty value"  1         "$BIN" mcp secret set notion NOTION_API_KEY ""
-check        "mcp secret delete"                     "$BIN" mcp secret delete notion NOTION_API_KEY
+check        "mcp secret delete"                     "$BIN" mcp secret delete notion NOTION_API_KEY --confirm
 check        "mcp oauth client-id set"               "$BIN" mcp oauth client-id set APOLLIA_E2E_CLIENT_ID "stub-client-id"
-check        "mcp oauth client-id clear"             "$BIN" mcp oauth client-id clear APOLLIA_E2E_CLIENT_ID
+check        "mcp oauth client-id clear"             "$BIN" mcp oauth client-id clear APOLLIA_E2E_CLIENT_ID --confirm
 check        "mcp oauth status"                      "$BIN" mcp oauth status --db "$SCRATCH/mcp.db"
 check        "mcp oauth logout --confirm (no token)" "$BIN" mcp oauth logout some-server --confirm
 check_exit   "mcp oauth logout (no --confirm)"  1    "$BIN" mcp oauth logout some-server
@@ -243,7 +243,7 @@ check        "tools config get bash_executor"        "$BIN" tools config get bas
 # seed ships one row for web_search, with a deliberately non-decryptable blob.
 check_content "tools credentials list has seeded web_search" "web_search" "$BIN" tools credentials list
 check_exit   "tools credentials set refuses non-TTY"  1 bash -c "'$BIN' tools credentials set web_search api_key </dev/null"
-check        "tools credentials delete (absent key, idempotent)" "$BIN" tools credentials delete web_search e2e-absent-key
+check        "tools credentials delete (absent key, idempotent)" "$BIN" tools credentials delete web_search e2e-absent-key --confirm
 check_exit   "tools credentials test (seeded undecryptable blob) → 1" 1 "$BIN" tools credentials test web_search
 check_content "model list shows 2 seeded gguf" "Qwen3.6|Phi-3" "$BIN" model list
 # `model show` validates the org/repo shape before any network request.
@@ -260,7 +260,7 @@ check         "model delete --confirm"                "$BIN" model delete "e2e-s
 [[ ! -f "$STUB_GGUF" ]] && _pass "model delete removed the file" || _fail "model delete removed the file" "still present"
 check        "plan cache stats"                      "$BIN" plan cache stats
 check        "plan cache clear --force"              "$BIN" plan cache clear --force
-check        "plan cache evict --max-age-days 7"     "$BIN" plan cache evict --max-age-days 7
+check        "plan cache evict --max-age-days 7"     "$BIN" plan cache evict --max-age-days 7 --confirm
 check        "workspace status"                      "$BIN" workspace status
 check        "workspace init --force (scratch cwd)"  bash -c "cd '$SCRATCH' && '$BIN' workspace init --force"
 

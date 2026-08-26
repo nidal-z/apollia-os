@@ -79,6 +79,23 @@ by two nouns. The rule is measured by `scripts/check_cli_json_contract.py`,
 which drives every leaf under `-q` and refuses a blank line, a separator rule, a
 bare section header or a hint on stdout.
 
+**A leaf that destroys asks first.** A leaf that deletes, removes, clears,
+resets, purges, uninstalls, revokes, forgets, evicts or cancels persisted state
+publishes `--confirm` (`--yes` on `update` and `permissions revoke`, whose flag
+name predates this rule), and calls `output::require_confirmation` before it
+acts:
+
+- with the flag, it acts;
+- without it, on a terminal, it asks and stops unless the answer is `y`;
+- without it, anywhere else (a pipe, a script, `--json`), it refuses with
+  `use --confirm to <action>` and exit 1 rather than destroying silently.
+
+The question and the cancellation go to stderr, never stdout: a `--json` caller
+reads one document, and a human piping stdout keeps the data clean. Place the
+call after the existence check, so an absent target reports "not found" instead
+of demanding a confirmation that could never succeed. The same guard drives
+every destructive leaf and refuses one whose `--help` does not name the flag.
+
 ---
 
 ## 3. Exit codes

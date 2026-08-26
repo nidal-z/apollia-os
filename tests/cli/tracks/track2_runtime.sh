@@ -156,17 +156,17 @@ check         "stt config get"                      "${Q[@]}" stt config get
 check         "stt config update --language en"    "${Q[@]}" stt config update --language en
 # STT history is available without a loaded model, and the seed carries rows.
 check_content "stt transcriptions has seeded rows" "seed-transcript" "${Q[@]}" stt transcriptions list
-check         "stt transcriptions delete (seeded row)" "${Q[@]}" stt transcriptions delete seed-transcript-charlie
-check_exit    "resilience reset unknown → 1"  1    "${Q[@]}" resilience reset inexistant_tool
+check         "stt transcriptions delete (seeded row)" "${Q[@]}" stt transcriptions delete seed-transcript-charlie --confirm
+check_exit    "resilience reset unknown → 1"  1    "${Q[@]}" resilience reset inexistant_tool --confirm
 # resilience show/reset only work once a tool is in the breaker registry (lazy).
 if "${Q[@]}" resilience show bash_executor >/dev/null 2>&1; then
     check     "resilience show bash_executor"      "${Q[@]}" resilience show bash_executor
-    check     "resilience reset bash_executor"     "${Q[@]}" resilience reset bash_executor
+    check     "resilience reset bash_executor"     "${Q[@]}" resilience reset bash_executor --confirm
 else
     skip      "resilience show/reset bash_executor" "tool not in the breaker registry (no invocations yet)"
 fi
 check         "plan cache stats (daemon on)"       "${Q[@]}" plan cache stats
-check         "plan cache evict --max-age-days 0"  "${Q[@]}" plan cache evict --max-age-days 0
+check         "plan cache evict --max-age-days 0"  "${Q[@]}" plan cache evict --max-age-days 0 --confirm
 check         "chat --list (daemon on)"            "${Q[@]}" chat --list
 
 # ── task lifecycle (submit to a seeded auto-started agent, no model) ─────────
@@ -185,7 +185,7 @@ if [[ -n "$TID" ]]; then
     check   "task approvals --pending"             "${Q[@]}" task approvals --pending
     check   "trace <id> --format human"            "${Q[@]}" trace "$TID" --format human
     check_json "trace <id> --format json"          "${Q[@]}" trace "$TID" --format json
-    check   "task cancel <id>"                     "${Q[@]}" task cancel "$TID"
+    check   "task cancel <id>"                     "${Q[@]}" task cancel "$TID" --confirm
 else
     skip    "task lifecycle" "run --detach did not return a task_id (out: ${TRUN:0:120})"
 fi
@@ -232,12 +232,12 @@ check         "agent enable e2e-hello"             "${Q[@]}" agent enable e2e-he
 check         "agent package list"                 "${Q[@]}" agent package list
 check_content "agent package list has seed-office-pack" "seed-office-pack" "${Q[@]}" agent package show seed-office-pack
 check         "agent create scaffold --type react" "$BIN" agent create e2e-scaffold --type react
-check         "agent uninstall e2e-hello"          "${Q[@]}" agent uninstall e2e-hello
+check         "agent uninstall e2e-hello"          "${Q[@]}" agent uninstall e2e-hello --confirm
 # Both leaves resolve their target before acting, so an unknown name is a
 # deterministic refusal; the success paths need an installed bundle and stay
 # variants below.
 check_exit    "agent repair (unknown agent) → 1"           1 "${Q[@]}" agent repair e2e-ghost-agent
-check_exit    "agent package uninstall (unknown pack) → 1" 1 "${Q[@]}" agent package uninstall e2e-ghost-pack
+check_exit    "agent package uninstall (unknown pack) → 1" 1 "${Q[@]}" agent package uninstall e2e-ghost-pack --confirm
 skip          "agent repair / agent package uninstall (installed bundle)" "repair re-provisions a packaged agent's venv; uninstall needs the bundle (seed-office-pack is show-only here)"
 
 # ── eval (report offline; run needs a model → Track 3) ──────────────────────

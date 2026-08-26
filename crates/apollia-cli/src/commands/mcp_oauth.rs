@@ -115,6 +115,10 @@ pub enum McpClientIdCommand {
     Clear {
         /// Env var name.
         env_var: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -585,7 +589,9 @@ fn run_logout(server: &str, confirm: bool, json: bool) -> i32 {
 fn run_client_id(cmd: &McpClientIdCommand, json: bool) -> i32 {
     match cmd {
         McpClientIdCommand::Set { env_var, value } => run_client_id_set(env_var, value, json),
-        McpClientIdCommand::Clear { env_var } => run_client_id_clear(env_var, json),
+        McpClientIdCommand::Clear { env_var, confirm } => {
+            run_client_id_clear(env_var, *confirm, json)
+        }
     }
 }
 
@@ -622,10 +628,17 @@ fn run_client_id_set(env_var: &str, value: &str, json: bool) -> i32 {
     }
 }
 
-fn run_client_id_clear(env_var: &str, json: bool) -> i32 {
+fn run_client_id_clear(env_var: &str, confirm: bool, json: bool) -> i32 {
     let trimmed_env = env_var.trim();
     if trimmed_env.is_empty() {
         return emit_error("env_var must not be empty", json);
+    }
+    if let Some(code) = crate::output::require_confirmation(
+        confirm,
+        json,
+        &format!("clear the stored OAuth client id '{trimmed_env}'"),
+    ) {
+        return code;
     }
     let store = match select_secret_store() {
         Ok(s) => s,
@@ -898,8 +911,9 @@ mod tests {
     fn parses_client_id_clear() {
         let cli = TestCli::parse_from(["x", "client-id", "clear", "APOLLIA_FIGMA_CLIENT_ID"]);
         match cli.cmd {
-            McpOauthCommand::ClientId(McpClientIdCommand::Clear { env_var }) => {
+            McpOauthCommand::ClientId(McpClientIdCommand::Clear { env_var, confirm }) => {
                 assert_eq!(env_var, "APOLLIA_FIGMA_CLIENT_ID");
+                assert!(!confirm, "the confirmation is opt-in, never the default");
             }
             other => panic!("unexpected: {other:?}"),
         }

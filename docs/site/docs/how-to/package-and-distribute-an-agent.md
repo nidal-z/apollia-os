@@ -118,13 +118,13 @@ takes it from there.
 ```sh
 # Single agents
 apollia-os agent list
-apollia-os agent uninstall my-agent
+apollia-os agent uninstall my-agent --confirm
 apollia-os agent update my-agent ./my_agent.py      # replace with a new local module
 
 # Packages (bundles)
 apollia-os agent package list
 apollia-os agent package show sales-suite
-apollia-os agent package uninstall sales-suite      # removes its agents and triggers
+apollia-os agent package uninstall sales-suite --confirm   # removes its agents and triggers
 ```
 
 `agent update` replaces an installed agent with a new local module path; it does

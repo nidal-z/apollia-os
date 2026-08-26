@@ -45,6 +45,10 @@ pub enum TaskCommand {
     Cancel {
         /// Task identifier (UUID).
         task_id: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
     /// Display the full execution plan of an orchestrated task.
     ///
@@ -96,7 +100,9 @@ pub async fn run(cmd: &TaskCommand, socket: Option<PathBuf>, json: bool) -> i32 
             }
         }
         TaskCommand::Status { task_id } => run_status(&client, task_id, json).await,
-        TaskCommand::Cancel { task_id } => run_cancel(&client, task_id, json).await,
+        TaskCommand::Cancel { task_id, confirm } => {
+            run_cancel(&client, task_id, *confirm, json).await
+        }
         TaskCommand::Inspect { id } => run_inspect(id, json),
         TaskCommand::Resume {
             task_id,
@@ -287,7 +293,12 @@ async fn run_status(client: &RuntimeClient, task_id: &str, json: bool) -> i32 {
 }
 
 /// `apollia-os task cancel <id>`: cancel a running task.
-async fn run_cancel(client: &RuntimeClient, task_id: &str, json: bool) -> i32 {
+async fn run_cancel(client: &RuntimeClient, task_id: &str, confirm: bool, json: bool) -> i32 {
+    if let Some(code) =
+        crate::output::require_confirmation(confirm, json, &format!("cancel task '{task_id}'"))
+    {
+        return code;
+    }
     match client.cancel_task(task_id).await {
         Ok(resp) => {
             if json {

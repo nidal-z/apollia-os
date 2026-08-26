@@ -104,6 +104,10 @@ pub enum AgentCommand {
     Uninstall {
         /// Agent name (as declared in manifest).
         name: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
     /// Enable an installed agent (will auto-start on boot).
     Enable {
@@ -180,6 +184,10 @@ pub enum PackageCommand {
     Uninstall {
         /// Package name.
         name: String,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -202,7 +210,7 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         AgentCommand::Install { source, skip_tests } => {
             run_install(source, &client, json, *skip_tests).await
         }
-        AgentCommand::Uninstall { name } => run_uninstall(name, json),
+        AgentCommand::Uninstall { name, confirm } => run_uninstall(name, *confirm, json),
         AgentCommand::Enable { name } => run_enable(&client, name, json).await,
         AgentCommand::Disable { name } => run_disable(&client, name, json).await,
         AgentCommand::Update { name, path } => run_update(name, path, json),
@@ -210,7 +218,9 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         AgentCommand::Package { cmd } => match cmd {
             PackageCommand::List => run_package_list(json),
             PackageCommand::Show { name } => run_package_info(name, json),
-            PackageCommand::Uninstall { name } => run_package_uninstall(name, json).await,
+            PackageCommand::Uninstall { name, confirm } => {
+                run_package_uninstall(name, *confirm, json).await
+            }
         },
         AgentCommand::Logs {
             agent_id,

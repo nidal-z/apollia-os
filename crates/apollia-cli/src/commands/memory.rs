@@ -89,6 +89,10 @@ pub enum MemoryCommand {
         /// Memory data directory (default: ~/.apollia/memory/).
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 
     /// Record a procedure in a namespace's procedural memory.
@@ -174,6 +178,10 @@ pub enum MemoryCommand {
         /// Memory data directory (default: ~/.apollia/memory/).
         #[arg(long, value_name = "DIR")]
         data_dir: Option<PathBuf>,
+
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
 
     /// Full-text search across a namespace's episodic + semantic memory.
@@ -688,6 +696,38 @@ pub fn execute_import(
 }
 
 /// Execute a `memory` sub-command.
+/// The confirmation the destructive `memory` leaves owe their operator
+/// (`crates/apollia-cli/AGENTS.md` section 2).
+///
+/// Applied before [`run`] rather than inside it: the leaves return a rendered
+/// string, while the rule returns a process exit code. Returns `Some(code)`
+/// when the leaf must stop.
+pub fn confirmation(cmd: &MemoryCommand, json: bool) -> Option<i32> {
+    match cmd {
+        MemoryCommand::Purge {
+            namespace,
+            older_than,
+            confirm,
+            ..
+        } => crate::output::require_confirmation(
+            *confirm,
+            json,
+            &format!("purge entries older than {older_than} day(s) in namespace '{namespace}'"),
+        ),
+        MemoryCommand::Forget {
+            namespace,
+            entry_id,
+            confirm,
+            ..
+        } => crate::output::require_confirmation(
+            *confirm,
+            json,
+            &format!("forget entry '{entry_id}' in namespace '{namespace}'"),
+        ),
+        _ => None,
+    }
+}
+
 pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError> {
     match cmd {
         MemoryCommand::Inspect {
@@ -716,6 +756,7 @@ pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError
             older_than,
             r#type,
             data_dir,
+            confirm: _,
         } => {
             let dir = data_dir.clone().unwrap_or_else(default_data_dir);
             execute_purge(namespace, *older_than, r#type.as_ref(), &dir, json)
@@ -778,6 +819,7 @@ pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError
             namespace,
             entry_id,
             data_dir,
+            confirm: _,
         } => {
             let dir = data_dir.clone().unwrap_or_else(default_data_dir);
             execute_forget(namespace, entry_id, &dir, json)

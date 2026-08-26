@@ -125,13 +125,13 @@ prend le relais à partir de là.
 ```sh
 # Agents individuels
 apollia-os agent list
-apollia-os agent uninstall my-agent
+apollia-os agent uninstall my-agent --confirm
 apollia-os agent update my-agent ./my_agent.py      # remplace par un nouveau module local
 
 # Packages (bundles)
 apollia-os agent package list
 apollia-os agent package show sales-suite
-apollia-os agent package uninstall sales-suite      # supprime ses agents et déclencheurs
+apollia-os agent package uninstall sales-suite --confirm   # supprime ses agents et déclencheurs
 ```
 
 `agent update` remplace un agent installé par un nouveau chemin de module local ;

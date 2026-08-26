@@ -1,4 +1,5 @@
-//! Shared output layer for every CLI leaf: errors and non-essential lines.
+//! Shared output layer for every CLI leaf: errors, non-essential lines, and
+//! the confirmation a destruction owes its operator.
 //!
 //! The published contract (`AGENTS.md` sections 2 and 6 of this crate,
 //! `docs/site/docs/architecture/08-decisions.md#cli`) promises one shape for
@@ -15,6 +16,7 @@
 //! non-essential line goes through.
 
 use crate::exit_codes;
+use std::io::{IsTerminal, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// The global `--quiet`, recorded once by `main` and read by [`note!`].
@@ -51,6 +53,49 @@ macro_rules! note {
             println!($($arg)*);
         }
     };
+}
+
+/// The confirmation a destructive leaf owes its operator, in one place.
+///
+/// The rule is published in `crates/apollia-cli/AGENTS.md` section 2: a leaf
+/// that deletes or overwrites acts on `--confirm`, asks when stdin and stderr
+/// are a terminal, and refuses anywhere else rather than destroying silently
+/// in a script.
+///
+/// `action` names the destruction in the infinitive, without a final period
+/// (`"delete secret 'brave.api_key'"`): it is read both in the refusal message
+/// and in the question.
+///
+/// Returns `None` when the leaf may act, `Some(exit_code)` when it must stop.
+/// The question and the cancellation go to stderr, so stdout stays the data.
+pub fn require_confirmation(confirm: bool, json: bool, action: &str) -> Option<i32> {
+    if confirm {
+        return None;
+    }
+    let interactive = !json && std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
+    if !interactive {
+        return Some(emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("use --confirm to {action}"),
+        ));
+    }
+    eprint!("{action}? [y/N] ");
+    let _ = std::io::stderr().flush();
+    let mut answer = String::new();
+    if std::io::stdin().read_line(&mut answer).is_err() {
+        return Some(emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("use --confirm to {action}"),
+        ));
+    }
+    if answer.trim().eq_ignore_ascii_case("y") {
+        None
+    } else {
+        eprintln!("cancelled");
+        Some(exit_codes::SUCCESS)
+    }
 }
 
 /// Stable machine name for an exit code, published as `error.code`.
@@ -93,7 +138,7 @@ pub fn emit_client_error(json: bool, err: &crate::client::ClientError) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{code_label, emit_error, is_quiet, set_quiet};
+    use super::{code_label, emit_error, is_quiet, require_confirmation, set_quiet};
     use crate::exit_codes;
 
     // GIVEN the five contractual exit codes
@@ -152,5 +197,26 @@ mod tests {
         set_quiet(false);
         assert!(!is_quiet());
         set_quiet(previous);
+    }
+
+    // GIVEN a destructive leaf whose operator passed --confirm
+    // WHEN the confirmation rule is applied
+    // THEN the leaf may act
+    #[test]
+    fn test_confirmed_destruction_proceeds() {
+        assert_eq!(require_confirmation(true, false, "delete 'x'"), None);
+        assert_eq!(require_confirmation(true, true, "delete 'x'"), None);
+    }
+
+    // GIVEN a destructive leaf without --confirm, in JSON mode (never a
+    // question: a script is reading)
+    // WHEN the confirmation rule is applied
+    // THEN it refuses with the usage exit code rather than destroying
+    #[test]
+    fn test_unconfirmed_destruction_is_refused_in_machine_mode() {
+        assert_eq!(
+            require_confirmation(false, true, "delete 'x'"),
+            Some(exit_codes::GENERAL_ERROR)
+        );
     }
 }
