@@ -838,6 +838,9 @@ mod tests {
 
     #[test]
     fn test_active_backend_for_web_search() {
+        // GIVEN a secret store holding a Brave key, then an empty one
+        // WHEN the active backend of the search tool is asked for
+        // THEN the key selects Brave, its absence selects the keyless engine, and a tool with no backend answers nothing
         assert_eq!(
             active_backend_for("web_search", &["brave.api_key".to_string()]),
             Some("brave".to_string())
@@ -851,6 +854,9 @@ mod tests {
 
     #[test]
     fn test_parse_scope_unknown_value() {
+        // GIVEN the scope names the front end sends, plus one that does not exist
+        // WHEN each is parsed
+        // THEN the four known scopes map and the unknown one is rejected
         assert!(parse_scope("user").is_err());
         // "session" is now accepted for backward compatibility with the
         // frontend filters; list_rules_filtered simply returns an empty list
@@ -863,6 +869,7 @@ mod tests {
 
     #[test]
     fn test_rule_to_dto_serializes_action_and_scope() {
+        // GIVEN a project-scoped deny rule on a command prefix
         let rule = PrefixRule {
             id: 7,
             tool_name: "bash_executor".into(),
@@ -875,7 +882,9 @@ mod tests {
             expires_at: None,
             created_by_agent: Some("operator".into()),
         };
+        // WHEN it is converted for the front end
         let dto = rule_to_dto(&rule);
+        // THEN action, scope, project path and author cross as the strings the UI reads
         assert_eq!(dto.id, 7);
         assert_eq!(dto.action, "deny");
         assert_eq!(dto.scope, "project");
@@ -885,6 +894,9 @@ mod tests {
 
     #[test]
     fn test_canonical_project_path_rejects_empty() {
+        // GIVEN an empty path, a blank one, and one that does not exist
+        // WHEN each is canonicalised
+        // THEN the first two are rejected and the third comes back as written
         assert!(canonical_project_path("").is_err());
         assert!(canonical_project_path("   ").is_err());
         // Non-existent → returned as-is.

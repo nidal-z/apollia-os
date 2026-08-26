@@ -963,12 +963,15 @@ mod tests {
 
     #[test]
     fn test_resolve_run_id_exact_and_prefix() {
+        // GIVEN three run identifiers, two of them sharing an eight-character prefix
         let ids = vec![
             "abcd1234-aaaa".to_string(),
             "abcd1234-bbbb".to_string(),
             "ef567890-cccc".to_string(),
         ];
 
+        // WHEN each of the five lookup shapes is resolved
+        // THEN the exact identifier wins, an unambiguous prefix resolves, an ambiguous one lists its candidates, and a short or unknown prefix finds nothing
         // exact match wins
         assert!(matches!(
             resolve_run_id(&ids, "ef567890-cccc"),

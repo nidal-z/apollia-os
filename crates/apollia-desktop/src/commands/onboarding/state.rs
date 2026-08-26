@@ -276,6 +276,7 @@ mod tests {
     fn test_profile_validation_rejects_invalid() {
         // GIVEN an invalid profile name
         let result = validate_profile("hacker");
+        // WHEN the profile is validated
         // THEN it returns an error
         assert!(result.is_err());
     }
@@ -284,6 +285,7 @@ mod tests {
     fn test_profile_validation_accepts_operator() {
         // GIVEN a valid profile name
         let result = validate_profile("operator");
+        // WHEN the profile is validated
         // THEN it succeeds
         assert!(result.is_ok());
     }
@@ -292,6 +294,7 @@ mod tests {
     fn test_profile_validation_accepts_builder() {
         // GIVEN a valid profile name
         let result = validate_profile("builder");
+        // WHEN the profile is validated
         // THEN it succeeds
         assert!(result.is_ok());
     }
@@ -380,6 +383,7 @@ mod tests {
             from: OnboardingPhase::Welcome,
             to: OnboardingPhase::GuidedTour,
         };
+        // WHEN it is rendered for the operator
         // THEN the message names both phases
         let msg = err.to_string();
         assert!(msg.contains("Welcome"));
@@ -390,6 +394,7 @@ mod tests {
     fn test_invalid_profile_error_message() {
         // GIVEN an invalid profile
         let err = OnboardingError::InvalidProfile("hacker".to_string());
+        // WHEN it is rendered for the operator
         // THEN the message names the offending profile and valid ones
         let msg = err.to_string();
         assert!(msg.contains("hacker"));
@@ -399,6 +404,9 @@ mod tests {
 
     #[test]
     fn test_onboarding_topics_count() {
+        // GIVEN the topic list the onboarding walks through
+        // WHEN it is read
+        // THEN it holds the five named topics, so a rename breaks here and not in the progress bar
         assert_eq!(ONBOARDING_TOPICS.len(), 5);
         assert!(ONBOARDING_TOPICS.contains(&"identity"));
         assert!(ONBOARDING_TOPICS.contains(&"preferences"));
@@ -414,6 +422,7 @@ mod tests {
         let total = ONBOARDING_TOPICS.len();
         let pct = ((covered as f64 / total as f64) * 100.0) as u8;
 
+        // WHEN the completion percentage is computed
         // THEN completion is 60%
         assert_eq!(pct, 60);
     }
@@ -425,6 +434,7 @@ mod tests {
         let total = ONBOARDING_TOPICS.len();
         let pct = ((covered as f64 / total as f64) * 100.0) as u8;
 
+        // WHEN the completion percentage is computed
         // THEN completion is 100%
         assert_eq!(pct, 100);
     }
@@ -436,6 +446,7 @@ mod tests {
         let total = ONBOARDING_TOPICS.len();
         let pct = ((covered as f64 / total as f64) * 100.0) as u8;
 
+        // WHEN the completion percentage is computed
         // THEN completion is 0%
         assert_eq!(pct, 0);
     }
@@ -445,6 +456,7 @@ mod tests {
         // GIVEN an invalid topic
         let err = OnboardingError::InvalidTopic("invalid".to_string());
 
+        // WHEN it is rendered for the operator
         // THEN the error message lists valid topics
         let msg = err.to_string();
         assert!(msg.contains("invalid"));
@@ -460,6 +472,7 @@ mod tests {
         // GIVEN AgentNotInstalled error
         let err = OnboardingError::AgentNotInstalled;
 
+        // WHEN it is rendered for the operator
         // THEN the message names the first suspect, the boot-order one, and
         // points at the log line that carries the real cause when restarting is
         // not enough. It used to say "check that Python is available", which

@@ -504,13 +504,19 @@ mod tests {
 
     #[test]
     fn parses_list() {
+        // GIVEN "model list"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "list"]);
+        // THEN the list subcommand is selected
         assert!(matches!(cli.cmd, ModelCommand::List));
     }
 
     #[test]
     fn parses_search_default_limit() {
+        // GIVEN "model search qwen", with no --limit
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "search", "qwen"]);
+        // THEN the query is captured and the limit falls back to twenty
         match cli.cmd {
             ModelCommand::Search { query, limit } => {
                 assert_eq!(query, "qwen");
@@ -522,7 +528,10 @@ mod tests {
 
     #[test]
     fn parses_search_with_limit() {
+        // GIVEN the same search carrying --limit 5
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "search", "llama", "--limit", "5"]);
+        // THEN the limit given wins over the default
         match cli.cmd {
             ModelCommand::Search { query, limit } => {
                 assert_eq!(query, "llama");
@@ -534,7 +543,10 @@ mod tests {
 
     #[test]
     fn parses_show() {
+        // GIVEN "model show Qwen/Qwen3-30B"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "show", "Qwen/Qwen3-30B"]);
+        // THEN the repository name is captured whole, slash included
         match cli.cmd {
             ModelCommand::Show { repo } => assert_eq!(repo, "Qwen/Qwen3-30B"),
             other => panic!("unexpected: {other:?}"),
@@ -543,13 +555,19 @@ mod tests {
 
     #[test]
     fn parses_hardware() {
+        // GIVEN "model hardware"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "hardware"]);
+        // THEN the hardware subcommand is selected
         assert!(matches!(cli.cmd, ModelCommand::Hardware));
     }
 
     #[test]
     fn parses_delete_with_confirm() {
+        // GIVEN a model delete carrying --confirm
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "delete", "model.gguf", "--confirm"]);
+        // THEN the file name and the confirmation are both captured
         match cli.cmd {
             ModelCommand::Delete { name, confirm } => {
                 assert_eq!(name, "model.gguf");

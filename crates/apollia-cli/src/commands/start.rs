@@ -485,9 +485,12 @@ mod tests {
 
     #[test]
     fn test_start_error_display() {
+        // GIVEN a start failure wrapping a supervisor configuration error
         let err = StartError::Supervisor(
             apollia_runtime::supervisor::SupervisorError::ConfigError("bad config".to_string()),
         );
+        // WHEN it is rendered for the operator
+        // THEN the underlying cause is in the message rather than being swallowed by the wrapper
         assert!(err.to_string().contains("bad config"));
     }
 
@@ -572,10 +575,13 @@ mod tests {
     /// has no Reasoner. Sanity check on the fast path.
     #[test]
     fn wire_engine_without_router_leaves_no_reasoner() {
+        // GIVEN a fresh ORIA engine, which carries no reasoner
         let engine = ORIAEngine::new();
         assert!(!engine.has_reasoner());
 
+        // WHEN it is wired with no LLM router
         let wired = wire_engine_with_llm(engine, None, "agent-under-test", 20);
+        // THEN it still has no reasoner, so an orchestrated agent fails fast instead of pretending
         assert!(
             !wired.has_reasoner(),
             "wire_engine_with_llm(None) must not synthesise a Reasoner"
@@ -590,11 +596,14 @@ mod tests {
     /// is exactly what the second failure mode reported.
     #[test]
     fn wire_engine_with_empty_router_attaches_router_but_no_reasoner() {
+        // GIVEN a fresh ORIA engine and a router carrying no backend
         let engine = ORIAEngine::new();
         let router = Arc::new(LlmRouter::empty());
 
+        // WHEN the engine is wired with that router
         let wired = wire_engine_with_llm(engine, Some(router), "agent-under-test", 20);
 
+        // THEN no reasoner is built from an empty router, which would only fail at the first call
         assert!(
             !wired.has_reasoner(),
             "an empty LlmRouter must not produce a Reasoner - \
@@ -632,6 +641,7 @@ mod tests {
         use pyo3::types::PyModule;
         use std::ffi::CString;
 
+        // GIVEN an orchestrated Python agent, validated and bridged, behind a production backend with no LLM router
         // 1. Forge a minimal Python agent class with the orchestrated
         //    manifest shape the validator + bridge expect. We don't
         //    import the real Apollia SDK from this Rust test (it would
@@ -739,6 +749,7 @@ agent = A()
             ..AIPTask::default()
         };
 
+        // WHEN a task is executed through the whole stack
         // 5. Run the full path. Must not panic, must produce an
         //    AIPResult, must NOT carry our SDK_DISPATCH_REACHED sentinel.
         let result = backend
@@ -746,6 +757,7 @@ agent = A()
             .await
             .expect("AIPProductionBackend::execute must not return Err");
 
+        // THEN it fails on the missing LLM rather than reaching the SDK dispatch, which orchestrated agents must never go through
         // 6. Assertions: routing went to ORIA (engine.execute), the
         //    missing Reasoner surfaced cleanly as NO_LLM, and the SDK
         //    dispatch path was never touched.
@@ -775,6 +787,7 @@ agent = A()
 
     #[tokio::test]
     async fn orchestrated_without_reasoner_yields_no_llm_not_no_handler() {
+        // GIVEN an ORIA engine with no reasoner and an orchestrated agent
         let engine = ORIAEngine::new();
         assert!(!engine.has_reasoner());
 
@@ -832,8 +845,10 @@ agent = A()
             ..AIPTask::default()
         };
 
+        // WHEN the engine executes a task for it
         let result = engine.execute(task, &agent).await;
 
+        // THEN the failure names the missing LLM rather than a missing handler, which is the SDK fallthrough
         assert_eq!(
             result.status,
             TaskStatus::Failed,

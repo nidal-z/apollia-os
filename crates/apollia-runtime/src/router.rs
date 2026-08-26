@@ -918,6 +918,7 @@ mod tests {
     async fn test_router_is_actor_handle_clone_send_sync() {
         // GIVEN a TaskRouterHandle
         // THEN the handle is Send + Sync (checked at compile time)
+        // WHEN the handle is asked to cross a thread and to give a second owner
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<TaskRouterHandle<MockBackend>>();
 

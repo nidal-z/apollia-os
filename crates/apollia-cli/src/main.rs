@@ -794,6 +794,7 @@ mod tests {
     fn test_cli_parses_start_with_port() {
         // GIVEN "apollia-os start --port 8080"
         let cli = parse(&["apollia-os", "start", "--port", "8080"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Start with port
         assert!(matches!(cli.command, Commands::Start { port: Some(8080) }));
     }
@@ -802,6 +803,7 @@ mod tests {
     fn test_cli_parses_eval_run() {
         // GIVEN "apollia-os eval run suite.toml"
         let cli = parse(&["apollia-os", "eval", "run", "suite.toml"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Eval with Run and the suite path, defaults unset
         let Commands::Eval {
             command: commands::eval::EvalCommand::Run { suite, out, agent },
@@ -827,6 +829,7 @@ mod tests {
             "--agent",
             "demo",
         ]);
+        // WHEN clap parses the argument line
         // THEN the optional flags are captured
         let Commands::Eval {
             command: commands::eval::EvalCommand::Run { suite, out, agent },
@@ -843,6 +846,7 @@ mod tests {
     fn test_cli_parses_eval_report() {
         // GIVEN "apollia-os eval report r.jsonl"
         let cli = parse(&["apollia-os", "eval", "report", "r.jsonl"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Eval with Report
         assert!(matches!(
             cli.command,
@@ -856,6 +860,7 @@ mod tests {
     fn test_cli_parses_stop_command() {
         // GIVEN "apollia-os stop"
         let cli = parse(&["apollia-os", "stop"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Stop, json=false (global flag not set)
         assert!(matches!(cli.command, Commands::Stop));
         assert!(!cli.json);
@@ -865,6 +870,7 @@ mod tests {
     fn test_cli_parses_stop_json() {
         // GIVEN "apollia-os stop --json"
         let cli = parse(&["apollia-os", "stop", "--json"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Stop, global json=true
         assert!(matches!(cli.command, Commands::Stop));
         assert!(cli.json);
@@ -874,6 +880,7 @@ mod tests {
     fn test_cli_parses_status_command() {
         // GIVEN "apollia-os status"
         let cli = parse(&["apollia-os", "status"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Status, json=false
         assert!(matches!(cli.command, Commands::Status));
         assert!(!cli.json);
@@ -883,6 +890,7 @@ mod tests {
     fn test_cli_parses_status_json_flag() {
         // GIVEN "apollia-os status --json"
         let cli = parse(&["apollia-os", "status", "--json"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Status, global json=true
         assert!(matches!(cli.command, Commands::Status));
         assert!(cli.json);
@@ -892,6 +900,7 @@ mod tests {
     fn test_cli_parses_run_command() {
         // GIVEN "apollia-os run hello-agent Bonjour"
         let cli = parse(&["apollia-os", "run", "hello-agent", "Bonjour"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Run with agent_id and input
         match &cli.command {
             Commands::Run {
@@ -915,6 +924,7 @@ mod tests {
     fn test_cli_parses_run_stream_flag() {
         // GIVEN "apollia-os run hello-agent Bonjour --stream"
         let cli = parse(&["apollia-os", "run", "hello-agent", "Bonjour", "--stream"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Run with stream=true
         match &cli.command {
             Commands::Run { stream, .. } => assert!(stream),
@@ -926,6 +936,7 @@ mod tests {
     fn test_cli_parses_run_detach_flag() {
         // GIVEN "apollia-os run hello-agent Bonjour --detach"
         let cli = parse(&["apollia-os", "run", "hello-agent", "Bonjour", "--detach"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Run with detach=true, stream=false
         match &cli.command {
             Commands::Run { detach, stream, .. } => {
@@ -946,6 +957,7 @@ mod tests {
             "/some/path",
             "--detach",
         ]);
+        // WHEN clap parses the argument line
         // THEN detach=true, agent_id and input are correctly captured
         match &cli.command {
             Commands::Run {
@@ -966,6 +978,7 @@ mod tests {
     fn test_cli_parses_run_json_flag() {
         // GIVEN "apollia-os run hello-agent Bonjour --json"
         let cli = parse(&["apollia-os", "run", "hello-agent", "Bonjour", "--json"]);
+        // WHEN clap parses the argument line
         // THEN global json=true
         assert!(matches!(cli.command, Commands::Run { .. }));
         assert!(cli.json);
@@ -973,7 +986,10 @@ mod tests {
 
     #[test]
     fn test_cli_parses_run_alternatives_flag() {
+        // GIVEN "apollia-os run hello ping --alternatives"
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "run", "hello", "ping", "--alternatives"]);
+        // THEN the alternatives flag is up
         match &cli.command {
             Commands::Run { alternatives, .. } => assert!(*alternatives),
             other => panic!("expected Commands::Run, got {other:?}"),
@@ -984,6 +1000,7 @@ mod tests {
     fn test_cli_parses_run_plan_flag() {
         // GIVEN run with --plan
         let cli = parse(&["apollia-os", "run", "hello", "ping", "--plan"]);
+        // WHEN clap parses the argument line
         // THEN plan=true
         match &cli.command {
             Commands::Run { plan, .. } => assert!(*plan),
@@ -1002,12 +1019,15 @@ mod tests {
             "--plan",
             "--alternatives",
         ]);
+        // WHEN clap parses the argument line
         // THEN parsing fails due to the conflict
         assert!(result.is_err(), "--plan and --alternatives must conflict");
     }
 
     #[test]
     fn test_cli_parses_run_allowed_tools() {
+        // GIVEN a run carrying two tool names in --allowed-tools, comma separated
+        // WHEN clap parses the argument line
         let cli = parse(&[
             "apollia-os",
             "run",
@@ -1016,6 +1036,7 @@ mod tests {
             "--allowed-tools",
             "file_read,bash_executor",
         ]);
+        // THEN the list is split into two names rather than kept as one string
         match &cli.command {
             Commands::Run { allowed_tools, .. } => {
                 assert_eq!(
@@ -1029,6 +1050,8 @@ mod tests {
 
     #[test]
     fn test_cli_parses_run_disallowed_tools_priority() {
+        // GIVEN a run carrying two tool names in --disallowed-tools, comma separated
+        // WHEN clap parses the argument line
         let cli = parse(&[
             "apollia-os",
             "run",
@@ -1037,6 +1060,7 @@ mod tests {
             "--disallowed-tools",
             "bash_executor,file_write",
         ]);
+        // THEN the list is split into two names rather than kept as one string
         match &cli.command {
             Commands::Run {
                 disallowed_tools, ..
@@ -1052,6 +1076,8 @@ mod tests {
 
     #[test]
     fn test_cli_parses_run_autonomy() {
+        // GIVEN a run carrying --autonomy long_autonomous
+        // WHEN clap parses the argument line
         let cli = parse(&[
             "apollia-os",
             "run",
@@ -1060,6 +1086,7 @@ mod tests {
             "--autonomy",
             "long_autonomous",
         ]);
+        // THEN the tier name is captured as written
         match &cli.command {
             Commands::Run { autonomy, .. } => {
                 assert_eq!(autonomy.as_deref(), Some("long_autonomous"));
@@ -1070,7 +1097,10 @@ mod tests {
 
     #[test]
     fn test_cli_run_autonomy_defaults_to_none() {
+        // GIVEN a run with no --autonomy at all
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "run", "hello", "ping"]);
+        // THEN no tier is set, so the caller falls back to the configured one instead of a hardcoded tier
         match &cli.command {
             Commands::Run { autonomy, .. } => assert!(autonomy.is_none()),
             other => panic!("expected Commands::Run, got {other:?}"),
@@ -1079,6 +1109,8 @@ mod tests {
 
     #[test]
     fn test_cli_parses_run_input_json() {
+        // GIVEN a run carrying a JSON payload in --input-json and no positional input
+        // WHEN clap parses the argument line
         let cli = parse(&[
             "apollia-os",
             "run",
@@ -1086,6 +1118,7 @@ mod tests {
             "--input-json",
             r#"{"data": "x"}"#,
         ]);
+        // THEN the agent is captured, the positional input stays empty and the payload arrives verbatim
         match &cli.command {
             Commands::Run {
                 agent_id,
@@ -1105,6 +1138,7 @@ mod tests {
     fn test_cli_global_socket_flag() {
         // GIVEN "apollia-os --socket /custom/path.sock status"
         let cli = parse(&["apollia-os", "--socket", "/custom/path.sock", "status"]);
+        // WHEN clap parses the argument line
         // THEN socket is set
         assert_eq!(cli.socket, Some(PathBuf::from("/custom/path.sock")));
     }
@@ -1112,6 +1146,7 @@ mod tests {
     #[test]
     fn test_exit_codes_constants() {
         // GIVEN the exit codes
+        // WHEN clap parses the argument line
         // THEN they follow POSIX convention
         assert_eq!(exit_codes::SUCCESS, 0);
         assert_eq!(exit_codes::GENERAL_ERROR, 1);
@@ -1281,7 +1316,10 @@ mod tests {
 
     #[test]
     fn test_cli_parses_agent_status() {
+        // GIVEN "apollia-os agent status hello"
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "agent", "status", "hello"]);
+        // THEN the agent status subcommand carries the agent identifier
         match &cli.command {
             Commands::Agent { command } => match command {
                 AgentCommand::Status { agent_id } => assert_eq!(agent_id, "hello"),
@@ -1293,7 +1331,10 @@ mod tests {
 
     #[test]
     fn test_cli_parses_agent_messages_default_limit() {
+        // GIVEN "apollia-os agent messages hello", with no --limit
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "agent", "messages", "hello"]);
+        // THEN the limit falls back to twenty rather than being unbounded
         match &cli.command {
             Commands::Agent { command } => match command {
                 AgentCommand::Messages { agent_id, limit } => {
@@ -1308,7 +1349,10 @@ mod tests {
 
     #[test]
     fn test_cli_parses_agent_messages_with_limit() {
+        // GIVEN the same command line with --limit 5
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "agent", "messages", "hello", "--limit", "5"]);
+        // THEN the limit given wins over the default
         match &cli.command {
             Commands::Agent { command } => match command {
                 AgentCommand::Messages { agent_id, limit } => {
@@ -1379,6 +1423,8 @@ mod tests {
     fn test_cli_parses_agent_enable() {
         // GIVEN "apollia-os agent enable mon-agent"
         let cli = parse(&["apollia-os", "agent", "enable", "mon-agent"]);
+        // WHEN clap parses the argument line
+        // THEN the enable subcommand carries the agent name
         match &cli.command {
             Commands::Agent { command } => match command {
                 AgentCommand::Enable { name } => assert_eq!(name, "mon-agent"),
@@ -1392,6 +1438,8 @@ mod tests {
     fn test_cli_parses_agent_disable() {
         // GIVEN "apollia-os agent disable mon-agent"
         let cli = parse(&["apollia-os", "agent", "disable", "mon-agent"]);
+        // WHEN clap parses the argument line
+        // THEN the disable subcommand carries the agent name
         match &cli.command {
             Commands::Agent { command } => match command {
                 AgentCommand::Disable { name } => assert_eq!(name, "mon-agent"),
@@ -1411,6 +1459,8 @@ mod tests {
             "mon-agent",
             "./agents/v2.py",
         ]);
+        // WHEN clap parses the argument line
+        // THEN the update subcommand carries both the agent name and the new source path
         match &cli.command {
             Commands::Agent { command } => match command {
                 AgentCommand::Update { name, path } => {
@@ -1598,6 +1648,7 @@ mod tests {
     fn test_cli_parses_hooks_list_default() {
         // GIVEN "apollia-os hooks list"
         let cli = parse(&["apollia-os", "hooks", "list"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Hooks { command: HooksCommand::List { dry_run: false } }
         match &cli.command {
             Commands::Hooks { command } => {
@@ -1614,6 +1665,7 @@ mod tests {
     fn test_cli_parses_hooks_list_dry_run() {
         // GIVEN "apollia-os hooks list --dry-run"
         let cli = parse(&["apollia-os", "hooks", "list", "--dry-run"]);
+        // WHEN clap parses the argument line
         // THEN dry_run is true
         match &cli.command {
             Commands::Hooks { command } => match command {
@@ -1627,6 +1679,7 @@ mod tests {
     fn test_cli_parses_hooks_list_json_global() {
         // GIVEN "apollia-os hooks list --json" (global flag after the subcommand)
         let cli = parse(&["apollia-os", "hooks", "list", "--json"]);
+        // WHEN clap parses the argument line
         // THEN the global json flag is set and the command is hooks list
         assert!(cli.json);
         match &cli.command {
@@ -1641,6 +1694,7 @@ mod tests {
     fn test_cli_parses_hooks_list_json_and_dry_run() {
         // GIVEN "apollia-os --json hooks list --dry-run"
         let cli = parse(&["apollia-os", "--json", "hooks", "list", "--dry-run"]);
+        // WHEN clap parses the argument line
         // THEN both the global json flag and dry_run are set
         assert!(cli.json);
         match &cli.command {
@@ -1897,6 +1951,7 @@ mod tests {
     fn test_cli_parses_agent_create_default_type() {
         // GIVEN "apollia-os agent create my-agent"
         let cli = parse(&["apollia-os", "agent", "create", "my-agent"]);
+        // WHEN clap parses the argument line
         // THEN AgentCommand::Create with default type "react"
         match &cli.command {
             Commands::Agent { command } => match command {
@@ -1921,6 +1976,7 @@ mod tests {
             "--type",
             "conversational",
         ]);
+        // WHEN clap parses the argument line
         // THEN AgentCommand::Create with specified type
         match &cli.command {
             Commands::Agent { command } => match command {
@@ -1938,6 +1994,7 @@ mod tests {
     fn test_cli_parses_agent_create_json_flag() {
         // GIVEN "apollia-os agent create my-agent --json"
         let cli = parse(&["apollia-os", "agent", "create", "my-agent", "--json"]);
+        // WHEN clap parses the argument line
         // THEN global json = true
         assert!(matches!(cli.command, Commands::Agent { .. }));
         assert!(cli.json);
@@ -1949,6 +2006,7 @@ mod tests {
     fn test_cli_parses_onboard_no_topic() {
         // GIVEN "apollia-os onboard"
         let cli = parse(&["apollia-os", "onboard"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Onboard { topic: None }
         match &cli.command {
             Commands::Onboard { topic } => {
@@ -1963,6 +2021,7 @@ mod tests {
     fn test_cli_parses_onboard_with_topic() {
         // GIVEN "apollia-os onboard --topic preferences"
         let cli = parse(&["apollia-os", "onboard", "--topic", "preferences"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Onboard { topic: Some("preferences") }
         match &cli.command {
             Commands::Onboard { topic } => {
@@ -1976,6 +2035,7 @@ mod tests {
     fn test_cli_parses_onboard_json_flag() {
         // GIVEN "apollia-os onboard --json --topic tools"
         let cli = parse(&["apollia-os", "onboard", "--json", "--topic", "tools"]);
+        // WHEN clap parses the argument line
         // THEN global json = true, topic = "tools"
         match &cli.command {
             Commands::Onboard { topic } => {
@@ -1990,7 +2050,10 @@ mod tests {
 
     #[test]
     fn test_cli_parses_stt_status() {
+        // GIVEN "apollia-os stt status"
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "stt", "status"]);
+        // THEN the status subcommand is selected and the global json flag stays down
         match &cli.command {
             Commands::Stt { command } => {
                 assert!(matches!(command, SttCommand::Status));
@@ -2002,14 +2065,20 @@ mod tests {
 
     #[test]
     fn test_cli_parses_stt_status_json() {
+        // GIVEN the same command line with --json placed before the subcommand
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "stt", "--json", "status"]);
+        // THEN the global json flag is up, so its position does not change its meaning
         assert!(matches!(cli.command, Commands::Stt { .. }));
         assert!(cli.json);
     }
 
     #[test]
     fn test_cli_parses_stt_transcribe() {
+        // GIVEN "apollia-os stt transcribe audio.wav", with no --output
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "stt", "transcribe", "audio.wav"]);
+        // THEN the file is captured and no output path is set
         match &cli.command {
             Commands::Stt { command } => match command {
                 SttCommand::Transcribe { file, output } => {
@@ -2024,6 +2093,8 @@ mod tests {
 
     #[test]
     fn test_cli_parses_stt_transcribe_with_output() {
+        // GIVEN the same command line with --output out.json
+        // WHEN clap parses the argument line
         let cli = parse(&[
             "apollia-os",
             "stt",
@@ -2032,6 +2103,7 @@ mod tests {
             "--output",
             "out.json",
         ]);
+        // THEN both the input file and the output path are captured
         match &cli.command {
             Commands::Stt { command } => match command {
                 SttCommand::Transcribe { file, output } => {
@@ -2046,7 +2118,10 @@ mod tests {
 
     #[test]
     fn test_cli_parses_stt_transcriptions_list() {
+        // GIVEN "apollia-os stt transcriptions list", with no --limit
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "stt", "transcriptions", "list"]);
+        // THEN the limit falls back to twenty
         match &cli.command {
             Commands::Stt { command } => match command {
                 SttCommand::Transcriptions { command } => {
@@ -2060,6 +2135,8 @@ mod tests {
 
     #[test]
     fn test_cli_parses_stt_transcriptions_list_custom_limit() {
+        // GIVEN the same command line with --limit 50
+        // WHEN clap parses the argument line
         let cli = parse(&[
             "apollia-os",
             "stt",
@@ -2068,6 +2145,7 @@ mod tests {
             "--limit",
             "50",
         ]);
+        // THEN the limit given wins over the default
         match &cli.command {
             Commands::Stt { command } => match command {
                 SttCommand::Transcriptions { command } => match command {
@@ -2084,7 +2162,10 @@ mod tests {
 
     #[test]
     fn test_cli_parses_stt_model_list() {
+        // GIVEN "apollia-os stt model list"
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "stt", "model", "list"]);
+        // THEN the model list subcommand is selected
         match &cli.command {
             Commands::Stt { command } => match command {
                 SttCommand::Model { command } => {
@@ -2095,9 +2176,10 @@ mod tests {
             other => panic!("expected Commands::Stt, got {other:?}"),
         }
     }
-
     #[test]
     fn test_cli_parses_stt_model_download() {
+        // GIVEN "apollia-os stt model download whisper-large-v3-fr-q5_0"
+        // WHEN clap parses the argument line
         let cli = parse(&[
             "apollia-os",
             "stt",
@@ -2105,6 +2187,7 @@ mod tests {
             "download",
             "whisper-large-v3-fr-q5_0",
         ]);
+        // THEN the model name is captured as written
         match &cli.command {
             Commands::Stt { command } => match command {
                 SttCommand::Model { command } => match command {
@@ -2121,7 +2204,10 @@ mod tests {
 
     #[test]
     fn test_cli_parses_stt_json_flag_after_subcommand() {
+        // GIVEN a stt command line with --json placed after the subcommand
+        // WHEN clap parses the argument line
         let cli = parse(&["apollia-os", "stt", "model", "list", "--json"]);
+        // THEN the global json flag is still up, whatever its position
         assert!(matches!(cli.command, Commands::Stt { .. }));
         assert!(cli.json);
     }
@@ -2130,6 +2216,7 @@ mod tests {
     fn test_cli_parses_workspace_status() {
         // GIVEN "apollia-os workspace status"
         let cli = parse(&["apollia-os", "workspace", "status"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Workspace with WorkspaceCommand::Status
         assert!(
             matches!(
@@ -2147,6 +2234,7 @@ mod tests {
     fn test_cli_parses_workspace_init() {
         // GIVEN "apollia-os workspace init"
         let cli = parse(&["apollia-os", "workspace", "init"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Workspace with WorkspaceCommand::Init { force: false }
         assert!(
             matches!(
@@ -2163,6 +2251,7 @@ mod tests {
     fn test_cli_parses_workspace_init_force() {
         // GIVEN "apollia-os workspace init --force"
         let cli = parse(&["apollia-os", "workspace", "init", "--force"]);
+        // WHEN clap parses the argument line
         // THEN Commands::Workspace with WorkspaceCommand::Init { force: true }
         assert!(
             matches!(
@@ -2179,6 +2268,7 @@ mod tests {
     fn test_cli_parses_workspace_status_json() {
         // GIVEN "apollia-os --json workspace status"
         let cli = parse(&["apollia-os", "--json", "workspace", "status"]);
+        // WHEN clap parses the argument line
         // THEN json=true
         assert!(cli.json, "flag global --json doit être activé");
         assert!(matches!(

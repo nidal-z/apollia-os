@@ -308,6 +308,7 @@ mod tests {
     fn all_5_connectors_present() {
         // GIVEN the loaded enrichments
         let enrichments = load_builtin_enrichments();
+        // WHEN their package identifiers are collected
         let ids: Vec<&str> = enrichments
             .iter()
             .map(|e| e.package_identifier.as_str())
@@ -328,7 +329,9 @@ mod tests {
         // GIVEN the v0.1.0 catalog. The Figma cloud OAuth variant was
         // removed pending automatic OAuth handshake (v0.1.1); Figma
         // remains accessible via the local Dev Mode entry.
+        // WHEN it is loaded
         let enrichments = load_builtin_enrichments();
+        // THEN it holds eighteen entries
         assert_eq!(
             enrichments.len(),
             18,
@@ -346,6 +349,8 @@ mod tests {
 
     #[test]
     fn v1_catalog_includes_expected_official_saas_connectors() {
+        // GIVEN the shipped catalogue
+        // WHEN its package identifiers are collected
         let enrichments = load_builtin_enrichments();
         let ids: Vec<&str> = enrichments
             .iter()
@@ -363,6 +368,7 @@ mod tests {
             "io.sentry/mcp",
             "com.cloudflare/mcp",
         ];
+        // THEN a representative sample of the official SaaS entries is there
         for id in expected {
             assert!(
                 ids.contains(&id),
@@ -373,12 +379,15 @@ mod tests {
 
     #[test]
     fn brave_search_is_marked_freemium() {
+        // GIVEN the shipped catalogue
         let enrichments = load_builtin_enrichments();
+        // WHEN the Brave search entry is looked up
         let brave = enrichments
             .iter()
             .find(|e| e.package_identifier == "@modelcontextprotocol/server-brave-search")
             .expect("brave");
         let cost = brave.cost_model.as_ref().expect("cost_model");
+        // THEN it is billed as freemium and its quota note exists in both locales
         assert_eq!(cost.kind, CostKind::Freemium);
         // Note must surface the quota in both locales
         let note = cost.note_i18n.as_ref().expect("note_i18n");

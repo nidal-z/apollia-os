@@ -98,9 +98,12 @@ mod tests {
 
     #[test]
     fn records_success_resets_failure_count() {
+        // GIVEN a resilience layer that has seen one failed call on file_read
         let layer = Arc::new(Mutex::new(ResilienceLayer::default()));
         apply(&layer, mk_completed("file_read", false));
+        // WHEN the next call on the same tool succeeds
         apply(&layer, mk_completed("file_read", true));
+        // THEN the failure count is back to zero and the breaker stays closed
         let snap = layer.lock().unwrap().snapshot();
         let entry = snap.iter().find(|e| e.tool_name == "file_read").unwrap();
         assert_eq!(entry.failure_count, 0);
@@ -109,12 +112,15 @@ mod tests {
 
     #[test]
     fn enough_failures_open_the_breaker() {
+        // GIVEN a layer whose breaker opens at two failures
         let layer = Arc::new(Mutex::new(ResilienceLayer::new(
             2,
             std::time::Duration::from_secs(60),
         )));
+        // WHEN two calls on the same tool fail in a row
         apply(&layer, mk_completed("flaky", false));
         apply(&layer, mk_completed("flaky", false));
+        // THEN the breaker is open and the count is the one that opened it
         let snap = layer.lock().unwrap().snapshot();
         let entry = snap.iter().find(|e| e.tool_name == "flaky").unwrap();
         assert_eq!(entry.state, "open");
@@ -123,8 +129,11 @@ mod tests {
 
     #[test]
     fn unknown_event_kind_is_ignored() {
+        // GIVEN a fresh resilience layer
         let layer = Arc::new(Mutex::new(ResilienceLayer::default()));
+        // WHEN an event that is not a tool outcome goes through the subscriber
         apply(&layer, RuntimeEvent::AllReady);
+        // THEN nothing is recorded
         assert!(layer.lock().unwrap().snapshot().is_empty());
     }
 }

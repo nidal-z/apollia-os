@@ -778,13 +778,19 @@ mod tests {
 
     #[test]
     fn parses_list() {
+        // GIVEN "project list"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "list"]);
+        // THEN the list subcommand is selected
         assert!(matches!(cli.cmd, ProjectCommand::List { .. }));
     }
 
     #[test]
     fn parses_create_minimal() {
+        // GIVEN "project create Acme", with no option
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "create", "Acme"]);
+        // THEN the name is captured
         match cli.cmd {
             ProjectCommand::Create { name, .. } => assert_eq!(name, "Acme"),
             other => panic!("unexpected: {other:?}"),
@@ -793,7 +799,10 @@ mod tests {
 
     #[test]
     fn parses_create_with_workspace() {
+        // GIVEN a creation carrying --workspace
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "create", "X", "--workspace", "/srv/x"]);
+        // THEN the workspace path is captured
         match cli.cmd {
             ProjectCommand::Create { workspace, .. } => {
                 assert_eq!(workspace.as_deref(), Some("/srv/x"))
@@ -804,7 +813,10 @@ mod tests {
 
     #[test]
     fn parses_show() {
+        // GIVEN "project show abc"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "show", "abc"]);
+        // THEN the project identifier is captured
         match cli.cmd {
             ProjectCommand::Show { id, .. } => assert_eq!(id, "abc"),
             other => panic!("unexpected: {other:?}"),
@@ -813,7 +825,10 @@ mod tests {
 
     #[test]
     fn parses_agents_add() {
+        // GIVEN "project agents add p a"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "agents", "add", "p", "a"]);
+        // THEN the project comes first and the agent second, in that order
         match cli.cmd {
             ProjectCommand::Agents {
                 command: ProjectAgentsCommand::Add { project, agent, .. },
@@ -827,8 +842,10 @@ mod tests {
 
     #[test]
     fn create_then_show_round_trip() {
+        // GIVEN an empty project database
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("p.db");
+        // WHEN a project is created, then the list is asked for
         let code = run_create(
             CreateArgs {
                 db: Some(&db),
@@ -839,6 +856,7 @@ mod tests {
             },
             true,
         );
+        // THEN both report success, so the row the creation wrote is the one the listing reads
         assert_eq!(code, exit_codes::SUCCESS);
         // list should now have one entry
         assert_eq!(run_list(Some(&db), true), exit_codes::SUCCESS);
@@ -846,8 +864,11 @@ mod tests {
 
     #[test]
     fn delete_without_confirm_errors() {
+        // GIVEN a project database
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("p.db");
+        // WHEN a delete runs without confirmation
+        // THEN it stops on an error rather than removing anything
         assert_eq!(
             run_delete(Some(&db), "doesnotmatter", false, true),
             exit_codes::GENERAL_ERROR
@@ -856,8 +877,11 @@ mod tests {
 
     #[test]
     fn update_with_no_fields_errors() {
+        // GIVEN a project database
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("p.db");
+        // WHEN an update runs with no field to change
+        // THEN it stops on an error rather than writing an empty change
         assert_eq!(
             run_update(
                 UpdateArgs {
@@ -876,10 +900,13 @@ mod tests {
 
     #[test]
     fn agents_add_then_list_round_trip() {
+        // GIVEN a database holding one project
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("p.db");
         let repo = ProjectRepository::open(&db).unwrap();
         let pid = repo.create_project("X", None, None, None).unwrap();
+        // WHEN an agent is attached to it, then the attachments are listed
+        // THEN both report success
         assert_eq!(
             run_agents_add(Some(&db), &pid, "agent-a", true),
             exit_codes::SUCCESS
@@ -895,8 +922,11 @@ mod tests {
             #[command(subcommand)]
             cmd: ProjectCommand,
         }
+        // GIVEN a link carrying --session and --unlink
         let cli =
             TestCli::parse_from(["x", "link", "proj-uuid", "--session", "sess-id", "--unlink"]);
+        // WHEN clap parses the argument line
+        // THEN the project, the session and the unlink flag are all captured
         match cli.cmd {
             ProjectCommand::Link {
                 project_id,
@@ -920,7 +950,10 @@ mod tests {
             #[command(subcommand)]
             cmd: ProjectCommand,
         }
+        // GIVEN the same command line without --unlink
         let cli = TestCli::parse_from(["x", "link", "proj-uuid", "--session", "sess"]);
+        // WHEN clap parses the argument line
+        // THEN the unlink flag stays down, so a link never detaches by accident
         match cli.cmd {
             ProjectCommand::Link {
                 project_id,
@@ -944,7 +977,10 @@ mod tests {
             #[command(subcommand)]
             cmd: ProjectCommand,
         }
+        // GIVEN "project chats proj-uuid"
         let cli = TestCli::parse_from(["x", "chats", "proj-uuid"]);
+        // WHEN clap parses the argument line
+        // THEN the project identifier is captured
         match cli.cmd {
             ProjectCommand::Chats { project_id, .. } => assert_eq!(project_id, "proj-uuid"),
             other => panic!("unexpected: {other:?}"),
@@ -953,17 +989,23 @@ mod tests {
 
     #[test]
     fn link_rejects_missing_chat_db() {
+        // GIVEN a chat database path that does not exist
         let tmp = tempfile::tempdir().unwrap();
         let missing = tmp.path().join("does_not_exist.db");
+        // WHEN a link runs against it
         let code = run_link("p", "s", false, Some(&missing), true);
+        // THEN it stops on an error rather than creating an empty database
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn chats_rejects_missing_chat_db() {
+        // GIVEN a chat database path that does not exist
         let tmp = tempfile::tempdir().unwrap();
         let missing = tmp.path().join("does_not_exist.db");
+        // WHEN the chats of a project are listed
         let code = run_chats("p", Some(&missing), true);
+        // THEN it stops on an error rather than reporting no session
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 }

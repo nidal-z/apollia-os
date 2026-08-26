@@ -228,6 +228,7 @@ async fn test_all_ready_event_emitted() {
         .await
         .expect("should receive within 1s")
         .expect("recv should succeed");
+    // THEN the subscriber receives it within a second
     assert!(
         matches!(event, RuntimeEvent::AllReady),
         "expected AllReady, got: {event:?}"
@@ -251,6 +252,7 @@ async fn test_handles_accessible_after_start() {
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
     let supervisor = Supervisor::new(config);
+    // WHEN start() returns
     let handles = supervisor
         .start(
             MockBackend,
@@ -926,6 +928,7 @@ fn test_seed_sets_marker_only_when_existing_channels() {
 fn test_seed_idempotent_across_multiple_calls() {
     // GIVEN, call seed twice
     let (notif, um, _tmp) = make_seed_inputs();
+    // WHEN the default desktop channel is seeded twice
     seed_default_desktop_channel_if_needed(&notif, Some(&um));
     seed_default_desktop_channel_if_needed(&notif, Some(&um));
 

@@ -157,6 +157,7 @@ mod tests {
 
     #[test]
     fn test_add_appends_entries_to_catalog() {
+        // GIVEN the built-in catalogue and one entry added by the operator
         let base = load_builtin_enrichments();
         let initial_len = base.len();
         let custom: ConnectorEnrichment = serde_json::from_value(serde_json::json!({
@@ -174,8 +175,10 @@ mod tests {
             ..McpOverrides::default()
         };
 
+        // WHEN the overrides are applied
         let after = apply_overrides(base, &overrides);
 
+        // THEN the catalogue grew by exactly that entry
         assert_eq!(after.len(), initial_len + 1);
         assert!(after
             .iter()
@@ -184,6 +187,7 @@ mod tests {
 
     #[test]
     fn test_override_flips_default_requires_approval() {
+        // GIVEN an override turning approval off for one catalogue entry
         let base = load_builtin_enrichments();
         let mut overrides = McpOverrides::default();
         overrides.override_.insert(
@@ -191,8 +195,10 @@ mod tests {
             serde_json::json!({ "default_requires_approval": false }),
         );
 
+        // WHEN the overrides are applied
         let after = apply_overrides(base, &overrides);
 
+        // THEN that entry no longer requires approval by default
         let github = after
             .iter()
             .find(|e| e.package_identifier == "io.github.github/github-mcp-server")
@@ -202,9 +208,12 @@ mod tests {
 
     #[test]
     fn test_empty_overrides_returns_base_unchanged() {
+        // GIVEN the built-in catalogue and no override at all
         let base = load_builtin_enrichments();
         let len = base.len();
+        // WHEN the overrides are applied
         let after = apply_overrides(base, &McpOverrides::default());
+        // THEN the catalogue is the one it started with
         assert_eq!(after.len(), len);
     }
 
@@ -263,25 +272,34 @@ mod tests {
 
     #[test]
     fn test_merge_json_replaces_scalars() {
+        // GIVEN a target object and a patch touching one scalar
         let mut target = serde_json::json!({ "a": 1, "b": "old" });
         let patch = serde_json::json!({ "b": "new" });
+        // WHEN they are merged
         merge_json(&mut target, &patch);
+        // THEN the patched key changes and the untouched one survives
         assert_eq!(target, serde_json::json!({ "a": 1, "b": "new" }));
     }
 
     #[test]
     fn test_merge_json_recurses_into_objects() {
+        // GIVEN a target holding a nested object and a patch touching one of its keys
         let mut target = serde_json::json!({ "obj": { "a": 1, "b": 2 } });
         let patch = serde_json::json!({ "obj": { "b": 99 } });
+        // WHEN they are merged
         merge_json(&mut target, &patch);
+        // THEN the merge goes into the nested object rather than replacing it
         assert_eq!(target, serde_json::json!({ "obj": { "a": 1, "b": 99 } }));
     }
 
     #[test]
     fn test_merge_json_replaces_arrays_wholesale() {
+        // GIVEN a target holding an array and a patch holding a shorter one
         let mut target = serde_json::json!({ "arr": [1, 2, 3] });
         let patch = serde_json::json!({ "arr": [9] });
+        // WHEN they are merged
         merge_json(&mut target, &patch);
+        // THEN the array is replaced whole, not appended to nor merged item by item
         assert_eq!(target["arr"], serde_json::json!([9]));
     }
 }

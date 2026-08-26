@@ -154,6 +154,9 @@ mod tests {
 
     #[test]
     fn key_for_formats_correctly() {
+        // GIVEN a server name and a variable name
+        // WHEN the keyring key is built
+        // THEN it is the two joined by a colon, which is what the keyring is searched with
         assert_eq!(
             SecretStore::key_for("notion", "NOTION_API_KEY"),
             "notion:NOTION_API_KEY"
@@ -162,13 +165,19 @@ mod tests {
 
     #[test]
     fn key_for_handles_empty_parts() {
+        // GIVEN an empty server name, then an empty variable name
+        // WHEN the keyring key is built
+        // THEN the separator is still there, so an empty half cannot collide with a full key
         assert_eq!(SecretStore::key_for("", "KEY"), ":KEY");
         assert_eq!(SecretStore::key_for("svc", ""), "svc:");
     }
 
     #[test]
     fn list_keys_for_server_always_empty() {
+        // GIVEN a store with no enumeration backend
         let store = SecretStore::new();
+        // WHEN the keys of a server are listed
+        // THEN the answer is empty rather than a guess, for any server
         assert!(store.list_keys_for_server("notion").is_empty());
         assert!(store.list_keys_for_server("slack").is_empty());
     }

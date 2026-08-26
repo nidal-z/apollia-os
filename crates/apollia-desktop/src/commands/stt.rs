@@ -951,6 +951,7 @@ mod tests {
     fn decode_wav_rejects_invalid_data() {
         // GIVEN invalid WAV data
         let result = decode_wav(b"not a wav file");
+        // WHEN it is decoded
         // THEN an error is returned
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("invalid WAV"));

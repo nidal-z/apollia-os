@@ -281,6 +281,9 @@ mod tests {
 
     #[test]
     fn parse_provider_known_ids() {
+        // GIVEN the two provider identifiers the command accepts
+        // WHEN each is parsed
+        // THEN it maps to its provider
         assert_eq!(parse_provider("google").unwrap(), ConnectorProvider::Google);
         assert_eq!(
             parse_provider("microsoft").unwrap(),
@@ -290,18 +293,27 @@ mod tests {
 
     #[test]
     fn parse_provider_rejects_unknown() {
+        // GIVEN a provider name Apollia has no connector for
+        // WHEN it is parsed
+        // THEN the command refuses it instead of reaching the network
         assert!(parse_provider("notion").is_err());
     }
 
     #[test]
     fn parses_list() {
+        // GIVEN "connector list"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "list"]);
+        // THEN the list subcommand is selected
         assert!(matches!(cli.cmd, ConnectorCommand::List));
     }
 
     #[test]
     fn parses_accounts_no_filter() {
+        // GIVEN "connector accounts", with no --provider
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "accounts"]);
+        // THEN no provider filter is set, so every account is listed
         match cli.cmd {
             ConnectorCommand::Accounts { provider } => assert!(provider.is_none()),
             other => panic!("unexpected: {other:?}"),
@@ -310,7 +322,10 @@ mod tests {
 
     #[test]
     fn parses_accounts_with_provider() {
+        // GIVEN the same command line with --provider google
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "accounts", "--provider", "google"]);
+        // THEN the filter carries the provider
         match cli.cmd {
             ConnectorCommand::Accounts { provider } => {
                 assert_eq!(provider.as_deref(), Some("google"));
@@ -321,7 +336,10 @@ mod tests {
 
     #[test]
     fn parses_test() {
+        // GIVEN "connector test google alice@example.com"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "test", "google", "alice@example.com"]);
+        // THEN both positional arguments land in the right order
         match cli.cmd {
             ConnectorCommand::Test { provider, account } => {
                 assert_eq!(provider, "google");
@@ -333,7 +351,10 @@ mod tests {
 
     #[test]
     fn parses_revoke_with_confirm() {
+        // GIVEN a revoke carrying --confirm
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "revoke", "google", "alice@example.com", "--confirm"]);
+        // THEN the account, the provider and the confirmation are all captured
         match cli.cmd {
             ConnectorCommand::Revoke {
                 provider,
@@ -350,7 +371,10 @@ mod tests {
 
     #[tokio::test]
     async fn revoke_without_confirm_returns_error() {
+        // GIVEN a revoke asked for without --confirm
+        // WHEN it runs
         let code = run_revoke("google", "x@example.com", false, true).await;
+        // THEN it stops on an error rather than dropping the credentials
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
@@ -384,13 +408,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_with_unknown_provider_errors() {
+        // GIVEN a connectivity test asked for a provider Apollia has no connector for
+        // WHEN it runs
         let code = run_test("dropbox", "x@example.com", true).await;
+        // THEN it stops on an error
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn parses_client_id_list() {
+        // GIVEN "connector client-id list"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "client-id", "list"]);
+        // THEN the nested client-id list subcommand is selected
         assert!(matches!(
             cli.cmd,
             ConnectorCommand::ClientId(ClientIdCommand::List)
@@ -399,8 +429,11 @@ mod tests {
 
     #[test]
     fn parses_client_id_set() {
+        // GIVEN "connector client-id set google <id>"
+        // WHEN clap parses the argument line
         let cli =
             TestCli::parse_from(["x", "client-id", "set", "google", "abc123.apps.example.com"]);
+        // THEN the provider and the identifier land in the right order
         match cli.cmd {
             ConnectorCommand::ClientId(ClientIdCommand::Set {
                 provider,
@@ -415,7 +448,10 @@ mod tests {
 
     #[test]
     fn parses_client_secret_set() {
+        // GIVEN "connector client-secret set google <secret>"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "client-secret", "set", "google", "GOCSPX-xxx"]);
+        // THEN the provider and the secret land in the right order
         match cli.cmd {
             ConnectorCommand::ClientSecret(ClientSecretCommand::Set {
                 provider,
@@ -430,7 +466,10 @@ mod tests {
 
     #[test]
     fn parses_api_key_set() {
+        // GIVEN "connector api-key set google <key>"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "api-key", "set", "google", "AIza..."]);
+        // THEN the provider and the key land in the right order
         match cli.cmd {
             ConnectorCommand::ApiKey(ApiKeyCommand::Set { provider, api_key }) => {
                 assert_eq!(provider, "google");
@@ -442,7 +481,10 @@ mod tests {
 
     #[test]
     fn parses_drive_folder_list() {
+        // GIVEN "connector drive folder list"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "drive", "folder", "list"]);
+        // THEN the three nesting levels are walked down to the list subcommand
         assert!(matches!(
             cli.cmd,
             ConnectorCommand::Drive {
@@ -455,6 +497,8 @@ mod tests {
 
     #[test]
     fn parses_drive_folder_set() {
+        // GIVEN a drive folder set carrying an account and a folder path
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from([
             "x",
             "drive",
@@ -463,6 +507,7 @@ mod tests {
             "alice@example.com",
             "Apollia/Workspace",
         ]);
+        // THEN both land in the right order under the nested subcommand
         match cli.cmd {
             ConnectorCommand::Drive {
                 command:
@@ -479,7 +524,10 @@ mod tests {
 
     #[test]
     fn parses_drive_folder_reset() {
+        // GIVEN a drive folder reset with no --confirm
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "drive", "folder", "reset", "alice@example.com"]);
+        // THEN the account is captured and the confirmation stays down by default
         match cli.cmd {
             ConnectorCommand::Drive {
                 command:
@@ -496,6 +544,8 @@ mod tests {
 
     #[test]
     fn parses_drive_folder_picked_list() {
+        // GIVEN "connector drive folder picked list <account>"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from([
             "x",
             "drive",
@@ -504,6 +554,7 @@ mod tests {
             "list",
             "alice@example.com",
         ]);
+        // THEN the four nesting levels are walked down and the account is captured
         match cli.cmd {
             ConnectorCommand::Drive {
                 command:
@@ -520,6 +571,8 @@ mod tests {
 
     #[test]
     fn parses_drive_folder_picked_remove() {
+        // GIVEN a picked folder removal carrying an account and a folder identifier
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from([
             "x",
             "drive",
@@ -529,6 +582,7 @@ mod tests {
             "alice@example.com",
             "1abcDEFghi",
         ]);
+        // THEN both are captured and the confirmation stays down by default
         match cli.cmd {
             ConnectorCommand::Drive {
                 command:
@@ -554,19 +608,28 @@ mod tests {
 
     #[test]
     fn drive_folder_set_rejects_empty_path() {
+        // GIVEN a drive folder path made of spaces
+        // WHEN the folder is set
         let code = run_drive_folder_set("alice@example.com", "   ", true);
+        // THEN the command stops on an error rather than storing a blank path
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn mask_secret_short_input_is_fully_redacted() {
+        // GIVEN an empty secret, then one too short to keep any edge
+        // WHEN each is masked for display
+        // THEN nothing of the secret shows
         assert_eq!(mask_secret(""), "<empty>");
         assert_eq!(mask_secret("short"), "********");
     }
 
     #[test]
     fn mask_secret_long_input_preserves_edges() {
+        // GIVEN a secret long enough to keep its edges
+        // WHEN it is masked for display
         let masked = mask_secret("AIzaSyAbcdef1234567890");
+        // THEN only the first and last characters show, with an ellipsis between them
         assert!(masked.starts_with("AIza"));
         assert!(masked.ends_with("90"));
         assert!(masked.contains("..."));

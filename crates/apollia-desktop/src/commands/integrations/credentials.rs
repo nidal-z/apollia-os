@@ -499,12 +499,18 @@ mod tests {
 
     #[test]
     fn test_is_guid_like_accepts_canonical_guid() {
+        // GIVEN two canonical GUIDs, one lowercase and one uppercase
+        // WHEN each is checked for shape
+        // THEN both pass, so case is not what a rejection means
         assert!(is_guid_like("12345678-1234-1234-1234-123456789abc"));
         assert!(is_guid_like("DEADBEEF-0000-1111-2222-333344445555"));
     }
 
     #[test]
     fn test_is_guid_like_rejects_malformed() {
+        // GIVEN a word, a GUID without its dashes, one with a non-hexadecimal digit and an empty string
+        // WHEN each is checked for shape
+        // THEN all four are rejected
         assert!(!is_guid_like("not-a-guid"));
         assert!(!is_guid_like("12345678123412341234123456789abc"));
         assert!(!is_guid_like("12345678-1234-1234-1234-123456789abz"));
@@ -514,17 +520,24 @@ mod tests {
     #[test]
     fn test_client_id_shape_error_google() {
         // GIVEN a well-formed Google client id
+        // WHEN its shape is checked
+        // THEN nothing is reported
         assert!(client_id_shape_error(
             ConnectorProvider::Google,
             "123-abc.apps.googleusercontent.com"
         )
         .is_none());
         // AND a malformed one
+        // WHEN its shape is checked
+        // THEN the operator is told before any OAuth round trip starts
         assert!(client_id_shape_error(ConnectorProvider::Google, "bogus").is_some());
     }
 
     #[test]
     fn test_client_id_shape_error_microsoft() {
+        // GIVEN a well-formed Microsoft client id, then a malformed one
+        // WHEN the shape of each is checked
+        // THEN the first passes and the second is reported before any OAuth round trip
         assert!(client_id_shape_error(
             ConnectorProvider::Microsoft,
             "12345678-1234-1234-1234-123456789abc"
@@ -535,11 +548,14 @@ mod tests {
 
     #[test]
     fn test_oauth_client_test_result_serializes() {
+        // GIVEN the result of a connectivity test
         let result = OauthClientTestResult {
             ok: true,
             detail: "reachable".to_string(),
         };
+        // WHEN it crosses the bridge as JSON
         let json = serde_json::to_value(&result).expect("serialize");
+        // THEN the front end reads both the verdict and its detail
         assert_eq!(json["ok"], true);
         assert_eq!(json["detail"], "reachable");
     }

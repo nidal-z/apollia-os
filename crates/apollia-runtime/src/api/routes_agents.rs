@@ -1326,6 +1326,7 @@ mod tests {
             )
             .with_state(state);
 
+        // WHEN the agent is started through the API
         let body = serde_json::json!({"agent_path": "/path/to/a2a_director.py"});
         let req = Request::builder()
             .method("POST")

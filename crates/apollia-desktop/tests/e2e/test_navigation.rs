@@ -85,6 +85,8 @@ const ROUTE_PROBES: &[RouteProbe] = &[
 #[tokio::test]
 #[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_navigation_all_15_routes_no_crash() {
+    // GIVEN the fifteen routes of the desktop shell, each with the endpoint it
+    // reads
     assert_eq!(
         ROUTE_PROBES.len(),
         15,
@@ -92,6 +94,8 @@ async fn test_navigation_all_15_routes_no_crash() {
     );
 
     super::with_retry(|| async {
+        // WHEN every one of them is probed, without stopping at the first failure
+        // THEN none answers a server error, an unconfigured optional subsystem aside
         let client = super::http_client()?;
         let mut failures: Vec<String> = Vec::new();
 

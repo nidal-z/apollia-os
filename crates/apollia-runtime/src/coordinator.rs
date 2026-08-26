@@ -716,6 +716,7 @@ mod tests {
         let coord = ExecutionCoordinator::new("agent-1".into(), 1, tx, MockBackend::failing());
 
         // AND a task that fails
+        // WHEN a task is submitted and its execution fails
         let handle = coord
             .submit_task(make_task("task-fail"))
             .expect("submit should succeed");

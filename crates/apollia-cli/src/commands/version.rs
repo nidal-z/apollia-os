@@ -67,12 +67,18 @@ mod tests {
 
     #[test]
     fn version_json_returns_success() {
+        // GIVEN the version command asked for machine-readable output
+        // WHEN it runs
+        // THEN it reports success
         assert_eq!(run(true), exit_codes::SUCCESS);
     }
 
     #[test]
     fn profile_consistent_with_debug_assertions() {
+        // GIVEN the build profile the binary reports
         let p = built_profile();
+        // WHEN it is compared against the profile this test was compiled under
+        // THEN the two agree, so the reported profile is the real one
         if cfg!(debug_assertions) {
             assert_eq!(p, "debug");
         } else {

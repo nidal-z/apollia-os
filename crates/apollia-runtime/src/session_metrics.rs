@@ -467,6 +467,7 @@ mod tests {
 
     #[test]
     fn meta_llm_budget_exceeded_forces_block() {
+        // GIVEN a run that has burnt 12000 tokens against a 10000 budget
         let store = store();
         let mut in_flight = HashMap::new();
         let event = RuntimeEvent::MetaLlmBudgetExceeded {
@@ -474,6 +475,7 @@ mod tests {
             tokens_used: 12_000,
             budget: 10_000,
         };
+        // WHEN the event goes through the metrics processing
         let updates = process_event(
             &event,
             &store,
@@ -484,6 +486,7 @@ mod tests {
                 token_budget: 0,
             },
         );
+        // THEN a single update comes out, at the blocking level, carrying both numbers
         assert_eq!(updates.len(), 1);
         assert_eq!(updates[0].2, BudgetAlertLevel::Block);
         assert_eq!(updates[0].1.tokens_meta, 12_000);

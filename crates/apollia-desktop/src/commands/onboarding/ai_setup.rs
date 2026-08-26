@@ -503,6 +503,7 @@ mod tests {
     fn test_whisper_model_size_detection() {
         // GIVEN a filename "ggml-base.bin"
         let size = detect_whisper_model_size("ggml-base.bin");
+        // WHEN the model size is read from it
         // THEN model_size is "base"
         assert_eq!(size, Some("base".to_string()));
     }
@@ -511,6 +512,7 @@ mod tests {
     fn test_whisper_model_size_unknown_filename() {
         // GIVEN a filename without the standard pattern
         let size = detect_whisper_model_size("random-model.bin");
+        // WHEN the model size is read from it
         // THEN None is returned
         assert_eq!(size, None);
     }
@@ -519,6 +521,7 @@ mod tests {
     fn test_ram_recommendation_low() {
         // GIVEN 6 GB RAM
         let max_size = recommended_max_gguf_size_bytes(6.0);
+        // WHEN the largest recommended model is computed
         // THEN the threshold is at most 2.5 GB
         assert!(max_size <= 2_500_000_000);
     }
@@ -527,6 +530,7 @@ mod tests {
     fn test_ram_recommendation_medium() {
         // GIVEN 12 GB RAM
         let max_size = recommended_max_gguf_size_bytes(12.0);
+        // WHEN the largest recommended model is computed
         // THEN the threshold is between 2.5 GB and 6 GB (inclusive)
         assert!(max_size <= 6_000_000_000);
         assert!(max_size > 2_500_000_000);
@@ -535,6 +539,7 @@ mod tests {
     #[test]
     fn test_human_readable_size() {
         // GIVEN known byte counts
+        // WHEN each is formatted for the operator
         // THEN human-readable output matches expected strings
         assert_eq!(format_size_human(4_500_000_000), "4.2 GB");
         assert_eq!(format_size_human(500_000_000), "476.8 MB");

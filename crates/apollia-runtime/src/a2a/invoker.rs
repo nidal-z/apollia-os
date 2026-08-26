@@ -1556,6 +1556,7 @@ mod a2a_guard_tests {
         let config: A2AConfig =
             serde_json::from_str("{}").expect("deserialization of empty object failed");
 
+        // WHEN the limits are read
         // THEN sane default values
         assert_eq!(config.max_depth, 3);
         assert_eq!(config.invocation_timeout_secs, 120);

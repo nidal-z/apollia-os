@@ -355,13 +355,19 @@ mod tests {
 
     #[test]
     fn test_make_excerpt_short() {
+        // GIVEN a payload shorter than the excerpt budget
+        // WHEN the excerpt is made
+        // THEN it is the payload itself, unchanged
         assert_eq!(make_excerpt("hello"), "hello");
     }
 
     #[test]
     fn test_make_excerpt_truncates_with_ellipsis() {
+        // GIVEN a payload well past the excerpt budget
         let s = "x".repeat(300);
+        // WHEN the excerpt is made
         let out = make_excerpt(&s);
+        // THEN it is cut at the budget and ends with an ellipsis
         assert_eq!(out.chars().count(), EXCERPT_MAX_CHARS + 1);
         assert!(out.ends_with('…'));
     }

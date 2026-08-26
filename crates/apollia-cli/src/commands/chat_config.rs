@@ -423,13 +423,19 @@ mod tests {
 
     #[test]
     fn parses_get() {
+        // GIVEN "chat-config get"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "get"]);
+        // THEN the get subcommand is selected
         assert!(matches!(cli.cmd, ChatConfigCommand::Get { .. }));
     }
 
     #[test]
     fn parses_set() {
+        // GIVEN a set carrying a key and a sentence as value
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "set", "system-prompt", "You are helpful."]);
+        // THEN key and value land in the right order, spaces included
         match cli.cmd {
             ChatConfigCommand::Set { key, value, .. } => {
                 assert_eq!(key, "system-prompt");
@@ -441,15 +447,21 @@ mod tests {
 
     #[test]
     fn reset_without_confirm_errors() {
+        // GIVEN a governance database
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("governance.db");
+        // WHEN a reset runs without confirmation
+        // THEN it stops on an error rather than clearing the chat configuration
         assert_eq!(run_reset(Some(&db), false, true), exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn set_then_get_roundtrip() {
+        // GIVEN an empty governance database
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("governance.db");
+        // WHEN a key is set, then read back through the commands themselves
+        // THEN both report success
         assert_eq!(
             run_set(Some(&db), "system-prompt", "Hi", true),
             exit_codes::SUCCESS
@@ -459,12 +471,15 @@ mod tests {
 
     #[test]
     fn allowed_tools_comma_split() {
+        // GIVEN a tool list given as one comma separated string, with spaces
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("governance.db");
+        // WHEN it is stored through the set command
         assert_eq!(
             run_set(Some(&db), "allowed-tools", "file_read, bash, http", true),
             exit_codes::SUCCESS
         );
+        // THEN the repository holds three trimmed names rather than one string
         let repo = ChatLibreConfigRepository::open(&db).unwrap();
         let cfg = repo.load().unwrap();
         assert_eq!(cfg.allowed_tools, vec!["file_read", "bash", "http"]);
@@ -472,10 +487,13 @@ mod tests {
 
     #[test]
     fn llm_backend_none_clears() {
+        // GIVEN a chat configuration whose backend has been set
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("governance.db");
         run_set(Some(&db), "llm-backend", "anthropic", true);
+        // WHEN the backend is set to none
         run_set(Some(&db), "llm-backend", "none", true);
+        // THEN the stored backend is cleared rather than being the literal word none
         let repo = ChatLibreConfigRepository::open(&db).unwrap();
         let cfg = repo.load().unwrap();
         assert!(cfg.llm_backend.is_none());
@@ -483,8 +501,11 @@ mod tests {
 
     #[test]
     fn unknown_key_errors() {
+        // GIVEN a key the chat configuration does not define
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("governance.db");
+        // WHEN it is set
+        // THEN the command stops on an error rather than writing an ignored key
         assert_eq!(
             run_set(Some(&db), "wrong", "value", true),
             exit_codes::GENERAL_ERROR
@@ -493,7 +514,10 @@ mod tests {
 
     #[test]
     fn parses_permissions_list() {
+        // GIVEN "chat-config permissions list", with no --db
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "permissions", "list"]);
+        // THEN the nested list subcommand is selected and the database stays the default one
         match cli.cmd {
             ChatConfigCommand::Permissions {
                 command: ChatConfigPermissionsCommand::List { db },
@@ -504,7 +528,10 @@ mod tests {
 
     #[test]
     fn parses_permissions_delete_requires_confirm_flag() {
+        // GIVEN a permissions delete naming a rule, with no --confirm
         let cli = TestCli::parse_from(["x", "permissions", "delete", "42"]);
+        // WHEN clap parses the argument line
+        // THEN the identifier is captured as a number and the confirmation stays down
         match cli.cmd {
             ChatConfigCommand::Permissions {
                 command: ChatConfigPermissionsCommand::Delete { id, confirm, .. },
@@ -518,7 +545,10 @@ mod tests {
 
     #[test]
     fn parses_authorizations_list() {
+        // GIVEN "chat-config authorizations list"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "authorizations", "list"]);
+        // THEN the nested list subcommand is selected
         assert!(matches!(
             cli.cmd,
             ChatConfigCommand::Authorizations {
@@ -529,7 +559,10 @@ mod tests {
 
     #[test]
     fn parses_authorizations_revoke() {
+        // GIVEN a revoke naming a session and a tool, with no --confirm
         let cli = TestCli::parse_from(["x", "authorizations", "revoke", "sess-1", "file_read"]);
+        // WHEN clap parses the argument line
+        // THEN both are captured in the right order and the confirmation stays down
         match cli.cmd {
             ChatConfigCommand::Authorizations {
                 command:
@@ -549,14 +582,20 @@ mod tests {
 
     #[test]
     fn authorizations_list_returns_explanatory_error() {
+        // GIVEN the authorizations listing, which no store backs yet
+        // WHEN it runs
         let code = run_authorizations(&ChatConfigAuthorizationsCommand::List, true);
+        // THEN it stops on an error rather than printing an empty list that would read as none granted
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn permissions_delete_without_confirm_errors() {
+        // GIVEN a governance database
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("governance.db");
+        // WHEN a rule deletion runs without confirmation
+        // THEN it stops on an error
         assert_eq!(
             run_permissions_delete(1, false, Some(&db), true),
             exit_codes::GENERAL_ERROR
@@ -565,8 +604,11 @@ mod tests {
 
     #[test]
     fn permissions_list_empty_db_returns_success() {
+        // GIVEN a governance database with no rule in it
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("governance.db");
+        // WHEN the rules are listed
+        // THEN the command reports success rather than treating an empty store as a failure
         assert_eq!(run_permissions_list(Some(&db), true), exit_codes::SUCCESS);
     }
 }

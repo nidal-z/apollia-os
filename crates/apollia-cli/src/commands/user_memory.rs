@@ -386,13 +386,19 @@ mod tests {
 
     #[test]
     fn parses_show() {
+        // GIVEN "user-memory show"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "show"]);
+        // THEN the show subcommand is selected
         assert!(matches!(cli.cmd, UserMemoryCommand::Show { .. }));
     }
 
     #[test]
     fn parses_set() {
+        // GIVEN "user-memory set name Alice"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "set", "name", "Alice"]);
+        // THEN key and value land in the right order
         match cli.cmd {
             UserMemoryCommand::Set { key, value, .. } => {
                 assert_eq!(key, "name");
@@ -404,7 +410,10 @@ mod tests {
 
     #[test]
     fn parses_forget() {
+        // GIVEN "user-memory forget name"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "forget", "name"]);
+        // THEN the key is captured
         match cli.cmd {
             UserMemoryCommand::Forget { key, .. } => assert_eq!(key, "name"),
             other => panic!("unexpected: {other:?}"),
@@ -413,17 +422,23 @@ mod tests {
 
     #[test]
     fn reset_without_confirm_errors() {
+        // GIVEN a user-memory database
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("um.db");
+        // WHEN a reset runs without confirmation
         let code = run_reset(Some(&db), false, true);
+        // THEN it stops on an error rather than wiping the profile
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn set_then_show_round_trip() {
+        // GIVEN an empty user-memory database
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("um.db");
+        // WHEN a key is set, then the profile is shown
         let code = run_set(Some(&db), "name", "Bob", true);
+        // THEN both report success
         assert_eq!(code, exit_codes::SUCCESS);
         let code = run_show(Some(&db), true);
         assert_eq!(code, exit_codes::SUCCESS);
@@ -431,6 +446,7 @@ mod tests {
 
     #[test]
     fn export_then_import_overwrite_round_trip() {
+        // GIVEN a source database holding two entries and an empty destination
         let tmp = tempfile::tempdir().unwrap();
         let db_src = tmp.path().join("src.db");
         let db_dst = tmp.path().join("dst.db");
@@ -438,6 +454,8 @@ mod tests {
 
         run_set(Some(&db_src), "alpha", "1", true);
         run_set(Some(&db_src), "beta", "2", true);
+        // WHEN the source is exported, imported into the destination, then imported again without overwrite
+        // THEN all three report success, so a second import is a no-op rather than a failure
         assert_eq!(
             run_export(Some(&db_src), Some(&out), true),
             exit_codes::SUCCESS
@@ -456,9 +474,12 @@ mod tests {
 
     #[test]
     fn forget_clears_entry() {
+        // GIVEN a database holding one entry
         let tmp = tempfile::tempdir().unwrap();
         let db = tmp.path().join("um.db");
         run_set(Some(&db), "x", "y", true);
+        // WHEN it is forgotten with confirmation
+        // THEN the command reports success
         assert_eq!(run_forget(Some(&db), "x", true, true), exit_codes::SUCCESS);
     }
 }

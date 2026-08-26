@@ -155,6 +155,9 @@ mod tests {
 
     #[test]
     fn trigger_mode_from_config_toggle() {
+        // GIVEN the toggle mode name in three casings
+        // WHEN each is read from the configuration
+        // THEN all three give the toggle mode, so casing in the toml is not a silent fallback
         assert_eq!(TriggerMode::from_config("toggle"), TriggerMode::Toggle);
         assert_eq!(TriggerMode::from_config("Toggle"), TriggerMode::Toggle);
         assert_eq!(TriggerMode::from_config("TOGGLE"), TriggerMode::Toggle);
@@ -162,6 +165,9 @@ mod tests {
 
     #[test]
     fn trigger_mode_from_config_push_to_talk() {
+        // GIVEN the four spellings of push-to-talk the configuration accepts
+        // WHEN each is read from the configuration
+        // THEN all four give the push-to-talk mode
         assert_eq!(
             TriggerMode::from_config("push-to-talk"),
             TriggerMode::PushToTalk
@@ -176,13 +182,19 @@ mod tests {
 
     #[test]
     fn trigger_mode_from_config_unknown_defaults_to_toggle() {
+        // GIVEN an unknown mode name and an empty one
+        // WHEN each is read from the configuration
+        // THEN the hotkey falls back to toggle rather than refusing to start
         assert_eq!(TriggerMode::from_config("unknown"), TriggerMode::Toggle);
         assert_eq!(TriggerMode::from_config(""), TriggerMode::Toggle);
     }
 
     #[test]
     fn hotkey_listener_recording_flag_starts_false() {
+        // GIVEN a listener that has just been built
         let listener = HotkeyListener::new("ctrl+shift+space".into(), TriggerMode::Toggle);
+        // WHEN its recording flag is read
+        // THEN it is down, so no capture starts before the operator presses the key
         assert!(!listener.recording_flag().load(Ordering::SeqCst));
     }
 }

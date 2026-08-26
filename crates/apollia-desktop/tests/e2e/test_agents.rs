@@ -21,6 +21,9 @@ const AGENT_POLL_INTERVAL: Duration = Duration::from_millis(500);
 #[tokio::test]
 #[ignore = "true once the runtime and the desktop app are up; the e2e-desktop job of nightly.yml starts them and runs this via: cargo test -p apollia-desktop --test e2e -- --ignored"]
 async fn test_agents_list_start_bundled_verify_active() {
+    // GIVEN a runtime and a desktop app already up, as the nightly job starts them
+    // WHEN the agent list is read and the bundled onboarding agent is started from its on-disk path
+    // THEN it ends up in the active state, or was already there
     super::with_retry(|| async {
         let client = super::http_client()?;
 

@@ -310,6 +310,7 @@ mod tests {
 
     #[test]
     fn extracts_og_tags() {
+        // GIVEN a page carrying the four Open Graph tags, a title, a favicon, and relative asset paths
         let html = r#"
             <html>
               <head>
@@ -323,7 +324,9 @@ mod tests {
             </html>
         "#;
         let base = url::Url::parse("https://example.com/article").unwrap();
+        // WHEN the preview is extracted against the page URL
         let preview = extract_og_tags(&base, html);
+        // THEN the Open Graph values win over the title tag and the relative paths are made absolute
         assert_eq!(preview.title.as_deref(), Some("OG title"));
         assert_eq!(preview.description.as_deref(), Some("short desc"));
         assert_eq!(
@@ -339,9 +342,12 @@ mod tests {
 
     #[test]
     fn falls_back_to_title_tag() {
+        // GIVEN a page with no Open Graph tag at all
         let html = "<html><head><title>Only title</title></head></html>";
         let base = url::Url::parse("https://example.com/").unwrap();
+        // WHEN the preview is extracted
         let preview = extract_og_tags(&base, html);
+        // THEN the title tag is used rather than leaving the card blank
         assert_eq!(preview.title.as_deref(), Some("Only title"));
     }
 }

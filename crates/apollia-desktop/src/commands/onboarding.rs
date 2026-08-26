@@ -594,6 +594,7 @@ mod profile_tests {
     fn test_trigger_onboarding_rejects_invalid_profile() {
         // GIVEN an unrecognised profile string
         let result = validate_profile("hacker");
+        // WHEN the onboarding validates it
         // THEN InvalidProfile error is returned
         assert!(matches!(result, Err(OnboardingError::InvalidProfile(_))));
         let err_msg = result.unwrap_err().to_string();

@@ -52,6 +52,7 @@ mod tests {
     fn unrestricted_when_both_empty() {
         // GIVEN no restrictions
         let config = SessionConfig::default();
+        // WHEN the session is asked whether it is unrestricted
         // THEN is_unrestricted returns true
         assert!(config.is_unrestricted());
     }
@@ -63,6 +64,7 @@ mod tests {
             allowed_tools: Some(vec!["file_read".to_string()]),
             disallowed_tools: vec![],
         };
+        // WHEN the session is asked whether it is unrestricted
         // THEN not unrestricted
         assert!(!config.is_unrestricted());
     }
@@ -71,6 +73,7 @@ mod tests {
     fn into_filter_returns_none_for_unrestricted() {
         // GIVEN no restrictions
         let config = SessionConfig::default();
+        // WHEN a tool filter is built from it
         // THEN into_filter produces None
         assert!(config.into_tool_filter().is_none());
     }
@@ -82,6 +85,7 @@ mod tests {
             allowed_tools: None,
             disallowed_tools: vec!["bash_executor".to_string()],
         };
+        // WHEN a tool filter is built from it
         // THEN into_filter produces Some
         let filter = config.into_tool_filter();
         assert!(filter.is_some());

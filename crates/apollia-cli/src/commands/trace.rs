@@ -197,47 +197,65 @@ mod tests {
 
     #[test]
     fn timestamp_keeps_hh_mm_ss_ms_from_rfc3339() {
+        // GIVEN a full timestamp with milliseconds
+        // WHEN it is formatted for the trace column
+        // THEN only the time of day is kept, milliseconds included
         assert_eq!(format_timestamp("2026-05-22T07:59:02.369Z"), "07:59:02.369");
     }
 
     #[test]
     fn timestamp_handles_missing_subseconds() {
+        // GIVEN a timestamp with no subsecond part
+        // WHEN it is formatted for the trace column
+        // THEN the time of day is kept, with no invented milliseconds
         assert_eq!(format_timestamp("2026-05-22T12:34:56Z"), "12:34:56");
     }
 
     #[test]
     fn timestamp_empty_returns_blank_padding() {
+        // GIVEN a row carrying no timestamp
         // Matches the column width so missing-ts rows still align.
+        // WHEN it is formatted for the trace column
+        // THEN the width is filled with spaces so the columns still line up
         assert_eq!(format_timestamp(""), "            ");
     }
 
     #[test]
     fn summarize_tool_call_started_carries_tool_and_args() {
+        // GIVEN a tool call start carrying its tool name and its arguments
         let payload = serde_json::json!({
             "tool_name": "web_search",
             "args_json": "{\"query\":\"foo\"}",
         });
+        // WHEN it is summarised for the trace
         let s = summarize_payload("tool_call_started", &payload);
+        // THEN the line opens on the tool and carries the arguments
         assert!(s.starts_with("web_search"), "got {s}");
         assert!(s.contains("\"query\":\"foo\""), "got {s}");
     }
 
     #[test]
     fn summarize_tool_call_completed_shows_duration_only_when_present() {
+        // GIVEN a tool call completion carrying a duration and no exit code
         let payload = serde_json::json!({"duration_ms": 1367, "exit_code": null});
+        // WHEN it is summarised for the trace
         let s = summarize_payload("tool_call_completed", &payload);
+        // THEN the duration is on the line
         assert!(s.contains("1367ms"), "got {s}");
     }
 
     #[test]
     fn summarize_llm_call_completed_reports_tokens_and_cost() {
+        // GIVEN an LLM call completion carrying tokens, duration and cost
         let payload = serde_json::json!({
             "prompt_tokens": 120,
             "completion_tokens": 45,
             "duration_ms": 800,
             "cost_usd": 0.00123,
         });
+        // WHEN it is summarised for the trace
         let s = summarize_payload("llm_call_completed", &payload);
+        // THEN the line carries the token move, the duration and the cost
         assert!(s.contains("120→45"), "got {s}");
         assert!(s.contains("800ms"), "got {s}");
         assert!(s.contains("$0.00123"), "got {s}");
@@ -245,15 +263,21 @@ mod tests {
 
     #[test]
     fn summarize_agent_log_keeps_level_and_message() {
+        // GIVEN an agent log line carrying a level and a message
         let payload = serde_json::json!({"level": "warn", "message": "stale cache"});
+        // WHEN it is summarised for the trace
         let s = summarize_payload("agent_log", &payload);
+        // THEN both are kept, the level in front
         assert_eq!(s, "[warn] stale cache");
     }
 
     #[test]
     fn summarize_unknown_kind_falls_back_to_serialized_payload() {
+        // GIVEN an event of a kind the summariser knows nothing about
         let payload = serde_json::json!({"foo": 1, "bar": "baz"});
+        // WHEN it is summarised for the trace
         let s = summarize_payload("custom_kind", &payload);
+        // THEN the payload is printed as it is rather than the line being dropped
         assert!(s.contains("foo"));
         assert!(s.contains("baz"));
     }

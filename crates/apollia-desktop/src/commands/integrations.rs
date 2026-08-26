@@ -467,13 +467,19 @@ mod tests {
 
     #[test]
     fn test_provider_from_id_known_returns_ok() {
+        // GIVEN the two connector identifiers the settings page offers
+        // WHEN each is resolved to a provider
+        // THEN both resolve
         assert!(provider_from_id("google").is_ok());
         assert!(provider_from_id("microsoft").is_ok());
     }
 
     #[test]
     fn test_provider_from_id_unknown_returns_err() {
+        // GIVEN an identifier no connector claims
+        // WHEN it is resolved to a provider
         let err = provider_from_id("github").unwrap_err();
+        // THEN the refusal names the offending identifier
         match err {
             IntegrationsError::UnknownProvider(name) => assert_eq!(name, "github"),
             other => panic!("expected UnknownProvider, got: {other:?}"),
@@ -482,31 +488,40 @@ mod tests {
 
     #[test]
     fn test_build_google_provider_with_known_scopes() {
+        // GIVEN two Apollia scope names for Google
+        // WHEN the provider configuration is built from them
         let cfg = build_provider_with_scopes(
             ConnectorProvider::Google,
             &["mail.send".to_string(), "calendar.read".to_string()],
         )
         .expect("build");
+        // THEN they are translated into the OAuth scopes Google expects
         assert!(cfg.scopes.iter().any(|s| s.contains("gmail.send")));
         assert!(cfg.scopes.iter().any(|s| s.contains("calendar.readonly")));
     }
 
     #[test]
     fn test_build_microsoft_provider_with_known_scopes() {
+        // GIVEN two Apollia scope names for Microsoft
+        // WHEN the provider configuration is built from them
         let cfg = build_provider_with_scopes(
             ConnectorProvider::Microsoft,
             &["mail.read".to_string(), "calendar.write".to_string()],
         )
         .expect("build");
+        // THEN they are translated into the Graph permissions Microsoft expects
         assert!(cfg.scopes.contains(&"Mail.Read"));
         assert!(cfg.scopes.contains(&"Calendars.ReadWrite"));
     }
 
     #[test]
     fn test_unknown_scope_returns_err() {
+        // GIVEN a scope name no provider declares
+        // WHEN the provider configuration is built from it
         let err =
             build_provider_with_scopes(ConnectorProvider::Google, &["drive.read_all".to_string()])
                 .unwrap_err();
+        // THEN the refusal names the offending scope rather than asking for it silently
         match err {
             IntegrationsError::UnknownScope(name) => assert_eq!(name, "drive.read_all"),
             other => panic!("expected UnknownScope, got: {other:?}"),
@@ -515,19 +530,28 @@ mod tests {
 
     #[test]
     fn test_sovereignty_gate_allows_cloud_when_cloud_allowed() {
+        // GIVEN a profile that allows the cloud
+        // WHEN the sovereignty gate is asked
+        // THEN the call goes through
         assert!(ensure_cloud_allowed(SovereigntyProfile::CloudAllowed).is_ok());
     }
 
     #[test]
     fn test_sovereignty_gate_blocks_when_local_only() {
+        // GIVEN a local-only profile
+        // WHEN the sovereignty gate is asked
         let err = ensure_cloud_allowed(SovereigntyProfile::LocalOnly).unwrap_err();
+        // THEN the call is blocked, which is what keeps an OAuth round trip from starting
         assert!(matches!(err, IntegrationsError::SovereigntyBlocked));
     }
 
     #[test]
     fn test_integrations_error_serializes_with_kind_tag() {
+        // GIVEN an integrations error
         let err = IntegrationsError::UnknownProvider("foo".into());
+        // WHEN it crosses the bridge as JSON
         let json = serde_json::to_value(&err).expect("serialize");
+        // THEN it carries a kind tag the front end can branch on
         assert_eq!(json["kind"], "unknown_provider");
     }
 

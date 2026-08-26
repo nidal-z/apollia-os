@@ -649,19 +649,28 @@ mod tests {
 
     #[test]
     fn test_parse_chat_mode_valid() {
+        // GIVEN the two chat mode names the front end sends
+        // WHEN each is parsed
+        // THEN it maps to its mode
         assert_eq!(parse_chat_mode("libre").unwrap(), ChatMode::Libre);
         assert_eq!(parse_chat_mode("agent").unwrap(), ChatMode::Agent);
     }
 
     #[test]
     fn test_parse_chat_mode_invalid() {
+        // GIVEN a mode name that does not exist
+        // WHEN it is parsed
         let result = parse_chat_mode("invalid");
+        // THEN the call is rejected with a message naming the offending value
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("invalid chat mode"));
     }
 
     #[test]
     fn test_parse_session_status_valid() {
+        // GIVEN the three session status names the front end sends
+        // WHEN each is parsed
+        // THEN it maps to its status
         assert_eq!(
             parse_session_status("active").unwrap(),
             SessionStatus::Active
@@ -678,13 +687,19 @@ mod tests {
 
     #[test]
     fn test_parse_session_status_invalid() {
+        // GIVEN a status name that does not exist
+        // WHEN it is parsed
         let result = parse_session_status("unknown");
+        // THEN the call is rejected instead of defaulting to a status
         assert!(result.is_err());
     }
 
     #[test]
     fn test_parse_tool_decision_valid() {
         use apollia_runtime::chat::AlwaysAcceptScope;
+        // GIVEN the three decision names an approval card can send
+        // WHEN each is parsed with neither reason nor scope
+        // THEN accept and refuse come back bare, and always-accept defaults to this session only
         assert_eq!(
             parse_tool_decision("accept", None, None).unwrap(),
             ToolDecision::Accept
@@ -705,7 +720,9 @@ mod tests {
     fn test_parse_tool_decision_carries_reason_and_scope() {
         use apollia_runtime::chat::AlwaysAcceptScope;
         // GIVEN operator rejects with a typed reason
+        // WHEN the decision is parsed
         let d = parse_tool_decision("refuse", Some("out of scope".into()), None).unwrap();
+        // THEN the reason travels with it
         assert_eq!(
             d,
             ToolDecision::Refuse {
@@ -714,8 +731,10 @@ mod tests {
         );
 
         // GIVEN operator picks a project-wide always-accept
+        // WHEN the decision is parsed
         let d = parse_tool_decision("always_accept", None, Some(AlwaysAcceptScope::ThisProject))
             .unwrap();
+        // THEN the wider scope travels with it rather than being narrowed to the session
         assert_eq!(
             d,
             ToolDecision::AlwaysAccept {
@@ -726,19 +745,25 @@ mod tests {
 
     #[test]
     fn test_parse_tool_decision_invalid() {
+        // GIVEN a decision name that does not exist
+        // WHEN it is parsed
         let result = parse_tool_decision("maybe", None, None);
+        // THEN the call is rejected rather than read as a refusal
         assert!(result.is_err());
     }
 
     #[test]
     fn test_create_session_request_deserialize() {
+        // GIVEN the full session creation payload the front end sends
         let json = serde_json::json!({
             "mode": "agent",
             "agent_name": "review-agent",
             "system_prompt": "You are a code reviewer.",
             "tools": ["bash_executor", "file_io"]
         });
+        // WHEN it is deserialized
         let req: CreateSessionRequest = serde_json::from_value(json).expect("deserialize");
+        // THEN every field arrives, tool list included
         assert_eq!(req.mode, "agent");
         assert_eq!(req.agent_name.as_deref(), Some("review-agent"));
         assert_eq!(
@@ -750,8 +775,11 @@ mod tests {
 
     #[test]
     fn test_create_session_request_deserialize_minimal() {
+        // GIVEN a payload carrying only the mode
         let json = serde_json::json!({ "mode": "libre" });
+        // WHEN it is deserialized
         let req: CreateSessionRequest = serde_json::from_value(json).expect("deserialize");
+        // THEN the optional fields are empty rather than making the call fail
         assert_eq!(req.mode, "libre");
         assert!(req.agent_name.is_none());
         assert!(req.system_prompt.is_none());
@@ -760,6 +788,7 @@ mod tests {
 
     #[test]
     fn test_chat_session_summary_roundtrip() {
+        // GIVEN a session summary as the front end receives it
         let summary = ChatSessionSummary {
             id: "sess-42".into(),
             mode: "libre".into(),
@@ -772,8 +801,10 @@ mod tests {
             title: None,
             project_id: None,
         };
+        // WHEN it is serialized and read back
         let json = serde_json::to_string(&summary).expect("serialize");
         let restored: ChatSessionSummary = serde_json::from_str(&json).expect("deserialize");
+        // THEN every field survives the round trip
         assert_eq!(restored.id, "sess-42");
         assert_eq!(restored.mode, "libre");
         assert!(restored.agent_name.is_none());
@@ -783,6 +814,7 @@ mod tests {
 
     #[test]
     fn test_session_info_to_summary_conversion() {
+        // GIVEN a runtime session in the processing state, bound to an agent
         let info = SessionInfo {
             id: "sess-1".into(),
             mode: ChatMode::Agent,
@@ -792,7 +824,9 @@ mod tests {
             title: None,
             project_id: None,
         };
+        // WHEN it is converted to the summary the front end reads
         let summary = session_info_to_summary(&info);
+        // THEN the enums become their wire names and the message count starts at zero
         assert_eq!(summary.id, "sess-1");
         assert_eq!(summary.mode, "agent");
         assert_eq!(summary.agent_name.as_deref(), Some("test-agent"));

@@ -717,6 +717,7 @@ mod tests {
 
     #[test]
     fn test_list_shows_all_scopes() {
+        // GIVEN an engine holding one global rule and one project rule
         let dir = TempDir::new().expect("tempdir");
         let (mut engine, _) = fresh_engine(&dir);
         engine
@@ -740,7 +741,9 @@ mod tests {
             })
             .expect("add project");
 
+        // WHEN the rules are listed with no filter
         let all = engine.list_rules_filtered(None, None).expect("list");
+        // THEN both come back, each under its own scope
         assert_eq!(all.len(), 2);
         let scopes: Vec<&str> = all.iter().map(|r| r.scope.as_str()).collect();
         assert!(scopes.contains(&"global"));
@@ -749,6 +752,7 @@ mod tests {
 
     #[test]
     fn test_revoke_by_id_removes_rule() {
+        // GIVEN an engine holding one global rule
         let dir = TempDir::new().expect("tempdir");
         let (mut engine, _) = fresh_engine(&dir);
         let id = engine
@@ -761,7 +765,9 @@ mod tests {
             })
             .expect("add");
 
+        // WHEN it is removed by identifier
         let removed = engine.remove_rule_checked(id).expect("remove");
+        // THEN the removal is reported and the store is empty
         assert!(removed);
         let after = engine.list_rules().expect("list");
         assert!(after.is_empty());
@@ -769,6 +775,7 @@ mod tests {
 
     #[test]
     fn test_revoke_all_global_keeps_project() {
+        // GIVEN an engine holding one global rule and one project rule
         let dir = TempDir::new().expect("tempdir");
         let (mut engine, _) = fresh_engine(&dir);
         engine
@@ -791,9 +798,11 @@ mod tests {
             })
             .expect("add project");
 
+        // WHEN every global rule is removed
         let removed = engine
             .remove_rules_by_scope(PermissionScope::Global, None)
             .expect("remove global");
+        // THEN exactly one goes, and the project rule survives
         assert_eq!(removed, 1);
         let remaining = engine.list_rules().expect("list");
         assert_eq!(remaining.len(), 1);
@@ -833,6 +842,9 @@ mod tests {
 
     #[test]
     fn parse_scope_filter_accepts_known_values() {
+        // GIVEN the three scope names the filter accepts, plus one that does not exist
+        // WHEN each is parsed
+        // THEN the three map and the unknown one is rejected rather than listing everything
         assert!(matches!(
             parse_scope_filter("global"),
             Ok(PermissionScope::Global)
@@ -850,11 +862,14 @@ mod tests {
 
     #[test]
     fn display_arg_includes_project_path_for_project_scope() {
+        // GIVEN a project-scoped rule with a prefix, then a global one
+        // WHEN each is rendered for the listing
         let s = display_arg(
             Some("/tmp/"),
             PermissionScope::Project,
             Some(Path::new("/home/u/projet")),
         );
+        // THEN the project line names its project path and the global line stays bare
         assert!(s.contains("/tmp/"));
         assert!(s.contains("/home/u/projet"));
 
@@ -864,6 +879,9 @@ mod tests {
 
     #[test]
     fn display_expiration_handles_none_and_some() {
+        // GIVEN a rule with no expiry, then one expiring at the epoch
+        // WHEN each expiry is rendered for the listing
+        // THEN the first reads as permanent and the second as a date
         assert_eq!(display_expiration(None), "permanente");
         let s = display_expiration(Some(0));
         assert!(s.starts_with("1970"));
@@ -877,7 +895,10 @@ mod tests {
             #[command(subcommand)]
             cmd: PermissionsCommand,
         }
+        // GIVEN an add carrying only --tool and --scope global
         let cli = TestCli::parse_from(["x", "add", "--tool", "web_search", "--scope", "global"]);
+        // WHEN clap parses the argument line
+        // THEN the tool and the scope are captured, and the action defaults to allow with no prefix
         match cli.cmd {
             PermissionsCommand::Add {
                 tool,
@@ -904,6 +925,7 @@ mod tests {
             #[command(subcommand)]
             cmd: PermissionsCommand,
         }
+        // GIVEN an add carrying a prefix, a project scope, a project path and a deny action
         let cli = TestCli::parse_from([
             "x",
             "add",
@@ -918,6 +940,8 @@ mod tests {
             "--action",
             "deny",
         ]);
+        // WHEN clap parses the argument line
+        // THEN all five land on their own field
         match cli.cmd {
             PermissionsCommand::Add {
                 tool,
@@ -938,9 +962,11 @@ mod tests {
 
     #[test]
     fn add_global_persists_rule() {
+        // GIVEN an empty governance directory
         let dir = TempDir::new().expect("tempdir");
         // Use the inner helper with an explicit governance dir so the test
         // does not race on `$HOME` with other parallel tests.
+        // WHEN a global allow rule is added through the command
         let code = run_add_with_engine(
             ResolvedRule {
                 rule_action: RuleAction::Allow,
@@ -952,6 +978,7 @@ mod tests {
             Some(dir.path()),
             true,
         );
+        // THEN it reports success and the rule is in the store with its tool, action and scope
         assert_eq!(code, exit_codes::SUCCESS);
 
         let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
@@ -967,6 +994,8 @@ mod tests {
     fn add_project_requires_project_path() {
         // No need to set HOME: the surface validation happens in `run_add`
         // before any DB access, so the helper short-circuits.
+        // GIVEN a project-scoped rule with no project path
+        // WHEN it is added
         let code = run_add(
             AddRuleInput {
                 tool: "file_write",
@@ -977,11 +1006,14 @@ mod tests {
             },
             true,
         );
+        // THEN the command stops on an error before touching any database
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn add_rejects_empty_tool() {
+        // GIVEN a rule whose tool name is made of spaces
+        // WHEN it is added
         let code = run_add(
             AddRuleInput {
                 tool: "   ",
@@ -992,12 +1024,15 @@ mod tests {
             },
             true,
         );
+        // THEN the command stops on an error rather than storing a rule nothing matches
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn add_with_prefix_persists() {
+        // GIVEN an empty governance directory
         let dir = TempDir::new().expect("tempdir");
+        // WHEN a global deny rule carrying an argument prefix is added
         let code = run_add_with_engine(
             ResolvedRule {
                 rule_action: RuleAction::Deny,
@@ -1009,6 +1044,7 @@ mod tests {
             Some(dir.path()),
             true,
         );
+        // THEN it reports success and the stored rule keeps both its action and its prefix
         assert_eq!(code, exit_codes::SUCCESS);
         let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
         let engine = PrefixRuleEngine::new(&db_path).expect("open engine");

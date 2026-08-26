@@ -230,7 +230,10 @@ mod tests {
 
     #[test]
     fn parses_list_default_limit() {
+        // GIVEN "audit list", with no --limit
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "list"]);
+        // THEN the limit falls back to twenty
         match cli.cmd {
             AuditCommand::List { limit } => assert_eq!(limit, 20),
             other => panic!("unexpected: {other:?}"),
@@ -239,7 +242,10 @@ mod tests {
 
     #[test]
     fn parses_list_with_limit() {
+        // GIVEN the same listing carrying --limit 100
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "list", "--limit", "100"]);
+        // THEN the limit given wins over the default
         match cli.cmd {
             AuditCommand::List { limit } => assert_eq!(limit, 100),
             other => panic!("unexpected: {other:?}"),
@@ -248,13 +254,19 @@ mod tests {
 
     #[test]
     fn parses_stats() {
+        // GIVEN "audit stats"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "stats"]);
+        // THEN the stats subcommand is selected
         assert!(matches!(cli.cmd, AuditCommand::Stats));
     }
 
     #[test]
     fn parses_export_default_limit() {
+        // GIVEN "audit export", with neither --output nor --limit
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "export"]);
+        // THEN the export goes to standard output and the limit falls back to ten thousand
         match cli.cmd {
             AuditCommand::Export { output, limit } => {
                 assert!(output.is_none());
@@ -266,7 +278,10 @@ mod tests {
 
     #[test]
     fn parses_verify_with_run_id() {
+        // GIVEN "audit verify run-abc"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "verify", "run-abc"]);
+        // THEN the run identifier is captured, which narrows the verification to that run
         match cli.cmd {
             AuditCommand::Verify { run_id } => assert_eq!(run_id.as_deref(), Some("run-abc")),
             other => panic!("unexpected: {other:?}"),
@@ -374,7 +389,10 @@ mod tests {
 
     #[test]
     fn parses_export_with_output_and_limit() {
+        // GIVEN an export carrying --output and --limit
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "export", "--output", "/tmp/a.json", "--limit", "50"]);
+        // THEN both override their defaults
         match cli.cmd {
             AuditCommand::Export { output, limit } => {
                 assert_eq!(output, Some(PathBuf::from("/tmp/a.json")));

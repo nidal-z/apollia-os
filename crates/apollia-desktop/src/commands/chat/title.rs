@@ -224,6 +224,9 @@ mod tests {
 
     #[test]
     fn test_sanitize_session_title_empty_input() {
+        // GIVEN a blank title, then one made of a single ellipsis
+        // WHEN each is sanitised
+        // THEN both come back empty, which is what makes the caller keep the previous title
         assert_eq!(sanitize_session_title("   "), "");
         assert_eq!(sanitize_session_title("…"), "");
     }
@@ -263,6 +266,9 @@ mod tests {
 
     #[test]
     fn test_sanitize_session_title_drops_preamble() {
+        // GIVEN three titles the model prefixed with an announcement, in both languages
+        // WHEN each is sanitised
+        // THEN only the title itself remains
         assert_eq!(
             sanitize_session_title("Titre : Aide rédaction CV"),
             "Aide rédaction CV"
@@ -279,7 +285,10 @@ mod tests {
 
     #[test]
     fn test_sanitize_session_title_keeps_only_first_line() {
+        // GIVEN an answer carrying a reasoning block, the title, and an afterthought
         let raw = "<think>blah</think>\nAide rédaction CV\n\nNote: alternative title.";
+        // WHEN it is sanitised
+        // THEN only the title line survives
         assert_eq!(sanitize_session_title(raw), "Aide rédaction CV");
     }
 }

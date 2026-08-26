@@ -693,6 +693,7 @@ mod tests {
         // GIVEN a default ShutdownConfig
         let config = ShutdownConfig::default();
 
+        // WHEN the drain timeout is read
         // THEN drain_timeout_secs = 30
         assert_eq!(config.drain_timeout_secs, 30);
     }
@@ -1153,6 +1154,7 @@ mod tests {
             reason: "bind error".to_string(),
         };
 
+        // WHEN each is rendered for a human
         // THEN display strings are correct
         assert!(drain_err.to_string().contains("3 tasks still running"));
         assert!(drain_err.to_string().contains("30s"));

@@ -486,6 +486,7 @@ mod tests {
             ["bash_executor".to_string()].into_iter().collect();
 
         // WHEN check bash_executor → authorized, file_io → not authorized
+        // THEN the authorized tool is found and the other one is not
         assert!(authorized.contains("bash_executor"));
         assert!(!authorized.contains("file_io"));
     }

@@ -153,6 +153,9 @@ mod tests {
 
     #[test]
     fn test_semver_parse_basic() {
+        // GIVEN a plain three-component version string
+        // WHEN SemVer::parse reads it
+        // THEN major, minor and patch come back as written
         assert_eq!(
             SemVer::parse("1.2.3"),
             Some(SemVer {
@@ -165,6 +168,9 @@ mod tests {
 
     #[test]
     fn test_semver_parse_with_prefix_and_prerelease() {
+        // GIVEN a version carrying a v prefix and a prerelease suffix
+        // WHEN SemVer::parse reads it
+        // THEN both decorations are dropped and the three components remain
         assert_eq!(
             SemVer::parse("v2.5.0-beta.1"),
             Some(SemVer {
@@ -177,12 +183,16 @@ mod tests {
 
     #[test]
     fn test_semver_parse_invalid() {
+        // GIVEN a string that is not a version
+        // WHEN SemVer::parse reads it
+        // THEN nothing is returned rather than a zeroed version
         assert!(SemVer::parse("not-a-version").is_none());
     }
 
     #[test]
     fn test_identical_versions_no_warning() {
         // GIVEN required == advertised
+        // WHEN compatibility is checked
         let w = check_compatibility("s", "a", "1.2.3", "1.2.3");
         // THEN no warning
         assert!(w.is_none());
@@ -191,6 +201,7 @@ mod tests {
     #[test]
     fn test_patch_mismatch_no_warning() {
         // GIVEN a simple patch diff
+        // WHEN compatibility is checked
         let w = check_compatibility("s", "a", "1.2.3", "1.2.9");
         // THEN no warning (patch is considered compatible)
         assert!(w.is_none());
@@ -199,6 +210,7 @@ mod tests {
     #[test]
     fn test_advertised_newer_minor_no_warning() {
         // GIVEN a worker newer on the minor component
+        // WHEN compatibility is checked
         let w = check_compatibility("s", "a", "1.2.0", "1.5.0");
         // THEN no warning: the worker is backward compatible.
         assert!(w.is_none());
@@ -207,6 +219,7 @@ mod tests {
     #[test]
     fn test_advertised_older_minor_emits_warning() {
         // GIVEN the director requires 1.5 but the worker advertises 1.2
+        // WHEN compatibility is checked
         let w = check_compatibility("read-excel", "worker-a", "1.5.0", "1.2.0")
             .expect("expected a warning");
 
@@ -221,6 +234,7 @@ mod tests {
     #[test]
     fn test_major_mismatch_is_incompatible() {
         // GIVEN a divergent major
+        // WHEN compatibility is checked
         let w = check_compatibility("s", "a", "2.0.0", "1.9.0").unwrap();
         // THEN severity = Incompatible
         assert_eq!(w.severity, CompatSeverity::Incompatible);
@@ -235,6 +249,7 @@ mod tests {
             ("worker-b".to_string(), "1.6.0".to_string()),
             ("worker-c".to_string(), "0.9.0".to_string()),
         ];
+        // WHEN the alternatives are searched for a compatible worker
         let enriched = with_alternative(w, &alts);
 
         // THEN worker-b is proposed
@@ -246,6 +261,7 @@ mod tests {
         // GIVEN no compatible alternative
         let w = check_compatibility("s", "worker-a", "1.5.0", "1.2.0").unwrap();
         let alts = vec![("worker-c".to_string(), "0.9.0".to_string())];
+        // WHEN the alternatives are searched for a compatible worker
         let enriched = with_alternative(w, &alts);
 
         // THEN no alternative

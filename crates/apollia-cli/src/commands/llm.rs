@@ -356,7 +356,10 @@ mod tests {
 
     #[test]
     fn test_llm_costs_get_threshold_parses() {
+        // GIVEN "llm costs --get-threshold"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["apollia-os", "costs", "--get-threshold"]);
+        // THEN the read flag is up and no new threshold is set
         match &cli.command {
             LlmCommand::Costs {
                 get_threshold,
@@ -372,7 +375,10 @@ mod tests {
 
     #[test]
     fn test_llm_costs_set_threshold_parses() {
+        // GIVEN "llm costs --threshold 0.5"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["apollia-os", "costs", "--threshold", "0.5"]);
+        // THEN the value is captured and the read flag stays down
         match &cli.command {
             LlmCommand::Costs {
                 get_threshold,
@@ -388,6 +394,8 @@ mod tests {
 
     #[test]
     fn test_llm_costs_threshold_conflicts_with_get_threshold() {
+        // GIVEN a costs command line carrying both the read and the write flag
+        // WHEN clap parses the argument line
         let result = TestCli::try_parse_from([
             "apollia-os",
             "costs",
@@ -395,6 +403,7 @@ mod tests {
             "0.5",
             "--get-threshold",
         ]);
+        // THEN parsing fails, so the two cannot be asked for at once
         assert!(
             result.is_err(),
             "--threshold + --get-threshold must conflict"
@@ -403,6 +412,7 @@ mod tests {
 
     #[test]
     fn test_llm_setup_local_parses() {
+        // GIVEN a setup carrying --local and a model path, with no --name
         let cli = TestCli::parse_from([
             "apollia-os",
             "setup",
@@ -410,6 +420,8 @@ mod tests {
             "--model",
             "/tmp/model.gguf",
         ]);
+        // WHEN clap parses the argument line
+        // THEN the flag and the path are captured and the backend name defaults to local
         match &cli.command {
             LlmCommand::Setup {
                 local, model, name, ..
@@ -424,6 +436,7 @@ mod tests {
 
     #[test]
     fn test_llm_setup_with_custom_name_and_device() {
+        // GIVEN the same setup carrying --name and --device
         let cli = TestCli::parse_from([
             "apollia-os",
             "setup",
@@ -435,6 +448,8 @@ mod tests {
             "--device",
             "cpu",
         ]);
+        // WHEN clap parses the argument line
+        // THEN both override the defaults
         match &cli.command {
             LlmCommand::Setup {
                 local,
@@ -452,9 +467,10 @@ mod tests {
 
     #[test]
     fn test_setup_without_local_flag_errors() {
-        // Pretend file exists by referencing the binary itself (any extant file
-        // with a non-.gguf extension would still pass the existence check, but
-        // we exit before that on --local missing).
+        // GIVEN a setup whose model path points nowhere, and no --local flag.
+        // The path is never looked at: the flag is checked first, which is what
+        // this test pins.
+        // WHEN a setup runs without --local
         let code = run_setup(SetupArgs {
             local: false,
             model: std::path::Path::new("/tmp/never.gguf"),
@@ -464,11 +480,14 @@ mod tests {
             models_dir_override: None,
             json: true,
         });
+        // THEN it stops on an error before any file is looked at
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn test_setup_rejects_missing_model_file() {
+        // GIVEN a model path that does not exist
+        // WHEN a local setup runs
         let code = run_setup(SetupArgs {
             local: true,
             model: std::path::Path::new("/definitely/missing/model.gguf"),
@@ -478,15 +497,18 @@ mod tests {
             models_dir_override: None,
             json: true,
         });
+        // THEN it stops on an error rather than registering a backend
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn test_setup_rejects_non_gguf_extension() {
+        // GIVEN an existing file whose extension is not gguf
         let tmp = tempfile::NamedTempFile::new().unwrap();
         // Write to a path with a non-gguf extension.
         let path = tmp.path().with_extension("bin");
         std::fs::copy(tmp.path(), &path).unwrap();
+        // WHEN a local setup runs against it
         let code = run_setup(SetupArgs {
             local: true,
             model: &path,
@@ -496,6 +518,7 @@ mod tests {
             models_dir_override: None,
             json: true,
         });
+        // THEN it stops on an error
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
@@ -531,6 +554,9 @@ mod tests {
 
     #[test]
     fn infer_quantization_picks_known_pattern() {
+        // GIVEN two model filenames carrying a quantisation, and one carrying none
+        // WHEN each is read
+        // THEN the two are recognised and the third falls back to the default quantisation
         assert_eq!(infer_quantization("llama-Q4_K_M.gguf"), "q4_k_m");
         assert_eq!(infer_quantization("Qwen3-0.6B-Q8_0.gguf"), "q8_0");
         assert_eq!(infer_quantization("unknown.gguf"), "q4_k_m");

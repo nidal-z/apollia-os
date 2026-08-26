@@ -308,8 +308,12 @@ mod tests {
     #[test]
     fn test_parse_plan_decision_reject_variants() {
         // GIVEN a bare reject
+        // WHEN it is parsed
+        // THEN it is a rejection carrying no feedback
         assert_eq!(parse_plan_decision("r"), PlanDecisionInput::Reject(None));
         // GIVEN a reject with feedback
+        // WHEN each is parsed
+        // THEN the feedback is kept, in either language
         assert_eq!(
             parse_plan_decision("r add a validation step"),
             PlanDecisionInput::Reject(Some("add a validation step".to_string()))
@@ -324,9 +328,13 @@ mod tests {
     #[test]
     fn test_parse_plan_decision_quit_and_invalid() {
         // GIVEN quit inputs
+        // WHEN each is parsed
+        // THEN both mean quit, whatever the casing
         assert_eq!(parse_plan_decision("q"), PlanDecisionInput::Quit);
         assert_eq!(parse_plan_decision("Quitter"), PlanDecisionInput::Quit);
         // GIVEN unrecognized input
+        // WHEN each is parsed
+        // THEN neither is read as an approval
         assert_eq!(parse_plan_decision("xyz"), PlanDecisionInput::Invalid);
         assert_eq!(parse_plan_decision(""), PlanDecisionInput::Invalid);
     }
@@ -635,6 +643,7 @@ mod tests {
         // GIVEN a capitalized tier string
         let result = AutonomyLevel::from_str("Assisted");
 
+        // WHEN it is read as a tier
         // THEN it is rejected
         assert!(result.is_err());
     }

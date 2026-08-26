@@ -489,6 +489,9 @@ mod tests {
     // format_size produces human-readable output
     #[test]
     fn test_format_size() {
+        // GIVEN byte counts at each unit boundary, from zero to a gigabyte
+        // WHEN each is formatted for the operator
+        // THEN the unit changes at the boundary and the decimal is kept
         assert_eq!(format_size(0), "0 B");
         assert_eq!(format_size(512), "512 B");
         assert_eq!(format_size(1024), "1.0 KB");
@@ -891,9 +894,11 @@ mod tests {
         drop(store);
 
         // Import with replace
+        // WHEN it is exported, the namespace cleared, and the file imported in replace mode
         let result = execute_import("agent-imp", &backup, true, &dir, false);
         assert!(result.is_ok());
 
+        // THEN the entry is back, so the export file is one the import can read
         // Verify restored
         let store = apollia_memory::store::MemoryStore::open(&db_path).unwrap();
         let stats = store.stats("agent-imp", &db_path).unwrap();
@@ -903,9 +908,12 @@ mod tests {
     // export missing namespace returns error
     #[test]
     fn test_export_missing_namespace_error() {
+        // GIVEN a data directory with no such namespace
         let dir = temp_dir();
         std::fs::create_dir_all(&dir).unwrap();
+        // WHEN an export is asked for it
         let result = execute_export("ghost", None, &dir, false);
+        // THEN the namespace is reported missing rather than an empty file being written
         assert!(matches!(
             result,
             Err(MemoryCommandError::NamespaceNotFound { .. })
@@ -914,9 +922,12 @@ mod tests {
 
     #[test]
     fn test_forget_missing_namespace_errors() {
+        // GIVEN a data directory with no such namespace
         let dir = temp_dir();
         std::fs::create_dir_all(&dir).unwrap();
+        // WHEN an entry of it is forgotten
         let result = execute_forget("ghost", "00000000-0000-0000-0000-000000000000", &dir, false);
+        // THEN the namespace is reported missing
         assert!(matches!(
             result,
             Err(MemoryCommandError::NamespaceNotFound { .. })
@@ -925,16 +936,21 @@ mod tests {
 
     #[test]
     fn test_forget_unknown_entry_errors() {
+        // GIVEN an existing namespace holding no such entry
         let dir = temp_dir();
         setup_test_db(&dir, "ns");
+        // WHEN that entry is forgotten
         let result = execute_forget("ns", "00000000-0000-0000-0000-000000000000", &dir, true);
+        // THEN the command errors rather than reporting a deletion that did not happen
         assert!(result.is_err(), "missing entry should error");
     }
 
     #[test]
     fn test_search_missing_namespace_errors() {
+        // GIVEN a data directory with no such namespace
         let dir = temp_dir();
         std::fs::create_dir_all(&dir).unwrap();
+        // WHEN a search runs against it
         let result = execute_search(SearchArgs {
             namespace: "ghost",
             query: "needle",
@@ -943,6 +959,7 @@ mod tests {
             data_dir: &dir,
             json: false,
         });
+        // THEN the namespace is reported missing rather than yielding no match
         assert!(matches!(
             result,
             Err(MemoryCommandError::NamespaceNotFound { .. })
@@ -951,8 +968,10 @@ mod tests {
 
     #[test]
     fn test_search_empty_namespace_returns_no_matches() {
+        // GIVEN an existing namespace with nothing stored in it
         let dir = temp_dir();
         setup_test_db(&dir, "ns");
+        // WHEN a search runs against it
         let result = execute_search(SearchArgs {
             namespace: "ns",
             query: "needle",
@@ -961,6 +980,7 @@ mod tests {
             data_dir: &dir,
             json: false,
         });
+        // THEN it succeeds and says so, which is not the same answer as a missing namespace
         assert!(result.is_ok());
         assert!(result.unwrap().contains("No matches"));
     }
@@ -969,8 +989,10 @@ mod tests {
     fn test_search_invalid_source_yields_no_matches() {
         // Unknown source string maps to an empty vec; the engine then returns
         // an empty result list (no episodic OR semantic flag set).
+        // GIVEN an existing namespace and a source filter
         let dir = temp_dir();
         setup_test_db(&dir, "ns");
+        // WHEN a search runs with that filter
         let result = execute_search(SearchArgs {
             namespace: "ns",
             query: "needle",
@@ -979,6 +1001,7 @@ mod tests {
             data_dir: &dir,
             json: false,
         });
+        // THEN it succeeds, with no match, rather than failing on the filter
         assert!(result.is_ok());
     }
 
@@ -990,7 +1013,10 @@ mod tests {
             #[command(subcommand)]
             cmd: MemoryCommand,
         }
+        // GIVEN "memory forget ns abc-uuid"
         let cli = TestCli::parse_from(["x", "forget", "ns", "abc-uuid"]);
+        // WHEN clap parses the argument line
+        // THEN the namespace comes first and the entry second, in that order
         match cli.cmd {
             MemoryCommand::Forget {
                 namespace,
@@ -1012,6 +1038,7 @@ mod tests {
             #[command(subcommand)]
             cmd: MemoryCommand,
         }
+        // GIVEN a search carrying a multi-word query, a limit and a source
         let cli = TestCli::parse_from([
             "x",
             "search",
@@ -1022,6 +1049,8 @@ mod tests {
             "--source",
             "episodic",
         ]);
+        // WHEN clap parses the argument line
+        // THEN the query keeps its spaces and each option lands on its own field
         match cli.cmd {
             MemoryCommand::Search {
                 namespace,
@@ -1047,7 +1076,10 @@ mod tests {
             #[command(subcommand)]
             cmd: MemoryCommand,
         }
+        // GIVEN a search whose --source names a memory kind the CLI does not expose
+        // WHEN clap parses the argument line
         let result = TestCli::try_parse_from(["x", "search", "ns", "q", "--source", "procedural"]);
+        // THEN parsing fails rather than reaching the store with a filter nothing matches
         assert!(result.is_err(), "procedural is not yet exposed");
     }
 }

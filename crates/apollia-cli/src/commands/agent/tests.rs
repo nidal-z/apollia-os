@@ -8,6 +8,7 @@ use std::path::Path;
 fn trust_banner_states_the_in_process_model() {
     // GIVEN the install-time trust banner
     let text = trust_banner_text();
+    // WHEN it is rendered
     // THEN it names the core risks an operator must accept before installing
     assert!(text.contains("in-process"));
     assert!(text.contains("no OS sandbox"));
@@ -208,6 +209,7 @@ fn test_data_dir_resolution() {
 #[test]
 fn test_looks_like_file_path_detection() {
     // GIVEN various arguments
+    // WHEN each is tested against the file-path heuristic
     // THEN file-like args are detected
     assert!(looks_like_file_path("agents/foo.py"));
     assert!(looks_like_file_path("./agent.py"));
@@ -290,6 +292,7 @@ fn test_new_default_type_is_react() {
     }
 
     let cli = TestCli::parse_from(["test", "create", "simple-bot"]);
+    // WHEN clap parses the argument line
     // THEN the default type is "react"
     match cli.cmd {
         AgentCommand::Create { name, r#type } => {
@@ -364,6 +367,7 @@ fn test_agent_logs_parses_defaults() {
     }
 
     let cli = TestCli::parse_from(["test", "logs", "devis-generator"]);
+    // WHEN clap parses the argument line
     // THEN AgentCommand::Logs with default last=50, follow=false
     match cli.cmd {
         AgentCommand::Logs {
@@ -391,6 +395,7 @@ fn test_agent_logs_parses_last_flag() {
     }
 
     let cli = TestCli::parse_from(["test", "logs", "devis-generator", "--last", "20"]);
+    // WHEN clap parses the argument line
     // THEN last=20
     match cli.cmd {
         AgentCommand::Logs { last, .. } => assert_eq!(last, 20),
@@ -410,6 +415,7 @@ fn test_agent_logs_parses_follow_flag() {
     }
 
     let cli = TestCli::parse_from(["test", "logs", "devis-generator", "--follow"]);
+    // WHEN clap parses the argument line
     // THEN follow=true
     match cli.cmd {
         AgentCommand::Logs { follow, .. } => assert!(follow),
@@ -431,6 +437,7 @@ fn test_agent_validate_parses_path() {
     }
 
     let cli = TestCli::parse_from(["test", "validate", "./mon-agent.py"]);
+    // WHEN clap parses the argument line
     // THEN AgentCommand::Validate with correct path
     match cli.cmd {
         AgentCommand::Validate { path } => {
@@ -463,6 +470,7 @@ fn test_agent_validate_file_not_found_json_output() {
 #[test]
 fn test_agent_logs_file_path_rejected() {
     // GIVEN an agent_id that looks like a file path
+    // WHEN each is tested against the file-path heuristic
     // THEN looks_like_file_path returns true
     assert!(looks_like_file_path("agents/foo.py"));
     assert!(looks_like_file_path("./agent.py"));

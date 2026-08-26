@@ -534,6 +534,7 @@ mod tests {
 
     #[test]
     fn test_mcp_update_with_url() {
+        // GIVEN an update carrying only --url
         let cli = TestCli::parse_from([
             "apollia-os",
             "update",
@@ -541,6 +542,8 @@ mod tests {
             "--url",
             "http://localhost:9090",
         ]);
+        // WHEN clap parses the argument line
+        // THEN the name and the URL are captured and the untouched fields stay unset
         match &cli.command {
             McpCommand::Update {
                 name,
@@ -559,8 +562,11 @@ mod tests {
 
     #[test]
     fn test_mcp_update_require_approval_flag() {
+        // GIVEN an update carrying --require-approval true
         let cli =
             TestCli::parse_from(["apollia-os", "update", "srv", "--require-approval", "true"]);
+        // WHEN clap parses the argument line
+        // THEN the flag is captured as a boolean, not as a string
         match &cli.command {
             McpCommand::Update {
                 require_approval, ..
@@ -573,7 +579,10 @@ mod tests {
 
     #[test]
     fn test_mcp_raw_config_parses() {
+        // GIVEN "mcp raw-config code-tools"
         let cli = TestCli::parse_from(["apollia-os", "raw-config", "code-tools"]);
+        // WHEN clap parses the argument line
+        // THEN the server name is captured
         match &cli.command {
             McpCommand::RawConfig { name } => assert_eq!(name, "code-tools"),
             other => panic!("expected RawConfig, got {other:?}"),
@@ -692,6 +701,7 @@ mod tests {
             #[command(subcommand)]
             cmd: McpCommand,
         }
+        // GIVEN a secret set naming a server, a variable and a value
         let cli = TestCli::parse_from([
             "x",
             "secret",
@@ -700,6 +710,8 @@ mod tests {
             "NOTION_API_KEY",
             "secret_value_xyz",
         ]);
+        // WHEN clap parses the argument line
+        // THEN the three land in the right order
         match cli.cmd {
             McpCommand::Secret {
                 command:
@@ -725,7 +737,10 @@ mod tests {
             #[command(subcommand)]
             cmd: McpCommand,
         }
+        // GIVEN a secret delete naming a server and a variable, with no --confirm
         let cli = TestCli::parse_from(["x", "secret", "delete", "notion", "NOTION_API_KEY"]);
+        // WHEN clap parses the argument line
+        // THEN both are captured and the confirmation stays down by default
         match cli.cmd {
             McpCommand::Secret {
                 command:
@@ -745,18 +760,27 @@ mod tests {
 
     #[test]
     fn secret_set_rejects_empty_value() {
+        // GIVEN a secret value made of spaces
+        // WHEN it is stored
         let code = run_secret_set("notion", "NOTION_API_KEY", "   ", true);
+        // THEN the command stops on an error rather than writing a blank secret to the keyring
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn secret_set_rejects_empty_server() {
+        // GIVEN a server name made of spaces
+        // WHEN a secret is stored for it
         let code = run_secret_set("  ", "K", "v", true);
+        // THEN the command stops on an error
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn mcp_secret_key_composes_pair() {
+        // GIVEN a server name and a variable name
+        // WHEN the keyring key is composed
+        // THEN it is the two joined by a colon, which is what the keyring is searched with
         assert_eq!(
             mcp_secret_key("notion", "NOTION_API_KEY"),
             "notion:NOTION_API_KEY"

@@ -692,7 +692,10 @@ mod tests {
 
     #[test]
     fn parses_get_without_key() {
+        // GIVEN "config get", with neither key nor --file
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "get"]);
+        // THEN both stay empty, which is what makes the command print the whole file
         match cli.cmd {
             ConfigCommand::Get { key, file } => {
                 assert!(key.is_none());
@@ -704,7 +707,10 @@ mod tests {
 
     #[test]
     fn parses_get_with_key() {
+        // GIVEN "config get llm.default"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "get", "llm.default"]);
+        // THEN the dotted key is captured whole
         match cli.cmd {
             ConfigCommand::Get { key, .. } => assert_eq!(key.as_deref(), Some("llm.default")),
             other => panic!("unexpected: {other:?}"),
@@ -713,7 +719,10 @@ mod tests {
 
     #[test]
     fn parses_set() {
+        // GIVEN "config set llm.default anthropic"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "set", "llm.default", "anthropic"]);
+        // THEN key and value land in the right order
         match cli.cmd {
             ConfigCommand::Set { key, value, .. } => {
                 assert_eq!(key, "llm.default");
@@ -725,27 +734,40 @@ mod tests {
 
     #[test]
     fn parse_scalar_recognises_true_false() {
+        // GIVEN the two booleans, one of them uppercase
+        // WHEN each is parsed as a scalar
+        // THEN both become booleans, so case in the argument does not turn one into a string
         assert_eq!(parse_scalar("true").as_bool(), Some(true));
         assert_eq!(parse_scalar("FALSE").as_bool(), Some(false));
     }
 
     #[test]
     fn parse_scalar_recognises_integers() {
+        // GIVEN a whole number
+        // WHEN it is parsed as a scalar
+        // THEN it becomes an integer rather than a string
         assert_eq!(parse_scalar("42").as_integer(), Some(42));
     }
 
     #[test]
     fn parse_scalar_recognises_floats() {
+        // GIVEN a decimal number
+        // WHEN it is parsed as a scalar
+        // THEN it becomes a float rather than a string
         assert_eq!(parse_scalar("2.5").as_float(), Some(2.5));
     }
 
     #[test]
     fn parse_scalar_falls_back_to_string() {
+        // GIVEN a word that is neither a boolean nor a number
+        // WHEN it is parsed as a scalar
+        // THEN it stays a string, which is the fallback the setter relies on
         assert_eq!(parse_scalar("hello").as_str(), Some("hello"));
     }
 
     #[test]
     fn navigate_traverses_nested_tables() {
+        // GIVEN a configuration with a one-level key and a two-level one
         let v: toml::Value = toml::from_str(
             r#"
             [llm]
@@ -756,6 +778,8 @@ mod tests {
             "#,
         )
         .unwrap();
+        // WHEN each dotted path is navigated, plus one that leads nowhere
+        // THEN the two existing values are reached and the missing path yields nothing
         let got = navigate(&v, "llm.default").unwrap();
         assert_eq!(got.as_str(), Some("anthropic"));
         let got = navigate(&v, "tools.web_search.backend").unwrap();
@@ -765,8 +789,11 @@ mod tests {
 
     #[test]
     fn set_path_creates_intermediate_tables() {
+        // GIVEN an empty document
         let mut doc: DocumentMut = "".parse().unwrap();
+        // WHEN a two-level key is set
         set_path(&mut doc, "tools.web_search.timeout_secs", value(10)).unwrap();
+        // THEN the intermediate table is created rather than the write being refused
         let rendered = doc.to_string();
         assert!(rendered.contains("[tools.web_search]"));
         assert!(rendered.contains("timeout_secs = 10"));
@@ -774,8 +801,11 @@ mod tests {
 
     #[test]
     fn set_path_replaces_existing_value() {
+        // GIVEN a document already holding a value at that key
         let mut doc: DocumentMut = "[llm]\ndefault = \"openai\"\n".parse().unwrap();
+        // WHEN the key is set again
         set_path(&mut doc, "llm.default", value("anthropic")).unwrap();
+        // THEN the new value replaces the old one, which does not survive anywhere
         let rendered = doc.to_string();
         assert!(rendered.contains("default = \"anthropic\""));
         assert!(!rendered.contains("openai"));
@@ -783,10 +813,13 @@ mod tests {
 
     #[test]
     fn run_set_then_run_get_round_trip() {
+        // GIVEN an empty configuration file
         let tmp = tempfile::NamedTempFile::new().unwrap();
         let path = tmp.path().to_path_buf();
         std::fs::write(&path, "").unwrap();
+        // WHEN a key is set, then read back through the commands themselves
         let code = run_set("llm.default", "anthropic", Some(&path), true);
+        // THEN both report success, so the file the setter writes is the one the getter reads
         assert_eq!(code, exit_codes::SUCCESS);
         let code = run_get(Some("llm.default"), Some(&path), true);
         assert_eq!(code, exit_codes::SUCCESS);
@@ -833,15 +866,21 @@ mod tests {
 
     #[test]
     fn run_validate_accepts_missing_file_as_ok() {
+        // GIVEN a configuration path that does not exist
         let tmp = tempfile::tempdir().unwrap();
         let p = tmp.path().join("does_not_exist.toml");
+        // WHEN the file is validated
+        // THEN it passes: a missing configuration is the default one, not an invalid one
         assert_eq!(run_validate(Some(&p), true), exit_codes::SUCCESS);
     }
 
     #[test]
     fn run_validate_rejects_invalid_toml() {
+        // GIVEN a configuration file that is not valid TOML
         let tmp = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(tmp.path(), "this = is = invalid\n").unwrap();
+        // WHEN the file is validated
+        // THEN the command reports an error
         assert_eq!(
             run_validate(Some(tmp.path()), true),
             exit_codes::GENERAL_ERROR
@@ -850,7 +889,10 @@ mod tests {
 
     #[test]
     fn parses_reset_requires_confirm_flag() {
+        // GIVEN "config reset", bare
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "reset"]);
+        // THEN neither the confirmation nor the dry run is up by default, and no home is overridden
         match cli.cmd {
             ConfigCommand::Reset {
                 confirm,
@@ -867,7 +909,10 @@ mod tests {
 
     #[test]
     fn parses_reset_with_dry_run() {
+        // GIVEN a reset carrying --dry-run and an explicit --home
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "reset", "--dry-run", "--home", "/tmp/.apollia"]);
+        // THEN the dry run is up, the confirmation is not, and the home is the one given
         match cli.cmd {
             ConfigCommand::Reset {
                 confirm,
@@ -884,10 +929,13 @@ mod tests {
 
     #[test]
     fn reset_without_confirm_errors_when_home_exists() {
+        // GIVEN a home directory holding a file
         let tmp = tempfile::tempdir().unwrap();
         // Drop a file in so the home is non-empty.
         std::fs::write(tmp.path().join("dummy"), b"x").unwrap();
+        // WHEN a reset runs without confirmation
         let code = run_reset(false, false, Some(tmp.path()), true);
+        // THEN it stops on an error and the file is still there
         assert_eq!(code, exit_codes::GENERAL_ERROR);
         // Confirm the file is still there.
         assert!(tmp.path().join("dummy").exists());
@@ -895,21 +943,27 @@ mod tests {
 
     #[test]
     fn reset_dry_run_does_not_delete() {
+        // GIVEN a home directory holding a file
         let tmp = tempfile::tempdir().unwrap();
         let f = tmp.path().join("dummy");
         std::fs::write(&f, b"x").unwrap();
+        // WHEN a reset runs in dry run
         let code = run_reset(false, true, Some(tmp.path()), true);
+        // THEN it reports success and the file is still there
         assert_eq!(code, exit_codes::SUCCESS);
         assert!(f.exists());
     }
 
     #[test]
     fn reset_with_confirm_wipes_entries() {
+        // GIVEN a home directory holding a file and a nested directory
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join("a"), b"x").unwrap();
         std::fs::create_dir(tmp.path().join("nested")).unwrap();
         std::fs::write(tmp.path().join("nested").join("b"), b"y").unwrap();
+        // WHEN a confirmed reset runs
         let code = run_reset(true, false, Some(tmp.path()), true);
+        // THEN the contents are gone and the home directory itself survives
         assert_eq!(code, exit_codes::SUCCESS);
         // The home directory itself stays; only its contents are removed.
         assert!(tmp.path().exists());
@@ -919,9 +973,12 @@ mod tests {
 
     #[test]
     fn reset_on_missing_home_returns_success() {
+        // GIVEN a home directory that does not exist
         let tmp = tempfile::tempdir().unwrap();
         let p = tmp.path().join("does_not_exist");
+        // WHEN a confirmed reset runs
         let code = run_reset(true, false, Some(&p), true);
+        // THEN it reports success rather than failing on nothing to remove
         assert_eq!(code, exit_codes::SUCCESS);
     }
 }

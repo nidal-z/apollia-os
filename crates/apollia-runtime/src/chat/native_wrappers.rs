@@ -338,6 +338,9 @@ mod tests {
 
     #[test]
     fn extract_hostname_strips_scheme() {
+        // GIVEN URLs with a scheme, with a port, bare, and an empty string
+        // WHEN the hostname is extracted from each
+        // THEN only the host survives, and the empty string yields nothing
         assert_eq!(
             extract_hostname("https://api.example.com/foo").as_deref(),
             Some("api.example.com")
@@ -355,8 +358,11 @@ mod tests {
 
     #[test]
     fn truncate_diff_marks_truncation() {
+        // GIVEN two sides of a diff far past the preview budget
         let big = "x".repeat(8000);
+        // WHEN the preview is built
         let preview = truncate_diff(big.clone(), big);
+        // THEN it comes back marked as truncated
         match preview {
             FilesystemPreview::Diff { truncated, .. } => assert!(truncated),
             _ => panic!("expected Diff"),
@@ -365,7 +371,10 @@ mod tests {
 
     #[test]
     fn truncate_diff_keeps_small_intact() {
+        // GIVEN two one-character sides
+        // WHEN the preview is built
         let preview = truncate_diff("a".into(), "b".into());
+        // THEN both sides are kept whole and nothing is marked truncated
         match preview {
             FilesystemPreview::Diff {
                 before,

@@ -297,6 +297,7 @@ mod tests {
     #[test]
     fn test_infer_quantization_common_patterns() {
         // GIVEN various GGUF filenames
+        // WHEN the quantisation is inferred from each name
         // THEN the quantization is correctly inferred
         assert_eq!(infer_quantization("Qwen3-0.6B-Q8_0"), "q8_0");
         assert_eq!(infer_quantization("llama-3-8b-Q4_K_M"), "q4_k_m");
@@ -308,6 +309,7 @@ mod tests {
     #[test]
     fn test_infer_quantization_fallback() {
         // GIVEN a filename with no recognizable quantization
+        // WHEN the quantisation is inferred from it
         // THEN the default is returned
         assert_eq!(infer_quantization("some-random-model"), "q4_k_m");
     }

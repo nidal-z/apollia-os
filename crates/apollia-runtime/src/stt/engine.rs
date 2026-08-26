@@ -593,14 +593,16 @@ mod tests {
 
     #[tokio::test]
     async fn transcript_source_serializes_correctly() {
-        // GIVEN
+        // GIVEN the three transcript sources, each paired with the name it is
+        // stored under
         let sources = vec![
             (TranscriptSource::Hotkey, "hotkey"),
             (TranscriptSource::File("/tmp/audio.wav".into()), "file"),
             (TranscriptSource::Api, "api"),
         ];
 
-        // THEN
+        // WHEN each is rendered for the database
+        // THEN it is that stored name, so an old row still reads back
         for (source, expected) in sources {
             assert_eq!(source.as_str(), expected);
         }

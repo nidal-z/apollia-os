@@ -804,7 +804,10 @@ mod tests {
 
     #[test]
     fn parses_login_minimal() {
+        // GIVEN "mcp-oauth login notion", with no option
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "login", "notion"]);
+        // THEN the server is captured and neither scopes nor client identifier are set
         match cli.cmd {
             McpOauthCommand::Login {
                 server,
@@ -822,7 +825,10 @@ mod tests {
 
     #[test]
     fn parses_login_with_scopes() {
+        // GIVEN a login carrying three scopes, comma separated
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "login", "notion", "--scopes", "read,write,admin"]);
+        // THEN the list is split into three rather than kept as one string
         match cli.cmd {
             McpOauthCommand::Login { scopes, .. } => {
                 assert_eq!(scopes, vec!["read", "write", "admin"]);
@@ -833,8 +839,11 @@ mod tests {
 
     #[test]
     fn parses_status_optional_server() {
+        // GIVEN a status without a server, then one naming a server
         let cli_all = TestCli::parse_from(["x", "status"]);
         let cli_one = TestCli::parse_from(["x", "status", "notion"]);
+        // WHEN clap parses each argument line
+        // THEN the first carries no filter and the second carries the server
         assert!(matches!(
             cli_all.cmd,
             McpOauthCommand::Status { server: None, .. }
@@ -849,7 +858,10 @@ mod tests {
 
     #[test]
     fn parses_logout_requires_confirm_flag() {
+        // GIVEN "mcp-oauth logout notion", with no --confirm
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "logout", "notion"]);
+        // THEN the server is captured and the confirmation stays down
         match cli.cmd {
             McpOauthCommand::Logout { server, confirm } => {
                 assert_eq!(server, "notion");
@@ -861,7 +873,10 @@ mod tests {
 
     #[test]
     fn parses_logout_with_confirm() {
+        // GIVEN the same command line with --confirm
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "logout", "notion", "--confirm"]);
+        // THEN the confirmation is up
         match cli.cmd {
             McpOauthCommand::Logout { confirm, .. } => assert!(confirm),
             other => panic!("unexpected: {other:?}"),
@@ -870,19 +885,28 @@ mod tests {
 
     #[test]
     fn logout_without_confirm_errors() {
+        // GIVEN a logout asked for without confirmation
+        // WHEN it runs
         let code = run_logout("notion", false, true);
+        // THEN it stops on an error rather than dropping the token
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn resolve_mcp_db_honours_override() {
+        // GIVEN an explicit database path
         let p = std::path::Path::new("/tmp/custom-mcp.db");
+        // WHEN the database is resolved
+        // THEN the path given wins over the default one
         assert_eq!(resolve_mcp_db(Some(p)), PathBuf::from("/tmp/custom-mcp.db"));
     }
 
     #[test]
     fn resolve_mcp_db_default_ends_with_canonical_filename() {
+        // GIVEN no explicit database path
+        // WHEN the database is resolved
         let p = resolve_mcp_db(None);
+        // THEN it is the canonical file under the Apollia home
         assert!(
             p.to_string_lossy().ends_with(".apollia/mcp.db"),
             "unexpected default path: {p:?}"
@@ -891,6 +915,7 @@ mod tests {
 
     #[test]
     fn parses_client_id_set() {
+        // GIVEN a client-id set carrying an environment variable name and a value
         let cli = TestCli::parse_from([
             "x",
             "client-id",
@@ -898,6 +923,8 @@ mod tests {
             "APOLLIA_FIGMA_CLIENT_ID",
             "figma-abc123",
         ]);
+        // WHEN clap parses the argument line
+        // THEN both land in the right order
         match cli.cmd {
             McpOauthCommand::ClientId(McpClientIdCommand::Set { env_var, value }) => {
                 assert_eq!(env_var, "APOLLIA_FIGMA_CLIENT_ID");
@@ -909,7 +936,10 @@ mod tests {
 
     #[test]
     fn parses_client_id_clear() {
+        // GIVEN a client-id clear with no --confirm
         let cli = TestCli::parse_from(["x", "client-id", "clear", "APOLLIA_FIGMA_CLIENT_ID"]);
+        // WHEN clap parses the argument line
+        // THEN the variable is captured and the confirmation stays down by default
         match cli.cmd {
             McpOauthCommand::ClientId(McpClientIdCommand::Clear { env_var, confirm }) => {
                 assert_eq!(env_var, "APOLLIA_FIGMA_CLIENT_ID");
@@ -921,7 +951,10 @@ mod tests {
 
     #[test]
     fn parses_discover() {
+        // GIVEN "mcp-oauth discover notion", with no --db
         let cli = TestCli::parse_from(["x", "discover", "notion"]);
+        // WHEN clap parses the argument line
+        // THEN the server is captured and the database stays the default one
         match cli.cmd {
             McpOauthCommand::Discover { server, db } => {
                 assert_eq!(server, "notion");
@@ -933,7 +966,10 @@ mod tests {
 
     #[test]
     fn parses_discover_with_db_override() {
+        // GIVEN the same command line with --db
         let cli = TestCli::parse_from(["x", "discover", "notion", "--db", "/tmp/custom.db"]);
+        // WHEN clap parses the argument line
+        // THEN the database override is captured
         match cli.cmd {
             McpOauthCommand::Discover { server, db } => {
                 assert_eq!(server, "notion");
@@ -945,13 +981,19 @@ mod tests {
 
     #[test]
     fn client_id_set_rejects_empty_env_var() {
+        // GIVEN an empty environment variable name
+        // WHEN the client identifier is set
         let code = run_client_id_set("", "v", true);
+        // THEN the command stops on an error
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn client_id_set_rejects_empty_value() {
+        // GIVEN a value made of spaces
+        // WHEN the client identifier is set
         let code = run_client_id_set("APOLLIA_FIGMA_CLIENT_ID", "  ", true);
+        // THEN the command stops on an error rather than storing a blank identifier
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 }

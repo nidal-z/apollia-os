@@ -142,8 +142,11 @@ mod tests {
 
     #[test]
     fn logs_defaults() {
+        // GIVEN "logs", with no option
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "logs"]);
         let TestCmd::Logs(args) = cli.cmd;
+        // THEN the tail defaults to fifty lines, following is off and the file is the default one
         assert_eq!(args.last, 50);
         assert!(!args.follow);
         assert!(args.file.is_none());
@@ -151,33 +154,45 @@ mod tests {
 
     #[test]
     fn logs_custom_last() {
+        // GIVEN "logs --last 200"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "logs", "--last", "200"]);
         let TestCmd::Logs(args) = cli.cmd;
+        // THEN the tail length given wins over the default
         assert_eq!(args.last, 200);
     }
 
     #[test]
     fn logs_follow_short_form() {
+        // GIVEN "logs -f", the short form
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "logs", "-f"]);
         let TestCmd::Logs(args) = cli.cmd;
+        // THEN following is on, so the short form means the same as the long one
         assert!(args.follow);
     }
 
     #[test]
     fn logs_with_custom_file() {
+        // GIVEN "logs --file /tmp/x.log"
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "logs", "--file", "/tmp/x.log"]);
         let TestCmd::Logs(args) = cli.cmd;
+        // THEN the path given is the one that will be read
         assert_eq!(args.file.unwrap(), PathBuf::from("/tmp/x.log"));
     }
 
     #[tokio::test]
     async fn run_returns_error_when_file_missing() {
+        // GIVEN a log file path that does not exist
         let args = LogsArgs {
             file: Some(PathBuf::from("/nonexistent/path/runtime.log")),
             last: 10,
             follow: false,
         };
+        // WHEN the command runs
         let code = run(&args, true).await;
+        // THEN it stops on an error rather than printing an empty tail
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 

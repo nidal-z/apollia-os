@@ -162,7 +162,10 @@ mod hygiene_tests {
 
     #[test]
     fn parses_delete_requires_confirm_flag() {
+        // GIVEN "chat delete sess-abc", with no --confirm
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "delete", "sess-abc"]);
+        // THEN the session is captured and the confirmation stays down
         match cli.cmd {
             ChatHygieneCommand::Delete {
                 session_id,
@@ -178,7 +181,10 @@ mod hygiene_tests {
 
     #[test]
     fn parses_delete_with_confirm() {
+        // GIVEN the same command line with --confirm
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "delete", "sess-abc", "--confirm"]);
+        // THEN the confirmation is up
         match cli.cmd {
             ChatHygieneCommand::Delete { confirm, .. } => assert!(confirm),
             other => panic!("unexpected: {other:?}"),
@@ -187,7 +193,10 @@ mod hygiene_tests {
 
     #[test]
     fn parses_rename() {
+        // GIVEN a rename carrying a two-word title
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "rename", "sess-abc", "Hello world"]);
+        // THEN the session and the title land in the right order, spaces included
         match cli.cmd {
             ChatHygieneCommand::Rename {
                 session_id, title, ..
@@ -201,7 +210,10 @@ mod hygiene_tests {
 
     #[test]
     fn parses_export_default_format_is_markdown() {
+        // GIVEN an export carrying --output and no --format
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "export", "sess-abc", "--output", "/tmp/out.md"]);
+        // THEN the output path is captured and the format defaults to markdown
         match cli.cmd {
             ChatHygieneCommand::Export {
                 session_id,
@@ -219,7 +231,10 @@ mod hygiene_tests {
 
     #[test]
     fn parses_export_json_format() {
+        // GIVEN an export carrying --format json
+        // WHEN clap parses the argument line
         let cli = TestCli::parse_from(["x", "export", "sess-abc", "--format", "json"]);
+        // THEN the format given wins over the default
         match cli.cmd {
             ChatHygieneCommand::Export { format, .. } => assert_eq!(format, "json"),
             other => panic!("unexpected: {other:?}"),
@@ -228,31 +243,46 @@ mod hygiene_tests {
 
     #[test]
     fn export_rejects_invalid_format() {
+        // GIVEN an export whose --format names a format the command does not write
+        // WHEN clap parses the argument line
         let result = TestCli::try_parse_from(["x", "export", "s", "--format", "xml"]);
+        // THEN parsing fails rather than the export producing an empty file
         assert!(result.is_err(), "xml is not a valid format");
     }
 
     #[test]
     fn delete_without_confirm_returns_error() {
+        // GIVEN a session deletion asked for without confirmation
+        // WHEN it runs
         let code = run_chat_delete("sess-abc", false, None, true);
+        // THEN it stops on an error rather than dropping the conversation
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn rename_rejects_empty_title() {
+        // GIVEN a rename whose title is made of spaces
+        // WHEN it runs
         let code = run_chat_rename("sess-abc", "   ", None, true);
+        // THEN it stops on an error rather than leaving the session untitled
         assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]
     fn resolve_chat_db_honours_override() {
+        // GIVEN an explicit database path
         let p = PathBuf::from("/tmp/custom-chat.db");
+        // WHEN the chat database is resolved
+        // THEN the path given wins over the default one
         assert_eq!(resolve_chat_db(Some(&p)), p);
     }
 
     #[test]
     fn resolve_chat_db_default_ends_with_canonical_filename() {
+        // GIVEN no explicit database path
+        // WHEN the chat database is resolved
         let p = resolve_chat_db(None);
+        // THEN it is the canonical file under the Apollia home
         assert!(
             p.to_string_lossy().ends_with(".apollia/chat.db"),
             "unexpected default path: {p:?}"

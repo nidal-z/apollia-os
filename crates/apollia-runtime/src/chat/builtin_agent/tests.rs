@@ -1300,6 +1300,7 @@ fn test_truncate_preview_long() {
 #[test]
 fn test_default_system_prompt_used_when_empty() {
     // GIVEN empty system_prompt
+    // WHEN the LLM messages are built
     let messages = build_llm_messages("", &[], "Hello", None, DEFAULT_CONTEXT_WINDOW_SIZE);
 
     // THEN first message is the empty string we passed (caller decides default)
@@ -1765,6 +1766,7 @@ fn test_from_capped_applies_runtime_ceiling() {
         max_tool_calls: 400,
         wall_clock_secs: 3600,
     };
+    // WHEN the tier budget is capped by the runtime ceiling
     let lc = config.level_config(AutonomyLevel::LongAutonomous);
     let budget = StepBudget::from_capped(&lc.budget, &ceiling);
 

@@ -48,6 +48,9 @@ mod tests {
 
     #[test]
     fn test_score_subsequence_and_miss() {
+        // GIVEN a subsequence of a command, a string that is not one, and an empty input
+        // WHEN each is scored against that command
+        // THEN the subsequence scores, the miss does not, and the empty input scores zero rather than nothing
         assert!(score("al", "agent list").is_some());
         assert!(score("xyz", "agent list").is_none());
         assert_eq!(score("", "anything"), Some(0));

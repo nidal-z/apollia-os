@@ -1098,6 +1098,9 @@ mod tests {
 
     #[test]
     fn test_channel_kind_str_all_variants() {
+        // GIVEN each variant of the channel kind
+        // WHEN it is rendered for the API
+        // THEN it is the lowercase wire name the clients read
         assert_eq!(channel_kind_str(&ChannelKind::Desktop), "desktop");
         assert_eq!(channel_kind_str(&ChannelKind::Webhook), "webhook");
         assert_eq!(channel_kind_str(&ChannelKind::Terminal), "terminal");
@@ -1105,6 +1108,7 @@ mod tests {
 
     #[test]
     fn test_channel_kind_by_id_found() {
+        // GIVEN a configuration holding one desktop channel
         let config = NotificationConfig {
             events: vec![],
             channels: vec![ChannelConfig {
@@ -1119,25 +1123,33 @@ mod tests {
             }],
             inactivity_timeout_secs: 30,
         };
+        // WHEN its kind is looked up by identifier
+        // THEN the configured kind comes back
         assert_eq!(channel_kind_by_id("mon-desktop", &config), "desktop");
     }
 
     #[test]
     fn test_channel_kind_by_id_not_found_returns_unknown() {
+        // GIVEN a configuration with no channel at all
         let config = NotificationConfig {
             events: vec![],
             channels: vec![],
             inactivity_timeout_secs: 30,
         };
+        // WHEN an unknown identifier is looked up
+        // THEN the answer is unknown rather than a panic
         assert_eq!(channel_kind_by_id("inconnu", &config), "unknown");
     }
 
     #[test]
     fn test_logs_lazy_table_creation_returns_empty() {
+        // GIVEN a database file that has never held a notification log
         let dir = tempfile::tempdir().expect("tempdir");
         let db_path = dir.path().join("test.db");
+        // WHEN the logs are queried
         let result = query_notification_logs(&db_path, 20);
         let entries = result.expect("query_notification_logs");
+        // THEN the table is created on the fly and the list is empty
         assert!(entries.is_empty());
     }
 

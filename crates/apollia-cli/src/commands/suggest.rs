@@ -40,6 +40,9 @@ mod tests {
 
     #[test]
     fn test_levenshtein_basic() {
+        // GIVEN a word compared to itself, a transposition, and a truncation
+        // WHEN the edit distance is computed
+        // THEN identical words are at zero and the two typos are within the suggestion threshold
         assert_eq!(levenshtein("agent", "agent"), 0);
         assert_eq!(levenshtein("agnet", "agent"), 2);
         assert_eq!(levenshtein("stat", "status"), 2);

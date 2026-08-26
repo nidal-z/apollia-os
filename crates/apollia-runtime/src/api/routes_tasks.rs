@@ -1129,6 +1129,7 @@ mod tests {
             .header("content-type", "application/json")
             .body(Body::from(r#"{"bad": "data"}"#))
             .expect("build request");
+        // WHEN it is posted to the task endpoint
         let resp = router.oneshot(req).await.expect("request failed");
 
         // THEN 422 (axum returns 422 for deserialization errors)

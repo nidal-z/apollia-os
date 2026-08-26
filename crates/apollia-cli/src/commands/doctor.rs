@@ -403,6 +403,9 @@ mod tests {
 
     #[test]
     fn check_status_serialises_lowercase() {
+        // GIVEN each status a check can report
+        // WHEN it is serialised for the machine-readable output
+        // THEN it is the lowercase name a script matches on
         let json = serde_json::to_string(&CheckStatus::Ok).unwrap();
         assert_eq!(json, "\"ok\"");
         let json = serde_json::to_string(&CheckStatus::Warn).unwrap();
@@ -413,14 +416,20 @@ mod tests {
 
     #[test]
     fn check_result_ok_has_no_hint() {
+        // GIVEN a passing check
+        // WHEN its result is built
         let r = CheckResult::ok("id", "label", "all good");
+        // THEN it carries no hint, since there is nothing to fix
         assert_eq!(r.status, CheckStatus::Ok);
         assert!(r.hint.is_none());
     }
 
     #[test]
     fn check_result_warn_carries_hint() {
+        // GIVEN a check that warns
+        // WHEN its result is built
         let r = CheckResult::warn("id", "label", "missing", "create it");
+        // THEN it carries the hint that tells the operator what to do
         assert_eq!(r.status, CheckStatus::Warn);
         assert_eq!(r.hint.as_deref(), Some("create it"));
     }

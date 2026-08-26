@@ -1206,8 +1206,10 @@ mod tests {
             .expect("insert invocation");
 
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
+        // WHEN the timeline reads the tool calls of the task
         read_tool_calls(&audit, task_id, &mut events);
 
+        // THEN the preview is cut and flagged as truncated
         assert_eq!(events.len(), 1);
         match &events[0].1 {
             TimelineEvent::ToolCall {
@@ -1247,8 +1249,10 @@ mod tests {
             .expect("insert invocation");
 
         let mut events: Vec<(String, TimelineEvent)> = Vec::new();
+        // WHEN the timeline reads the tool calls of the task
         read_tool_calls(&audit, task_id, &mut events);
 
+        // THEN the output preview carries both streams, separated, and no input preview
         match &events[0].1 {
             TimelineEvent::ToolCall {
                 output_preview,

@@ -315,11 +315,14 @@ mod tests {
 
     #[test]
     fn parse_proposals_extracts_fields() {
+        // GIVEN two proposals as the agent emits them, one with a prefix and one without
         let raw = r#"[
           {"tool_name":"http_fetch","action":"deny","arg_prefix":"https://","scope":"global"},
           {"tool_name":"file_read","action":"allow","scope":"global"}
         ]"#;
+        // WHEN they are parsed for the front end
         let views = parse_proposals(raw);
+        // THEN each keeps its index, its tool, its action, and its prefix or nothing
         assert_eq!(views.len(), 2);
         assert_eq!(views[0].index, 0);
         assert_eq!(views[0].tool_name, "http_fetch");
@@ -331,14 +334,20 @@ mod tests {
 
     #[test]
     fn parse_proposals_tolerates_invalid_items() {
+        // GIVEN a list mixing one valid proposal with a string and a number
         let raw = r#"[{"tool_name":"ok","action":"allow"}, "garbage", 42]"#;
+        // WHEN it is parsed
         let views = parse_proposals(raw);
+        // THEN the valid one survives and the rest is dropped rather than losing the whole list
         assert_eq!(views.len(), 1);
         assert_eq!(views[0].tool_name, "ok");
     }
 
     #[test]
     fn parse_proposals_empty_on_garbage() {
+        // GIVEN a payload that is not JSON at all
+        // WHEN it is parsed
+        // THEN the list is empty rather than a panic in a Tauri command
         assert!(parse_proposals("not json").is_empty());
     }
 }

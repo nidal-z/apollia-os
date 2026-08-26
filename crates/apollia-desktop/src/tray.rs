@@ -346,6 +346,7 @@ mod tests {
     fn test_tooltip_single_agent_no_approvals() {
         // GIVEN 1 active agent and no approvals
         let tooltip = format_tooltip(1, 0);
+        // WHEN the tray tooltip is formatted
         // THEN it uses singular form
         assert_eq!(tooltip, "Apollia OS - 1 agent active");
     }
@@ -354,6 +355,7 @@ mod tests {
     fn test_tooltip_multiple_agents_no_approvals() {
         // GIVEN 3 active agents and no approvals
         let tooltip = format_tooltip(3, 0);
+        // WHEN the tray tooltip is formatted
         // THEN it uses plural form
         assert_eq!(tooltip, "Apollia OS - 3 agents active");
     }
@@ -362,6 +364,7 @@ mod tests {
     fn test_tooltip_agents_and_approvals() {
         // GIVEN 3 active agents and 2 pending approvals
         let tooltip = format_tooltip(3, 2);
+        // WHEN the tray tooltip is formatted
         // THEN both are shown
         assert_eq!(tooltip, "Apollia OS - 3 agents active, 2 approvals pending");
     }
@@ -370,6 +373,7 @@ mod tests {
     fn test_tooltip_single_approval() {
         // GIVEN 1 agent and 1 approval
         let tooltip = format_tooltip(1, 1);
+        // WHEN the tray tooltip is formatted
         // THEN singular forms are used
         assert_eq!(tooltip, "Apollia OS - 1 agent active, 1 approval pending");
     }
@@ -378,12 +382,16 @@ mod tests {
     fn test_tooltip_only_approvals() {
         // GIVEN no agents but 3 pending approvals
         let tooltip = format_tooltip(0, 3);
+        // WHEN the tray tooltip is formatted
         // THEN only approvals are shown
         assert_eq!(tooltip, "Apollia OS - 3 approvals pending");
     }
 
     #[test]
     fn test_plural_s() {
+        // GIVEN a count of zero, one, two and a hundred
+        // WHEN the plural suffix is asked for
+        // THEN only counts above one take an s, zero included
         assert_eq!(plural_s(0), "");
         assert_eq!(plural_s(1), "");
         assert_eq!(plural_s(2), "s");

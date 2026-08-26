@@ -253,6 +253,7 @@ mod tests {
     fn test_onboarded_flag_path_ends_with_onboarded() {
         // GIVEN the onboarded flag path
         let path = onboarded_flag_path();
+        // WHEN it is resolved
         // THEN it ends with .onboarded inside .apollia directory
         assert!(path.ends_with(".onboarded"));
         assert!(path.to_string_lossy().contains(".apollia"));

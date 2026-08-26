@@ -178,6 +178,7 @@ mod tests {
     fn parse_value_for_unknown_key_returns_help() {
         // GIVEN an unknown key.
         let err = parse_value_for("web_search", &["plouf"], "x").unwrap_err();
+        // WHEN it is parsed for the web search tool
         // THEN the message lists the valid keys.
         assert!(err.contains("valid keys"));
     }
@@ -186,6 +187,7 @@ mod tests {
     fn parse_value_for_int_bounds_enforced() {
         // GIVEN an out-of-range integer for brave.timeout_secs.
         let err = parse_value_for("web_search", &["brave", "timeout_secs"], "999").unwrap_err();
+        // WHEN it is parsed
         // THEN the bounds are reported.
         assert!(err.contains("hors bornes"));
     }
@@ -211,6 +213,7 @@ mod tests {
     #[test]
     fn known_tool_check_recognizes_native_set() {
         // GIVEN the NATIVE_TOOL_NAMES set.
+        // WHEN a native name and an invented one are each looked up
         // THEN bash_executor is known, but "fake_tool" is not.
         assert!(is_known_tool("bash_executor"));
         assert!(!is_known_tool("fake_tool"));
@@ -305,6 +308,7 @@ mod tests {
     fn backend_label_reflects_config() {
         // GIVEN a default config (auto).
         let cfg = ToolsConfig::default();
+        // WHEN the backend label of each tool is asked for
         // THEN web_search shows "DuckDuckGo (auto)".
         assert_eq!(backend_label("web_search", &cfg), "DuckDuckGo (auto)");
         assert_eq!(backend_label("file_read", &cfg), "-");

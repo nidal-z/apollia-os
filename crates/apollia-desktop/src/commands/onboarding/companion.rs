@@ -219,6 +219,7 @@ mod companion_tests {
     fn test_companion_context_unknown_route() {
         // GIVEN an unknown route
         let ctx = get_companion_context_text("nonexistent");
+        // WHEN the companion context of that route is asked for
         // THEN a non-empty fallback is returned
         assert!(!ctx.is_empty());
         assert_eq!(ctx, COMPANION_CONTEXT_FALLBACK);

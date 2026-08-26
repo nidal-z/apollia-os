@@ -660,6 +660,7 @@ mod tests {
         // GIVEN override = "Auto" (mixed case)
         let detected = nvidia_detected();
         let cfg = make_runner_config("Auto");
+        // WHEN the backend is resolved
         // THEN treated as auto
         assert_eq!(resolve_backend(&cfg, &detected), RunnerBackend::Cuda);
     }
@@ -669,6 +670,7 @@ mod tests {
         // GIVEN override = "" (config absent from the toml)
         let detected = nvidia_detected();
         let cfg = make_runner_config("");
+        // WHEN the backend is resolved
         // THEN fall back to detection
         assert_eq!(resolve_backend(&cfg, &detected), RunnerBackend::Cuda);
     }
@@ -712,8 +714,10 @@ mod tests {
         //  target/debug/deps/apollia-runner-rocm which does not exist).
         let detected = nvidia_detected();
         let cfg = make_runner_config("rocm");
+        // WHEN the backend is resolved
         let backend = resolve_backend(&cfg, &detected);
 
+        // THEN the resolved backend is ROCm when its binary is there, and the detected CUDA when it is not
         // Accept both cases: binary absent -> fallback, binary present -> Rocm.
         // This test reflects the invariant: if absent, fall back to detected.
         if !is_backend_available(RunnerBackend::Rocm) {
@@ -728,6 +732,7 @@ mod tests {
         // GIVEN override = "potato" (unknown value)
         let detected = nvidia_detected();
         let cfg = make_runner_config("potato");
+        // WHEN the backend is resolved
         // THEN warning + fallback to detection
         assert_eq!(resolve_backend(&cfg, &detected), RunnerBackend::Cuda);
     }
@@ -748,6 +753,7 @@ mod tests {
     fn parse_nvidia_smi_line_rejects_garbage() {
         // GIVEN a malformed output (missing memory and version)
         let line = "only-model";
+        // WHEN the line is parsed
         // THEN None is returned
         assert!(parse_nvidia_smi_line(line).is_none());
     }
@@ -756,6 +762,7 @@ mod tests {
     fn parse_nvidia_smi_line_rejects_non_numeric_memory() {
         // GIVEN an output with non-numeric memory
         let line = "Some GPU, notanumber, 1.0";
+        // WHEN the line is parsed
         // THEN None is returned (parse::<u32> fails)
         assert!(parse_nvidia_smi_line(line).is_none());
     }
@@ -774,12 +781,16 @@ mod tests {
     fn parse_cuda_version_from_smi_q_missing() {
         // GIVEN a text without the CUDA Version line
         let s = "Driver Version : 550.78\nGPU info...";
+        // WHEN the CUDA version is looked for
         // THEN None
         assert!(parse_cuda_version_from_smi_q(s).is_none());
     }
 
     #[test]
     fn runner_backend_binary_names() {
+        // GIVEN each backend of the enum
+        // WHEN its binary name is asked for
+        // THEN it is the runner binary the supervisor spawns for that backend
         assert_eq!(RunnerBackend::Cuda.binary_name(), "apollia-runner-cuda");
         assert_eq!(RunnerBackend::Rocm.binary_name(), "apollia-runner-rocm");
         assert_eq!(RunnerBackend::Vulkan.binary_name(), "apollia-runner-vulkan");
@@ -789,6 +800,9 @@ mod tests {
 
     #[test]
     fn runner_backend_from_str_roundtrip() {
+        // GIVEN the five backend names, plus auto and an unknown word
+        // WHEN each is read back through from_str
+        // THEN the five round-trip and the other two are rejected
         assert_eq!(RunnerBackend::from_str("cuda"), Ok(RunnerBackend::Cuda));
         assert_eq!(RunnerBackend::from_str("rocm"), Ok(RunnerBackend::Rocm));
         assert_eq!(RunnerBackend::from_str("vulkan"), Ok(RunnerBackend::Vulkan));
@@ -802,6 +816,7 @@ mod tests {
     fn llm_runner_config_default_is_auto() {
         // GIVEN LlmRunnerConfig::default()
         let cfg = LlmRunnerConfig::default();
+        // WHEN the backend field is read
         // THEN backend == "auto"
         assert_eq!(cfg.backend, "auto");
     }
@@ -809,6 +824,9 @@ mod tests {
     #[test]
     fn rocm_only_for_radeon_pro_or_instinct() {
         // Static ROCm allowlist: Radeon Pro and Instinct only.
+        // GIVEN two professional AMD cards, one consumer AMD card and one NVIDIA card
+        // WHEN the ROCm allowlist is asked about each
+        // THEN only the professional cards are supported
         assert!(rocm_supports_card("AMD Radeon Pro W7900"));
         assert!(rocm_supports_card("AMD Instinct MI300"));
         assert!(!rocm_supports_card("AMD Radeon RX 7800 XT"));

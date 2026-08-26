@@ -275,20 +275,27 @@ mod tests {
 
     #[test]
     fn cross_session_refs_with_marker() {
+        // GIVEN a prompt carrying the previous-conversations block and two entries
         let prompt = "Hello.\n\n\
             ## Previous conversations (for reference)\n\
             - [2026-03-20T10:00:00Z] foo\n\
             - [2026-03-19T14:00:00Z] bar\n";
+        // WHEN the cross-session references are counted
+        // THEN the count is two
         assert_eq!(count_cross_session_refs(prompt), 2);
     }
 
     #[test]
     fn cross_session_refs_without_marker() {
+        // GIVEN a prompt with no such block
+        // WHEN the cross-session references are counted
+        // THEN the count is zero rather than a false positive on a plain sentence
         assert_eq!(count_cross_session_refs("Hi"), 0);
     }
 
     #[test]
     fn profile_entry_to_view_preserves_fields() {
+        // GIVEN a profile entry written by the onboarding and part of the schema
         let entry = ProfileEntry {
             key: "name".to_owned(),
             value: "Nidal".to_owned(),
@@ -297,7 +304,9 @@ mod tests {
             updated_at: "2026-05-11T10:00:00Z".to_owned(),
             in_schema: true,
         };
+        // WHEN it is converted for the front end
         let view = profile_entry_to_view(&entry);
+        // THEN key, value, author and schema membership all cross unchanged
         assert_eq!(view.key, "name");
         assert_eq!(view.value, "Nidal");
         assert_eq!(view.written_by, "onboarding");

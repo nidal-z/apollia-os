@@ -576,6 +576,7 @@ mod tests {
 
         // GIVEN the done phase
         // THEN no plan tool is advertised
+        // WHEN the plan tools of that phase are asked for
         assert!(plan_tool_specs_for_phase(PlanPhase::Done).is_empty());
 
         // GIVEN each preparation phase
@@ -585,6 +586,7 @@ mod tests {
             PlanPhase::Drafting,
             PlanPhase::AwaitingApproval,
         ] {
+            // WHEN the plan tools of each are asked for
             assert_eq!(plan_tool_specs_for_phase(phase).len(), 7);
         }
     }

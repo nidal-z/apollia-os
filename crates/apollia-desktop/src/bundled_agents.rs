@@ -335,7 +335,10 @@ mod tests {
 
     #[test]
     fn onboarding_manifest_has_correct_name() {
+        // GIVEN the manifest the desktop ships for the onboarding agent
+        // WHEN it is built
         let m = onboarding_manifest();
+        // THEN it carries the name, the version and the conversational mode the runtime looks for
         assert_eq!(m.name, "onboarding-agent");
         assert_eq!(m.version, ONBOARDING_AGENT_VERSION);
         assert!(m.tools_required.is_empty());
@@ -346,6 +349,8 @@ mod tests {
     #[test]
     fn embedded_toml_has_matching_version() {
         // Sanity check: the TOML we ship is parseable and its version matches.
+        // GIVEN the manifest.toml embedded in the binary
+        // WHEN it is parsed
         let parsed: toml::Value = toml::from_str(ONBOARDING_AGENT_TOML)
             .expect("embedded manifest.toml must be valid TOML");
         let version = parsed
@@ -353,13 +358,17 @@ mod tests {
             .and_then(|a| a.get("version"))
             .and_then(|v| v.as_str())
             .expect("manifest.toml must contain [agent].version");
+        // THEN its version is the one the Rust constant declares, so the two cannot drift apart
         assert_eq!(version, ONBOARDING_AGENT_VERSION);
     }
 
     #[test]
     fn now_rfc3339_produces_valid_format() {
+        // GIVEN the timestamp helper the provisioning writes with
+        // WHEN it is called
         let ts = now_rfc3339();
         // Must match YYYY-MM-DDTHH:MM:SSZ pattern
+        // THEN the shape is the RFC 3339 second-precision form SQLite sorts correctly
         assert_eq!(ts.len(), 20);
         assert!(ts.ends_with('Z'));
         assert_eq!(&ts[4..5], "-");
@@ -368,12 +377,15 @@ mod tests {
 
     #[test]
     fn provision_creates_bundle_files_and_saves_to_repo() {
+        // GIVEN an empty data directory and a fresh agent repository
         let tmp = tempfile::tempdir().expect("tempdir");
         let db_path = tmp.path().join("agents.db");
         let repo = AgentRepository::open(&db_path).expect("open repo");
 
+        // WHEN the bundled agents are provisioned
         ensure_bundled_agents(&repo, tmp.path());
 
+        // THEN the onboarding bundle is on disk and the repository points at it
         let agent_py = tmp.path().join("agents/onboarding-agent/agent.py");
         let manifest_toml = tmp.path().join("agents/onboarding-agent/manifest.toml");
         assert!(
@@ -393,7 +405,10 @@ mod tests {
 
     #[test]
     fn apollia_guide_manifest_is_system_tier() {
+        // GIVEN the manifest the desktop ships for the companion guide
+        // WHEN it is built
         let m = apollia_guide_manifest();
+        // THEN it is a system agent asking for no tool and no dangerous capability
         assert_eq!(m.name, "apollia-guide");
         assert_eq!(m.agent_type.as_deref(), Some("system"));
         assert!(!m.dangerous_tools_allowed);
@@ -402,6 +417,8 @@ mod tests {
 
     #[test]
     fn apollia_guide_embedded_toml_matches_version() {
+        // GIVEN the guide manifest.toml embedded in the binary
+        // WHEN it is parsed
         let parsed: toml::Value = toml::from_str(APOLLIA_GUIDE_TOML)
             .expect("apollia-guide manifest.toml must be valid TOML");
         let version = parsed
@@ -409,17 +426,21 @@ mod tests {
             .and_then(|a| a.get("version"))
             .and_then(|v| v.as_str())
             .expect("manifest.toml must contain [agent].version");
+        // THEN its version is the one the Rust constant declares, so the two cannot drift apart
         assert_eq!(version, APOLLIA_GUIDE_VERSION);
     }
 
     #[test]
     fn apollia_guide_bundle_is_provisioned_with_knowledge() {
+        // GIVEN an empty data directory and a fresh agent repository
         let tmp = tempfile::tempdir().expect("tempdir");
         let db_path = tmp.path().join("agents.db");
         let repo = AgentRepository::open(&db_path).expect("open repo");
 
+        // WHEN the bundled agents are provisioned
         ensure_bundled_agents(&repo, tmp.path());
 
+        // THEN the guide is on disk with its knowledge files, which are what it answers from
         let agent_py = tmp.path().join("agents/apollia-guide/agent.py");
         let caps = tmp
             .path()
@@ -437,6 +458,7 @@ mod tests {
 
     #[test]
     fn provision_is_idempotent() {
+        // GIVEN a data directory already provisioned once
         let tmp = tempfile::tempdir().expect("tempdir");
         let db_path = tmp.path().join("agents.db");
         let repo = AgentRepository::open(&db_path).expect("open repo");
@@ -445,9 +467,11 @@ mod tests {
         let first = repo.get("onboarding-agent").expect("get").expect("exists");
 
         // Running again should not error and should keep the same record.
+        // WHEN the provisioning runs a second time
         ensure_bundled_agents(&repo, tmp.path());
         let second = repo.get("onboarding-agent").expect("get").expect("exists");
 
+        // THEN the record is the same one, install date included, so a restart does not reinstall
         assert_eq!(first.installed_at, second.installed_at);
     }
 

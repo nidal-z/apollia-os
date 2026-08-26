@@ -427,6 +427,7 @@ mod tests {
     fn test_default_config_path_ends_with_apollia_toml() {
         // GIVEN the default config path
         let path = default_config_path();
+        // WHEN it is resolved
         // THEN it ends with apollia.toml inside .apollia directory
         assert!(path.ends_with("apollia.toml"));
         assert!(path.to_string_lossy().contains(".apollia"));
@@ -501,6 +502,7 @@ mod tests {
         // GIVEN a config view
         let view = build_config_view(None, "/fake.toml", false);
 
+        // WHEN the llm section is looked up
         // THEN llm section redirects to dedicated view
         let llm = view
             .sections
@@ -510,6 +512,7 @@ mod tests {
         assert_eq!(llm.redirect_route, Some("llm".to_string()));
         assert!(llm.entries.is_empty());
 
+        // WHEN the triggers section is looked up
         // AND triggers section is absent (migrated to SQLite CRUD)
         let triggers = view.sections.iter().find(|s| s.name == "triggers");
         assert!(triggers.is_none());
@@ -527,6 +530,7 @@ mod tests {
         .parse()
         .expect("valid toml");
 
+        // WHEN each key is read as a string, present or missing
         // THEN values are extracted correctly
         assert_eq!(
             toml_string(&toml_value, "section", "str_key", "default"),

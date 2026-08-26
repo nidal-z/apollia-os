@@ -814,7 +814,10 @@ mod tests {
             #[command(subcommand)]
             cmd: SttCommand,
         }
+        // GIVEN "stt transcribe /tmp/audio.wav", with no --output
         let cli = LocalCli::parse_from(["x", "transcribe", "/tmp/audio.wav"]);
+        // WHEN clap parses the argument line
+        // THEN the file is captured and the transcript goes to the terminal
         match cli.cmd {
             SttCommand::Transcribe { file, output } => {
                 assert_eq!(file, PathBuf::from("/tmp/audio.wav"));
@@ -832,7 +835,10 @@ mod tests {
             #[command(subcommand)]
             cmd: SttCommand,
         }
+        // GIVEN "stt config get"
         let cli = LocalCli::parse_from(["x", "config", "get"]);
+        // WHEN clap parses the argument line
+        // THEN the nested get subcommand is selected
         match cli.cmd {
             SttCommand::Config { command } => match command {
                 SttConfigCommand::Get => {}
@@ -850,7 +856,10 @@ mod tests {
             #[command(subcommand)]
             cmd: SttCommand,
         }
+        // GIVEN a config update carrying only --backend
         let cli = LocalCli::parse_from(["x", "config", "update", "--backend", "whisper"]);
+        // WHEN clap parses the argument line
+        // THEN the backend is captured and the untouched fields stay unset, so an update changes one thing
         match cli.cmd {
             SttCommand::Config { command } => match command {
                 SttConfigCommand::Update {

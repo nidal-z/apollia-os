@@ -783,6 +783,7 @@ mod tests {
     fn test_add_server_returns_201_status_code() {
         // GIVEN a successful add operation
         let code = StatusCode::CREATED;
+        // WHEN its numeric code is read
         // THEN the code is 201
         assert_eq!(code.as_u16(), 201);
     }

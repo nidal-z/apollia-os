@@ -550,13 +550,16 @@ mod property {
             a in 0u64..8, b in 0u64..8,
             t0 in 0i64..1_000, vis in 1i64..1_000, ttl_extra in 2i64..100_000,
         ) {
+            // GIVEN a pending row leased by actor a, whose lease has since expired
             prop_assume!(a != b);
             let created_plus_ttl = t0 + vis + ttl_extra;
             let mut row = Row::pending(created_plus_ttl);
             row.lease(t0, vis, Some(a));
             let now2 = row.lease_until; // lease expired (<= now)
             prop_assert!(is_deliverable(&row, now2));
+            // WHEN actor b takes the lease over
             row.lease(now2, vis, Some(b));
+            // THEN ownership moves to b and the stale owner no longer matches
             prop_assert_eq!(row.lease_owner, Some(b));
             prop_assert!(!owner_matches(row.lease_owner, Some(a)));
             prop_assert!(owner_matches(row.lease_owner, Some(b)));
@@ -569,6 +572,9 @@ mod property {
             owner in prop::option::of(0u64..8),
             actor in prop::option::of(0u64..8),
         ) {
+            // GIVEN any pair of owners, each present or absent
+            // WHEN they are compared through owner_matches
+            // THEN the answer is plain equality, absent included
             prop_assert_eq!(owner_matches(owner, actor), owner == actor);
         }
 
@@ -577,9 +583,12 @@ mod property {
         fn prop_expired_lease_redeliverable(
             t0 in 0i64..1_000, vis in 1i64..1_000, ttl_extra in 2i64..100_000, owner in 0u64..8,
         ) {
+            // GIVEN a pending row whose TTL outlives the lease
             let created_plus_ttl = t0 + vis + ttl_extra;
             let mut row = Row::pending(created_plus_ttl);
+            // WHEN the lease is taken and its deadline is reached
             row.lease(t0, vis, Some(owner));
+            // THEN the row is deliverable again
             prop_assert!(is_deliverable(&row, row.lease_until));
         }
 
@@ -588,9 +597,12 @@ mod property {
         fn prop_live_lease_not_redeliverable(
             t0 in 0i64..1_000, vis in 2i64..1_000, ttl_extra in 2i64..100_000, owner in 0u64..8,
         ) {
+            // GIVEN a pending row whose TTL outlives the lease
             let created_plus_ttl = t0 + vis + ttl_extra;
             let mut row = Row::pending(created_plus_ttl);
+            // WHEN the lease is taken and read one tick before its deadline
             row.lease(t0, vis, Some(owner));
+            // THEN the row is not deliverable to anyone else
             prop_assert!(!is_deliverable(&row, row.lease_until - 1));
         }
     }
@@ -932,6 +944,7 @@ mod tests {
 
         // WHEN a sweep runs (TTL not yet reached), the message remains
         handle.sweep_now().await;
+        // THEN the message is still pending
         assert_eq!(handle.pending_count("b").await, 1);
 
         handle.shutdown().await;

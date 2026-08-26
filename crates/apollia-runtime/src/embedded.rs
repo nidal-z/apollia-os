@@ -584,6 +584,7 @@ mod tests {
         // GIVEN the default EmbeddedConfig
         let config = EmbeddedConfig::default();
 
+        // WHEN its fields are read
         // THEN reasonable defaults are set: Unix socket only, no TCP exposure
         assert_eq!(config.tcp_port, None);
         assert_eq!(config.api_token, None);
@@ -600,6 +601,7 @@ mod tests {
         let timeout_err = EmbeddedError::StartupTimeout(30);
         let panic_err = EmbeddedError::RuntimeThreadPanicked;
 
+        // WHEN each is rendered for a human
         // THEN display messages are informative
         assert!(timeout_err.to_string().contains("30s"));
         assert!(panic_err.to_string().contains("panicked"));
@@ -608,6 +610,9 @@ mod tests {
     #[test]
     fn test_runtime_handle_is_clone() {
         // Compile-time check: RuntimeHandle must be Clone.
+        // GIVEN the handle the embedded runtime hands out
+        // WHEN a second owner is asked for
+        // THEN the type supplies one, or this file stops compiling
         fn assert_clone<T: Clone>() {}
         assert_clone::<RuntimeHandle>();
     }

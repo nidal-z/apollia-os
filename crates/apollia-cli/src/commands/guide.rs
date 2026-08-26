@@ -107,6 +107,9 @@ mod tests {
 
     #[test]
     fn test_known_topics_present() {
+        // GIVEN the six topics the guide command documents
+        // WHEN each is looked up in the topic table
+        // THEN all six are there, so a rename breaks here and not in front of an operator
         for t in [
             "chat",
             "governance",

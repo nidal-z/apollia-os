@@ -743,6 +743,7 @@ mod tests {
     #[test]
     fn pause_state_defaults_to_running() {
         // GIVEN the default pause state
+        // WHEN it is read
         // THEN it is the steady Running state
         assert_eq!(PauseState::default(), PauseState::Running);
     }
@@ -809,6 +810,7 @@ mod tests {
             ChatError::InternalError("db error".into()),
         ];
 
+        // WHEN each is rendered for a human
         // THEN each has a non-empty Display message
         for err in &errors {
             let msg = format!("{err}");

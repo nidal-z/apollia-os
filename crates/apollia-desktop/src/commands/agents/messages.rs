@@ -121,6 +121,7 @@ mod tests {
     #[test]
     fn test_message_limit_constants() {
         // GIVEN the limit constants
+        // WHEN they are read
         // THEN they have expected values
         assert_eq!(MAX_MESSAGE_LIMIT, 200);
         assert_eq!(DEFAULT_MESSAGE_LIMIT, 50);

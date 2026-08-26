@@ -198,18 +198,24 @@ mod tests {
 
     #[test]
     fn clipboard_error_display() {
+        // GIVEN a clipboard initialisation failure
         let err = ClipboardError::ClipboardInit("no display".into());
+        // WHEN it is rendered for the operator
+        // THEN the message carries both the stage and the underlying cause
         assert_eq!(err.to_string(), "clipboard init failed: no display");
     }
 
     #[test]
     fn clipboard_error_variants_are_distinct() {
+        // GIVEN one error per stage of the paste path
         let init = ClipboardError::ClipboardInit("a".into());
         let read = ClipboardError::Read("b".into());
         let write = ClipboardError::Write("c".into());
         let kbd = ClipboardError::KeyboardInit("d".into());
         let paste = ClipboardError::PasteSimulation("e".into());
 
+        // WHEN each is rendered for the operator
+        // THEN no two stages read alike, so a report names the stage that failed
         assert_ne!(init.to_string(), read.to_string());
         assert_ne!(read.to_string(), write.to_string());
         assert_ne!(write.to_string(), kbd.to_string());
@@ -219,12 +225,18 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn paste_modifier_is_meta_on_macos() {
+        // GIVEN a macOS build
+        // WHEN the paste modifier is asked for
+        // THEN it is the command key
         assert_eq!(paste_modifier(), Key::Meta);
     }
 
     #[cfg(not(target_os = "macos"))]
     #[test]
     fn paste_modifier_is_control_on_linux() {
+        // GIVEN a Linux build
+        // WHEN the paste modifier is asked for
+        // THEN it is the control key
         assert_eq!(paste_modifier(), Key::Control);
     }
 }

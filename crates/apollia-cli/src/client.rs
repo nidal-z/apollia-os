@@ -490,13 +490,19 @@ mod tests {
 
     #[test]
     fn test_default_socket_path() {
+        // GIVEN a client built with no explicit socket
+        // WHEN its socket path is read
         let client = RuntimeClient::default_client();
+        // THEN it is the default one, which is where the runtime listens
         assert_eq!(client.socket_path(), default_socket_path().as_path());
     }
 
     #[test]
     fn test_custom_socket_path() {
+        // GIVEN a client built on an explicit socket path
+        // WHEN its socket path is read
         let client = RuntimeClient::new(PathBuf::from("/custom/path.sock"));
+        // THEN it is the one given rather than the default
         assert_eq!(client.socket_path(), Path::new("/custom/path.sock"));
     }
 }

@@ -749,6 +749,7 @@ mod tests {
     /// Thought, Retry and ActionParseError each persist their step_num.
     #[tokio::test]
     async fn end_to_end_thought_retry_parse_error_record_step_num() {
+        // GIVEN a persistor and its subscriber connected to an EventBus
         let dir = tempdir().expect("tempdir");
         let db = dir.path().join("runtime_events.db");
         let handle = EventPersistorHandle::open(&db).await.expect("open");
@@ -756,6 +757,7 @@ mod tests {
         let join =
             spawn_runtime_events_subscriber(handle.clone(), &bus, ObservabilityConfig::default());
 
+        // WHEN a thought, a parse error and a retry are published
         bus.send(RuntimeEvent::Thought {
             task_id: "T".into(),
             agent_id: "A".into(),
@@ -784,6 +786,7 @@ mod tests {
         join.await.expect("subscriber exits cleanly");
         handle.shutdown().await;
 
+        // THEN the three are persisted, each carrying its step number and its payload
         let repo = RuntimeEventsRepository::open(&db).expect("open repo");
         let persisted = poll_until_async(Duration::from_secs(5), || async {
             repo.list_for_task("T", None, 10)
@@ -1015,12 +1018,15 @@ mod tests {
 
     #[tokio::test]
     async fn capture_thoughts_true_persists_the_text() {
+        // GIVEN the default configuration, where thoughts are captured
+        // WHEN the agent emits a ReAct thought
         let rows = rows_for(
             ObservabilityConfig::default(),
             "task-cap-th-on",
             vec![thought("task-cap-th-on")],
         )
         .await;
+        // THEN the text is persisted, so the test above proves the switch and not a broken harness
         assert_eq!(rows.len(), 1);
         assert!(rows[0].payload_json.contains("SECRET_THOUGHT"));
     }
@@ -1055,12 +1061,15 @@ mod tests {
 
     #[tokio::test]
     async fn capture_tool_args_true_persists_the_args() {
+        // GIVEN the default configuration, where tool arguments are captured
+        // WHEN a tool call runs
         let rows = rows_for(
             ObservabilityConfig::default(),
             "task-cap-args-on",
             tool_pair("task-cap-args-on"),
         )
         .await;
+        // THEN the argument content is persisted, so the test above proves the switch
         let started = rows
             .iter()
             .find(|r| r.kind == "tool_call_started")
@@ -1098,12 +1107,15 @@ mod tests {
 
     #[tokio::test]
     async fn capture_tool_outputs_true_persists_the_output() {
+        // GIVEN the default configuration, where tool outputs are captured
+        // WHEN a tool call completes
         let rows = rows_for(
             ObservabilityConfig::default(),
             "task-cap-out-on",
             tool_pair("task-cap-out-on"),
         )
         .await;
+        // THEN the output content is persisted, so the test above proves the switch
         let completed = rows
             .iter()
             .find(|r| r.kind == "tool_call_completed")

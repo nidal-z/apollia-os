@@ -775,6 +775,7 @@ mod tests {
         // GIVEN one run emitting an LLM, then a tool, then another LLM
         let mut ordinals = HashMap::new();
         let run = RunId::new();
+        // WHEN each capture is mapped to a journal entry
         let llm0 = map_capture(&mut ordinals, &captured(&run, "a", false)).expect("llm0");
         let tool0 = map_capture(
             &mut ordinals,

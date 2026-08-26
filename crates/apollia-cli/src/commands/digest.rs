@@ -147,12 +147,16 @@ mod tests {
 
     #[test]
     fn task_counts_empty() {
+        // GIVEN a runtime answer holding no task
+        // WHEN the digest counts them
         let (t, f, r) = task_counts(&serde_json::json!({"tasks": []}));
+        // THEN the three counters are zero
         assert_eq!((t, f, r), (0, 0, 0));
     }
 
     #[test]
     fn task_counts_mixed_statuses() {
+        // GIVEN four tasks: two running, one failed, one completed
         let v = serde_json::json!({
             "tasks": [
                 {"status": "running"},
@@ -161,7 +165,9 @@ mod tests {
                 {"status": "running"},
             ]
         });
+        // WHEN the digest counts them
         let (t, f, r) = task_counts(&v);
+        // THEN the total, the failures and the running ones are counted apart
         assert_eq!((t, f, r), (4, 1, 2));
     }
 }
