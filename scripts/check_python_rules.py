@@ -31,10 +31,12 @@ Exit codes:
 
 import argparse
 import ast
+import io
 import re
 import subprocess
 import sys
 import tempfile
+import tokenize
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -75,6 +77,10 @@ FRENCH_WORD_RE = re.compile(
 # user's own words, an example string), not prose written in French.
 QUOTED_SPAN_RE = re.compile(r'"[^"]*"')
 REASON_PRAGMA_RE = re.compile(r"#\s*REASON:\s*([a-z][a-z0-9-]*):")
+# The three block markers TESTING.md requires, looked for in comments only: a
+# docstring that narrates the scenario does not mark the blocks of the body.
+GWT_MARKER_RE = re.compile(r"\b(GIVEN|WHEN|THEN)\b")
+GWT_MARKERS = frozenset({"GIVEN", "WHEN", "THEN"})
 
 RULES = [
     ("relative-import", "relative import (PYTHON-PATTERNS §5, FORBIDDEN Python)"),
@@ -90,6 +96,7 @@ RULES = [
     ("em-dash", "em-dash (FORBIDDEN prose)"),
     ("agent-shape", "agent module: @agent class with at least one @skill/@on_message/@orchestrated"),
     ("agent-handwritten", "agent module: hand-written module-level `agent = ...` (PYTHON-PATTERNS §2)"),
+    ("test-gwt", "test function without the three GIVEN / WHEN / THEN comments (AGENTS.md ALWAYS, TESTING.md §2)"),
 ]
 
 
@@ -151,6 +158,36 @@ def _looks_french(text: str) -> bool:
     if FRENCH_ACCENT_RE.search(text):
         return True
     return len(set(m.lower() for m in FRENCH_WORD_RE.findall(text))) >= 3
+
+
+def _comment_markers(source: str) -> dict[int, set[str]]:
+    """Line number to the set of GWT markers written in a comment on that line.
+
+    Only comment tokens are read: a `#` inside a string literal is not a
+    marker, and a docstring that spells out the scenario does not mark the
+    blocks of the body it precedes.
+    """
+    out: dict[int, set[str]] = {}
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, IndentationError):
+        return out
+    for tok in tokens:
+        if tok.type != tokenize.COMMENT:
+            continue
+        found = set(GWT_MARKER_RE.findall(tok.string)) & GWT_MARKERS
+        if found:
+            out.setdefault(tok.start[0], set()).update(found)
+    return out
+
+
+def _test_functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Every `def test_*` of the module, nested ones included."""
+    return [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_")
+    ]
 
 
 def measure_file(
@@ -237,6 +274,20 @@ def measure_file(
             record("internal-ref", f"{rel}:{i}: {line.strip()[:90]}")
         if EM_DASH in line:
             record("em-dash", f"{rel}:{i}: {line.strip()[:90]}")
+
+    if is_test:
+        markers = _comment_markers(source)
+        for fn in _test_functions(tree):
+            seen: set[str] = set()
+            for lineno, kinds in markers.items():
+                if fn.lineno <= lineno <= fn.end_lineno:
+                    seen |= kinds
+            absent = GWT_MARKERS - seen
+            if absent:
+                record(
+                    "test-gwt",
+                    f"{rel}:{fn.lineno}: {fn.name} has no {', '.join(sorted(absent))} comment",
+                )
 
     if _is_agent_module(path):
         if decorated_agent_class is None:
@@ -348,6 +399,57 @@ class Clean:
         return json.dumps({"ok": message})
 '''
 
+# Two test modules for the test-gwt rule. The dirty one carries the three
+# shapes the rule has to catch: no marker at all, only part of the three, and
+# the three narrated in a docstring rather than written as comments. The clean
+# one carries the two accepted spellings, one comment per marker and the
+# combined "WHEN / THEN" line the tree already used before the rule existed.
+DIRTY_TESTS = '''\
+"""Fabricated test module whose bodies do not mark their blocks."""
+
+
+def test_no_marker_at_all() -> None:
+    assert 1 + 1 == 2
+
+
+def test_only_two_of_the_three() -> None:
+    # GIVEN two numbers
+    total = 1 + 1
+    # THEN they add up
+    assert total == 2
+
+
+def test_markers_only_in_the_docstring() -> None:
+    """GIVEN two numbers, WHEN they are added, THEN they add up."""
+    assert 1 + 1 == 2
+
+
+def helper_not_a_test() -> None:
+    assert True
+'''
+
+CLEAN_TESTS = '''\
+"""Fabricated test module whose bodies mark their three blocks."""
+
+
+def test_three_separate_comments() -> None:
+    # GIVEN two numbers
+    a, b = 1, 1
+
+    # WHEN they are added
+    total = a + b
+
+    # THEN they add up
+    assert total == 2
+
+
+def test_combined_when_then_line() -> None:
+    # GIVEN two numbers
+    a, b = 1, 1
+    # WHEN / THEN adding them raises nothing and yields two
+    assert a + b == 2
+'''
+
 EXEMPTED_MODULE = '''\
 """A CLI-like module whose print() calls carry a written exemption."""
 
@@ -367,6 +469,7 @@ def selftest() -> int:
         "relative-import": 1, "print-call": 1, "future-typeddict": 1, "third-party-import": 1,
         "exception-direct": 1, "typing-star": 1, "no-module-docstring": 1, "bare-todo": 1,
         "french-comment": 1, "internal-ref": 1, "em-dash": 1, "agent-shape": 1, "agent-handwritten": 1,
+        "test-gwt": 0,
     }
     failures = 0
     with tempfile.TemporaryDirectory() as tmp:
@@ -404,6 +507,41 @@ def selftest() -> int:
         ok = code == 1 and len(totals.get("print-call", [])) == 2 and not exempted
         failures += 0 if ok else 1
         print(f"  {'ok ' if ok else 'KO '} a pragma naming another rule excuses nothing (exit {code})")
+        (root / "tests_dirty").mkdir()
+        (root / "tests_dirty" / "test_thing.py").write_text(DIRTY_TESTS, encoding="utf-8")
+        (root / "tests_clean").mkdir()
+        (root / "tests_clean" / "test_thing.py").write_text(CLEAN_TESTS, encoding="utf-8")
+        code, totals, _ = run(root, ["tests_dirty"], quiet=True)
+        sites = totals.get("test-gwt", [])
+        ok = code == 1 and len(sites) == 3 and all("helper_not_a_test" not in s for s in sites)
+        failures += 0 if ok else 1
+        print(
+            f"  {'ok ' if ok else 'KO '} test-gwt fires once per unmarked test and skips non-test "
+            f"functions (exit {code}, {len(sites)} site(s))"
+        )
+        ok = any("test_markers_only_in_the_docstring" in s for s in sites)
+        failures += 0 if ok else 1
+        print(f"  {'ok ' if ok else 'KO '} markers narrated in a docstring do not mark the blocks")
+        code, totals, _ = run(root, ["tests_clean"], quiet=True)
+        ok = code == 0 and not totals.get("test-gwt")
+        failures += 0 if ok else 1
+        print(
+            f"  {'ok ' if ok else 'KO '} positive control: separate comments and a combined "
+            f"WHEN / THEN line both pass (exit {code})"
+        )
+        excused = DIRTY_TESTS.replace(
+            '"""Fabricated test module whose bodies do not mark their blocks."""',
+            '"""Fabricated test module whose bodies do not mark their blocks."""\n\n'
+            "# REASON: test-gwt: fabricated subject for the self-test.",
+        )
+        (root / "tests_dirty" / "test_thing.py").write_text(excused, encoding="utf-8")
+        code, totals, exempted = run(root, ["tests_dirty"], quiet=True)
+        ok = code == 0 and not totals.get("test-gwt") and exempted.get("test-gwt") == 3
+        failures += 0 if ok else 1
+        print(
+            f"  {'ok ' if ok else 'KO '} a # REASON: test-gwt: pragma excuses the file and is "
+            f"counted (exit {code}, exempted {exempted.get('test-gwt')})"
+        )
         code, _, _ = run(root, ["absent"], quiet=True)
         ok = code == 2
         failures += 0 if ok else 1
