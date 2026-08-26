@@ -116,7 +116,7 @@ BASELINE: dict[str, str] = {
     "policy: `call_run` falls back to `DEFAULT_WALL_CLOCK_SECS` (300 s) on every "
     "binary, so the per-agent budget this builder exists for is not configurable. "
     "Wiring it means adding a manifest field, not calling a setter.",
-    "with_wall_clock_secs@apollia-aip:context": "the context mirror of the bridge "
+    "with_wall_clock_secs@apollia-aip:runtime_ops": "the context mirror of the bridge "
     "budget above: `ctx.budget.wall_clock_remaining` stays `None` because nothing sets "
     "it, and it stays so until the bridge one is wired. One decision, two call sites.",
     # The four below became visible when SETS_SOME learned the `.ok()` form.

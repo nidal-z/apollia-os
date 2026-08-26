@@ -123,11 +123,7 @@ MODULE_SIZE_EXEMPT: set[str] = {
 
 # Files over 800 production lines when the table was written. A split removes
 # the entry in the same commit.
-MODULE_SIZE_FILES: set[str] = {
-    "crates/apollia-aip/src/context.rs",
-    "crates/apollia-aip/src/llm.rs",
-    "crates/apollia-aip/src/memory.rs",
-}
+MODULE_SIZE_FILES: set[str] = set()
 
 # Per-file counts of Arc<Mutex|RwLock> production sites. The actor migration
 # that shrinks a count lowers the entry with it.
