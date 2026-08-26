@@ -155,7 +155,6 @@ MODULE_SIZE_FILES: set[str] = {
     "crates/apollia-runtime/src/chat/types.rs",
     "crates/apollia-runtime/src/mailbox.rs",
     "crates/apollia-tools/src/executor.rs",
-    "crates/apollia-tools/src/project_repository.rs",
     "crates/apollia-tools/src/task_repository.rs",
     "crates/apollia-triggers/src/engine.rs",
 }
@@ -246,12 +245,10 @@ ARC_MUTEX_ALIASES: set[str] = {
 ERROR_ENUM_COUNTS: dict[str, int] = {
     "crates/apollia-aip/src/bridge.rs": 1,
     "crates/apollia-aip/src/context.rs": 1,
-    "crates/apollia-aip/src/datasources.rs": 1,
     "crates/apollia-aip/src/loader.rs": 1,
     "crates/apollia-aip/src/memory.rs": 1,
     "crates/apollia-aip/src/package_loader.rs": 1,
     "crates/apollia-aip/src/python_provider.rs": 1,
-    "crates/apollia-aip/src/templates.rs": 1,
     "crates/apollia-aip/src/validator.rs": 1,
     "crates/apollia-auth/src/error.rs": 1,
     "crates/apollia-auth/src/mcp_oauth_orchestrator.rs": 1,
@@ -315,7 +312,6 @@ ERROR_ENUM_COUNTS: dict[str, int] = {
     "crates/apollia-oria/src/reasoner.rs": 2,
     "crates/apollia-oria/src/resilience.rs": 1,
     "crates/apollia-oria/src/tool_offload.rs": 1,
-    "crates/apollia-oria/src/verification.rs": 1,
     "crates/apollia-permissions/src/error.rs": 1,
     "crates/apollia-runtime/src/a2a/invoker.rs": 1,
     "crates/apollia-runtime/src/a2a/mod.rs": 1,
