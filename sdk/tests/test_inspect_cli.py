@@ -151,14 +151,20 @@ class TestModernAgent:
 
     def test_exit_code_zero(self, modern_agent: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """GIVEN a valid modern agent WHEN inspect runs THEN exit code is 0."""
+        # GIVEN a valid modern agent module on disk
+        # WHEN inspect runs on it
         rc = inspect_cmd.inspect_command(_make_args(modern_agent))
+        # THEN it exits 0
         assert rc == 0
 
     def test_human_output_contains_name(
         self, modern_agent: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Human report mentions name, version, and skill id."""
+        # GIVEN a valid modern agent module on disk
+        # WHEN inspect runs on it in human mode
         rc = inspect_cmd.inspect_command(_make_args(modern_agent))
+        # THEN the report names the agent, its version, its skill and its status
         out = capsys.readouterr().out
         assert rc == 0
         assert "toy-worker" in out
@@ -171,7 +177,10 @@ class TestModernAgent:
         self, modern_agent: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Skills section shows at least one bullet with the skill id."""
+        # GIVEN a valid modern agent module carrying one skill
+        # WHEN inspect runs on it in human mode
         inspect_cmd.inspect_command(_make_args(modern_agent))
+        # THEN the skills section counts one and renders its id and description
         out = capsys.readouterr().out
         assert "Skills (1)" in out
         assert "• toy.echo" in out
@@ -181,8 +190,11 @@ class TestModernAgent:
         self, modern_agent: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """``--json`` emits a parseable JSON document with the right keys."""
+        # GIVEN a valid modern agent module on disk
+        # WHEN inspect runs on it with --json
         rc = inspect_cmd.inspect_command(_make_args(modern_agent, json_mode=True))
         assert rc == 0
+        # THEN the output parses, carries the manifest and skills, and reports nothing wrong
         out = capsys.readouterr().out
         payload = json.loads(out)
         assert payload["manifest"]["name"] == "toy-worker"
@@ -206,8 +218,11 @@ class TestLegacyAgent:
         self, legacy_agent: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Exit code 0 + at least one warning in JSON output."""
+        # GIVEN a legacy agent whose class is not decorated
+        # WHEN inspect runs on it with --json
         rc = inspect_cmd.inspect_command(_make_args(legacy_agent, json_mode=True))
         assert rc == 0
+        # THEN it still exits 0, warns about the legacy shape, and keeps the declared skill
         payload = json.loads(capsys.readouterr().out)
         assert payload["manifest"]["name"] == "legacy-worker"
         assert payload["warnings"], "expected at least one warning"
@@ -227,8 +242,11 @@ class TestFailureModes:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """A non-existent path yields exit code 2."""
+        # GIVEN a path to a file that does not exist
         missing = tmp_path / "does_not_exist.py"
+        # WHEN inspect runs on it
         rc = inspect_cmd.inspect_command(_make_args(missing))
+        # THEN it exits 2 and says the file was not found
         assert rc == 2
         err = capsys.readouterr().err
         assert "File not found" in err
@@ -237,9 +255,12 @@ class TestFailureModes:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """A ``.txt`` file is rejected with exit code 2."""
+        # GIVEN a file that exists but does not end in .py
         txt = tmp_path / "agent.txt"
         txt.write_text("not python", encoding="utf-8")
+        # WHEN inspect runs on it
         rc = inspect_cmd.inspect_command(_make_args(txt))
+        # THEN it exits 2 and names the expected suffix
         assert rc == 2
         err = capsys.readouterr().err
         assert ".py" in err
@@ -248,7 +269,10 @@ class TestFailureModes:
         self, broken_agent: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """A module raising at import time yields exit code 1."""
+        # GIVEN a module that raises at import time
+        # WHEN inspect runs on it
         rc = inspect_cmd.inspect_command(_make_args(broken_agent))
+        # THEN it exits 1 and surfaces the original exception message
         assert rc == 1
         err = capsys.readouterr().err
         assert "Failed to load module" in err
@@ -258,7 +282,10 @@ class TestFailureModes:
         self, no_agent_module: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """A loadable module with no agent surface fails with exit code 1."""
+        # GIVEN a module that imports cleanly but exposes no agent
+        # WHEN inspect runs on it
         rc = inspect_cmd.inspect_command(_make_args(no_agent_module))
+        # THEN it exits 1, distinguishing an empty module from a broken one
         assert rc == 1
         err = capsys.readouterr().err
         assert "Inspection failed" in err
@@ -267,8 +294,11 @@ class TestFailureModes:
         self, broken_agent: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """In JSON mode, load failures land in ``errors`` not stderr text."""
+        # GIVEN a module that raises at import time
+        # WHEN inspect runs on it with --json
         rc = inspect_cmd.inspect_command(_make_args(broken_agent, json_mode=True))
         assert rc == 1
+        # THEN the failure lands in the errors array, so the output stays parseable
         out = capsys.readouterr().out
         payload = json.loads(out)
         assert payload["errors"]
@@ -284,6 +314,7 @@ class TestSchemaBrief:
     """Unit tests for the JSON-Schema → one-line formatter."""
 
     def test_object_schema_renders_required_marker(self) -> None:
+        # GIVEN an object schema with one required and one optional property
         schema = {
             "type": "object",
             "properties": {
@@ -292,14 +323,22 @@ class TestSchemaBrief:
             },
             "required": ["path"],
         }
+        # WHEN it is rendered as a one-line brief
         rendered = inspect_cmd._format_schema_brief(schema)
+        # THEN the required property carries the bang and the optional one the question mark
         assert "path: string!" in rendered
         assert "max_chars: integer?" in rendered
 
     def test_empty_schema_returns_none(self) -> None:
+        # GIVEN an empty schema
+        # WHEN it is rendered as a one-line brief
+        # THEN it renders the (none) sentinel rather than an empty string
         assert inspect_cmd._format_schema_brief({}) == "(none)"
 
     def test_non_dict_returns_any(self) -> None:
+        # GIVEN no schema at all
+        # WHEN it is rendered as a one-line brief
+        # THEN it renders the (any) sentinel, distinct from the empty-schema one
         assert inspect_cmd._format_schema_brief(None) == "(any)"
 
 
@@ -310,10 +349,13 @@ class TestSchemaBrief:
 
 def test_build_parser_registers_inspect() -> None:
     """``build_parser`` adds an ``inspect`` sub-command with ``--json``."""
+    # GIVEN a root parser with a sub-command group
     root = argparse.ArgumentParser()
     subs = root.add_subparsers(dest="command")
     inspect_cmd.build_parser(subs)
+    # WHEN the inspect sub-command is registered and a command line is parsed
     args = root.parse_args(["inspect", "/srv/agents/some.py", "--json"])
+    # THEN the path, the --json flag and the handler are all bound
     assert args.command == "inspect"
     assert args.agent_path == "/srv/agents/some.py"
     assert args.json is True
@@ -324,8 +366,11 @@ def test_main_dispatcher_inspect_unknown_path(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Top-level ``main`` dispatches ``inspect`` and returns its exit code."""
+    # GIVEN the top-level CLI entry point and a path that does not exist
     from apollia.cli.__main__ import main as cli_main
 
     missing = tmp_path / "missing.py"
+    # WHEN inspect is dispatched through it
     rc = cli_main(["inspect", str(missing)])
+    # THEN the sub-command's own exit code reaches the caller
     assert rc == 2

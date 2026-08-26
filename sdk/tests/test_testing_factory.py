@@ -114,17 +114,23 @@ def test_mock_returns_instance_and_ctx() -> None:
 
 @pytest.mark.asyncio
 async def test_invoke_skill_happy_path() -> None:
+    # GIVEN a mocked agent whose ctx carries the responses its skill needs
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
+    # WHEN the skill is invoked through the mock helper
     result = await agent_instance.invoke_skill("foo.echo", x=42)
+    # THEN the task completes and the handler's return value is the data part
     assert_result_completed(result)
     assert result["output"][0]["data"] == {"echoed": 42}
 
 
 @pytest.mark.asyncio
 async def test_invoke_skill_domain_error_to_failed() -> None:
+    # GIVEN a mocked agent whose skill always raises a DomainError
     agent_instance, _ctx = mock(_make_simple_agent())
+    # WHEN that skill is invoked
     result = await agent_instance.invoke_skill("foo.fail")
+    # THEN the task fails under the agent's own error code
     assert_result_failed(result, code="bad_input")
 
 
@@ -143,21 +149,27 @@ async def test_ctx_llm_responses_queue_consumed() -> None:
 
 @pytest.mark.asyncio
 async def test_ctx_events_emit_token_tracked() -> None:
+    # GIVEN a mocked agent whose skill emits one token
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
+    # WHEN the skill is invoked
     await agent_instance.invoke_skill("foo.echo", x=7)
+    # THEN the mock recorded that token and nothing else
     assert ctx.events.tokens == ["x=7"]
 
 
 @pytest.mark.asyncio
 async def test_ctx_a2a_invoke_tracked() -> None:
+    # GIVEN a mocked agent and a canned answer for the child agent
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
     ctx.a2a.invoke_responses["child.worker"] = {
         "status": "completed",
         "output": [],
     }
+    # WHEN the skill is invoked and delegates to that child
     await agent_instance.invoke_skill("foo.echo", x=3)
+    # THEN the delegation is recorded with its target and payload
     assert ctx.a2a.invoke_calls == [("child.worker", {"value": 3})]
 
 
@@ -177,8 +189,11 @@ async def test_ctx_datasources_preconfigured() -> None:
 
 @pytest.mark.asyncio
 async def test_invoke_message_dispatches_to_on_message() -> None:
+    # GIVEN a mocked agent exposing an @on_message handler
     agent_instance, ctx = mock(_make_simple_agent())
+    # WHEN a message is sent through the mock helper
     result = await agent_instance.invoke_message("ping")
+    # THEN the message route answers and its emitted token is recorded
     assert_result_completed(result, contains="echo:ping")
     assert ctx.events.tokens == ["hi"]
 
@@ -190,85 +205,107 @@ async def test_invoke_message_dispatches_to_on_message() -> None:
 
 @pytest.mark.asyncio
 async def test_assert_skill_called_passes_and_fails() -> None:
+    # GIVEN a mocked agent that delegated once to a child skill
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
     await agent_instance.invoke_skill("foo.echo", x=1)
+    # WHEN the delegation is asserted, then one that never happened
     assert_skill_called(ctx, "child.worker")
     assert_skill_called(ctx, "child.worker", times=1)
+    # THEN the first two pass and the absent one raises
     with pytest.raises(AssertionError, match="was not invoked"):
         assert_skill_called(ctx, "never.invoked")
 
 
 @pytest.mark.asyncio
 async def test_assert_emitted_token_passes_and_fails() -> None:
+    # GIVEN a mocked agent that emitted one token
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
     await agent_instance.invoke_skill("foo.echo", x=9)
+    # WHEN the token is asserted, with and without a substring
     assert_emitted_token(ctx)
     assert_emitted_token(ctx, contains="x=9")
+    # THEN the matching assertions pass and the absent substring raises
     with pytest.raises(AssertionError):
         assert_emitted_token(ctx, contains="not-emitted")
 
 
 @pytest.mark.asyncio
 async def test_assert_emitted_thought_passes_and_fails() -> None:
+    # GIVEN a mocked agent that emitted one thought
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
     await agent_instance.invoke_skill("foo.echo", x=1)
+    # WHEN the thought is asserted, then asserted on a fresh context
     assert_emitted_thought(ctx, contains="computing")
     fresh_ctx = MockContext()
+    # THEN the first passes and the empty context raises
     with pytest.raises(AssertionError, match="No thoughts were emitted"):
         assert_emitted_thought(fresh_ctx)
 
 
 @pytest.mark.asyncio
 async def test_assert_memory_recorded_passes_and_fails() -> None:
+    # GIVEN a mocked agent that recorded an episode and remembered a key
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
     await agent_instance.invoke_skill("foo.echo", x=1)
+    # WHEN each memory write is asserted, then one that never happened
     # Episodic check
     assert_memory_recorded(ctx)
     # Semantic key check (via .remember)
     assert_memory_recorded(ctx, key="last_x")
+    # THEN the two writes pass and the absent key raises
     with pytest.raises(AssertionError, match="not remembered"):
         assert_memory_recorded(ctx, key="never_set")
 
 
 @pytest.mark.asyncio
 async def test_assert_tool_called_passes_and_fails() -> None:
+    # GIVEN a mocked agent that called one tool once
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
     await agent_instance.invoke_skill("foo.echo", x=1)
+    # WHEN the call is asserted, with and without a count
     assert_tool_called(ctx, "noop")
     assert_tool_called(ctx, "noop", times=1)
+    # THEN both pass and the tool that was never called raises
     with pytest.raises(AssertionError):
         assert_tool_called(ctx, "never")
 
 
 @pytest.mark.asyncio
 async def test_assert_template_rendered_passes_and_fails() -> None:
+    # GIVEN a mocked agent that rendered one template
     agent_instance, ctx = mock(_make_simple_agent())
     _prepare_ctx(ctx)
     await agent_instance.invoke_skill("foo.echo", x=1)
+    # WHEN that template is asserted, then one that was never rendered
     assert_template_rendered(ctx, "prompt.j2")
+    # THEN the first passes and the absent template raises
     with pytest.raises(AssertionError, match="was not rendered"):
         assert_template_rendered(ctx, "missing.j2")
 
 
 def test_assert_result_completed_and_failed_and_input_required() -> None:
+    # GIVEN one result of each of the three statuses
     completed = {
         "status": "completed",
         "output": [{"type": "text", "text": "hello world"}],
     }
+    failed = {"status": "failed", "error": {"code": "BOOM"}}
+    needs_input = {"status": "input_required"}
+
+    # WHEN each helper is applied to its own status, then to a foreign one
+    # THEN every match passes and every mismatch raises
     assert_result_completed(completed, contains="hello")
 
-    failed = {"status": "failed", "error": {"code": "BOOM"}}
     assert_result_failed(failed)
     assert_result_failed(failed, code="BOOM")
     with pytest.raises(AssertionError):
         assert_result_failed(failed, code="OTHER")
 
-    needs_input = {"status": "input_required"}
     assert_result_input_required(needs_input)
     with pytest.raises(AssertionError):
         assert_result_input_required(completed)

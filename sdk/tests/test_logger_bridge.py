@@ -88,6 +88,8 @@ def test_configure_is_idempotent_no_duplicate_handlers() -> None:
     # GIVEN configure_agent_logger called twice for the same agent
     ctx = MockCtx()
     logger1 = configure_agent_logger(ctx, "twice")
+
+    # WHEN it is configured a second time for the same agent name
     logger2 = configure_agent_logger(ctx, "twice")
 
     # THEN it returns the same logger with a single CtxLogHandler
@@ -139,6 +141,8 @@ def test_handler_swallows_ctx_log_exceptions() -> None:
 def test_empty_agent_name_falls_back_to_unknown() -> None:
     # GIVEN an empty agent_name
     ctx = MockCtx()
+
+    # WHEN the logger is configured with it
     logger = configure_agent_logger(ctx, "")
 
     # THEN the logger is named "apollia.agent.unknown"
@@ -148,6 +152,8 @@ def test_empty_agent_name_falls_back_to_unknown() -> None:
 def test_logger_does_not_propagate_to_root() -> None:
     # GIVEN configure with a default ctx
     ctx = MockCtx()
+
+    # WHEN the logger is configured
     logger = configure_agent_logger(ctx, "noprop")
 
     # THEN propagation is disabled to avoid double-print via root logger.

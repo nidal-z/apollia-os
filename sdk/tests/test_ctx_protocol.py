@@ -11,15 +11,24 @@ import pytest
 
 
 def test_ctx_importable_from_apollia_types() -> None:
+    # GIVEN the typed contract module
+    # WHEN Ctx is imported from it
+    # THEN the import succeeds, so the documented path is real
     from apollia.types import Ctx  # noqa: F401
 
 
 def test_ctx_importable_from_apollia_root() -> None:
+    # GIVEN the package root
+    # WHEN Ctx is imported from it
+    # THEN the import succeeds, so the short path is real too
     from apollia import Ctx  # noqa: F401
 
 
 def test_each_subprotocol_importable() -> None:
     """All 14 sub-protocols are exported from ``apollia.context.*``."""
+    # GIVEN the context package
+    # WHEN every sub-protocol is imported from its own module
+    # THEN each import succeeds, so no surface is exported by name only
     from apollia.context.a2a import A2AInterface  # noqa: F401
     from apollia.context.budget import BudgetView  # noqa: F401
     from apollia.context.datasources import DatasourcesInterface  # noqa: F401
@@ -69,16 +78,24 @@ def test_subprotocol_is_runtime_checkable(module_path: str, name: str) -> None:
     """Each sub-protocol can be used with ``isinstance()``."""
     import importlib
 
+    # GIVEN one sub-protocol named by the parametrisation
     mod = importlib.import_module(module_path)
+
+    # WHEN its runtime-protocol marker is read
     proto = getattr(mod, name)
+
+    # THEN the marker is set, so isinstance() against it is legal
     # ``runtime_checkable`` Protocols pass an empty object as not an instance,
     # but the marker attribute exists on the class.
     assert getattr(proto, "_is_runtime_protocol", False), f"{name} is not @runtime_checkable"
 
 
 def test_ctx_is_runtime_checkable() -> None:
+    # GIVEN the aggregate Ctx protocol
     from apollia.types import Ctx
 
+    # WHEN its runtime-protocol marker is read
+    # THEN the marker is set, so an agent can assert on the whole context
     assert getattr(Ctx, "_is_runtime_protocol", False)
 
 
@@ -130,23 +147,34 @@ class _IncompleteCtxMock:
 
 
 def test_complete_mock_satisfies_ctx() -> None:
+    # GIVEN an object exposing every Ctx attribute
     from apollia.types import Ctx
 
     mock = _CompleteCtxMock()
+
+    # WHEN it is checked against the protocol
+    # THEN it satisfies it, so duck typing is enough to be a context
     assert isinstance(mock, Ctx)
 
 
 def test_incomplete_mock_does_not_satisfy_ctx() -> None:
     """An object missing a required attribute fails ``isinstance(Ctx)``."""
+    # GIVEN an object missing the llm attribute
     from apollia.types import Ctx
 
     mock = _IncompleteCtxMock()
+
+    # WHEN it is checked against the protocol
+    # THEN it fails, so a partial context is not silently accepted
     assert not isinstance(mock, Ctx)
 
 
 def test_unrelated_object_not_ctx() -> None:
+    # GIVEN objects that expose none of the Ctx attributes
     from apollia.types import Ctx
 
+    # WHEN each is checked against the protocol
+    # THEN none satisfies it
     assert not isinstance(object(), Ctx)
     assert not isinstance("hello", Ctx)
     assert not isinstance(42, Ctx)
@@ -160,8 +188,11 @@ def test_unrelated_object_not_ctx() -> None:
 def test_logger_is_stdlib_logger() -> None:
     import logging
 
+    # GIVEN the Logger name exported by the context package
     from apollia.context.logger import Logger
 
+    # WHEN it is compared with the stdlib class
+    # THEN it is the same class, not a protocol standing in for it
     assert Logger is logging.Logger
 
 
@@ -171,6 +202,7 @@ def test_logger_is_stdlib_logger() -> None:
 
 
 def test_memory_protocol_has_expected_methods() -> None:
+    # GIVEN the memory sub-protocol and the method set the SDK documents
     from apollia.context.memory import MemoryInterface
 
     expected = {
@@ -186,15 +218,23 @@ def test_memory_protocol_has_expected_methods() -> None:
         "export",
         "import_data",
     }
+
+    # WHEN the protocol members are listed
     members = set(dir(MemoryInterface))
     missing = expected - members
+
+    # THEN none of the documented methods is absent
     assert not missing, f"MemoryInterface missing: {missing}"
 
 
 def test_a2a_protocol_has_invoke_discover_list() -> None:
+    # GIVEN the A2A sub-protocol
     from apollia.context.a2a import A2AInterface
 
+    # WHEN its members are listed
     members = set(dir(A2AInterface))
+
+    # THEN the four documented entry points are all present
     assert "invoke" in members
     assert "discover" in members
     assert "list_skills" in members

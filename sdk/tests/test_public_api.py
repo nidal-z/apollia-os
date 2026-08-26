@@ -4,6 +4,9 @@ from __future__ import annotations
 
 
 def test_top_level_decorators_importable() -> None:
+    # GIVEN the package root
+    # WHEN the four decorators are read from it
+    # THEN each is callable, so none is a placeholder or a module
     import apollia
 
     assert callable(apollia.agent)
@@ -13,6 +16,9 @@ def test_top_level_decorators_importable() -> None:
 
 
 def test_exceptions_re_exported() -> None:
+    # GIVEN the error types re-exported from the package root
+    # WHEN each ancestry is inspected
+    # THEN all of them are rooted at AgentError
     from apollia import (
         AgentConfigError,
         AgentError,
@@ -33,6 +39,9 @@ def test_exceptions_re_exported() -> None:
 
 
 def test_version_is_string() -> None:
+    # GIVEN the package root
+    # WHEN its version is read
+    # THEN it is a string on the 0.1.0 line, not a tuple or an int
     import apollia
 
     assert isinstance(apollia.__version__, str)
@@ -98,6 +107,9 @@ def test_all_is_exactly_the_published_surface() -> None:
 
 def test_legacy_top_level_imports_removed() -> None:
     """Old public API is no longer re-exported from ``apollia.__init__``."""
+    # GIVEN the package root after the decorator-first migration
+    # WHEN the names of the old class-based API are looked up
+    # THEN none of them is published, so the legacy surface is really gone
     import apollia
 
     # The old API was: from apollia import WorkerAgent, BaseReActAgent, ...
@@ -114,6 +126,9 @@ def test_legacy_top_level_imports_removed() -> None:
 
 def test_ctx_message_and_vision_helpers_top_level_import() -> None:
     """The Ctx surface and vision helpers are reachable from ``apollia``."""
+    # GIVEN the package root
+    # WHEN the Ctx surface and the vision helpers are imported from it
+    # THEN the types resolve and the helpers are callable
     from apollia import (
         Ctx,
         ImageContent,

@@ -31,6 +31,9 @@ class TestNameConversions:
         ],
     )
     def test_to_class_name(self, input_name: str, expected: str) -> None:
+        # GIVEN an agent name in one of the accepted spellings
+        # WHEN it is converted to a class name
+        # THEN it becomes PascalCase with the Agent suffix, added only once
         assert to_class_name(input_name) == expected
 
     @pytest.mark.parametrize(
@@ -42,6 +45,9 @@ class TestNameConversions:
         ],
     )
     def test_to_module_name(self, input_name: str, expected: str) -> None:
+        # GIVEN an agent name in kebab-case or already snake_case
+        # WHEN it is converted to a module name
+        # THEN it becomes snake_case, importable as written
         assert to_module_name(input_name) == expected
 
 
@@ -49,12 +55,15 @@ class TestScaffoldAgent:
     """Verify file generation for each agent type."""
 
     def test_scaffold_react_agent(self, tmp_path: str) -> None:
+        # GIVEN a fresh target directory and the react agent type
+        # WHEN the agent is scaffolded there
         agent_path, test_path = scaffold_agent(
             "hello",
             agent_type="react",
             output_dir=str(tmp_path),
         )
 
+        # THEN both files land under their expected names and carry the decorator API
         assert os.path.isfile(agent_path)
         assert os.path.isfile(test_path)
         assert os.path.basename(agent_path) == "hello_agent.py"
@@ -73,12 +82,15 @@ class TestScaffoldAgent:
         assert "from apollia.testing import mock" in test_src
 
     def test_scaffold_conversational_agent(self, tmp_path: str) -> None:
+        # GIVEN a fresh target directory and the conversational agent type
+        # WHEN the agent is scaffolded there
         agent_path, _test_path = scaffold_agent(
             "chat-bot",
             agent_type="conversational",
             output_dir=str(tmp_path),
         )
 
+        # THEN the generated class carries an @on_message handler and its own name
         assert os.path.isfile(agent_path)
         assert os.path.basename(agent_path) == "chat_bot_agent.py"
 
@@ -88,39 +100,53 @@ class TestScaffoldAgent:
         assert 'name="chat-bot"' in agent_src
 
     def test_scaffold_orchestrated_agent(self, tmp_path: str) -> None:
+        # GIVEN a fresh target directory and the orchestrated agent type
+        # WHEN the agent is scaffolded there
         agent_path, _test_path = scaffold_agent(
             "planner",
             agent_type="orchestrated",
             output_dir=str(tmp_path),
         )
 
+        # THEN the generated class carries a system prompt and the plan callback
         agent_src = Path(agent_path).read_text(encoding="utf-8")
         assert "class PlannerAgent:" in agent_src
         assert "@orchestrated(system_prompt=" in agent_src
         assert "on_plan_complete" in agent_src
 
     def test_scaffold_invalid_type_raises(self, tmp_path: str) -> None:
+        # GIVEN an agent type outside the accepted set
+        # WHEN the agent is scaffolded
+        # THEN it is refused and the message names the offending type
         with pytest.raises(ValueError, match="Invalid agent type 'invalid'"):
             scaffold_agent("test", agent_type="invalid", output_dir=str(tmp_path))
 
     def test_scaffold_file_exists_raises(self, tmp_path: str) -> None:
+        # GIVEN a directory where that agent was already scaffolded once
         scaffold_agent("dup", agent_type="react", output_dir=str(tmp_path))
 
+        # WHEN the same name is scaffolded again
+        # THEN it refuses rather than overwriting the author's file
         with pytest.raises(FileExistsError, match="already exists"):
             scaffold_agent("dup", agent_type="react", output_dir=str(tmp_path))
 
     def test_scaffold_creates_output_dir(self, tmp_path: str) -> None:
+        # GIVEN an output directory two levels deep that does not exist
         nested = os.path.join(str(tmp_path), "sub", "dir")
+        # WHEN the agent is scaffolded there
         agent_path, _test_path = scaffold_agent(
             "nested",
             agent_type="react",
             output_dir=nested,
         )
+        # THEN the tree is created and the file lands in it
         assert os.path.isfile(agent_path)
 
     def test_generated_agent_is_valid_python(self, tmp_path: str) -> None:
+        # GIVEN each of the three in-place agent types
         for agent_type in ("react", "conversational", "orchestrated"):
             sub = os.path.join(str(tmp_path), agent_type)
+            # WHEN each is scaffolded and both generated files are compiled
             agent_path, test_path = scaffold_agent(
                 f"check-{agent_type}",
                 agent_type=agent_type,
@@ -128,6 +154,7 @@ class TestScaffoldAgent:
             )
             agent_src = Path(agent_path).read_text(encoding="utf-8")
             test_src = Path(test_path).read_text(encoding="utf-8")
+            # THEN neither file has a syntax error
             compile(agent_src, agent_path, "exec")
             compile(test_src, test_path, "exec")
 
@@ -137,12 +164,15 @@ class TestScaffoldWorkerAgent:
 
     def test_scaffold_worker_creates_files(self, tmp_path: str) -> None:
         """The scaffolding creates agent and test files at the expected paths."""
+        # GIVEN a fresh target directory and the worker agent type
+        # WHEN the agent is scaffolded there
         agent_path, test_path = scaffold_agent(
             "test-worker",
             agent_type="worker",
             output_dir=str(tmp_path),
         )
 
+        # THEN the two files land at the worker layout's own paths
         assert os.path.isfile(agent_path)
         assert os.path.isfile(test_path)
 
@@ -155,6 +185,8 @@ class TestScaffoldWorkerAgent:
 
     def test_scaffold_worker_agent_content(self, tmp_path: str) -> None:
         """Generated agent file contains the canonical decorator constructs."""
+        # GIVEN a fresh target directory and the worker agent type
+        # WHEN the agent is scaffolded and its source is read
         agent_path, _ = scaffold_agent(
             "test-worker",
             agent_type="worker",
@@ -162,6 +194,7 @@ class TestScaffoldWorkerAgent:
         )
         src = Path(agent_path).read_text(encoding="utf-8")
 
+        # THEN it carries the decorator constructs and no legacy instantiation trailer
         assert "from apollia import DomainError, agent, skill" in src
         assert "@agent(" in src
         assert "class TestWorkerAgent:" in src
@@ -181,12 +214,15 @@ class TestScaffoldWorkerAgent:
         in the `apollia` runtime which expects a real PyO3 context. The
         compile + structural checks above are sufficient at scaffold time.
         """
+        # GIVEN a scaffolded worker agent
         agent_path, _ = scaffold_agent(
             "test-worker",
             agent_type="worker",
             output_dir=str(tmp_path),
         )
+        # WHEN its source is compiled
         src = Path(agent_path).read_text(encoding="utf-8")
+        # THEN it has no syntax error
         compile(src, agent_path, "exec")
 
     def test_scaffold_worker_generated_files_are_valid_python(
@@ -194,12 +230,15 @@ class TestScaffoldWorkerAgent:
         tmp_path: str,
     ) -> None:
         """Both generated files are syntactically valid Python."""
+        # GIVEN a scaffolded worker agent and its generated test
         agent_path, test_path = scaffold_agent(
             "my-domain",
             agent_type="worker",
             output_dir=str(tmp_path),
         )
+        # WHEN both sources are compiled
         compile(Path(agent_path).read_text(encoding="utf-8"), agent_path, "exec")
+        # THEN neither has a syntax error
         compile(Path(test_path).read_text(encoding="utf-8"), test_path, "exec")
 
 

@@ -223,7 +223,11 @@ def test_build_tools_block_from_ctx_synthesises_example_for_required_only() -> N
 def test_build_tools_block_from_ctx_handles_edge_cases(tool_names: list[str]) -> None:
     # GIVEN edge inputs (empty list / unknown tool with empty registry)
     ctx = _StubCtx(tools=_StubToolProxy({}))
+
+    # WHEN we build the block
     block = asyncio.run(build_tools_block_from_ctx(ctx, tool_names))
+
+    # THEN each edge renders its own sentinel rather than an empty string
     if not tool_names:
         assert "No tools are available" in block
     else:
