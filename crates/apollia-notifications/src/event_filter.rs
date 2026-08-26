@@ -50,7 +50,8 @@ pub fn warn_unknown_events(events: &[String]) {
         if !KNOWN_EVENT_NAMES.contains(&event.as_str()) {
             tracing::warn!(
                 event = %event,
-                "notification config: unknown event name - it will never fire"
+                detail = "the rule will never fire",
+                "notification.event.unknown"
             );
         }
     }

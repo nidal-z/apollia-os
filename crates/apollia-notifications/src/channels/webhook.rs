@@ -351,7 +351,7 @@ impl NotificationChannel for WebhookChannel {
 
         if let Some(secret) = &self.config.signing_secret {
             let signature = compute_signature(secret, &body_bytes);
-            tracing::debug!(channel = %self.config.id, "webhook request signed with HMAC-SHA256");
+            tracing::debug!(channel = %self.config.id, "notification.webhook.signed");
             builder = builder.header("X-Apollia-Signature", signature);
         }
 

@@ -85,7 +85,8 @@ impl NotificationChannel for DesktopChannel {
         if std::env::var("DISPLAY").is_err() && std::env::var("DBUS_SESSION_BUS_ADDRESS").is_err() {
             tracing::debug!(
                 event = %notif.event,
-                "DesktopChannel : pas de display/D-Bus - notification ignorée (CI headless)"
+                reason = "no display and no D-Bus session on this host",
+                "notification.desktop.skipped"
             );
             return Ok(());
         }
@@ -192,7 +193,7 @@ fn show_or_warn(os_notif: &OsNotif) -> Option<notify_rust::NotificationHandle> {
         Err(err) => {
             tracing::warn!(
                 error = %err,
-                "DesktopChannel : affichage de notification OS impossible"
+                "notification.desktop.show.failed"
             );
             None
         }
@@ -226,7 +227,7 @@ fn show_os_notification_xdg_hitl(params: &OsNotifParams, urgency: notify_rust::U
                 tracing::warn!(
                     error = %err,
                     inspect_url = %inspect_url,
-                    "DesktopChannel : ouverture du browser impossible"
+                    "notification.desktop.browser.open.failed"
                 );
             }
         }
@@ -251,7 +252,7 @@ fn post_resume_decision(resume_url: &str, approved: bool) {
             error = %err,
             resume_url = %resume_url,
             action = label,
-            "DesktopChannel resume POST failed"
+            "notification.desktop.resume.post.failed"
         );
     }
 }
@@ -276,7 +277,7 @@ fn show_os_notification_xdg_plain(params: &OsNotifParams, urgency: notify_rust::
             if let Err(err) = open::that(&dashboard_url) {
                 tracing::warn!(
                     error = %err,
-                    "DesktopChannel : ouverture du dashboard impossible"
+                    "notification.desktop.dashboard.open.failed"
                 );
             }
         }
@@ -306,13 +307,13 @@ fn show_os_notification_macos(summary: String, body: String) {
             let stderr = String::from_utf8_lossy(&out.stderr);
             tracing::warn!(
                 stderr = %stderr,
-                "DesktopChannel : osascript retourné non-zéro"
+                "notification.desktop.osascript.failed"
             );
         }
         Err(err) => {
             tracing::warn!(
                 error = %err,
-                "DesktopChannel : impossible de lancer osascript"
+                "notification.desktop.osascript.spawn.failed"
             );
         }
     }
@@ -327,7 +328,7 @@ fn show_os_notification_fallback(summary: String, body: String) {
     if let Err(err) = os_notif.show() {
         tracing::warn!(
             error = %err,
-            "DesktopChannel : affichage de notification OS impossible"
+            "notification.desktop.show.failed"
         );
     }
 }

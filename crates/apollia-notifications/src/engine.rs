@@ -426,7 +426,7 @@ async fn run_engine_loop(state: EngineLoopState) {
                         throttle.retain(|(channel_id, _), _| {
                             config.channels.iter().any(|c| &c.id == channel_id)
                         });
-                        tracing::info!(channels = count, "NotificationEngine : configuration rechargée");
+                        tracing::info!(channels = count, "notification.config.reloaded");
                     }
                     Some(NotifEngineCommand::Publish { notification }) => {
                         let channel_results = dispatch_with_throttle(
@@ -446,7 +446,7 @@ async fn run_engine_loop(state: EngineLoopState) {
                         }
                     }
                     Some(NotifEngineCommand::Shutdown) | None => {
-                        tracing::info!("NotificationEngine : signal d'arrêt reçu - arrêt propre");
+                        tracing::info!("notification.engine.stopped");
                         break;
                     }
                 }
@@ -566,7 +566,8 @@ async fn dispatch_with_throttle(
                 tracing::debug!(
                     channel_id = channel.id(),
                     event = %notif.event,
-                    "Notification throttled - sera incluse dans le prochain récap"
+                    detail = "the notification joins the next digest",
+                    "notification.throttled"
                 );
             }
         }
@@ -591,7 +592,8 @@ async fn send_to_channel(
                 channel_id = channel.id(),
                 error = %err,
                 event = %notif.event,
-                "Canal de notification en erreur - dispatch continue"
+                detail = "the dispatch continues on the other channels",
+                "notification.channel.failed"
             );
             results.insert(channel.id().to_string(), Some(err.to_string()));
         }
@@ -733,7 +735,8 @@ async fn dispatch_notif(
                         channel_id = channel.id(),
                         error = %err,
                         event = %notif.event,
-                        "Canal de notification en erreur - dispatch continue"
+                        detail = "the dispatch continues on the other channels",
+                        "notification.channel.failed"
                     );
                     results.insert(channel.id().to_string(), Some(err.to_string()));
                 }
@@ -756,7 +759,7 @@ fn write_notification_log(
     let conn = match rusqlite::Connection::open(db_path) {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!(error = %e, "notification_logs : impossible d'ouvrir la base");
+            tracing::warn!(error = %e, "notification.logs.open.failed");
             return;
         }
     };
@@ -765,7 +768,7 @@ fn write_notification_log(
     // `PRAGMA user_version`) is owned by `apollia_tools::hitl_schema`; going
     // through it also refuses a database written by a newer binary.
     if let Err(e) = apollia_tools::hitl_schema::open_hitl_schema(&conn) {
-        tracing::warn!(error = %e, "notification_logs : migration échouée");
+        tracing::warn!(error = %e, "notification.logs.migration.failed");
         return;
     }
 
@@ -803,7 +806,7 @@ fn write_notification_log(
             global_error,
         ],
     ) {
-        tracing::warn!(error = %e, "notification_logs : INSERT échoué");
+        tracing::warn!(error = %e, "notification.logs.insert.failed");
     }
 }
 
