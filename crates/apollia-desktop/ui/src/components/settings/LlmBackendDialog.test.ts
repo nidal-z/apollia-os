@@ -13,7 +13,7 @@ import {
   credentialExposureWarning,
   PROVIDER_DEFAULT_ENDPOINT,
   type BackendFormState,
-} from "./LlmBackendDialog.svelte";
+} from "./llmBackendForm";
 
 function baseForm(overrides: Partial<BackendFormState> = {}): BackendFormState {
   return {
