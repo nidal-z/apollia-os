@@ -99,7 +99,7 @@ impl<'a> PlanChoiceStore<'a> {
             session_id = %choice.session_id,
             chosen = choice.chosen.as_db_str(),
             row_id = row_id,
-            "plan choice logged"
+            "memory.plan_choice.logged"
         );
 
         Ok(row_id)

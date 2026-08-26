@@ -115,7 +115,7 @@ impl<'a> EpisodicMemory<'a> {
             namespace = %namespace,
             agent_id = %agent_id,
             importance = importance,
-            "episode recorded"
+            "memory.episodic.recorded"
         );
 
         self.enforce_limit(namespace, DEFAULT_MAX_ENTRIES_PER_NAMESPACE)?;
@@ -174,7 +174,8 @@ impl<'a> EpisodicMemory<'a> {
             namespace = %namespace,
             evicted = evicted,
             max_entries = max_entries,
-            "episodic entries evicted to enforce namespace limit"
+            reason = "the namespace limit is reached",
+            "memory.episodic.evicted"
         );
 
         Ok(evicted as u64)
@@ -276,7 +277,7 @@ impl<'a> EpisodicMemory<'a> {
             tracing::info!(
                 namespace = %namespace,
                 purged = purged,
-                "expired episodes purged"
+                "memory.episodic.expired.purged"
             );
         }
 
@@ -314,7 +315,8 @@ impl<'a> EpisodicMemory<'a> {
                 namespace = %namespace,
                 days = days,
                 deleted = deleted,
-                "episodic entries purged by age"
+                reason = "age",
+                "memory.episodic.purged"
             );
         }
 

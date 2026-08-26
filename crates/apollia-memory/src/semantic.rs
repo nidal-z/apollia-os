@@ -155,7 +155,7 @@ impl<'a> SemanticMemory<'a> {
                     entry_id = %existing,
                     namespace = %namespace,
                     key = %key,
-                    "semantic knowledge updated"
+                    "memory.semantic.updated"
                 );
 
                 existing
@@ -181,7 +181,7 @@ impl<'a> SemanticMemory<'a> {
                     entry_id = %new_id,
                     namespace = %namespace,
                     key = %key,
-                    "semantic knowledge stored"
+                    "memory.semantic.stored"
                 );
 
                 self.enforce_limit(namespace, DEFAULT_MAX_ENTRIES_PER_NAMESPACE)?;
@@ -244,7 +244,8 @@ impl<'a> SemanticMemory<'a> {
             namespace = %namespace,
             evicted = evicted,
             max_entries = max_entries,
-            "semantic entries evicted to enforce namespace limit"
+            reason = "the namespace limit is reached",
+            "memory.semantic.evicted"
         );
 
         Ok(evicted as u64)
@@ -422,7 +423,7 @@ impl<'a> SemanticMemory<'a> {
                 entry_id = %id,
                 namespace = %namespace,
                 key = %key,
-                "semantic knowledge forgotten"
+                "memory.semantic.forgotten"
             );
         }
 
@@ -457,7 +458,7 @@ impl<'a> SemanticMemory<'a> {
             tracing::info!(
                 namespace = %namespace,
                 purged = purged,
-                "expired semantic memories purged"
+                "memory.semantic.expired.purged"
             );
         }
 
@@ -495,7 +496,8 @@ impl<'a> SemanticMemory<'a> {
                 namespace = %namespace,
                 days = days,
                 deleted = deleted,
-                "semantic entries purged by age"
+                reason = "age",
+                "memory.semantic.purged"
             );
         }
 

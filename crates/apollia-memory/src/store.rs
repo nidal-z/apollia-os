@@ -164,7 +164,7 @@ impl MemoryStore {
         tracing::info!(
             path = %path.display(),
             schema_version = SCHEMA_VERSION,
-            "memory store opened"
+            "memory.store.opened"
         );
 
         Ok(Self { conn })
@@ -339,7 +339,7 @@ impl MemoryStore {
             conn.execute("UPDATE _schema_version SET version = ?1", [SCHEMA_VERSION])?;
         }
 
-        tracing::info!(version = SCHEMA_VERSION, "schema migrated");
+        tracing::info!(version = SCHEMA_VERSION, "memory.schema.migrated");
         Ok(())
     }
 
@@ -368,7 +368,8 @@ impl MemoryStore {
 
         tracing::info!(
             version = 2,
-            "schema migrated to v2: plan_choices table added"
+            detail = "v2 adds the plan_choices table",
+            "memory.schema.migrated"
         );
         Ok(())
     }

@@ -111,7 +111,7 @@ impl<'a> ProceduralMemory<'a> {
                     namespace = %namespace,
                     trigger = %trigger,
                     success_count = count + 1,
-                    "procedure reinforced"
+                    "memory.procedure.reinforced"
                 );
 
                 existing_id
@@ -130,7 +130,7 @@ impl<'a> ProceduralMemory<'a> {
                     procedure_id = %new_id,
                     namespace = %namespace,
                     trigger = %trigger,
-                    "procedure learned"
+                    "memory.procedure.learned"
                 );
 
                 self.enforce_limit(namespace, DEFAULT_MAX_ENTRIES_PER_NAMESPACE)?;
@@ -186,7 +186,8 @@ impl<'a> ProceduralMemory<'a> {
             namespace = %namespace,
             evicted = evicted,
             max_entries = max_entries,
-            "procedural entries evicted to enforce namespace limit"
+            reason = "the namespace limit is reached",
+            "memory.procedural.evicted"
         );
 
         Ok(evicted as u64)
@@ -282,7 +283,8 @@ impl<'a> ProceduralMemory<'a> {
                 namespace = %namespace,
                 days = days,
                 deleted = deleted,
-                "procedural entries purged by age"
+                reason = "age",
+                "memory.procedural.purged"
             );
         }
 

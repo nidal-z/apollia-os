@@ -114,7 +114,7 @@ impl FileTimestampCache {
         )
         .map_err(|e| FileTimestampCacheError::OpenFailed(e.to_string()))?;
 
-        tracing::debug!(path = %db_path.display(), "file timestamp cache opened");
+        tracing::debug!(path = %db_path.display(), "memory.file_timestamp.cache.opened");
 
         Ok(Self { db, event_tx })
     }
@@ -141,7 +141,7 @@ impl FileTimestampCache {
                     path = %path.display(),
                     old_mtime_ms = entry.mtime_ms,
                     new_mtime_ms = new_mtime_ms,
-                    "file modified since last read"
+                    "memory.file_timestamp.stale"
                 );
                 self.event_tx
                     .send(RuntimeEvent::FileModifiedSinceRead {
@@ -211,7 +211,11 @@ impl FileTimestampCache {
                     rusqlite::params![path_str],
                 )?;
                 removed += 1;
-                tracing::debug!(path = %path_str, "pruned deleted file from timestamp cache");
+                tracing::debug!(
+                    path = %path_str,
+                    reason = "the file no longer exists",
+                    "memory.file_timestamp.pruned"
+                );
             }
         }
 

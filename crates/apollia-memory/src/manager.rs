@@ -212,7 +212,7 @@ impl MemoryManager {
                 namespace = %namespace,
                 episodic_purged = ep_purged,
                 semantic_purged = sem_purged,
-                "expired memories purged"
+                "memory.expired.purged"
             );
         }
 
@@ -241,11 +241,11 @@ impl MemoryManager {
         match self.purge_expired() {
             Ok(count) => {
                 if count > 0 {
-                    tracing::info!(purged = count, "automatic TTL purge completed");
+                    tracing::info!(purged = count, "memory.ttl.purge.completed");
                 }
             }
             Err(err) => {
-                tracing::warn!(error = %err, "automatic TTL purge failed");
+                tracing::warn!(error = %err, "memory.ttl.purge.failed");
             }
         }
     }
@@ -297,7 +297,7 @@ impl MemoryManager {
                 episodic = report.episodic_deleted,
                 semantic = report.semantic_deleted,
                 procedural = report.procedural_deleted,
-                "configurable purge completed"
+                "memory.configured.purge.completed"
             );
         }
 
@@ -325,11 +325,11 @@ impl MemoryManager {
                     episodic = report.episodic_deleted,
                     semantic = report.semantic_deleted,
                     procedural = report.procedural_deleted,
-                    "auto purge completed"
+                    "memory.auto.purge.completed"
                 );
             }
             Err(err) => {
-                tracing::warn!(error = %err, namespace = %namespace, "auto purge failed");
+                tracing::warn!(error = %err, namespace = %namespace, "memory.auto.purge.failed");
             }
         }
     }
@@ -368,7 +368,7 @@ impl MemoryManager {
         tracing::info!(
             namespace = %namespace,
             path = %path.display(),
-            "namespace store opened"
+            "memory.namespace.store.opened"
         );
 
         Ok(())
