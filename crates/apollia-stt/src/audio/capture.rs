@@ -98,7 +98,8 @@ impl AudioCapture {
                     None => {
                         tracing::warn!(
                             requested = %name,
-                            "configured audio input device not found, falling back to default"
+                            detail = "falling back to the default input device",
+                            "stt.device.missing"
                         );
                         host.default_input_device().ok_or(SttError::NoInputDevice)?
                     }
@@ -169,7 +170,7 @@ impl AudioCapture {
         };
 
         let err_fn = |err: cpal::StreamError| {
-            tracing::error!(error = %err, "audio capture stream error");
+            tracing::error!(error = %err, "stt.capture.stream.error");
         };
 
         let stream = match self.sample_format {

@@ -24,6 +24,6 @@ pub fn init() {
 
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
-        "apollia-runner logger initialized"
+        "runner.logger.initialized"
     );
 }

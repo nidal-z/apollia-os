@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let port = listener.local_addr()?.port();
 
-    tracing::info!(port, "apollia-runner bound to loopback");
+    tracing::info!(port, "runner.bound");
 
     // 3. Set up the shutdown channel.
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -39,10 +39,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let combined_shutdown = async move {
         tokio::select! {
             _ = signals::shutdown_signal() => {
-                tracing::info!("external shutdown signal received");
+                tracing::info!(reason = "external signal", "runner.shutdown.requested");
             }
             _ = shutdown_rx => {
-                tracing::info!("internal shutdown signal received (/shutdown endpoint)");
+                tracing::info!(reason = "the /shutdown endpoint", "runner.shutdown.requested");
             }
         }
     };
@@ -52,6 +52,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_graceful_shutdown(combined_shutdown)
         .await?;
 
-    tracing::info!("apollia-runner exited cleanly");
+    tracing::info!("runner.exited");
     Ok(())
 }

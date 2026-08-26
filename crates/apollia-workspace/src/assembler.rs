@@ -119,7 +119,11 @@ impl ProjectRuntime {
                     let path = match &entry.path {
                         Some(p) => p.clone(),
                         None => {
-                            tracing::warn!(name = %entry.name, "script provider missing path - ignored");
+                            tracing::warn!(
+                                name = %entry.name,
+                                reason = "the script provider declares no path",
+                                "workspace.provider.ignored"
+                            );
                             continue;
                         }
                     };
@@ -137,7 +141,12 @@ impl ProjectRuntime {
                     )));
                 }
                 other => {
-                    tracing::warn!(name = %entry.name, provider_type = %other, "unknown provider type - ignored");
+                    tracing::warn!(
+                        name = %entry.name,
+                        provider_type = %other,
+                        reason = "unknown provider type",
+                        "workspace.provider.ignored"
+                    );
                 }
             }
         }
@@ -160,7 +169,7 @@ impl ProjectRuntime {
                     tracing::debug!(
                         elapsed_ms = collected_at.elapsed().as_millis(),
                         ttl_secs = self.config.context_ttl_secs,
-                        "workspace cache hit"
+                        "workspace.cache.hit"
                     );
                     return snapshot.clone();
                 }
@@ -184,7 +193,7 @@ impl ProjectRuntime {
                             tracing::warn!(
                                 provider = %provider_name,
                                 timeout_secs = provider_timeout.as_secs(),
-                                "provider timed out"
+                                "workspace.provider.timeout"
                             );
                             WorkspaceSlice::with_error(
                                 &provider_name,
@@ -205,7 +214,7 @@ impl ProjectRuntime {
         // Log provider errors
         for slice in &slices {
             for err in &slice.errors {
-                tracing::warn!(provider = %slice.source, error = %err, "provider error");
+                tracing::warn!(provider = %slice.source, error = %err, "workspace.provider.failed");
             }
         }
 

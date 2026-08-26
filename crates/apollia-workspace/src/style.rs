@@ -74,7 +74,11 @@ impl StyleDetector {
         let backend = match llm_router.route_fast() {
             Ok(b) => b,
             Err(e) => {
-                tracing::debug!(error = %e, "route_fast unavailable for style detection");
+                tracing::debug!(
+                    error = %e,
+                    reason = "no fast route is available",
+                    "workspace.style.detection.skipped"
+                );
                 return None;
             }
         };
@@ -100,11 +104,11 @@ impl StyleDetector {
                 }
             }
             Ok(Err(e)) => {
-                tracing::debug!(error = %e, "style detection LLM error");
+                tracing::debug!(error = %e, "workspace.style.detection.failed");
                 None
             }
             Err(_elapsed) => {
-                tracing::debug!("style detection timeout");
+                tracing::debug!("workspace.style.detection.timeout");
                 None
             }
         }

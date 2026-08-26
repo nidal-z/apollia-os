@@ -73,12 +73,6 @@ KINDS = ("label", "sentence", "format_string", "no_message")
 # until the number follows it down, and an entry whose crate reaches zero
 # leaves. Measured on 2026-08-26.
 ALLOWED: dict[str, int] = {
-    "apollia-auth": 3,
-    "apollia-core": 1,
-    "apollia-permissions": 4,
-    "apollia-runner": 10,
-    "apollia-stt": 5,
-    "apollia-workspace": 8,
 }
 
 

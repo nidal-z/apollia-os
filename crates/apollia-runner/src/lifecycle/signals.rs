@@ -45,8 +45,8 @@ pub async fn shutdown_signal() {
         let mut sigint = install(SignalKind::interrupt(), "SIGINT");
 
         tokio::select! {
-            () = next(&mut sigterm) => tracing::info!("SIGTERM received, shutting down"),
-            () = next(&mut sigint) => tracing::info!("SIGINT received, shutting down"),
+            () = next(&mut sigterm) => tracing::info!(reason = "SIGTERM", "runner.signal.received"),
+            () = next(&mut sigint) => tracing::info!(reason = "SIGINT", "runner.signal.received"),
         }
     }
 
@@ -86,8 +86,12 @@ pub async fn shutdown_signal() {
             .ok();
 
         tokio::select! {
-            () = next_ctrl_c(&mut ctrl_c_stream) => tracing::info!("Ctrl-C received, shutting down"),
-            () = next_ctrl_break(&mut ctrl_break_stream) => tracing::info!("Ctrl-Break received, shutting down"),
+            () = next_ctrl_c(&mut ctrl_c_stream) => {
+                tracing::info!(reason = "Ctrl-C", "runner.signal.received")
+            }
+            () = next_ctrl_break(&mut ctrl_break_stream) => {
+                tracing::info!(reason = "Ctrl-Break", "runner.signal.received")
+            }
         }
     }
 }

@@ -97,7 +97,7 @@ impl SttRepository {
         tracing::info!(
             path = %path.display(),
             schema_version = SCHEMA_VERSION,
-            "stt repository opened"
+            "stt.repository.opened"
         );
 
         Ok(Self { conn })
@@ -141,7 +141,7 @@ impl SttRepository {
                 reason: format!("failed to retrieve inserted id: {e}"),
             })?;
 
-        tracing::info!(transcript_id = %id, source = %source, "transcription persisted");
+        tracing::info!(transcript_id = %id, source = %source, "stt.transcription.persisted");
 
         Ok(id)
     }
@@ -343,7 +343,7 @@ impl SttRepository {
             })?;
         }
 
-        tracing::info!(version = SCHEMA_VERSION, "stt schema migrated");
+        tracing::info!(version = SCHEMA_VERSION, "stt.schema.migrated");
 
         Ok(())
     }

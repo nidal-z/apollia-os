@@ -27,7 +27,10 @@ pub async fn handle(State(state): State<AppState>) -> Json<Response<ShutdownData
     let mut guard = state.shutdown_tx.lock().await;
     if let Some(tx) = guard.take() {
         let _ = tx.send(());
-        tracing::info!("shutdown requested via POST /shutdown");
+        tracing::info!(
+            reason = "the /shutdown endpoint",
+            "runner.shutdown.requested"
+        );
     }
 
     Json(Response::success_no_id(ShutdownData { exit_in_ms }))

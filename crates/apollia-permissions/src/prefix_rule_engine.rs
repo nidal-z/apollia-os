@@ -246,7 +246,7 @@ impl PrefixRuleEngine {
                 tracing::warn!(
                     rule_id = id,
                     tool = %tool_name,
-                    "expired prefix rule encountered - ignored"
+                    "permission.prefix_rule.expired.ignored"
                 );
                 continue;
             }
@@ -710,7 +710,7 @@ fn match_in_session(
                 tracing::warn!(
                     rule_id = r.id,
                     tool = %tool_name,
-                    "expired session rule encountered - ignored"
+                    "permission.session_rule.expired.ignored"
                 );
                 false
             } else {
@@ -779,7 +779,7 @@ fn scan_rows(
                 rule_id = id,
                 tool = %tool_name,
                 scope = %scope,
-                "expired prefix rule encountered - ignored"
+                "permission.prefix_rule.expired.ignored"
             );
             continue;
         }
@@ -791,7 +791,7 @@ fn scan_rows(
                 rule_id = id,
                 scope = %scope,
                 action = ?action,
-                "prefix rule matched"
+                "permission.prefix_rule.matched"
             );
             return Ok(Some((id, action)));
         }

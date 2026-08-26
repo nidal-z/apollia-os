@@ -65,7 +65,8 @@ impl SecretStore for KeyringSecretStore {
                     service = %service,
                     user = %user,
                     error = %e,
-                    "keyring: pre-write delete failed; falling back to in-place update"
+                    detail = "falling back to an in-place update",
+                    "secret.keyring.delete.failed"
                 );
             }
         }

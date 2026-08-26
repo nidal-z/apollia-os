@@ -244,7 +244,7 @@ pub async fn negotiate_token(
         client_id = %client_id,
         scopes = ?scopes,
         authorize_url = %authorize_url,
-        "MCP OAuth: opening browser at authorize URL"
+        "mcp.oauth.browser.opening"
     );
     open_browser(&authorize_url)?;
     let code = wait_for_callback(listener, &state)
@@ -440,7 +440,8 @@ async fn resolve_client_id(
             // or contact the AS support to enable DCR for their workspace.
             tracing::warn!(
                 error = %e,
-                "DCR failed - pre-registration likely required at the AS developer portal"
+                detail = "pre-registration at the authorization server portal is likely required",
+                "mcp.oauth.dcr.failed"
             );
             e.into()
         })

@@ -658,7 +658,7 @@ impl LlmBackendRepository {
         tracing::debug!(
             path = %toml_path.display(),
             count = blocks.len(),
-            "llm backends synced to apollia.toml"
+            "llm.backends.synced"
         );
         Ok(())
     }
