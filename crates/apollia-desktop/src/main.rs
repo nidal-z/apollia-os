@@ -584,21 +584,22 @@ fn main() {
         std::sync::OnceLock<Arc<std::sync::Mutex<apollia_oria::plan_cache::PlanCacheRepository>>>,
     > = Arc::new(std::sync::OnceLock::new());
 
-    let factory: Arc<dyn AgentBackendFactory> = Arc::new(backend::ProductionBackendFactory {
-        event_bus: event_bus_lock.clone(),
-        llm_router: llm_router_lock.clone(),
-        tool_registry: tool_registry_lock.clone(),
-        audit_trail: audit_trail_lock.clone(),
-        pending_approvals: pending_approvals_lock.clone(),
-        task_repository: task_repository_lock.clone(),
-        mcp_handle: mcp_handle_lock.clone(),
-        agent_registry: agent_registry_lock.clone(),
-        task_router: task_router_lock.clone(),
-        mailbox_handle: mailbox_handle_lock.clone(),
-        tools_config: tools_config_lock.clone(),
-        plan_gates: plan_gates_lock.clone(),
-        plan_cache: plan_cache_lock.clone(),
-    });
+    let factory: Arc<dyn AgentBackendFactory> =
+        Arc::new(backend::factory::ProductionBackendFactory {
+            event_bus: event_bus_lock.clone(),
+            llm_router: llm_router_lock.clone(),
+            tool_registry: tool_registry_lock.clone(),
+            audit_trail: audit_trail_lock.clone(),
+            pending_approvals: pending_approvals_lock.clone(),
+            task_repository: task_repository_lock.clone(),
+            mcp_handle: mcp_handle_lock.clone(),
+            agent_registry: agent_registry_lock.clone(),
+            task_router: task_router_lock.clone(),
+            mailbox_handle: mailbox_handle_lock.clone(),
+            tools_config: tools_config_lock.clone(),
+            plan_gates: plan_gates_lock.clone(),
+            plan_cache: plan_cache_lock.clone(),
+        });
 
     // Shared SttFlow state for push-to-talk IPC commands (`start_tour_recording`,
     // `stop_tour_recording`). Populated inside the Tauri setup closure once the
@@ -643,7 +644,7 @@ fn main() {
     let chat_agent_runner: Option<Arc<dyn apollia_runtime::chat::ChatAgentRunner>> = {
         let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         match apollia_tools::AgentRepository::open(&db_path) {
-            Ok(repo) => Some(Arc::new(backend::ProductionChatAgentRunner {
+            Ok(repo) => Some(Arc::new(backend::chat_runner::ProductionChatAgentRunner {
                 agent_repo: Arc::new(std::sync::Mutex::new(repo)),
                 event_bus: event_bus_lock.clone(),
                 llm_router: llm_router_lock.clone(),
