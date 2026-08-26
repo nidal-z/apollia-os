@@ -339,7 +339,7 @@ pub async fn governance_set_tool_enabled(
     registry
         .set_enabled(&tool_name, enabled)
         .map_err(|e| format!("failed to update tool: {e}"))?;
-    tracing::info!(tool = %tool_name, enabled, "operator updated tool enabled flag");
+    tracing::info!(tool = %tool_name, enabled, "tool.enabled.updated");
     Ok(())
 }
 
@@ -384,7 +384,7 @@ pub async fn governance_set_tool_config(
     registry
         .set_config(&tool_name, &config)
         .map_err(|e| format!("failed to write tool config: {e}"))?;
-    tracing::info!(tool = %tool_name, "operator updated tool config");
+    tracing::info!(tool = %tool_name, "tool.config.updated");
     Ok(())
 }
 
@@ -449,7 +449,7 @@ pub async fn governance_set_credential(
     store
         .set(&tool_name, &key_name, &value)
         .map_err(|e| format!("failed to store credential: {e}"))?;
-    tracing::info!(tool = %tool_name, key = %key_name, "credential stored");
+    tracing::info!(tool = %tool_name, key = %key_name, "tool.credential.stored");
     Ok(())
 }
 
@@ -471,7 +471,7 @@ pub async fn governance_delete_credential(
     store
         .delete(&tool_name, &key_name)
         .map_err(|e| format!("failed to delete credential: {e}"))?;
-    tracing::info!(tool = %tool_name, key = %key_name, "credential deleted");
+    tracing::info!(tool = %tool_name, key = %key_name, "tool.credential.deleted");
     Ok(())
 }
 
@@ -521,7 +521,7 @@ pub async fn governance_test_credential(
         let mut store_mut = ToolCredentialStore::new(&db_path, &keyfile_path_for(&base))
             .map_err(|e| format!("failed to reopen credential store: {e}"))?;
         if let Err(err) = store_mut.touch_last_used("web_search", "brave.api_key") {
-            tracing::warn!(error = %err, "failed to update last_used_at");
+            tracing::warn!(error = %err, "tool.credential.last_used.update.failed");
         }
     }
 
@@ -636,7 +636,7 @@ pub async fn governance_revoke_permission_rule(
     if !removed {
         return Err(format!("permission rule {rule_id} not found"));
     }
-    tracing::info!(rule_id, "persisted permission rule revoked");
+    tracing::info!(rule_id, "permission.rule.revoked");
     Ok(())
 }
 
@@ -673,7 +673,7 @@ pub async fn governance_revoke_all_rules(
         total = total.saturating_add(removed);
     }
 
-    tracing::info!(scope = ?scope, count = total, "permission rules revoked in bulk");
+    tracing::info!(scope = ?scope, count = total, "permission.rules.revoked");
     Ok(total)
 }
 

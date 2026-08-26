@@ -470,10 +470,10 @@ pub async fn reload_llm_from_db(
     )
     .await
     {
-        tracing::warn!(error = %e, "failed to rebuild runtime LLM router after reload");
+        tracing::warn!(error = %e, "llm.router.rebuild.failed");
     }
 
-    tracing::info!("LLM router reloaded from system.db");
+    tracing::info!("llm.router.reloaded");
     Ok(())
 }
 

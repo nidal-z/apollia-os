@@ -322,7 +322,7 @@ impl McpRegistryClient {
                         tracing::debug!(
                             age_secs = age.as_secs(),
                             servers = cached.len(),
-                            "returning fresh cache"
+                            "mcp.registry.cache.hit"
                         );
                         return Ok(Self::dedup_latest(cached));
                     }
@@ -333,14 +333,15 @@ impl McpRegistryClient {
         let servers = match self.fetch_from_network(search).await {
             Ok(servers) => {
                 if let Err(e) = self.write_cache(&servers) {
-                    tracing::warn!(error = %e, "failed to update MCP registry cache");
+                    tracing::warn!(error = %e, "mcp.registry.cache.update.failed");
                 }
                 servers
             }
             Err(network_err) => {
                 tracing::warn!(
                     error = %network_err,
-                    "MCP Registry unreachable - falling back to local cache"
+                    detail = "falling back to the local cache",
+                    "mcp.registry.unreachable"
                 );
                 self.read_cache()?
             }
@@ -448,7 +449,12 @@ impl McpRegistryClient {
                     return Err(RegistryClientError::HttpError(e));
                 }
                 PageFetch::Fatal(e) => {
-                    tracing::warn!(page, error = %e, "registry page fetch failed - stopping");
+                    tracing::warn!(
+                        page,
+                        error = %e,
+                        detail = "the pagination stops here",
+                        "mcp.registry.page.fetch.failed"
+                    );
                     break;
                 }
             };
@@ -485,7 +491,7 @@ impl McpRegistryClient {
         tracing::info!(
             servers = all_servers.len(),
             pages = page,
-            "MCP Registry fetch complete"
+            "mcp.registry.fetch.completed"
         );
 
         Ok(all_servers)
@@ -509,7 +515,8 @@ impl McpRegistryClient {
                 tracing::warn!(
                     page,
                     serde_error = %e,
-                    "registry page JSON parse failed - skipping to next page"
+                    detail = "skipping to the next page",
+                    "mcp.registry.page.parse.failed"
                 );
                 match extract_cursor_raw(body) {
                     Some(next) => PageParse::SkipTo {

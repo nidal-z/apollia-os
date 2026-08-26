@@ -99,7 +99,11 @@ fn setup_bundled_python() {
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
-            tracing::warn!(error = %e, "current_exe() failed - bundled Python skipped");
+            tracing::warn!(
+                error = %e,
+                detail = "the bundled Python is skipped",
+                "python.bundled.exe_path.failed"
+            );
             return;
         }
     };
@@ -132,14 +136,19 @@ fn setup_bundled_python() {
         Some(p) => match p.canonicalize() {
             Ok(abs) => abs,
             Err(e) => {
-                tracing::warn!(path = %p.display(), error = %e, "canonicalize() failed on bundled Python");
+                tracing::warn!(
+                    path = %p.display(),
+                    error = %e,
+                    "python.bundled.canonicalize.failed"
+                );
                 return;
             }
         },
         None => {
             tracing::warn!(
                 exe = %exe.display(),
-                "no bundled Python found adjacent to the executable - falling back to system Python"
+                detail = "falling back to the system Python",
+                "python.bundled.absent"
             );
             return;
         }
@@ -191,7 +200,7 @@ fn setup_bundled_python() {
         entries.extend(std::env::split_paths(&existing));
         match std::env::join_paths(entries) {
             Ok(joined) => std::env::set_var("PATH", joined),
-            Err(e) => tracing::warn!(error = %e, "could not prepend the bundled Python to PATH"),
+            Err(e) => tracing::warn!(error = %e, "python.bundled.path.prepend.failed"),
         }
     }
 
@@ -211,7 +220,7 @@ fn setup_bundled_python() {
     tracing::info!(
         python_root = %python_root.display(),
         interpreter = %interpreter.display(),
-        "bundled Python configured - PYTHONHOME/PYTHONPATH/APOLLIA_BUNDLED_PYTHON exported"
+        "python.bundled.configured"
     );
 }
 
@@ -224,14 +233,18 @@ fn load_stt_config(apollia_data_dir: &std::path::Path) -> Option<apollia_core::S
     let repo = match SttConfigRepository::open(&system_db) {
         Ok(repo) => repo,
         Err(e) => {
-            tracing::warn!(error = %e, "failed to open system.db for STT config - hotkey disabled");
+            tracing::warn!(
+                error = %e,
+                detail = "the hotkey is disabled",
+                "stt.config.store.open.failed"
+            );
             return None;
         }
     };
     match repo.get_or_default() {
         Ok(cfg) => Some(cfg),
         Err(e) => {
-            tracing::warn!(error = %e, "failed to read STT config from SQLite - hotkey disabled");
+            tracing::warn!(error = %e, detail = "the hotkey is disabled", "stt.config.read.failed");
             None
         }
     }
@@ -311,7 +324,7 @@ fn auto_load_installed_agents(
     let agents = match repo.list_enabled() {
         Ok(agents) => agents,
         Err(e) => {
-            tracing::warn!(error = %e, "Failed to list installed agents - skipping auto-load");
+            tracing::warn!(error = %e, detail = "the auto-load is skipped", "agent.list.failed");
             return;
         }
     };
@@ -323,7 +336,7 @@ fn auto_load_installed_agents(
         let manifest = match agent_loader_for_boot.load_and_validate(&agent.install_path) {
             Ok(m) => m,
             Err(e) => {
-                tracing::warn!(name = %agent.name, error = %e, "Failed to load installed agent at boot");
+                tracing::warn!(name = %agent.name, error = %e, "agent.load.failed");
                 let _ = runtime_handle.event_sender.send(
                     apollia_core::events::RuntimeEvent::AgentLoadFailed {
                         name: agent.name.clone(),
@@ -351,7 +364,12 @@ fn auto_load_installed_agents(
                 // The contract of this loop is per-agent: a runtime that will
                 // not build is the same class of failure as a manifest that
                 // will not load, and used to abort the boot of every agent.
-                tracing::warn!(name = %agent.name, error = %e, "no tokio handle for agent auto-load - skipping");
+                tracing::warn!(
+                    name = %agent.name,
+                    error = %e,
+                    detail = "the auto-load is skipped",
+                    "agent.autoload.no_runtime"
+                );
                 continue;
             }
         };
@@ -370,16 +388,19 @@ fn auto_load_installed_agents(
             let agent_id = match registry_handle.register(manifest).await {
                 Ok(id) => id,
                 Err(e) => {
-                    tracing::warn!(name = %agent_name, error = %e, "Failed to register agent at boot");
+                    tracing::warn!(name = %agent_name, error = %e, "agent.register.failed");
                     return;
                 }
             };
 
             if let Err(e) = registry_handle
-                .update_state(agent_id.as_str(), apollia_core::process::ProcessState::Active)
+                .update_state(
+                    agent_id.as_str(),
+                    apollia_core::process::ProcessState::Active,
+                )
                 .await
             {
-                tracing::warn!(name = %agent_name, error = %e, "Failed to activate agent at boot");
+                tracing::warn!(name = %agent_name, error = %e, "agent.activate.failed");
                 return;
             }
 
@@ -401,7 +422,7 @@ fn auto_load_installed_agents(
             let _ = router_handle
                 .register_coordinator(agent_id.clone(), coordinator)
                 .await;
-            tracing::info!(name = %agent_name, id = %agent_id, "Auto-loaded installed agent (post-init)");
+            tracing::info!(name = %agent_name, id = %agent_id, "agent.autoloaded");
         });
     }
 }
@@ -457,7 +478,11 @@ pub(crate) fn setup_stt_hotkey(
             });
         },
     ) {
-        tracing::warn!(error = %e, "STT hotkey registration failed - recording via hotkey disabled");
+        tracing::warn!(
+            error = %e,
+            detail = "recording by hotkey is disabled",
+            "stt.hotkey.register.failed"
+        );
     }
 
     // Recording overlay: secondary always-on-top window that shows a visual
@@ -469,10 +494,14 @@ pub(crate) fn setup_stt_hotkey(
     match stt::overlay::RecordingOverlay::create(app, stt_cfg.hotkey.clone(), on_cancel) {
         Ok(overlay) => {
             stt::overlay::spawn_overlay_listener(overlay, &runtime_handle.event_sender);
-            tracing::info!("recording overlay window created");
+            tracing::info!("stt.overlay.created");
         }
         Err(e) => {
-            tracing::warn!(error = %e, "failed to create recording overlay - visual indicator disabled");
+            tracing::warn!(
+                error = %e,
+                detail = "the visual indicator is disabled",
+                "stt.overlay.create.failed"
+            );
         }
     }
 }
@@ -589,11 +618,15 @@ fn main() {
         let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         match AgentRepository::open(&db_path) {
             Ok(repo) => {
-                tracing::info!("AgentRepository opened for auto-load at boot");
+                tracing::info!("agent.repository.opened");
                 Some(repo)
             }
             Err(e) => {
-                tracing::warn!(error = %e, "AgentRepository failed to open - auto-load disabled");
+                tracing::warn!(
+                    error = %e,
+                    detail = "the auto-load is disabled",
+                    "agent.repository.open.failed"
+                );
                 None
             }
         }
@@ -627,7 +660,11 @@ fn main() {
                 tools_config: tools_config_lock.clone(),
             })),
             Err(e) => {
-                tracing::warn!(error = %e, "failed to open agents.db for ChatAgentRunner - Chat Agent mode disabled");
+                tracing::warn!(
+                    error = %e,
+                    detail = "the chat-agent mode is disabled",
+                    "chat.agent_store.open.failed"
+                );
                 None
             }
         }
@@ -722,7 +759,11 @@ fn main() {
     let mcp_registry_client = match McpRegistryClient::new(&apollia_data_dir) {
         Ok(client) => client,
         Err(e) => {
-            tracing::warn!(error = %e, "McpRegistryClient failed to initialize - registry commands disabled");
+            tracing::warn!(
+                error = %e,
+                detail = "the registry commands are disabled",
+                "mcp.registry.client.init.failed"
+            );
             // Fall back to a client with a writable temp dir so Tauri state is always populated.
             or_exit(
                 McpRegistryClient::new(std::path::Path::new("/tmp")),

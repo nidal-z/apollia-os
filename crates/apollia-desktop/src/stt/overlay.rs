@@ -84,7 +84,7 @@ impl RecordingOverlay {
     /// re-arm silent instead of losing the indicator on the second save.
     fn build_window(&self) -> Result<(), OverlayError> {
         if self.app.get_webview_window(WINDOW_LABEL).is_some() {
-            tracing::debug!("recording overlay already exists - reusing it");
+            tracing::debug!("stt.overlay.reused");
             return Ok(());
         }
 
@@ -167,7 +167,7 @@ impl RecordingOverlay {
                 }
             },
         ) {
-            tracing::warn!(error = %e, "failed to register Escape cancel shortcut");
+            tracing::warn!(error = %e, "stt.overlay.escape.register.failed");
         }
 
         Ok(())
@@ -177,7 +177,7 @@ impl RecordingOverlay {
     pub fn hide(&self) -> Result<(), OverlayError> {
         // Unregister Escape before hiding so it stops intercepting keypresses immediately.
         if let Err(e) = self.app.global_shortcut().unregister(CANCEL_SHORTCUT) {
-            tracing::warn!(error = %e, "failed to unregister Escape cancel shortcut");
+            tracing::warn!(error = %e, "stt.overlay.escape.unregister.failed");
         }
 
         if let Some(window) = self.app.get_webview_window(WINDOW_LABEL) {
@@ -214,17 +214,17 @@ pub fn spawn_overlay_listener(overlay: RecordingOverlay, event_bus: &EventBusSen
             match &event {
                 RuntimeEvent::SttRecordingStarted => {
                     if let Err(e) = overlay.show() {
-                        tracing::warn!(error = %e, "failed to show recording overlay");
+                        tracing::warn!(error = %e, "stt.overlay.show.failed");
                     }
                 }
                 RuntimeEvent::SttRecordingStopped { .. } => {
                     if let Err(e) = overlay.hide() {
-                        tracing::warn!(error = %e, "failed to hide recording overlay");
+                        tracing::warn!(error = %e, "stt.overlay.hide.failed");
                     }
                 }
                 _ => {}
             }
         }
-        tracing::debug!(generation, "overlay event listener stopped");
+        tracing::debug!(generation, "stt.overlay.listener.stopped");
     });
 }

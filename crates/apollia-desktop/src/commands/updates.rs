@@ -192,7 +192,7 @@ pub async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
                     total: content_length,
                 };
                 if let Err(e) = progress_app.emit("update-download-progress", &payload) {
-                    tracing::warn!(error = %e, "failed to emit update-download-progress event");
+                    tracing::warn!(error = %e, "update.progress.emit.failed");
                 }
             },
             || {},

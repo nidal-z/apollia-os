@@ -281,10 +281,18 @@ pub async fn submit_task(
     // Tool filtering is not yet implemented in the AIPInput type.
     // Log the intent so the UI can see it was received.
     if let Some(ref tools) = allowed_tools {
-        tracing::debug!(allowed_tools = ?tools, "submit_task: allowed_tools received (not yet enforced)");
+        tracing::debug!(
+            allowed_tools = ?tools,
+            detail = "not enforced yet",
+            "task.allowed_tools.ignored"
+        );
     }
     if let Some(ref tools) = disallowed_tools {
-        tracing::debug!(disallowed_tools = ?tools, "submit_task: disallowed_tools received (not yet enforced)");
+        tracing::debug!(
+            disallowed_tools = ?tools,
+            detail = "not enforced yet",
+            "task.disallowed_tools.ignored"
+        );
     }
 
     let aip_input = AIPInput {

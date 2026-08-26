@@ -107,7 +107,7 @@ pub fn spawn_heartbeat(app: AppHandle) {
         loop {
             ticker.tick().await;
             if let Err(e) = app.emit("runtime:heartbeat", ()) {
-                tracing::debug!(error = %e, "failed to emit runtime:heartbeat");
+                tracing::debug!(error = %e, "event.heartbeat.emit.failed");
             }
         }
     });
@@ -191,7 +191,7 @@ pub fn spawn_event_bridge(app: AppHandle, event_bus: EventBusSender) {
 fn emit_tokens(app: &AppHandle, payloads: Vec<ChatTokenPayload>) {
     for payload in payloads {
         if let Err(e) = app.emit("chat-token", &payload) {
-            tracing::warn!(error = %e, "failed to emit chat-token event");
+            tracing::warn!(error = %e, "event.chat_token.emit.failed");
         }
     }
 }
@@ -210,7 +210,7 @@ fn bridge_one_event(app: &AppHandle, event: &RuntimeEvent) {
 
     let tauri_event = map_runtime_event(event);
     if let Err(e) = app.emit("runtime-event", &tauri_event) {
-        tracing::warn!(error = %e, "failed to emit Tauri event");
+        tracing::warn!(error = %e, "event.runtime.emit.failed");
     }
 }
 
@@ -237,7 +237,7 @@ fn emit_hitl_fs_fastpath(app: &AppHandle, event: &RuntimeEvent) {
             preview: preview_value,
         };
         if let Err(e) = app.emit("hitl-fs-required", &payload) {
-            tracing::warn!(error = %e, "failed to emit hitl-fs-required event");
+            tracing::warn!(error = %e, "event.hitl_fs.emit.failed");
         }
     }
 }
@@ -248,17 +248,17 @@ fn emit_stt_fastpath(app: &AppHandle, event: &RuntimeEvent) {
     match event {
         RuntimeEvent::SttTranscribed { text, .. } => {
             if let Err(e) = app.emit("stt-transcribed", text) {
-                tracing::warn!(error = %e, "failed to emit stt-transcribed event");
+                tracing::warn!(error = %e, "event.stt_transcribed.emit.failed");
             }
         }
         RuntimeEvent::SttRecordingStarted => {
             if let Err(e) = app.emit("stt-recording-started", ()) {
-                tracing::warn!(error = %e, "failed to emit stt-recording-started event");
+                tracing::warn!(error = %e, "event.stt_recording_started.emit.failed");
             }
         }
         RuntimeEvent::SttRecordingStopped { .. } => {
             if let Err(e) = app.emit("stt-recording-stopped", ()) {
-                tracing::warn!(error = %e, "failed to emit stt-recording-stopped event");
+                tracing::warn!(error = %e, "event.stt_recording_stopped.emit.failed");
             }
         }
         _ => {}
@@ -285,7 +285,7 @@ fn emit_hook_decision_fastpath(app: &AppHandle, event: &RuntimeEvent) {
             rewritten_args: rewritten_args.clone(),
         };
         if let Err(e) = app.emit("hook-decision", &payload) {
-            tracing::warn!(error = %e, "failed to emit hook-decision event");
+            tracing::warn!(error = %e, "event.hook_decision.emit.failed");
         }
     }
 }

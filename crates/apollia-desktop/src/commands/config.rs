@@ -497,7 +497,7 @@ pub async fn reset_onboarding(
                 tracing::warn!(
                     key = %key,
                     error = %e,
-                    "failed to wipe internal onboarding marker during reset_onboarding"
+                    "onboarding.marker.wipe.failed"
                 );
             }
         }
@@ -509,7 +509,7 @@ pub async fn reset_onboarding(
             .map_err(|e| format!("failed to reset user profile during reset_onboarding: {e}"))?;
         tracing::info!(
             removed_profile_entries = removed,
-            "reset_onboarding wiped user profile"
+            "onboarding.profile.wiped"
         );
 
         Ok::<_, String>(())
@@ -529,7 +529,7 @@ pub async fn reset_onboarding(
             tracing::warn!(
                 path = %onboarding_db.display(),
                 error = %e,
-                "could not remove onboarding.db during reset_onboarding"
+                "onboarding.store.remove.failed"
             );
         }
         // WAL side-files; ignore errors.
@@ -578,7 +578,7 @@ pub async fn clear_all_memories() -> Result<usize, String> {
             continue;
         }
         if let Err(e) = tokio::fs::remove_file(&path).await {
-            tracing::warn!(path = %path.display(), error = %e, "clear_all_memories: skip file");
+            tracing::warn!(path = %path.display(), error = %e, "memory.wipe.file.skipped");
             continue;
         }
         if name.ends_with(".db") {
@@ -586,10 +586,7 @@ pub async fn clear_all_memories() -> Result<usize, String> {
         }
     }
 
-    tracing::info!(
-        removed_db_count,
-        "clear_all_memories wiped every memory namespace"
-    );
+    tracing::info!(removed_db_count, "memory.wipe.completed");
     Ok(removed_db_count)
 }
 
@@ -832,7 +829,7 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
     tracing::info!(
         model = %model_path_str,
         quantization = %quantization,
-        "local LLM configured via onboarding setup"
+        "llm.local.configured"
     );
 
     Ok(SetupLlmResult {

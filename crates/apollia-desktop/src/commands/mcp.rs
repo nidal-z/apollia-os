@@ -436,7 +436,8 @@ pub async fn remove_mcp_server(
             tracing::warn!(
                 server = %name,
                 error = %e,
-                "failed to purge OAuth token on server removal - keychain entry may be orphaned"
+                detail = "the keychain entry may be orphaned",
+                "mcp.oauth.token.purge.failed"
             );
         }
     }
@@ -623,7 +624,8 @@ pub async fn fetch_mcp_registry(
         Err(e) => {
             tracing::warn!(
                 error = %e,
-                "mcp.registry.fetch_failed - falling back to curated catalogue only"
+                detail = "falling back to the curated catalogue only",
+                "mcp.registry.fetch.failed"
             );
             Vec::new()
         }
@@ -679,7 +681,8 @@ pub async fn fetch_mcp_registry(
             ) {
                 tracing::debug!(
                     server = %s.server.name,
-                    "mcp.registry.dedup - skipping public entry already covered by curated"
+                    reason = "already covered by the curated catalogue",
+                    "mcp.registry.entry.deduplicated"
                 );
                 return None;
             }

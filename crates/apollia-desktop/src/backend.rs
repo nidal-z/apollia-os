@@ -347,7 +347,11 @@ impl AgentRunner for BridgeRunner {
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| memory_base_dir.clone());
             let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "governance snapshot unavailable - defaulting to all tools enabled");
+                tracing::warn!(
+                    error = %e,
+                    detail = "every tool is enabled",
+                    "tools.governance.unavailable"
+                );
                 Default::default()
             });
 
@@ -428,7 +432,8 @@ impl AgentRunner for BridgeRunner {
                 _ => {
                     tracing::warn!(
                         agent = %agent_id,
-                        "ToolProxy not available - tool registry or audit trail missing"
+                        reason = "tool registry or audit trail missing",
+                        "agent.tool_proxy.unavailable"
                     );
                     None
                 }
@@ -710,7 +715,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
             None => {
                 tracing::error!(
                     agent = %agent_id,
-                    "event bus not initialized - factory called before supervisor started"
+                    reason = "the event bus is not initialised yet",
+                    "agent.factory.premature"
                 );
                 return DynBackend::new(NoopBackend);
             }
@@ -748,7 +754,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
             _ => {
                 tracing::warn!(
                     agent = %agent_id,
-                    "A2A invoker not available - registry or router not yet initialized"
+                    reason = "registry or router not initialised yet",
+                    "agent.a2a.invoker.unavailable"
                 );
                 None
             }
@@ -807,7 +814,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
                     agent = %agent_id,
                     path = %agent_path.display(),
                     error = %e,
-                    "failed to load agent Python module - falling back to NoopBackend"
+                    detail = "falling back to a no-op backend",
+                    "agent.module.load.failed"
                 );
                 DynBackend::new(NoopBackend)
             }
@@ -837,7 +845,8 @@ fn wire_engine_with_llm(
     let Some(router_arc) = llm_router else {
         tracing::warn!(
             agent = %agent_id,
-            "no llm router configured - orchestrated execution will fail with NO_LLM if invoked"
+            detail = "orchestrated execution fails with NO_LLM",
+            "orchestration.llm_router.absent"
         );
         return engine;
     };
@@ -855,7 +864,8 @@ fn wire_engine_with_llm(
             tracing::warn!(
                 agent = %agent_id,
                 error = %err,
-                "no precise LLM backend resolved - orchestrated execution will fail with NO_LLM if invoked"
+                detail = "orchestrated execution fails with NO_LLM",
+                "orchestration.llm_backend.unresolved"
             );
             engine = engine.with_llm_router(owned_router);
         }
@@ -896,7 +906,8 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
             tracing::warn!(
                 target: "apollia.aip.secrets",
                 error = %e,
-                "failed to open ToolCredentialStore for ctx.secrets - agent will see None for all keys"
+                detail = "the agent sees no key",
+                "secrets.store.open.failed"
             );
             None
         }
@@ -1028,7 +1039,8 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             _ => {
                 tracing::warn!(
                     agent = %agent_name,
-                    "A2A invoker not available for chat-agent runner - registry or router not yet initialized"
+                    reason = "registry or router not initialised yet",
+                    "chat.a2a.invoker.unavailable"
                 );
                 None
             }

@@ -295,7 +295,8 @@ pub async fn oauth_start_flow(
         if let Err(err) = app.opener().open_url(&auth_url, None::<&str>) {
             tracing::warn!(
                 error = %err,
-                "failed to auto-open the system browser; user can still use the manual link"
+                detail = "the manual link stays available",
+                "oauth.browser.open.failed"
             );
         }
     }

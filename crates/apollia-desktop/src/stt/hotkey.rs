@@ -90,14 +90,14 @@ impl HotkeyListener {
             dispatch_shortcut(mode, &recording, event.state, &on_start, &on_stop);
         })
         .map_err(|e| {
-            tracing::warn!(hotkey = %self.hotkey, error = %e, "failed to register global hotkey");
+            tracing::warn!(hotkey = %self.hotkey, error = %e, "stt.hotkey.register.failed");
             format!("failed to register hotkey '{}': {e}", self.hotkey)
         })?;
 
         tracing::info!(
             hotkey = %self.hotkey,
             mode = ?mode,
-            "global STT hotkey registered"
+            "stt.hotkey.registered"
         );
 
         Ok(())

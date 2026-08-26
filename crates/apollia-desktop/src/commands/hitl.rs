@@ -344,7 +344,8 @@ pub async fn add_permission_prefix_rule(
                 arg_prefix = ?arg_prefix,
                 project_path = %canonical.display(),
                 scope = "project",
-                "operator added project permission rule"
+                scope = "project",
+                "permission.rule.added"
             );
         }
         apollia_permissions::PermissionScope::Global => {
@@ -363,7 +364,8 @@ pub async fn add_permission_prefix_rule(
                 tool = %tool_name,
                 arg_prefix = ?arg_prefix,
                 scope = "global",
-                "operator added global permission rule"
+                scope = "global",
+                "permission.rule.added"
             );
         }
         apollia_permissions::PermissionScope::Agent

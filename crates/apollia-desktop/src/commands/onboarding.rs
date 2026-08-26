@@ -203,13 +203,13 @@ pub enum OnboardingError {
     /// under a live app. The previous wording blamed Python, which sent the
     /// reader looking at the interpreter while the real cause was the boot
     /// order, and the actual load failure, when there is one, is logged as a
-    /// warning nobody reads: `Failed to load installed agent at boot`.
+    /// warning nobody reads: `agent.load.failed`.
     #[error(
         "onboarding-agent is not in the runtime registry. The registry is built \
          once at startup, so restart the application first: if the agent was \
          installed, or a profile swapped in, while it was running, it cannot \
-         have been picked up. If restarting does not help, look for `Failed to \
-         load installed agent at boot` in the logs, which names the real cause."
+         have been picked up. If restarting does not help, look for \
+         `agent.load.failed` in the logs, which names the real cause."
     )]
     AgentNotInstalled,
 
@@ -280,7 +280,7 @@ pub async fn get_onboarding_state(
     state: State<'_, RuntimeHandle>,
 ) -> Result<OnboardingState, String> {
     get_onboarding_state_inner(&state).await.map_err(|e| {
-        tracing::error!(error = %e, "get_onboarding_state failed");
+        tracing::error!(error = %e, "onboarding.state.read.failed");
         e.to_string()
     })
 }
@@ -416,11 +416,12 @@ pub async fn advance_onboarding_phase(
                 OnboardingError::InvalidTransition { from, to } if from == to => {
                     tracing::debug!(
                         error = %e,
-                        "advance_onboarding_phase: self-transition ignored"
+                        detail = "ignored",
+                        "onboarding.phase.self_transition"
                     );
                 }
                 _ => {
-                    tracing::error!(error = %e, "advance_onboarding_phase failed");
+                    tracing::error!(error = %e, "onboarding.phase.advance.failed");
                 }
             }
             e.to_string()
@@ -439,7 +440,7 @@ pub async fn set_onboarding_profile(
     set_onboarding_profile_inner(profile, &state)
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, "set_onboarding_profile failed");
+            tracing::error!(error = %e, "onboarding.profile.set.failed");
             e.to_string()
         })
 }
@@ -465,7 +466,7 @@ pub async fn trigger_onboarding(
     trigger_onboarding_inner(topic, profile, false, &state)
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, "trigger_onboarding failed");
+            tracing::error!(error = %e, "onboarding.trigger.failed");
             e.to_string()
         })
 }
@@ -481,7 +482,7 @@ pub async fn resume_onboarding(state: State<'_, RuntimeHandle>) -> Result<Trigge
     trigger_onboarding_inner(None, None, true, &state)
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, "resume_onboarding failed");
+            tracing::error!(error = %e, "onboarding.resume.failed");
             e.to_string()
         })
 }
@@ -490,7 +491,7 @@ pub async fn resume_onboarding(state: State<'_, RuntimeHandle>) -> Result<Trigge
 #[tauri::command]
 pub async fn dismiss_onboarding(state: State<'_, RuntimeHandle>) -> Result<(), String> {
     dismiss_onboarding_inner(&state).await.map_err(|e| {
-        tracing::error!(error = %e, "dismiss_onboarding failed");
+        tracing::error!(error = %e, "onboarding.dismiss.failed");
         e.to_string()
     })
 }
@@ -565,7 +566,7 @@ async fn advance_onboarding_phase_inner(
 
         tracing::info!(
             phase = %target.as_str(),
-            "onboarding phase advanced"
+            "onboarding.phase.advanced"
         );
 
         Ok(onboarding_state)
@@ -624,7 +625,7 @@ async fn set_onboarding_profile_inner(
         onboarding_state.profile = Some(profile.clone());
         persist_state(&repo, &onboarding_state)?;
 
-        tracing::info!(profile = %profile, "onboarding profile set");
+        tracing::info!(profile = %profile, "onboarding.profile.set");
 
         Ok(onboarding_state)
     })
@@ -833,7 +834,10 @@ fn write_profile_to_agent_memory(profile: &str) {
         .join("onboarding-agent.db");
 
     let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
-        tracing::warn!("onboarding agent memory store not found - profile not injected");
+        tracing::warn!(
+            detail = "the profile is not injected",
+            "onboarding.memory.store.absent"
+        );
         return;
     };
     let sem = apollia_memory::semantic::SemanticMemory::new(&store);
@@ -845,7 +849,7 @@ fn write_profile_to_agent_memory(profile: &str) {
         source: Some("onboarding"),
         expires_at: None,
     }) {
-        tracing::warn!(error = %e, "failed to write profile to agent memory");
+        tracing::warn!(error = %e, "onboarding.profile.write.failed");
     }
 }
 
@@ -890,7 +894,8 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
         let Ok(store) = apollia_memory::store::MemoryStore::open(&db_path) else {
             tracing::warn!(
                 file = filename,
-                "onboarding agent memory store unreadable - stale entries may persist"
+                detail = "stale entries may persist",
+                "onboarding.memory.store.unreadable"
             );
             continue;
         };
@@ -911,7 +916,7 @@ fn reset_onboarding_progress(repo: &UserMemoryRepository) {
                     key = %entry.key,
                     namespace = namespace,
                     error = %e,
-                    "failed to wipe stale onboarding entry",
+                    "onboarding.memory.entry.wipe.failed",
                 );
             }
         }
@@ -945,7 +950,10 @@ async fn trigger_onboarding_inner(
             if let Ok(repo) = repo_arc.lock() {
                 reset_onboarding_progress(&repo);
             } else {
-                tracing::warn!("user memory repo poisoned - onboarding reset skipped");
+                tracing::warn!(
+                    detail = "the reset is skipped",
+                    "onboarding.memory.lock.poisoned"
+                );
             }
         }
     }
@@ -954,7 +962,7 @@ async fn trigger_onboarding_inner(
     if let Some(ref p) = profile {
         validate_profile(p)?;
         write_profile_to_agent_memory(p);
-        tracing::info!(profile = %p, "onboarding profile injected into agent memory");
+        tracing::info!(profile = %p, "onboarding.profile.injected");
     }
 
     // Verify the onboarding agent is registered
@@ -1012,7 +1020,7 @@ async fn trigger_onboarding_inner(
         session_id = %session_id,
         mode = %mode,
         topic = ?topic,
-        "onboarding session created"
+        "onboarding.session.created"
     );
 
     Ok(TriggerResult {
@@ -1039,7 +1047,7 @@ async fn dismiss_onboarding_inner(state: &RuntimeHandle) -> Result<(), Onboardin
     .await
     .map_err(|e| OnboardingError::SessionCreationFailed(format!("spawn_blocking failed: {e}")))??;
 
-    tracing::info!("onboarding dismissed by user");
+    tracing::info!("onboarding.dismissed");
     Ok(())
 }
 
@@ -1115,7 +1123,7 @@ pub async fn create_companion_session(
     create_companion_session_inner(context, &state)
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, "create_companion_session failed");
+            tracing::error!(error = %e, "companion.session.create.failed");
             e.to_string()
         })
 }
@@ -1176,7 +1184,7 @@ async fn create_companion_session_inner(
         session_id = %session_id,
         agent = %GUIDE_AGENT_NAME,
         context = ?context,
-        "companion session created"
+        "companion.session.created"
     );
 
     Ok(CompanionSessionResult { session_id })
@@ -1504,14 +1512,18 @@ pub async fn setup_whisper_model(
     let result = setup_whisper_model_inner(model_path, language, &state)
         .await
         .map_err(|e| {
-            tracing::error!(error = %e, "setup_whisper_model failed");
+            tracing::error!(error = %e, "stt.model.setup.failed");
             e.to_string()
         })?;
 
     // Hot-load the freshly-configured model so onboarding "Tester" and the
     // dictation hotkey work immediately, without restarting the app.
     if let Err(e) = crate::commands::stt::reload_stt_inner(&state, &app, &stt_flow_state).await {
-        tracing::warn!(error = %e, "whisper model configured but STT reload failed");
+        tracing::warn!(
+            error = %e,
+            detail = "the model is configured but the engine still runs the previous one",
+            "stt.engine.reload.failed"
+        );
     }
 
     Ok(result)
@@ -1569,7 +1581,7 @@ async fn setup_whisper_model_inner(
     .await
     .map_err(|e| OnboardingError::PersistenceError(format!("spawn_blocking failed: {e}")))??;
 
-    tracing::info!(model_path = %model_path, "Whisper STT model configured");
+    tracing::info!(model_path = %model_path, "stt.model.configured");
 
     Ok(result)
 }
@@ -2034,7 +2046,7 @@ mod tests {
              is what makes restarting the first thing to try"
         );
         assert!(
-            msg.contains("Failed to load installed agent at boot"),
+            msg.contains("agent.load.failed"),
             "the message must quote the log line that names the real cause, \
              verbatim, so it can be grepped"
         );

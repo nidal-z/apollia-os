@@ -47,7 +47,11 @@ pub fn write_only(text: &str) -> Result<(), ClipboardError> {
     clipboard
         .set_text(text)
         .map_err(|e| ClipboardError::Write(e.to_string()))?;
-    tracing::debug!(len = text.len(), "text written to clipboard (no paste)");
+    tracing::debug!(
+        len = text.len(),
+        detail = "no paste keystroke is sent",
+        "stt.clipboard.written"
+    );
     Ok(())
 }
 
@@ -73,7 +77,7 @@ pub fn prepare_paste(text: &str, restore: bool) -> Result<Option<String>, Clipbo
         .set_text(text)
         .map_err(|e| ClipboardError::Write(e.to_string()))?;
 
-    tracing::debug!(len = text.len(), restore, "clipboard prepared for paste");
+    tracing::debug!(len = text.len(), restore, "stt.clipboard.prepared");
     Ok(previous)
 }
 
@@ -114,7 +118,10 @@ pub fn paste_via_subprocess() -> Result<(), ClipboardError> {
                 "osascript exited with {status}"
             )));
         }
-        tracing::debug!("paste triggered via osascript subprocess");
+        tracing::debug!(
+            detail = "sent through an osascript subprocess",
+            "stt.paste.triggered"
+        );
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -129,7 +136,7 @@ pub fn paste_via_subprocess() -> Result<(), ClipboardError> {
         enigo
             .key(Key::Control, Direction::Release)
             .map_err(|e| ClipboardError::PasteSimulation(e.to_string()))?;
-        tracing::debug!("paste triggered via enigo Ctrl+V");
+        tracing::debug!(detail = "sent through enigo", "stt.paste.triggered");
     }
     Ok(())
 }
@@ -156,7 +163,7 @@ pub fn simulate_paste() -> Result<(), ClipboardError> {
         .key(modifier, Direction::Release)
         .map_err(|e| ClipboardError::PasteSimulation(e.to_string()))?;
 
-    tracing::debug!("paste shortcut simulated");
+    tracing::debug!("stt.paste.simulated");
     Ok(())
 }
 
@@ -169,7 +176,7 @@ pub fn restore_clipboard(previous: &str) -> Result<(), ClipboardError> {
     clipboard
         .set_text(previous)
         .map_err(|e| ClipboardError::Write(e.to_string()))?;
-    tracing::debug!("clipboard restored to previous content");
+    tracing::debug!("stt.clipboard.restored");
     Ok(())
 }
 

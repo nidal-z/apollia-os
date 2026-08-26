@@ -496,6 +496,6 @@ fn import_model_file_inner(
         std::fs::copy(&source, &dest).map_err(ImportModelError::Copy)?;
     }
 
-    tracing::info!(dest = %dest.display(), "imported model file into models directory");
+    tracing::info!(dest = %dest.display(), "model.file.imported");
     Ok(dest.display().to_string())
 }

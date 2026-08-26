@@ -61,10 +61,10 @@ const APOLLIA_GUIDE_VERSION: &str = "0.1.0-preview";
 /// that are already installed at the same (or newer) version.
 pub fn ensure_bundled_agents(repo: &AgentRepository, data_dir: &Path) {
     if let Err(e) = provision_onboarding_agent(repo, data_dir) {
-        tracing::warn!(error = %e, "failed to provision bundled onboarding-agent");
+        tracing::warn!(error = %e, "bundled.onboarding.provision.failed");
     }
     if let Err(e) = provision_apollia_guide_agent(repo, data_dir) {
-        tracing::warn!(error = %e, "failed to provision bundled apollia-guide");
+        tracing::warn!(error = %e, "bundled.guide.provision.failed");
     }
 }
 
@@ -85,14 +85,18 @@ fn provision_onboarding_agent(
     // Check if already installed at the current version.
     if let Some(existing) = repo.get(agent_name)? {
         if existing.version == ONBOARDING_AGENT_VERSION {
-            tracing::debug!(name = %agent_name, "bundled agent already at current version - skipping");
+            tracing::debug!(
+                name = %agent_name,
+                detail = "the upgrade is skipped",
+                "bundled.onboarding.current"
+            );
             return Ok(());
         }
         tracing::info!(
             name = %agent_name,
             installed = %existing.version,
             bundled = %ONBOARDING_AGENT_VERSION,
-            "upgrading bundled agent"
+            "bundled.onboarding.upgrading"
         );
     }
 
@@ -122,7 +126,11 @@ fn provision_onboarding_agent(
     };
 
     repo.save(&agent)?;
-    tracing::info!(name = %agent_name, version = %ONBOARDING_AGENT_VERSION, "bundled agent provisioned");
+    tracing::info!(
+        name = %agent_name,
+        version = %ONBOARDING_AGENT_VERSION,
+        "bundled.onboarding.provisioned"
+    );
     Ok(())
 }
 
@@ -184,14 +192,18 @@ fn provision_apollia_guide_agent(
 
     if let Some(existing) = repo.get(agent_name)? {
         if existing.version == APOLLIA_GUIDE_VERSION {
-            tracing::debug!(name = %agent_name, "apollia-guide already at current version");
+            tracing::debug!(
+                name = %agent_name,
+                detail = "the upgrade is skipped",
+                "bundled.guide.current"
+            );
             return Ok(());
         }
         tracing::info!(
             name = %agent_name,
             installed = %existing.version,
             bundled = %APOLLIA_GUIDE_VERSION,
-            "upgrading bundled apollia-guide"
+            "bundled.guide.upgrading"
         );
     }
 
@@ -229,7 +241,11 @@ fn provision_apollia_guide_agent(
         updated_at: now,
     };
     repo.save(&agent)?;
-    tracing::info!(name = %agent_name, version = %APOLLIA_GUIDE_VERSION, "bundled apollia-guide provisioned");
+    tracing::info!(
+        name = %agent_name,
+        version = %APOLLIA_GUIDE_VERSION,
+        "bundled.guide.provisioned"
+    );
     Ok(())
 }
 

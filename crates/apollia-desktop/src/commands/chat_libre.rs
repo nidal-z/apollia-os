@@ -108,7 +108,7 @@ pub async fn update_chat_libre_config(
         prompt_len = cfg.system_prompt.len(),
         allowed_tools = cfg.allowed_tools.len(),
         llm_backend = ?cfg.llm_backend,
-        "chat_libre_config updated"
+        "chat.config.updated"
     );
     Ok(())
 }
@@ -210,11 +210,7 @@ pub async fn revoke_chat_session_authorization(
             "session authorization not found: session={session_id} tool={tool_name}"
         ));
     }
-    tracing::info!(
-        session_id,
-        tool_name,
-        "in-memory chat session authorization revoked"
-    );
+    tracing::info!(session_id, tool_name, "chat.session.authorization.revoked");
     Ok(())
 }
 
@@ -241,6 +237,6 @@ pub async fn delete_chat_permission_rule(
     if !removed {
         return Err(format!("chat permission rule {rule_id} not found"));
     }
-    tracing::info!(rule_id, "chat permission rule revoked");
+    tracing::info!(rule_id, "chat.permission.rule.revoked");
     Ok(())
 }

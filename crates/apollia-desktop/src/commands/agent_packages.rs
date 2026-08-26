@@ -665,7 +665,7 @@ pub async fn uninstall_agent_package(
         tracing::warn!(
             package = %name,
             errors = ?errors,
-            "uninstall completed with non-fatal errors"
+            "package.uninstall.degraded"
         );
     }
 

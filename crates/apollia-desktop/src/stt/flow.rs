@@ -97,7 +97,7 @@ pub enum RecordingOrigin {
 /// Emits the terminal dictation-failure event to every webview.
 fn emit_dictation_failed(app: &tauri::AppHandle, reason: DictationFailure) {
     if let Err(e) = app.emit(DICTATION_FAILED_EVENT, DictationFailedPayload { reason }) {
-        tracing::warn!(error = %e, "failed to emit stt-dictation-failed");
+        tracing::warn!(error = %e, "event.stt_dictation_failed.emit.failed");
     }
 }
 
@@ -181,7 +181,10 @@ impl SttFlow {
     /// the transcription is delivered once the dictation ends.
     pub fn start_recording(&self, origin: RecordingOrigin) {
         if self.recording.swap(true, Ordering::SeqCst) {
-            tracing::warn!("start_recording called while already recording");
+            tracing::warn!(
+                reason = "a recording is already running",
+                "stt.recording.start.ignored"
+            );
             return;
         }
 
@@ -207,14 +210,14 @@ impl SttFlow {
                 Ok(c) => c,
                 Err(SttError::NoInputDevice) => {
                     recording.store(false, Ordering::SeqCst);
-                    tracing::warn!("STT recording requested but no microphone is available");
+                    tracing::warn!("stt.recording.no_microphone");
                     notify_no_microphone(&app);
                     emit_dictation_failed(&app, DictationFailure::NoMicrophone);
                     return;
                 }
                 Err(e) => {
                     recording.store(false, Ordering::SeqCst);
-                    tracing::warn!(error = %e, "failed to open audio input device");
+                    tracing::warn!(error = %e, "stt.audio.device.open.failed");
                     emit_dictation_failed(&app, DictationFailure::CaptureFailed);
                     return;
                 }
@@ -238,7 +241,7 @@ impl SttFlow {
                 Ok(pair) => pair,
                 Err(e) => {
                     recording.store(false, Ordering::SeqCst);
-                    tracing::warn!(error = %e, "failed to start audio capture");
+                    tracing::warn!(error = %e, "stt.audio.capture.start.failed");
                     emit_dictation_failed(&app, DictationFailure::CaptureFailed);
                     return;
                 }
@@ -254,7 +257,7 @@ impl SttFlow {
             }
 
             let _ = event_bus.send(RuntimeEvent::SttRecordingStarted);
-            tracing::info!("STT recording started");
+            tracing::info!("stt.recording.started");
 
             // Meter the real captured level at ~30 Hz and push it to the overlay
             // so the waveform reflects the same audio the STT engine records.
@@ -265,7 +268,7 @@ impl SttFlow {
                     Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
                     Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                         if let Err(e) = app.emit("stt-audio-level", level.get()) {
-                            tracing::trace!(error = %e, "failed to emit stt-audio-level");
+                            tracing::trace!(error = %e, "event.stt_audio_level.emit.failed");
                         }
                     }
                 }
@@ -285,7 +288,10 @@ impl SttFlow {
     /// skips the STT engine entirely. Use this for user-initiated abort (Escape).
     pub fn cancel_recording(&self) {
         if !self.recording.swap(false, Ordering::SeqCst) {
-            tracing::debug!("cancel_recording called while not recording");
+            tracing::debug!(
+                reason = "no recording is running",
+                "stt.recording.cancel.ignored"
+            );
             return;
         }
         // Discard buffered samples without draining for transcription.
@@ -299,7 +305,7 @@ impl SttFlow {
         // An abort is still an end of course for the webview: without it the
         // microphone button stays lit after Escape.
         self.fail(DictationFailure::Cancelled);
-        tracing::info!("STT recording cancelled (audio discarded)");
+        tracing::info!(detail = "the audio is discarded", "stt.recording.cancelled");
     }
 
     /// Stops recording, processes the audio, and dispatches the result.
@@ -324,7 +330,10 @@ impl SttFlow {
         if !self.recording.swap(false, Ordering::SeqCst) {
             // The capture thread already cleared the flag after failing to open
             // the device, and emitted its own failure. Nothing left to report.
-            tracing::debug!("stop_and_transcribe called while not recording");
+            tracing::debug!(
+                reason = "no recording is running",
+                "stt.recording.stop.ignored"
+            );
             return;
         }
 
@@ -339,7 +348,10 @@ impl SttFlow {
                 let _ = self.event_bus.send(RuntimeEvent::SttRecordingStopped {
                     audio_duration_ms: 0,
                 });
-                tracing::warn!("no active buffer - recording may have failed to start");
+                tracing::warn!(
+                    detail = "the recording may have failed to start",
+                    "stt.recording.buffer.absent"
+                );
                 self.fail(DictationFailure::NoAudioCaptured);
                 return;
             }
@@ -353,7 +365,7 @@ impl SttFlow {
         let _ = self
             .event_bus
             .send(RuntimeEvent::SttRecordingStopped { audio_duration_ms });
-        tracing::info!(duration_ms = audio_duration_ms, "STT recording stopped");
+        tracing::info!(duration_ms = audio_duration_ms, "stt.recording.stopped");
 
         let final_audio = match prepare_audio(
             &raw_samples,
@@ -373,7 +385,7 @@ impl SttFlow {
         // enabled in config but no model is loaded yet (download pending or a
         // reload that resolved to disabled). Notify and bail rather than fail.
         let Some(engine) = self.stt_engine.read().await.clone() else {
-            tracing::warn!("STT hotkey pressed but no engine is loaded - skipping transcription");
+            tracing::warn!(detail = "the transcription is skipped", "stt.engine.absent");
             let locale = crate::i18n::locale();
             let result = self
                 .app
@@ -383,7 +395,7 @@ impl SttFlow {
                 .body(crate::i18n::stt_no_model_body(locale))
                 .show();
             if let Err(e) = result {
-                tracing::warn!(error = %e, "failed to send STT unavailable notification");
+                tracing::warn!(error = %e, "stt.notification.unavailable.send.failed");
             }
             self.fail(DictationFailure::NoModel);
             return;
@@ -396,14 +408,14 @@ impl SttFlow {
         {
             Ok(t) => t,
             Err(e) => {
-                tracing::warn!(error = %e, "STT transcription failed");
+                tracing::warn!(error = %e, "stt.transcription.failed");
                 self.fail(DictationFailure::TranscriptionFailed);
                 return;
             }
         };
 
         if transcript.full_text.trim().is_empty() {
-            tracing::info!("transcription result is empty - no output");
+            tracing::info!(detail = "nothing is injected", "stt.transcription.empty");
             self.fail(DictationFailure::EmptyTranscript);
             return;
         }
@@ -464,7 +476,7 @@ impl SttFlow {
     /// | `"both"`      | clipboard → paste + notification                                |
     async fn dispatch_result(&self, text: &str) {
         let mode = self.config.clipboard_mode.as_str();
-        tracing::debug!(mode, len = text.len(), "dispatching transcription result");
+        tracing::debug!(mode, len = text.len(), "stt.transcription.dispatching");
 
         match mode {
             "paste" | "both" => self.inject_clipboard(text).await,
@@ -480,7 +492,7 @@ impl SttFlow {
     /// Writes text to the clipboard without simulating a paste keystroke.
     fn write_clipboard(&self, text: &str) {
         if let Err(e) = clipboard::write_only(text) {
-            tracing::warn!(error = %e, "clipboard write failed");
+            tracing::warn!(error = %e, "stt.clipboard.write.failed");
         }
     }
 
@@ -503,7 +515,7 @@ impl SttFlow {
         let previous = match clipboard::prepare_paste(text, restore) {
             Ok(prev) => prev,
             Err(e) => {
-                tracing::warn!(error = %e, "clipboard write failed");
+                tracing::warn!(error = %e, "stt.clipboard.write.failed");
                 return;
             }
         };
@@ -511,14 +523,14 @@ impl SttFlow {
         tokio::time::sleep(tokio::time::Duration::from_millis(80)).await;
 
         if let Err(e) = clipboard::paste_via_subprocess() {
-            tracing::warn!(error = %e, "paste failed");
+            tracing::warn!(error = %e, "stt.paste.failed");
             return;
         }
 
         if let Some(prev) = previous {
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
             if let Err(e) = clipboard::restore_clipboard(&prev) {
-                tracing::warn!(error = %e, "clipboard restore failed");
+                tracing::warn!(error = %e, "stt.clipboard.restore.failed");
             }
         }
     }
@@ -534,7 +546,7 @@ impl SttFlow {
             .body(&preview)
             .show();
         if let Err(e) = result {
-            tracing::warn!(error = %e, "failed to send transcription notification");
+            tracing::warn!(error = %e, "stt.notification.transcription.send.failed");
         }
     }
 }
@@ -553,7 +565,7 @@ fn notify_no_microphone(app: &tauri::AppHandle) {
         .body(crate::i18n::stt_no_mic_body(locale))
         .show();
     if let Err(e) = result {
-        tracing::warn!(error = %e, "failed to send no-microphone notification");
+        tracing::warn!(error = %e, "stt.notification.no_microphone.send.failed");
     }
 }
 
@@ -574,7 +586,7 @@ fn prepare_audio(
     max_recording_sec: u32,
 ) -> Result<Vec<f32>, DictationFailure> {
     let whisper_audio = to_whisper_format(raw_samples, sample_rate, channels).map_err(|e| {
-        tracing::warn!(error = %e, "audio resampling failed");
+        tracing::warn!(error = %e, "stt.audio.resample.failed");
         DictationFailure::AudioUnusable
     })?;
 
@@ -594,7 +606,8 @@ fn prepare_audio(
     if trimmed.len() < MIN_SAMPLES {
         tracing::info!(
             samples = trimmed.len(),
-            "audio too short (< 100 ms) - skipping transcription"
+            detail = "the transcription is skipped",
+            "stt.audio.too_short"
         );
         return Err(DictationFailure::TooShort);
     }
@@ -604,7 +617,8 @@ fn prepare_audio(
         tracing::warn!(
             samples = trimmed.len(),
             max_samples,
-            "audio exceeds max_recording_sec - truncating"
+            reason = "the recording exceeds max_recording_sec",
+            "stt.audio.truncated"
         );
         return Ok(trimmed[..max_samples].to_vec());
     }

@@ -139,7 +139,7 @@ pub async fn install_cli(app: tauri::AppHandle) -> Result<(), String> {
         tracing::info!(
             source = %source.display(),
             target = %target.display(),
-            "CLI symlink created"
+            "cli.symlink.created"
         );
         return Ok(());
     }
@@ -155,7 +155,8 @@ pub async fn install_cli(app: tauri::AppHandle) -> Result<(), String> {
     tracing::info!(
         source = %source.display(),
         target = %target.display(),
-        "CLI symlink created (with admin privileges)"
+        detail = "created with administrator privileges",
+        "cli.symlink.created"
     );
     Ok(())
 }
@@ -182,7 +183,7 @@ pub async fn uninstall_cli() -> Result<(), String> {
     // Fast path.
     match std::fs::remove_file(&target) {
         Ok(()) => {
-            tracing::info!(path = %target.display(), "CLI symlink removed");
+            tracing::info!(path = %target.display(), "cli.symlink.removed");
             return Ok(());
         }
         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
@@ -194,7 +195,11 @@ pub async fn uninstall_cli() -> Result<(), String> {
     // Slow path: privilege escalation.
     let cmd = format!("rm -f {}", sh_quote(&target.display().to_string()));
     run_with_admin_privileges(&cmd).await?;
-    tracing::info!(path = %target.display(), "CLI symlink removed (with admin privileges)");
+    tracing::info!(
+        path = %target.display(),
+        detail = "removed with administrator privileges",
+        "cli.symlink.removed"
+    );
     Ok(())
 }
 

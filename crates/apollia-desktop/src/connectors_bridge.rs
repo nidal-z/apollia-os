@@ -44,7 +44,11 @@ pub async fn build_google_executors() -> Vec<Box<dyn ToolExecutor>> {
     let connector = match GoogleConnector::new(auth.clone()) {
         Ok(c) => Arc::new(c),
         Err(e) => {
-            tracing::warn!(error = %e, "Google connector init failed - tools unavailable");
+            tracing::warn!(
+                error = %e,
+                detail = "the Google tools are unavailable",
+                "connector.google.init.failed"
+            );
             return Vec::new();
         }
     };
@@ -99,7 +103,8 @@ impl GoogleToolExecutor {
         if accounts.len() > 1 {
             tracing::warn!(
                 count = accounts.len(),
-                "multiple Google accounts connected - using the first one (multi-account dispatch is not yet implemented)"
+                detail = "the first account is used",
+                "connector.google.account.ambiguous"
             );
         }
         // The emptiness test and the `expect` said the same thing twice; `next`

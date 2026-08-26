@@ -34,8 +34,9 @@ The ratchet. This tree does not reach zero in one change, so the debt is
 carried per crate in `ALLOWED` below and the ratchet only descends: a crate
 above its allowance fails, a crate *below* its allowance fails too, with the
 instruction to lower the number, and a crate that reaches zero leaves the list.
-`apollia-runtime` is absent on purpose. It was emptied first, and its absence
-is what keeps it empty: a crate with no entry is allowed nothing.
+`apollia-runtime`, `apollia-desktop`, `apollia-oria` and `apollia-cli` are
+absent on purpose. They were emptied first, and their absence is what keeps
+them empty: a crate with no entry is allowed nothing.
 
 Exit codes: 0 every crate is at its allowance, 1 at least one is off it,
 2 nothing measured (no tracked source, or no tracing call in the corpus).
@@ -75,7 +76,6 @@ ALLOWED: dict[str, int] = {
     "apollia-aip": 8,
     "apollia-auth": 3,
     "apollia-core": 1,
-    "apollia-desktop": 152,
     "apollia-llm": 39,
     "apollia-mcp": 33,
     "apollia-memory": 28,

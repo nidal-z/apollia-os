@@ -178,12 +178,16 @@ pub async fn update_stt_config(
     tracing::info!(
         enabled = config.enabled,
         model_path = %config.model_path,
-        "STT configuration updated via desktop UI"
+        "stt.config.updated"
     );
 
     // Bring the running engine in line with the persisted config, no restart.
     if let Err(e) = reload_stt_inner(&runtime, &app, &stt_flow_state).await {
-        tracing::warn!(error = %e, "STT config saved but engine reload failed");
+        tracing::warn!(
+            error = %e,
+            detail = "the configuration is saved but the engine still runs the previous one",
+            "stt.engine.reload.failed"
+        );
     }
 
     Ok(())
@@ -344,7 +348,7 @@ pub(crate) async fn reload_stt_inner(
         .map_err(|e| format!("failed to disarm STT hotkey: {e}"))?;
     }
 
-    tracing::info!(loaded, enabled = cfg.enabled, "STT engine reloaded");
+    tracing::info!(loaded, enabled = cfg.enabled, "stt.engine.reloaded");
     Ok(())
 }
 
