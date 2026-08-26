@@ -614,13 +614,28 @@ guards:
     )
     # Reds accumulate instead of stopping the run: an operator wants the whole
     # list, and stopping on the first one hides the twelve behind it.
+    #
+    # Exit 2 is not a red. The corpus rule is that a tool which measured
+    # nothing answers a code distinct from one that measured a failure, and
+    # this loop used to collapse the two: a guard whose subject is absent from
+    # the tree was reported as a guard that found a defect. The method
+    # reference guard is the case that forced the distinction, its subject
+    # living outside git, so it answers 2 in every clone and on every hosted
+    # runner. Skips are counted and named at the end rather than swallowed:
+    # "nothing was measured" is not a success either.
     reds=()
+    skips=()
     for guard in "${guards[@]}"; do
       # Word splitting is wanted here, one entry carries an argument. This body
       # runs under the bash of the shebang above, whose splitting is reliable.
       # shellcheck disable=SC2086
-      if python3 $guard; then
+      python3 $guard
+      code=$?
+      if [ "$code" -eq 0 ]; then
         echo "== ok   $guard"
+      elif [ "$code" -eq 2 ]; then
+        echo "== skip $guard (nothing measured)"
+        skips+=("$guard")
       else
         echo "== RED  $guard"
         reds+=("$guard")
@@ -635,12 +650,18 @@ guards:
       fi
     done
     echo
+    if [ "${#skips[@]}" -ne 0 ]; then
+      echo "${#skips[@]} guard(s) measured nothing:"
+      for guard in "${skips[@]}"; do echo "  $guard"; done
+      echo
+    fi
     if [ "${#reds[@]}" -ne 0 ]; then
       echo "${#reds[@]} guard(s) red:" >&2
       for guard in "${reds[@]}"; do echo "  $guard" >&2; done
       exit 1
     fi
-    echo "$(( ${#guards[@]} + ${#externals[@]} )) guards green"
+    total=$(( ${#guards[@]} + ${#externals[@]} ))
+    echo "$(( total - ${#skips[@]} )) guards green, ${#skips[@]} measured nothing, $total in the recipe"
 
 # Local CI: guards + lint + tests
 ci: guards lint test
