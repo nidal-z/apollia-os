@@ -2004,12 +2004,26 @@ TOKENS_SCRIPT = '<script>\n  const cls = "bg-white";\n</script>\n<p>ok</p>\n'
 TOKENS_STYLE = "<div></div>\n<style>\n  .x { font-size: 11px; }\n</style>\n"
 TOKENS_ARROW = '<button onclick={() => go()} class="text-[9px]">go</button>\n'
 TOKENS_CLEAN = '<p class="text-caption text-foreground">clean</p>\n'
+# One pair per second-stage judgement: the same shape written on a value a
+# token carries, and on a value none carries.
+TOKENS_COVERED = (
+    ".a { z-index: 40; }\n"
+    ".b { box-shadow: 0 4px 16px -2px hsl(237 47% 57% / 0.35); }\n"
+    ".c { border-radius: 8px; }\n"
+    '<div class="w-[16px] duration-200"></div>\n'
+)
+TOKENS_UNCOVERED = (
+    ".a { z-index: 64; }\n"
+    ".b { box-shadow: 0 0 0 3px hsl(237 47% 57% / 0.35); }\n"
+    ".c { border-radius: 32px; }\n"
+    '<div class="w-[88px] duration-75"></div>\n'
+)
 
 
 def check_design_tokens_lens() -> None:
     print("design tokens: a literal counts where it can style, not where it is described")
 
-    prose = designtokens.scan(TOKENS_PROSE, ".svelte", False)
+    prose = designtokens.scan(TOKENS_PROSE, ".svelte", False, set())
     case(
         "the class attribute on the prose line is flagged",
         [f for f in prose if f[1] == "font-size"] != [],
@@ -2025,7 +2039,7 @@ def check_design_tokens_lens() -> None:
         f"debt is a guard someone excludes. findings: {prose!r}",
     )
 
-    script = designtokens.scan(TOKENS_SCRIPT, ".svelte", False)
+    script = designtokens.scan(TOKENS_SCRIPT, ".svelte", False, set())
     case(
         "a palette class inside the <script> body is flagged",
         [f for f in script if f[1] == "color"] != [],
@@ -2033,7 +2047,7 @@ def check_design_tokens_lens() -> None:
         f"variant tables and `class:` expressions. findings: {script!r}",
     )
 
-    style = designtokens.scan(TOKENS_STYLE, ".svelte", False)
+    style = designtokens.scan(TOKENS_STYLE, ".svelte", False, set())
     case(
         "a declaration inside the <style> body is flagged",
         [f for f in style if f[1] == "font-size"] != [],
@@ -2041,7 +2055,7 @@ def check_design_tokens_lens() -> None:
         f"every component-scoped stylesheet. findings: {style!r}",
     )
 
-    arrow = designtokens.scan(TOKENS_ARROW, ".svelte", False)
+    arrow = designtokens.scan(TOKENS_ARROW, ".svelte", False, set())
     case(
         "an arrow function in an attribute does not end the tag early",
         [f for f in arrow if f[1] == "font-size"] != [],
@@ -2050,12 +2064,51 @@ def check_design_tokens_lens() -> None:
         f"common attribute order in the tree. findings: {arrow!r}",
     )
 
-    clean = designtokens.scan(TOKENS_CLEAN, ".svelte", False)
+    clean = designtokens.scan(TOKENS_CLEAN, ".svelte", False, set())
     case(
         "positive control: a tokenised class is not flagged",
         clean == [],
         f"a compliant class was reported. A guard that fails on compliant "
         f"input gets switched off, and then guards nothing. findings: {clean!r}",
+    )
+
+    covered = designtokens.scan(TOKENS_COVERED, ".css", False, {40})
+    verdicts = sorted({f[3] for f in covered if f[1] != "color"})
+    case(
+        "a value a token carries is a defect, whatever its family",
+        verdicts == ["defect"],
+        f"a layer, an elevation, a corner and a rung the tree declares were "
+        f"not all called defects. The second stage is allowed to excuse a "
+        f"value no token names, never one that has a token to move to. "
+        f"verdicts: {verdicts!r}",
+    )
+
+    uncovered = designtokens.scan(TOKENS_UNCOVERED, ".css", False, {40})
+    reasons = sorted({f[3] for f in uncovered if f[1] != "color"})
+    case(
+        "a value no token carries is counted with its reason, not as a defect",
+        reasons == [
+            "uncovered:no-layer-token",
+            "uncovered:no-ring-token",
+            "uncovered:off-motion-scale",
+            "uncovered:off-radius-scale",
+            "uncovered:off-spacing-scale",
+        ],
+        f"a rung that does not exist was reported as a defect, or dropped. "
+        f"Reporting `w-[88px]` sends a reader looking for a token that was "
+        f"never declared, and dropping it makes the count green for the wrong "
+        f"reason. reasons: {reasons!r}",
+    )
+
+    scale = designtokens.spacing_px()
+    layers = designtokens.declared_z_values(designtokens.APP_CSS.read_text(encoding="utf-8"))
+    case(
+        "the scales are read from the tree, not carried in the guard",
+        scale > designtokens.SPACING_PX_BASE and len(layers) >= 3,
+        f"the spacing rungs the config adds ({sorted(scale - designtokens.SPACING_PX_BASE)!r}) "
+        f"or the layers app.css declares ({sorted(layers)!r}) did not reach the "
+        f"judgement. A scale copied into the guard drifts from the one the "
+        f"tree uses, and then the guard judges against a scale nobody writes",
     )
 
 
@@ -2113,11 +2166,13 @@ def check_design_tokens_ratchet() -> None:
         designtokens.ALLOWED = saved
 
     case(
-        "the real allowance is not empty",
-        len(saved) >= 10,
-        f"the allowance holds {len(saved)} entr(y/ies), so the cases above "
-        f"exercise a table the tree does not have: a ratchet over nothing "
-        f"ratchets nothing",
+        "the real allowance still carries debt",
+        sum(saved.values()) > 0,
+        f"the allowance holds {len(saved)} entr(y/ies) for "
+        f"{sum(saved.values())} literal(s), so the cases above exercise a "
+        f"table the tree does not have: a ratchet over nothing ratchets "
+        f"nothing. When the last entry goes, this case is what has to say so, "
+        f"by being rewritten to demand an empty table",
     )
 
 
@@ -2167,7 +2222,8 @@ def main() -> int:
         "attribute read by proximity would drop, the desktop automation "
         "verdict is read with staleness treated as nothing measured, and the "
         "design token guard reads what can style something rather than what "
-        "is written about it, behind a ratchet that fails in both directions"
+        "is written about it, tells a value a token carries from one no token "
+        "names, and holds both behind a ratchet that fails in both directions"
     )
     return 0
 

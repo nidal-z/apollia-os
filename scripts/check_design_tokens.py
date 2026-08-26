@@ -14,7 +14,8 @@ The reason the rule matters is that its violations are silent. A hardcoded
 build fails, no test fails, and the defect is only visible to someone who
 toggles the theme on that exact surface.
 
-Seven families are read, one per token family that exists:
+Two questions, asked in that order. First, is a visual value written by hand?
+Seven families answer it, one per token family that exists:
 
   color      hex, `rgb()`/`hsl()` with literal numbers, Tailwind palette
              classes (`bg-white`, `text-neutral-500`) and arbitrary colour
@@ -24,19 +25,29 @@ Seven families are read, one per token family that exists:
   z-index    `z-index:` literals, `z-[N]` and `z-NN`, against `--z-*`
   motion     literal durations and `cubic-bezier(...)`, against `--motion-*`
              and `--ease-*`
-  font-size  `text-[Npx]` and `font-size: Npx`, against the reading and
-             chrome scales of `tailwind.config.ts`
+  font-size  `text-[Npx]` and `font-size: Npx`, against the tiers of
+             `app.css` that `tailwind.config.ts` reads
   size-px    other arbitrary px classes (`w-[12px]`, `gap-[3px]`); Tailwind's
-             spacing scale is the token here
+             spacing scale, plus what the config adds to it, is the token here
 
-What separates this guard from the sweep it was promoted from is where it
-looks. A literal is a defect where it can style something: inside a `<script>`
-or `<style>` block, inside a tag in the template, or anywhere in a `.css` file.
-A literal sitting in element text content is prose, and the showcase routes are
-full of it, documenting the design system by naming its values. The sweep read
+Second, does a token carry that value? `w-[88px]` is a hand-written width and
+the spacing scale has no 88 px rung, so there is nothing to migrate it to;
+moving it is a visual decision, not a migration. A guard that answers only the
+first question calls it a defect and sends a reader site by site to discover
+that; one that silently drops what it cannot judge reports success for the
+wrong reason. Both are how a guard earns the reputation that gets it switched
+off. So the scales are read where they are written, `app.css` and
+`tailwind.config.ts`, and a literal outside them is counted with its reason and
+printed on every run, red or green, next to the sizes the type scale still owes
+a tier.
+
+Where it looks is the other half. A literal is a defect where it can style
+something: inside a `<script>` or `<style>` block, inside a tag in the
+template, or anywhere in a `.css` file. A literal sitting in element text
+content is prose, and the showcase routes are full of it, documenting the
+design system by naming its values. The sweep this guard was promoted from read
 whole lines and reported `hsl(28 11% 13%)` written inside a `<code>` span as a
-hardcoded colour. Counting prose as a defect is how a guard earns the reputation
-that gets it switched off.
+hardcoded colour.
 
 The ratchet. This tree does not reach zero in one change, so the debt is
 carried as a named allowance per file, in `ALLOWED` below, and the ratchet only
@@ -49,7 +60,8 @@ Exit codes: 0 clean, 1 at least one file off its allowance, 2 nothing measured.
 
 Usage:
     python3 scripts/check_design_tokens.py
-    python3 scripts/check_design_tokens.py --list   # findings, file by file
+    python3 scripts/check_design_tokens.py --list          # every finding
+    python3 scripts/check_design_tokens.py --list color    # one family
 """
 
 import argparse
@@ -74,24 +86,43 @@ PROPS = (
     "accent|caret|decoration|ring-offset|border-[trblxy]"
 )
 
-RULES: list[tuple[str, re.Pattern[str]]] = [
-    ("color", re.compile(r"(?<!&)#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b")),
-    ("color", re.compile(r"\b(?:rgb|rgba|hsl|hsla)\(\s*\d")),
-    ("color", re.compile(r"(?<![\w-])(?:[a-z-]+:)*(?:" + PROPS + r")-(?:" + PALETTE + r")(?:-\d{2,3})?(?:/\d+)?(?![\w-])")),
-    ("color", re.compile(r"(?<![\w-])(?:[a-z-]+:)*(?:" + PROPS + r")-\[(?:#[0-9a-fA-F]{3,8}|rgba?\(|hsla?\(\s*\d)[^\]]*\]")),
-    ("shadow", re.compile(r"\bbox-shadow\s*:(?!\s*(?:var\(|none|inherit))[^;]*\d")),
-    ("shadow", re.compile(r"(?<![\w-])(?:[a-z-]+:)*shadow-\[[^\]]+\]")),
-    ("radius", re.compile(r"\bborder(?:-(?:top|bottom)-(?:left|right))?-radius\s*:(?!\s*(?:var\(|calc\(\s*(?:var|TOKEN)|0(?![.\d])|50%|100%|9{2,}|inherit))[^;]*\d")),
-    ("radius", re.compile(r"(?<![\w-])(?:[a-z-]+:)*rounded(?:-[trblse]{1,2})?-\[(?!9{2,}px|50%|100%)[^\]]+\]")),
-    ("z-index", re.compile(r"\bz-index\s*:(?!\s*(?:var\(|calc\(\s*var|auto|-?1(?![.\d])|0(?![.\d])))\s*-?\d+")),
-    ("z-index", re.compile(r"(?<![\w-])(?:[a-z-]+:)*z-(?:\[\d+\]|(?!0\b|10\b|auto)\d{2,})(?![\w-])")),
-    ("motion", re.compile(r"\b(?:transition|animation)(?:-duration|-delay)?\s*:\s*[^;]*?\b\d+m?s\b")),
-    ("motion", re.compile(r"\bcubic-bezier\(\s*[\d.]")),
-    ("motion", re.compile(r"(?<![\w-])(?:[a-z-]+:)*duration-\d+(?![\w-])")),
-    ("motion", re.compile(r"(?<![\w-])(?:[a-z-]+:)*duration-\[[^\]]+\]")),
-    ("font-size", re.compile(r"(?<![\w-])(?:[a-z-]+:)*text-\[[\d.]+(?:px|rem)\]")),
-    ("font-size", re.compile(r"\bfont-size\s*:(?!\s*(?:var\(|inherit))\s*[\d.]+(?:px|rem)")),
-    ("size-px", re.compile(r"(?<![\w-])(?:[a-z-]+:)*(?:w|h|min-w|min-h|max-w|max-h|size|p[xytrbl]?|m[xytrbl]?|gap(?:-[xy])?|space-[xy]|inset(?:-[xy])?|top|left|right|bottom|leading|tracking|basis|translate-[xy])-\[[\d.]+px\]")),
+SPACING_PROPS = (
+    "w|h|min-w|min-h|max-w|max-h|size|p[xytrbl]?|m[xytrbl]?|gap(?:-[xy])?|space-[xy]|"
+    "inset(?:-[xy])?|top|left|right|bottom|basis|translate-[xy]"
+)
+
+# Tailwind v3 default spacing scale, in px. A px literal that lands on one of
+# these has a rung to move to; one that does not has none, and rounding it is
+# a visual decision this guard is not entitled to take. The rungs the config
+# adds are read from the config itself, below, rather than repeated here.
+SPACING_PX_BASE = {
+    0.0, 1.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 20.0, 24.0, 28.0,
+    32.0, 36.0, 40.0, 44.0, 48.0, 56.0, 64.0, 80.0, 96.0, 112.0, 128.0, 144.0,
+    160.0, 176.0, 192.0, 208.0, 224.0, 240.0, 256.0, 288.0, 320.0, 384.0,
+}
+
+# (family, pattern, verdict). `defect` is decided by the pattern alone; any
+# other value names the second-stage judgement in `judge()` that decides
+# between a defect and a reason no token covers the value.
+RULES: list[tuple[str, re.Pattern[str], str]] = [
+    ("color", re.compile(r"(?<!&)#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b"), "defect"),
+    ("color", re.compile(r"\b(?:rgb|rgba|hsl|hsla)\(\s*\d"), "defect"),
+    ("color", re.compile(r"(?<![\w-])(?:[a-z-]+:)*(?:" + PROPS + r")-(?:" + PALETTE + r")(?:-\d{2,3})?(?:/\d+)?(?![\w-])"), "defect"),
+    ("color", re.compile(r"(?<![\w-])(?:[a-z-]+:)*(?:" + PROPS + r")-\[(?:#[0-9a-fA-F]{3,8}|rgba?\(|hsla?\(\s*\d)[^\]]*\]"), "defect"),
+    ("shadow", re.compile(r"\bbox-shadow\s*:(?!\s*(?:var\(|none|inherit))(?=[^;]*\d)[^;]*"), "shadow_shape"),
+    ("shadow", re.compile(r"(?<![\w-])(?:[a-z-]+:)*shadow-\[[^\]]+\]"), "shadow_shape"),
+    ("radius", re.compile(r"\bborder(?:-(?:top|bottom)-(?:left|right))?-radius\s*:(?!\s*(?:var\(|calc\(\s*(?:var|TOKEN)|0(?![.\d])|50%|100%|9{2,}|inherit))(?=[^;]*\d)[^;]*"), "radius_range"),
+    ("radius", re.compile(r"(?<![\w-])(?:[a-z-]+:)*rounded(?:-[trblse]{1,2})?-\[(?!9{2,}px|50%|100%)[^\]]+\]"), "radius_range"),
+    ("z-index", re.compile(r"\bz-index\s*:(?!\s*(?:var\(|calc\(\s*var|auto|-?1(?![.\d])|0(?![.\d])))\s*-?\d+"), "z_value"),
+    ("z-index", re.compile(r"(?<![\w-])(?:[a-z-]+:)*z-(?:\[\d+\]|(?!0\b|10\b|auto)\d{2,})(?![\w-])"), "z_value"),
+    ("motion", re.compile(r"\b(?:transition|transition-duration|transition-delay)\s*:\s*[^;]*?\b\d+\.?\d*m?s\b"), "motion_range"),
+    ("motion", re.compile(r"\b(?:animation|animation-duration|animation-delay)\s*:\s*[^;]*?\b\d+\.?\d*m?s\b"), "keyframe"),
+    ("motion", re.compile(r"\bcubic-bezier\(\s*[\d.]"), "defect"),
+    ("motion", re.compile(r"(?<![\w-])(?:[a-z-]+:)*duration-(?:\d+|\[[^\]]+\])(?![\w-])"), "motion_range"),
+    ("font-size", re.compile(r"(?<![\w-])(?:[a-z-]+:)*text-\[[\d.]+(?:px|rem)\]"), "defect"),
+    ("font-size", re.compile(r"\bfont-size\s*:(?!\s*(?:var\(|inherit))\s*[\d.]+(?:px|rem)"), "defect"),
+    ("size-px", re.compile(r"(?<![\w-])(?:[a-z-]+:)*(?:" + SPACING_PROPS + r")-\[[\d.]+px\]"), "spacing"),
+    ("size-px", re.compile(r"(?<![\w-])(?:[a-z-]+:)*(?:leading|tracking)-\[[\d.]+px\]"), "no_scale"),
 ]
 
 FAMILIES = ("color", "shadow", "radius", "z-index", "motion", "font-size", "size-px")
@@ -100,6 +131,14 @@ COMMENT_LINE = re.compile(r"^\s*(?://|/\*|\*|<!--)")
 ALLOWED_LITERALS = re.compile(r"\b(?:transparent|currentColor|inherit)\b")
 
 MASKED = "\x00"
+
+PX_IN_BRACKET = re.compile(r"\[([\d.]+)px\]")
+Z_LITERAL = re.compile(r"(?:z-index\s*:\s*|z-\[?)(-?\d+)")
+Z_DECL_VALUE = re.compile(r"(-?\d+)")
+FONT_PX = re.compile(r"([\d.]+)(px|rem)")
+LENGTH = re.compile(r"(?<![\w.])(-?[\d.]+)(?:px|rem|em)?(?![\w.])")
+COLOR_CALL = re.compile(r"(?:rgba?|hsla?)\([^)]*\)")
+DURATION = re.compile(r"(?<![\w.])([\d.]+)(ms|s)?(?![\w.])")
 
 # ── The ratchet ──────────────────────────────────────────────────────────────
 #
@@ -110,14 +149,14 @@ MASKED = "\x00"
 # `src/routes/` is absent on purpose. It was migrated to the tokens, and its
 # absence is what keeps it migrated: a file with no entry is allowed nothing.
 ALLOWED: dict[str, int] = {
-    "src/app.css": 118,
+    "src/app.css": 96,
     "src/components/agents/AgentActivity.svelte": 1,
-    "src/components/agents/AgentDetail.svelte": 15,
+    "src/components/agents/AgentDetail.svelte": 14,
     "src/components/agents/AgentLlmInfo.svelte": 1,
-    "src/components/agents/AgentLogs.svelte": 13,
-    "src/components/agents/AgentMessagesPanel.svelte": 5,
+    "src/components/agents/AgentLogs.svelte": 12,
+    "src/components/agents/AgentMessagesPanel.svelte": 4,
     "src/components/agents/AgentTriggers.svelte": 4,
-    "src/components/agents/ApolliaChatConfigPanel.svelte": 13,
+    "src/components/agents/ApolliaChatConfigPanel.svelte": 12,
     "src/components/agents/InstallPackageDialog.svelte": 35,
     "src/components/automations/AutomationDefinitionForm.svelte": 1,
     "src/components/automations/AutomationWizard.svelte": 10,
@@ -128,15 +167,15 @@ ALLOWED: dict[str, int] = {
     "src/components/chat/AgentUnavailableBanner.svelte": 1,
     "src/components/chat/ApprovalCard.svelte": 13,
     "src/components/chat/ApprovalScopeSelect.svelte": 3,
-    "src/components/chat/AskUserCard.svelte": 22,
+    "src/components/chat/AskUserCard.svelte": 21,
     "src/components/chat/AskUserQuestion.svelte": 3,
     "src/components/chat/AskUserSummary.svelte": 3,
-    "src/components/chat/AssertionInline.svelte": 9,
+    "src/components/chat/AssertionInline.svelte": 7,
     "src/components/chat/AttachmentChip.svelte": 1,
     "src/components/chat/ChatConfigPanelBody.svelte": 17,
-    "src/components/chat/ChatConversation.svelte": 13,
+    "src/components/chat/ChatConversation.svelte": 11,
     "src/components/chat/ChatConversationHeader.svelte": 13,
-    "src/components/chat/ChatInput.svelte": 8,
+    "src/components/chat/ChatInput.svelte": 3,
     "src/components/chat/ChatMessageBubble.svelte": 6,
     "src/components/chat/ChatPlanReview.svelte": 5,
     "src/components/chat/ChatPlanReviewBuilder.svelte": 5,
@@ -145,7 +184,7 @@ ALLOWED: dict[str, int] = {
     "src/components/chat/EmptyAgentsState.svelte": 2,
     "src/components/chat/HitlFilesystemModal.svelte": 17,
     "src/components/chat/InputHints.svelte": 11,
-    "src/components/chat/MentionResourceMenu.svelte": 5,
+    "src/components/chat/MentionResourceMenu.svelte": 4,
     "src/components/chat/MessageGroup.svelte": 2,
     "src/components/chat/MessageRenderer.svelte": 1,
     "src/components/chat/OperatorApprovalCard.svelte": 13,
@@ -158,12 +197,11 @@ ALLOWED: dict[str, int] = {
     "src/components/chat/ReasoningSequence.svelte": 2,
     "src/components/chat/RetryTimeline.svelte": 5,
     "src/components/chat/RichLinkPreview.svelte": 2,
-    "src/components/chat/ScrollToBottomButton.svelte": 3,
+    "src/components/chat/ScrollToBottomButton.svelte": 2,
     "src/components/chat/SessionNotFound.svelte": 1,
     "src/components/chat/ShortcutsHelpDialog.svelte": 1,
-    "src/components/chat/SlashCommandMenu.svelte": 3,
+    "src/components/chat/SlashCommandMenu.svelte": 2,
     "src/components/chat/SourceCards.svelte": 7,
-    "src/components/chat/StreamingCursor.svelte": 2,
     "src/components/chat/StreamingMessage.svelte": 5,
     "src/components/chat/StreamingText.svelte": 1,
     "src/components/chat/tool-bodies/BashBody.svelte": 1,
@@ -178,104 +216,86 @@ ALLOWED: dict[str, int] = {
     "src/components/chat/tool-bodies/TodoBody.svelte": 1,
     "src/components/chat/tool-bodies/WebReadBody.svelte": 1,
     "src/components/chat/tool-bodies/WebSearchBody.svelte": 1,
-    "src/components/common/KeyboardHintOverlay.svelte": 3,
+    "src/components/common/KeyboardHintOverlay.svelte": 1,
     "src/components/common/NextStepsPanel.svelte": 2,
-    "src/components/companion/CompanionPanel.svelte": 4,
-    "src/components/connections/catalogue/CatalogueSheet.svelte": 1,
     "src/components/inbox/ActivityRow.svelte": 2,
     "src/components/inbox/AskUserForm.svelte": 2,
     "src/components/inbox/RejectReasonDialog.svelte": 2,
-    "src/components/integrations/ConnectorWizard.svelte": 1,
-    "src/components/integrations/McpServerSettingsEditor.svelte": 39,
+    "src/components/integrations/McpServerSettingsEditor.svelte": 36,
     "src/components/integrations/WizardStepAuth.svelte": 10,
     "src/components/integrations/WizardStepTest.svelte": 11,
-    "src/components/llm/LlmStats.svelte": 1,
     "src/components/memory/InjectedMemorySheet.svelte": 9,
     "src/components/observability/ActiveHooksPanel.svelte": 1,
-    "src/components/observability/AuditPurposeBanner.svelte": 1,
-    "src/components/observability/AuditTrailTable.svelte": 1,
     "src/components/observability/ExecutionTrace.svelte": 5,
-    "src/components/observability/LlmCostChart.svelte": 2,
-    "src/components/observability/MailboxTable.svelte": 2,
+    "src/components/observability/LlmCostChart.svelte": 1,
+    "src/components/observability/MailboxTable.svelte": 1,
     "src/components/observability/TimelineGlobal.svelte": 1,
-    "src/components/onboarding/OnboardingAiSetup.svelte": 66,
+    "src/components/onboarding/OnboardingAiSetup.svelte": 56,
     "src/components/onboarding/OnboardingChatStep.svelte": 9,
-    "src/components/onboarding/OnboardingConfetti.svelte": 2,
-    "src/components/onboarding/OnboardingModal.svelte": 10,
-    "src/components/onboarding/OnboardingPermissionStep.svelte": 12,
-    "src/components/onboarding/OnboardingProfileSelector.svelte": 8,
-    "src/components/onboarding/OnboardingWelcome.svelte": 4,
-    "src/components/project/ContextProvidersTab.svelte": 4,
-    "src/components/project/ProviderCard.svelte": 6,
+    "src/components/onboarding/OnboardingModal.svelte": 6,
+    "src/components/onboarding/OnboardingPermissionStep.svelte": 10,
+    "src/components/onboarding/OnboardingProfileSelector.svelte": 6,
+    "src/components/onboarding/OnboardingWelcome.svelte": 1,
+    "src/components/project/ContextProvidersTab.svelte": 3,
+    "src/components/project/ProviderCard.svelte": 5,
     "src/components/project/ProviderEditDialog.svelte": 12,
-    "src/components/project/SnapshotPreview.svelte": 7,
+    "src/components/project/SnapshotPreview.svelte": 5,
     "src/components/settings/HotkeyCaptureDialog.svelte": 5,
     "src/components/settings/UnsavedChangesBadge.svelte": 2,
-    "src/components/settings/about/AboutHero.svelte": 2,
-    "src/components/settings/shortcuts/Keycap.svelte": 1,
-    "src/components/settings/stt/SttTestCard.svelte": 1,
+    "src/components/settings/about/AboutHero.svelte": 1,
     "src/components/settings/tools/ToolRow.svelte": 1,
-    "src/components/stt/RecordingOverlay.svelte": 3,
-    "src/components/stt/TranscribingCard.svelte": 2,
-    "src/components/stt/TranscriptWaveform.svelte": 1,
-    "src/components/tasks/TasksDetailPanes.svelte": 6,
+    "src/components/stt/RecordingOverlay.svelte": 1,
     "src/components/tasks/TasksFab.svelte": 1,
-    "src/components/tasks/TasksListView.svelte": 4,
     "src/components/triggers/CreateTriggerDialog.svelte": 1,
-    "src/components/triggers/TriggerLogs.svelte": 2,
+    "src/components/triggers/TriggerLogs.svelte": 1,
     "src/lib/components/app/Sidebar.svelte": 6,
     "src/lib/components/app/Topbar.svelte": 1,
     "src/lib/components/feedback/KeyboardHint.svelte": 2,
     "src/lib/components/layout/EmptyState.svelte": 1,
-    "src/lib/components/operator/ConversationRow.svelte": 15,
+    "src/lib/components/operator/ConversationRow.svelte": 13,
     "src/lib/components/operator/DetailHeader.svelte": 2,
-    "src/lib/components/operator/EmptyState.svelte": 5,
+    "src/lib/components/operator/EmptyState.svelte": 3,
     "src/lib/components/operator/EntityCard.svelte": 2,
     "src/lib/components/operator/ErrorBanner.svelte": 2,
     "src/lib/components/operator/FilterChipBar.svelte": 2,
-    "src/lib/components/operator/HITLCard.svelte": 19,
+    "src/lib/components/operator/HITLCard.svelte": 18,
     "src/lib/components/operator/InboxRow.svelte": 2,
-    "src/lib/components/operator/Journal.svelte": 8,
-    "src/lib/components/operator/ListPanel.svelte": 2,
-    "src/lib/components/operator/NewProjectDialog.svelte": 31,
-    "src/lib/components/operator/PageHeader.svelte": 5,
+    "src/lib/components/operator/Journal.svelte": 4,
+    "src/lib/components/operator/ListPanel.svelte": 1,
+    "src/lib/components/operator/NewProjectDialog.svelte": 26,
+    "src/lib/components/operator/PageHeader.svelte": 3,
     "src/lib/components/operator/PlanDagPanel.svelte": 1,
-    "src/lib/components/operator/PlanStepNode.svelte": 1,
     "src/lib/components/operator/PlanThinkingOverlay.svelte": 1,
-    "src/lib/components/operator/ProjectCard.svelte": 12,
-    "src/lib/components/operator/SectionTitle.svelte": 3,
+    "src/lib/components/operator/ProjectCard.svelte": 7,
+    "src/lib/components/operator/SectionTitle.svelte": 2,
     "src/lib/components/operator/SidebarHeader.svelte": 2,
     "src/lib/components/operator/SplitLayout.svelte": 4,
-    "src/lib/components/operator/TaskRow.svelte": 12,
+    "src/lib/components/operator/TaskRow.svelte": 5,
     "src/lib/components/operator/approval/ApprovalLevelSelector.svelte": 1,
     "src/lib/components/operator/approval/ApprovalTimer.svelte": 2,
     "src/lib/components/operator/badges/RiskBadge.svelte": 4,
-    "src/lib/components/tour/TourStepCard.svelte": 1,
     "src/lib/components/ui/action-menu/ActionMenu.svelte": 1,
     "src/lib/components/ui/avatar/Avatar.svelte": 3,
-    "src/lib/components/ui/badge/Badge.svelte": 14,
+    "src/lib/components/ui/badge/Badge.svelte": 13,
     "src/lib/components/ui/button/Button.svelte": 6,
-    "src/lib/components/ui/checkbox/Checkbox.svelte": 2,
+    "src/lib/components/ui/checkbox/Checkbox.svelte": 1,
     "src/lib/components/ui/command/Command.svelte": 1,
     "src/lib/components/ui/command/CommandEmpty.svelte": 2,
     "src/lib/components/ui/command/CommandFooter.svelte": 1,
     "src/lib/components/ui/command/CommandGroup.svelte": 2,
-    "src/lib/components/ui/command/CommandItem.svelte": 3,
+    "src/lib/components/ui/command/CommandItem.svelte": 2,
     "src/lib/components/ui/command/Keycap.svelte": 2,
     "src/lib/components/ui/date-picker/DatePicker.svelte": 1,
     "src/lib/components/ui/date-picker/TimePicker.svelte": 1,
     "src/lib/components/ui/form-field/FormField.svelte": 3,
     "src/lib/components/ui/input/Input.svelte": 2,
-    "src/lib/components/ui/markdown/markdown-prose.css": 4,
-    "src/lib/components/ui/popover/Popover.svelte": 1,
-    "src/lib/components/ui/progress/ProgressBar.svelte": 2,
-    "src/lib/components/ui/progress/Spinner.svelte": 1,
+    "src/lib/components/ui/markdown/markdown-prose.css": 2,
+    "src/lib/components/ui/progress/ProgressBar.svelte": 1,
     "src/lib/components/ui/radio/RadioItem.svelte": 1,
     "src/lib/components/ui/select/Select.svelte": 1,
-    "src/lib/components/ui/separator/Separator.svelte": 2,
     "src/lib/components/ui/stepper/Stepper.svelte": 2,
     "src/lib/components/ui/tabs/TabBar.svelte": 1,
-    "src/lib/components/ui/textarea/Textarea.svelte": 5,
+    "src/lib/components/ui/textarea/Textarea.svelte": 4,
     "src/lib/components/ui/toast/Toast.svelte": 1,
     "src/lib/components/ui/toggle/Toggle.svelte": 2,
 }
@@ -352,19 +372,199 @@ def flaggable_mask(text: str, suffix: str) -> list[bool]:
     return mask
 
 
+def declared_motion_ms(css: str) -> list[float]:
+    """The duration of every `--motion-*` token declared in app.css, in ms."""
+    out: list[float] = []
+    for value, unit in re.findall(r"^\s*--motion-[a-z0-9-]+\s*:\s*([\d.]+)(ms|s)\s*;", css, re.M):
+        out.append(float(value) * (1000 if unit == "s" else 1))
+    return sorted(out)
+
+
+def declared_z_values(css: str) -> set[int]:
+    """The integer value of every `--z-*` token declared in app.css."""
+    out: set[int] = set()
+    for _, value in re.findall(r"^\s*--(z-[a-z0-9-]+)\s*:\s*([^;]+);", css, re.M):
+        digits = Z_DECL_VALUE.search(value)
+        if digits:
+            out.add(int(digits.group(1)))
+    return out
+
+
+def declared_font_px(css: str) -> set[float]:
+    """The px size of every `--text-*` tier declared in app.css.
+
+    The tiers live there and `tailwind.config.ts` reads them, so the scale is
+    read where it is written. A tier whose size is a `clamp()` has no single px
+    value and is not a size a literal can land on.
+    """
+    out: set[float] = set()
+    for value in re.findall(r"^\s*--text-[a-z0-9-]+\s*:\s*([\d.]+)rem\s*;", css, re.M):
+        out.add(round(float(value) * 16, 4))
+    return out
+
+
+_SPACING: set[float] = set()
+
+
+def spacing_px() -> set[float]:
+    """The spacing scale in force: Tailwind's own, plus what the config adds.
+
+    `tailwind.config.ts` extends the scale where a surface needed a rung the
+    default scale has no room for. Reading it here is what keeps the guard from
+    calling a literal a defect on a rung nobody declared, and from excusing one
+    on a rung somebody did.
+    """
+    if not _SPACING:
+        _SPACING.update(SPACING_PX_BASE)
+        config = (UI / "tailwind.config.ts").read_text(encoding="utf-8")
+        block = re.search(r"\bspacing:\s*\{(.*?)\n\s*\},", config, re.S)
+        if block is not None:
+            for value, unit in re.findall(
+                r':\s*"([\d.]+)(rem|px)"', block.group(1)
+            ):
+                _SPACING.add(round(float(value) * (16 if unit == "rem" else 1), 4))
+    return _SPACING
+
+
+def px_of(literal: str) -> float | None:
+    """The px size a `text-[N]` class or a `font-size:` declaration writes."""
+    match = FONT_PX.search(literal)
+    if match is None:
+        return None
+    value = float(match.group(1))
+    return round(value * 16, 4) if match.group(2) == "rem" else round(value, 4)
+
+
+def duration_ms(literal: str) -> float | None:
+    """The first duration of a transition declaration or a `duration-N` class."""
+    if "duration-" in literal:
+        match = re.search(r"duration-\[?([\d.]+)(ms|s)?", literal)
+        if match is None:
+            return None
+        value = float(match.group(1))
+        return value * 1000 if match.group(2) == "s" else value
+    body = literal.split(":", 1)[1] if ":" in literal else literal
+    for value, unit in DURATION.findall(body):
+        if unit:
+            return float(value) * (1000 if unit == "s" else 1)
+    return None
+
+
+def has_blur(literal: str) -> bool:
+    """Whether one layer of a box-shadow has a non-zero blur radius.
+
+    The elevation, primary and status scales are shadows with a blur. A layer
+    with none is a ring (`0 0 0 3px`), a hairline (`0 1px 0 0`) or an inset
+    rim, and no token carries one.
+    """
+    body = COLOR_CALL.sub("COLOR", literal).replace("_", " ")
+    body = body.split(":", 1)[1] if ":" in body else body
+    for layer in body.split(","):
+        lengths = LENGTH.findall(layer)
+        if len(lengths) >= 3 and float(lengths[2]) != 0:
+            return True
+    return False
+
+
+def first_length_px(literal: str) -> float | None:
+    """The first length of a declaration or of an arbitrary class, in px."""
+    body = literal.split(":", 1)[1] if ":" in literal else literal
+    match = re.search(r"([\d.]+)(px|rem|em)?", body)
+    if match is None:
+        return None
+    value = float(match.group(1))
+    return round(value * 16, 4) if match.group(2) in ("rem", "em") else round(value, 4)
+
+
+_BOUNDS: dict[str, tuple[float, float]] = {}
+
+
+def scale_bounds() -> dict[str, tuple[float, float]]:
+    """The ends of the motion and radius scales, read from app.css.
+
+    A literal outside them has nothing to round to: the shortest transition the
+    tree names is 120 ms and the largest corner it names is 10 px, so a 55 ms
+    meter or a 32 px card corner would have to be redrawn rather than migrated.
+    """
+    if not _BOUNDS:
+        css = APP_CSS.read_text(encoding="utf-8")
+        motion = declared_motion_ms(css)
+        radius = re.search(r"^\s*--radius\s*:\s*([\d.]+)(px|rem)\s*;", css, re.M)
+        largest = 0.0
+        if radius is not None:
+            largest = float(radius.group(1)) * (16 if radius.group(2) == "rem" else 1)
+        _BOUNDS["motion"] = (motion[0], motion[-1]) if motion else (0.0, 0.0)
+        # `rounded-sm` is the smallest corner the tree names: --radius less the
+        # 4 px the config subtracts for it.
+        _BOUNDS["radius"] = (max(largest - 4.0, 0.0), largest)
+    return _BOUNDS
+
+
+def judge(verdict_name: str, literal: str, z_values: set[int], in_keyframes: bool) -> str:
+    """Second stage: `defect`, or the reason no token carries this value.
+
+    The first stage says a visual value was written by hand. This one says
+    whether a token exists to write it with. A guard that answers only the
+    first question reports `w-[88px]` as a defect and leaves the reader to
+    discover, site by site, that the spacing scale has no 88 px rung; a guard
+    that silently drops what it cannot judge reports success for the wrong
+    reason. The reasons are counted and printed on every run instead.
+    """
+    if verdict_name == "defect":
+        return "defect"
+    if verdict_name == "keyframe":
+        return "uncovered:keyframe-duration"
+    if verdict_name == "shadow_shape":
+        if in_keyframes:
+            return "uncovered:keyframe-shadow"
+        return "defect" if has_blur(literal) else "uncovered:no-ring-token"
+    if verdict_name == "motion_range":
+        length = duration_ms(literal)
+        shortest, longest = scale_bounds()["motion"]
+        if length is None or not (shortest <= length <= longest):
+            return "uncovered:off-motion-scale"
+        return "defect"
+    if verdict_name == "radius_range":
+        size = first_length_px(literal)
+        smallest, largest = scale_bounds()["radius"]
+        if size is None or not (smallest <= size <= largest):
+            return "uncovered:off-radius-scale"
+        return "defect"
+    if verdict_name == "no_scale":
+        return "uncovered:no-px-scale"
+    if verdict_name == "z_value":
+        digits = Z_LITERAL.search(literal)
+        if digits is None:
+            return "uncovered:no-layer-token"
+        return "defect" if int(digits.group(1)) in z_values else "uncovered:no-layer-token"
+    if verdict_name == "spacing":
+        match = PX_IN_BRACKET.search(literal)
+        if match is None:
+            return "uncovered:off-spacing-scale"
+        return "defect" if float(match.group(1)) in spacing_px() else "uncovered:off-spacing-scale"
+    return "defect"
+
+
 def strip_var_refs(line: str) -> str:
     """Blank out `var(--x)` and `hsl(var(--x) / .5)` so their digits do not trip a rule."""
     line = re.sub(r"hsla?\(\s*var\(--[a-z0-9-]+\)[^)]*\)", "TOKEN", line)
     return re.sub(r"var\(--[a-z0-9-]+(?:,[^)]*)?\)", "TOKEN", line)
 
 
-def scan(text: str, suffix: str, is_app_css: bool) -> list[tuple[int, str, str]]:
-    """Findings in one file, as (line number, family, literal)."""
+def scan(
+    text: str, suffix: str, is_app_css: bool, z_values: set[int]
+) -> list[tuple[int, str, str, str]]:
+    """Findings in one file, as (line number, family, literal, verdict)."""
     mask = flaggable_mask(text, suffix)
-    findings: list[tuple[int, str, str]] = []
+    findings: list[tuple[int, str, str, str]] = []
     in_block_comment = False
     in_token_decl = False
     offset = 0
+    # Brace depth, so a box-shadow or a duration written inside a `@keyframes`
+    # block is read as a frame of an animation rather than as the elevation or
+    # the transition of a surface.
+    depth = 0
+    keyframes_at: int | None = None
     for n, raw in enumerate(text.splitlines(), 1):
         line_start, offset = offset, offset + len(raw) + 1
         if in_block_comment:
@@ -385,18 +585,31 @@ def scan(text: str, suffix: str, is_app_css: bool) -> list[tuple[int, str, str]]
             if ";" not in raw:
                 in_token_decl = True
             continue
+        if keyframes_at is None and "@keyframes" in raw:
+            keyframes_at = depth
+        in_keyframes = keyframes_at is not None
+        depth += raw.count("{") - raw.count("}")
+        if keyframes_at is not None and depth <= keyframes_at:
+            keyframes_at = None
         masked = "".join(
             ch if mask[line_start + i] else MASKED for i, ch in enumerate(raw)
         )
         cleaned = strip_var_refs(masked)
         if suffix != ".css" and "http" not in cleaned:
             cleaned = re.sub(r"//.*$", "", cleaned)
-        for family, rx in RULES:
+        for family, rx, verdict_name in RULES:
             for m in rx.finditer(cleaned):
                 literal = m.group(0)
                 if ALLOWED_LITERALS.search(literal):
                     continue
-                findings.append((n, family, literal.strip()))
+                findings.append(
+                    (
+                        n,
+                        family,
+                        literal.strip(),
+                        judge(verdict_name, literal.strip(), z_values, in_keyframes),
+                    )
+                )
     return findings
 
 
@@ -419,17 +632,47 @@ def tracked_files() -> list[Path]:
     return [UI / f for f in out.stdout.split() if f.endswith((".svelte", ".css"))]
 
 
-def measure(files: list[Path]) -> dict[str, list[tuple[int, str, str]]]:
-    per_file: dict[str, list[tuple[int, str, str]]] = {}
+def measure(
+    files: list[Path], z_values: set[int]
+) -> dict[str, list[tuple[int, str, str, str]]]:
+    per_file: dict[str, list[tuple[int, str, str, str]]] = {}
     for path in files:
         text = path.read_text(encoding="utf-8", errors="replace")
-        found = scan(text, path.suffix, path == APP_CSS)
+        found = scan(text, path.suffix, path == APP_CSS, z_values)
         if found:
             per_file[str(path.relative_to(UI))] = found
     return per_file
 
 
-def verdict(per_file: dict[str, list[tuple[int, str, str]]]) -> list[str]:
+def defects(
+    per_file: dict[str, list[tuple[int, str, str, str]]],
+) -> dict[str, list[tuple[int, str, str, str]]]:
+    """The findings the ratchet counts: those a token already carries."""
+    out: dict[str, list[tuple[int, str, str, str]]] = {}
+    for rel, found in per_file.items():
+        kept = [f for f in found if f[3] == "defect"]
+        if kept:
+            out[rel] = kept
+    return out
+
+
+def scale_gap(
+    per_file: dict[str, list[tuple[int, str, str, str]]],
+) -> dict[float, int]:
+    """The font sizes still written by hand that no `--text-*` tier carries."""
+    tiers = declared_font_px(APP_CSS.read_text(encoding="utf-8"))
+    counts: dict[float, int] = {}
+    for found in per_file.values():
+        for _, family, literal, verdict_name in found:
+            if family != "font-size" or verdict_name != "defect":
+                continue
+            size = px_of(literal)
+            if size is not None and size not in tiers:
+                counts[size] = counts.get(size, 0) + 1
+    return counts
+
+
+def verdict(per_file: dict[str, list[tuple[int, str, str, str]]]) -> list[str]:
     """Ratchet failures, one line each. Empty when the tree matches its allowance."""
     failures: list[str] = []
     for rel, found in sorted(per_file.items()):
@@ -455,7 +698,11 @@ def verdict(per_file: dict[str, list[tuple[int, str, str]]]) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--list", action="store_true", help="print every finding, file by file"
+        "--list",
+        nargs="?",
+        const="all",
+        metavar="FAMILY",
+        help="print every finding, file by file, optionally for one family",
     )
     parser.add_argument(
         "--json", action="store_true", help="print the per-file counts as JSON"
@@ -465,7 +712,8 @@ def main(argv: list[str] | None = None) -> int:
     if not APP_CSS.exists():
         print("nothing measured: crates/apollia-desktop/ui/src/app.css is absent")
         return 2
-    tokens = set(TOKEN_DECL.findall(APP_CSS.read_text(encoding="utf-8")))
+    css = APP_CSS.read_text(encoding="utf-8")
+    tokens = set(TOKEN_DECL.findall(css))
     files = tracked_files()
     if not files or not tokens:
         print(
@@ -474,14 +722,20 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    per_file = measure(files)
+    everything = measure(files, declared_z_values(css))
+    per_file = defects(everything)
     counts = {rel: len(found) for rel, found in per_file.items()}
     total = sum(counts.values())
 
     per_family: dict[str, int] = {}
-    for found in per_file.values():
-        for _, family, _ in found:
-            per_family[family] = per_family.get(family, 0) + 1
+    uncovered: dict[str, int] = {}
+    for found in everything.values():
+        for _, family, _, verdict_name in found:
+            if verdict_name == "defect":
+                per_family[family] = per_family.get(family, 0) + 1
+            else:
+                uncovered[verdict_name] = uncovered.get(verdict_name, 0) + 1
+    gap = scale_gap(everything)
     failures = verdict(per_file)
 
     if args.json:
@@ -493,6 +747,8 @@ def main(argv: list[str] | None = None) -> int:
                     "total": total,
                     "per_family": {f: per_family.get(f, 0) for f in FAMILIES},
                     "per_file": dict(sorted(counts.items())),
+                    "uncovered": dict(sorted(uncovered.items())),
+                    "scale_gap": {str(k): v for k, v in sorted(gap.items())},
                     "allowance": sum(ALLOWED.values()),
                     "failures": failures,
                 },
@@ -502,17 +758,32 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if failures else 0
 
     if args.list:
-        for rel, found in sorted(per_file.items()):
-            for n, family, literal in found:
-                print(f"{rel}:{n}  {family:9}  {literal[:70]}")
+        for rel, found in sorted(everything.items()):
+            for n, family, literal, verdict_name in found:
+                if args.list not in ("all", family):
+                    continue
+                print(f"{rel}:{n}  {family:9}  {verdict_name:28}  {literal[:60]}")
 
     print(
         f"design tokens: {len(files)} file(s) scanned, {len(tokens)} token(s) "
-        f"declared, {total} literal(s) in {len(per_file)} file(s)"
+        f"declared, {total} literal(s) a token covers in {len(per_file)} file(s)"
     )
     for family in FAMILIES:
         print(f"  {family:9} {per_family.get(family, 0):5d}")
     print(f"  allowance carried: {sum(ALLOWED.values())} in {len(ALLOWED)} file(s)")
+
+    print("\nvalues no token carries, left in place and counted, by reason:")
+    if uncovered:
+        for reason, count in sorted(uncovered.items()):
+            print(f"  {reason.split(':', 1)[1]:22} {count:5d}")
+    else:
+        print("  none")
+
+    if gap:
+        print("\ntype scale: sizes still written by hand that no tier carries")
+        for size, count in sorted(gap.items()):
+            owed = "a tier is owed" if count >= 5 else "round to the neighbour"
+            print(f"  {size:6.2f}px  {count:4d}  {owed}")
 
     if failures:
         print(f"\n{len(failures)} file(s) off their allowance:")
