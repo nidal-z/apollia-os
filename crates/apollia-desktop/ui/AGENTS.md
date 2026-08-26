@@ -1,9 +1,9 @@
 # crates/apollia-desktop/ui/AGENTS.md
 
 > Rules for any change under `crates/apollia-desktop/ui/`. This is the only
-> frontend rulebook: `crates/apollia-desktop/ui/AGENTS.md` was merged into it,
-> because seven of its twelve sections said the same thing twice and the two
-> copies had already drifted apart from each other.
+> frontend rulebook: `docs/agents/FRONTEND-PATTERNS.md` was merged into it and
+> deleted (`20bcb771`), because seven of its twelve sections said the same
+> thing twice and the two copies had already drifted apart from each other.
 
 Stack : Tauri v2 + Svelte 5 + TypeScript strict + Tailwind 3.4 + lucide-svelte
 + bits-ui + svelte-i18n v4.
@@ -274,7 +274,7 @@ Rules :
 nothing ever mounts.
 
 Routing is a store. `src/lib/stores/navigation.ts` holds a `Route` union type and
-a `currentRoute` writable; `lib/components/app/Main.svelte` switches on it to
+a `currentRoute` writable; `src/lib/components/app/Main.svelte` switches on it to
 mount the matching component from `src/routes/`.
 
 - Adding a screen means : a component in `src/routes/`, a member in the `Route`
@@ -355,6 +355,17 @@ field exposed). When fusing duplicated screens or features :
   standard browser harness. The runtime paths behind the UI are covered through
   `tests/cli/cli-e2e.sh`, which exercises the same commands against a seeded
   throwaway `HOME`.
+- **The real app, driven by hand-written scripts : `scripts/automation/`.** In
+  the absence of a WebDriver, a dev-only harness injects a declarative JSON
+  script that acts on the DOM through `data-testid` selectors, against the real
+  app and a real backend. It is gated behind `debug_assertions` /
+  `import.meta.env.DEV` and tree-shaken out of release builds, so it is not a
+  packaged end-to-end suite; it is the only thing in the tree that drives the
+  shell. Run it with `just desktop-dev-automation-seeded
+  scripts/automation/master-det.json` (deterministic, no model) and read the
+  verdict from `.apollia-automation/report.json`. Read
+  `scripts/automation/README.md` before touching a script or a `data-testid`
+  a script names.
 - There is no `tauri-driver` setup and no `tests/visual/` baseline suite. Do not
   write a test that assumes either.
 - Keep `data-testid` on any surface a test drives. They are the only stable
@@ -365,8 +376,10 @@ field exposed). When fusing duplicated screens or features :
 
 ## 12. When the rules block you
 
-- New token : add to `app.css` (both modes), to `tailwind.config.ts`, to
-  `crates/apollia-desktop/ui/src/app.css`. Do not reach for a hex value as a shortcut.
+- New token : add to `crates/apollia-desktop/ui/src/app.css` (both modes), to
+  `tailwind.config.ts` if a Tailwind class is needed, and to
+  `crates/apollia-desktop/ui/src/lib/design/tokens.ts` so a rename surfaces at
+  type-check time. Do not reach for a hex value as a shortcut.
 - New Tauri command : add the Rust side first
   (`crates/apollia-desktop/src/commands/<domain>.rs`), then the typed
   wrapper, then the consumer. Three commits, one PR, ordered.

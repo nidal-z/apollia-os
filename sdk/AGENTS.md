@@ -15,22 +15,29 @@ documentation site.
 
 ## 1. Decorator inventory
 
-| Decorator | Level | Purpose |
-|---|---|---|
-| `@agent(...)` | class | declare the agent identity and manifest metadata |
-| `@skill(skill_id, description, examples=[...])` | async method | LLM-callable capability |
-| `@on_message(event_kind)` | async method | EventBus subscriber |
-| `@orchestrated(...)` | async method | ORIA-driven multi-step skill |
+| Decorator | Level | Signature | Purpose |
+|---|---|---|---|
+| `@agent` | class | `agent(*, name, version, description, ...)`, keyword-only | declare the agent identity and manifest metadata |
+| `@skill` | async method | `skill(skill_id, *, description="", dangerous=False, examples=None)` | A2A-exposed, LLM-callable capability |
+| `@on_message` | async method | `on_message(fn)`, no arguments | the agent's single conversational handler |
+| `@orchestrated` | class | `orchestrated(*, system_prompt)` | hand the execution loop to ORIA |
+
+Two of those signatures are not what an older reading of this file said.
+`@on_message` takes no `event_kind` and subscribes to nothing: it marks the one
+method that receives `(self, message, history, ctx)` and returns the assistant
+reply. `@orchestrated` decorates the **class**, not a method, and its only
+argument is `system_prompt`.
 
 Rules :
-- `@agent` wraps the class. `@skill`, `@on_message`, `@orchestrated` wrap
+- `@agent` and `@orchestrated` wrap the class. `@skill` and `@on_message` wrap
   async methods. Never wrap a non-async method.
-- A method carries at most one of `@skill` / `@on_message` /
-  `@orchestrated`. Validation runs at registration with
-  `AgentConfigError`. Fail fast.
-- Order : `@agent` first (class), then method decorators. The class
-  attribute `__apollia_manifest__` is built by `@agent` and read at
-  registration.
+- At most one `@on_message` per class, and `@orchestrated` is mutually
+  exclusive with both `@skill` and `@on_message`. Validation runs at `@agent`
+  decoration time and raises `AgentConfigError`. Fail fast.
+- Order : `@agent` outermost on the class, then the method decorators. The
+  class attribute `__apollia_manifest__` is built by `@agent`; the bridge
+  additionally requires `__apollia_dispatch__` and refuses an object without
+  it.
 
 ---
 
@@ -62,7 +69,11 @@ class EmailTriage:
 ```
 
 Mandatory shape :
-- Module-level `agent = MyClass()` for the runtime to import.
+- A module-level `agent` symbol bound to the single instance. **Do not write
+  it by hand.** `@agent` instantiates the class and binds the symbol itself
+  (`sdk/apollia/_internal/module_registry.py`); a hand-written
+  `agent = MyClass()` builds a second instance. None of the tree's
+  `@agent` modules carries the line.
 - Every `@skill` carries at least one realistic `examples=[{...}]` payload.
 - Every parameter that is LLM-facing and not a trivial scalar carries
   `Annotated[T, "description"]`.
@@ -93,7 +104,7 @@ class Ctx(Protocol):
     secrets: SecretsInterface
     events: EventsInterface
     logger: Logger
-    profile: ProfileInterface
+    profile: ProfileInterface | None
     workspace: WorkspaceContext
     stt: SttInterface
     notify: NotifyInterface
@@ -112,7 +123,7 @@ class Ctx(Protocol):
 | `secrets` | `SecretsInterface` | read-only secret access |
 | `events` | `EventsInterface` | emit and observe runtime events |
 | `logger` | `Logger` | structured logging (`ctx.logger`, not `ctx.log`) |
-| `profile` | `ProfileInterface` | canonical user profile |
+| `profile` | `ProfileInterface \| None` | canonical user profile, `None` when the agent may not read it |
 | `workspace` | `WorkspaceContext` | workspace paths and metadata |
 | `stt` | `SttInterface` | speech-to-text |
 | `notify` | `NotifyInterface` | desktop and webhook notifications |
@@ -184,8 +195,9 @@ Rules :
 - TypedDict inheritance only when you genuinely want field union.
 - `NotRequired[T]` is preferred over `total=False` when most fields are
   required and a few are optional.
-- Validation : `python -m apollia inspect <agent.py> --json` must show
-  descriptions on every param and examples on every skill.
+- Validation : `python -m apollia inspect <agent.py> --json` shows the
+  generated schema; check that it carries a description on every parameter and
+  examples on every skill.
 
 ---
 
@@ -196,18 +208,27 @@ Hierarchy rooted at `AgentError` :
 ```
 AgentError
 ├── DomainError       # business-level failure, retry meaningless
+├── NeedHumanInput    # captured by the dispatcher, returns input_required
 ├── PayloadError      # malformed input, fail-fast to caller
-├── NeedHumanInput    # captured by dispatcher, returns input_required
-└── AgentTimeoutError # boundary wrap of timeouts
+├── SchemaError       # the declared schema itself is wrong
+├── SkillNotFound     # no skill answers the requested skill_id
+└── AgentConfigError  # the agent is malformed, raised at decoration time
 ```
+
+There is no `AgentTimeoutError`: `git grep AgentTimeoutError -- sdk/apollia`
+returns nothing. A timeout reaches the caller as a task-level status, not as an
+SDK exception.
 
 Rules :
 - Never subclass `Exception` directly for new error types. Subclass
   `AgentError`.
-- Each subclass carries a stable `.code` attribute (`TIMEOUT`,
-  `FILE_NOT_FOUND`, `RATE_LIMITED`, ...).
-- `NeedHumanInput(question, schema)` is the only exception that resumes
-  the task. All others terminate the skill invocation.
+- `DomainError(message, *, code=...)` is the one that carries a stable `.code`
+  the caller can branch on. The others do not take a code; do not promise one.
+- `NeedHumanInput(prompt, context=None)` is the only exception that suspends
+  and resumes the task: the dispatcher turns it into an `AIPResult` with
+  `status == "input_required"` carrying `prompt` and `context`, and the runtime
+  restitutes `context` verbatim on resume. All others terminate the skill
+  invocation.
 
 ---
 
@@ -219,10 +240,12 @@ the `ctx.datasources` and `ctx.templates` services.
 
 Rules :
 - Agents never write to datasources. The runtime owns the lifecycle.
-- Templates are Jinja2-style strings with limited filters (`upper`,
-  `lower`, `length`). A custom filter is a contract change: state it in
-  `docs/site/docs/architecture/08-decisions.md` under `#agent-contract`
-  first.
+- Templates are rendered by `minijinja` on the Rust side
+  (`crates/apollia-aip/src/templates.rs`), so the filter set is minijinja's
+  built-in one, not a hand-picked list. `ctx.templates.render(name, **context)`
+  is the whole surface. Registering a custom filter is a contract change:
+  state it in `docs/site/docs/architecture/08-decisions.md` under
+  `#agent-contract` first.
 
 ---
 
@@ -232,11 +255,15 @@ Marks a skill that ORIA drives step-by-step (LLM in the loop). The
 agent body is a single function; ORIA decides when to call tools, when
 to ask the LLM, when to stop.
 
-Requires `[llm.routing]` precise in the agent TOML. The router needs a
-deterministic backend per orchestrated skill.
+`@orchestrated(system_prompt=...)` marks the class. The agent supplies only
+metadata and the system prompt; it may define
+`async on_plan_complete(step_results, ctx)` to post-process the step outputs,
+which defaults to concatenating the step texts.
 
-`cache_plan=True` opt-in for cacheable plans (see
-`crates/apollia-oria/AGENTS.md` §4).
+There is no `cache_plan` argument. ORIA's plan cache is keyed on the agent
+name, the agent version, the sorted tool names and the normalized task text,
+and it is on whenever the engine was given a cache repository; see
+`crates/apollia-oria/AGENTS.md` §4.
 
 ---
 
@@ -245,11 +272,14 @@ deterministic backend per orchestrated skill.
 - `from __future__ import annotations` in any module with TypedDict.
 - Relative imports (`from .module import X`).
 - Module-level side effects beyond the `agent = MyClass()` instantiation.
-- Adding third-party dependencies (the SDK is stdlib-only except for
-  the documented `pyo3` runtime bridge).
+- Adding third-party dependencies. The SDK is stdlib-only; the bridge that
+  injects `ctx` is Rust, not a Python package the SDK imports.
 - Decorator stacking that breaks the validation (multiple of
   `@skill` / `@on_message` / `@orchestrated` on one method).
-- `print()` (use `ctx.logger`).
+- `print()` in agent and library code (use `ctx.logger`). The exception is
+  `sdk/apollia/cli/`, whose whole job is to write to the terminal: those
+  modules carry a written `# REASON: print-call:` exemption that
+  `scripts/check_python_rules.py` reads, and nothing else may.
 - Catching `CancelledError` without re-raising.
 
 ---
@@ -277,8 +307,9 @@ Edit policy :
 - `pytest` with `asyncio_mode = "strict"`.
 - Each new decorator carries unit tests that exercise the validation
   paths (`AgentConfigError` on conflicting decorators, etc.).
-- `python -m apollia inspect <agent.py> --json` is a smoke test : run
-  it against every example agent in CI.
+- `python -m apollia inspect <agent.py> --json` is the local smoke test. It is
+  not run in CI today: no workflow, no `just` recipe and no hook invokes it.
+  Run it by hand on the agent you touched, and do not cite it as a gate.
 - See `docs/agents/TESTING.md` §6.
 
 ---
@@ -287,10 +318,13 @@ Edit policy :
 
 | Change | Update |
 |---|---|
-| New decorator | `sdk/README.md`, this file, Wiki reference, Book chapter |
+| New decorator | `sdk/README.md`, this file (§1), `docs/site/docs/` |
 | New `Ctx` method | `types.py` + `context/<service>.py` + the decisions chapter |
-| New AgentError subclass | this file (§5), Wiki reference, `apollia-aip` dispatcher |
-| TypedDict schema convention change | this file (§4), book chapter, the `#agent-contract` section of the decisions chapter if breaking |
+| New `AgentError` subclass | this file (§5), `sdk/apollia/_internal/aip_result.py` |
+| TypedDict schema convention change | this file (§4), the `#agent-contract` section of the decisions chapter if breaking |
+
+There is no Book and no Wiki corpus in this tree. The two committed
+documentation corpora are `docs/site/` and `docs/agents/`.
 
 ---
 

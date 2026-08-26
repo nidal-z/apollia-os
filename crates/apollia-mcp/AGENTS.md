@@ -9,7 +9,7 @@ This crate connects Apollia to MCP servers over three transports (`stdio`,
 cross the trust boundary into the daemon, so every read from a server must be
 bounded and every parse must fail into a typed error, never a panic. See
 the decisions chapter of the documentation site for the transport and OAuth
-> design.
+design.
 
 ---
 

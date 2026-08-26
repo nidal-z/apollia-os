@@ -12,21 +12,29 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 
 ## 1. The actor mesh
 
-| Actor | Owns | Channel kind | Default capacity |
-|---|---|---|---|
-| `Supervisor` | the JoinSet of all actors, shutdown coordination | mpsc | 32 |
-| `EventBus` | broadcast of `RuntimeEvent` | broadcast | 1024 |
-| `AgentRegistry` | inventory of agents, manifests, state | mpsc | 1024 |
-| `TaskRouter` | dispatches tasks to agents | mpsc | 1024 |
-| `ExecutionCoordinator` | per-agent ORIA driver | mpsc | 256 |
-| `APIServer` | axum router, HTTP requests | tokio task per request | n/a |
-| `LlmRouter` | backend selection per agent | mpsc | 256 |
-| `TriggerEngine` | cron + filewatch + webhook -> task spawn | mpsc | 256 |
-| `NotificationEngine` | desktop notify + webhook | mpsc | 256 |
-| `ChatSessionManager` | chat sessions + FTS5 persistence | mpsc | 256 |
-| `SttEngine` | whisper audio pipeline | mpsc | 64 |
-| `AuditTrail` | append-only event ledger | mpsc | 1024 |
-| `TimeoutWatcher` | per-task timeouts | mpsc | 256 |
+| Actor | Owns | Channel kind | Capacity | Source |
+|---|---|---|---|---|
+| `Supervisor` | ordered startup, shutdown rollback, watchdog | no channel of its own; awaits `ShutdownRequested` on the bus | n/a | `src/supervisor/mod.rs` |
+| `EventBus` | broadcast of `RuntimeEvent` | broadcast | 1024, bounds `[64, 65536]` | `src/eventbus.rs` |
+| `AgentRegistry` | inventory of agents, manifests, state | mpsc | 256 | `src/registry.rs` |
+| `TaskRouter` | dispatches tasks to agents | mpsc | given by the caller, 256 recommended | `src/router.rs` |
+| `ExecutionCoordinator` | per-agent ORIA driver | no channel; a `Semaphore` bounds concurrency | n/a | `src/coordinator.rs` |
+| `APIServer` | axum router, HTTP requests | tokio task per request | n/a | `src/api/server.rs` |
+| `ChatSessionManager` | chat sessions + FTS5 persistence | mpsc | 256 | `src/chat/manager/handle.rs` |
+| `PlanActor` | the chat plan, per session | mpsc | 64 | `src/chat/plan_actor.rs` |
+| `TodoActor` | the chat todo list, per session | mpsc | 64 | `src/chat/todo_actor.rs` |
+| `AgentMailboxHandle` | durable inter-agent inbox | mpsc | 256 | `src/mailbox.rs` |
+| `SttEngine` | whisper audio pipeline | mpsc | 32 | `src/stt/engine.rs` |
+| `TimeoutWatcher` | expiry of `input_required` tasks | no channel; a `tokio::time::interval` scan loop | n/a | `src/timeout_watcher.rs` |
+
+Hosted from other crates, started by this one :
+
+| Actor | Owns | Channel kind | Capacity | Source |
+|---|---|---|---|---|
+| `TriggerEngine` | cron + filewatch + webhook -> task spawn | two mpsc | 256 events, 64 commands | `crates/apollia-triggers/src/engine.rs` |
+| `NotificationEngine` | desktop notify + webhook | mpsc | 8 | `crates/apollia-notifications/src/engine.rs` |
+| `AuditTrailHandle` | append-only tool-invocation ledger | mpsc | 1024 | `crates/apollia-tools/src/audit.rs` |
+| `LlmRouter` | backend selection per agent | none; a plain struct, called synchronously | n/a | `crates/apollia-llm/src/router.rs` |
 
 Capacities are sized for the steady state. Burst absorption relies on
 backpressure surfacing as `try_send` errors that callers handle.
@@ -92,10 +100,13 @@ Rules :
 - Route style : RESTful, plural resource, versioned under `/api/v1/`
   (`/api/v1/agents`, `/api/v1/tasks/{id}`).
 - JSON wire : `camelCase` via `#[serde(rename_all = "camelCase")]`.
-- Bind targets : Unix socket (`~/.apollia/runtime.sock`) and TCP 7771.
-  Both served by the same router.
-- Authentication : implicit local trust on Unix socket; TCP requires
-  the local bearer token from `~/.apollia/auth.toml`.
+- Bind targets : Unix socket (`~/.apollia/runtime.sock`, from
+  `apollia_core::paths::socket_path_or_temp`) and TCP 7771. Both served by
+  the same router.
+- Authentication : implicit local trust on the Unix socket; TCP requires the
+  local bearer token, generated once and read from `<data_dir>/api-token`
+  with mode `0600` (`load_or_generate_token`, `src/api/middleware.rs`).
+  There is no `auth.toml`.
 - Error responses : `{"error": {"code": "...", "message": "...", "details": ...}}`,
   HTTP status reflecting the error class.
 
@@ -104,54 +115,80 @@ Adding a route :
 2. Implement the handler.
 3. Mount in `mod.rs`.
 4. Add an `axum-test` integration test.
-5. Document in `docs/site/docs/reference/api/`.
+5. Annotate the handler with `#[utoipa::path]` and regenerate
+   `clients/openapi.json`; `scripts/check_openapi_routes.py` refuses a route
+   the spec omits and a spec path no router registers. The HTTP reference of
+   the documentation site is generated from that file by `docs/site/regen.sh`,
+   so there is no page under `docs/site/docs/reference/` to edit by hand.
 6. Add CLI consumption if applicable.
 
 ---
 
 ## 4. Supervisor and shutdown
 
-The `Supervisor` actor owns the `JoinSet` of all spawned tasks and a
-`CancellationToken`. Shutdown sources :
+The `Supervisor` (`src/supervisor/`) starts the actors in a strict sequence
+(`EventBus` -> `AgentRegistry` -> `ToolRegistry` -> `TaskRouter` -> `APIServer`),
+and if one fails to start it stops the previous ones in reverse order. After
+startup the model is fail-fast then degrade: there is no restart-on-crash, and
+a crashed actor leaves the runtime degraded until an explicit shutdown. The
+inference sidecar is the exception, restarted by its own `RunnerSupervisor`.
+
+Shutdown is driven by `ShutdownController` (`src/shutdown.rs`). Sources :
 
 1. SIGINT / SIGTERM caught by the signal listener.
-2. `RuntimeEvent::ShutdownRequested` from another actor.
-3. External RPC : `apollia runtime stop`.
+2. `RuntimeEvent::ShutdownRequested` from another actor, or from the
+   `POST /api/v1/shutdown` handler (`src/api/server/router.rs`).
+3. `apollia-os stop`, which calls that route.
 
-Sequence :
+Sequence, in the order `src/shutdown.rs` implements it :
 
 ```
-cancel.cancel()
-  -> every actor's select! shutdown branch wins
-  -> each actor flushes its outbound queue
-  -> actor's run() returns
-  -> JoinSet collects the JoinHandle
-  -> Supervisor awaits all
-  -> exit
+broadcast ShutdownRequested
+  -> the API server stops accepting connections
+  -> in-progress tasks drain (ShutdownConfig::drain_timeout_secs, default 30)
+  -> the remaining ones are cancelled and logged
+  -> agents transition to Stopped
+  -> the NotificationEngine stops
+  -> the MCP client manager stops (child processes killed, no zombies)
+  -> TaskRouter then AgentRegistry stop
 ```
 
 Rules :
-- Every actor honors the `CancellationToken`. No exceptions.
-- Cleanup work that must complete during shutdown runs under
-  `cancel.run_until_cancelled(...)` so it cannot be cancelled itself.
-- Timeout : 30s default. Past that, the JoinSet is `abort_all` and the
-  process exits with code 5.
-
----
+- Every actor honors the shutdown signal. No exceptions.
+- The drain timeout is a bound on waiting, not an abort of the process: there
+  is no `JoinSet::abort_all` and no dedicated shutdown exit code. Exit code 5
+  is the CLI's interrupt code, not the daemon's.
+- Cleanup that must complete during shutdown runs before the drain, inside the
+  controller, not in an actor's own select arm.
 
 ## 5. Persistence
 
 SQLite + `rusqlite` + FTS5. WAL journal mode.
 
-Databases :
-- `~/.apollia/runtime.db` : tasks, audit trail, sessions.
-- `~/.apollia/agents.db` : agent registry.
-- `~/.apollia/governance.db` : permissions, audit.
-- `~/.apollia/memory/<agent>.db` : per-agent memory (`apollia-memory`).
+Databases : one file per subsystem under `~/.apollia/`, catalogued by
+`apollia_core::paths::DataFile`, whose `file_name()` is the single source for
+the names. There is no `runtime.db`. The catalogue holds `agents.db`,
+`artifacts.db`, `audit.db`, `audit_journal.db`, `chat.db`, `governance.db`,
+`hitl.db`, `llm_calls.db`, `mailbox.db`, `mcp.db`, `mcp_approvals.db`,
+`notifications.db`, `plan_cache.db`, `plans.db`, `projects.db`,
+`runtime_events.db`, `sidechains.db`, `stt_transcriptions.db`, `system.db`,
+`triggers.db`, `triggers_def.db` and `user_memory.db`. Per-agent memory lives
+outside the catalogue, one file per namespace under `~/.apollia/memory/`
+(`apollia-memory`).
 
-Migration pattern : `CREATE TABLE IF NOT EXISTS` at first connection
-plus a `schema_version` table. Renaming a column requires a numbered
-migration step. Never `DROP COLUMN` without an explicit upgrade path.
+Adding a database means adding a `DataFile` variant, not joining a literal
+onto the data directory. `scripts/check_data_layout.py` holds that rule.
+
+Migration pattern : `apollia_core::schema::open_versioned(conn, name,
+schema_version, migrations)` at first connection. It reads `PRAGMA
+user_version`, refuses a file written by a newer binary
+(`SchemaError::NewerThanBinary`), refuses a declared version that does not
+match the number of migrations supplied
+(`SchemaError::MigrationCountMismatch`), and applies the missing ones in
+order. A schema change is a new `Migration` appended plus the version
+bumped, never an edit of an existing one. Never `DROP COLUMN` without an
+explicit upgrade path. `scripts/check_sqlite_schema_versioning.py` holds the
+rule.
 
 Permission invariant (chat manager) : a code executor (`bash_executor`,
 `python_executor`, i.e. `apollia_permissions::CODE_EXECUTOR_TOOLS`) is never
@@ -177,10 +214,19 @@ syntax follows SQLite's FTS5 (`tag:value`, `+required`, `-excluded`).
 
 ## 6. Configuration
 
-Runtime config : `~/.apollia/config.toml`. Parsed via `serde` into the
+Runtime config : `apollia.toml`, resolved as an explicit `--config` override,
+then an `apollia.toml` in the working directory, then
+`$XDG_CONFIG_HOME/apollia/apollia.toml` (or
+`~/.config/apollia/apollia.toml`). It is not under `~/.apollia/`, which holds
+the data files. Parsed via `serde` into the
 `RuntimeConfig` struct (`crates/apollia-core/src/config/runtime.rs`).
-Reloadable on SIGHUP (tracked) for a documented subset (tracing level,
-MCP servers, triggers).
+
+There is no `SIGHUP` handler. What reloads does so through an explicit
+route or command, each on its own subsystem: `POST /api/v1/triggers/reload`
+(503 when the runtime was started without a config file), the STT reload
+route and the desktop reload command, both swapping a shared cell rather
+than restarting the actor. A change to any other key takes effect at the
+next start.
 
 Inter-agent mailbox caps live on `RuntimeConfig` as `mailbox_*` fields,
 mapped to `MailboxConfig` at boot :
@@ -206,8 +252,8 @@ Rules :
 
 - `Arc<Mutex<T>>` shared across actors. Messages or nothing.
 - Calling into `apollia-cli`. The CLI calls us, not the reverse.
-- Holding a SQLite connection across an `await`. Use `spawn_blocking`
-  or acquire a connection from the pool inside the handler.
+- Holding a SQLite connection across an `await`. Use `spawn_blocking`;
+  there is no pool crate to acquire from.
 - Direct PyO3 calls. Route through `apollia-aip`.
 - Publishing events without a corresponding handler test.
 
@@ -218,7 +264,10 @@ Rules :
 - Unit tests inline per file, GIVEN/WHEN/THEN.
 - Integration tests in `tests/` exercise the actor wiring with a real
   EventBus.
-- HTTP : `axum-test::TestServer` mounts the router without a real bind.
+- HTTP : the route tests build the `Router` in-process and drive it with
+  `tower::ServiceExt::oneshot`, without a real bind. `axum-test` is not a
+  dependency of this crate, so there is no `TestServer`; each `routes_*.rs`
+  carries its own `test_router()` helper instead.
 - Each actor has a test that drives it through its lifecycle :
   spawn, normal traffic, shutdown.
 - Actor concurrency invariants (registry eviction, coordinator semaphore,
