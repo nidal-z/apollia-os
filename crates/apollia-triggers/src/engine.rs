@@ -668,7 +668,6 @@ mod tests {
             .fire_now("test-trigger")
             .await
             .expect("fire_now failed");
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         // THEN submit was called exactly once
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
@@ -690,7 +689,6 @@ mod tests {
         .await;
         // WHEN
         let result = handle.fire_now("busy-trigger").await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         // THEN submit was NOT called
         assert_eq!(
             calls.load(Ordering::SeqCst),
@@ -789,7 +787,6 @@ mod tests {
 
         // WHEN must not panic
         let result = handle.fire_now("failing-trigger").await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // THEN the actor is still alive
         let list = handle.list().await;
@@ -827,7 +824,6 @@ mod tests {
             .fire_now("compteur")
             .await
             .expect("second fire failed");
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         let list = handle.list().await;
         assert_eq!(list[0].fire_count, 2, "fire_count doit être 2");
@@ -862,7 +858,6 @@ mod tests {
         let def2 = make_definition("trigger-2", OnBusyPolicy::Skip);
         let def3 = make_definition("trigger-3", OnBusyPolicy::Queue { max_depth: 10 });
         handle.reload(vec![def2, def3]).await;
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         // THEN 2 triggers actifs, trigger-1 absent
         let list = handle.list().await;
@@ -926,7 +921,6 @@ mod tests {
 
         // WHEN fire
         let result = handle.fire_now("rapport-hebdo").await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // THEN TaskRouter.submit() called exactly once; behavior unchanged
         assert!(result.is_ok(), "fire_now doit réussir, got {result:?}");
@@ -1021,7 +1015,6 @@ mod tests {
         for _ in 0..3 {
             let _ = handle.fire_now("q-trigger").await;
         }
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // THEN no submission (all queued)
         assert_eq!(
@@ -1050,11 +1043,9 @@ mod tests {
         for _ in 0..3 {
             let _ = handle.fire_now("full-trigger").await;
         }
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // WHEN a 4th trigger arrives
         let result = handle.fire_now("full-trigger").await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // THEN submission still at 0 (the 4th is dropped)
         assert_eq!(
@@ -1104,7 +1095,6 @@ mod tests {
 
         // WHEN the trigger fires
         let _ = handle.fire_now("skip-trigger").await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // THEN no submission, no queuing
         assert_eq!(
@@ -1131,16 +1121,17 @@ mod tests {
         // Queue 2 triggers.
         let _ = handle.fire_now("drain-trigger").await;
         let _ = handle.fire_now("drain-trigger").await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         assert_eq!(
             calls.load(Ordering::SeqCst),
             0,
             "aucune soumission tant que l'agent est occupé"
         );
 
-        // WHEN the agent becomes free
+        // WHEN the agent becomes free. `notify_agent_free` expects no reply,
+        // so the barrier is the next request/reply on the same channel: the
+        // actor drains the queue inside that command, then answers `list`.
         handle.notify_agent_free("test-agent".into()).await;
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let _ = handle.list().await;
 
         // THEN the 2 triggers are dispatched in FIFO order
         assert_eq!(

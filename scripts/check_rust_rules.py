@@ -234,6 +234,11 @@ ARC_MUTEX_ALIASES: set[str] = {
 #    code. `shutdown.rs` and `hooks/executor.rs` were both in this family and
 #    both cost a red verdict on a green tree; each lost the sites it did not
 #    need, which is why their entries here are lower than the tree once was.
+#    `audit.rs` left the table entirely and `triggers/engine.rs` went from 14
+#    to 2 the same way: every one of their sleeps sat between a command whose
+#    handle already awaits the actor's reply and an assertion on what that
+#    command did, so the barrier was the channel and the delay bought nothing
+#    but a slower suite.
 #
 # `test_support.rs` is the reservation helper itself: its four sites are the
 # probe listener and the poll interval that every other test borrows.
@@ -273,7 +278,6 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/session_metrics.rs": 1,
     "crates/apollia-runtime/src/supervisor/tests.rs": 21,
     "crates/apollia-runtime/src/test_support.rs": 4,
-    "crates/apollia-tools/src/audit.rs": 8,
     "crates/apollia-tools/src/executor.rs": 1,
     "crates/apollia-tools/src/file_path_extractor.rs": 2,
     "crates/apollia-tools/src/journal.rs": 2,
@@ -284,7 +288,7 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-tools/src/tools/web_search/brave.rs": 1,
     "crates/apollia-tools/src/tools/web_search/duckduckgo.rs": 1,
     "crates/apollia-triggers/src/definition_repository.rs": 1,
-    "crates/apollia-triggers/src/engine.rs": 14,
+    "crates/apollia-triggers/src/engine.rs": 2,
     "crates/apollia-triggers/src/sources/cron.rs": 1,
     "crates/apollia-triggers/src/sources/file_watch.rs": 8,
     "crates/apollia-triggers/src/sources/interval.rs": 1,

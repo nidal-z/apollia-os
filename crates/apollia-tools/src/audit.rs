@@ -575,8 +575,7 @@ mod tests {
         let tool_name = record.tool_name.clone();
         // WHEN
         handle.record(record);
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        // THEN
+        // THEN the query, sent on the same channel, is served after the record
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].tool_name, tool_name);
@@ -592,8 +591,7 @@ mod tests {
         let record = make_record(false, Some("Timeout"));
         // WHEN
         handle.record(record);
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-        // THEN
+        // THEN the query, sent on the same channel, is served after the record
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
         assert!(!results[0].success);
@@ -628,8 +626,8 @@ mod tests {
             r.started_at = format!("2026-01-01T00:00:{i:02}Z");
             handle.record(r);
         }
-        // THEN: the method returned immediately; the inserts arrive in the background
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        // THEN: the method returned immediately, and the ten inserts are all
+        // ahead of the query in the same channel
         let results = handle.query_last(10).await;
         assert_eq!(results.len(), 10);
         handle.shutdown().await;
@@ -678,7 +676,6 @@ mod tests {
         record.args_json = Some(r#"{"path":"/tmp/test"}"#.to_string());
         // WHEN recording with args_json
         handle.record(record);
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         // THEN SELECT args_json returns the value
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
@@ -701,7 +698,6 @@ mod tests {
         record.stdout = Some(truncated_stdout);
         // WHEN recording with truncated stdout
         handle.record(record);
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         // THEN the persisted value is truncated with a marker
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
@@ -720,7 +716,6 @@ mod tests {
         record.stderr = Some("command not found".to_string());
         // WHEN recording with stderr
         handle.record(record);
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         // THEN SELECT stderr returns the value
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
@@ -736,7 +731,6 @@ mod tests {
         let record = make_record(true, None);
         // WHEN recording with duration_ms = 42
         handle.record(record);
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         // THEN duration_ms and exit_code are read back correctly
         let results = handle.query_last(1).await;
         assert_eq!(results.len(), 1);
@@ -753,7 +747,9 @@ mod tests {
             std::env::temp_dir().join(format!("apollia_append_only_{}.db", uuid::Uuid::new_v4()));
         let handle = AuditTrailHandle::open(&db_path).await.unwrap();
         handle.record(make_record(true, None));
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        // A query on the same channel is the barrier: it is served after the
+        // record, so the row is on disk before the store is closed
+        assert_eq!(handle.query_last(1).await.len(), 1);
         handle.shutdown().await;
 
         // WHEN attempting a direct UPDATE then DELETE on the table
