@@ -123,7 +123,6 @@ MODULE_SIZE_FILES: set[str] = {
     "crates/apollia-cli/src/commands/memory.rs",
     "crates/apollia-cli/src/commands/run.rs",
     "crates/apollia-cli/src/commands/start.rs",
-    "crates/apollia-cli/src/commands/task.rs",
     "crates/apollia-cli/src/commands/tools.rs",
     "crates/apollia-core/src/events/runtime_event.rs",
     "crates/apollia-desktop/src/backend.rs",
