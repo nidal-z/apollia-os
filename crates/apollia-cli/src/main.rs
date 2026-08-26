@@ -16,6 +16,9 @@ pub mod config;
 pub mod exit_codes;
 pub mod output;
 
+#[cfg(test)]
+mod parse_tests;
+
 use std::path::PathBuf;
 
 use clap::{CommandFactory, Parser};
