@@ -117,7 +117,6 @@ MODULE_SIZE_FILES: set[str] = {
     "crates/apollia-desktop/src/backend.rs",
     "crates/apollia-desktop/src/commands/agents.rs",
     "crates/apollia-desktop/src/commands/chat.rs",
-    "crates/apollia-desktop/src/commands/integrations.rs",
     "crates/apollia-desktop/src/commands/mcp.rs",
     "crates/apollia-desktop/src/commands/observability.rs",
     "crates/apollia-desktop/src/commands/onboarding.rs",
