@@ -34,7 +34,8 @@ Ratchet rules, frozen as named tables that move only with the code:
   async-trait        the traits allowed to keep #[async_trait], and the
                      manifests allowed to declare the dependency; a new
                      trait or a new manifest is red
-  module-size        the files allowed to exceed 800 production lines
+  module-size        the files allowed to exceed 800 production lines, and
+                     the ones exempted because they hold one indivisible item
   arc-mutex          per-file counts of Arc<Mutex|RwLock> sites and the
                      named type aliases that wrap one
   time-sensitive-tests
@@ -107,13 +108,25 @@ ASYNC_TRAIT_MANIFESTS = {
     "crates/apollia-workspace/Cargo.toml",
 }
 
+# Modules over the threshold that hold one indivisible item, where a split
+# would change behaviour rather than move lines. Each one states why in a
+# `// REASON:` comment at the top of the file, and the rule reads that marker
+# back: an exemption whose justification is deleted goes red, and so does one
+# whose file has since come back under the threshold.
+MODULE_SIZE_EXEMPT: set[str] = {
+    # 115 externally tagged variants of one serialized enum. Nesting them into
+    # sub-enums moves the variant name one level down in the JSON, and the only
+    # nesting that preserves the shape (#[serde(untagged)]) rewrites the 967
+    # construction sites the tree carries across 90 files.
+    "crates/apollia-core/src/events/runtime_event.rs",
+}
+
 # Files over 800 production lines when the table was written. A split removes
 # the entry in the same commit.
 MODULE_SIZE_FILES: set[str] = {
     "crates/apollia-aip/src/context.rs",
     "crates/apollia-aip/src/llm.rs",
     "crates/apollia-aip/src/memory.rs",
-    "crates/apollia-core/src/events/runtime_event.rs",
     "crates/apollia-mcp/src/manager.rs",
     "crates/apollia-mcp/src/session.rs",
     "crates/apollia-oria/src/actor.rs",
@@ -687,7 +700,22 @@ def rule_module_size(sources):
     for s in sources:
         prod = len(s.prod_lines)
         over = prod > MODULE_SIZE_THRESHOLD
-        if over and s.path not in MODULE_SIZE_FILES:
+        if s.path in MODULE_SIZE_EXEMPT:
+            if not over:
+                hits.append(
+                    f"{s.path}: exempted from the module-size rule but now at {prod} "
+                    f"production lines. Remove the entry from MODULE_SIZE_EXEMPT in "
+                    f"this same commit"
+                )
+            elif not any("REASON:" in line for line in s.raw_lines[:20]):
+                hits.append(
+                    f"{s.path}: exempted from the module-size rule without a REASON: "
+                    f"comment in its first 20 lines. State why the module cannot be "
+                    f"split, or split it"
+                )
+            else:
+                aside.append(f"{s.path}: {prod} production lines, exempted with a reason")
+        elif over and s.path not in MODULE_SIZE_FILES:
             hits.append(
                 f"{s.path}: {prod} production lines (threshold {MODULE_SIZE_THRESHOLD}). "
                 f"Split the module"
@@ -699,10 +727,18 @@ def rule_module_size(sources):
             )
         elif over:
             aside.append(f"{s.path}: {prod} production lines, listed")
-    missing = MODULE_SIZE_FILES - {s.path for s in sources}
-    for path in sorted(missing):
+    both = MODULE_SIZE_FILES & MODULE_SIZE_EXEMPT
+    for path in sorted(both):
         hits.append(
-            f"{path}: listed in MODULE_SIZE_FILES but absent from the inventory. "
+            f"{path}: carried in MODULE_SIZE_FILES and in MODULE_SIZE_EXEMPT at once. "
+            f"A module is either debt on a ratchet or an exemption with a reason, "
+            f"not both"
+        )
+    known = {s.path for s in sources}
+    for path in sorted((MODULE_SIZE_FILES | MODULE_SIZE_EXEMPT) - known):
+        table = "MODULE_SIZE_FILES" if path in MODULE_SIZE_FILES else "MODULE_SIZE_EXEMPT"
+        hits.append(
+            f"{path}: listed in {table} but absent from the inventory. "
             f"Remove the entry in this same commit"
         )
     return hits, {"listed files still over the threshold (aside)": aside}
@@ -1040,6 +1076,26 @@ def _selftest() -> int:
     mixed = "fn a() {}\n" * 401 + "#[cfg(test)]\nmod t {\n" + "fn b() {}\n" * 398 + "}\n"
     hits, _ = rule_module_size([_sample(mixed)])
     control("module-size tests excluded", strip_tree(hits), 0)
+
+    # 13b. the exemption reads its own justification back: an exempted module
+    # over the threshold with a REASON comment stays silent, the same module
+    # without one fires, and one that has come back under the threshold fires
+    if MODULE_SIZE_EXEMPT:
+        exempt_path = sorted(MODULE_SIZE_EXEMPT)[0]
+
+        def exempt_hits(text: str) -> list[str]:
+            hits, _ = rule_module_size([_sample(text, exempt_path)])
+            return [h for h in hits if h.startswith(exempt_path)]
+
+        reason = "// " + "REASON: one indivisible item\n"
+        big = "fn a() {}\n" * 801
+        control("module-size exemption with a reason", exempt_hits(reason + big), 0)
+        control("module-size exemption without a reason", exempt_hits(big), 1)
+        control(
+            "module-size exemption now under the threshold",
+            exempt_hits(reason + "fn a() {}\n" * 10),
+            1,
+        )
 
     # 14. an Arc<Mutex> in a file the table does not carry fires
     hits, _ = rule_arc_mutex(
