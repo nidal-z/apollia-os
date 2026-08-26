@@ -21,12 +21,15 @@ use tokio_stream::wrappers::{errors::BroadcastStreamRecvError, BroadcastStream};
 use tokio_stream::StreamExt;
 
 use apollia_core::todo::TodoItem;
-use apollia_core::RuntimeEvent;
 
 use crate::api::routes_sse::TakeWhileInclusiveExt;
 use crate::api::server::AppState;
 use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
+
+mod sse;
+
+use sse::chat_event_to_sse;
 
 /// Request body for `POST /api/v1/sessions`.
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -541,166 +544,6 @@ pub async fn stream_session<B: ExecutionBackend + Clone>(
     Sse::new(sse_stream)
         .keep_alive(KeepAlive::default())
         .into_response()
-}
-
-/// SSE event payload for chat events.
-#[derive(Debug, Serialize)]
-struct SseChatEvent {
-    /// Event type discriminator.
-    event: String,
-    /// Additional event data.
-    #[serde(flatten)]
-    data: serde_json::Value,
-}
-
-/// Convert a [`RuntimeEvent`] to an SSE payload and its terminal flag if it
-/// matches the session.
-///
-/// Returns `None` for events not relevant to this session. The boolean is
-/// `true` for the terminal `session_closed` event so the caller can close the
-/// stream after emitting it.
-fn chat_event_to_sse(event: &RuntimeEvent, session_id: &str) -> Option<(SseChatEvent, bool)> {
-    let (sse_event, is_terminal) = match event {
-        RuntimeEvent::ChatMessageSent {
-            session_id: sid,
-            message_id,
-        } if sid == session_id => (
-            SseChatEvent {
-                event: "message_sent".into(),
-                data: serde_json::json!({ "message_id": message_id }),
-            },
-            false,
-        ),
-        RuntimeEvent::ChatResponseStarted {
-            session_id: sid,
-            message_id,
-            run_id: _,
-        } if sid == session_id => (
-            SseChatEvent {
-                event: "response_started".into(),
-                data: serde_json::json!({ "message_id": message_id }),
-            },
-            false,
-        ),
-        RuntimeEvent::ChatToken {
-            session_id: sid,
-            message_id,
-            token,
-        } if sid == session_id => (
-            SseChatEvent {
-                event: "token".into(),
-                data: serde_json::json!({ "message_id": message_id, "token": token }),
-            },
-            false,
-        ),
-        RuntimeEvent::ChatResponseCompleted {
-            session_id: sid,
-            message_id,
-            content,
-            run_id: _,
-        } if sid == session_id => (
-            SseChatEvent {
-                event: "response_completed".into(),
-                data: serde_json::json!({ "message_id": message_id, "content": content }),
-            },
-            false,
-        ),
-        RuntimeEvent::ChatError {
-            session_id: sid,
-            message_id,
-            error,
-        } if sid == session_id => (
-            SseChatEvent {
-                event: "error".into(),
-                data: serde_json::json!({ "message_id": message_id, "error": error }),
-            },
-            false,
-        ),
-        RuntimeEvent::ChatToolCallStarted {
-            session_id: sid,
-            message_id,
-            tool_name,
-            input_preview,
-            rationale,
-        } if sid == session_id => (
-            SseChatEvent {
-                event: "tool_call_started".into(),
-                data: serde_json::json!({
-                    "message_id": message_id,
-                    "tool_name": tool_name,
-                    "input_preview": input_preview,
-                    "rationale": rationale,
-                }),
-            },
-            false,
-        ),
-        RuntimeEvent::ChatToolCallCompleted {
-            session_id: sid,
-            message_id,
-            tool_name,
-            success,
-            output_preview,
-            analysis,
-        } if sid == session_id => (
-            SseChatEvent {
-                event: "tool_call_completed".into(),
-                data: serde_json::json!({
-                    "message_id": message_id,
-                    "tool_name": tool_name,
-                    "success": success,
-                    "output_preview": output_preview,
-                    "analysis": analysis,
-                }),
-            },
-            false,
-        ),
-        RuntimeEvent::ChatApprovalRequired {
-            session_id: sid,
-            message_id,
-            tool_call_id,
-            tool_name,
-            prompt,
-        } if sid == session_id => (
-            SseChatEvent {
-                event: "approval_required".into(),
-                data: serde_json::json!({
-                    "message_id": message_id,
-                    "tool_call_id": tool_call_id,
-                    "tool_name": tool_name,
-                    "prompt": prompt,
-                }),
-            },
-            false,
-        ),
-        RuntimeEvent::ChatApprovalResolved {
-            session_id: sid,
-            message_id,
-            tool_call_id,
-            tool_name,
-            decision,
-        } if sid == session_id => (
-            SseChatEvent {
-                event: "approval_resolved".into(),
-                data: serde_json::json!({
-                    "message_id": message_id,
-                    "tool_call_id": tool_call_id,
-                    "tool_name": tool_name,
-                    "decision": decision,
-                }),
-            },
-            false,
-        ),
-        RuntimeEvent::ChatSessionClosed { session_id: sid } if sid == session_id => (
-            SseChatEvent {
-                event: "session_closed".into(),
-                data: serde_json::json!({}),
-            },
-            true,
-        ),
-        _ => return None,
-    };
-
-    Some((sse_event, is_terminal))
 }
 
 /// Handler for `GET /api/v1/sessions/recent`, list recent sessions with first message.

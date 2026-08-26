@@ -10,11 +10,9 @@
 //! - `POST   /api/v1/notifications/test`            , test all channels
 //! - `GET    /api/v1/notifications/logs`            , history from notifications.db
 
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
@@ -22,12 +20,14 @@ use serde::{Deserialize, Serialize};
 use apollia_notifications::{
     build_channels,
     config::{ChannelKind, NotificationConfig},
-    engine::Notification,
-    NotificationChannelRow, NotificationConfigError, NotificationLogRow, Severity,
+    NotificationChannelRow, NotificationConfigError,
 };
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+
+pub mod logs;
+pub mod probe;
 
 // ─── Request types ──────────────────────────────────────────────────────────
 
@@ -525,264 +525,6 @@ pub async fn list_channels<B: ExecutionBackend + Clone>(
     Json(serde_json::json!({ "channels": channels }))
 }
 
-/// `POST /api/v1/notifications/test`, send a test notification.
-///
-/// For each channel enabled in the config:
-/// - Instantiates the channel via [`build_channels`]
-/// - Sends a test [`Notification`] with the `"test.ping"` event
-/// - Measures latency and collects the status (`"ok"`, `"error"`, `"disabled"`)
-///
-/// Source of truth: the channel list is read from the SQLite repository, not
-/// from the `state.notification_config` snapshot (which is frozen at boot and
-/// does not reflect CRUD performed via the API). Falling back to the snapshot
-/// when the repo is unavailable preserves the legacy behavior for
-/// `apollia.toml`-only config.
-#[utoipa::path(
-    post,
-    path = "/api/v1/notifications/test",
-    tag = "notifications",
-    responses(
-        (status = 200, description = "Per-channel test results"),
-        (status = 500, description = "Failed to build channels", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn test_channels<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-) -> (StatusCode, Json<serde_json::Value>) {
-    let config = match resolve_live_config(&state) {
-        Some(cfg) => cfg,
-        None => return (StatusCode::OK, Json(serde_json::json!({ "results": [] }))),
-    };
-
-    let mut results: Vec<ChannelTestResult> = Vec::new();
-
-    for ch in &config.channels {
-        if !ch.enabled {
-            results.push(ChannelTestResult {
-                channel_id: ch.id.clone(),
-                kind: channel_kind_str(&ch.kind),
-                status: "disabled".to_string(),
-                error: None,
-                latency_ms: None,
-            });
-        }
-    }
-
-    let channels = match build_channels(&config.channels) {
-        Ok(c) => c,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": e.to_string() })),
-            );
-        }
-    };
-
-    let test_notif = make_test_notification();
-
-    // Per-channel send results, kept alongside the typed `results` so we can
-    // persist a `notification_logs` row mirroring what the engine writes when
-    // it dispatches real events.
-    let mut channel_results: HashMap<String, Option<String>> = HashMap::new();
-
-    for channel in &channels {
-        let start = Instant::now();
-        let outcome = channel.send(&test_notif).await;
-        let latency_ms = start.elapsed().as_millis() as u64;
-        let kind = channel_kind_by_id(channel.id(), &config);
-
-        let (status, error) = match outcome {
-            Ok(()) => ("ok".to_string(), None),
-            Err(e) => ("error".to_string(), Some(e.to_string())),
-        };
-        channel_results.insert(channel.id().to_string(), error.clone());
-
-        results.push(ChannelTestResult {
-            channel_id: channel.id().to_string(),
-            kind,
-            status,
-            error,
-            latency_ms: Some(latency_ms),
-        });
-    }
-
-    // Persist a log row so the "Notifications envoyées" tab shows test fires
-    // (the engine's own logging path is bypassed by direct channel sends).
-    if !channel_results.is_empty() {
-        write_test_log(&state, &test_notif, &channel_results);
-    }
-
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({ "results": results })),
-    )
-}
-
-/// Persists a `notification_logs` row for a test-channel dispatch.
-///
-/// Mirrors the shape that the engine writes when it processes a real
-/// `RuntimeEvent`. Silently no-ops if `notification_repo` is unset
-/// (e.g. in unit tests) or if the write fails, the test endpoint must
-/// not error out on best-effort logging.
-fn write_test_log<B: ExecutionBackend + Clone>(
-    state: &AppState<B>,
-    notif: &Notification,
-    channel_results: &HashMap<String, Option<String>>,
-) {
-    let Some(repo) = state.notification_repo.as_ref() else {
-        return;
-    };
-
-    let channels_json: serde_json::Map<String, serde_json::Value> = channel_results
-        .iter()
-        .map(|(id, err)| {
-            let status = match err {
-                None => serde_json::Value::String("ok".into()),
-                Some(msg) => serde_json::Value::String(msg.clone()),
-            };
-            (id.clone(), status)
-        })
-        .collect();
-    let channels_str = serde_json::to_string(&channels_json).unwrap_or_else(|_| "{}".into());
-
-    let global_error: Option<String> = channel_results
-        .values()
-        .find_map(|e| e.as_deref().map(str::to_string));
-
-    let row = NotificationLogRow {
-        id: uuid::Uuid::new_v4().to_string(),
-        event_name: notif.event.clone(),
-        task_id: notif.task_id.clone(),
-        agent_id: notif.agent.clone(),
-        sent_at: notif.timestamp.to_rfc3339(),
-        channels: channels_str,
-        error: global_error,
-    };
-
-    let guard = match repo.lock() {
-        Ok(g) => g,
-        Err(e) => e.into_inner(),
-    };
-    if let Err(e) = guard.write_log(&row) {
-        tracing::warn!(error = %e, "notification.test_log.write.failed");
-    }
-}
-
-/// Resolves the *live* notification config.
-///
-/// Reads from the SQLite repository when available (so CRUD-created channels
-/// are visible without an engine reload-and-snapshot cycle), and falls back
-/// to the boot-time `state.notification_config` otherwise. Returns `None`
-/// when neither source has anything (e.g. tests with both fields unset).
-fn resolve_live_config<B: ExecutionBackend + Clone>(
-    state: &AppState<B>,
-) -> Option<NotificationConfig> {
-    if let Some(repo) = &state.notification_repo {
-        let guard = repo.lock().unwrap_or_else(|e| e.into_inner());
-        let rows = guard.list_channels().unwrap_or_default();
-        let events = guard.get_global_events().unwrap_or_default();
-        if rows.is_empty() && events.is_empty() {
-            // Empty repo, fall back so tests that only set `notification_config`
-            // (no repo) keep working.
-            return state.notification_config.clone();
-        }
-        let inactivity = state
-            .notification_config
-            .as_ref()
-            .map(|c| c.inactivity_timeout_secs)
-            .unwrap_or(30);
-        return Some(NotificationConfig {
-            events,
-            channels: rows.iter().map(|row| row.to_channel_config()).collect(),
-            inactivity_timeout_secs: inactivity,
-        });
-    }
-    state.notification_config.clone()
-}
-
-/// `GET /api/v1/notifications/logs?last=N`, notification history.
-///
-/// Reads from `notifications.db` via the repository.
-/// Falls back to `hitl.db` if the repo is not available (backward compat).
-#[utoipa::path(
-    get,
-    path = "/api/v1/notifications/logs",
-    tag = "notifications",
-    params(("last" = Option<usize>, Query, description = "Maximum number of entries (default 20, max 1000)")),
-    responses(
-        (status = 200, description = "Notification dispatch history"),
-        (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
-    )
-)]
-pub async fn notification_logs<B: ExecutionBackend + Clone>(
-    State(state): State<AppState<B>>,
-    Query(params): Query<LogsQuery>,
-) -> (StatusCode, Json<serde_json::Value>) {
-    let last = params.last.min(1000);
-
-    // Prefer notifications.db repo
-    if let Some(ref repo) = state.notification_repo {
-        let guard = repo.lock().unwrap_or_else(|e| e.into_inner());
-        match guard.query_logs(last) {
-            Ok(logs) => {
-                let entries: Vec<serde_json::Value> = logs
-                    .iter()
-                    .map(|log| {
-                        let channels = serde_json::from_str(&log.channels)
-                            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-                        serde_json::json!({
-                            "id": log.id,
-                            "event_name": log.event_name,
-                            "task_id": log.task_id,
-                            "agent_id": log.agent_id,
-                            "sent_at": log.sent_at,
-                            "channels": channels,
-                            "error": log.error,
-                        })
-                    })
-                    .collect();
-                return (
-                    StatusCode::OK,
-                    Json(serde_json::json!({ "entries": entries })),
-                );
-            }
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({ "error": e.to_string() })),
-                );
-            }
-        }
-    }
-
-    // Fallback: hitl.db (backward compat)
-    let Some(db_path) = resolve_notif_db_path() else {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({
-                "error": "cannot resolve the home directory (USERPROFILE on Windows, HOME on Unix)"
-            })),
-        );
-    };
-    let entries_result =
-        tokio::task::spawn_blocking(move || query_notification_logs(&db_path, last)).await;
-
-    match entries_result {
-        Ok(Ok(entries)) => (
-            StatusCode::OK,
-            Json(serde_json::json!({ "entries": entries })),
-        ),
-        Ok(Err(msg)) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": msg })),
-        ),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": format!("spawn_blocking failed: {e}") })),
-        ),
-    }
-}
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /// Converts a [`NotificationChannelRow`] into a [`ChannelResponse`].
@@ -861,21 +603,8 @@ async fn reload_notification_engine<B: ExecutionBackend + Clone>(
     engine_handle.reload(config, channels).await;
 }
 
-/// Build a test [`Notification`] for the `"test.ping"` event.
-fn make_test_notification() -> Notification {
-    Notification {
-        event: "test.ping".to_string(),
-        timestamp: chrono::Utc::now(),
-        task_id: None,
-        agent: None,
-        message: "Notification de test Apollia OS".to_string(),
-        metadata: HashMap::new(),
-        severity: Severity::Info,
-    }
-}
-
 /// Return the string representation of a [`ChannelKind`].
-fn channel_kind_str(kind: &ChannelKind) -> String {
+pub(crate) fn channel_kind_str(kind: &ChannelKind) -> String {
     match kind {
         ChannelKind::Desktop => "desktop".to_string(),
         ChannelKind::Webhook => "webhook".to_string(),
@@ -886,7 +615,7 @@ fn channel_kind_str(kind: &ChannelKind) -> String {
 /// Return the `kind` string for the channel identified by `id` in `config`.
 ///
 /// Falls back to `"unknown"` if the ID is not found.
-fn channel_kind_by_id(id: &str, config: &NotificationConfig) -> String {
+pub(crate) fn channel_kind_by_id(id: &str, config: &NotificationConfig) -> String {
     config
         .channels
         .iter()
@@ -895,110 +624,15 @@ fn channel_kind_by_id(id: &str, config: &NotificationConfig) -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-/// Resolve the path of the notification log database: `hitl.db` under the
-/// data directory.
-///
-/// `None` when the home directory cannot be resolved. That case used to fall
-/// back to a database in the world-writable `/tmp`, outside the profile; user
-/// state never belongs there, so the caller reports the error instead.
-fn resolve_notif_db_path() -> Option<std::path::PathBuf> {
-    apollia_core::paths::data_dir().map(|d| apollia_core::paths::DataFile::Hitl.path(&d))
-}
-
-/// Current schema version of the HITL notification-log store (a single step).
-///
-/// The same table is written by the notification engine
-/// (`apollia-notifications`); the two DDLs and this version number must stay
-/// aligned, `hitl.db` carries one `user_version` for both.
-const HITL_SCHEMA_VERSION: u32 = 1;
-
-/// The ordered migration list applied through
-/// [`apollia_core::schema::open_versioned`].
-const HITL_MIGRATIONS: [apollia_core::schema::Migration; HITL_SCHEMA_VERSION as usize] =
-    [hitl_migrate_v1];
-
-fn hitl_migrate_v1(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS notification_logs (
-            id          TEXT    PRIMARY KEY,
-            event_name  TEXT    NOT NULL,
-            task_id     TEXT,
-            agent_id    TEXT,
-            sent_at     TEXT    NOT NULL DEFAULT (datetime('now')),
-            channels    TEXT    NOT NULL DEFAULT '{}',
-            error       TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_notif_logs_sent_at ON notification_logs(sent_at);",
-    )
-}
-
-/// Open `db_path`, create `notification_logs` if needed, and return the last `N` entries.
-fn query_notification_logs(
-    db_path: &std::path::Path,
-    last: usize,
-) -> Result<Vec<serde_json::Value>, String> {
-    let conn = rusqlite::Connection::open(db_path)
-        .map_err(|e| format!("impossible d'ouvrir la base : {e}"))?;
-
-    apollia_core::schema::open_versioned(
-        &conn,
-        apollia_core::paths::DataFile::Hitl.file_name(),
-        HITL_SCHEMA_VERSION,
-        &HITL_MIGRATIONS,
-    )
-    .map_err(|e| format!("migration notification_logs échouée : {e}"))?;
-
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, event_name, task_id, agent_id, sent_at, channels, error
-               FROM notification_logs
-              ORDER BY sent_at DESC
-              LIMIT ?1",
-        )
-        .map_err(|e| format!("prepare échoué : {e}"))?;
-
-    let rows = stmt
-        .query_map(rusqlite::params![last as i64], |row| {
-            let channels_raw: String = row.get(5)?;
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, Option<String>>(2)?,
-                row.get::<_, Option<String>>(3)?,
-                row.get::<_, String>(4)?,
-                channels_raw,
-                row.get::<_, Option<String>>(6)?,
-            ))
-        })
-        .map_err(|e| format!("query échouée : {e}"))?;
-
-    let mut entries = Vec::new();
-    for row_result in rows {
-        let (id, event_name, task_id, agent_id, sent_at, channels_raw, error) =
-            row_result.map_err(|e| format!("lecture ligne échouée : {e}"))?;
-
-        let channels = serde_json::from_str(&channels_raw)
-            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-
-        entries.push(serde_json::json!({
-            "id": id,
-            "event_name": event_name,
-            "task_id": task_id,
-            "agent_id": agent_id,
-            "sent_at": sent_at,
-            "channels": channels,
-            "error": error,
-        }));
-    }
-
-    Ok(entries)
-}
-
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::routes_notifications::logs::{
+        notification_logs, query_notification_logs, HITL_SCHEMA_VERSION,
+    };
+    use crate::api::routes_notifications::probe::resolve_live_config;
     use apollia_notifications::config::{ChannelConfig, ChannelKind, NotificationConfig};
     use apollia_notifications::NotificationConfigRepository;
 

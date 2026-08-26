@@ -156,13 +156,14 @@ migration step. Never `DROP COLUMN` without an explicit upgrade path.
 Permission invariant (chat manager) : a code executor (`bash_executor`,
 `python_executor`, i.e. `apollia_permissions::CODE_EXECUTOR_TOOLS`) is never
 blanket-authorized by name. The chat "always allow" path
-(`src/chat/manager/libre.rs`, `src/chat/manager/exchange.rs`) must not persist a
-no-prefix allow rule for one, seed it into `pre_authorized_tools`, or insert it
-into `session.authorized_tools`; each invocation keeps its per-call HITL. The
-matching side of the same invariant lives in `apollia-permissions`
-(`prefix_rule_engine`). When adding a new arbitrary-code executor tool, add its
-name to `CODE_EXECUTOR_TOOLS` (a drift-guard test in `apollia-tools` checks the
-descriptor names stay in sync).
+(`src/chat/manager/libre.rs`, `src/chat/manager/exchange/tool_decision.rs`,
+`src/chat/manager/exchange/outcome.rs`, `src/chat/manager/exchange/dispatch.rs`)
+must not persist a no-prefix allow rule for one, seed it into
+`pre_authorized_tools`, or insert it into `session.authorized_tools`; each
+invocation keeps its per-call HITL. The matching side of the same invariant
+lives in `apollia-permissions` (`prefix_rule_engine`). When adding a new
+arbitrary-code executor tool, add its name to `CODE_EXECUTOR_TOOLS` (a
+drift-guard test in `apollia-tools` checks the descriptor names stay in sync).
 
 Connections : no pool crate. Each SQLite-backed actor owns a single
 `rusqlite::Connection` on its own thread and serializes access through its

@@ -12,7 +12,7 @@ is a promise the daemon answers with 404.
 The spec is assembled by `utoipa` from the `#[utoipa::path]` attributes on the
 handlers, so it cannot drift from the *types* a handler serializes. It can and
 did drift from the *set of routes*: `POST /api/v1/notifications/channels/:id/test`
-was registered in `server.rs` while its handler carried an annotation for
+was registered in the root router while its handler carried an annotation for
 `/api/v1/notifications/test` only, and nothing measured the two sets against
 each other. Sixty-eight lines of `.route(...)` and eighty-nine spec paths were
 kept in step by review alone.
@@ -23,8 +23,9 @@ a path parameter is not reported as a divergence while a rename of a segment is.
 Comparing methods as well as paths is what makes the rule bite: a handler
 annotated `get` on a path the router serves with `post` would otherwise pass.
 
-Where the routes are read: `crates/apollia-runtime/src/api/`, `server.rs` and
-the `routes_*.rs` modules. That directory holds the whole `/api/v1` router; the
+Where the routes are read: `crates/apollia-runtime/src/api/`, `server/router.rs`
+and the `routes_*` modules, their submodules included. That directory holds the
+whole `/api/v1` router; the
 other `.route(` call sites in the workspace (`apollia-auth` callback servers,
 the MCP transports, the `apollia-runner` sidecar) serve their own local
 protocols and are not part of the driving contract. Test modules are cut before
@@ -55,9 +56,11 @@ SPEC = Path("clients/openapi.json")
 API_DIR = Path("crates/apollia-runtime/src/api")
 
 # The file that must contribute routes for the scan to have measured anything:
-# `server.rs` composes the root router, so a scan that read no route from it
-# read nothing of the contract whatever the other modules returned.
-ROOT_ROUTER = "server.rs"
+# `server/router.rs` composes the root router, so a scan that read no route from
+# it read nothing of the contract whatever the other modules returned. The path
+# is relative to `API_DIR`, since the route modules are split into
+# subdirectories and a bare file name no longer identifies one.
+ROOT_ROUTER = "server/router.rs"
 
 # The HTTP methods axum exposes as `MethodRouter` constructors, which are also
 # the operation keys OpenAPI uses. `any` and `on` are absent on purpose: they
@@ -166,13 +169,14 @@ def served_routes(root: Path) -> tuple[set[tuple[str, str]], list[str]]:
     served: set[tuple[str, str]] = set()
     read: list[str] = []
     contributors: list[str] = []
-    for path in sorted(api.glob("*.rs")):
-        if path.name != ROOT_ROUTER and not path.name.startswith("routes_"):
+    for path in sorted(api.rglob("*.rs")):
+        rel = path.relative_to(api).as_posix()
+        if rel != ROOT_ROUTER and not rel.startswith("routes_"):
             continue
-        read.append(path.name)
-        found = routes_in(path.read_text(encoding="utf-8"), path.name)
+        read.append(rel)
+        found = routes_in(path.read_text(encoding="utf-8"), rel)
         if found:
-            contributors.append(path.name)
+            contributors.append(rel)
         served |= found
     if not read:
         raise Unmeasurable(f"no router module under {API_DIR}")
@@ -292,8 +296,9 @@ def run(root: Path) -> int:
 
 def _write_fixture(root: Path, source: str, spec: dict | None) -> None:
     api = root / API_DIR
-    api.mkdir(parents=True, exist_ok=True)
-    (api / ROOT_ROUTER).write_text(source, encoding="utf-8")
+    router = api / ROOT_ROUTER
+    router.parent.mkdir(parents=True, exist_ok=True)
+    router.write_text(source, encoding="utf-8")
     if spec is not None:
         (root / SPEC).parent.mkdir(parents=True, exist_ok=True)
         (root / SPEC).write_text(json.dumps(spec), encoding="utf-8")
