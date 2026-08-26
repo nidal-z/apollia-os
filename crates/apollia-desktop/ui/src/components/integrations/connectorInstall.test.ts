@@ -1,6 +1,9 @@
 import { describe, test, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { deriveServerName, sanitizeServerName } from "./ConnectorWizard.svelte";
+import {
+  deriveServerName,
+  sanitizeServerName,
+} from "$lib/integrations/connectorConfig";
 import { installConnector } from "$lib/ipc/connections";
 import type { McpServerConfigInput } from "$lib/types";
 
