@@ -250,6 +250,12 @@ jobs:
         run: |
           python3 scripts/check_cli_json_contract.py --selftest
           python3 scripts/check_cli_json_contract.py
+      # Section 1 of the crate rulebook announced "adding to this whitelist
+      # requires a note here" and had no verifier, so the note stopped being
+      # written: 17 bare verbs against a whitelist of 15, and 60 leaves whose
+      # verb was in no declared category.
+      - name: Every CLI verb is declared in the crate taxonomy
+        run: python3 scripts/check_cli_json_contract.py taxonomy
       - name: Every CLI leaf has a parsing test
         run: |
           python3 scripts/check_cli_parse_tests.py --selftest

@@ -38,8 +38,23 @@ a string envelope, a wrong exit code, an ANSI stderr, a header printed under
 `-q` and a destructive leaf that acts without its flag must be reported, and a
 conforming leaf must pass.
 
+A second mode, `taxonomy`, judges the same leaf inventory against the verb
+taxonomy `crates/apollia-cli/AGENTS.md` section 1 publishes. That section
+announced "adding to this whitelist requires a note here" and had no verifier,
+so the note stopped being written: measured on `f6d89f24`, 17 bare verbs
+against a whitelist of 15, and 60 leaves whose last token belonged to no
+declared category. Three rules, all read out of the document rather than
+restated here:
+
+  T1  every leaf's last token is declared in one of the taxonomy table's rows,
+      or the leaf itself is named as a noun leaf
+  T2  every single-token leaf is in the bare-verb whitelist
+  T3  every declared verb is carried by at least one leaf, so the list cannot
+      be padded until it passes
+
 Usage:
     python3 scripts/check_cli_json_contract.py [--bin PATH]
+    python3 scripts/check_cli_json_contract.py taxonomy [--bin PATH]
     python3 scripts/check_cli_json_contract.py --selftest
 """
 
@@ -365,6 +380,126 @@ def measure(bin_path: str) -> int:
     return 1 if reds else 0
 
 
+AGENTS_MD = REPO_ROOT / "crates/apollia-cli/AGENTS.md"
+
+BACKTICKED = re.compile(r"`([^`]+)`")
+
+
+def taxonomy_section(text: str) -> str:
+    """The body of section 1, where the taxonomy is published."""
+    start = text.find("## 1. Command shape")
+    if start < 0:
+        return ""
+    end = text.find("\n## ", start + 1)
+    return text[start:] if end < 0 else text[start:end]
+
+
+def declared_taxonomy(text: str) -> tuple[set[str], set[str], set[str]]:
+    """(verbs by category, bare-verb whitelist, noun leaves), read from section 1.
+
+    The three structures are recognised by their own marker, never by position:
+    the table whose header row is `| Category | Verbs |`, the paragraph opening
+    on `**Bare-verb whitelist`, and the one opening on `**Noun leaves`. A
+    document that loses one of them declares nothing, which the caller reports
+    as "nothing measured" rather than as a pass.
+    """
+    section = taxonomy_section(text)
+    verbs: set[str] = set()
+    bare: set[str] = set()
+    nouns: set[str] = set()
+    in_table = False
+    target: set[str] | None = None
+    for line in section.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("| Category | Verbs |"):
+            in_table = True
+            continue
+        if in_table:
+            if not stripped.startswith("|"):
+                in_table = False
+            elif not set(stripped) <= set("|- "):
+                cells = [c.strip() for c in stripped.strip("|").split("|")]
+                if len(cells) >= 2:
+                    verbs.update(BACKTICKED.findall(cells[1]))
+                continue
+        if stripped.startswith("**Bare-verb whitelist"):
+            target = bare
+        elif stripped.startswith("**Noun leaves"):
+            target = nouns
+        elif target is not None and stripped.startswith("**"):
+            target = None
+        if target is not None:
+            target.update(BACKTICKED.findall(stripped))
+    bare -= {"**Bare-verb whitelist"}
+    return verbs, bare, nouns
+
+
+def taxonomy_violations(
+    leaves: list[list[str]],
+    verbs: set[str],
+    bare: set[str],
+    nouns: set[str],
+) -> list[str]:
+    """T1, T2 and T3 on one leaf inventory against one declaration."""
+    found: list[str] = []
+    for leaf in leaves:
+        name = " ".join(leaf)
+        if name in nouns:
+            continue
+        if len(leaf) == 1:
+            if leaf[0] not in bare:
+                found.append(f"{name}: bare verb outside the whitelist of section 1")
+        if leaf[-1] not in verbs:
+            found.append(f"{name}: verb `{leaf[-1]}` is in no declared category")
+    carried = {leaf[-1] for leaf in leaves} | {t for n in nouns for t in n.split()}
+    for verb in sorted(verbs - carried):
+        found.append(f"`{verb}`: declared in section 1, carried by no leaf")
+    for verb in sorted(bare - {leaf[0] for leaf in leaves if len(leaf) == 1}):
+        found.append(f"`{verb}`: on the bare-verb whitelist, not a bare leaf")
+    return sorted(set(found))
+
+
+def measure_taxonomy(bin_path: str) -> int:
+    if not Path(bin_path).is_file():
+        print(
+            f"nothing measured: {bin_path} is absent. Build it with `cargo build -p apollia-cli`.",
+            file=sys.stderr,
+        )
+        return 2
+    stale = binary_freshness.require(Path(bin_path), REPO_ROOT)
+    if stale is not None:
+        return stale
+    if not AGENTS_MD.is_file():
+        print(f"nothing measured: {AGENTS_MD} is absent", file=sys.stderr)
+        return 2
+    verbs, bare, nouns = declared_taxonomy(AGENTS_MD.read_text(encoding="utf-8"))
+    if not verbs or not bare:
+        print(
+            "nothing measured: section 1 of crates/apollia-cli/AGENTS.md carries "
+            "no `| Category | Verbs |` table or no bare-verb whitelist",
+            file=sys.stderr,
+        )
+        return 2
+    home = tempfile.mkdtemp(prefix="apollia-taxonomy-")
+    env = dict(os.environ, HOME=home)
+    env.pop("NO_COLOR", None)
+    env.pop("RUST_LOG", None)
+    leaves = enumerate_leaves(bin_path, env)
+    if not leaves:
+        print("nothing measured: the --help walk produced no leaf", file=sys.stderr)
+        return 2
+    reds = taxonomy_violations(leaves, verbs, bare, nouns)
+    for line in reds:
+        print(f"RED  {line}")
+    print(f"leaves enumerated : {len(leaves)}")
+    print(f"verbs declared    : {len(verbs)} over the categories of section 1")
+    print(f"bare verbs        : {len(bare)} declared, "
+          f"{len([lf for lf in leaves if len(lf) == 1])} in the tree")
+    print(f"noun leaves       : {len(nouns)} named by exception")
+    print(f"taxonomy breaches : {len(reds)}")
+    return 1 if reds else 0
+
+
 def selftest() -> int:
     failures = []
 
@@ -459,6 +594,70 @@ def selftest() -> int:
         destruction_violations("update", "Options:\n      --yes\n", 1) == [],
     )
 
+    # T1 to T3, both directions, on a fabricated section 1 and a fabricated
+    # leaf inventory. The parser is driven too: a document that lost its table
+    # must declare nothing rather than declare a subset that happens to pass.
+    doc = (
+        "# x\n\n## 1. Command shape\n\n"
+        "| Category | Verbs |\n|---|---|\n"
+        "| entity | `show`, `list` |\n"
+        "| lifecycle | `start` |\n"
+        "| report | `version` |\n\n"
+        "**Bare-verb whitelist.** `start`, `version`.\n\n"
+        "**Noun leaves.** `mcp server`.\n\n"
+        "## 2. Next\n\nnot the taxonomy: `nowhere`.\n"
+    )
+    verbs, bare, nouns = declared_taxonomy(doc)
+    case("the taxonomy table is read", verbs == {"show", "list", "start", "version"})
+    case("the bare-verb whitelist is read", bare == {"start", "version"})
+    case("the noun leaves are read", nouns == {"mcp server"})
+    case("a backtick outside section 1 is not a declared verb", "nowhere" not in verbs)
+    case(
+        "a document without the table declares nothing",
+        declared_taxonomy("# x\n\n## 2. Elsewhere\n\n`show`\n")[0] == set(),
+    )
+
+    conforming = [["agent", "show"], ["agent", "list"], ["start"], ["version"], ["mcp", "server"]]
+    case(
+        "a tree whose every verb is declared passes",
+        taxonomy_violations(conforming, verbs, bare, nouns) == [],
+    )
+    case(
+        "a verb in no category is reported",
+        any(
+            "in no declared category" in v
+            for v in taxonomy_violations(conforming + [["agent", "review"]], verbs, bare, nouns)
+        ),
+    )
+    case(
+        "a bare verb outside the whitelist is reported",
+        any(
+            "outside the whitelist" in v
+            for v in taxonomy_violations(
+                conforming + [["review"]], verbs | {"review"}, bare, nouns
+            )
+        ),
+    )
+    case(
+        "a declared verb no leaf carries is reported",
+        any(
+            "carried by no leaf" in v
+            for v in taxonomy_violations(conforming, verbs | {"forget"}, bare, nouns)
+        ),
+    )
+    case(
+        "a whitelisted bare verb that is not a bare leaf is reported",
+        any(
+            "not a bare leaf" in v
+            for v in taxonomy_violations(conforming, verbs, bare | {"doctor"}, nouns)
+        ),
+    )
+    case(
+        "a noun leaf named by exception passes without a verb category",
+        taxonomy_violations([["mcp", "server"]], {"show"}, set(), {"mcp server"})
+        == ["`show`: declared in section 1, carried by no leaf"],
+    )
+
     if failures:
         print(f"\nselftest: {len(failures)} case(s) failed", file=sys.stderr)
         return 1
@@ -470,6 +669,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Assert the published --json error and exit-code contract on every CLI leaf."
     )
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        default="contract",
+        choices=["contract", "taxonomy"],
+        help="contract (default): the --json, -q and destruction rules. "
+        "taxonomy: every leaf verb is declared in section 1 of the crate AGENTS.md",
+    )
     parser.add_argument("--bin", default=str(DEFAULT_BIN), help="path to the apollia-os binary")
     parser.add_argument(
         "--selftest", action="store_true", help="run the classifier on canned outputs"
@@ -477,6 +684,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.selftest:
         return selftest()
+    if args.mode == "taxonomy":
+        return measure_taxonomy(args.bin)
     return measure(args.bin)
 
 

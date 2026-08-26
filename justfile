@@ -541,6 +541,7 @@ guards:
       "scripts/check_claims.py"
       "scripts/check_cli_e2e_coverage.py"
       "scripts/check_cli_json_contract.py"
+      "scripts/check_cli_json_contract.py taxonomy"
       "scripts/check_cli_parse_tests.py"
       "scripts/check_corpus_claims.py"
       "scripts/check_crate_lints.py"
