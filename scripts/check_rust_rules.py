@@ -116,7 +116,6 @@ MODULE_SIZE_FILES: set[str] = {
     "crates/apollia-core/src/events/runtime_event.rs",
     "crates/apollia-mcp/src/manager.rs",
     "crates/apollia-mcp/src/session.rs",
-    "crates/apollia-notifications/src/engine.rs",
     "crates/apollia-oria/src/actor.rs",
     "crates/apollia-oria/src/engine.rs",
     "crates/apollia-permissions/src/prefix_rule_engine.rs",
