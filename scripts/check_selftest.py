@@ -50,7 +50,22 @@ properties rather than the fixes:
      going wrong is the mirror image: a `#[cfg(test)]` matched by proximity
      instead of by what it binds to drops production files from the sweep, and
      the count that serves as a control does not move while it happens.
-  9. A script reads its arguments before acting on them. `make_scan.py --help`
+  9. A detector counts what can act, not what is written about it. The design
+     token guard was promoted from a sweep that read whole lines, so
+     `hsl(28 11% 13%)` documented inside a `<code>` span of the design showcase
+     was reported as a hardcoded colour. That is the bias of the first three
+     turned outward: a verifier that inflates its own catch is as unreadable as
+     one that hides it, and the guard that cries wolf is the one that ends up
+     behind an exclusion. Both directions are asserted, because a detector that
+     stopped reading attributes would satisfy the prose case and see nothing.
+
+ 10. A ratchet only descends, and it says so in both directions. The same
+     exemption bias as case 5, in the form a per-file allowance takes: a file
+     above its number fails, and a file *below* its number fails too, until the
+     number follows it down. Without the second half, the list outlives the
+     debt and the tree carries 168 named allowances nobody can retire.
+
+ 11. A script reads its arguments before acting on them. `make_scan.py --help`
      regenerated a tracked file and `check_prose.py --help` rendered a verdict,
      because both executed their measure whatever the arguments said. Every
      tracked script must answer `--help` with its usage, exit 0, and leave the
@@ -80,6 +95,7 @@ import check_claims  # noqa: E402
 import check_no_font_cdn as fontcdn  # noqa: E402
 import check_panic_free as panicfree  # noqa: E402
 import check_optional_builders as builders  # noqa: E402
+import check_design_tokens as designtokens  # noqa: E402
 import check_prose  # noqa: E402
 import worktree_verdicts  # noqa: E402
 
@@ -1958,6 +1974,137 @@ def check_panic_sweep_scope() -> None:
     )
 
 
+# ── The design token guard: what can style, and a ratchet that only descends ──
+
+# The showcase routes document the design system by naming its values, so the
+# sweep this guard was promoted from reported the documentation as the defect.
+# `hsl(28 11% 13%)` below sits in element text content, `text-[11px]` sits in a
+# class attribute, and one line carries both: a detector that answered "one
+# finding" by dropping the wrong one would pass a count-only assertion.
+TOKENS_PROSE = (
+    '<p>warmth dark (<code class="text-[11px]">surface-2 = hsl(28 11% 13%)</code>)</p>\n'
+)
+TOKENS_SCRIPT = '<script>\n  const cls = "bg-white";\n</script>\n<p>ok</p>\n'
+TOKENS_STYLE = "<div></div>\n<style>\n  .x { font-size: 11px; }\n</style>\n"
+TOKENS_ARROW = '<button onclick={() => go()} class="text-[9px]">go</button>\n'
+TOKENS_CLEAN = '<p class="text-caption text-foreground">clean</p>\n'
+
+
+def check_design_tokens_lens() -> None:
+    print("design tokens: a literal counts where it can style, not where it is described")
+
+    prose = designtokens.scan(TOKENS_PROSE, ".svelte", False)
+    case(
+        "the class attribute on the prose line is flagged",
+        [f for f in prose if f[1] == "font-size"] != [],
+        f"the guard read no attribute on a line that mixes prose and classes, "
+        f"so the mask swallowed the defect with the documentation. "
+        f"findings: {prose!r}",
+    )
+    case(
+        "the literal in element text content is not flagged",
+        [f for f in prose if f[1] == "color"] == [],
+        f"documented `hsl(28 11% 13%)` was counted as a hardcoded colour. That "
+        f"is the sweep's reading, and a guard that reports documentation as "
+        f"debt is a guard someone excludes. findings: {prose!r}",
+    )
+
+    script = designtokens.scan(TOKENS_SCRIPT, ".svelte", False)
+    case(
+        "a palette class inside the <script> body is flagged",
+        [f for f in script if f[1] == "color"] != [],
+        f"the script body was read as prose. Class strings live there, in "
+        f"variant tables and `class:` expressions. findings: {script!r}",
+    )
+
+    style = designtokens.scan(TOKENS_STYLE, ".svelte", False)
+    case(
+        "a declaration inside the <style> body is flagged",
+        [f for f in style if f[1] == "font-size"] != [],
+        f"the style body was read as prose, which would blind the guard to "
+        f"every component-scoped stylesheet. findings: {style!r}",
+    )
+
+    arrow = designtokens.scan(TOKENS_ARROW, ".svelte", False)
+    case(
+        "an arrow function in an attribute does not end the tag early",
+        [f for f in arrow if f[1] == "font-size"] != [],
+        f"the `>` of `=>` closed the tag, so every class written after a "
+        f"handler fell into what the guard calls prose. This is the most "
+        f"common attribute order in the tree. findings: {arrow!r}",
+    )
+
+    clean = designtokens.scan(TOKENS_CLEAN, ".svelte", False)
+    case(
+        "positive control: a tokenised class is not flagged",
+        clean == [],
+        f"a compliant class was reported. A guard that fails on compliant "
+        f"input gets switched off, and then guards nothing. findings: {clean!r}",
+    )
+
+
+def check_design_tokens_ratchet() -> None:
+    print("design tokens: the allowance fails above its number and below it")
+
+    findings = [(1, "font-size", "text-[10px]")] * 3
+    measured = {"src/x.svelte": findings}
+    saved = designtokens.ALLOWED
+    try:
+        designtokens.ALLOWED = {"src/x.svelte": 2}
+        over = designtokens.verdict(measured)
+        case(
+            "a file above its allowance fails",
+            len(over) == 1 and "3 literal(s), 2 allowed" in over[0],
+            f"a file that grew past its number passed, which makes the "
+            f"allowance a licence rather than a ratchet. verdict: {over!r}",
+        )
+
+        designtokens.ALLOWED = {"src/x.svelte": 4}
+        under = designtokens.verdict(measured)
+        case(
+            "a file below its allowance fails, naming the new number",
+            len(under) == 1 and "Lower it to 3" in under[0],
+            f"a file that improved kept its old number in silence. The list "
+            f"then outlives the debt and nobody can retire it. "
+            f"verdict: {under!r}",
+        )
+
+        designtokens.ALLOWED = {"src/x.svelte": 3}
+        case(
+            "positive control: a file exactly at its allowance passes",
+            designtokens.verdict(measured) == [],
+            "a file matching its number was reported, which would make the "
+            "guard permanently red and unreadable",
+        )
+
+        designtokens.ALLOWED = {"src/gone.svelte": 1}
+        stale = designtokens.verdict({})
+        case(
+            "an entry whose file is clean is reported as stale",
+            len(stale) == 1 and "no literal left" in stale[0],
+            f"an allowance survived the debt it covered. verdict: {stale!r}",
+        )
+
+        designtokens.ALLOWED = {}
+        unlisted = designtokens.verdict(measured)
+        case(
+            "a file named by no entry is allowed nothing",
+            len(unlisted) == 1 and "0 allowed" in unlisted[0],
+            f"an unlisted file passed with findings, so `src/routes/` could "
+            f"drift back the day after it was migrated. verdict: {unlisted!r}",
+        )
+    finally:
+        designtokens.ALLOWED = saved
+
+    case(
+        "the real allowance is not empty",
+        len(saved) >= 10,
+        f"the allowance holds {len(saved)} entr(y/ies), so the cases above "
+        f"exercise a table the tree does not have: a ratchet over nothing "
+        f"ratchets nothing",
+    )
+
+
 def main() -> int:
     check_builder_sweep()
     check_claims_wired()
@@ -1978,6 +2125,10 @@ def main() -> int:
     print()
     check_help_contract()
     print()
+    check_design_tokens_lens()
+    print()
+    check_design_tokens_ratchet()
+    print()
     check_panic_sweep_fires()
     print()
     check_panic_sweep_scope()
@@ -1987,7 +2138,7 @@ def main() -> int:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\ntwelve properties hold: neither a comment nor a re-export is a use, "
+        "\nfourteen properties hold: neither a comment nor a re-export is a use, "
         "zero coverage says so, the font guard fires on a dirty tree and reads "
         "the same set whatever tree it runs in, the prose tracker rule fires "
         "and its one exemption is bounded from both sides, two equal exit codes "
@@ -1997,8 +2148,10 @@ def main() -> int:
         "it, every tracked script answers --help without measuring, "
         "the panic-free sweep names the sites a lint gracies while "
         "keeping the production an attribute read by proximity would drop, "
-        "and the desktop automation verdict is read with staleness treated "
-        "as nothing measured"
+        "the desktop automation verdict is read with staleness treated "
+        "as nothing measured, and the design token guard reads what can style "
+        "something rather than what is written about it, behind a ratchet "
+        "that fails in both directions"
     )
     return 0
 

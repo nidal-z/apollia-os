@@ -196,6 +196,13 @@ repos:
         files: '^(crates/apollia-desktop/ui/src/.+|scripts/check_unimported_files\.py)$'
         pass_filenames: false
 
+      - id: check-design-tokens
+        name: no visual literal where a design token covers it
+        entry: python3 scripts/check_design_tokens.py
+        language: system
+        files: '^(crates/apollia-desktop/ui/(src/.+|tailwind\.config\.ts)|scripts/check_design_tokens\.py)$'
+        pass_filenames: false
+
       - id: check-eventbus-variants
         name: every RuntimeEvent variant is emitted and read, and lag stays one rule
         entry: python3 scripts/check_eventbus_variants.py

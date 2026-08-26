@@ -293,6 +293,9 @@ jobs:
       - name: Accessibility audit (form labels, icon-only buttons)
         working-directory: crates/apollia-desktop/ui
         run: npm run audit:a11y
+      # Needs no node_modules: it reads the tracked sources and app.css.
+      - name: Design tokens (no visual literal where a token covers it)
+        run: python3 scripts/check_design_tokens.py
 
   # ── Security / dependencies ──────────────────────────────────────────────
   deny:

@@ -544,6 +544,7 @@ guards:
       "scripts/check_crate_lints.py"
       "scripts/check_ctx_contract.py"
       "scripts/check_data_layout.py"
+      "scripts/check_design_tokens.py"
       "scripts/check_desktop_csp.py"
       "scripts/check_docs_anchors.py"
       "scripts/check_docs_frontmatter.py"
