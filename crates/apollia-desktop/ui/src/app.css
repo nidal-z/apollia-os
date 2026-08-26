@@ -169,6 +169,14 @@
     --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
     /* ── Z-index stack ── */
+    /* Page-level chrome sits under the app-wide backdrop: a drawer scrim
+       dims one pane, not the window. The three values below are what the
+       routes already wrote as `z-30` and `z-40`; naming them changed no
+       number. Two names share rung 30 because two things live there, the
+       same arrangement `--z-backdrop` and `--z-toast` already have at 40. */
+    --z-sticky: 30;
+    --z-drawer-backdrop: 30;
+    --z-drawer: 40;
     --z-backdrop: 40;
     --z-toast: 40;
     --z-overlay: 50;

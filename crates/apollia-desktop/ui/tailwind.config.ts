@@ -114,6 +114,58 @@ const config: Config = {
           "0.78125rem",
           { lineHeight: "1.5", letterSpacing: "-0.01em" },
         ],
+
+        // ── Chrome sizes ───────────────────────────────────────────────
+        // The sizes the product chrome actually writes and the reading
+        // scale had no rung for. Each one below is present at least five
+        // times in `src/`, which is the bar for a rung; the sizes under
+        // that bar (9.6, 13.5, 14.5, 15, 16.5, 28 px) round to the nearest
+        // rung instead of getting one of their own.
+        //
+        //   caption-lg  0.71875rem  11.5px   29 sites
+        //   micro-lg    0.65625rem  10.5px   41 sites
+        //   micro       0.625rem    10px    159 sites
+        //   micro-sm    0.59375rem   9.5px    8 sites
+        //   micro-xs    0.5625rem    9px     22 sites
+        //
+        // These are bare strings, not tuples, and that is deliberate. A
+        // tuple emits `line-height` alongside `font-size`, so replacing
+        // `text-[10px]` with a tuple rung would move ~160 call sites by a
+        // fraction of a line box for a line-height nobody chose. At these
+        // sizes the line box belongs to the surface, which sets it with
+        // `leading-*`. The rungs above keep their tuples: their
+        // line-heights are designed values.
+        //
+        // `micro-lg` and `overline` share a size and differ in style:
+        // `overline` carries eyebrow tracking and weight, `micro-lg` is the
+        // plain 10.5px. Same arrangement as `body-sm` and `label-md`, which
+        // have shared 13px since the scale was written.
+        "caption-lg": "0.71875rem",
+        "micro-lg": "0.65625rem",
+        micro: "0.625rem",
+        "micro-sm": "0.59375rem",
+        "micro-xs": "0.5625rem",
+      },
+      // The `--z-*` stack of app.css, reachable as a class. Tailwind ships
+      // no `zIndex` mapping by default, so `z-30` and `z-40` were raw
+      // numbers that happened to agree with a token rather than reads of
+      // it. Values are unchanged; only the name is new.
+      // `src/components/` and `src/lib/` still write rungs that have no
+      // token (20, 64, 80, 90, 91); they join this table with their file.
+      zIndex: {
+        sticky: "var(--z-sticky)",
+        "drawer-backdrop": "var(--z-drawer-backdrop)",
+        drawer: "var(--z-drawer)",
+        backdrop: "var(--z-backdrop)",
+        toast: "var(--z-toast)",
+        overlay: "var(--z-overlay)",
+        tooltip: "var(--z-tooltip)",
+      },
+      spacing: {
+        // Panel widths the chat shell writes; Tailwind's scale stops at 64
+        // (16rem) then jumps to 72, so 280px and 380px had no step.
+        70: "17.5rem", // 280px
+        95: "23.75rem", // 380px
       },
       colors: {
         border: "hsl(var(--border))",

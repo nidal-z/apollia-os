@@ -109,6 +109,32 @@ export const chatLayout = {
   contextDefaultPx: 352,
 } as const;
 
+/**
+ * Stacking order.
+ *
+ * Tailwind ships no `zIndex` mapping, so before `tailwind.config.ts` grew
+ * one every `z-30` and `z-40` in the tree was a bare number that happened to
+ * agree with a token. Prefer the `z-*` classes; reach for these strings only
+ * where the value goes into an inline `style`, which is how the dialog,
+ * sheet, popover and toast primitives already read the stack.
+ */
+export const zLayer = {
+  /** Sticky page chrome - a header that stays put while its pane scrolls. */
+  sticky: "var(--z-sticky)",
+  /** Scrim of a page-level drawer - dims one pane, not the window. */
+  drawerBackdrop: "var(--z-drawer-backdrop)",
+  /** Panel of a page-level drawer, the sidebar and the topbar. */
+  drawer: "var(--z-drawer)",
+  /** App-wide modal scrim. */
+  backdrop: "var(--z-backdrop)",
+  /** Toast stack. */
+  toast: "var(--z-toast)",
+  /** Dialogs, sheets, popovers, command palette, context menus. */
+  overlay: "var(--z-overlay)",
+  /** Tooltips, above everything that can carry one. */
+  tooltip: "var(--z-tooltip)",
+} as const;
+
 export const tokens = {
   elevation,
   primaryShadow,
@@ -119,4 +145,5 @@ export const tokens = {
   gradient,
   logoPaper,
   chatLayout,
+  zLayer,
 } as const;
