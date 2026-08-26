@@ -622,8 +622,14 @@ guards:
     # the tree was reported as a guard that found a defect. The method
     # reference guard is the case that forced the distinction, its subject
     # living outside git, so it answers 2 in every clone and on every hosted
-    # runner. Skips are counted and named at the end rather than swallowed:
-    # "nothing was measured" is not a success either.
+    # runner. Skips are counted and named at the end rather than swallowed,
+    # and the recipe answers the same three codes its guards do: 0 when
+    # everything measured and everything is green, 1 as soon as one guard is
+    # red, 2 when nothing is red but at least one guard measured nothing. A
+    # red outranks a skip, the red being the actionable half. Exiting 0 on a
+    # skip is the shape this loop shipped with, and it hands the caller a
+    # green over a corpus that has stopped measuring: "nothing was measured"
+    # is not a failure, and it is not a success either.
     reds=()
     skips=()
     for guard in "${guards[@]}"; do
@@ -659,10 +665,13 @@ guards:
     if [ "${#reds[@]}" -ne 0 ]; then
       echo "${#reds[@]} guard(s) red:" >&2
       for guard in "${reds[@]}"; do echo "  $guard" >&2; done
-      exit 1
+      echo >&2
     fi
     total=$(( ${#guards[@]} + ${#externals[@]} ))
-    echo "$(( total - ${#skips[@]} )) guards green, ${#skips[@]} measured nothing, $total in the recipe"
+    green=$(( total - ${#reds[@]} - ${#skips[@]} ))
+    echo "$green guards green, ${#reds[@]} red, ${#skips[@]} measured nothing, $total in the recipe"
+    if [ "${#reds[@]}" -ne 0 ]; then exit 1; fi
+    if [ "${#skips[@]}" -ne 0 ]; then exit 2; fi
 
 # Local CI: guards + lint + tests
 ci: guards lint test

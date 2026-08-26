@@ -65,6 +65,14 @@ properties rather than the fixes:
      number follows it down. Without the second half, the list outlives the
      debt and the tree carries 168 named allowances nobody can retire.
 
+ 12. The boundary that runs the corpus answers the same three codes the corpus
+     answers. The distinction each guard pays for, 1 for a defect found and 2
+     for nothing measured, is worth nothing if the recipe that launches sixty
+     of them collapses it on the way out. `just guards` named its skips and
+     exited 0 over them, so a tree where a guard had stopped measuring was
+     handed back as green, which is case 2 one step further out: the reader
+     who cannot resolve the missing measure falls back on believing the green.
+
  11. A script reads its arguments before acting on them. `make_scan.py --help`
      regenerated a tracked file and `check_prose.py --help` rendered a verdict,
      because both executed their measure whatever the arguments said. Every
@@ -1668,6 +1676,113 @@ def check_guards_are_launched() -> None:
 # fixture controls pin that the predicate can tell a measure from an answer.
 
 
+# ── The boundary that runs the corpus ────────────────────────────────────────
+
+_RECIPE_HEAD = re.compile(r"^guards:\n", re.M)
+
+
+def guards_recipe_body(justfile: str) -> str:
+    """The bash body of the `guards` recipe, dedented as just runs it.
+
+    Read rather than copied: a fixture holding a transcription of the loop
+    would keep passing after the recipe itself stopped answering.
+    """
+    m = _RECIPE_HEAD.search(justfile)
+    if m is None:
+        return ""
+    body: list[str] = []
+    for line in justfile[m.end() :].splitlines():
+        if line.strip() and not line.startswith((" ", "\t")):
+            break
+        body.append(line[4:] if line.startswith("    ") else line)
+    return "\n".join(body) + "\n"
+
+
+def _stub_recipe(body: str, subjects: list[str], externals: list[str]) -> str:
+    """The same body, judging stub subjects instead of the tree's guards."""
+    for name, entries in (("guards", subjects), ("externals", externals)):
+        block = f"{name}=(\n" + "".join(f'  "{e}"\n' for e in entries) + ")\n"
+        body, count = re.subn(
+            rf"^{name}=\(\n.*?^\)\n", lambda _m: block, body, count=1, flags=re.S | re.M
+        )
+        if count != 1:
+            return ""
+    return body
+
+
+def _run_recipe(tmp: Path, body: str, codes: list[int], gates: list[str]) -> tuple[int, str]:
+    subjects = []
+    for i, code in enumerate(codes):
+        stub = tmp / f"stub{i}_{code}.py"
+        stub.write_text(f"import sys\nsys.exit({code})\n", encoding="utf-8")
+        subjects.append(str(stub))
+    script = tmp / "guards.sh"
+    script.write_text(_stub_recipe(body, subjects, gates), encoding="utf-8")
+    proc = subprocess.run(
+        ["bash", str(script)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def check_guards_recipe_exit() -> None:
+    print("guard boundary: the recipe answers the same three codes its guards do")
+
+    body = guards_recipe_body(
+        (REPO_ROOT / "justfile").read_text(encoding="utf-8", errors="replace")
+    )
+    case(
+        "the `guards` recipe body is read from the justfile",
+        "reds=()" in body and "skips=()" in body,
+        f"extracted {len(body)} char(s), which do not carry the two tallies. "
+        f"The three cases below judge whatever this returns, so an empty "
+        f"extraction would pass them all without running the recipe",
+    )
+
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path(raw)
+
+        code, said = _run_recipe(tmp, body, [0, 0], ["true"])
+        case(
+            "positive control: everything measured and green answers 0",
+            code == 0 and "3 guards green, 0 red, 0 measured nothing" in said,
+            f"code {code}, output {said!r}",
+        )
+
+        code, said = _run_recipe(tmp, body, [0, 1], ["true"])
+        case(
+            "a guard that found a defect answers 1",
+            code == 1 and "1 red" in said,
+            f"code {code}, output {said!r}",
+        )
+
+        code, said = _run_recipe(tmp, body, [0, 2], ["true"])
+        case(
+            "a guard that measured nothing, with no red, answers 2 and not 0",
+            code == 2 and "1 measured nothing" in said,
+            f"code {code}, output {said!r}. Exit 0 here is the defect this case "
+            f"exists to close: the boundary reports green while a guard of the "
+            f"corpus has stopped measuring",
+        )
+
+        code, said = _run_recipe(tmp, body, [1, 2], ["true"])
+        case(
+            "a red outranks a guard that measured nothing",
+            code == 1,
+            f"code {code}, output {said!r}",
+        )
+
+        code, said = _run_recipe(tmp, body, [0], ["false"])
+        case(
+            "an external gate that failed reaches the same exit as a red guard",
+            code == 1 and "1 red" in said,
+            f"code {code}, output {said!r}",
+        )
+
+
 def _help_reply(script: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(script), "--help"],
@@ -2392,6 +2507,8 @@ def main() -> int:
     print()
     check_guards_are_launched()
     print()
+    check_guards_recipe_exit()
+    print()
     check_help_contract()
     print()
     check_design_tokens_lens()
@@ -2409,14 +2526,16 @@ def main() -> int:
             print(f"  {f}\n", file=sys.stderr)
         return 1
     print(
-        "\nfifteen properties hold: neither a comment nor a re-export is a use, "
+        "\nsixteen properties hold: neither a comment nor a re-export is a use, "
         "zero coverage says so, the font guard fires on a dirty tree and reads "
         "the same set whatever tree it runs in, the prose tracker rule fires "
         "and its one exemption is bounded from both sides, two equal exit codes "
         "over different measures are not the same verdict, and a failed "
         "assertion reaches the artifact with its cause while a passing one adds "
         "nothing to it, every tracked guard is named by a file that launches "
-        "it, every tracked script answers --help without measuring, "
+        "it, the recipe that launches them answers 2 rather than 0 when one "
+        "of them measured nothing, every tracked script answers --help "
+        "without measuring, "
         "the panic-free sweep names the sites a lint gracies, refuses an "
         "expect on the same terms as an unwrap, and keeps the production an "
         "attribute read by proximity would drop, the desktop automation "
