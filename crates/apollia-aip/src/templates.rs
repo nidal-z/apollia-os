@@ -131,7 +131,7 @@ impl TemplatesInterface {
                     target: "apollia.aip.templates",
                     name = %name,
                     dir = %dir.display(),
-                    "template declared but no file found"
+                    "aip.template.file.missing"
                 );
                 continue;
             };
@@ -142,7 +142,7 @@ impl TemplatesInterface {
                         target: "apollia.aip.templates",
                         name = %name,
                         error = %e,
-                        "template compile error"
+                        "aip.template.compile.failed"
                     );
                 }
             }

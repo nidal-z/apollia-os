@@ -129,7 +129,7 @@ impl DatasourcesInterface {
                                 name = %name,
                                 path = %path.display(),
                                 error = %e,
-                                "datasource declared but file missing"
+                                "aip.datasource.file.missing"
                             );
                             continue;
                         }
@@ -146,7 +146,7 @@ impl DatasourcesInterface {
                         target: "apollia.aip.datasources",
                         name = %name,
                         error = %e,
-                        "datasource parse error"
+                        "aip.datasource.parse.failed"
                     );
                 }
             }

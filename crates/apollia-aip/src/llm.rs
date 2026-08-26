@@ -976,8 +976,8 @@ fn flatten_multimodal_content(py: Python<'_>, content: &Bound<'_, PyAny>) -> PyR
                 // text-only backend so they can switch to a cloud vision model.
                 tracing::warn!(
                     media = %descriptor,
-                    "vision content received by LlmProxy - current backends are text-only, \
-                     image was flattened to a placeholder"
+                    detail = "image flattened to a placeholder, the current backends are text-only",
+                    "llm.proxy.vision.unsupported"
                 );
                 // Drop the dumped JSON if we ever need it for debugging.
                 let _ = json_mod;

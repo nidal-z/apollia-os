@@ -682,7 +682,8 @@ fn remember_inner(
                     key = %key,
                     existing_confidence = existing.confidence,
                     new_confidence = conf,
-                    "skipping write: existing entry has higher confidence"
+                    reason = "existing entry has a higher confidence",
+                    "memory.semantic.write.skipped"
                 );
                 return Ok(existing.id);
             }

@@ -72,7 +72,7 @@ impl SecretsInterface {
                             target: "apollia.aip.secrets",
                             key = %key,
                             error = %p,
-                            "secret store mutex poisoned"
+                            "aip.secret.store.poisoned"
                         );
                         return Ok(None);
                     }
@@ -84,7 +84,7 @@ impl SecretsInterface {
                             target: "apollia.aip.secrets",
                             key = %key,
                             error = %e,
-                            "secret read error"
+                            "aip.secret.read.failed"
                         );
                         Ok(None)
                     }
