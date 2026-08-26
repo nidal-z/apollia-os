@@ -518,8 +518,8 @@ mod tests {
     fn test_agent_ready_unchanged() {
         // GIVEN a non-pipeline event: behavior unchanged (no regression)
         let event = RuntimeEvent::AgentReady("agent-1".into());
-        // WHEN / THEN no notification, no panic
-        let _result = map_event(DEFAULT_BASE_URL, &event);
+        // WHEN / THEN no notification
+        assert!(map_event(DEFAULT_BASE_URL, &event).is_none());
     }
 
     // --- Dynamic URLs from the config ------------------------------------

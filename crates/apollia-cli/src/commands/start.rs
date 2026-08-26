@@ -473,10 +473,14 @@ mod tests {
     use apollia_runtime::coordinator::ExecutionBackend;
     use pyo3::prelude::*;
 
+    // GIVEN the no-op backend the CLI installs when no engine is wired
+    // WHEN a second owner of it is asked for
+    // THEN the type supplies one. The red of a bound check is a compilation
+    // error, which is what makes this one able to fail at all.
     #[test]
     fn test_noop_backend_is_clone() {
-        let backend = NoopBackend;
-        let _cloned = backend.clone();
+        fn assert_clone<T: Clone>() {}
+        assert_clone::<NoopBackend>();
     }
 
     #[test]

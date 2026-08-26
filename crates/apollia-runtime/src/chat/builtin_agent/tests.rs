@@ -1909,9 +1909,13 @@ async fn test_all_autonomy_levels_no_panic() {
     // GIVEN an agent and every tier
     let agent = make_agent_no_memory();
 
-    // WHEN / THEN building the prompt for each tier never panics
+    // WHEN / THEN every tier yields a prompt, and none of them is empty
     for level in AutonomyLevel::ALL {
-        let _ = agent.build_system_prompt(None, level, false);
+        let prompt = agent.build_system_prompt(None, level, false);
+        assert!(
+            !prompt.is_empty(),
+            "tier {level:?} produced an empty prompt"
+        );
     }
 }
 

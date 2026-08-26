@@ -650,8 +650,14 @@ mod tests {
     async fn test_teardown_tolerates_a_runtime_without_children() {
         // GIVEN a runtime that started neither supervisor (boot failure, or a
         // build with no local engine)
-        // WHEN the host tears its children down
+        // WHEN the host tears its children down, on a task of its own so the
+        // panic this guards against is a value rather than an aborted test
+        let torn_down = tokio::spawn(async { stop_supervisors(None, None).await }).await;
         // THEN it is a no-op rather than a panic on exit
-        stop_supervisors(None, None).await;
+        assert!(
+            torn_down.is_ok(),
+            "tearing down a runtime without children panicked: {:?}",
+            torn_down.err()
+        );
     }
 }

@@ -307,6 +307,6 @@ mod tests {
     // THEN it returns without error (list may be empty on headless CI)
     #[test]
     fn list_input_devices_does_not_error() {
-        let _ = list_input_devices();
+        assert!(list_input_devices().is_ok());
     }
 }

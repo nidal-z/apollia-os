@@ -130,11 +130,21 @@ mod tests {
         assert_eq!(idle_timeout_from_secs(Some(300)), Duration::from_secs(300));
     }
 
-    // GIVEN the shared builder
-    // WHEN a client is built
-    // THEN it succeeds, so no backend falls back to the unbounded client
+    // GIVEN the builder `build_llm_http_client` composes, with both deadlines
+    // WHEN it is asked for a client
+    // THEN it succeeds, so no backend falls back to the unbounded client.
+    // Asserting on the returned `Client` cannot say this: the fallback is
+    // silent and hands back a client too.
     #[test]
     fn test_client_builds_with_both_deadlines() {
-        let _client = build_llm_http_client(DEFAULT_IDLE_TIMEOUT);
+        let built = apollia_core::net::configured_endpoint_client_builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(DEFAULT_IDLE_TIMEOUT)
+            .build();
+        assert!(
+            built.is_ok(),
+            "the shared builder refused a client: {:?}",
+            built.err()
+        );
     }
 }

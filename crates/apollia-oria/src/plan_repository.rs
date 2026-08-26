@@ -670,12 +670,19 @@ mod tests {
         }
     }
 
-    // GIVEN / WHEN: PlanRepository::new() on an empty database
-    // THEN: tables created without error
+    // GIVEN: PlanRepository::new() on an empty database
+    // WHEN:  a plan is looked up in the freshly migrated schema
+    // THEN:  the query reaches a table that exists and reports the plan absent.
+    //        A migration that never ran surfaces here as Sqlite("no such
+    //        table"), which `new()` returning Ok cannot tell apart.
     #[test]
     fn test_migration_appliquee() {
-        let (_repo, _f) = make_repo();
-        // The migration succeeds implicitly if new() does not return an error.
+        let (repo, _f) = make_repo();
+        let found = repo.get_plan_with_steps("no-such-task");
+        assert!(
+            matches!(found, Err(PlanRepositoryError::NotFound(_))),
+            "{found:?}"
+        );
     }
 
     // GIVEN: an open PlanRepository

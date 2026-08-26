@@ -595,6 +595,29 @@ mod tests {
         }
     }
 
+    /// Records the bound `run` hands the backend, which is the only place the
+    /// clamp is observable from outside the module.
+    struct RecordingBackend {
+        seen: std::sync::Arc<std::sync::Mutex<Vec<u32>>>,
+    }
+
+    #[async_trait]
+    impl SearchBackend for RecordingBackend {
+        fn name(&self) -> &str {
+            "duckduckgo"
+        }
+        async fn search(
+            &self,
+            query: &SearchQuery,
+        ) -> Result<Vec<SearchResult>, SearchBackendError> {
+            self.seen
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(query.max_results);
+            Ok(vec![])
+        }
+    }
+
     fn sample_results(n: usize, prefix: &str) -> Vec<SearchResult> {
         (1..=n)
             .map(|i| SearchResult {
@@ -777,12 +800,30 @@ mod tests {
         }
     }
 
-    #[test]
-    fn max_results_is_clamped() {
-        // GIVEN input requesting 100 results
-        // WHEN clamped via run()
-        // Here we test the clamp indirectly via a mock that returns what it's asked for.
-        // (Integration-level, exercised through ToolExecutor tests.)
+    #[tokio::test]
+    async fn max_results_is_clamped() {
+        // GIVEN a backend that records the bound it is handed
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let backends: Vec<Box<dyn SearchBackend>> = vec![Box::new(RecordingBackend {
+            seen: std::sync::Arc::clone(&seen),
+        })];
+        let tool = WebSearch::new(backends, None).unwrap();
+
+        // WHEN callers ask for 100 results, then for 0, then omit the field
+        for asked in [Some(100), Some(0), None] {
+            let mut input = basic_input("hello");
+            input.max_results = asked;
+            tool.run(input)
+                .await
+                .expect("the recording backend answers");
+        }
+
+        // THEN the backend never sees a bound outside the accepted range, and
+        // an omitted field arrives as the default rather than as zero
+        assert_eq!(
+            *seen.lock().unwrap_or_else(|e| e.into_inner()),
+            vec![MAX_RESULTS, MIN_RESULTS, DEFAULT_RESULTS]
+        );
     }
 
     #[cfg(feature = "brave-search")]

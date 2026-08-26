@@ -786,9 +786,13 @@ mod tests {
         iteration_end(1, 0, 0);
         tool_completed("bash_executor", 1.0, None);
 
-        // THEN nothing panics and nothing is recorded: reaching here is the
-        // assertion. This is what lets the same calls sit on paths that are not
-        // chat turns.
+        // THEN no turn scope exists for any of it to have been recorded into.
+        // This is what lets the same calls sit on paths that are not chat
+        // turns.
+        assert!(
+            TURN.try_with(|_| ()).is_err(),
+            "an entry point opened a turn scope outside a turn"
+        );
     }
 
     #[test]

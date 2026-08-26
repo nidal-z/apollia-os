@@ -225,27 +225,28 @@ fn test_new_validates_agent_type() {
     assert_eq!(code, exit_codes::GENERAL_ERROR);
 }
 
+// The name-conflict branch of `run_new` has no test: it sits behind the SDK
+// probe, so a test that called `run_new` would read GENERAL_ERROR whether the
+// name clashed or python3 simply had no `apollia` module. The test that stood
+// here created a directory and asserted the directory existed, which is the
+// assertion the tempdir crate owns.
+
 #[test]
-fn test_new_valid_agent_types_accepted() {
-    // GIVEN all valid template types
-    // THEN they are all recognized
-    for t in VALID_AGENT_TYPES {
-        assert!(VALID_AGENT_TYPES.contains(t), "type '{t}' should be valid");
+fn test_new_rejects_a_type_the_scaffolder_does_not_know() {
+    // GIVEN template names outside the supported list, including one that
+    // differs from a supported name only in case
+    for t in ["invalid", "custom", "React", ""] {
+        // WHEN run_new is asked for one
+        let code = run_new("test-agent", t, false);
+        // THEN it stops at the validation gate, before probing for the SDK or
+        // touching the data directory
+        assert_eq!(
+            code,
+            exit_codes::GENERAL_ERROR,
+            "type '{t}' was not refused"
+        );
     }
-    assert!(!VALID_AGENT_TYPES.contains(&"invalid"));
-    assert!(!VALID_AGENT_TYPES.contains(&"custom"));
-}
-
-#[test]
-fn test_new_detects_name_conflict() {
-    // GIVEN a temporary directory simulating ~/.apollia/agents/<name>/
-    let tmp = tempfile::tempdir().expect("create tmpdir");
-    let agents_dir = tmp.path().join("agents").join("existing-agent");
-    std::fs::create_dir_all(&agents_dir).expect("create agent dir");
-
-    // WHEN the target directory already exists
-    // THEN it is detected as a conflict
-    assert!(agents_dir.exists());
+    assert!(!VALID_AGENT_TYPES.is_empty());
 }
 
 #[test]

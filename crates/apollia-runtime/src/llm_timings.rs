@@ -420,9 +420,17 @@ mod tests {
         // GIVEN a lifted timings value that cannot be interpreted
         let raw = serde_json::json!(42);
 
-        // WHEN it is observed on the completion path
-        observe_timings("llama-local", "ministral-3-8b", &raw);
+        // WHEN it is observed on the completion path, caught rather than
+        // awaited: "reaching the next line" is not an assertion, an unwind
+        // that becomes an Err is one
+        let observed = std::panic::catch_unwind(|| {
+            observe_timings("llama-local", "ministral-3-8b", &raw);
+        });
 
-        // THEN nothing propagates: reaching this line is the assertion
+        // THEN nothing propagates to the caller of a completion
+        assert!(observed.is_ok(), "a malformed timings object propagated");
+
+        // AND the value is still refused rather than half-read
+        assert!(parse_timings_object(&raw).is_err());
     }
 }

@@ -797,11 +797,12 @@ mod tests {
     #[tokio::test]
     async fn test_shutdown_on_empty_manager() {
         // GIVEN a manager handle with no sessions started
-        let (tx, _rx) = tokio::sync::mpsc::channel(1);
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
         let handle = McpClientManagerHandle { tx };
         // WHEN shutdown is called
         handle.shutdown().await;
-        // THEN no error (graceful no-op)
+        // THEN the command reached the actor loop instead of being dropped
+        assert!(matches!(rx.try_recv(), Ok(McpCommand::Shutdown)));
     }
 
     #[tokio::test]

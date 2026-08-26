@@ -152,7 +152,7 @@ mod tests {
 
     use super::display::{build_pending_json, plan_to_json};
     use super::util::{
-        format_approvals_list, format_duration_since, step_status_icon, truncate_output,
+        approval_decision, format_duration_since, step_status_icon, truncate_output,
         truncate_prompt,
     };
     use super::*;
@@ -457,37 +457,21 @@ mod tests {
         }
     }
 
-    // format_approvals_list with no approvals
-    // GIVEN an empty response
-    // WHEN format_approvals_list is called
-    // THEN no panic
+    // The approvals table renders exactly one decision, and it is the only
+    // part of it a test can read: `format_approvals_list` prints and returns
+    // nothing, so calling it asserted nothing about either branch.
     #[test]
-    fn test_format_approvals_list_empty() {
-        // GIVEN
-        let resp = serde_json::json!({ "approvals": [] });
-        // WHEN / THEN no panic
-        format_approvals_list(&resp, false);
-    }
+    fn test_approval_decision_labels_every_state() {
+        // GIVEN one approval row per state the API can return
+        let approved = serde_json::json!({ "approved": true });
+        let rejected = serde_json::json!({ "approved": false });
+        let undecided = serde_json::json!({ "id": "appr-001" });
 
-    // format_approvals_list with data
-    // GIVEN a resolved approval
-    // WHEN format_approvals_list is called
-    // THEN no panic
-    #[test]
-    fn test_format_approvals_list_with_data() {
-        // GIVEN
-        let resp = serde_json::json!({
-            "approvals": [
-                {
-                    "id": "appr-001",
-                    "task_id": "t-0042",
-                    "agent_id": "devis-agent",
-                    "approved": true,
-                    "resolved_at": "2026-01-01T10:00:00Z"
-                }
-            ]
-        });
-        // WHEN / THEN no panic
-        format_approvals_list(&resp, false);
+        // WHEN the decision column is rendered, resolved and pending
+        // THEN each state has its own label, and a pending row ignores the flag
+        assert_eq!(approval_decision(&approved, false), "approved");
+        assert_eq!(approval_decision(&rejected, false), "rejected");
+        assert_eq!(approval_decision(&undecided, false), "?");
+        assert_eq!(approval_decision(&approved, true), "en attente");
     }
 }

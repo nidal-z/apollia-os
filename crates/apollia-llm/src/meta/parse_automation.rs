@@ -564,8 +564,9 @@ mod tests {
         let input = "☕☕☕☕☕ minute";
         // WHEN parsing the automation description
         let parsed = parse_automation(input, now(), &agents());
-        // THEN it completes without a mid-code-point slice panic
-        let _ = parsed.schedule;
+        // THEN it completes without a mid-code-point slice panic, and the
+        // truncated window yields no schedule
+        assert!(parsed.schedule.is_none());
     }
 
     // 20 bilingual snapshot inputs
