@@ -34,9 +34,8 @@ The ratchet. This tree does not reach zero in one change, so the debt is
 carried per crate in `ALLOWED` below and the ratchet only descends: a crate
 above its allowance fails, a crate *below* its allowance fails too, with the
 instruction to lower the number, and a crate that reaches zero leaves the list.
-`apollia-runtime`, `apollia-desktop`, `apollia-oria` and `apollia-cli` are
-absent on purpose. They were emptied first, and their absence is what keeps
-them empty: a crate with no entry is allowed nothing.
+The table is empty: every crate has been emptied, and that emptiness is what
+keeps them empty, since a crate with no entry is allowed nothing.
 
 Exit codes: 0 every crate is at its allowance, 1 at least one is off it,
 2 nothing measured (no tracked source, or no tracing call in the corpus).
@@ -71,9 +70,8 @@ KINDS = ("label", "sentence", "format_string", "no_message")
 # Debt carried, crate by crate, with the count each crate is allowed today.
 # The list only shrinks: an entry whose crate drops below its number fails
 # until the number follows it down, and an entry whose crate reaches zero
-# leaves. Measured on 2026-08-26.
-ALLOWED: dict[str, int] = {
-}
+# leaves. Empty since 2026-08-26: no crate carries debt any more.
+ALLOWED: dict[str, int] = {}
 
 
 def _balanced(masked: str, open_index: int) -> int:
