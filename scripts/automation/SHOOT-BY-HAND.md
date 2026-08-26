@@ -34,7 +34,7 @@ sidebar, `page` the full content area.
 
 ```sh
 APOLLIA_SEED_PROJECT_ROOT="$HOME/Projects/atlas-migration" \
-  bash scripts/automation/seed/load.sh
+  bash tests/cli/seed/load.sh
 ```
 
 Read the line it prints: it names the overlay it used. Without the narrative
@@ -180,14 +180,15 @@ captures, whenever that changes.
 ## When you are done
 
 ```sh
-python3 scripts/check_screenshot_script.py
+python3 scripts/automation/tools/publish_screenshots.py
 ```
 
-It compares the shooting rows against what the pages reference and names any
-mismatch. Then, with the application closed:
+Without `--apply` it compares what the pages reference against what the capture
+directory holds, and names both halves of any mismatch. Then, with the
+application closed:
 
 ```sh
-bash scripts/automation/seed/unload.sh
+bash tests/cli/seed/unload.sh
 ```
 
 `unload.sh` refuses while the app is running, because SQLite in WAL mode keeps

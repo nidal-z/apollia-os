@@ -27,10 +27,11 @@ APOLLIA_AUTOMATION_ALLOW_DESTRUCTIVE=1 just desktop-dev-automation-seeded script
 ```
 
 The recipes swap `HOME` to a throwaway `.apollia-seed-home` (the real `~/.apollia`
-is never touched) and build it from `seed/` (see `seed/README.md`). Each run
-writes `.apollia-automation/report.json` (the machine-readable verdict:
-`ok`, per-step `ok`/`detail`) plus per-step screenshots. The app does not exit
-on its own; kill `cargo-tauri tauri dev` once the report lands.
+is never touched) and build it from `tests/cli/seed/` (see
+`tests/cli/seed/README.md`). Each run writes `.apollia-automation/report.json`
+(the machine-readable verdict: `ok`, per-step `ok`/`detail`) plus per-step
+screenshots. The app does not exit on its own; kill `cargo-tauri tauri dev`
+once the report lands.
 
 Model: `-seeded-llama` defaults `CTX=131072 NP=1 --jinja`. For a dense model a
 full 131072 KV cache can be heavy; override with `CTX=32768`. The free-chat
@@ -63,20 +64,21 @@ not meant to match: three labelled rows still need their state provoked first,
 and one unlabelled row is captured as a side effect. `SCREENSHOTS.md` reconciles
 the two counts row by row.
 
-The File column and the image names the published pages reference are checked
-against each other in CI, because a misnamed file is invisible (the stale image
-simply stays) and an unreferenced one ships to every visitor unserved:
+The File column and the image names the published pages reference must be the
+same set, because a misnamed file is invisible (the stale image simply stays)
+and an unreferenced one ships to every visitor unserved. Nothing in CI compares
+them; the publisher run without `--apply` is what names both halves of a
+mismatch:
 
 ```sh
-python3 scripts/check_screenshot_script.py             # the two sets agree
-python3 scripts/check_screenshot_script.py --self-test # and the check can fail
+python3 scripts/automation/tools/publish_screenshots.py
 ```
 
-`seed/load.sh` and `seed/unload.sh` put the seed into the real profile and take
-it back out again. `load.sh` also picks up the narrative overlay
-(`~/.apollia-seed-overlay`) when there is one, which is what fills the timeline,
-the plans and the agentic conversation the images show. See `seed/README.md`,
-section Overlay.
+`tests/cli/seed/load.sh` and `tests/cli/seed/unload.sh` put the seed into the
+real profile and take it back out again. `load.sh` also picks up the narrative
+overlay (`~/.apollia-seed-overlay`) when there is one, which is what fills the
+timeline, the plans and the agentic conversation the images show. See
+`tests/cli/seed/README.md`, section Overlay.
 
 One English set is published into both locale directories:
 

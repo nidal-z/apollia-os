@@ -68,8 +68,7 @@ python3 scripts/automation/tools/publish_screenshots.py --from <dir> --apply
 
 **By hand**, for the fourteen the automaton cannot take. Save or rename your
 capture to the exact **File** name and drop it in the directory above. Then run
-the publisher with no arguments, or `check_screenshot_script.py`, to confirm the
-sets still agree.
+the publisher with no arguments to confirm the sets still agree.
 
 A hand-shot capture does not need the `NNN-` prefix. That prefix only exists so
 a run can shoot the same label twice and let the later one win.
@@ -106,9 +105,9 @@ Then unload the seed, with the application closed.
 ### 1. Load the seed
 
 ```sh
-bash scripts/automation/seed/unload.sh 2>/dev/null   # only if one is loaded
+bash tests/cli/seed/unload.sh 2>/dev/null   # only if one is loaded
 APOLLIA_SEED_PROJECT_ROOT="$HOME/Projects/atlas-migration" \
-  bash scripts/automation/seed/load.sh
+  bash tests/cli/seed/load.sh
 ```
 
 `load.sh` moves `~/.apollia` aside rather than copying it, refuses to run if a
@@ -196,13 +195,13 @@ an oversight, each is blocked by something the automaton cannot reach:
 
 Shooting one of the fourteen? Use **`SHOOT-BY-HAND.md`** instead of this file.
 It carries those fourteen alone, grouped by session, with every value written on
-the line rather than behind a note reference, and `check_screenshot_script.py`
-keeps its list equal to what no script produces.
+the line rather than behind a note reference. Its list and the rows marked
+`hand` here are reconciled by hand: nothing compares them.
 
-The **How** column of every row says `auto` or `hand`, and it is kept in sync
-with the scripts rather than by hand: `check_screenshot_script.py` compares the
-rows against the pages, and the count above against the labels the two scripts
-actually carry.
+The **How** column of every row says `auto` or `hand`, and nothing checks it
+either. The publisher compares the File column against what the pages
+reference; the labels the two capture scripts carry are counted by reading the
+scripts.
 
 
 
@@ -606,7 +605,7 @@ build only tells you a page is broken.
 When you are done:
 
 ```sh
-bash scripts/automation/seed/unload.sh
+bash tests/cli/seed/unload.sh
 ```
 
 It refuses while the application is running, because SQLite in WAL mode keeps
@@ -620,15 +619,16 @@ Each row is independent on purpose. A page added by another change gets one new
 row; a screen that is restyled gets its "What must be on screen" cell edited and
 nothing else. Nothing below the tables needs rewriting for either.
 
-One thing is checked for you. The File column and the image names the pages
+One thing is reported for you. The File column and the image names the pages
 reference must be the same set, and neither side reports a mismatch on its own:
 
 ```sh
-python3 scripts/check_screenshot_script.py
+python3 scripts/automation/tools/publish_screenshots.py
 ```
 
-CI runs it, along with `--self-test`, which replays each mismatch the check
-claims to catch so a check that has gone blind fails instead of passing.
+Without `--apply` it names both halves: the labels a run produced that no page
+wants, and the ones the pages want that the run did not produce. No CI job runs
+it, so run it yourself on a shooting day.
 
 Two things do go stale silently and are worth a glance before a shooting day:
 
