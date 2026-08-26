@@ -131,7 +131,6 @@ MODULE_SIZE_FILES: set[str] = {
     "crates/apollia-mcp/src/session.rs",
     "crates/apollia-oria/src/actor.rs",
     "crates/apollia-oria/src/engine.rs",
-    "crates/apollia-triggers/src/engine.rs",
 }
 
 # Per-file counts of Arc<Mutex|RwLock> production sites. The actor migration
