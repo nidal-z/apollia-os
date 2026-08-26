@@ -37,6 +37,11 @@ Ratchet rules, frozen as named tables that move only with the code:
   module-size        the files allowed to exceed 800 production lines
   arc-mutex          per-file counts of Arc<Mutex|RwLock> sites and the
                      named type aliases that wrap one
+  time-sensitive-tests
+                     per-file counts of test bodies whose verdict depends on
+                     something the machine controls: a sleep, a port, an
+                     external process, a wall-clock deadline, a script written
+                     for the code under test to run
 
 A ratchet is two-sided: a site above the table is a regression, a site below
 it is debt paid that must lower the table in the same commit, otherwise the
@@ -239,6 +244,84 @@ ARC_MUTEX_ALIASES: set[str] = {
     "crates/apollia-runtime/src/api/server.rs::SharedSttRepository",
     "crates/apollia-runtime/src/session_metrics.rs::SessionMetricsStore",
     "crates/apollia-workspace/src/assembler.rs::SnapshotCache",
+}
+
+# Per-file counts of test bodies that hang their verdict on something the
+# machine controls: a sleep, a port, an external process, a wall-clock
+# deadline. The counted forms are listed on `rule_time_sensitive_tests`.
+#
+# The entries are not equal, and the table does not pretend they are. Three
+# families sit in it:
+#
+#  * the transport is the subject. `apollia-tools` executors, the MCP stdio
+#    transport, `subprocess_env`, `subprocess_window`: they exist to prove a
+#    child process is spawned and answers. A spawn cannot be removed from a
+#    test of spawning.
+#  * the clock is the subject. `apollia-triggers` cron, interval, file-watch
+#    and oneshot sources, `inactivity_watcher`, `retry`, `resilience`: what
+#    they assert is that something fires after a delay.
+#  * the dependency is incidental. This is the debt. A test whose subject is a
+#    decision, an ordering or a composition, and that reaches for a port or a
+#    process to observe it, answers about the machine as often as about the
+#    code. `shutdown.rs` and `hooks/executor.rs` were both in this family and
+#    both cost a red verdict on a green tree; each lost the sites it did not
+#    need, which is why their entries here are lower than the tree once was.
+#
+# `test_support.rs` is the reservation helper itself: its four sites are the
+# probe listener and the poll interval that every other test borrows.
+#
+# An entry is lowered in the commit that removes the site, like every other
+# ratchet here. A new site above the entry is red and has to be argued.
+TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
+    "crates/apollia-aip/src/context.rs": 2,
+    "crates/apollia-auth/src/callback.rs": 2,
+    "crates/apollia-auth/src/mcp_oauth.rs": 1,
+    "crates/apollia-auth/src/mcp_oauth_orchestrator.rs": 2,
+    "crates/apollia-cli/src/commands/agent/tests.rs": 1,
+    "crates/apollia-cli/src/commands/eval.rs": 1,
+    "crates/apollia-cli/src/commands/start.rs": 1,
+    "crates/apollia-core/src/subprocess_env.rs": 3,
+    "crates/apollia-core/src/subprocess_window.rs": 2,
+    "crates/apollia-llm/src/meta_orchestrator.rs": 1,
+    "crates/apollia-llm/src/repository.rs": 1,
+    "crates/apollia-llm/src/retry.rs": 1,
+    "crates/apollia-mcp/src/transport/http.rs": 3,
+    "crates/apollia-mcp/src/transport/sse.rs": 3,
+    "crates/apollia-mcp/src/transport/stdio.rs": 1,
+    "crates/apollia-notifications/src/channels/webhook.rs": 8,
+    "crates/apollia-notifications/src/engine.rs": 1,
+    "crates/apollia-notifications/src/inactivity_watcher.rs": 5,
+    "crates/apollia-oria/src/actor.rs": 4,
+    "crates/apollia-oria/src/budget.rs": 5,
+    "crates/apollia-oria/src/engine.rs": 10,
+    "crates/apollia-oria/src/resilience.rs": 3,
+    "crates/apollia-runtime/src/api/server.rs": 12,
+    "crates/apollia-runtime/src/chat/builtin_agent/tests.rs": 1,
+    "crates/apollia-runtime/src/hooks/executor.rs": 9,
+    "crates/apollia-runtime/src/llama_server/mod.rs": 1,
+    "crates/apollia-runtime/src/perf_trace.rs": 2,
+    "crates/apollia-runtime/src/router.rs": 2,
+    "crates/apollia-runtime/src/runner_supervisor/gpu_detection.rs": 1,
+    "crates/apollia-runtime/src/session_metrics.rs": 1,
+    "crates/apollia-runtime/src/supervisor/tests.rs": 21,
+    "crates/apollia-runtime/src/test_support.rs": 4,
+    "crates/apollia-tools/src/audit.rs": 8,
+    "crates/apollia-tools/src/executor.rs": 1,
+    "crates/apollia-tools/src/file_path_extractor.rs": 2,
+    "crates/apollia-tools/src/journal.rs": 2,
+    "crates/apollia-tools/src/tools/bash_executor.rs": 2,
+    "crates/apollia-tools/src/tools/http_fetch.rs": 2,
+    "crates/apollia-tools/src/tools/rlimits.rs": 2,
+    "crates/apollia-tools/src/tools/web_read/mod.rs": 1,
+    "crates/apollia-tools/src/tools/web_search/brave.rs": 1,
+    "crates/apollia-tools/src/tools/web_search/duckduckgo.rs": 1,
+    "crates/apollia-triggers/src/definition_repository.rs": 1,
+    "crates/apollia-triggers/src/engine.rs": 14,
+    "crates/apollia-triggers/src/sources/cron.rs": 1,
+    "crates/apollia-triggers/src/sources/file_watch.rs": 8,
+    "crates/apollia-triggers/src/sources/interval.rs": 1,
+    "crates/apollia-triggers/src/sources/mod.rs": 1,
+    "crates/apollia-triggers/src/sources/oneshot.rs": 2,
 }
 
 # Empty since the prose rule extension reworded the last waived message
@@ -698,6 +781,129 @@ def rule_arc_mutex(sources):
     return hits, {}
 
 
+# A sleep, however it is spelled. `start_paused` makes some of these virtual,
+# and the table carries them all the same: the attribute sits on the function,
+# the sleep sits in the body, and a guard that had to pair them would be
+# guessing at every helper the body calls.
+_TEST_SLEEP = re.compile(
+    r"(?<![A-Za-z0-9_])(?:tokio::)?time::sleep\s*\("
+    r"|(?<![A-Za-z0-9_])thread::sleep\s*\("
+    r"|(?<![A-Za-z0-9_])sleep\s*\(\s*Duration"
+)
+# A port the test picks, reserves, or binds. Every one of these is a number
+# the operating system may hand to somebody else.
+_TEST_PORT = re.compile(r"reserve_port\s*\(|TcpListener::bind\s*\(|UdpSocket::bind\s*\(")
+# An external process the test starts itself.
+_TEST_SPAWN = re.compile(r"(?<![A-Za-z0-9_])Command::new\s*\(")
+# A wall-clock deadline the test arms.
+_TEST_WALL_TIMEOUT = re.compile(
+    r"(?<![A-Za-z0-9_])(?:tokio::)?time::timeout\s*\(|(?<![A-Za-z0-9_])timeout\s*\(\s*Duration"
+)
+# A script the test writes for production code to execute. The spawn is then
+# invisible to `_TEST_SPAWN`, since it happens inside the code under test; the
+# shebang is what gives the test away.
+_TEST_SHEBANG = re.compile(r"#!/(?:bin|usr)/")
+
+_TIME_SENSITIVE_FORMS = {
+    "sleep": _TEST_SLEEP,
+    "port": _TEST_PORT,
+    "spawn": _TEST_SPAWN,
+    "wall-timeout": _TEST_WALL_TIMEOUT,
+}
+
+
+def load_tests() -> list[tuple[Source, set[int]]]:
+    """Every tracked file, paired with the lines that sit in a test region.
+
+    [`load`] drops the files a `#[cfg(test)] mod` declares, because the rules
+    it feeds judge production code. This one judges the tests, so those files
+    come back in with every line counted. Without that, the twenty-one port
+    reservations of `supervisor/tests.rs` are invisible to a rule written to
+    find exactly them.
+
+    Inventory boundary: `crates/*/src/*.rs`, the same as every other rule
+    here. A per-crate `tests/` directory is out of reach and stays out of the
+    table.
+    """
+    paths = guard.tracked_sources()
+    if not paths:
+        return []
+    cache: dict[str, str | None] = {}
+
+    def read(path: str) -> str | None:
+        if path not in cache:
+            target = REPO_ROOT / path
+            cache[path] = (
+                target.read_text(encoding="utf-8", errors="replace") if target.is_file() else None
+            )
+        return cache[path]
+
+    excluded = guard.excluded_modules(paths, read)
+    out: list[tuple[Source, set[int]]] = []
+    for path in paths:
+        raw = read(path)
+        if raw is None:
+            continue
+        s = build_source(path, raw)
+        every = set(range(1, len(s.raw_lines) + 1))
+        out.append((s, every if path in excluded else every - s.prod_lines))
+    return out
+
+
+def _time_sensitive_counts(
+    entries: list[tuple[Source, set[int]]],
+) -> tuple[Counter, Counter, dict[str, list[str]]]:
+    per_file: Counter = Counter()
+    per_form: Counter = Counter()
+    detail: dict[str, list[str]] = {}
+    for s, test_lines in entries:
+        def record(n: int, form: str) -> None:
+            per_file[s.path] += 1
+            per_form[form] += 1
+            detail.setdefault(s.path, []).append(
+                f"{s.path}:{n}: [{form}] {s.raw_lines[n - 1].strip()[:80]}"
+            )
+
+        for form, pat in _TIME_SENSITIVE_FORMS.items():
+            for m in pat.finditer(s.masked):
+                n = line_of(s.masked, m.start())
+                if n in test_lines:
+                    record(n, form)
+        # the shebang lives in a string literal, so it is read from the raw text
+        for n in sorted(test_lines):
+            if n <= len(s.raw_lines) and _TEST_SHEBANG.search(s.raw_lines[n - 1]):
+                record(n, "shebang")
+    return per_file, per_form, detail
+
+
+def rule_time_sensitive_tests(sources, entries=None):
+    """Test bodies whose verdict depends on something the machine controls.
+
+    A sleep, a port, an external process, a wall-clock deadline, or a script
+    written for the code under test to execute. None of these is forbidden;
+    each one is a reason a test can answer differently on the same tree, so
+    each one is counted and frozen.
+
+    The rule exists because two such tests crossed a whole release campaign
+    unseen. `shutdown.rs` reserved a port, released it, and asked the server
+    to bind the same number: replayed four times on one commit, the guard
+    answered green, green, red, red. `hooks/executor.rs` proved "the first
+    Deny wins" by spawning two shell scripts, and read `Allow` whenever the
+    machine refused to fork. Neither was a regression, and neither could be
+    told from one.
+    """
+    if entries is None:
+        entries = load_tests()
+    per_file, per_form, detail = _time_sensitive_counts(entries)
+    hits = _two_sided(dict(per_file), TIME_SENSITIVE_TEST_COUNTS, "time-sensitive test site(s)")
+    asides = {f"{form} site(s) (aside)": [] for form in sorted(per_form)}
+    for path in sorted(detail):
+        for entry in detail[path]:
+            form = entry.split("[", 1)[1].split("]", 1)[0]
+            asides[f"{form} site(s) (aside)"].append(entry)
+    return hits, asides
+
+
 RULES = {
     "panic-macros": rule_panic_macros,
     "print-macros": rule_print_macros,
@@ -712,6 +918,7 @@ RULES = {
     "module-size": rule_module_size,
     "arc-mutex": rule_arc_mutex,
     "error-enums": rule_error_enums,
+    "time-sensitive-tests": rule_time_sensitive_tests,
 }
 
 
@@ -900,6 +1107,48 @@ def _selftest() -> int:
     # 16. the ratchet is two-sided: an entry the tree no longer carries fires
     stale = _two_sided({}, {"crates/apollia-x/src/lib.rs": 2}, "site(s)")
     control("ratchet two-sided", stale, 1)
+
+    # 17. the five time-sensitive forms are counted in a test region, and the
+    # same forms in production are not: a production sleep or spawn is the
+    # product working, not a test hanging its verdict on the machine
+    sample = _sample(
+        "fn prod() {\n"
+        "    tokio::time::sleep(d).await;\n"
+        "    let c = Command::new(exe);\n"
+        "}\n"
+        "#[cfg(test)]\n"
+        "mod t {\n"
+        "    #[tokio::test]\n"
+        "    async fn a() {\n"
+        "        tokio::time::sleep(d).await;\n"
+        "        let p = reserve_port();\n"
+        "        let c = Command::new(exe);\n"
+        "        let _ = tokio::time::timeout(d, f).await;\n"
+        '        write(path, "#!/bin/sh\\nprintf x\\n");\n'
+        "    }\n"
+        "}\n"
+    )
+    every = set(range(1, len(sample.raw_lines) + 1))
+    per_file, per_form, _ = _time_sensitive_counts([(sample, every - sample.prod_lines)])
+    control("time-sensitive forms counted", list(per_form.elements()), 5)
+    control(
+        "time-sensitive production ignored",
+        [f"{k}:{v}" for k, v in per_file.items() if v != 5],
+        0,
+    )
+
+    # 18. a test-only module is judged whole: `load()` drops it, and the
+    # twenty-one port reservations of the runtime's supervisor tests are
+    # invisible without this
+    whole = _sample(
+        "fn a() { let p = reserve_port(); }\n", "crates/apollia-x/src/supervisor/tests.rs"
+    )
+    _, per_form_whole, _ = _time_sensitive_counts([(whole, {1})])
+    control("time-sensitive whole test file", list(per_form_whole.elements()), 1)
+
+    # 19. the rule is red on a file the table does not carry
+    hits, _ = rule_time_sensitive_tests([], entries=[(whole, {1})])
+    control("time-sensitive new site", strip_tree(hits), 1)
 
     if failures:
         print(f"\n{failures} control(s) failed", file=sys.stderr)
