@@ -151,15 +151,11 @@ impl HookExecutor {
             let body = self
                 .fetch_response(handler, HookEventKind::PreToolUse.as_str(), &payload)
                 .await;
-            let Some(body) = body else {
-                // Delivery failed; the warn was already emitted. Safe default.
-                continue;
-            };
-            match parse_decision(&body) {
-                Some(HookDecision::Deny { reason }) => return HookDecision::Deny { reason },
-                Some(rewrite @ HookDecision::Rewrite { .. }) => effective = rewrite,
-                Some(HookDecision::Allow) => {}
-                None => {
+            match fold_pre_tool_use(effective, body.as_deref()) {
+                PreToolUseStep::Final(decision) => return decision,
+                PreToolUseStep::Carry(decision) => effective = decision,
+                PreToolUseStep::Unusable(decision) => {
+                    effective = decision;
                     tracing::warn!(
                         tool_name = %tool_name,
                         handler_kind = %handler.kind.type_str(),
@@ -415,6 +411,44 @@ impl HookExecutor {
     }
 }
 
+/// How one handler answer moves the `PreToolUse` decision accumulated so far.
+///
+/// The variant, not the loop, carries the composition rule: `Final` is what
+/// makes the first `Deny` win, and the caller honours it by returning without
+/// consulting the remaining handlers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PreToolUseStep {
+    /// The answer settles the outcome; no further handler is consulted.
+    Final(HookDecision),
+    /// The answer updates the running decision and the loop continues.
+    Carry(HookDecision),
+    /// The answer could not be parsed. The running decision is kept and the
+    /// caller emits the parse warning, which needs the handler it came from.
+    Unusable(HookDecision),
+}
+
+/// Folds one handler answer into the decision accumulated so far.
+///
+/// `body` is `None` when delivery failed (spawn error, transport error, or
+/// timeout); the running decision is then carried unchanged, which is the
+/// permissive fallback documented on [`HookExecutor::run_pre_tool_use`].
+///
+/// This is the whole composition rule, pure and free of I/O, so it is tested
+/// by folding literal answers rather than by spawning handlers and racing a
+/// wall clock.
+fn fold_pre_tool_use(effective: HookDecision, body: Option<&str>) -> PreToolUseStep {
+    let Some(body) = body else {
+        // Delivery failed; the warn was already emitted. Safe default.
+        return PreToolUseStep::Carry(effective);
+    };
+    match parse_decision(body) {
+        Some(HookDecision::Deny { reason }) => PreToolUseStep::Final(HookDecision::Deny { reason }),
+        Some(rewrite @ HookDecision::Rewrite { .. }) => PreToolUseStep::Carry(rewrite),
+        Some(HookDecision::Allow) => PreToolUseStep::Carry(effective),
+        None => PreToolUseStep::Unusable(effective),
+    }
+}
+
 /// Parses a handler response body into a [`HookDecision`].
 ///
 /// Returns `None` when the body is not valid JSON, the `decision` field is
@@ -649,35 +683,89 @@ mod tests {
         assert_eq!(decision, HookDecision::Allow);
     }
 
-    #[tokio::test]
-    async fn test_first_deny_wins_across_handlers() {
-        // GIVEN two handlers: H1 allows, H2 denies
-        let dir = tempfile::tempdir().expect("tempdir");
-        let allow = write_script(
-            dir.path(),
-            "h1.sh",
-            "#!/bin/sh\nprintf '{\"decision\":\"allow\"}'\n",
-        );
-        let deny = write_script(
-            dir.path(),
-            "h2.sh",
-            "#!/bin/sh\nprintf '{\"decision\":\"deny\",\"reason\":\"H2 veto\"}'\n",
-        );
-        let exec = executor_with(vec![
-            command_handler(vec![allow], 5_000),
-            command_handler(vec![deny], 5_000),
-        ]);
+    /// Replays the executor's fold over a sequence of handler answers, the way
+    /// `run_pre_tool_use` does, and reports what it settled on plus how many
+    /// answers it consumed. `None` stands for a delivery that failed.
+    ///
+    /// The composition is exercised here rather than through spawned scripts:
+    /// a handler process that fails to start, or answers past its timeout,
+    /// yields `None` and the permissive fallback, so a test that spawns cannot
+    /// tell "the rule is wrong" from "the machine could not fork". Run under
+    /// `ulimit -u 380`, the spawning version of this test read `Allow` for the
+    /// second reason.
+    fn replay_fold(answers: &[Option<&str>]) -> (HookDecision, usize) {
+        let mut effective = HookDecision::Allow;
+        for (consumed, answer) in answers.iter().enumerate() {
+            match fold_pre_tool_use(effective, *answer) {
+                PreToolUseStep::Final(decision) => return (decision, consumed + 1),
+                PreToolUseStep::Carry(decision) | PreToolUseStep::Unusable(decision) => {
+                    effective = decision;
+                }
+            }
+        }
+        (effective, answers.len())
+    }
 
-        // WHEN run_pre_tool_use is called
-        let decision = exec.run_pre_tool_use("bash", &json!({}), "sess-1").await;
+    #[test]
+    fn test_first_deny_wins_across_handlers() {
+        // GIVEN three handler answers: H1 allows, H2 denies, H3 rewrites
+        let answers = [
+            Some(r#"{"decision":"allow"}"#),
+            Some(r#"{"decision":"deny","reason":"H2 veto"}"#),
+            Some(r#"{"decision":"rewrite","arguments":{"path":"/safe/x"}}"#),
+        ];
 
-        // THEN the deny from the second handler wins
+        // WHEN the executor's fold runs over them in declaration order
+        let (decision, consumed) = replay_fold(&answers);
+
+        // THEN the deny from the second handler wins, and it is final: the
+        // third answer is never folded in, which is what "short-circuits"
+        // means for the caller
         assert_eq!(
             decision,
             HookDecision::Deny {
                 reason: "H2 veto".to_string()
             }
         );
+        assert_eq!(consumed, 2);
+    }
+
+    #[test]
+    fn test_a_failed_delivery_carries_the_running_decision() {
+        // GIVEN a rewrite, then a handler that did not answer at all, then a
+        //       handler that allows
+        let answers = [
+            Some(r#"{"decision":"rewrite","arguments":{"path":"/safe/x"}}"#),
+            None,
+            Some(r#"{"decision":"allow"}"#),
+        ];
+
+        // WHEN the executor's fold runs over them
+        let (decision, consumed) = replay_fold(&answers);
+
+        // THEN neither the silent handler nor the allow undoes the rewrite:
+        // the permissive fallback keeps the decision, it does not reset it
+        assert_eq!(
+            decision,
+            HookDecision::Rewrite {
+                arguments: json!({"path": "/safe/x"})
+            }
+        );
+        assert_eq!(consumed, 3);
+    }
+
+    #[test]
+    fn test_an_unparseable_answer_is_reported_apart_from_a_silence() {
+        // GIVEN one handler that answers with junk
+        let junk = fold_pre_tool_use(HookDecision::Allow, Some("not json"));
+
+        // WHEN it is compared with a handler that did not answer
+        let silent = fold_pre_tool_use(HookDecision::Allow, None);
+
+        // THEN both keep the running decision, but only the junk asks the
+        // caller for the parse warning
+        assert_eq!(junk, PreToolUseStep::Unusable(HookDecision::Allow));
+        assert_eq!(silent, PreToolUseStep::Carry(HookDecision::Allow));
     }
 
     #[tokio::test]
