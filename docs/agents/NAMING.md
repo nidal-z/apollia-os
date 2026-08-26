@@ -74,23 +74,27 @@ Exception : `get` is acceptable in indexer-style APIs where lookup may fail
 
 | Suffix | Role | Example |
 |---|---|---|
-| `*Manifest` | declarative spec of an agent or tool | `AgentManifest`, `ToolManifest` |
-| `*Engine` | stateful component owning a domain | `MemoryEngine`, `OriaEngine` |
-| `*Backend` | swappable implementation behind a trait | `LlmBackend`, `SttBackend` |
+| `*Manifest` | declarative spec of an agent or connector | `AgentManifest`, `ConnectorManifest` |
+| `*Engine` | stateful component owning a domain | `NotificationEngine`, `PrefixRuleEngine` |
+| `*Backend` | swappable implementation behind a trait | `SttBackend`, `WhisperBackend` |
 | `*Provider` | source of data injected on demand | `ContextProvider` |
 | `*Manager` | coordinator over a pool of resources | `McpClientManager` |
 | `*Context` | scoped capability bundle | `RuntimeContext` |
 | `*Registry` | name-to-entity lookup | `ToolRegistry`, `AgentRegistry` |
 | `*Router` | dispatch over multiple backends | `LlmRouter` |
-| `*Handle` | clonable handle to a Tokio actor | `EventBusHandle` |
+| `*Handle` | clonable handle to a Tokio actor | `RuntimeHandle`, `TaskRouterHandle` |
 | `*Id` | newtype identifier | `AgentId`, `TaskId` |
 
 ### Newtype identifiers
 
-`AgentId`, `TaskId`, `SkillId`, `StepId`, `SessionId`, `RunId`. Each is
-`struct Xxx(String)` with `Display`, `From<&str>`, `From<String>`, `AsRef<str>`,
-`PartialEq`, `Eq`, `Hash`. Source pattern :
+Four exist as newtypes today: `AgentId`, `TaskId`, `RunId`, `AccountId`. Each
+is `struct Xxx(String)` with `Display`, `From<&str>`, `From<String>`,
+`AsRef<str>`, `PartialEq`, `Eq`, `Hash`. Source pattern :
 `crates/apollia-core/src/events/`.
+
+Skill, step and session identifiers travel as bare `String` and `usize`. That
+is a gap, not a convention: a new identifier that deserves a type gets one,
+and this list is where it is recorded.
 
 ### Enum error variants
 
@@ -137,10 +141,10 @@ happened.
 
 ```rust
 enum RuntimeEvent {
-    AgentStarted { id: AgentId, at: SystemTime },
-    AgentCrashed { id: AgentId, error: String },
+    AgentRegistered { id: AgentId, at: SystemTime },
+    AgentLoadFailed { id: AgentId, error: String },
     TaskCompleted { id: TaskId, duration_ms: u64 },
-    MemoryRecallFailed { agent: AgentId, query: String },
+    ContextCompacted { agent: AgentId, dropped: usize },
 }
 ```
 
@@ -149,10 +153,10 @@ enum RuntimeEvent {
 Lowercase, dot-separated, in `domain.action[.qualifier]` form.
 
 ```
-agent.started
-agent.crashed
+agent.registered
+agent.load.failed
 task.completed
-memory.recall.failed
+context.compacted
 tool.invoked
 mcp.connect.timeout
 ```
@@ -166,13 +170,16 @@ change. Document it in `docs/agents/OBSERVABILITY.md`.
 |---|---|---|
 | `agent_id` | `String` | `AgentId` value |
 | `task_id` | `String` | `TaskId` value |
-| `skill_id` | `String` | `SkillId` value |
+| `skill_id` | `String` | skill identifier |
+| `run_id` | `String` | `RunId` value |
+| `session_id` | `String` | chat session identifier |
 | `step` | `u64` | step counter inside a run |
 | `tool_name` | `&str` | name of the tool invoked |
 | `duration_ms` | `u64` | elapsed milliseconds |
-| `bytes_read` / `bytes_written` | `u64` | data volume |
-| `error_kind` | `&str` | classifier on errors |
-| `trace_id` / `span_id` | `String` | for OTLP exports |
+
+The full table, with which fields are emitted and which are named but never
+written, is in `docs/agents/OBSERVABILITY.md` §4. Do not add a field here
+without adding it there.
 
 ---
 

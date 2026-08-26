@@ -44,9 +44,12 @@ adaptation.
 Apollia solves infrastructure, not modeling. If the solution requires
 rewriting the agent, it generates as much work as it saves.
 
-**How.** Duck typing. `hasattr(agent, "manifest") and hasattr(agent, "run")`
-is enough. AgentKit decorators (`@agent`, `@skill`) are optional sugar over
-this contract. See `sdk/AGENTS.md`.
+**How.** One decorator. `@agent` on the class, one `@skill` or one
+`@on_message` async method, and the adaptation is done. The decorators are the
+contract, not sugar over one: `crates/apollia-aip/src/bridge.rs` refuses any
+object without `__apollia_dispatch__`, and the `manifest()` plus `run()` duck
+typing this section used to describe was removed with it. See
+`sdk/AGENTS.md`.
 
 ### 4. Fail fast
 
@@ -169,7 +172,8 @@ Source : `crates/apollia-runtime/src/registry.rs`,
 `broadcast::Sender<RuntimeEvent>` singleton per `Supervisor`. Capacity
 validated in `[64, 65536]`, default 1024. Lagged subscribers detected via
 `broadcast::error::RecvError::Lagged(n)`. Events are past-tense :
-`TaskCompleted`, `AgentStarted`.
+`TaskCompleted`, `AgentRegistered`. The catalogue of variants is published at
+`docs/site/docs/reference/events.md`, generated from the enum.
 
 Source : `crates/apollia-runtime/src/eventbus.rs`.
 

@@ -4,9 +4,10 @@
 > a log statement or a span.
 
 Apollia produces structured logs and event streams that flow into the same
-ingestion pipeline (`apollia-runtime` `AuditTrail` + tracing-subscriber
-console + optional OpenTelemetry export). Consistency across crates is what
-makes those pipelines queryable.
+ingestion pipeline (`apollia-runtime` audit journal + tracing-subscriber
+console). Consistency across crates is what makes those pipelines queryable.
+There is no telemetry export of any kind, and adding one would be a
+sovereignty decision before it is a technical one.
 
 ---
 
@@ -14,7 +15,7 @@ makes those pipelines queryable.
 
 | Channel | What | Producer | Consumer |
 |---|---|---|---|
-| `tracing` | structured logs and spans | every crate | `tracing-subscriber`, OTLP exporter, log files |
+| `tracing` | structured logs and spans | every crate | `tracing-subscriber` console, log files |
 | `EventBus` | runtime events | `apollia-runtime` actors | `AuditTrail`, CLI subscribers, desktop UI |
 | `AuditTrail` | append-only event ledger | `apollia-runtime` | SQLite, exported via `apollia audit list` |
 | CLI human stdout | user-facing prose or table | `apollia-cli` only | terminal |
@@ -43,8 +44,8 @@ verbosity with `RUST_LOG`). The rule is consistency in *semantics* :
 `INFO` always means "business event worth keeping at production
 verbosity".
 
-`apollia-llm` is allowed to default-DEBUG its per-token output. Document
-the exception in the crate `AGENTS.md`.
+`apollia-llm` is allowed to default-DEBUG its per-token output. That crate
+carries no `AGENTS.md`, so the exception is recorded here and nowhere else.
 
 ---
 
@@ -85,13 +86,11 @@ that introduces it and update this file.
 |---|---|---|
 | `agent_id` | `String` | `AgentId` value |
 | `task_id` | `String` | `TaskId` value |
-| `skill_id` | `String` | `SkillId` value |
+| `skill_id` | `String` | skill identifier, a bare `String` in the code |
 | `step_id` | `String` | step identifier inside a run |
 | `session_id` | `String` | chat or CLI session |
 | `run_id` | `String` | one execution of an agent (encompasses all steps) |
 | `request_id` | `String` | HTTP request correlation |
-| `trace_id` | `String` | OTLP trace identifier |
-| `span_id` | `String` | OTLP span identifier |
 
 ### Counters and durations
 
@@ -100,16 +99,13 @@ that introduces it and update this file.
 | `step` | `u64` | step counter within a run |
 | `attempt` | `u64` | retry attempt counter |
 | `duration_ms` | `u64` | elapsed milliseconds |
-| `bytes_read` | `u64` | bytes consumed |
-| `bytes_written` | `u64` | bytes produced |
-| `tokens_in` | `u64` | LLM input tokens |
-| `tokens_out` | `u64` | LLM output tokens |
+| `tokens_in` | `u64` | LLM input tokens, one site; §7 explains why the engine events use a triplet instead |
+| `tokens_out` | `u64` | LLM output tokens, one site |
 
 ### Classification
 
 | Field | Type | Meaning |
 |---|---|---|
-| `error_kind` | `&str` | error variant name as a string (`Io`, `Parse`, ...) |
 | `tool_name` | `&str` | tool invoked |
 | `backend` | `&str` | LLM or MCP backend name |
 | `provider` | `&str` | upstream provider (`anthropic`, `openai`, `ollama`, ...) |
@@ -290,7 +286,7 @@ double the noise without doubling the information.
 
 | Convention | Rule |
 |---|---|
-| Naming | Past-tense, `UpperCamelCase` (`TaskCompleted`, `AgentCrashed`) |
+| Naming | Past-tense, `UpperCamelCase` (`TaskCompleted`, `AgentLoadFailed`) |
 | Variants | Carry typed fields, no `String` blobs |
 | Sensitive data | Never. PII or secrets must not appear in EventBus payloads |
 | Capacity | Bounded broadcast channel, capacity [64, 65536] |
@@ -311,10 +307,12 @@ category no listener reads reaches the interface and is dropped in silence.
 
 The audit journal persists events to SQLite as a hash-chained,
 append-only ledger. Module : `crates/apollia-runtime/src/audit_journal/`.
-Retention controlled by `[audit].retention_days` in the config.
+Retention is `retention_days` under `[observability]` in the config
+(`crates/apollia-core/src/observability.rs`), default 90 days. There is no
+`[audit]` table.
 
-CLI surface (`apollia audit ...`) : `list`, `stats`, `export`, `verify`,
-`anchor`, `replay`, `show`.
+CLI surface (`apollia audit ...`) : `list`, `journal`, `stats`, `export`,
+`verify`, `anchor`, `replay`, `show`.
 
 Add a new audit-worthy event by extending the `JournalEntryKind` enum,
 not by emitting a free-form string. Inter-agent mailbox events are
@@ -322,18 +320,19 @@ journaled as `MessageSent`, `MessageDelivered`, and `MessageDropped`.
 
 ---
 
-## 10. OpenTelemetry compatibility
+## 10. Telemetry export
 
-Apollia logs and spans are designed to round-trip into OTLP without
-remapping :
+There is none. No manifest declares an exporter, no crate carries a feature
+for one, and no field is emitted for a distributed trace.
 
-- Field names match OTLP semantic conventions where applicable
-  (`http.method`, `http.status_code` mapped from our `method` / `status`).
-- Span hierarchy is preserved via `tracing-opentelemetry`.
-- Activation : feature `otlp` on `apollia-runtime` (off by default).
+The section that used to sit here announced an OTLP exporter behind a
+feature flag, with correlation fields to match, and an operator who read it
+went looking for a switch that had never been written. What ships is the
+console subscriber and the audit journal, both local, which is what principle
+1 asks for.
 
-Reason : operators run Apollia behind Grafana / Jaeger / Honeycomb without
-modifying the codebase.
+If an export ever lands it is an ASK FIRST: sending spans off the machine is
+a sovereignty change before it is a dependency.
 
 ---
 
@@ -342,4 +341,6 @@ modifying the codebase.
 - Need a new field : add a row to §4 in the same PR.
 - Need to emit a sensitive value : extract a non-sensitive identifier
   (hash, prefix, or category) and log that. Never the raw value.
-- Field name conflicts with OTLP convention : OTLP wins; rename ours.
+- A field name is ambiguous : rename it before it spreads. `prompt_tok_*`
+  in §7 is the worked example, split into a triplet rather than left as one
+  count that silently excluded cached tokens.

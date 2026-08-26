@@ -57,15 +57,19 @@ Two operator-controlled profiles :
 | `cloud_allowed` | cloud LLMs (Anthropic, OpenAI, Vertex) and OAuth-backed connectors enabled |
 
 State :
-- The setting is **read-only in v0.1.0 UI**. Hardcoded to `cloud_allowed` in
-  `crates/apollia-desktop/ui/src/routes/Connections.svelte` line 665 and
-  `Integrations.svelte` line 122.
-- **Enforcement is not yet wired in v0.1.0.** The sovereignty value is collected
-  at onboarding and shapes the permission rules proposed to the operator, but no
-  runtime gate blocks a cloud call on `local_only`. The connector error
-  `SovereigntyBlocked` exists as a last-resort variant but is not yet
-  constructed by any call site. Treat data residency as operator-configured
-  permission rules plus HITL, not an automatic profile switch.
+- The setting is **read-only in the v0.1.0 UI**. Neither
+  `crates/apollia-desktop/ui/src/routes/Connections.svelte` nor
+  `crates/apollia-desktop/ui/src/routes/settings/Integrations.svelte` carries
+  the value: `resolveSovereignty()` in
+  `crates/apollia-desktop/ui/src/lib/ipc/connections.ts` reads
+  `constraints.sovereignty` from the user profile and maps anything that is not
+  an explicitly cloud-permitting entry to `local_only`.
+- **Enforcement is wired for OAuth only.** `ensure_cloud_allowed` in
+  `crates/apollia-desktop/src/commands/integrations.rs` returns
+  `IntegrationsError::SovereigntyBlocked` before an OAuth flow starts on a
+  `local_only` profile. Nothing gates an LLM or MCP call the same way. Treat
+  data residency as that one gate plus operator-configured permission rules and
+  HITL, not as an automatic profile switch across every outbound path.
 - An operator profile UI switch and a real enforcement gate are planned
   post-v0.1.0.
 
