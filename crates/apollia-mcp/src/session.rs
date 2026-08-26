@@ -8,8 +8,12 @@
 //! Request/response correlation is handled via a shared `pending` map keyed by
 //! request ID. The transport handles all byte-level I/O.
 
+mod retry;
+mod rpc;
+mod tools;
+
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use apollia_core::McpHealth;
@@ -17,89 +21,12 @@ use tokio::sync::{oneshot, Mutex};
 use tracing::{debug, warn};
 
 use crate::config::{McpServerConfig, SecretResolver};
-use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
+use crate::jsonrpc::JsonRpcResponse;
 use crate::protocol::{
     ClientCapabilities, ClientInfo, InitializeParams, InitializeResult, McpToolDefinition,
-    ServerCapabilities, ServerInfo, ToolCallParams, ToolCallResult, ToolsListResult,
+    ServerCapabilities, ServerInfo,
 };
 use crate::transport::{create_transport, McpTransport};
-
-// ─── retry ───────────────────────────────────────────────────────────────────
-
-/// Retry policy applied to tool calls that fail with a transport-level error.
-///
-/// Backoff formula: `delay = min(base_delay_secs × 2^attempt, max_delay_secs)`.
-struct McpRetryConfig {
-    /// Maximum number of additional attempts after the first failure.
-    max_retries: u32,
-    /// Base delay in seconds for the first retry.
-    base_delay_secs: u64,
-    /// Upper bound on the computed delay.
-    max_delay_secs: u64,
-}
-
-impl McpRetryConfig {
-    /// Default retry policy: 3 retries, 1s base, 8s cap.
-    const DEFAULT: Self = Self {
-        max_retries: 3,
-        base_delay_secs: 1,
-        max_delay_secs: 8,
-    };
-}
-
-/// Returns `true` for errors that originate from a transport failure and are
-/// therefore candidates for a retry.
-fn is_transport_error(err: &McpSessionError) -> bool {
-    matches!(
-        err,
-        McpSessionError::StdinClosed { .. } | McpSessionError::ServerExited { .. }
-    )
-}
-
-/// Compute the exponential backoff delay for a given attempt index.
-///
-/// `attempt` is zero-based: attempt 0 → `base`, attempt 1 → `base × 2`, etc.
-fn compute_backoff_delay(attempt: u32, base_delay_secs: u64, max_delay_secs: u64) -> u64 {
-    let factor = 2u64.saturating_pow(attempt);
-    base_delay_secs.saturating_mul(factor).min(max_delay_secs)
-}
-
-/// Run `f` up to `retry_cfg.max_retries + 1` times, sleeping between retries on
-/// transport errors.  Non-transport errors are propagated immediately.
-async fn with_transport_retry<F, Fut, T>(
-    retry_cfg: &McpRetryConfig,
-    server_name: &str,
-    mut f: F,
-) -> Result<T, McpSessionError>
-where
-    F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = Result<T, McpSessionError>>,
-{
-    for attempt in 0..=retry_cfg.max_retries {
-        match f().await {
-            Ok(val) => return Ok(val),
-            Err(err) if is_transport_error(&err) && attempt < retry_cfg.max_retries => {
-                let delay_secs = compute_backoff_delay(
-                    attempt,
-                    retry_cfg.base_delay_secs,
-                    retry_cfg.max_delay_secs,
-                );
-                tracing::warn!(
-                    attempt = attempt + 1,
-                    max = retry_cfg.max_retries,
-                    delay_ms = delay_secs * 1000,
-                    server = %server_name,
-                    reason = "transport error",
-                    "mcp.call.retrying"
-                );
-                tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
-            }
-            Err(err) => return Err(err),
-        }
-    }
-    // Unreachable: the loop always returns on the last attempt.
-    unreachable!("retry loop must return within max_retries + 1 iterations")
-}
 
 // ─── errors ──────────────────────────────────────────────────────────────────
 
@@ -227,7 +154,7 @@ pub enum McpSessionError {
 /// errors. Empty input → empty hint (no leading separator added). When lines
 /// are present, they are concatenated oldest-first with ` | ` so an operator
 /// reading a single-line error message can still see what the subprocess said.
-fn format_stderr_hint(tail: &[String]) -> String {
+pub(crate) fn format_stderr_hint(tail: &[String]) -> String {
     if tail.is_empty() {
         return String::new();
     }
@@ -496,180 +423,6 @@ impl McpSession {
         Ok(())
     }
 
-    /// Discover tools available on this MCP server via `tools/list`.
-    ///
-    /// Called automatically at the end of `start()` after the `initialize` handshake.
-    /// Populates the `tools` field; logs a warning when the server exposes no tools.
-    async fn discover_tools(&mut self) -> Result<(), McpSessionError> {
-        let timeout_secs = self.config.init_timeout_secs;
-        let response = self.send_request("tools/list", None, timeout_secs).await?;
-
-        let result: ToolsListResult =
-            serde_json::from_value(response).map_err(|e| McpSessionError::InitializeFailed {
-                server: self.config.name.clone(),
-                cause: e.to_string(),
-            })?;
-
-        tracing::info!(
-            server = %self.config.name,
-            tools_count = result.tools.len(),
-            "mcp.tools.discovered"
-        );
-
-        if result.tools.is_empty() {
-            tracing::warn!(server = %self.config.name, "mcp.tools.empty");
-        }
-
-        self.tools = crate::sanitize::sanitize_tool_definitions(
-            result.tools,
-            &self.config.name,
-            self.config.max_tools as usize,
-        );
-        Ok(())
-    }
-
-    /// Discover only the lightweight tool index (names and descriptions) via
-    /// `tools/list`.
-    ///
-    /// Called at the end of `start_with_mode` in [`LoadingMode::Deferred`]. The
-    /// full `tools/list` response is parsed, but only `{name, description}` is
-    /// retained in `tool_index`; the `tools` field stays empty and schemas are
-    /// fetched on demand by [`McpSession::fetch_tool_schema`].
-    async fn discover_tools_index(&mut self) -> Result<(), McpSessionError> {
-        let timeout_secs = self.config.init_timeout_secs;
-        let response = self.send_request("tools/list", None, timeout_secs).await?;
-
-        let result: ToolsListResult =
-            serde_json::from_value(response).map_err(|e| McpSessionError::InitializeFailed {
-                server: self.config.name.clone(),
-                cause: e.to_string(),
-            })?;
-
-        let sanitized = crate::sanitize::sanitize_tool_definitions(
-            result.tools,
-            &self.config.name,
-            self.config.max_tools as usize,
-        );
-        // One `tools/list` carries names, descriptions and schemas together. The
-        // index keeps the first two, and the schema cache keeps the third rather
-        // than dropping it: deferring is about what enters the prompt, not about
-        // what the process holds. Seeding the cache here also removes the extra
-        // `tools/list` round-trip `fetch_tool_schema` used to pay on its first
-        // call, and gives `collect_tool_index` a schema to hand to the model
-        // when the index is small enough to advertise in full.
-        self.tool_index = sanitized
-            .into_iter()
-            .map(|tool| {
-                self.schema_cache
-                    .insert(tool.name.clone(), tool.input_schema);
-                ToolIndexEntry {
-                    name: tool.name,
-                    description: tool.description,
-                }
-            })
-            .collect();
-
-        tracing::info!(
-            server = %self.config.name,
-            tools_count = self.tool_index.len(),
-            "mcp.tools.index.discovered"
-        );
-
-        if self.tool_index.is_empty() {
-            tracing::warn!(server = %self.config.name, "mcp.tools.empty");
-        }
-
-        Ok(())
-    }
-
-    /// Send a JSON-RPC request and wait for the response, with a hard timeout.
-    ///
-    /// Inserts a [`oneshot::Sender`] into `pending`, writes the serialised request
-    /// to the transport, then awaits the response on the matching receiver.
-    /// On timeout, the pending entry is removed to prevent map growth.
-    async fn send_request(
-        &self,
-        method: &str,
-        params: Option<serde_json::Value>,
-        timeout_secs: u64,
-    ) -> Result<serde_json::Value, McpSessionError> {
-        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let (tx, rx) = oneshot::channel::<JsonRpcResponse>();
-
-        self.pending.lock().await.insert(id, tx);
-
-        let request = JsonRpcRequest::new(id, method, params);
-        let json = serde_json::to_string(&request)
-            .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
-
-        self.transport.send(&json).await.map_err(|e| match e {
-            // Preserve the WWW-Authenticate header structurally so the
-            // orchestration layer (Phase 4) can drive the MCP HTTP OAuth flow
-            // without re-parsing it out of a stringified error message.
-            crate::transport::TransportError::Unauthorized { www_authenticate } => {
-                McpSessionError::Unauthorized {
-                    server: self.config.name.clone(),
-                    www_authenticate,
-                }
-            }
-            other => McpSessionError::StdinClosed {
-                server: self.config.name.clone(),
-                cause: other.to_string(),
-            },
-        })?;
-
-        let duration = std::time::Duration::from_secs(timeout_secs);
-
-        match tokio::time::timeout(duration, rx).await {
-            Ok(Ok(response)) => {
-                if let Some(err) = response.error {
-                    return Err(McpSessionError::JsonRpcError {
-                        server: self.config.name.clone(),
-                        code: err.code,
-                        message: err.message,
-                    });
-                }
-                response
-                    .result
-                    .ok_or_else(|| McpSessionError::InitializeFailed {
-                        server: self.config.name.clone(),
-                        cause: "server returned a response with neither result nor error"
-                            .to_string(),
-                    })
-            }
-            Ok(Err(_)) => Err(McpSessionError::ServerExited {
-                server: self.config.name.clone(),
-            }),
-            Err(_) => {
-                // Timed out: remove the stale pending entry to avoid map growth.
-                self.pending.lock().await.remove(&id);
-                Err(McpSessionError::InitializeTimeout {
-                    server: self.config.name.clone(),
-                    timeout_secs,
-                    stderr_hint: format_stderr_hint(&self.transport.stderr_tail()),
-                })
-            }
-        }
-    }
-
-    /// Send a JSON-RPC notification (fire-and-forget; no response is expected).
-    async fn send_notification(
-        &self,
-        method: &str,
-        params: Option<serde_json::Value>,
-    ) -> Result<(), McpSessionError> {
-        let notification = JsonRpcNotification::new(method, params);
-        let json = serde_json::to_string(&notification)
-            .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
-        self.transport
-            .send(&json)
-            .await
-            .map_err(|e| McpSessionError::StdinClosed {
-                server: self.config.name.clone(),
-                cause: e.to_string(),
-            })
-    }
-
     /// Returns the server name from the configuration.
     pub fn server_name(&self) -> &str {
         &self.config.name
@@ -692,98 +445,6 @@ impl McpSession {
     /// `Some("")`, leaving the decision to treat it as absent to the caller.
     pub fn instructions(&self) -> Option<&str> {
         self.instructions.as_deref()
-    }
-
-    /// Returns the tools discovered via `tools/list`, or an empty slice before discovery.
-    ///
-    /// Populated in [`LoadingMode::Eager`]. In [`LoadingMode::Deferred`] this is
-    /// empty; use [`McpSession::tool_index`] instead.
-    pub fn tools(&self) -> &[McpToolDefinition] {
-        &self.tools
-    }
-
-    /// Returns the lightweight tool index, populated in [`LoadingMode::Deferred`].
-    ///
-    /// Returns an empty slice in [`LoadingMode::Eager`] (use [`McpSession::tools`]
-    /// instead).
-    pub fn tool_index(&self) -> &[ToolIndexEntry] {
-        &self.tool_index
-    }
-
-    /// The cached input schema for `tool_name`, without any I/O.
-    ///
-    /// In [`LoadingMode::Deferred`] the cache is seeded at discovery, so this
-    /// answers for every indexed tool. In [`LoadingMode::Eager`] the schemas
-    /// live in `tools` instead and this returns `None`.
-    #[must_use]
-    pub fn cached_tool_schema(&self, tool_name: &str) -> Option<&serde_json::Value> {
-        self.schema_cache.get(tool_name)
-    }
-
-    /// Fetch and cache the full JSON schema for a named tool.
-    ///
-    /// In [`LoadingMode::Eager`] the schema is read from the already-loaded
-    /// `tools` slice with no network round-trip. In [`LoadingMode::Deferred`] the
-    /// cache is seeded at discovery, so an indexed tool never reaches the wire;
-    /// a name that appeared after discovery triggers a single `tools/list` whose
-    /// every schema is cached.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`McpSessionError::SchemaFetchFailed`] when the tool name is not
-    /// known to the server, or when the on-demand `tools/list` round-trip fails
-    /// at the transport level.
-    pub async fn fetch_tool_schema(
-        &mut self,
-        tool_name: &str,
-    ) -> Result<serde_json::Value, McpSessionError> {
-        match self.loading_mode {
-            LoadingMode::Eager => self
-                .tools
-                .iter()
-                .find(|tool| tool.name == tool_name)
-                .map(|tool| tool.input_schema.clone())
-                .ok_or_else(|| McpSessionError::SchemaFetchFailed {
-                    server: self.config.name.clone(),
-                    tool: tool_name.to_string(),
-                    cause: "tool not found".to_string(),
-                }),
-            LoadingMode::Deferred => {
-                if let Some(schema) = self.schema_cache.get(tool_name) {
-                    return Ok(schema.clone());
-                }
-
-                let timeout_secs = self.config.init_timeout_secs;
-                let response = self
-                    .send_request("tools/list", None, timeout_secs)
-                    .await
-                    .map_err(|e| McpSessionError::SchemaFetchFailed {
-                        server: self.config.name.clone(),
-                        tool: tool_name.to_string(),
-                        cause: e.to_string(),
-                    })?;
-
-                let result: ToolsListResult = serde_json::from_value(response).map_err(|e| {
-                    McpSessionError::SchemaFetchFailed {
-                        server: self.config.name.clone(),
-                        tool: tool_name.to_string(),
-                        cause: e.to_string(),
-                    }
-                })?;
-
-                for tool in result.tools {
-                    self.schema_cache.insert(tool.name, tool.input_schema);
-                }
-
-                self.schema_cache.get(tool_name).cloned().ok_or_else(|| {
-                    McpSessionError::SchemaFetchFailed {
-                        server: self.config.name.clone(),
-                        tool: tool_name.to_string(),
-                        cause: "tool not found".to_string(),
-                    }
-                })
-            }
-        }
     }
 
     /// Returns whether every tool call to this server requires HITL approval.
@@ -826,108 +487,6 @@ impl McpSession {
     /// operation has been classified.
     pub(crate) fn set_health(&mut self, health: McpHealth) {
         self.health = health;
-    }
-
-    /// Execute a tool on this MCP server via `tools/call`.
-    ///
-    /// Serialises `tool_name` and `arguments` into a `tools/call` JSON-RPC request,
-    /// sends it through the transport, and waits for the response. The timeout
-    /// applied is `call_timeout_secs` from the server configuration.
-    ///
-    /// Transport errors (`StdinClosed`, `ServerExited`) are retried up to 3 times with
-    /// exponential backoff (1s, 2s, 4s, capped at 8s) before the error is propagated.
-    ///
-    /// Returns the raw [`ToolCallResult`] so the caller can inspect `is_error` and
-    /// route content accordingly. Deserialisation failures are surfaced as
-    /// [`McpSessionError::ToolCallFailed`].
-    pub async fn call_tool(
-        &self,
-        tool_name: &str,
-        arguments: Option<serde_json::Value>,
-    ) -> Result<ToolCallResult, McpSessionError> {
-        with_transport_retry(&McpRetryConfig::DEFAULT, &self.config.name, || {
-            self.call_tool_once(tool_name, arguments.clone())
-        })
-        .await
-    }
-
-    /// Single attempt at a `tools/call` request, without retry.
-    async fn call_tool_once(
-        &self,
-        tool_name: &str,
-        arguments: Option<serde_json::Value>,
-    ) -> Result<ToolCallResult, McpSessionError> {
-        let params = ToolCallParams {
-            name: tool_name.to_string(),
-            arguments,
-        };
-
-        let params_value = serde_json::to_value(&params)
-            .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
-
-        let response = self
-            .send_request(
-                "tools/call",
-                Some(params_value),
-                self.config.call_timeout_secs,
-            )
-            .await
-            .map_err(|e| match e {
-                McpSessionError::InitializeTimeout { .. } => McpSessionError::ToolCallTimeout {
-                    server: self.config.name.clone(),
-                    tool: tool_name.to_string(),
-                    timeout_secs: self.config.call_timeout_secs,
-                },
-                other => other,
-            })?;
-
-        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
-            server: self.config.name.clone(),
-            tool: tool_name.to_string(),
-            cause: e.to_string(),
-        })
-    }
-
-    /// List the resources exposed by the server (`resources/list`).
-    ///
-    /// Returns an empty result when the server does not advertise the
-    /// `resources` capability; callers should branch on
-    /// [`McpSession::capabilities`] to avoid the round-trip in that case.
-    pub async fn list_resources(
-        &self,
-    ) -> Result<crate::protocol::ResourcesListResult, McpSessionError> {
-        let response = self
-            .send_request("resources/list", None, self.config.call_timeout_secs)
-            .await?;
-        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
-            server: self.config.name.clone(),
-            tool: "resources/list".into(),
-            cause: e.to_string(),
-        })
-    }
-
-    /// Read a resource's content (`resources/read`).
-    pub async fn read_resource(
-        &self,
-        uri: &str,
-    ) -> Result<crate::protocol::ResourcesReadResult, McpSessionError> {
-        let params = crate::protocol::ResourcesReadParams {
-            uri: uri.to_owned(),
-        };
-        let params_value = serde_json::to_value(&params)
-            .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
-        let response = self
-            .send_request(
-                "resources/read",
-                Some(params_value),
-                self.config.call_timeout_secs,
-            )
-            .await?;
-        serde_json::from_value(response).map_err(|e| McpSessionError::ToolCallFailed {
-            server: self.config.name.clone(),
-            tool: "resources/read".into(),
-            cause: e.to_string(),
-        })
     }
 
     /// Gracefully shut down the session.
@@ -983,7 +542,9 @@ fn spawn_dispatch_task(
 
 #[cfg(test)]
 mod tests {
+    use super::retry::{compute_backoff_delay, with_transport_retry, McpRetryConfig};
     use super::*;
+    use crate::protocol::ToolsListResult;
     use std::collections::HashMap;
 
     fn make_config(

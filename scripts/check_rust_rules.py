@@ -127,8 +127,6 @@ MODULE_SIZE_FILES: set[str] = {
     "crates/apollia-aip/src/context.rs",
     "crates/apollia-aip/src/llm.rs",
     "crates/apollia-aip/src/memory.rs",
-    "crates/apollia-mcp/src/manager.rs",
-    "crates/apollia-mcp/src/session.rs",
     "crates/apollia-oria/src/actor.rs",
     "crates/apollia-oria/src/engine.rs",
 }
