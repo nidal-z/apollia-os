@@ -56,7 +56,7 @@ impl FileWatchTrigger {
                 _ => {
                     tracing::error!(
                         trigger = %def.id,
-                        "FileWatchTrigger::spawn called with non-FileWatch source"
+                        "trigger.file_watch.source.mismatch"
                     );
                     return;
                 }
@@ -85,7 +85,7 @@ impl FileWatchTrigger {
                     tracing::error!(
                         trigger = %def.id,
                         error = %e,
-                        "failed to create file watcher"
+                        "trigger.file_watch.watcher.create.failed"
                     );
                     return;
                 }
@@ -96,7 +96,7 @@ impl FileWatchTrigger {
                     trigger = %def.id,
                     error = %e,
                     path = %path.display(),
-                    "failed to watch path"
+                    "trigger.file_watch.path.failed"
                 );
                 return;
             }
@@ -157,7 +157,7 @@ fn run_watch_loop(
                 tracing::warn!(
                     trigger = %ctx.trigger_id,
                     error = %e,
-                    "notify error"
+                    "trigger.file_watch.error"
                 );
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -219,7 +219,7 @@ fn is_duplicate_file_event(
     {
         tracing::debug!(
             path = %file_path.display(),
-            "deduplicated file event"
+            "trigger.file_watch.event.deduplicated"
         );
         return true;
     }

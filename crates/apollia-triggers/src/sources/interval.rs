@@ -27,7 +27,7 @@ impl IntervalTrigger {
                 _ => {
                     tracing::error!(
                         trigger = %def.id,
-                        "IntervalTrigger::spawn called with non-Interval source"
+                        "trigger.interval.source.mismatch"
                     );
                     return;
                 }
@@ -39,7 +39,8 @@ impl IntervalTrigger {
                     tracing::error!(
                         trigger = %def.id,
                         error = %e,
-                        "invalid interval format, source will not fire"
+                        detail = "the source will not fire",
+                        "trigger.interval.format.invalid"
                     );
                     return;
                 }

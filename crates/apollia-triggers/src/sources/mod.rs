@@ -44,7 +44,11 @@ pub fn spawn_source(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> J
         TriggerSourceConfig::FileWatch { .. } => FileWatchTrigger::spawn(def, tx),
         TriggerSourceConfig::Webhook { .. } => {
             // No autonomous spawn; the axum route handles the event.
-            tracing::debug!(trigger = %def.id, "Webhook source: no autonomous task");
+            tracing::debug!(
+                trigger = %def.id,
+                detail = "the axum route carries the event, no task is spawned",
+                "trigger.webhook.source.passive"
+            );
             tokio::spawn(async {})
         }
     }

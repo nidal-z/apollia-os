@@ -28,7 +28,7 @@ impl CronTrigger {
                 _ => {
                     tracing::error!(
                         trigger = %def.id,
-                        "CronTrigger::spawn called with non-Cron source"
+                        "trigger.cron.source.mismatch"
                     );
                     return;
                 }
@@ -41,8 +41,10 @@ impl CronTrigger {
                         trigger = %def.id,
                         schedule = %schedule_str,
                         error = %e,
-                        "invalid cron schedule, source will not fire \
-                         (fix it with `apollia-os trigger update <id> --detail \"<expr>\"`)"
+                        detail = "the source will not fire until the schedule is \
+                                  corrected with `apollia-os trigger update <id> \
+                                  --detail \"<expr>\"`",
+                        "trigger.cron.schedule.invalid"
                     );
                     return;
                 }
@@ -53,7 +55,8 @@ impl CronTrigger {
                 let duration = (next - Utc::now()).to_std().unwrap_or_else(|_| {
                     tracing::warn!(
                         trigger = %def.id,
-                        "next cron fire is in the past, delaying 100ms"
+                        detail = "delaying by 100 ms",
+                        "trigger.cron.fire.late"
                     );
                     std::time::Duration::from_millis(100)
                 });

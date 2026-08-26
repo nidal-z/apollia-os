@@ -26,7 +26,7 @@ impl OneshotTrigger {
                 _ => {
                     tracing::error!(
                         trigger = %def.id,
-                        "OneshotTrigger::spawn called with non-Oneshot source"
+                        "trigger.oneshot.source.mismatch"
                     );
                     return;
                 }

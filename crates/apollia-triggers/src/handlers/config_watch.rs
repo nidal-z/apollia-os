@@ -52,7 +52,7 @@ impl McpConfigWatcher {
 
             tracing::info!(
                 path = %mcp_toml_path.display(),
-                "McpConfigWatcher: watching mcp.toml for changes"
+                "mcp.config.watch.started"
             );
 
             // Deduplication: a single logical save can generate multiple consecutive
@@ -81,7 +81,8 @@ fn load_baseline(mcp_toml_path: &std::path::Path) -> McpConfig {
         tracing::warn!(
             path = %mcp_toml_path.display(),
             error = %e,
-            "McpConfigWatcher: failed to load initial mcp.toml - starting with empty baseline"
+            detail = "starting from an empty baseline",
+            "mcp.config.load.failed"
         );
         McpConfig {
             servers: Vec::new(),
@@ -106,7 +107,7 @@ fn start_notify_bridge(mcp_toml_path: &std::path::Path) -> Option<tokio::sync::m
             tracing::error!(
                 path = %mcp_toml_path.display(),
                 error = %e,
-                "McpConfigWatcher: failed to create file watcher"
+                "mcp.config.watcher.create.failed"
             );
             return None;
         }
@@ -116,7 +117,7 @@ fn start_notify_bridge(mcp_toml_path: &std::path::Path) -> Option<tokio::sync::m
         tracing::error!(
             path = %mcp_toml_path.display(),
             error = %e,
-            "McpConfigWatcher: failed to watch mcp.toml"
+            "mcp.config.watch.failed"
         );
         return None;
     }
@@ -155,7 +156,7 @@ fn run_bridge_poll_loop(
                 tracing::warn!(
                     path = %path.display(),
                     error = %e,
-                    "McpConfigWatcher: notify error"
+                    "mcp.config.watch.error"
                 );
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -184,7 +185,8 @@ async fn handle_reload_tick(
             tracing::warn!(
                 path = %mcp_toml_path.display(),
                 error = %e,
-                "McpConfigWatcher: failed to parse updated mcp.toml - skipping reload"
+                detail = "the reload is skipped",
+                "mcp.config.parse.failed"
             );
             return;
         }
@@ -196,7 +198,7 @@ async fn handle_reload_tick(
     if changed_names.is_empty() {
         tracing::debug!(
             path = %mcp_toml_path.display(),
-            "McpConfigWatcher: mcp.toml changed but no server config differences found"
+            "mcp.config.unchanged"
         );
         *baseline = new_config;
         return;
@@ -205,7 +207,8 @@ async fn handle_reload_tick(
     tracing::info!(
         path = %mcp_toml_path.display(),
         servers = ?changed_names,
-        "McpConfigWatcher: detected MCP server config changes - hot reloading"
+        detail = "hot reloading the servers",
+        "mcp.config.changed"
     );
 
     for name in &changed_names {
@@ -219,13 +222,13 @@ async fn handle_reload_tick(
 async fn reload_one_server(handle: &McpClientManagerHandle, name: &str) {
     match handle.reload_server(name).await {
         Ok(()) => {
-            tracing::info!(server = %name, "McpConfigWatcher: server hot reloaded");
+            tracing::info!(server = %name, "mcp.server.reloaded");
         }
         Err(e) => {
             tracing::warn!(
                 server = %name,
                 error = %e,
-                "McpConfigWatcher: hot reload failed"
+                "mcp.server.reload.failed"
             );
         }
     }

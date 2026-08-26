@@ -324,7 +324,7 @@ impl TriggerEngine {
         for handle in self.handles {
             handle.abort();
         }
-        tracing::info!("TriggerEngine arrêté");
+        tracing::info!("trigger.engine.stopped");
     }
 
     /// Handles a `TriggerEvent`: delegates to `process_event` and ignores the result.
@@ -440,7 +440,7 @@ impl TriggerEngine {
         } else {
             tracing::warn!(
                 trigger_id = %trigger_id,
-                "SendWebhookEvent reçu pour un trigger inconnu"
+                "trigger.webhook.event.unknown"
             );
         }
     }
@@ -555,7 +555,7 @@ impl TriggerEngine {
             None => {
                 tracing::warn!(
                     trigger_id = %event.trigger_id,
-                    "événement reçu pour un trigger inconnu"
+                    "trigger.event.unknown"
                 );
                 return Err(TriggerEngineError::NotFound {
                     id: event.trigger_id.clone(),
@@ -566,7 +566,7 @@ impl TriggerEngine {
         // Skip if disabled.
         if !def.enabled {
             let reason = "trigger disabled".to_string();
-            tracing::debug!(trigger_id = %event.trigger_id, "trigger désactivé, skip");
+            tracing::debug!(trigger_id = %event.trigger_id, %reason, "trigger.skipped");
             self.persist_skipped(&event, &reason).await;
             *self
                 .skip_counts
@@ -611,7 +611,7 @@ impl TriggerEngine {
                             trigger_id = %event.trigger_id,
                             agent = %def.agent,
                             queue_depth = queue.len(),
-                            "trigger mis en file d'attente"
+                            "trigger.queued"
                         );
                         return Err(TriggerEngineError::SubmitFailed(
                             "trigger queued for dispatch".into(),
@@ -624,7 +624,8 @@ impl TriggerEngine {
                             trigger_id = %event.trigger_id,
                             agent = %def.agent,
                             max_depth,
-                            "trigger droppé - file d'attente pleine"
+                            reason = "the agent queue is full",
+                            "trigger.dropped"
                         );
                         return Err(TriggerEngineError::SubmitFailed(
                             "trigger queue full".into(),
@@ -671,7 +672,7 @@ impl TriggerEngine {
                 tracing::error!(
                     trigger_id = %event.trigger_id,
                     error = %e,
-                    "soumission de tâche échouée"
+                    "trigger.task.submit.failed"
                 );
                 Err(TriggerEngineError::SubmitFailed(e))
             }
@@ -708,11 +709,16 @@ impl TriggerEngine {
                 tracing::warn!(
                     trigger = %event.trigger_id,
                     error = %e,
-                    "failed to persist trigger fire"
+                    "trigger.fire.persist.failed"
                 );
             }
         } else {
-            tracing::debug!(trigger = %event.trigger_id, task = %task_id, "trigger fired (no persistence)");
+            tracing::debug!(
+                trigger = %event.trigger_id,
+                task = %task_id,
+                detail = "no persistence layer configured",
+                "trigger.fired"
+            );
         }
     }
 
@@ -732,11 +738,16 @@ impl TriggerEngine {
                 tracing::warn!(
                     trigger = %event.trigger_id,
                     error = %e,
-                    "failed to persist trigger skip"
+                    "trigger.skip.persist.failed"
                 );
             }
         } else {
-            tracing::debug!(trigger = %event.trigger_id, %reason, "trigger skipped (no persistence)");
+            tracing::debug!(
+                trigger = %event.trigger_id,
+                %reason,
+                detail = "no persistence layer configured",
+                "trigger.skipped"
+            );
         }
     }
 
@@ -758,7 +769,7 @@ impl TriggerEngine {
         tracing::debug!(
             agent = %agent_id,
             count = items.len(),
-            "drain de la file d'attente triggers"
+            "trigger.queue.drain.started"
         );
         for queued in items {
             let def = self
@@ -769,7 +780,8 @@ impl TriggerEngine {
             let Some(def) = def else {
                 tracing::warn!(
                     trigger_id = %queued.trigger_id,
-                    "définition introuvable pendant le drain - trigger ignoré"
+                    detail = "the queued trigger is ignored",
+                    "trigger.drain.definition.missing"
                 );
                 continue;
             };
@@ -804,7 +816,8 @@ impl TriggerEngine {
                     tracing::warn!(
                         trigger_id = %queued.trigger_id,
                         error = %e,
-                        "échec soumission pendant le drain - trigger perdu"
+                        detail = "the queued trigger is lost",
+                        "trigger.drain.submit.failed"
                     );
                     let _ = self.event_bus.send(RuntimeEvent::TriggerError {
                         trigger_id: queued.trigger_id.clone(),
@@ -857,7 +870,7 @@ impl TriggerEngine {
         let _ = self
             .event_bus
             .send(apollia_core::RuntimeEvent::TriggersReloaded { count });
-        tracing::info!(count, "triggers reloaded");
+        tracing::info!(count, "trigger.definitions.reloaded");
     }
 
     /// Persists a submission error in `trigger_history` via [`TriggerPersistence`].
@@ -876,11 +889,16 @@ impl TriggerEngine {
                 tracing::warn!(
                     trigger = %event.trigger_id,
                     error = %e,
-                    "failed to persist trigger error"
+                    "trigger.error.persist.failed"
                 );
             }
         } else {
-            tracing::warn!(trigger = %event.trigger_id, %error, "trigger error (no persistence)");
+            tracing::warn!(
+                trigger = %event.trigger_id,
+                %error,
+                detail = "no persistence layer configured",
+                "trigger.error"
+            );
         }
     }
 }
@@ -908,7 +926,8 @@ fn restore_counters(persistence: Option<&TriggerPersistence>) -> RestoredCounter
         Err(e) => {
             tracing::error!(
                 error = %e,
-                "failed to restore trigger counters from history - starting with zeros"
+                detail = "the counters start at zero",
+                "trigger.counters.restore.failed"
             );
             return (HashMap::new(), HashMap::new(), HashMap::new());
         }
