@@ -305,11 +305,11 @@ async fn run_login(
     // it as None and let the orchestrator's origin fallback do the work.
     let www_authenticate = match probe_www_authenticate(&server_url).await {
         Ok(Some(header)) => {
-            tracing::debug!(server = %server, "probe captured WWW-Authenticate header");
+            tracing::debug!(server = %server, "mcp.oauth.probe.challenged");
             Some(header)
         }
         Ok(None) => {
-            tracing::debug!(server = %server, "probe returned non-401, no WWW-Authenticate to extract");
+            tracing::debug!(server = %server, "mcp.oauth.probe.unchallenged");
             None
         }
         Err(e) => {

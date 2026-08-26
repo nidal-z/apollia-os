@@ -472,7 +472,7 @@ pub fn execute_clear(
         namespace = %agent,
         memory_type = %type_label,
         deleted = %deleted,
-        "memory cleared"
+        "memory.cleared"
     );
 
     if json {
@@ -527,7 +527,7 @@ pub fn execute_purge(
         episodic = report.episodic_deleted,
         semantic = report.semantic_deleted,
         procedural = report.procedural_deleted,
-        "memory purge completed"
+        "memory.purged"
     );
 
     if json {
@@ -586,7 +586,7 @@ pub fn execute_learn_procedure(
         trigger = %trigger,
         steps = steps.len(),
         id = %id,
-        "procedure learned"
+        "memory.procedure.learned"
     );
 
     if json {
@@ -632,7 +632,7 @@ pub fn execute_export(
         episodic = export.episodic.len(),
         semantic = export.semantic.len(),
         procedural = export.procedural.len(),
-        "memory exported"
+        "memory.exported"
     );
 
     if json {
@@ -678,7 +678,7 @@ pub fn execute_import(
         namespace = %namespace,
         mode = if replace { "replace" } else { "merge" },
         imported = count,
-        "memory imported"
+        "memory.imported"
     );
 
     if json {

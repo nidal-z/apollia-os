@@ -244,7 +244,8 @@ pub(in crate::commands::agent) async fn run_enable(
                     tracing::warn!(
                         agent = %name,
                         error = %e,
-                        "enable: failed to load into the live registry - agent remains enabled=true for next boot"
+                        detail = "the agent stays enabled for the next boot",
+                        "agent.enable.load.failed"
                     );
                     "load-failed"
                 }
@@ -310,7 +311,8 @@ pub(in crate::commands::agent) async fn run_disable(
                     tracing::warn!(
                         agent = %name,
                         error = %e,
-                        "disable: failed to stop live registry entry - agent remains enabled=false for next boot"
+                        detail = "the agent stays disabled for the next boot",
+                        "agent.disable.stop.failed"
                     );
                     "stop-failed"
                 }

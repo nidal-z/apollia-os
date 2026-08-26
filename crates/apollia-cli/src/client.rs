@@ -984,7 +984,7 @@ impl RuntimeClient {
 
         tokio::spawn(async move {
             if let Err(e) = conn.await {
-                tracing::debug!(error = %e, "SSE connection closed");
+                tracing::debug!(error = %e, "sse.connection.closed");
             }
         });
 
@@ -1041,7 +1041,7 @@ impl RuntimeClient {
 
         tokio::spawn(async move {
             if let Err(e) = conn.await {
-                tracing::debug!(error = %e, "HTTP connection closed");
+                tracing::debug!(error = %e, "http.connection.closed");
             }
         });
 
@@ -1116,7 +1116,7 @@ impl RuntimeClient {
 
         tokio::spawn(async move {
             if let Err(e) = conn.await {
-                tracing::debug!(error = %e, "HTTP connection closed");
+                tracing::debug!(error = %e, "http.connection.closed");
             }
         });
 

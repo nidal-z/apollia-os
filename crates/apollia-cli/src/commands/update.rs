@@ -291,7 +291,7 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
         }
     }
 
-    tracing::info!(version = remote_str, url = %bin_url, "downloading update");
+    tracing::info!(version = remote_str, url = %bin_url, "update.download.started");
 
     // ── Download binary and SHA256 ─────────────────────────────────────────
     let bin_bytes = apollia_core::net::read_capped_bytes(
@@ -363,7 +363,7 @@ pub async fn install_update(owner: &str, yes: bool) -> Result<(), UpdateError> {
         Err(e) => return Err(UpdateError::Io(e)),
     }
 
-    tracing::info!(version = remote_str, "update installed successfully");
+    tracing::info!(version = remote_str, "update.installed");
     println!("Updated to {remote_str} successfully.");
     Ok(())
 }

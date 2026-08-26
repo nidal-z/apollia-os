@@ -507,7 +507,8 @@ async fn provision_agent_venv(
         tracing::warn!(
             agent = %agent_name,
             error = %msg,
-            "package install: setup_venv failed, skipping agent"
+            detail = "the agent is skipped",
+            "package.install.venv.failed"
         );
         return Err(msg);
     }
@@ -541,7 +542,8 @@ async fn register_installed_agent(
             tracing::warn!(
                 agent = %agent_name,
                 error = %msg,
-                "package install: agent validation failed, skipping"
+                detail = "the agent is skipped",
+                "package.install.validation.failed"
             );
             return Err(msg);
         }
@@ -561,7 +563,8 @@ async fn register_installed_agent(
         tracing::warn!(
             agent = %agent_name,
             error = %e,
-            "package install: failed to persist agent, skipping"
+            detail = "the agent is skipped",
+            "package.install.persist.failed"
         );
         return Err(format!("save failed: {e}"));
     }

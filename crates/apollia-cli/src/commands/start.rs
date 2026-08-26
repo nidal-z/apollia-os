@@ -105,7 +105,8 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
             tracing::warn!(
                 target: "apollia.aip.secrets",
                 error = %e,
-                "failed to open ToolCredentialStore for ctx.secrets - agent will see None for all keys"
+                detail = "the agent sees no key",
+                "secrets.store.open.failed"
             );
             None
         }
@@ -205,7 +206,11 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
 
         let memory_base_dir = self.data_dir.join("memory");
         let snapshot = load_governance_snapshot(&self.data_dir).unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "governance snapshot unavailable - defaulting to all tools enabled");
+            tracing::warn!(
+                error = %e,
+                detail = "every tool is enabled",
+                "tools.governance.unavailable"
+            );
             Default::default()
         });
         let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
@@ -252,7 +257,8 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             _ => {
                 tracing::warn!(
                     agent = %agent_name,
-                    "A2A invoker not available for chat-agent runner - registry or router not yet initialized"
+                    reason = "registry or router not initialised yet",
+                    "chat.a2a.invoker.unavailable"
                 );
                 None
             }
@@ -588,8 +594,8 @@ fn wire_engine_with_llm(
     let Some(router_arc) = llm_router else {
         tracing::warn!(
             agent = %agent_id,
-            "no llm router configured - orchestrated execution will fail \
-             with NO_LLM if invoked"
+            detail = "orchestrated execution fails with NO_LLM",
+            "orchestration.llm_router.absent"
         );
         return engine;
     };
@@ -607,8 +613,8 @@ fn wire_engine_with_llm(
             tracing::warn!(
                 agent = %agent_id,
                 error = %err,
-                "no precise LLM backend resolved - orchestrated \
-                 execution will fail with NO_LLM if invoked"
+                detail = "orchestrated execution fails with NO_LLM",
+                "orchestration.llm_backend.unresolved"
             );
             engine = engine.with_llm_router(owned_router);
         }
@@ -775,8 +781,9 @@ impl BridgeRunner {
             _ => {
                 tracing::warn!(
                     agent = %self.agent_id,
-                    "orchestrated ToolProxy unavailable - tool registry or audit trail missing; \
-                     orchestrated tool steps will fail via NoopToolProxy"
+                    reason = "tool registry or audit trail missing",
+                    detail = "orchestrated tool steps fall back to the no-op proxy",
+                    "orchestration.tool_proxy.unavailable"
                 );
                 return None;
             }
@@ -799,7 +806,11 @@ impl BridgeRunner {
             .map(Path::to_path_buf)
             .unwrap_or_else(|| self.memory_base_dir.clone());
         let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "governance snapshot unavailable - defaulting to all tools enabled");
+            tracing::warn!(
+                error = %e,
+                detail = "every tool is enabled",
+                "tools.governance.unavailable"
+            );
             Default::default()
         });
         let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
@@ -900,7 +911,11 @@ impl AgentRunner for BridgeRunner {
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| memory_base_dir.clone());
             let snapshot = load_governance_snapshot(&governance_base).unwrap_or_else(|e| {
-                tracing::warn!(error = %e, "governance snapshot unavailable - defaulting to all tools enabled");
+                tracing::warn!(
+                    error = %e,
+                    detail = "every tool is enabled",
+                    "tools.governance.unavailable"
+                );
                 Default::default()
             });
             let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
@@ -957,8 +972,9 @@ impl AgentRunner for BridgeRunner {
                 _ => {
                     tracing::warn!(
                         agent = %agent_id,
-                        "ToolProxy not available - tool registry or audit trail missing; \
-                         agent will use its own fallback for tool calls"
+                        reason = "tool registry or audit trail missing",
+                        detail = "the agent falls back to its own tool calls",
+                        "agent.tool_proxy.unavailable"
                     );
                     None
                 }
@@ -1261,8 +1277,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
             None => {
                 tracing::debug!(
                     agent = %agent_id,
-                    "factory invoked before runtime handles are populated - \
-                     emitting placeholder NoopBackend, will be rewired post-start"
+                    detail = "a placeholder no-op backend is emitted and rewired after start",
+                    "agent.factory.premature"
                 );
                 return DynBackend::new(NoopBackend);
             }
@@ -1290,7 +1306,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
             _ => {
                 tracing::warn!(
                     agent = %agent_id,
-                    "A2A invoker not available - registry or router not yet initialized"
+                    reason = "registry or router not initialised yet",
+                    "agent.a2a.invoker.unavailable"
                 );
                 None
             }
@@ -1350,7 +1367,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
                     agent = %agent_id,
                     path = %agent_path.display(),
                     error = %e,
-                    "failed to load agent Python module - falling back to NoopBackend"
+                    detail = "falling back to a no-op backend",
+                    "agent.module.load.failed"
                 );
                 DynBackend::new(NoopBackend)
             }
@@ -1454,14 +1472,14 @@ fn cleanup_stale_socket(path: &std::path::Path) {
         Ok(()) => {
             tracing::info!(
                 socket = %path.display(),
-                "removed stale Unix socket file from a previous crashed runtime"
+                "api.socket.stale.removed"
             );
         }
         Err(e) => {
             tracing::warn!(
                 socket = %path.display(),
                 error = %e,
-                "failed to remove stale Unix socket file"
+                "api.socket.stale.remove.failed"
             );
         }
     }
@@ -1536,11 +1554,15 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         let db_path = data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         match apollia_tools::AgentRepository::open(&db_path) {
             Ok(repo) => {
-                tracing::info!("AgentRepository opened for auto-load");
+                tracing::info!("agent.repository.opened");
                 Some(repo)
             }
             Err(e) => {
-                tracing::warn!(error = %e, "AgentRepository failed to open - auto-load disabled");
+                tracing::warn!(
+                    error = %e,
+                    detail = "the auto-load is disabled",
+                    "agent.repository.open.failed"
+                );
                 None
             }
         }
@@ -1556,7 +1578,11 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         match apollia_tools::PackageRepository::open(&db_path) {
             Ok(repo) => Some(repo),
             Err(e) => {
-                tracing::warn!(error = %e, "PackageRepository failed to open - Phase 10.6 disabled");
+                tracing::warn!(
+                    error = %e,
+                    detail = "the package integrity check is disabled",
+                    "package.repository.open.failed"
+                );
                 None
             }
         }
@@ -1574,7 +1600,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             .map_err(StartError::ApiToken)?;
         Some(token)
     } else {
-        tracing::info!("API token auth disabled via require_token = false");
+        tracing::info!(reason = "require_token is false", "api.token.auth.disabled");
         None
     };
 
@@ -1821,10 +1847,10 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 fn load_start_config(
 ) -> Result<(Option<crate::config::ApolliaCConfig>, Option<PathBuf>), StartError> {
     let Some(path) = find_config_file() else {
-        tracing::info!("no apollia.toml found - starting with defaults");
+        tracing::info!(detail = "starting with the defaults", "config.file.absent");
         return Ok((None, None));
     };
-    tracing::info!(config = %path.display(), "loading config");
+    tracing::info!(config = %path.display(), "config.loading");
     let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
         path: path.clone(),
         reason: e.to_string(),
@@ -1875,7 +1901,11 @@ async fn rewire_auto_loaded_agents(
     let installed = match repo.list_enabled() {
         Ok(rows) => rows,
         Err(e) => {
-            tracing::warn!(error = %e, "rewire: failed to list installed agents - skipping");
+            tracing::warn!(
+                error = %e,
+                detail = "the rewire is skipped",
+                "agent.rewire.list.failed"
+            );
             return;
         }
     };
@@ -1893,7 +1923,8 @@ async fn rewire_auto_loaded_agents(
             Ok(None) => {
                 tracing::debug!(
                     name = %agent.manifest.name,
-                    "rewire: agent not in registry (Supervisor skipped it), nothing to rewire"
+                    reason = "the supervisor skipped the agent",
+                    "agent.rewire.absent"
                 );
                 continue;
             }
@@ -1901,7 +1932,7 @@ async fn rewire_auto_loaded_agents(
                 tracing::warn!(
                     name = %agent.manifest.name,
                     error = %e,
-                    "rewire: registry lookup failed"
+                    "agent.rewire.lookup.failed"
                 );
                 continue;
             }
@@ -1929,23 +1960,20 @@ async fn rewire_auto_loaded_agents(
                 rewired += 1;
                 tracing::debug!(
                     agent = %agent.manifest.name,
-                    "rewire: coordinator replaced with wired backend"
+                    "agent.rewire.done"
                 );
             }
             Err(e) => {
                 tracing::warn!(
                     agent = %agent.manifest.name,
                     error = %e,
-                    "rewire: failed to replace coordinator"
+                    "agent.rewire.failed"
                 );
             }
         }
     }
     if rewired > 0 {
-        tracing::info!(
-            count = rewired,
-            "auto-loaded agents rewired with fully-initialised backends"
-        );
+        tracing::info!(count = rewired, "agent.rewire.completed");
     }
 }
 

@@ -163,7 +163,11 @@ async fn start_runtime_submit_handler() -> Arc<dyn SubmitTaskHandler> {
             })
         }
         Err(e) => {
-            tracing::error!(error = %e, "runtime failed to start - submit_task will be unavailable");
+            tracing::error!(
+                error = %e,
+                detail = "submit_task is unavailable",
+                "mcp.runtime.start.failed"
+            );
             // Return a handler that always fails gracefully.
             Arc::new(NoopSubmitHandler)
         }

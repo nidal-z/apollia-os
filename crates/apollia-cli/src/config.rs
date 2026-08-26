@@ -253,8 +253,8 @@ fn check_deprecated_sections(content: &str) {
             {
                 tracing::warn!(
                     section = %section,
-                    "apollia.toml contains a deprecated section, \
-                     use the desktop app or the API to manage it"
+                    detail = "use the desktop app or the API to manage it",
+                    "config.section.deprecated"
                 );
                 break;
             }
@@ -310,7 +310,8 @@ pub fn validate_llm_config(config: &LlmConfig) -> Result<(), ConfigError> {
                     tracing::warn!(
                         backend = %backend.name(),
                         env_var = %cfg.api_key_env,
-                        "API key env var not set, backend will be skipped"
+                        detail = "the backend is skipped",
+                        "llm.api_key.absent"
                     );
                 }
             }
