@@ -166,7 +166,7 @@
           class="flex h-24 flex-col items-start justify-end rounded-lg p-3 shadow-elev-1"
           style="background: {cssVar};"
         >
-          <span class="rounded bg-background/60 px-1.5 py-0.5 text-[10px] font-mono text-foreground backdrop-blur-sm">
+          <span class="rounded bg-background/60 px-1.5 py-0.5 text-micro font-mono text-foreground backdrop-blur-sm">
             {key}
           </span>
         </div>

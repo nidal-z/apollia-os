@@ -123,7 +123,7 @@
         tabindex={active ? 0 : -1}
         data-value={opt.value}
         data-testid="{testid}-{opt.value}"
-        class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1
+        class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-label-sm ring-offset-background transition-all duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-1
           {active
             ? 'bg-card text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'}"
@@ -138,7 +138,7 @@
 
 {#snippet themeSwatch(scope: string, isDark: boolean, active: boolean, systemMatch: boolean, testid: string)}
   <div
-    class="{scope} flex-1 overflow-hidden rounded-lg border bg-background transition-shadow duration-200
+    class="{scope} flex-1 overflow-hidden rounded-lg border bg-background transition-shadow duration-base
       {active ? 'border-primary ring-2 ring-primary/40' : 'border-border'}"
     data-testid={testid}
   >
@@ -221,7 +221,7 @@
           tabindex={active ? 0 : -1}
           data-value={opt.value}
           data-testid="mode-{opt.value}"
-          class="relative flex flex-1 items-start overflow-hidden rounded-lg border bg-background text-left ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2
+          class="relative flex flex-1 items-start overflow-hidden rounded-lg border bg-background text-left ring-offset-background transition-all duration-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2
             {active ? 'border-primary/55 ring-1 ring-primary/20' : 'border-border hover:border-primary/40'}"
           onclick={() => selectMode(opt.value)}
         >

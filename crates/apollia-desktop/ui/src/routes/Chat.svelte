@@ -449,7 +449,7 @@
   {#if !panesInline && $sessionsDrawerOpen}
     <button
       type="button"
-      class="absolute inset-0 z-30 bg-foreground/20"
+      class="absolute inset-0 z-drawer-backdrop bg-foreground/20"
       aria-label={$t("a11y.close")}
       onclick={closeSessionsDrawer}
       data-testid="chat-sessions-backdrop"
@@ -458,7 +458,7 @@
   {#if !panesInline && $contextDrawerOpen}
     <button
       type="button"
-      class="absolute inset-0 z-30 bg-foreground/20"
+      class="absolute inset-0 z-drawer-backdrop bg-foreground/20"
       aria-label={$t("a11y.close")}
       onclick={toggleContextDrawer}
       data-testid="chat-context-backdrop"
@@ -468,15 +468,15 @@
   <!-- ── Left rail: conversations ─────────────────────────────────────── -->
   <aside
     class="flex h-full flex-col border-r border-border bg-card {panesInline
-      ? 'w-[280px] shrink-0'
-      : 'absolute inset-y-0 left-0 z-40 w-[280px] max-w-[85%] shadow-elev-3 transition-transform duration-200 ' +
+      ? 'w-70 shrink-0'
+      : 'absolute inset-y-0 left-0 z-drawer w-70 max-w-[85%] shadow-elev-3 transition-transform duration-base ' +
         ($sessionsDrawerOpen ? 'translate-x-0' : '-translate-x-full')}"
     aria-label={$t("chat.conversations_aria")}
     aria-hidden={!panesInline && !$sessionsDrawerOpen}
   >
     <div class="px-3.5 pt-4 pb-2">
       <h2
-        class="mb-3 text-[16px] font-semibold tracking-[-0.2px] text-foreground"
+        class="mb-3 text-heading-sm font-semibold tracking-[-0.2px] text-foreground"
         data-testid="chat-header"
       >
         {$t("chat.title")}
@@ -493,7 +493,7 @@
           placeholder={$t("chat.search_placeholder")}
           aria-label={$t("chat.search_placeholder")}
           data-testid="session-search-input"
-          class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+          class="h-8 w-full rounded-md border border-border bg-background pl-7 pr-2 text-body-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
          />
       </div>
 
@@ -520,7 +520,7 @@
           {/each}
         </div>
       {:else if filteredSessions.length === 0}
-        <div class="px-4 py-6 text-center text-[11px] text-muted-foreground">
+        <div class="px-4 py-6 text-center text-caption text-muted-foreground">
           {#if sessionSearchQuery.trim()}
             {$t("chat.no_results")}
           {:else}
@@ -596,11 +596,11 @@
       <div class="flex flex-1 items-center justify-center px-6 py-10">
         <div class="max-w-sm text-center">
           <h3
-            class="mb-3 text-[20px] font-semibold tracking-[-0.3px] text-foreground"
+            class="mb-3 text-heading-lg font-semibold tracking-[-0.3px] text-foreground"
           >
             {$t("chat.subtitle")}
           </h3>
-          <p class="mb-5 text-[12.5px] text-muted-foreground">
+          <p class="mb-5 text-body-sm text-muted-foreground">
             {$t("chat.select_or_start")}
           </p>
           <div class="inline-flex">
@@ -620,14 +620,14 @@
   {#if $contextDrawerOpen || !panesInline}
   <aside
     class="flex h-full flex-col border-l border-border bg-card {panesInline
-      ? 'w-[380px] shrink-0'
-      : 'absolute inset-y-0 right-0 z-40 w-[320px] max-w-[85%] shadow-elev-3 transition-transform duration-200 ' +
+      ? 'w-95 shrink-0'
+      : 'absolute inset-y-0 right-0 z-drawer w-80 max-w-[85%] shadow-elev-3 transition-transform duration-base ' +
         ($contextDrawerOpen ? 'translate-x-0' : 'translate-x-full')}"
     aria-label={railTab === "plan" ? $t("plan_session.tab_plan") : $t("plan_session.tab_journal")}
     aria-hidden={!panesInline && !$contextDrawerOpen}
   >
     <div class="flex items-center justify-between border-b border-border px-4 py-3">
-      <div class="inline-flex rounded-md border border-border p-0.5 text-[10.5px]" role="tablist">
+      <div class="inline-flex rounded-md border border-border p-0.5 text-micro-lg" role="tablist">
         <button
           type="button"
           role="tab"
@@ -665,7 +665,7 @@
         </button>
       </div>
       {#if railTab === "journal"}
-        <div class="inline-flex rounded-md border border-border p-0.5 text-[10.5px]">
+        <div class="inline-flex rounded-md border border-border p-0.5 text-micro-lg">
           <button
             type="button"
             class="rounded px-2 py-0.5 transition-colors {journalMode === 'operator'
@@ -697,7 +697,7 @@
             onupdated={() => {}}
           />
         {:else}
-          <div class="px-4 py-6 text-center text-[11px] text-muted-foreground">
+          <div class="px-4 py-6 text-center text-caption text-muted-foreground">
             {$t("chat.subtitle")}
           </div>
         {/if}
@@ -712,7 +712,7 @@
       <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {#if journalEvents.length === 0}
           <div
-            class="rounded-[10px] border border-dashed border-border px-4 py-6 text-center text-[11px] text-muted-foreground"
+            class="rounded-lg border border-dashed border-border px-4 py-6 text-center text-caption text-muted-foreground"
           >
             {$t("chat.journal_empty")}
           </div>

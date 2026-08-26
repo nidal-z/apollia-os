@@ -423,7 +423,7 @@
     {#if isMobile}
       <!-- Mobile: trigger + side sheet hosting the same nav. -->
       <div
-        class="sticky top-0 z-30 mb-2 flex w-full items-center gap-2 border-b border-border bg-background/80 px-4 py-2 backdrop-blur-md"
+        class="sticky top-0 z-sticky mb-2 flex w-full items-center gap-2 border-b border-border bg-background/80 px-4 py-2 backdrop-blur-md"
       >
         <Button
           variant="outline"

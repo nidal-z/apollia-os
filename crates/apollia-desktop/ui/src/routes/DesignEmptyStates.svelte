@@ -33,9 +33,9 @@
   <header>
     <h1 class="text-display-lg text-foreground">Empty states</h1>
     <p class="mt-2 text-sm text-muted-foreground md:text-base">
-      Canonical <code class="text-[11px]">&lt;EmptyState&gt;</code> component - 7 variants sourced from
-      <code class="text-[11px]">$lib/i18n/strings/empty-states</code>. Copies tonales, primary + secondary CTA, slot
-      <code class="text-[11px]">trailing</code> pour une stat contextuelle.
+      Canonical <code class="text-caption">&lt;EmptyState&gt;</code> component - 7 variants sourced from
+      <code class="text-caption">$lib/i18n/strings/empty-states</code>. Copies tonales, primary + secondary CTA, slot
+      <code class="text-caption">trailing</code> pour une stat contextuelle.
     </p>
     {#if reduced}
       <p class="mt-3 text-xs font-medium text-warning-foreground">
@@ -55,7 +55,7 @@
           <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">
             {variant}
           </h2>
-          <code class="text-[10px] text-muted-foreground/60">
+          <code class="text-micro text-muted-foreground/60">
             {entry.titleKey}
           </code>
         </div>
@@ -72,7 +72,7 @@
         >
           {#snippet trailing()}
             <span
-              class="inline-flex items-center rounded-full border border-border/40 bg-background/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground backdrop-blur-sm"
+              class="inline-flex items-center rounded-full border border-border/40 bg-background/60 px-2 py-0.5 text-micro font-medium text-muted-foreground backdrop-blur-sm"
             >
               {variant}
             </span>
