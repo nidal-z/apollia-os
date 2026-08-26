@@ -4,7 +4,7 @@ import type { ErrorAnalysis } from "./reasoning";
 
 // ─── Chat ───────────────────────────────────────────────────────────────────
 
-/** Résumé d'une session de chat pour la liste. */
+/** Summary of one chat session, for the list. */
 export interface ChatSessionSummary {
   id: string;
   mode: "libre" | "agent";
@@ -18,7 +18,7 @@ export interface ChatSessionSummary {
   project_id: string | null;
 }
 
-/** Détail complet d'une session de chat avec messages. */
+/** Full detail of one chat session, with its messages. */
 export interface ChatSessionDetail {
   id: string;
   mode: "libre" | "agent";
@@ -47,14 +47,14 @@ export type PlanPhase =
   | "executing"
   | "done";
 
-/** Payload pour mettre à jour la configuration d'une session. */
+/** Payload updating the configuration of one session. */
 export interface UpdateSessionRequest {
   system_prompt?: string;
   tools?: string[];
   llm_backend?: string | null;
 }
 
-/** Message individuel dans une session de chat. */
+/** Single message inside a chat session. */
 export interface ChatMessageView {
   id: string;
   role: "user" | "assistant" | "system" | "tool";
@@ -66,7 +66,7 @@ export interface ChatMessageView {
   metadata?: Record<string, unknown> | null;
 }
 
-/** Appel d'outil dans un message de chat. */
+/** Tool call inside a chat message. */
 export interface ToolCallView {
   tool_name: string;
   input: Record<string, unknown>;
@@ -121,7 +121,7 @@ export interface ToolCallRationale {
   performance_hint?: string | null;
 }
 
-/** Requête de création d'une session de chat. */
+/** Request creating a chat session. */
 export interface CreateSessionRequest {
   mode: "libre" | "agent";
   agent_name?: string;
@@ -130,12 +130,12 @@ export interface CreateSessionRequest {
   project_id?: string;
 }
 
-/** Requête d'envoi de message dans une session de chat. */
+/** Request sending a message inside a chat session. */
 export interface SendMessageRequest {
   content: string;
 }
 
-/** Requête d'autorisation d'un appel d'outil. */
+/** Request authorising a tool call. */
 export interface ToolAuthorizationRequest {
   message_id: string;
   tool_name: string;

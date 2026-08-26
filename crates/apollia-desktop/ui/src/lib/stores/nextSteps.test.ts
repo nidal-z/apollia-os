@@ -40,18 +40,18 @@ function sampleSteps() {
   return [
     {
       id: "capture-note",
-      title: "Enregistrer une note",
-      description: "Gardez une trace.",
+      title: "Save a note",
+      description: "Keep a trace.",
       actionButton: {
-        label: "Ouvrir mémoire",
+        label: "Open memory",
         action: "navigate" as const,
         payload: { route: "/memory?new" },
       },
     },
     {
       id: "create-automation",
-      title: "Créer une automatisation",
-      description: "Routine récurrente.",
+      title: "Create an automation",
+      description: "Recurring routine.",
       actionButton: {
         label: "Automations",
         action: "navigate" as const,
@@ -60,8 +60,8 @@ function sampleSteps() {
     },
     {
       id: "ask-apollia",
-      title: "Demander à Apollia",
-      description: "Coach productivité.",
+      title: "Ask Apollia",
+      description: "Productivity coach.",
       actionButton: {
         label: "Ouvrir Apollia",
         action: "navigate" as const,

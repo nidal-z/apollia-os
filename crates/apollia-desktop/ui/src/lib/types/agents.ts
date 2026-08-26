@@ -2,7 +2,7 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Skill exposé par un worker agent via A2A. */
+/** Skill a worker agent exposes through A2A. */
 export interface A2ASkillListing {
   skill_id: string;
   agent_name: string;
@@ -10,7 +10,7 @@ export interface A2ASkillListing {
   description: string;
 }
 
-/** Télémétrie agrégée d'un skill A2A sur la fenêtre glissante. */
+/** Aggregated telemetry of one A2A skill over the sliding window. */
 export interface A2ASkillTelemetry {
   skill_name: string;
   version: string;
@@ -20,7 +20,7 @@ export interface A2ASkillTelemetry {
   tokens_consumed: number;
 }
 
-/** Provenance d'un step dans une chaîne A2A. */
+/** Provenance of one step in an A2A chain. */
 export interface A2AStepProvenance {
   step_id: string;
   input_excerpt: string;
@@ -32,7 +32,7 @@ export interface A2AStepProvenance {
   timestamp_ms: number;
 }
 
-/** Warning de compatibilité semver entre required et advertised. */
+/** Semver compatibility warning between required and advertised. */
 export interface A2ACompatibilityWarning {
   skill_id: string;
   agent_name: string;
@@ -43,13 +43,13 @@ export interface A2ACompatibilityWarning {
   alternative_agent?: string | null;
 }
 
-/** Agent pré-installé découvert dans le répertoire agents/. */
+/** Pre-installed agent discovered in the agents/ directory. */
 export interface AvailableAgent {
   id: string;
   path: string;
 }
 
-/** Statut d'un agent dans le runtime. */
+/** Status of one agent in the runtime. */
 export interface AgentStatus {
   id: string;
   name: string;
@@ -61,17 +61,17 @@ export interface AgentStatus {
   degraded_reason?: string;
 }
 
-/** Élément de la liste unifiée agents (installés + runtime). */
+/** Item of the unified agent list (installed plus runtime). */
 export interface AgentListItem {
-  /** UUID runtime (`null` si installé mais pas chargé). */
+  /** Runtime UUID (`null` when installed but not loaded). */
   id: string | null;
-  /** Nom unique de l'agent. */
+  /** Unique agent name. */
   name: string;
   /** Version semver. */
   version: string;
-  /** Activé pour l'auto-start au boot. */
+  /** Enabled for auto-start at boot. */
   enabled: boolean;
-  /** État runtime (`null` si non chargé). */
+  /** Runtime state (`null` when not loaded). */
   runtime_status:
     | "active"
     | "degraded"
@@ -79,35 +79,35 @@ export interface AgentListItem {
     | "initializing"
     | "stopping"
     | null;
-  /** Horodatage d'installation RFC 3339 (`null` pour les agents session-only). */
+  /** RFC 3339 install timestamp (`null` for session-only agents). */
   installed_at: string | null;
-  /** Description humaine de l'agent (du manifest). */
+  /** Human description of the agent (from the manifest). */
   description: string | null;
-  /** Tags libres pour le routing/découverte. */
+  /** Free tags for routing and discovery. */
   tags: string[];
-  /** Outils requis par l'agent. */
+  /** Tools the agent requires. */
   tools_required: string[];
-  /** Outils optionnels de l'agent. */
+  /** Optional tools of the agent. */
   tools_optional: string[];
-  /** Mode d'exécution ORIA. */
+  /** ORIA execution mode. */
   execution_mode: "direct" | "orchestrated" | "auto" | null;
-  /** Score pondéré pour le classement/dispatch (issu du weighted scoring Observer). */
+  /** Weighted score for ranking and dispatch (from the Observer weighted scoring). */
   weighted_score?: number;
-  /** Chemin d'installation sur disque (`null` pour les agents runtime-only). */
+  /** Install path on disk (`null` for runtime-only agents). */
   install_path: string | null;
-  /** Indique si l'agent supporte la communication inter-agents (A2A). */
+  /** Whether the agent supports inter-agent communication (A2A). */
   supports_a2a: boolean;
-  /** Skills A2A déclarés (vide si supports_a2a est false). */
+  /** Declared A2A skills (empty when supports_a2a is false). */
   skills: AgentSkillView[];
-  /** Rôle sémantique de l'agent pour la catégorisation UI. */
+  /** Semantic role of the agent, for the UI categorisation. */
   agent_type: "worker" | "assistant" | "system" | null;
-  /** Exemples de prompts illustrant les usages typiques (vide = non renseigné). */
+  /** Prompt examples showing the typical uses (empty = not filled in). */
   examples: string[];
-  /** Limitations explicites : ce que l'agent ne fait pas (vide = non renseigné). */
+  /** Explicit limitations: what the agent does not do (empty = not filled in). */
   limitations: string[];
-  /** Note de configuration requise avant la première utilisation (`null` = aucun prérequis). */
+  /** Configuration note required before first use (`null` = no prerequisite). */
   setup_notes: string | null;
-  /** Nom de la classe Python source de l'agent (décision D2). */
+  /** Name of the Python class the agent comes from. */
   agent_class:
     | "ReActAgent"
     | "ConversationalAgent"
@@ -116,56 +116,56 @@ export interface AgentListItem {
     | (string & {})
     | null;
   /**
-   * Namespace mémoire primaire déclaré dans le manifest Python. `null` si
-   * l'agent n'a pas de mémoire persistante.
+   * Primary memory namespace declared in the Python manifest. `null` when the
+   * agent has no persistent memory.
    *
-   * Plusieurs agents d'un même package partagent souvent le même namespace
-   * (ex. : tous les agents du package `veille-ia` déclarent
-   * `memory_namespace = "veille-ia"`), donc cette valeur n'est jamais
-   * dérivée de `name` - elle vient toujours du manifest.
+   * Several agents of one package often share the same namespace (every agent
+   * of the `veille-ia` package declares `memory_namespace = "veille-ia"`, for
+   * instance), so this value is never derived from `name`: it always comes
+   * from the manifest.
    */
   memory_namespace: string | null;
-  /** Namespaces mémoire partagés accessibles en lecture par l'agent. */
+  /** Shared memory namespaces the agent can read. */
   shared_memory_namespaces: string[];
 }
 
-/** Skill A2A déclaré par un agent worker. */
+/** A2A skill declared by a worker agent. */
 export interface AgentSkillView {
   id: string;
   name: string;
   description: string;
 }
 
-/** Réponse d'une installation ou mise à jour d'agent. */
+/** Response of an agent install or update. */
 export interface InstallAgentResponse {
   name: string;
   version: string;
   install_path: string;
 }
 
-/** Résultat de la création d'un agent depuis un template SDK. */
+/** Result of creating an agent from an SDK template. */
 export interface CreateAgentResult {
-  /** Nom de l'agent créé. */
+  /** Name of the created agent. */
   name: string;
-  /** Type de template utilisé. */
+  /** Template type used. */
   template_type: string;
-  /** Chemin du dossier créé sur le disque. */
+  /** Path of the directory created on disk. */
   path: string;
 }
 
-/** Type de template d'agent SDK. */
+/** Type of SDK agent template. */
 export type AgentTemplateType = "react" | "conversational" | "orchestrated";
 
-/** Définition d'un template d'agent pour le dialog de création. */
+/** Definition of an agent template, for the creation dialog. */
 export interface TemplateDefinition {
-  /** Identifiant du type de template. */
+  /** Identifier of the template type. */
   type: AgentTemplateType;
-  /** Titre affiché. */
+  /** Displayed title. */
   title: string;
   /** Description courte. */
   description: string;
-  /** Nom de l'icône Lucide. */
+  /** Lucide icon name. */
   icon: string;
-  /** Couleur ou gradient CSS pour la bordure. */
+  /** CSS colour or gradient for the border. */
   color: string;
 }

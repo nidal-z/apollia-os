@@ -17,15 +17,15 @@
 
   let { sessionId, messageId, toolCallId, toolName, inputPreview }: Props = $props();
 
-  /** True quand la session courante est rattachée à un projet - sert à griser
-   *  l'option "Toujours pour ce projet" hors contexte projet. */
+  /** True when the current session belongs to a project - used to grey out
+   *  the "Always for this project" option outside a project context. */
   const hasProject = $derived(
     $currentSession?.id === sessionId && $currentSession?.project_id !== null,
   );
 
   /**
-   * Portée de la règle "Toujours autoriser".
-   * Mappe sur l'enum runtime `AlwaysAcceptScope` (snake_case via serde).
+   * Scope of the "Always allow" rule.
+   * Maps onto the runtime enum `AlwaysAcceptScope` (snake_case through serde).
    */
   type AlwaysScope = "this_session" | "this_agent" | "this_project" | "global";
 

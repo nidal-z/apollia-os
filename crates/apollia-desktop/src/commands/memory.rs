@@ -413,7 +413,7 @@ mod tests {
             id: "e-abc123".to_string(),
             entry_type: "episodic".to_string(),
             key: "agent-1".to_string(),
-            value: "Devis envoyé à Dupont".to_string(),
+            value: "Quote sent to Dupont".to_string(),
             created_at: "2026-03-13T10:00:00Z".to_string(),
             expires_at: None,
             score: None,
@@ -457,7 +457,7 @@ mod tests {
         let result = MemorySearchResult {
             id: "e-abc123".to_string(),
             entry_type: "episodic".to_string(),
-            content: "Devis envoyé à Dupont SA".to_string(),
+            content: "Quote sent to Dupont SA".to_string(),
             score: 2.5,
             relevance: Some(0.8),
             created_at: "2026-03-13T10:00:00Z".to_string(),
@@ -527,7 +527,7 @@ mod tests {
             turn,
             InjectedEntry {
                 id: "ep-1".to_string(),
-                content_preview: "Devis envoyé à Dupont".to_string(),
+                content_preview: "Quote sent to Dupont".to_string(),
                 namespace: "agent-x".to_string(),
                 injection_reason: "Contexte devis".to_string(),
                 relevance_score: 0.71,

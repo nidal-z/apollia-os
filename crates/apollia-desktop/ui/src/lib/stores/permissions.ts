@@ -1,10 +1,10 @@
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 
-/** Portée d'une règle de permission persistée ou en mémoire. */
+/** Scope of a permission rule, persisted or in memory. */
 export type PermissionRuleScope = "session" | "project" | "agent" | "global";
 
-/** Représentation frontend d'une règle exposée par `governance_list_permission_rules`. */
+/** Frontend representation of a rule `governance_list_permission_rules` exposes. */
 export interface PermissionRuleDto {
   id: number;
   tool_name: string;
@@ -18,7 +18,7 @@ export interface PermissionRuleDto {
   created_by: string | null;
 }
 
-/** Entrée de l'audit log immuable des décisions de permission. */
+/** Entry of the immutable audit log of the permission decisions. */
 export interface AuditEntryDto {
   id: number;
   tool_name: string;
@@ -43,7 +43,7 @@ function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** Recharge la liste des règles depuis le backend, en respectant les filtres. */
+/** Reloads the rule list from the backend, honouring the filters. */
 export async function loadRules(): Promise<void> {
   loadingRules.set(true);
   rulesError.set(null);
@@ -63,15 +63,15 @@ export async function loadRules(): Promise<void> {
   }
 }
 
-/** Supprime une règle individuelle puis met à jour la liste locale. */
+/** Deletes one rule, then updates the local list. */
 export async function revokeRule(id: number): Promise<void> {
   await invoke("governance_revoke_permission_rule", { ruleId: id });
   permissionRules.update((list) => list.filter((r) => r.id !== id));
 }
 
 /**
- * Supprime toutes les règles d'un scope (`null` ⇒ toutes portées confondues).
- * Retourne le nombre de règles révoquées côté backend.
+ * Deletes every rule of one scope (`null` means every scope at once).
+ * Returns the number of rules the backend revoked.
  */
 export async function revokeAll(
   scope: PermissionRuleScope | null,
@@ -83,14 +83,14 @@ export async function revokeAll(
   return count;
 }
 
-/** Compte les règles correspondant à un scope donné, dans le store local. */
+/** Counts the rules matching a given scope, inside the local store. */
 export function countRulesForScope(scope: PermissionRuleScope | null): number {
   const rules = get(permissionRules);
   if (scope === null) return rules.length;
   return rules.filter((r) => r.scope === scope).length;
 }
 
-/** Recharge l'audit log avec les paramètres optionnels du backend. */
+/** Reloads the audit log with the optional backend parameters. */
 export async function loadAudit(
   tool: string | null = null,
   limit = 50,
@@ -111,7 +111,7 @@ export async function loadAudit(
   }
 }
 
-/** Met à jour le filtre de scope et recharge la liste. */
+/** Updates the scope filter and reloads the list. */
 export async function setScopeFilter(
   scope: PermissionRuleScope | null,
 ): Promise<void> {
@@ -119,22 +119,22 @@ export async function setScopeFilter(
   await loadRules();
 }
 
-/** Met à jour le filtre par outil et recharge la liste. */
+/** Updates the per-tool filter and reloads the list. */
 export async function setToolFilter(tool: string | null): Promise<void> {
   filterTool.set(tool);
   await loadRules();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Chat-libre agent rules - règles `scope = 'agent'` pour `apollia:chat`.
+// Free-chat agent rules - `scope = 'agent'` rules for `apollia:chat`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Liste des règles agent-scoped attribuées à l'agent système Apollia Chat. */
+/** Rules scoped to the agent, assigned to the Apollia Chat system agent. */
 export const chatPermissionRules = writable<PermissionRuleDto[]>([]);
 export const loadingChatRules = writable<boolean>(false);
 export const chatRulesError = writable<string | null>(null);
 
-/** Recharge les règles `agent_id = "apollia:chat"` depuis le backend. */
+/** Reloads the `agent_id = "apollia:chat"` rules from the backend. */
 export async function loadChatRules(): Promise<void> {
   loadingChatRules.set(true);
   chatRulesError.set(null);
@@ -148,7 +148,7 @@ export async function loadChatRules(): Promise<void> {
   }
 }
 
-/** Supprime une règle agent-scoped puis met à jour le store local. */
+/** Deletes one agent-scoped rule, then updates the local store. */
 export async function deleteChatRule(id: number): Promise<void> {
   await invoke("delete_chat_permission_rule", { ruleId: id });
   chatPermissionRules.update((list) => list.filter((r) => r.id !== id));
@@ -158,7 +158,7 @@ export async function deleteChatRule(id: number): Promise<void> {
 // Active session authorizations - `scope = 'session'` in-memory only.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Autorisation in-memory accordée pendant une session de chat. */
+/** In-memory authorisation granted during one chat session. */
 export interface SessionAuthorizationDto {
   session_id: string;
   session_title: string | null;
@@ -170,7 +170,7 @@ export const sessionAuthorizations = writable<SessionAuthorizationDto[]>([]);
 export const loadingSessionAuths = writable<boolean>(false);
 export const sessionAuthsError = writable<string | null>(null);
 
-/** Recharge les autorisations in-memory de toutes les sessions actives. */
+/** Reloads the in-memory authorisations of every active session. */
 export async function loadSessionAuthorizations(): Promise<void> {
   loadingSessionAuths.set(true);
   sessionAuthsError.set(null);
@@ -186,7 +186,7 @@ export async function loadSessionAuthorizations(): Promise<void> {
   }
 }
 
-/** Retire une autorisation in-memory et rafraîchit le store. */
+/** Removes an in-memory authorisation and refreshes the store. */
 export async function revokeSessionAuthorization(
   sessionId: string,
   toolName: string,

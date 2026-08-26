@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * One activity entry in the Inbox "Activité" tab.
+   * One activity entry in the Inbox "Activity" tab.
    *
    * Picks an icon/color from the event name, surfaces the human-readable
    * label via `eventLabelKey`, and exposes a "Voir les logs" link that
@@ -39,8 +39,8 @@
   }
 
   function handleSeeLogs() {
-    // `agent_id` n'est pas persisté dans notification_logs, donc on retombe
-    // sur Observabilité → Chronologie qui filtre par task_id si dispo.
+    // `agent_id` is not persisted in notification_logs, so this falls back to
+    // Observability -> Timeline, which filters by task_id when it is there.
     if (entry.task_id) {
       navigateTo("observability");
       window.dispatchEvent(

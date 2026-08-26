@@ -24,7 +24,7 @@ export interface SttConfigView {
   input_device: string | null;
 }
 
-/** Configuration STT - vue CRUD avec types stricts (miroir de `SttConfigRow`). */
+/** STT configuration - CRUD view with strict types (mirrors `SttConfigRow`). */
 export interface SttConfig {
   enabled: boolean;
   model_path: string;

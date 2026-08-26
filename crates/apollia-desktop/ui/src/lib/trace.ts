@@ -1,16 +1,16 @@
 /**
- * Types pour la trace d'exécution event-sourced.
+ * Types of the event-sourced execution trace.
  *
- * Discriminated union sur `kind` : chaque variant a un payload typé. Les
- * `RuntimeEventDto` proviennent soit de `invoke("get_task_trace", ...)`
- * (replay paginé), soit du channel Tauri `"trace-event"` (live SSE).
+ * Discriminated union on `kind`: every variant has a typed payload. The
+ * `RuntimeEventDto` come either from `invoke("get_task_trace", ...)`
+ * (paginated replay) or from the Tauri channel `"trace-event"` (live SSE).
  *
- * Les payloads miroir 1:1 le mapping côté Rust dans
+ * The payloads mirror 1:1 the Rust mapping in
  * `crates/apollia-runtime/src/observability/persistor.rs::event_to_record`.
  */
 
 // ─────────────────────────────────────────────────────────────────
-// Payloads typés par kind
+// Payloads typed per kind
 // ─────────────────────────────────────────────────────────────────
 
 export interface AgentLogPayload {
@@ -36,19 +36,19 @@ export interface LlmCallFailedPayload {
   backend: string;
   model: string;
   error: string;
-  /** ErrorAnalysis (catégorie, sévérité, hint…) - opaque côté UI pour l'instant. */
+  /** ErrorAnalysis (category, severity, hint...), opaque to the UI for now. */
   analysis: Record<string, unknown>;
 }
 
 export interface ToolCallStartedPayload {
   tool_name: string;
-  /** JSON sérialisé. Peut être null si capture_tool_args = false. */
+  /** Serialised JSON. Can be null when capture_tool_args = false. */
   args_json: string | null;
 }
 
 export interface ToolCallCompletedPayload {
   tool_name: string;
-  /** JSON sérialisé. Peut être null si capture_tool_outputs = false ou tool sans output. */
+  /** Serialised JSON. Null when capture_tool_outputs = false, or the tool has no output. */
   output_json: string | null;
   exit_code: number | null;
   duration_ms: number;
@@ -92,25 +92,25 @@ export interface ActionParseErrorPayload {
 // Discriminated union
 // ─────────────────────────────────────────────────────────────────
 
-/** Champs communs à tous les événements de trace. */
+/** Fields common to every trace event. */
 interface RuntimeEventBase {
-  /** UUID v7 - clé primaire ordonnée chronologiquement. */
+  /** UUID v7 - chronologically ordered primary key. */
   eventId: string;
-  /** Tâche concernée. */
+  /** The task concerned. */
   taskId: string;
-  /** Agent émetteur. */
+  /** The emitting agent. */
   agentId: string;
-  /** Lien parent (tool_call_completed → started, A2A child → invoke). */
+  /** Parent link (tool_call_completed -> started, A2A child -> invoke). */
   parentEventId: string | null;
-  /** ID partagé sur une chaîne A2A. */
+  /** Id shared across one A2A chain. */
   correlationId: string | null;
-  /** Tour ReAct (NULL hors loop). */
+  /** ReAct turn (NULL outside the loop). */
   stepNum: number | null;
-  /** ISO 8601 RFC 3339 millisecondes. */
+  /** ISO 8601 RFC 3339, milliseconds. */
   ts: string;
 }
 
-/** Discriminated union - narrowing par `kind`. */
+/** Discriminated union - narrowing on `kind`. */
 export type RuntimeEventDto =
   | (RuntimeEventBase & { kind: "agent_log"; payload: AgentLogPayload })
   | (RuntimeEventBase & { kind: "thought"; payload: ThoughtPayload })
@@ -123,19 +123,19 @@ export type RuntimeEventDto =
   | (RuntimeEventBase & { kind: "a2a_invoke_completed"; payload: A2AInvokeCompletedPayload })
   | (RuntimeEventBase & { kind: "retry"; payload: RetryPayload })
   | (RuntimeEventBase & { kind: "action_parse_error"; payload: ActionParseErrorPayload })
-  // Fallback ouvert pour les variants ajoutés par les Lots futurs sans
-  // forcer un compile-error côté front (forward compat).
+  // Open fallback for the variants added later, so a new one does not force
+  // a compile error on the front side (forward compat).
   | (RuntimeEventBase & { kind: string; payload: Record<string, unknown> });
 
-/** Réponse paginée de `invoke("get_task_trace", ...)`. */
+/** Paginated response of `invoke("get_task_trace", ...)`. */
 export interface TraceResponse {
   taskId: string;
   events: RuntimeEventDto[];
-  /** Curseur à passer en `since` au prochain appel pour récupérer la suite. */
+  /** Cursor to pass as `since` on the next call to fetch the rest. */
   nextCursor: string | null;
 }
 
-/** Paramètres de `invoke("get_task_trace", ...)`. */
+/** Parameters of `invoke("get_task_trace", ...)`. */
 export interface GetTraceParams {
   taskId: string;
   since?: string | null;

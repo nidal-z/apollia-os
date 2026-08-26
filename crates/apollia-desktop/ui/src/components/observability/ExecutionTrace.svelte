@@ -1,22 +1,22 @@
 <script lang="ts">
   /**
-   * `ExecutionTrace` - vue conversation-like d'une exécution agent.
+   * `ExecutionTrace` - conversation-like view of one agent run.
    *
-   * Source unique : table `runtime_events` exposée via la commande Tauri
-   * `get_task_trace` (replay) et le bus `"trace-event"` (live).
+   * Single source: the `runtime_events` table, exposed through the Tauri
+   * command `get_task_trace` (replay) and the `"trace-event"` bus (live).
    *
-   * Trois contextes d'embedding :
-   * - `task` : dans `TaskDetail.svelte`, remplace `TaskTimeline`.
-   * - `chat` : dans `ChatConversation`, entre les messages.
-   * - `standalone` : page Observability dédiée.
+   * Three embedding contexts:
+   * - `task`: inside `TaskDetail.svelte`, replacing `TaskTimeline`.
+   * - `chat`: inside `ChatConversation`, between the messages.
+   * - `standalone`: the dedicated Observability page.
    *
-   * Deux skins :
-   * - `operator` : sémantique épurée (descriptions, pas de JSON).
-   * - `builder`  : tout est rendu (args bruts, model, tokens, retries).
+   * Two skins:
+   * - `operator`: pared-down semantics (descriptions, no JSON).
+   * - `builder` : everything is rendered (raw args, model, tokens, retries).
    *
-   * Le composant pair les `tool_call_started` avec leur `tool_call_completed`
-   * companion (via `parent_event_id`) avant de rendre, pour éviter d'afficher
-   * deux rangées par tool call.
+   * The component pairs each `tool_call_started` with its companion
+   * `tool_call_completed` (through `parent_event_id`) before rendering, so a
+   * tool call does not show two rows.
    */
   import { onDestroy, onMount } from "svelte";
   import { t } from "svelte-i18n";
@@ -36,11 +36,11 @@
 
   interface Props {
     taskId: string;
-    /** "task" / "chat" / "standalone" - détermine le rendu container. */
+    /** "task" / "chat" / "standalone" - decides the container rendering. */
     context?: "task" | "chat" | "standalone";
-    /** Override du `$uiMode` global. Sinon hérite. */
+    /** Override of the global `$uiMode`. Inherited otherwise. */
     skin?: UIMode | undefined;
-    /** "live" = abonné SSE, "replay" = chargement statique uniquement. */
+    /** "live" = subscribed to SSE, "replay" = static loading only. */
     mode?: "live" | "replay";
   }
 
@@ -57,15 +57,15 @@
   /**
    * Pair started ↔ completed/denied events.
    *
-   * Pour chaque `tool_call_started`, on cherche son companion
-   * `tool_call_completed` OU `tool_call_denied` dont
-   * `parent_event_id === started.event_id`. La paire est rendue comme un
-   * seul `TraceEventCard` ; le started seul reste affiché en spinner
-   * uniquement si AUCUN companion n'est encore arrivé.
+   * For every `tool_call_started`, its companion `tool_call_completed` OR
+   * `tool_call_denied` is looked up by `parent_event_id === started.event_id`.
+   * The pair is rendered as a single `TraceEventCard`; a lone started stays
+   * on a spinner only while NO companion has arrived yet.
    *
-   * Bug initial : on ne pairait que `completed`. Quand un outil était
-   * `denied` (sandbox, permission, manifest), le started restait en
-   * spinner « Reading… » à vie alors que l'événement de fin existait.
+   *
+   * The original defect: only `completed` was paired. When a tool was
+   * `denied` (sandbox, permission, manifest), the started stayed on the
+   * "Reading..." spinner forever although the closing event existed.
    */
   function pairEvents(events: RuntimeEventDto[]): {
     event: RuntimeEventDto;
@@ -87,7 +87,7 @@
         e.parentEventId &&
         closersByParent.has(e.parentEventId)
       ) {
-        // Ne pas rendre seul - déjà associé via le started.
+        // Do not render it alone - it is already attached to the started.
         continue;
       }
       if (e.kind === "tool_call_started") {
@@ -111,10 +111,10 @@
 
   onDestroy(() => {
     unsubscribeTraceLive(taskId);
-    // Ne pas clear - la trace peut être réaffichée si l'utilisateur revient.
-    // `clearTrace(taskId)` sera appelé manuellement par le parent en cas de
-    // pression mémoire. Pas un cas réel pour le MVP.
-    void clearTrace; // référence pour qu'eslint ne warn pas sur l'import.
+    // Do not clear - the trace can be shown again if the user comes back.
+    // `clearTrace(taskId)` is called by the parent by hand under memory
+    // pressure. Not a real case for the MVP.
+    void clearTrace; // referenced so eslint does not warn about the import.
   });
 
   async function loadMore() {

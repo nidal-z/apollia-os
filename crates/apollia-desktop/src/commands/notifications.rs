@@ -608,7 +608,7 @@ mod tests {
         // GIVEN a NotificationChannelView with specific events and a label
         let view = NotificationChannelView {
             id: "slack-ops".to_string(),
-            label: Some("Slack - Équipe Ops".to_string()),
+            label: Some("Slack - Ops team".to_string()),
             channel_type: "webhook".to_string(),
             enabled: true,
             config: serde_json::json!({"url": "https://hooks.slack.com/xxx"}),
@@ -626,7 +626,7 @@ mod tests {
 
         // THEN all fields are present
         assert_eq!(json["id"], "slack-ops");
-        assert_eq!(json["label"], "Slack - Équipe Ops");
+        assert_eq!(json["label"], "Slack - Ops team");
         assert_eq!(json["channel_type"], "webhook");
         assert_eq!(json["enabled"], true);
         assert_eq!(json["config"]["url"], "https://hooks.slack.com/xxx");
@@ -684,7 +684,7 @@ mod tests {
         // GIVEN a CreateChannelRequest with a free-form label
         let req = CreateChannelRequest {
             id: "new-channel".to_string(),
-            label: Some("Alertes Slack équipe".to_string()),
+            label: Some("Team Slack alerts".to_string()),
             channel_type: "webhook".to_string(),
             enabled: Some(true),
             config: serde_json::json!({"url": "https://example.com/hook"}),
@@ -697,7 +697,7 @@ mod tests {
 
         // THEN required fields are present, including label
         assert_eq!(json["id"], "new-channel");
-        assert_eq!(json["label"], "Alertes Slack équipe");
+        assert_eq!(json["label"], "Team Slack alerts");
         assert_eq!(json["channel_type"], "webhook");
         assert_eq!(json["config"]["url"], "https://example.com/hook");
     }

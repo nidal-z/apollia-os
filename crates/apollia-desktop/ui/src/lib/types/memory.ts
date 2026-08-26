@@ -1,6 +1,6 @@
 // ─── Memory entries and search ───
 
-/** Entrée mémoire unifiée (episodic | semantic | procedural). */
+/** Unified memory entry (episodic | semantic | procedural). */
 export interface MemoryEntry {
   id: string;
   entry_type: "episodic" | "semantic" | "procedural";
@@ -11,7 +11,7 @@ export interface MemoryEntry {
   score: number | null;
 }
 
-/** Résultat de recherche FTS5 mémoire. */
+/** FTS5 memory search result. */
 export interface MemorySearchResult {
   id: string;
   entry_type: "episodic" | "semantic";

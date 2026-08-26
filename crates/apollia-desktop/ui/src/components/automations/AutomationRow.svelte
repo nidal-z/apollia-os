@@ -278,7 +278,7 @@
       </Badge>
     </div>
 
-    <!-- DERNIÈRE EXÉC -->
+    <!-- LAST RUN -->
     <div class="w-24 text-caption text-muted-foreground text-right font-mono">
       {lastRunLabel}
     </div>

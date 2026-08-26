@@ -23,7 +23,7 @@
     live?: boolean;
     /** Hover affordance (used in zooms). */
     hover?: boolean;
-    /** Quick metrics: e.g. ["8 conversations", "12 tâches"]. */
+    /** Quick metrics: e.g. ["8 conversations", "12 tasks"]. */
     metrics?: string[];
     /** Accent color (CSS string). Defaults to primary. */
     color?: string;

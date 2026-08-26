@@ -17,7 +17,7 @@
 
   let { entry, namespace, open, onclose, ondelete }: Props = $props();
 
-  // ── Pretty-print JSON si la valeur est du JSON valide ───────────────────────
+  // ── Pretty-print the JSON when the value is valid JSON ──────────────────────
   const prettyValue = $derived.by(() => {
     if (!entry?.value) return { isJson: false, text: "" };
     const raw = entry.value;
@@ -96,7 +96,7 @@
 
 <Sheet {open} {onclose} width="lg">
   {#if entry}
-    <!-- Expressive depth : liseret de marque en tête du Sheet (point focal). -->
+    <!-- Expressive depth: brand rule at the head of the Sheet (focal point). -->
     <div class="h-0.5 w-full bg-gradient-primary" aria-hidden="true"></div>
     <SheetHeader title="" {onclose} closeLabel={$t("memory.sheet_close")} class="items-center px-6 py-4">
       {#snippet leading()}

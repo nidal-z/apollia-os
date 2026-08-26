@@ -236,7 +236,7 @@
   function taskToRow(task: TaskSummary): RowTask {
     return {
       id: task.id,
-      title: task.input_preview || "(sans titre)",
+      title: task.input_preview || "(untitled)",
       agent: task.agent_name || task.agent_id,
       status: mapTaskStatus(task.status),
       started: fmtRelative(task.created_at),

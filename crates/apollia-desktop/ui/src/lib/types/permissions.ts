@@ -2,79 +2,79 @@
 
 // ─── HITL Permission Types ────────────────────────────────────────────────────
 
-/** Champs communs à toutes les demandes de permission HITL. */
+/** Fields common to every HITL permission request. */
 export interface BasePermission {
-  /** Discriminant du type de permission. */
+  /** Discriminant of the permission type. */
   permission_type: string;
-  /** Identifiant unique de la demande de permission. */
+  /** Unique identifier of the permission request. */
   request_id: string;
-  /** Identifiant de l'agent à l'origine de la demande. */
+  /** Identifier of the agent behind the request. */
   agent_id: string;
 }
 
-/** Demande de permission pour l'exécution d'une commande bash. */
+/** Permission request to run a bash command. */
 export interface BashPermission extends BasePermission {
   permission_type: 'bash';
-  /** Commande complète à exécuter. */
+  /** Full command to run. */
   command: string;
-  /** Répertoire de travail de la commande. */
+  /** Working directory of the command. */
   working_dir: string;
 }
 
-/** Demande de permission pour l'édition d'un fichier existant. */
+/** Permission request to edit an existing file. */
 export interface FileEditPermission extends BasePermission {
   permission_type: 'file_edit';
-  /** Chemin du fichier modifié. */
+  /** Path of the modified file. */
   file_path: string;
-  /** Contenu original (avant modification). */
+  /** Original content (before the edit). */
   old_content: string;
-  /** Contenu résultant (après modification). */
+  /** Resulting content (after the edit). */
   new_content: string;
 }
 
-/** Demande de permission pour l'écriture d'un fichier (création ou écrasement). */
+/** Permission request to write a file (creation or overwrite). */
 export interface FileWritePermission extends BasePermission {
   permission_type: 'file_write';
-  /** Chemin du fichier ciblé. */
+  /** Path of the target file. */
   file_path: string;
-  /** Contenu à écrire. */
+  /** Content to write. */
   content: string;
-  /** Mode : création d'un nouveau fichier ou écrasement d'un existant. */
+  /** Mode: creating a new file, or overwriting an existing one. */
   mode: 'create' | 'overwrite';
 }
 
-/** Demande de permission pour une opération sur le système de fichiers. */
+/** Permission request for a filesystem operation. */
 export interface FilesystemPermission extends BasePermission {
   permission_type: 'filesystem';
-  /** Type d'opération. */
+  /** Type of operation. */
   operation: 'delete' | 'move' | 'mkdir';
-  /** Chemin source de l'opération. */
+  /** Source path of the operation. */
   path: string;
-  /** Chemin destination (uniquement pour `move`). */
+  /** Destination path (only for `move`). */
   target_path?: string;
 }
 
-/** Demande de permission pour l'invocation d'un outil MCP. */
+/** Permission request to invoke an MCP tool. */
 export interface McpPermission extends BasePermission {
   permission_type: 'mcp';
-  /** Nom du serveur MCP exposant l'outil. */
+  /** Name of the MCP server exposing the tool. */
   server_name: string;
-  /** Nom de l'outil MCP invoqué. */
+  /** Name of the invoked MCP tool. */
   tool_name: string;
-  /** Arguments transmis à l'outil. */
+  /** Arguments passed to the tool. */
   arguments: Record<string, unknown>;
 }
 
-/** Demande de permission générique (outil non typé). */
+/** Generic permission request (untyped tool). */
 export interface GenericPermission extends BasePermission {
   permission_type: 'generic';
-  /** Nom de l'outil. */
+  /** Tool name. */
   tool_name: string;
-  /** Entrée brute de l'outil. */
+  /** Raw tool input. */
   input: Record<string, unknown>;
 }
 
-/** Union discriminée de toutes les demandes de permission HITL. */
+/** Discriminated union of every HITL permission request. */
 export type ApollaPermission =
   | BashPermission
   | FileEditPermission

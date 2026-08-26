@@ -229,7 +229,7 @@ describe("i18n call sites - the repaired French entries are French", () => {
 
 /** Does this value carry a word, as opposed to a number, a symbol or a code? */
 function carriesAWord(value: string): boolean {
-  return /[A-Za-zÀ-ÿ]{3,}/.test(value);
+  return /[A-Za-z\u00C0-\u00FF]{3,}/.test(value);
 }
 
 /** Every leaf of a catalogue, flattened to its dotted key. */

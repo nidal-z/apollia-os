@@ -1,24 +1,24 @@
 /**
- * Préférences d'installation des packages d'agents.
+ * Install preferences of the agent packages.
  *
- * Pour l'instant un seul champ : `autoInstallPythonDeps`.
- * Quand ce flag est vrai, la modale d'install passe `depsConfirmed=true`
- * automatiquement au backend, sans demander de confirmation explicite à
- * l'utilisateur pour chaque package qui déclare des dépendances pip.
+ * One field for now: `autoInstallPythonDeps`.
+ * When that flag is true, the install modal passes `depsConfirmed=true` to
+ * the backend automatically, without asking the user for an explicit
+ * confirmation on every package that declares pip dependencies.
  *
- * Par défaut : `false` (sécurité par défaut - toute install qui touche
- * pip doit être explicitement consentie).
+ * Default: `false` (safe by default - every install that touches pip has to
+ * be consented to explicitly).
  *
- * Persisté en localStorage (pattern aligné sur `mode.ts`). `apollia.toml`
- * reste read-only depuis l'UI, donc on évite
- * d'y écrire ce genre de préférence.
+ * Persisted in localStorage (the pattern `mode.ts` follows). `apollia.toml`
+ * stays read-only from the UI, so a preference of this kind is not written
+ * there.
  */
 import { writable } from "svelte/store";
 
 const STORAGE_KEY = "apollia.agent-install-prefs";
 
 export interface AgentInstallPrefs {
-  /** Installer automatiquement les dépendances Python sans dialog de confirmation. */
+  /** Install the Python dependencies automatically, with no confirmation dialog. */
   autoInstallPythonDeps: boolean;
 }
 
@@ -43,8 +43,8 @@ function loadPersisted(): AgentInstallPrefs {
 }
 
 /**
- * Préférences d'install. Mises à jour persistées en localStorage.
- * Lire la valeur courante via `get(agentInstallPrefs)` (svelte/store).
+ * Install preferences. Updates are persisted in localStorage.
+ * Read the current value through `get(agentInstallPrefs)` (svelte/store).
  */
 export const agentInstallPrefs = writable<AgentInstallPrefs>(loadPersisted());
 
@@ -52,11 +52,11 @@ agentInstallPrefs.subscribe((value) => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
   } catch {
-    // localStorage indisponible - ignorer silencieusement.
+    // localStorage unavailable - ignore silently.
   }
 });
 
-/** Helper : flip un champ booléen et persister. */
+/** Helper: flip a boolean field and persist. */
 export function setAutoInstallPythonDeps(enabled: boolean): void {
   agentInstallPrefs.update((prefs) => ({ ...prefs, autoInstallPythonDeps: enabled }));
 }

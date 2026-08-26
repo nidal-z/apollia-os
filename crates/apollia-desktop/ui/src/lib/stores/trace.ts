@@ -1,16 +1,16 @@
 /**
- * Store des traces d'exécution event-sourced.
+ * Event-sourced execution trace store.
  *
- * Deux sources de données fusionnées par task_id :
- * 1. `loadTrace(taskId)` - fetch initial paginé via la commande Tauri
- *    `get_task_trace` (replay depuis SQLite).
- * 2. `subscribeTraceLive(taskId)` - abonnement au channel Tauri
- *    `"trace-event"` (le store fusionne déjà live et replay ; la voie SSE
- *    de bout en bout n'est pas encore branchée).
+ * Two sources of data, merged by task_id:
+ * 1. `loadTrace(taskId)` - initial paginated fetch through the Tauri command
+ *    `get_task_trace` (replay from SQLite).
+ * 2. `subscribeTraceLive(taskId)` - subscription to the Tauri channel
+ *    `"trace-event"` (the store already merges live and replay; the
+ *    end-to-end SSE path is not wired yet).
  *
- * Les événements sont indexés par `eventId` (UUIDv7 lex-ordonné), donc
- * insertion idempotente - si le live arrive avant le replay, le merge
- * détecte les doublons par eventId et conserve l'ordre.
+ * The events are indexed by `eventId` (lex-ordered UUIDv7), so insertion is
+ * idempotent: when a live event arrives before the replay, the merge detects
+ * the duplicate by eventId and keeps the order.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -19,19 +19,19 @@ import { writable, derived, type Readable } from "svelte/store";
 
 import type { GetTraceParams, RuntimeEventDto, TraceResponse } from "$lib/trace";
 
-/** Page size lors du fetch paginé. Cohérent avec le `MAX_LIMIT` côté Rust. */
+/** Page size of the paginated fetch. Matches `MAX_LIMIT` on the Rust side. */
 const FETCH_PAGE_SIZE = 500;
 
-/** État de chargement par task_id. */
+/** Loading state per task_id. */
 export interface TraceState {
   events: RuntimeEventDto[];
-  /** Cursor pour la prochaine page (null = fin atteinte). */
+  /** Cursor for the next page (null = the end was reached). */
   nextCursor: string | null;
-  /** `true` pendant un fetch initial / pagination. */
+  /** `true` during an initial fetch or a pagination step. */
   loading: boolean;
-  /** Dernière erreur de fetch - affichée dans le footer du composant. */
+  /** Last fetch error, displayed in the component footer. */
   error: string | null;
-  /** `true` si l'abonnement SSE live est actif. */
+  /** `true` when the live SSE subscription is active. */
   live: boolean;
 }
 
@@ -43,18 +43,18 @@ const EMPTY_STATE: TraceState = {
   live: false,
 };
 
-/** Map task_id → état complet. Source de vérité du store. */
+/** Map task_id -> full state. The source of truth of the store. */
 const _traceMap = writable<Map<string, TraceState>>(new Map());
 
-/** Dérivé : helper pour piocher l'état d'une task spécifique. */
+/** Derived: helper to pick the state of one specific task. */
 export function traceFor(taskId: string): Readable<TraceState> {
   return derived(_traceMap, ($m) => $m.get(taskId) ?? EMPTY_STATE);
 }
 
-/** Tableau d'unsubscribe handles indexé par taskId - pour cleanup. */
+/** Unsubscribe handles indexed by taskId, for cleanup. */
 const _liveUnsubs: Map<string, UnlistenFn> = new Map();
 
-/** Mute updater minimal. */
+/** Minimal mutating updater. */
 function _patch(taskId: string, patch: Partial<TraceState>): void {
   _traceMap.update((m) => {
     const prev = m.get(taskId) ?? EMPTY_STATE;
@@ -64,22 +64,22 @@ function _patch(taskId: string, patch: Partial<TraceState>): void {
 }
 
 /**
- * Insère / fusionne une liste d'événements dans l'état d'une task.
+ * Inserts or merges a list of events into the state of one task.
  *
- * Idempotent : un eventId déjà présent n'est pas dupliqué.
+ * Idempotent: an eventId already present is not duplicated.
  *
- * Ordre final : tri par `ts` (clé primaire), `eventId` en tiebreaker.
+ * Final order: sorted by `ts` (primary key), `eventId` as tiebreaker.
  *
- * Pourquoi pas `eventId` seul ? Certains variants comme `tool_call_started`
- * pré-génèrent leur UUIDv7 *côté producteur* (`ToolProxy::call`) pour servir
- * de `parent_event_id` au companion `tool_call_completed`. D'autres comme
- * `thought` ne reçoivent leur UUIDv7 qu'au moment où le persistor les
- * consomme du bus. Conséquence : un `tool_call_started` émis APRÈS un
- * `thought` peut hériter d'un eventId lex-antérieur - l'ordre causal est
- * inversé. En revanche `ts` est posé par le persistor pour TOUS les
- * variants, et le bus broadcast est FIFO single-consumer ; donc `ts`
- * respecte l'ordre causal. EventId reste tiebreaker pour les égalités à
- * la milliseconde.
+ * Why not `eventId` alone? Some variants such as `tool_call_started`
+ * pre-generate their UUIDv7 *on the producer side* (`ToolProxy::call`) to
+ * serve as the `parent_event_id` of the companion `tool_call_completed`.
+ * Others such as `thought` only receive their UUIDv7 when the persistor
+ * consumes them from the bus. Consequence: a `tool_call_started` emitted
+ * AFTER a `thought` can inherit a lex-earlier eventId, and the causal order
+ * is inverted. `ts`, on the other hand, is set by the persistor for EVERY
+ * variant, and the broadcast bus is FIFO single-consumer, so `ts` respects
+ * the causal order. EventId stays the tiebreaker for ties at the
+ * millisecond.
  */
 function _mergeEvents(taskId: string, incoming: RuntimeEventDto[]): void {
   if (incoming.length === 0) return;
@@ -100,11 +100,11 @@ function _mergeEvents(taskId: string, incoming: RuntimeEventDto[]): void {
 }
 
 /**
- * Fetch initial / pagination d'une trace depuis le runtime.
+ * Initial fetch or pagination of a trace from the runtime.
  *
- * Sans `since`, repart du début (clear préalable de l'état).
- * Avec `since`, ajoute la prochaine page sans toucher aux événements
- * déjà chargés.
+ * Without `since`, it starts over from the beginning (the state is cleared
+ * first). With `since`, it appends the next page without touching the events
+ * already loaded.
  */
 export async function loadTrace(
   taskId: string,
@@ -137,23 +137,23 @@ export async function loadTrace(
 }
 
 /**
- * Charge l'intégralité de la trace en suivant les curseurs jusqu'au bout.
+ * Loads the whole trace, following the cursors to the end.
  *
- * Borné implicitement par `MAX_LIMIT` côté Rust (5000 events / page) ;
- * pour des traces très longues, l'UI doit virtualiser le rendu (cf.
+ * Implicitly bounded by `MAX_LIMIT` on the Rust side (5000 events per page);
+ * for very long traces the UI has to virtualise the rendering (see
  * ExecutionTrace.svelte).
  */
 export async function loadFullTrace(taskId: string): Promise<void> {
   await loadTrace(taskId, { reset: true });
   let cursor: string | null = null;
-  // Bound conservateur - empêche une boucle infinie si le serveur renvoie
-  // toujours nextCursor (ne devrait pas arriver, mais on ne fait jamais
-  // confiance aveuglément à un loop).
+  // Conservative bound: prevents an infinite loop should the server keep
+  // returning a nextCursor (it should not, but a loop is never trusted
+  // blindly).
   for (let i = 0; i < 50; i++) {
     const _state = await new Promise<TraceState>((resolve) => {
       const unsub = traceFor(taskId).subscribe((s) => {
         resolve(s);
-        // unsubscribe immédiat - on capture juste le snapshot.
+        // Unsubscribe immediately: only the snapshot is wanted here.
         Promise.resolve().then(() => unsub());
       });
     });
@@ -164,11 +164,11 @@ export async function loadFullTrace(taskId: string): Promise<void> {
 }
 
 /**
- * Enveloppe Tauri du bridge `EventBus → "runtime-event"`.
+ * Tauri envelope of the `EventBus -> "runtime-event"` bridge.
  *
- * Voir `apollia-desktop/src/events.rs::TauriRuntimeEvent`. Le bridge
- * route TOUS les `RuntimeEvent` du bus vers ce seul canal Tauri ; le
- * `category` permet aux stores de dispatcher sans parser chaque variant.
+ * See `apollia-desktop/src/events.rs::TauriRuntimeEvent`. The bridge routes
+ * EVERY `RuntimeEvent` of the bus to that single Tauri channel; `category`
+ * lets the stores dispatch without parsing each variant.
  */
 interface TauriRuntimeEvent {
   category: string;
@@ -177,28 +177,28 @@ interface TauriRuntimeEvent {
 }
 
 /**
- * Convertit une enveloppe `runtime-event` (variant `RuntimeEvent` Rust,
- * sérialisé externally-tagged en `{"VariantName": {...fields}}`) en un
- * `RuntimeEventDto` consommable par les composants UI.
+ * Converts a `runtime-event` envelope (a Rust `RuntimeEvent` variant,
+ * serialised externally-tagged as `{"VariantName": {...fields}}`) into a
+ * `RuntimeEventDto` the UI components can consume.
  *
- * Génère un `eventId` synthétique côté front (UUIDv4 random) - distinct
- * des UUIDv7 produits par l'`EventPersistor` côté Rust. Au reload du
- * panneau, `loadTrace` recharge depuis la DB avec les vrais event_ids et
- * remplace l'état (`reset: true`) - pas de doublons à terme.
+ * Generates a synthetic `eventId` on the front side (random UUIDv4),
+ * distinct from the UUIDv7 the Rust `EventPersistor` produces. When the
+ * panel reloads, `loadTrace` reads back from the DB with the real event_ids
+ * and replaces the state (`reset: true`), so no duplicate survives.
  *
- * Retourne `null` quand l'enveloppe ne porte pas un kind exposable côté
- * trace (ex : variants legacy d'un autre store).
+ * Returns `null` when the envelope does not carry a kind the trace exposes
+ * (a legacy variant of another store, for instance).
  */
 function envelopeToDto(env: TauriRuntimeEvent): RuntimeEventDto | null {
   if (env.category !== "trace-event") return null;
 
-  // Le payload est externally-tagged : `{"AgentLog": {task_id: "T", ...}}`.
+  // The payload is externally tagged: `{"AgentLog": {task_id: "T", ...}}`.
   const variantName = env.event_type;
   const variantPayload =
     (env.payload[variantName] as Record<string, unknown> | undefined) ?? null;
   if (variantPayload === null) return null;
 
-  // Mapping VariantName Rust → kind canonique (snake_case) côté trace.
+  // Mapping from the Rust VariantName to the canonical trace kind (snake_case).
   const kindMap: Record<string, string> = {
     AgentLog: "agent_log",
     Thought: "thought",
@@ -218,8 +218,8 @@ function envelopeToDto(env: TauriRuntimeEvent): RuntimeEventDto | null {
   const asString = (v: unknown): string =>
     typeof v === "string" ? v : "";
 
-  // Extraction des champs communs depuis la variante. Tous sont optionnels
-  // selon le variant - on prend ce qui est présent.
+  // Extraction of the common fields from the variant. All are optional
+  // depending on the variant, so whatever is present is taken.
   const taskId = asString(variantPayload.task_id);
   const agentId =
     asString(variantPayload.agent_id) ||
@@ -236,9 +236,9 @@ function envelopeToDto(env: TauriRuntimeEvent): RuntimeEventDto | null {
     typeof variantPayload.step_num === "number"
       ? variantPayload.step_num
       : null;
-  // Pour les started/completed qui portent leur event_id explicite, le
-  // réutiliser pour permettre au pairing client de fonctionner avant
-  // même que le DB ne soit interrogé.
+  // For the started/completed events that carry their explicit event_id,
+  // reuse it so the client-side pairing works before the DB is even
+  // queried.
   const eventId =
     typeof variantPayload.event_id === "string"
       ? variantPayload.event_id
@@ -258,15 +258,14 @@ function envelopeToDto(env: TauriRuntimeEvent): RuntimeEventDto | null {
 }
 
 /**
- * S'abonne aux événements live d'une task via le bus Tauri `"runtime-event"`.
+ * Subscribes to the live events of one task through the Tauri `"runtime-event"` bus.
  *
- * Filtre côté front sur la `category === "trace-event"` ET sur le
- * `taskId` cible - le bus transporte tous les events de toutes les
- * tasks et toutes les catégories.
+ * Filters on the front side on `category === "trace-event"` AND on the target
+ * `taskId`: the bus carries every event of every task and every category.
  *
- * Idempotent : appeler deux fois pour la même task n'ouvre qu'un seul
- * abonnement. Toujours appeler `unsubscribeTraceLive(taskId)` au démontage
- * du composant.
+ * Idempotent: calling it twice for the same task opens a single
+ * subscription. Always call `unsubscribeTraceLive(taskId)` when the component
+ * is torn down.
  */
 export async function subscribeTraceLive(taskId: string): Promise<void> {
   if (_liveUnsubs.has(taskId)) return;
@@ -280,7 +279,7 @@ export async function subscribeTraceLive(taskId: string): Promise<void> {
   _patch(taskId, { live: true });
 }
 
-/** Coupe l'abonnement live pour une task. À appeler dans `onDestroy`. */
+/** Cuts the live subscription of one task. Call it in `onDestroy`. */
 export function unsubscribeTraceLive(taskId: string): void {
   const fn = _liveUnsubs.get(taskId);
   if (fn) {
@@ -290,7 +289,7 @@ export function unsubscribeTraceLive(taskId: string): void {
   }
 }
 
-/** Vide entièrement la trace d'une task (ex: navigation, cleanup mémoire). */
+/** Empties the whole trace of one task (navigation, memory cleanup). */
 export function clearTrace(taskId: string): void {
   unsubscribeTraceLive(taskId);
   _traceMap.update((m) => {

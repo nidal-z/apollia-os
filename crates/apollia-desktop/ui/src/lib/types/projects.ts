@@ -2,7 +2,7 @@
 
 // ─── Projects ────────────────────────────────────────────────────────────────
 
-/** Résumé d'un projet dans la liste. */
+/** Summary of one project in the list. */
 export interface ProjectSummary {
   id: string;
   name: string;
@@ -12,7 +12,7 @@ export interface ProjectSummary {
   workspace_path: string | null;
 }
 
-/** Document attaché à un projet. */
+/** Document attached to a project. */
 export interface ProjectDocument {
   id: string;
   project_id: string;
@@ -22,7 +22,7 @@ export interface ProjectDocument {
   uploaded_at: string;
 }
 
-/** Provider de contexte configuré pour un projet. */
+/** Context provider configured for a project. */
 export interface ProjectProviderRow {
   id: string;
   project_id: string;
@@ -34,7 +34,7 @@ export interface ProjectProviderRow {
   priority: number;
 }
 
-/** Détail complet d'un projet. */
+/** Full detail of one project. */
 export interface ProjectDetail {
   id: string;
   name: string;
@@ -48,7 +48,7 @@ export interface ProjectDetail {
   agents: string[];
 }
 
-/** Template de projet prédéfini. */
+/** Predefined project template. */
 export interface ProjectTemplate {
   id: string;
   name: string;
@@ -58,7 +58,7 @@ export interface ProjectTemplate {
   created_at: string;
 }
 
-/** Payload pour la création d'un projet. */
+/** Payload creating a project. */
 export interface CreateProjectRequest {
   name: string;
   description?: string;
@@ -66,7 +66,7 @@ export interface CreateProjectRequest {
   workspace_path?: string;
 }
 
-/** Payload pour la mise à jour partielle d'un projet. */
+/** Payload partially updating a project. */
 export interface UpdateProjectRequest {
   name?: string;
   description?: string | null;
@@ -74,20 +74,20 @@ export interface UpdateProjectRequest {
   workspace_path?: string | null;
 }
 
-/** Section d'un snapshot workspace. */
+/** Section of a workspace snapshot. */
 export interface WorkspaceSectionView {
   source: string;
   title: string;
   content: string;
 }
 
-/** Snapshot workspace live d'un projet. */
+/** Live workspace snapshot of a project. */
 export interface WorkspaceSnapshotView {
   sections: WorkspaceSectionView[];
   error_count: number;
 }
 
-/** Status de l'installation CLI (modèle Docker Desktop). */
+/** CLI install status (Docker Desktop model). */
 export interface CliStatus {
   bundled: boolean;
   bundled_path: string | null;

@@ -160,7 +160,7 @@ mod tests {
         }
 
         // The negative case, so this test is known to be able to fail.
-        assert!(!english_openers.contains(&"Liste"));
+        assert!(!english_openers.contains(&"Liste")); // French, on purpose
     }
 
     #[test]

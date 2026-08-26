@@ -1,62 +1,62 @@
 // ─── Tools, workers and the agentic layer ───
 
-// ─── Système Agentique Amélioré ─────────────────────────────────
+// ─── Enhanced agentic system ────────────────────────────────────
 
-/** Résumé d'un outil pour l'affichage en liste. */
+/** Summary of one tool, for the list display. */
 export interface ToolSummary {
-  /** Nom unique de l'outil (ex: "bash_executor"). */
+  /** Unique tool name (for instance "bash_executor"). */
   name: string;
-  /** Version semver de l'outil. */
+  /** Semver version of the tool. */
   version: string;
-  /** Description humaine de l'outil. */
+  /** Human description of the tool. */
   description: string;
   /** Type d'outil : "native", "mcp", "python". */
   kind: string;
 }
 
-/** Vue détaillée d'un outil pour l'introspection (miroir Rust ToolDescriptor). */
+/** Detailed view of one tool for introspection (mirrors the Rust ToolDescriptor). */
 export interface ToolDescriptorView {
-  /** Nom unique de l'outil (ex: "bash_executor"). */
+  /** Unique tool name (for instance "bash_executor"). */
   name: string;
-  /** Version semver de l'outil. */
+  /** Semver version of the tool. */
   version: string;
-  /** Description humaine de l'outil. */
+  /** Human description of the tool. */
   description: string;
   /** Type d'outil : "native", "mcp", "python". */
   kind: string;
-  /** JSON Schema d'entrée (`null` si non défini). */
+  /** Input JSON Schema (`null` when undefined). */
   input_schema: Record<string, unknown> | null;
-  /** JSON Schema de sortie (`null` si non défini). */
+  /** Output JSON Schema (`null` when undefined). */
   output_schema: Record<string, unknown> | null;
-  /** Permissions requises par l'outil. */
+  /** Permissions the tool requires. */
   permissions: string[];
 }
 
-/** Statistiques du cache de plans ORIA. */
+/** Statistics of the ORIA plan cache. */
 export interface PlanCacheStats {
-  /** Nombre total d'entrées en cache. */
+  /** Total number of cached entries. */
   total_entries: number;
-  /** Nombre total de cache hits depuis le démarrage. */
+  /** Total number of cache hits since start-up. */
   cache_hits: number;
-  /** Nombre total de cache misses depuis le démarrage. */
+  /** Total number of cache misses since start-up. */
   cache_misses: number;
-  /** Taux de hit en pourcentage (0-100). */
+  /** Hit rate as a percentage (0-100). */
   hit_rate_pct: number;
-  /** Horodatage RFC 3339 de l'entrée la plus ancienne (`null` si cache vide). */
+  /** RFC 3339 timestamp of the oldest entry (`null` when the cache is empty). */
   oldest_entry_at: string | null;
-  /** Horodatage RFC 3339 de l'entrée la plus récente (`null` si cache vide). */
+  /** RFC 3339 timestamp of the newest entry (`null` when the cache is empty). */
   newest_entry_at: string | null;
 }
 
-/** Message échangé entre deux agents via la mailbox. */
+/** Message exchanged between two agents through the mailbox. */
 export interface AgentMessage {
-  /** Identifiant unique du message. */
+  /** Unique message identifier. */
   id: string;
-  /** Nom de l'agent expéditeur. */
+  /** Name of the sending agent. */
   from_agent: string;
-  /** Nom de l'agent destinataire. */
+  /** Name of the receiving agent. */
   to_agent: string;
-  /** Contenu du message (JSON arbitraire). */
+  /** Message content (arbitrary JSON). */
   payload: Record<string, unknown>;
   /** Horodatage d'envoi RFC 3339. */
   sent_at: string;

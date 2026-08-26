@@ -1,7 +1,7 @@
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 
-/** Snapshot d'un outil natif renvoyé par `governance_list_tools`. */
+/** Snapshot of one native tool, as `governance_list_tools` returns it. */
 export interface ToolStatusDto {
   name: string;
   enabled: boolean;
@@ -10,14 +10,14 @@ export interface ToolStatusDto {
   active_backend: string | null;
 }
 
-/** Résultat d'une validation live de credential. */
+/** Result of a live credential validation. */
 export interface CredentialTestResultDto {
   ok: boolean;
   latency_ms: number | null;
   error: string | null;
 }
 
-/** Store global de la page `/settings/tools`. */
+/** Global store of the `/settings/tools` page. */
 export const tools = writable<ToolStatusDto[]>([]);
 export const loadingTools = writable<boolean>(false);
 export const toolsError = writable<string | null>(null);
@@ -26,7 +26,7 @@ function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** Recharge la liste complète des outils depuis le backend. */
+/** Reloads the full tool list from the backend. */
 export async function loadTools(): Promise<void> {
   loadingTools.set(true);
   toolsError.set(null);
@@ -41,8 +41,8 @@ export async function loadTools(): Promise<void> {
 }
 
 /**
- * Active ou désactive un outil. Le store applique l'état optimiste avant
- * l'appel et rollback automatiquement si l'IPC échoue.
+ * Enables or disables a tool. The store applies the optimistic state before
+ * the call, and rolls back automatically when the IPC fails.
  */
 export async function toggleTool(name: string, enabled: boolean): Promise<void> {
   const previous = get(tools);
@@ -58,7 +58,7 @@ export async function toggleTool(name: string, enabled: boolean): Promise<void> 
   }
 }
 
-/** Lit la configuration JSON d'un outil. */
+/** Reads the JSON configuration of one tool. */
 export async function getToolConfig(
   name: string,
 ): Promise<Record<string, unknown> | null> {
@@ -69,7 +69,7 @@ export async function getToolConfig(
   return value;
 }
 
-/** Persiste la configuration JSON d'un outil et synchronise le store local. */
+/** Persists the JSON configuration of one tool and syncs the local store. */
 export async function updateToolConfig(
   name: string,
   config: Record<string, unknown>,
@@ -81,8 +81,8 @@ export async function updateToolConfig(
 }
 
 /**
- * Stocke une credential pour un outil. La valeur claire est transmise une
- * unique fois à Rust et n'est pas conservée côté frontend.
+ * Stores a credential for one tool. The clear value is passed to Rust once,
+ * and is not kept on the frontend side.
  */
 export async function setCredential(
   toolName: string,
@@ -99,7 +99,7 @@ export async function setCredential(
   );
 }
 
-/** Supprime une credential pour un outil. */
+/** Deletes a credential of one tool. */
 export async function deleteCredential(
   toolName: string,
   keyName: string,
@@ -114,7 +114,7 @@ export async function deleteCredential(
   );
 }
 
-/** Teste une credential live (web_search/Brave aujourd'hui). */
+/** Tests a live credential (web_search/Brave today). */
 export async function testCredential(
   toolName: string,
 ): Promise<CredentialTestResultDto> {
@@ -124,8 +124,8 @@ export async function testCredential(
 }
 
 /**
- * Recharge l'état des outils depuis la DB. Pas de redémarrage du dispatcher
- * exposé côté IPC : le bouton "Recharger" actualise la liste rendue.
+ * Reloads the tool state from the DB. No dispatcher restart is exposed over
+ * IPC: the "Reload" button refreshes the rendered list.
  */
 export async function reloadDispatcher(): Promise<void> {
   await loadTools();

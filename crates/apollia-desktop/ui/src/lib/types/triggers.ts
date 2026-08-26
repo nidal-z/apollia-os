@@ -1,6 +1,6 @@
 // ─── Triggers ───
 
-/** Statut d'un trigger configuré. */
+/** Status of one configured trigger. */
 export interface TriggerStatus {
   id: string;
   agent: string;
@@ -12,7 +12,7 @@ export interface TriggerStatus {
   last_fired: string | null;
 }
 
-/** Entrée d'historique d'un trigger. */
+/** History entry of one trigger. */
 export interface TriggerLogEntry {
   id: string;
   trigger_id: string;
@@ -23,17 +23,17 @@ export interface TriggerLogEntry {
   reason: string | null;
 }
 
-/** Résultat d'un fire manuel de trigger. */
+/** Result of firing a trigger by hand. */
 export interface TriggerFireResult {
   task_id: string;
 }
 
-/** Résultat du rechargement de la config triggers. */
+/** Result of reloading the triggers config. */
 export interface TriggerReloadResult {
   reloaded: number;
 }
 
-/** Vue complète d'un trigger retournée par les opérations CRUD. */
+/** Full view of one trigger returned by the CRUD operations. */
 export interface TriggerDefinitionView {
   id: string;
   agent: string | null;
@@ -46,7 +46,7 @@ export interface TriggerDefinitionView {
   updated_at: string;
 }
 
-/** Configuration source dans les requêtes CRUD trigger. */
+/** Source configuration in the trigger CRUD requests. */
 export type TriggerSourceInput =
   | { type: "cron"; schedule: string }
   | { type: "interval"; every: string }
@@ -54,7 +54,7 @@ export type TriggerSourceInput =
   | { type: "file_watch"; path: string; events: string[]; recursive?: boolean }
   | { type: "webhook"; secret: string };
 
-/** Corps de requête pour la création d'un trigger. */
+/** Request body creating a trigger. */
 export interface CreateTriggerRequest {
   id: string;
   agent?: string;
@@ -64,7 +64,7 @@ export interface CreateTriggerRequest {
   input_template?: string;
 }
 
-/** Corps de requête pour la mise à jour d'un trigger. */
+/** Request body updating a trigger. */
 export interface UpdateTriggerRequest {
   agent?: string;
   enabled?: boolean;

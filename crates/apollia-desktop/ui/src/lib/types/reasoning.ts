@@ -113,7 +113,7 @@ export interface InjectedEntry {
 
 // ── Session metrics ────────────────────────────────
 
-/** Timing d'un appel outil avec delta par rapport au hint statique. */
+/** Timing of one tool call, with the delta against the static hint. */
 export interface ToolTiming {
   tool_name: string;
   expected_ms: number | null;
@@ -121,14 +121,14 @@ export interface ToolTiming {
   delta_pct: number | null;
 }
 
-/** Événement de compaction du contexte. */
+/** Context compaction event. */
 export interface SummarizationEvent {
   messages_summarized_count: number;
   tokens_saved: number;
   summary_excerpt: string;
 }
 
-/** Snapshot agrégé des métriques d'une session. */
+/** Aggregated snapshot of the metrics of one session. */
 export interface SessionMetrics {
   tokens_in: number;
   tokens_out: number;
@@ -141,10 +141,10 @@ export interface SessionMetrics {
   summarization_events: SummarizationEvent[];
 }
 
-/** Niveau d'alerte sur le budget tokens. */
+/** Alert level on the token budget. */
 export type BudgetAlertLevel = "ok" | "warning" | "block";
 
-/** Payload du runtime event `SessionMetricsUpdated`. */
+/** Payload of the `SessionMetricsUpdated` runtime event. */
 export interface SessionMetricsUpdatedEvent {
   session_id: string;
   metrics: SessionMetrics;
@@ -153,10 +153,10 @@ export interface SessionMetricsUpdatedEvent {
 
 // ─── ask_user tool - dynamic form payload ─────────────────────────────────
 
-/** Type de question posée par un agent via le tool `ask_user`. */
+/** Type of question an agent asks through the `ask_user` tool. */
 export type AskUserQuestionType = "open" | "single_choice" | "multi_choice";
 
-/** Une question individuelle dans une requête `ask_user`. */
+/** One individual question inside an `ask_user` request. */
 export interface AskUserQuestion {
   id: string;
   question: string;
@@ -165,13 +165,13 @@ export interface AskUserQuestion {
   hint?: string;
 }
 
-/** Réponse de l'opérateur à une question `ask_user`. */
+/** Operator answer to an `ask_user` question. */
 export interface AskUserAnswer {
   id: string;
-  /** Valeur unique pour les questions `open` ou `single_choice` (null = sans réponse). */
+  /** Single value for `open` or `single_choice` questions (null = no answer). */
   value?: string | null;
-  /** Valeurs multiples pour les questions `multi_choice`. */
+  /** Multiple values for `multi_choice` questions. */
   values?: string[];
-  /** `true` si l'opérateur n'a pas répondu (validation soft). */
+  /** `true` when the operator did not answer (soft validation). */
   skipped: boolean;
 }

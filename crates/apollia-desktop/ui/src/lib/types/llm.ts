@@ -1,6 +1,6 @@
 // ─── LLM backends and cost statistics ───
 
-/** Backend LLM configuré - vue CRUD retournée par `list_llm_backends`. */
+/** Configured LLM backend - CRUD view returned by `list_llm_backends`. */
 export interface LlmBackendConfig {
   name: string;
   provider: "llama-cpp" | "openai" | "mistral" | "anthropic" | "ollama";
@@ -8,13 +8,13 @@ export interface LlmBackendConfig {
   config_json: Record<string, unknown>;
   enabled: boolean;
   is_default: boolean;
-  /** Message d'erreur du dernier ping en RAM (absent = jamais pingé ou dernier OK). */
+  /** Error message of the last in-memory ping (absent = never pinged, or last one OK). */
   last_ping_error?: string | null;
-  /** Horodatage RFC 3339 du dernier ping (absent = jamais pingé). */
+  /** RFC 3339 timestamp of the last ping (absent = never pinged). */
   last_ping_at?: string | null;
 }
 
-/** Résultat d'un ping LLM. */
+/** Result of an LLM ping. */
 export interface LlmPingResult {
   backend: string;
   available: boolean;
@@ -22,7 +22,7 @@ export interface LlmPingResult {
   error: string | null;
 }
 
-/** Ligne de statistiques coût/tokens. */
+/** One row of cost and token statistics. */
 export interface LlmCostStatsRow {
   backend: string;
   model: string;
@@ -31,7 +31,7 @@ export interface LlmCostStatsRow {
   total_cost_usd: number;
 }
 
-/** Réponse agrégée des statistiques coût/tokens. */
+/** Aggregated response of the cost and token statistics. */
 export interface LlmCostStatsResponse {
   rows: LlmCostStatsRow[];
   days: number;

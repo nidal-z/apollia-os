@@ -1,9 +1,9 @@
 import { writable, derived, get } from "svelte/store";
 
-/** Routes disponibles dans l'application desktop. */
+/** Routes available in the desktop application. */
 export type Route = "dashboard" | "agents" | "tasks" | "chat" | "inbox" | "integrations" | "llm" | "automations" | "projects" | "memory" | "transcriptions" | "notifications" | "observability" | "settings" | "design" | "design-motion" | "design-empty-states" | "design-dark-mode";
 
-/** Store réactif de la route active. Default = 'dashboard'. */
+/** Reactive store of the active route. Default = 'dashboard'. */
 export const currentRoute = writable<Route>("dashboard");
 
 /** Navigation history for back/forward. */

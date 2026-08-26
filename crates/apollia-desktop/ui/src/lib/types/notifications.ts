@@ -1,51 +1,51 @@
 // ─── Notification channels and history ───
 
-/** Canal de notification configuré. */
+/** Configured notification channel. */
 export interface NotificationChannel {
   channel_id: string;
-  /** Nom affiché libre. `null` ou absent = retombe sur `channel_id`. */
+  /** Free display name. `null` or absent falls back to `channel_id`. */
   label?: string | null;
   type: "desktop" | "webhook";
   enabled: boolean;
   events: string[];
-  /** Intervalle minimal de throttling, en secondes (`0` = aucun). */
+  /** Minimum throttling interval, in seconds (`0` = none). */
   min_interval_seconds?: number;
 }
 
-/** Définition complète d'un canal retournée par les opérations CRUD. */
+/** Full channel definition returned by the CRUD operations. */
 export interface NotificationChannelView {
   id: string;
-  /** Nom affiché libre. `null` = aucun label. */
+  /** Free display name. `null` = no label. */
   label: string | null;
   channel_type: "desktop" | "webhook";
   enabled: boolean;
   config: Record<string, unknown>;
   events: string[] | null;
-  /** Intervalle minimal de throttling, en secondes (`0` = aucun). */
+  /** Minimum throttling interval, in seconds (`0` = none). */
   min_interval_seconds: number;
   created_at: string;
   updated_at: string;
 }
 
-/** Corps de requête pour la création d'un canal de notification. */
+/** Request body creating a notification channel. */
 export interface CreateChannelRequest {
   id: string;
-  /** Nom affiché (libre, max 80 chars). Omettre si pas de label. */
+  /** Display name (free, 80 chars max). Omit it when there is no label. */
   label?: string;
   channel_type: "desktop" | "webhook";
   enabled: boolean;
   config: Record<string, unknown>;
   events?: string[];
-  /** Intervalle minimal de throttling, en secondes. Omettre = `0` (aucun). */
+  /** Minimum throttling interval, in seconds. Omitted = `0` (none). */
   min_interval_seconds?: number;
 }
 
 /**
- * Corps de requête pour la mise à jour d'un canal de notification.
+ * Request body updating a notification channel.
  *
- * Sémantique du champ `label` :
- * - clé absente → conserver le label existant ;
- * - `label: null` → effacer le label ;
+ * Semantics of the `label` field:
+ * - key absent -> keep the existing label;
+ * - `label: null` -> clear the label;
  * - `label: "texte"` → remplacer.
  */
 export interface UpdateChannelRequest {
@@ -54,11 +54,11 @@ export interface UpdateChannelRequest {
   enabled?: boolean;
   config?: Record<string, unknown>;
   events?: string[];
-  /** Nouvel intervalle de throttling. Omettre = conserver l'existant. */
+  /** New throttling interval. Omitted = keep the existing one. */
   min_interval_seconds?: number;
 }
 
-/** Résultat du test d'un canal de notification. */
+/** Result of testing a notification channel. */
 export interface ChannelTestResult {
   channel_id: string;
   status: "ok" | "error" | "disabled";
@@ -66,7 +66,7 @@ export interface ChannelTestResult {
   latency_ms: number | null;
 }
 
-/** Entrée de l'historique des notifications. */
+/** Entry of the notification history. */
 export interface NotificationLogEntry {
   id: string;
   event_name: string;

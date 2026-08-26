@@ -61,7 +61,7 @@ pub async fn install_agent_package(
 
     let aggregate_pkgs = pkg.manifest.all_pip_packages();
 
-    // ── Step 2: confirmation requise pour les deps pip ─────────────────────
+    // ── Step 2: confirmation required for the pip deps ─────────────────────
     if !aggregate_pkgs.is_empty() && !deps_confirmed {
         return Err(format!(
             "DEPS_CONFIRMATION_REQUIRED:{}:{}",

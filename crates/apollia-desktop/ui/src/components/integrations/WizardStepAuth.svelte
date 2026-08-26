@@ -268,9 +268,9 @@
       </div>
 
       {#if oauthClientIdMissing}
-        <!-- Provider exigeant un enregistrement OAuth (Figma). On affiche un
-             champ de saisie pour que les users non-techniques n'aient PAS
-             à passer par une variable d'environnement. Persisté en
+        <!-- Provider that requires an OAuth registration (Figma). An input
+             field is shown so non-technical users do NOT have to go through
+             an environment variable. Persisted in
              keychain via `mcp_oauth_store_client_id`. -->
         <div class="space-y-2 rounded-md border border-warning/40 bg-warning/5 px-4 py-3" data-testid="auth-oauth-client-id-input">
           <p class="text-sm font-medium text-foreground">

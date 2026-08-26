@@ -7,47 +7,47 @@
   import { SidebarHeader, ListRow } from "$lib/components/operator";
 
   /**
-   * Catégorie sémantique d'un namespace mémoire.
-   * - `user` : profil utilisateur partagé (`__user__`).
-   * - `agent` : namespace d'un agent installé (correspond à `manifest.memory_namespace`).
-   * - `project` : namespace scopé à un projet (format `{project_id}:{namespace}`).
-   * - `other` : non classifié (legacy, agents désinstallés, manuel).
+   * Semantic category of one memory namespace.
+   * - `user`: shared user profile (`__user__`).
+   * - `agent`: namespace of an installed agent (matches `manifest.memory_namespace`).
+   * - `project`: namespace scoped to a project (format `{project_id}:{namespace}`).
+   * - `other`: unclassified (legacy, uninstalled agents, manual).
    */
   export type NamespaceCategory = "user" | "agent" | "project" | "other";
 
   export interface NamespaceItem {
     name: string;
-    /** Total entries (toutes types confondus). Optionnel - affiché si défini. */
+    /** Total entries (every type). Optional - displayed when defined. */
     count?: number;
-    /** Catégorie pour le filtre - calculée par le caller. */
+    /** Category for the filter - computed by the caller. */
     category: NamespaceCategory;
-    /** Label humain optionnel (ex: nom de l'agent, nom du projet) à afficher en lieu et place du nom raw. */
+    /** Optional human label (agent name, project name) shown in place of the raw name. */
     displayName?: string;
   }
 
   interface Props {
     namespaces: NamespaceItem[];
     selected: string;
-    /** Loading state - affiche un placeholder. */
+    /** Loading state - shows a placeholder. */
     loading?: boolean;
     onselect: (namespace: string) => void;
   }
 
   let { namespaces, selected, loading = false, onselect }: Props = $props();
 
-  // ── État local : filtre par catégorie + filtre texte ─────────────────────────
+  // ── Local state: category filter plus text filter ───────────────────────────
   type CategoryFilter = "all" | NamespaceCategory;
   let categoryFilter = $state<CategoryFilter>("all");
   let filterQuery = $state("");
 
-  // Compteurs par catégorie
+  // Counters per category
   const counts = $derived.by(() => {
     const c = { all: namespaces.length, user: 0, agent: 0, project: 0, other: 0 };
     for (const ns of namespaces) c[ns.category]++;
     return c;
   });
 
-  // Liste filtrée (catégorie + recherche texte)
+  // Filtered list (category plus text search)
   const filteredNamespaces = $derived.by(() => {
     let list = categoryFilter === "all"
       ? namespaces
@@ -63,7 +63,7 @@
     return list;
   });
 
-  // Groupage : filtre "all" regroupe par catégorie, sinon liste plate.
+  // Grouping: the "all" filter groups by category, otherwise a flat list.
   const grouped = $derived.by(() => {
     if (categoryFilter !== "all") {
       return [{ category: categoryFilter, items: filteredNamespaces }];
@@ -77,7 +77,7 @@
     return groups;
   });
 
-  // ── Définition des chips de filtre catégorie ─────────────────────────────────
+  // ── Definition of the category filter chips ─────────────────────────────────
   type FilterChipDef = { key: CategoryFilter; labelKey: string; Icon: typeof Database };
   const filterChips: FilterChipDef[] = [
     { key: "all", labelKey: "memory.namespaces.cat_all", Icon: Layers },
@@ -168,7 +168,7 @@
     {:else}
       {#each grouped as group}
         {#if categoryFilter === "all" && grouped.length > 1}
-          <!-- Group header (uniquement si plusieurs catégories visibles) -->
+          <!-- Group header (only when several categories are visible) -->
           {@const GroupIcon = categoryIcon(group.category)}
           <div class="mt-1 flex items-center gap-1.5 px-3 py-1.5 text-overline uppercase text-muted-foreground/70 first:mt-0">
             <GroupIcon size={9} />

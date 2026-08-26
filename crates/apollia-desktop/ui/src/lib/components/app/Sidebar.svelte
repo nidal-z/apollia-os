@@ -36,7 +36,7 @@
     { route: "observability" as Route, Icon: Activity,        labelKey: "nav.sidebar.observability", badge: "none"      },
   ];
 
-  // Cluster Builder - vues purement techniques (apparaît uniquement en mode Builder).
+  // Builder cluster - purely technical views (shown in Builder mode only).
   const BUILDER_NAV = [
     { route: "llm"            as Route, Icon: Brain, labelKey: "nav.sidebar.llm" },
     { route: "transcriptions" as Route, Icon: Mic,   labelKey: "nav.sidebar.transcriptions" },
@@ -312,7 +312,7 @@
     <!-- Spacer -->
     <div class="flex-1"></div>
 
-    <!-- Secondary nav (Connexions, Paramètres) -->
+    <!-- Secondary nav (Connections, Settings) -->
     {#each SECONDARY_NAV as item (item.route)}
       {@const isActive = $currentRoute === item.route}
       {@const label = $t(item.labelKey)}

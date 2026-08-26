@@ -1,21 +1,21 @@
 /**
- * Layout store - source de vérité pour l'état du sidebar et du companion.
+ * Layout store - the source of truth for the sidebar and companion state.
  *
- * Dérive `sidebarState` de la viewport via `window.matchMedia` :
- *   - ≥ `lg` (1024 px) → `expanded` ou `icon` selon la préférence utilisateur
- * - `md`–`lg` → `icon` forcé (auto-collapse)
+ * Derives `sidebarState` from the viewport through `window.matchMedia`:
+ *   - >= `lg` (1024 px) -> `expanded` or `icon`, per the user preference
+ * - `md`-`lg` -> `icon` forced (auto-collapse)
  *   - < `md`          → `drawer` overlay
  *
- * La préférence `expanded` / `collapsed` à `lg+` est persistée dans
- * `localStorage` sous la clé `apollia.ui.sidebar`.
+ * The `expanded` / `collapsed` preference at `lg+` is persisted in
+ * `localStorage` under the key `apollia.ui.sidebar`.
  */
 import { derived, get, readable, writable, type Readable } from "svelte/store";
 import { companionStore } from "./companion";
 
-/** État effectif de la sidebar à un instant donné. */
+/** Effective state of the sidebar at a given moment. */
 export type SidebarState = "expanded" | "icon" | "drawer";
 
-/** Préférence utilisateur persistée. Ne s'applique qu'à `lg+`. */
+/** Persisted user preference. It only applies at `lg+`. */
 type SidebarPreference = "expanded" | "collapsed";
 
 type Viewport = "sm" | "md" | "lg";
@@ -24,7 +24,7 @@ type Viewport = "sm" | "md" | "lg";
 const LEGACY_KEY = "apollia.ui.sidebar";
 // Per-breakpoint key prefix. Values : `open | collapsed | hidden`.
 const STATE_KEY_PREFIX = "apollia.ui.sidebarState_";
-// Breakpoints canoniques - voir `src/lib/design/breakpoints.md`.
+// Canonical breakpoints - see `src/lib/design/breakpoints.md`.
 const MD_QUERY = "(min-width: 768px)";
 const LG_QUERY = "(min-width: 1024px)";
 
@@ -83,7 +83,7 @@ function savePreference(pref: SidebarPreference): void {
   saveState("lg", pref === "collapsed" ? "collapsed" : "open");
 }
 
-/** Store read-only de la viewport courante, mis à jour via `matchMedia`. */
+/** Read-only store of the current viewport, updated through `matchMedia`. */
 const viewport: Readable<Viewport> = readable<Viewport>(computeViewport(), (set) => {
   if (globalThis.window === undefined) return;
   const mdMql = globalThis.matchMedia(MD_QUERY);
@@ -110,8 +110,8 @@ drawerOpenInternal.subscribe((open) => {
 });
 
 /**
- * État sidebar dérivé de la viewport et de la préférence utilisateur.
- * Mobile-first : toute viewport < `md` force `drawer`.
+ * Sidebar state derived from the viewport and the user preference.
+ * Mobile first: any viewport under `md` forces `drawer`.
  */
 export const sidebarState: Readable<SidebarState> = derived(
   [viewport, preference],
@@ -122,19 +122,19 @@ export const sidebarState: Readable<SidebarState> = derived(
   },
 );
 
-/** `true` quand la sidebar est rendue en overlay ET ouverte. */
+/** `true` when the sidebar is rendered as an overlay AND open. */
 export const drawerOpen: Readable<boolean> = derived(
   [sidebarState, drawerOpenInternal],
   ([$s, $o]) => $s === "drawer" && $o,
 );
 
-/** Mirror du companion pour observer sidebar + companion ensemble. */
+/** Mirror of the companion, to observe sidebar and companion together. */
 export const companionOpen: Readable<boolean> = derived(
   companionStore,
   ($c) => $c.visible && !$c.minimized,
 );
 
-/** Vue agrégée - utile pour les tests / la télémétrie / le debug. */
+/** Aggregated view - useful for the tests, the telemetry and debugging. */
 export const layout: Readable<{
   sidebarState: SidebarState;
   drawerOpen: boolean;
@@ -149,9 +149,9 @@ export const layout: Readable<{
 );
 
 /**
- * Actions réactives sur le layout.
- * - `toggleSidebar` : collapse/expand à `lg+`, ouvre/ferme le drawer sous `md`,
- *   no-op entre `md` et `lg` (icon-only forcé).
+ * Reactive actions on the layout.
+ * - `toggleSidebar`: collapse/expand at `lg+`, open/close the drawer below
+ *   `md`, no-op between `md` and `lg` (icon-only is forced).
  */
 export const layoutActions = {
   toggleSidebar(): void {
@@ -161,7 +161,7 @@ export const layoutActions = {
       return;
     }
     if (v === "md") {
-      // icon-only forcé entre md et lg - pas de préférence utilisateur.
+      // icon-only forced between md and lg - no user preference here.
       return;
     }
     preference.update((p) => (p === "expanded" ? "collapsed" : "expanded"));

@@ -33,11 +33,11 @@ export async function previewPackage(path: string): Promise<PackagePreview> {
 }
 
 /**
- * Installe un package depuis un chemin local.
+ * Installs a package from a local path.
  *
- * Si `depsConfirmed` est `false` et que le manifeste déclare des packages pip,
- * le backend renvoie l'erreur `DEPS_CONFIRMATION_REQUIRED:<n>:<csv>` que
- * l'UI doit parser pour afficher une étape de confirmation explicite.
+ * When `depsConfirmed` is `false` and the manifest declares pip packages, the
+ * backend returns the error `DEPS_CONFIRMATION_REQUIRED:<n>:<csv>`, which the
+ * UI has to parse to show an explicit confirmation step.
  */
 export async function installPackage(
   path: string,
@@ -62,17 +62,17 @@ export async function getPackageDetail(name: string): Promise<AgentPackageDetail
   return invoke<AgentPackageDetailView>("get_agent_package_detail", { name });
 }
 
-/** Aperçu de l'état runtime agrégé d'un package. */
+/** Overview of the aggregated runtime state of one package. */
 export interface PackageRuntimeState {
   totalAgents: number;
   runningAgents: number;
   totalTriggers: number;
   enabledTriggers: number;
-  /** "running" si tous les agents sont actifs, "stopped" si aucun ne tourne, "partial" sinon. */
+  /** "running" when every agent is active, "stopped" when none runs, "partial" otherwise. */
   status: "running" | "stopped" | "partial";
 }
 
-/** Calcule l'état agrégé d'un package depuis les snapshots agents/triggers. */
+/** Computes the aggregated state of a package from the agent and trigger snapshots. */
 export function packageRuntimeState(
   pkg: AgentPackageListItem,
   agentsSnap: AgentListItem[],
@@ -105,12 +105,12 @@ export function packageRuntimeState(
 }
 
 /**
- * Démarre toutes les dépendances d'un package, dans l'ordre :
+ * Starts every dependency of a package, in this order:
  *   1. triggers (activation)
  *   2. workers
  *   3. assistants / director
  *
- * Les erreurs individuelles sont collectées et retournées sans interrompre la séquence.
+ * Individual errors are collected and returned without interrupting the sequence.
  */
 export async function startPackage(
   pkg: AgentPackageListItem,
@@ -134,7 +134,7 @@ export async function startPackage(
     }
   }
 
-  // 2. Workers, puis 3. Assistants / director - en deux passes ordonnées.
+  // 2. Workers, then 3. Assistants / director - two ordered passes.
   const isRunning = (a: AgentListItem) =>
     a.runtime_status === "active" || a.runtime_status === "degraded";
 
@@ -168,10 +168,10 @@ export async function startPackage(
 }
 
 /**
- * Arrête toutes les dépendances d'un package, dans l'ordre inverse :
+ * Stops every dependency of a package, in the reverse order:
  *   1. assistants / director
  *   2. workers
- *   3. triggers (désactivation)
+ *   3. triggers (disabling)
  */
 export async function stopPackage(
   pkg: AgentPackageListItem,

@@ -5,10 +5,10 @@
    * Behaviour:
    *   - progress bar timeout (via ApprovalTimer)
    *   - toast on auto-deny so the operator sees why the action failed
-   *   - convention "close = deny" conservée, documentée dans DS
-   *   - i18n du mot CONFIRM via `hitl.fs.critical_confirm_word`
-   *   - autofocus sur Deny (destructif par défaut) + trap via Dialog
-   *   - scope "always allow" exposé via ApprovalScopeSelect
+   *   - the "close = deny" convention is kept, and documented in the DS
+   *   - the CONFIRM word goes through i18n, `hitl.fs.critical_confirm_word`
+   *   - autofocus on Deny (destructive by default) plus the Dialog trap
+   *   - the "always allow" scope is exposed through ApprovalScopeSelect
    *
    * The heavy lifting of the decision is still `respond_hitl_filesystem`
    * on the Rust side ; only the UI shell changes.

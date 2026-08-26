@@ -6,12 +6,12 @@
    *   1. Describe - free-form textarea + templates shortcut.
    *   2. Schedule - human label preview + natural re-ask if confidence is low.
    *   3. Agent    - pre-selected if matched, dropdown otherwise.
-   *   4. Preview  - final card + "Activer cette automatisation" CTA.
+   *   4. Preview  - final card plus the "turn this automation on" CTA.
    *
    * Invokes `meta_parse_automation` (Tauri IPC) to translate the free-form
    * description into a `ParsedAutomation` payload. Never exposes a raw cron
    * expression to the operator ; the builder path (`CreateTriggerDialog`) stays
-   * available behind the "Mode avancé" toggle.
+   * available behind the advanced-mode toggle.
    */
   import { t, locale } from "svelte-i18n";
   import { fly } from "svelte/transition";

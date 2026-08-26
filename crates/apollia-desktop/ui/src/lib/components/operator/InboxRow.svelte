@@ -32,7 +32,7 @@
     /** Display timestamp (e.g. "il y a 2 min"). */
     timestamp: string;
     unread?: boolean;
-    /** Primary CTA - "Autoriser" / "Répondre" / "Résoudre" depending on type. */
+    /** Primary CTA - "Allow" / "Answer" / "Resolve", depending on the type. */
     onAction?: (e: MouseEvent) => void;
     /** Optional second action shown as an icon-only button before the
      *  primary CTA. Used for ask_user items to expose "Open the source

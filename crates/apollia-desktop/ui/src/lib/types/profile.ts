@@ -69,14 +69,14 @@ export interface RejectedInsightEntry extends InsightEntry {
   rejected_at: string;
 }
 
-/** Événement de cache hit pour un plan d'exécution. */
+/** Cache hit event for an execution plan. */
 export interface PlanCacheHitEvent {
-  /** ID de la tâche qui a déclenché le cache hit. */
+  /** Id of the task that triggered the cache hit. */
   task_id: string;
-  /** Clé de cache SHA-256 qui a matché. */
+  /** SHA-256 cache key that matched. */
   cache_key: string;
-  /** ID du plan réutilisé depuis le cache. */
+  /** Id of the plan reused from the cache. */
   plan_id: string;
-  /** Horodatage RFC 3339 du cache hit. */
+  /** RFC 3339 timestamp of the cache hit. */
   timestamp: string;
 }

@@ -3,14 +3,14 @@
    * Renders a single `RuntimeEventDto` with a discriminated render path
    * per `kind`, parametrised by skin (operator vs builder).
    *
-   * - **Operator skin** : prose épurée, sémantique. Pas de JSON, pas de
-   *   model name, pas de tokens. Les events purement techniques
-   *   (`llm_call_started`, debug logs) sont silencieux.
-   * - **Builder skin** : tout est rendu. Prompts, args/output JSON
-   *   bruts, model, tokens, durées, retry chains.
+   * - **Operator skin**: pared-down, semantic prose. No JSON, no model
+   *   name, no tokens. The purely technical events (`llm_call_started`,
+   *   debug logs) stay silent.
+   * - **Builder skin**: everything is rendered. Prompts, raw args/output
+   *   JSON, model, tokens, durations, retry chains.
    *
-   * Le composant délègue à `describeBashCommand` / `describeToolCall` du
-   * util `bashDescriber.ts` pour la prose operator des tool calls.
+   * The component delegates to `describeBashCommand` / `describeToolCall` of
+   * the `bashDescriber.ts` util for the operator prose of the tool calls.
    */
   import { t } from "svelte-i18n";
   import {
@@ -68,7 +68,7 @@
 {#if event.kind === "agent_log"}
   {@const level = String(event.payload.level ?? "info")}
   {#if skin === "operator" && (level === "debug" || level === "info")}
-    <!-- Operator silence sur info/debug : pas de bruit -->
+    <!-- Operator stays silent on info/debug: no noise -->
   {:else}
     <div
       class="flex items-start gap-2 rounded-lg px-2.5 py-2 {level === 'error'
@@ -222,8 +222,8 @@
 
 {:else if event.kind === "tool_call_completed"}
   {#if completion === null}
-    <!-- Rendu seul si pas paired avec son started (cas exceptionnel -
-         normalement ExecutionTrace fait le pairing en amont). -->
+    <!-- Rendered alone when it is not paired with its started (an exception -
+         ExecutionTrace normally does the pairing upstream). -->
     {@const toolName = String(event.payload.tool_name ?? "")}
     {@const success = Boolean(event.payload.success)}
     <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-body-xs" data-testid="trace-event" data-kind="tool_call_completed">
@@ -370,7 +370,7 @@
   {/if}
 
 {:else}
-  <!-- Forward-compat : kinds inconnus (variants futurs) - affichage minimal en builder -->
+  <!-- Forward compat: unknown kinds (later variants) - minimal builder display -->
   {#if skin === "builder"}
     <div class="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-caption text-muted-foreground" data-testid="trace-event" data-kind={event.kind}>
       <MessageSquare size={11} class="shrink-0" />

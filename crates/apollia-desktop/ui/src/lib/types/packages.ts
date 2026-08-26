@@ -2,14 +2,14 @@
 
 // ─── Agent Packages ─────────────────────────────────────────────
 
-/** Résumé d'un agent dans un package. */
+/** Summary of one agent inside a package. */
 export interface PackageAgentSummary {
   name: string;
   role: "director" | "worker" | "assistant" | (string & {});
   entry: string;
 }
 
-/** Élément de la liste des packages installés. */
+/** Item of the installed package list. */
 export interface AgentPackageListItem {
   name: string;
   version: string;
@@ -21,7 +21,7 @@ export interface AgentPackageListItem {
   root_missing: boolean;
 }
 
-/** Détail complet d'un package. */
+/** Full detail of one package. */
 export interface AgentPackageDetailView {
   name: string;
   version: string;
@@ -35,7 +35,7 @@ export interface AgentPackageDetailView {
   manifest: Record<string, unknown>;
 }
 
-/** Preview d'un trigger (dry-run, sans validation stricte). */
+/** Preview of one trigger (dry run, no strict validation). */
 export interface TriggerPreview {
   id: string;
   source_type: "cron" | "interval" | "webhook" | "file_watch" | "oneshot" | (string & {});
@@ -47,13 +47,13 @@ export interface TriggerPreview {
   enabled: boolean;
 }
 
-/** Override de configuration pour un trigger (ex : secret webhook). */
+/** Configuration override for one trigger (a webhook secret, for instance). */
 export interface TriggerConfigOverride {
   id: string;
   secret?: string;
 }
 
-/** Résultat d'un preview (dry-run). */
+/** Result of a preview (dry run). */
 export interface PackagePreview {
   name: string;
   version: string;
@@ -67,7 +67,7 @@ export interface PackagePreview {
   error?: string;
 }
 
-/** Résultat d'une installation de package. */
+/** Result of a package install. */
 export interface InstallPackageResponse {
   name: string;
   version: string;

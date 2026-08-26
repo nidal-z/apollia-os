@@ -60,7 +60,7 @@
   <!-- Runtime health : global persistent banner across every route. -->
   <RuntimeStatusBanner />
 
-  <!-- Route content : padding responsive + conteneur centré. -->
+  <!-- Route content: responsive padding plus a centred container. -->
   <div class="w-full flex-1 overflow-auto">
     {#key $currentRoute}
       <PageTransition>

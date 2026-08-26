@@ -105,15 +105,15 @@
   );
 
   function proceedFromPreview() {
-    // Si l'utilisateur a activé l'auto-install dans Settings → System,
-    // on saute l'étape de confirmation des deps et on transmet directement
-    // depsConfirmed=true au backend.
+    // When the user turned auto-install on in Settings -> System, the deps
+    // confirmation step is skipped and depsConfirmed=true is passed straight
+    // to the backend.
     const autoInstall = get(agentInstallPrefs).autoInstallPythonDeps;
     if (hasPipDeps && autoInstall) {
       depsConfirmed = true;
     }
 
-    // Order: deps confirmation (sauf si auto-install ON) → webhook config → install.
+    // Order: deps confirmation (unless auto-install is on) -> webhook config -> install.
     if (hasPipDeps && !depsConfirmed) {
       step = "deps-confirm";
     } else if (needsConfig) {
@@ -148,16 +148,16 @@
       oninstalled(installResult!);
     } catch (e) {
       const err = String(e);
-      // Si le backend exige une confirmation explicite (race / stale state /
-      // auto-install désactivé entre temps), on bounce vers la nouvelle étape.
+      // When the backend demands an explicit confirmation (race, stale state,
+      // auto-install turned off meanwhile), bounce to the new step.
       const autoInstall = get(agentInstallPrefs).autoInstallPythonDeps;
       if (err.includes("DEPS_CONFIRMATION_REQUIRED") && !autoInstall) {
         installError = null;
         step = "deps-confirm";
       } else {
         installError = err;
-        // Revenir à l'étape utile la plus proche pour permettre une nouvelle
-        // tentative sans tout recommencer.
+        // Go back to the nearest useful step, so the user can try again
+        // without starting over.
         step = needsConfig ? "configure" : "preview";
       }
     }

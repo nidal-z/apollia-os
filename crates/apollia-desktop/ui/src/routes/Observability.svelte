@@ -91,8 +91,8 @@
     "hooks",
   ]);
 
-  // Operator: 4 tabs - Timeline · Coûts · Audit · Messagerie (lecture non-technique).
-  // Builder: 7 tabs - ajoute Delegation, Plan-Cache et Hooks (inspection exhaustive).
+  // Operator: 4 tabs - Timeline, Costs, Audit, Mailbox (non-technical reading).
+  // Builder: 7 tabs - adds Delegation, Plan-Cache and Hooks (full inspection).
   let tabItems = $derived.by(() => {
     const base = [
       { key: "timeline", label: $t("observability.tab_timeline") },

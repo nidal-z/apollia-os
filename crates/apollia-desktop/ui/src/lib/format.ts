@@ -20,7 +20,7 @@ export function formatCost(usd: number): string {
 }
 
 /**
- * Uppercase day headline, e.g. `SATURDAY, AUGUST 15` / `SAMEDI 15 AOÛT`.
+ * Uppercase day headline, e.g. `SATURDAY, AUGUST 15`, localised.
  *
  * Returns an empty string when the date cannot be formatted, so the headline
  * degrades to nothing rather than crashing the dashboard.

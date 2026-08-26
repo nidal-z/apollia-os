@@ -36,9 +36,9 @@
   <header>
     <h1 class="text-display-lg text-foreground">Dark-mode primitives</h1>
     <p class="mt-2 text-sm text-muted-foreground md:text-base">
-      Surfaces, badges, inputs et tokens <code class="text-caption">--glass-*</code> testés sur
-      warmth dark (<code class="text-caption">--surface-2</code>). Bascule le thème via
-      le <code class="text-caption">ThemeToggle</code> du header pour comparer light/dark.
+      Surfaces, badges, inputs and <code class="text-caption">--glass-*</code> tokens tested on
+      dark warmth (<code class="text-caption">--surface-2</code>). Switch the theme with
+      the header <code class="text-caption">ThemeToggle</code> to compare light and dark.
     </p>
   </header>
 
@@ -67,7 +67,7 @@
     <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">Badges</h2>
     <p class="text-xs text-muted-foreground">
       Variants <code class="text-caption">neutral | primary | success | warning | danger | info | outline</code>,
-      tailles <code class="text-caption">sm | md</code>, icône optionnelle.
+      sizes <code class="text-caption">sm | md</code>, optional icon.
     </p>
     <div class="space-y-3">
       {#each ["sm", "md"] as const as size (size)}
@@ -110,8 +110,8 @@
   <section class="space-y-3" data-testid="showcase-inputs">
     <h2 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">Inputs</h2>
     <p class="text-xs text-muted-foreground">
-      Focus ring pilote par <code class="text-caption">--ring</code> (= primary). Tab dans les champs
-      pour vérifier la couleur.
+      Focus ring driven by <code class="text-caption">--ring</code> (= primary). Tab into the fields
+      to check the colour.
     </p>
     <div class="grid gap-3 md:grid-cols-2">
       <label class="flex flex-col gap-1">

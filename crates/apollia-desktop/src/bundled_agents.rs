@@ -144,8 +144,8 @@ fn onboarding_manifest() -> AgentManifest {
         format_version: 1,
         name: "onboarding-agent".to_string(),
         version: ONBOARDING_AGENT_VERSION.to_string(),
-        description: "Agent d'onboarding conversationnel - fait connaissance \
-                      avec l'utilisateur de manière naturelle."
+        description: "Conversational onboarding agent - gets to know the \
+                      user in a natural way."
             .to_string(),
         tools_required: Vec::new(),
         tools_optional: Vec::new(),

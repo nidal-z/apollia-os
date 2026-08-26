@@ -9,11 +9,11 @@
 
   interface Props {
     entry: MemoryEntry;
-    /** True quand cette row est sélectionnée (panneau détail ouvert sur elle). */
+    /** True when this row is selected (the detail panel is open on it). */
     selected?: boolean;
-    /** True en mode résultat de recherche : affiche le score BM25 + le relevance-meter. */
+    /** True in search-result mode: shows the BM25 score plus the relevance meter. */
     searching?: boolean;
-    /** Relevance normalisée 0..1 pour la barre (reprend l'idiome chat `.tb-mbar`). */
+    /** Relevance normalised 0..1 for the bar (reuses the chat `.tb-mbar` idiom). */
     relevance?: number;
     onclick?: () => void;
     oncopy?: () => void;
@@ -33,7 +33,7 @@
   );
   const typeAbbr = $derived(typeLabel.slice(0, 4).toLowerCase());
 
-  // ── Preview tronquée (le détail complet vit dans le Sheet) ───────────────────
+  // ── Truncated preview (the full detail lives in the Sheet) ──────────────────
   const valuePreview = $derived.by(() => {
     if (!entry.value) return "";
     let v = entry.value.trim();
@@ -41,7 +41,7 @@
     return v.length > 120 ? v.slice(0, 120) + "…" : v;
   });
 
-  // ── Temps relatif localisé (Intl, aucune chaîne codée en dur) ────────────────
+  // ── Localised relative time (Intl, no hardcoded string) ─────────────────────
   function relative(iso: string): string {
     const rtf = new Intl.RelativeTimeFormat($locale ?? "en", { numeric: "auto", style: "narrow" });
     const diff = new Date(iso).getTime() - Date.now();
@@ -62,7 +62,7 @@
   );
   const relPct = $derived(relevance != null ? Math.round(Math.max(0, Math.min(1, relevance)) * 100) : null);
 
-  // ── Menu partagé (kebab + clic droit) ────────────────────────────────────────
+  // ── Shared menu (kebab plus right click) ────────────────────────────────────
   let menuOpen = $state(false);
   let confirmingDelete = $state(false);
   $effect(() => {
@@ -125,7 +125,7 @@
     </div>
 
     <div class="min-w-0 flex-1">
-      <!-- Ligne 1 : key + badges -->
+      <!-- Row 1: key plus badges -->
       <div class="flex min-w-0 items-center gap-2">
         <code class="truncate font-mono text-body-sm text-foreground" style:font-weight={selected ? 600 : 500} title={entry.key}>
           {entry.key}
@@ -141,7 +141,7 @@
       </div>
 
       {#if $uiMode === "operator"}
-        <!-- Aperçu humain + temps relatif -->
+        <!-- Human preview plus relative time -->
         <div class="mt-1.5 flex w-full min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
           {#if valuePreview}
             <span class="min-w-0 flex-1 truncate" title={entry.value}>{valuePreview}</span>

@@ -1,11 +1,11 @@
 import { writable, derived } from "svelte/store";
 import type { ProjectSummary } from "$lib/types";
 
-/** Liste réactive des projets chargés depuis la base SQLite. */
+/** Reactive list of the projects loaded from the SQLite database. */
 export const projects = writable<ProjectSummary[]>([]);
 
-/** Nombre total de projets. */
+/** Total number of projects. */
 export const projectCount = derived(projects, ($p) => $p.length);
 
-/** `true` quand aucun projet n'existe. */
+/** `true` when no project exists. */
 export const hasNoProjects = derived(projects, ($p) => $p.length === 0);

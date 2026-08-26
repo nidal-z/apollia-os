@@ -99,7 +99,7 @@ describe("companionStore - updateContext", () => {
   test("stores fetched context text and updates currentRoute", async () => {
     // GIVEN
     mockedInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "get_companion_context") return Promise.resolve("Vous êtes sur la page Agents.");
+      if (cmd === "get_companion_context") return Promise.resolve("You are on the Agents page.");
       return Promise.resolve(null);
     });
 
@@ -108,7 +108,7 @@ describe("companionStore - updateContext", () => {
 
     // THEN
     const state = get(companionStore);
-    expect(state.currentContext).toBe("Vous êtes sur la page Agents.");
+    expect(state.currentContext).toBe("You are on the Agents page.");
     expect(state.currentRoute).toBe("agents");
   });
 

@@ -59,7 +59,7 @@
   // ── State ────────────────────────────────────────────────────────────
   let systemPrompt = $state("");
   let allowedTools = $state<Set<string>>(new Set());
-  /** "" ⇒ utiliser le modèle par défaut. */
+  /** "" means use the default model. */
   let llmBackend = $state("");
 
   let availableTools = $state<ToolSummary[]>([]);
@@ -173,7 +173,7 @@
     </div>
   {/if}
 
-  <!-- ── Section : Personnalité ───────────────────────────────────── -->
+  <!-- ── Section: Personality ─────────────────────────────────────── -->
   <section
     class="space-y-3 rounded-lg border border-border/60 bg-surface-1 p-5"
   >
@@ -320,7 +320,7 @@
     {/if}
   </section>
 
-  <!-- ── Section : Modèle ─────────────────────────────────────────── -->
+  <!-- ── Section: Model ───────────────────────────────────────────── -->
   <section
     class="space-y-3 rounded-lg border border-border/60 bg-surface-1 p-5"
   >

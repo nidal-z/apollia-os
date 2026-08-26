@@ -1,6 +1,6 @@
 // ─── Tasks, HITL approvals, task timeline ───
 
-/** Résumé d'une tâche pour l'affichage. */
+/** Summary of one task, for the display. */
 export interface TaskSummary {
   id: string;
   agent_id: string;
@@ -18,7 +18,7 @@ export interface TaskSummary {
   created_at: string;
 }
 
-/** Approbation en attente HITL. */
+/** Pending HITL approval. */
 export interface PendingApproval {
   task_id: string;
   agent_name: string;
@@ -27,7 +27,7 @@ export interface PendingApproval {
   suspended_at: string;
 }
 
-/** Approbation résolue (approuvée ou rejetée) pour l'historique. */
+/** Resolved approval (approved or rejected), for the history. */
 export interface ResolvedApproval {
   task_id: string;
   agent_name: string;
@@ -37,7 +37,7 @@ export interface ResolvedApproval {
   responded_at: string | null;
 }
 
-/** Entrée historique d'une approbation HITL de chat. */
+/** History entry of one chat HITL approval. */
 export interface ResolvedChatApproval {
   session_id: string;
   message_id: string;
@@ -46,18 +46,18 @@ export interface ResolvedChatApproval {
   decision: string;
   /** ISO-8601 timestamp. */
   resolved_at: string;
-  /** Raison fournie par l'opérateur (refus uniquement). */
+  /** Reason the operator gave (refusals only). */
   reason: string | null;
 }
 
-/** État de la connexion SSE. */
+/** State of the SSE connection. */
 export type ConnectionStatus =
   | "connecting"
   | "connected"
   | "reconnecting"
   | "error";
 
-/** Payload JSON d'un événement HITL TaskInputRequired via SSE. */
+/** JSON payload of a TaskInputRequired HITL event over SSE. */
 export interface HitlInputRequiredPayload {
   event_type: "TaskInputRequired";
   task_id: string;
@@ -65,14 +65,14 @@ export interface HitlInputRequiredPayload {
   step_id?: string;
 }
 
-/** Payload JSON d'un événement HITL TaskResumed via SSE. */
+/** JSON payload of a TaskResumed HITL event over SSE. */
 export interface HitlResumedPayload {
   event_type: "TaskResumed";
   task_id: string;
   approved: boolean;
 }
 
-/** Type discriminant pour les événements de timeline (snake_case JSON tag). */
+/** Discriminant type of the timeline events (snake_case JSON tag). */
 export type TimelineEventType =
   | "task_transition"
   | "step_started"
@@ -85,7 +85,7 @@ export type TimelineEventType =
   | "step_observation"
   | "plan_cache_hit";
 
-/** Événement de la timeline d'une tâche (union discriminée par `type`). */
+/** Event of the timeline of one task (union discriminated by `type`). */
 export type TimelineEvent =
   | {
       type: "task_transition";
@@ -157,7 +157,7 @@ export type TimelineEvent =
       timestamp: string;
     };
 
-/** Filtre pour la commande list_tasks Tauri IPC. */
+/** Filter of the list_tasks Tauri IPC command. */
 export interface TaskFilter {
   status?: string;
   agent_id?: string;

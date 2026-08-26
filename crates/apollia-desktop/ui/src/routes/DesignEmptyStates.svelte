@@ -35,7 +35,7 @@
     <p class="mt-2 text-sm text-muted-foreground md:text-base">
       Canonical <code class="text-caption">&lt;EmptyState&gt;</code> component - 7 variants sourced from
       <code class="text-caption">$lib/i18n/strings/empty-states</code>. Copies tonales, primary + secondary CTA, slot
-      <code class="text-caption">trailing</code> pour une stat contextuelle.
+      <code class="text-caption">trailing</code> for a contextual stat.
     </p>
     {#if reduced}
       <p class="mt-3 text-xs font-medium text-warning-foreground">

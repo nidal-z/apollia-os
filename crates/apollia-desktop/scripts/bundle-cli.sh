@@ -118,23 +118,23 @@ echo "==> CLI binary staged at ${STAGING}/apollia-os${BIN_EXT}"
 # this per platform with the right backends + SDK install steps.
 RUNNERS="${APOLLIA_DESKTOP_RUNNERS:-cpu}"
 
-# Pour la cible universal macOS, on délègue à `aarch64-apple-darwin` (le runner
-# Apple Silicon couvre la cible Apollia v0.1.0 ; x86_64 macOS sera fait via
-# Rosetta côté daemon mais le runner reste arm64 pour Metal/perf).
+# For the universal macOS target, delegate to `aarch64-apple-darwin` (the
+# Apple Silicon runner covers the Apollia v0.1.0 target; x86_64 macOS will run
+# through Rosetta on the daemon side, but the runner stays arm64 for Metal).
 RUNNER_TARGET="$TARGET"
 if [ "$RUNNER_TARGET" = "universal-apple-darwin" ]; then
     RUNNER_TARGET="aarch64-apple-darwin"
 fi
 
-# Détermine l'extension du binaire (.exe sur Windows).
+# Determine the binary extension (.exe on Windows).
 BIN_EXT=""
 case "$RUNNER_TARGET" in
     *-pc-windows-*) BIN_EXT=".exe" ;;
 esac
 
-# Runners staging directory: tauri.conf.json déclare `runners/**` comme
-# resource. Le `.gitkeep` reste pour que le glob matche même quand aucun
-# runner n'a encore été buildé (cargo check pur, dev local sans bundle).
+# Runners staging directory: tauri.conf.json declares `runners/**` as a
+# resource. The `.gitkeep` stays so the glob matches even when no runner has
+# been built yet (plain cargo check, local dev without a bundle).
 mkdir -p "${STAGING}/runners"
 rm -f "${STAGING}/runners/apollia-runner-"*
 

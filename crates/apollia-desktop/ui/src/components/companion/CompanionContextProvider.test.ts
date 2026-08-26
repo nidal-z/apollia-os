@@ -21,7 +21,7 @@ describe("CompanionContextProvider - route context", () => {
   test("context text for a known route is stored in companionStore", async () => {
     // GIVEN the backend returns a specific text for /memory
     const memoryContext =
-      "Vous êtes sur la page Mémoire. Apollia offre 3 types de mémoire.";
+      "You are on the Memory page. Apollia offers 3 kinds of memory.";
     mockedInvoke.mockImplementation((cmd: string) => {
       if (cmd === "get_companion_context")
         return Promise.resolve(memoryContext);

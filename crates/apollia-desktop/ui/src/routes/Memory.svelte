@@ -27,7 +27,7 @@
   import { reportError } from "$lib/errors/reportError";
   import type { HumanizedError } from "$lib/errors/humanize";
 
-  // The per-user profile is edited from `Paramètres → Profil`.
+  // The per-user profile is edited from `Settings -> Profile`.
   // This page is the namespace explorer only (sidebar with classified
   // namespaces + entries list + detail sheet).  Selecting `__user__` shows
   // a banner redirecting to the Profile settings page.
@@ -55,13 +55,13 @@
   // Normalized relevance (0..1) per entry id, for the search relevance meter.
   let searchRelevance = $state<Map<string, number>>(new Map());
 
-  // ── Filtered entries (par type d'entrée) ─────────────────────────────────────
+  // ── Filtered entries (by entry type) ────────────────────────────────────────
   const filteredEntries = $derived.by(() => {
     if (typeFilter === "all") return entries;
     return entries.filter((e) => e.entry_type === typeFilter);
   });
 
-  // Compteurs par type pour les chips.
+  // Counters per type, for the chips.
   const entryCounts = $derived.by(() => {
     const counts = { all: entries.length, episodic: 0, semantic: 0, procedural: 0 };
     for (const e of entries) {
@@ -83,7 +83,7 @@
       : undefined,
   );
 
-  // ── Classification des namespaces ────────────────────────────────────────────
+  // ── Namespace classification ────────────────────────────────────────────────
   function classifyNamespace(name: string, agents: Set<string>): NamespaceCategory {
     if (name === "__user__") return "user";
     if (name.includes(":")) return "project";
@@ -228,7 +228,7 @@
     }
   }
 
-  // ── Type filter tabs (underline pattern aligné sur Projets) ────────────────
+  // ── Type filter tabs (underline pattern, aligned on Projects) ───────────────
   type FilterChipDef = { key: EntryTypeFilter; labelKey: string; Icon: typeof Database };
   const filterChips: FilterChipDef[] = [
     { key: "all", labelKey: "memory.filter_all", Icon: Database },
@@ -276,7 +276,7 @@
     {:else}
       <SplitLayout sidebarTestid="namespace-sidebar" sidebarClass="border-border/60">
         {#snippet sidebar()}
-          <!-- Sidebar : namespaces classifiés -->
+          <!-- Sidebar: classified namespaces -->
           <NamespaceSidebar
             namespaces={namespaces}
             selected={selectedNamespace}
@@ -326,7 +326,7 @@
           {/snippet}
         </DetailHeader>
 
-        <!-- Type tabs (underline pattern, aligné Projets) -->
+        <!-- Type tabs (underline pattern, aligned on Projects) -->
         <div class="px-6 pt-2">
           <TabBar
             variant="underline"

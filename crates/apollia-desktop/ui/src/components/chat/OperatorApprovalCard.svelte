@@ -23,12 +23,12 @@
 
   const resolvedToolCallId = $derived(toolCallId ?? toolCall.tool_name);
 
-  /** Cf. ApprovalCard : grise « Toujours pour ce projet » hors contexte projet. */
+  /** See ApprovalCard: greys out "Always for this project" outside a project. */
   const hasProject = $derived(
     $currentSession?.id === sessionId && $currentSession?.project_id !== null,
   );
 
-  /** Mappe sur l'enum runtime `AlwaysAcceptScope` (snake_case via serde). */
+  /** Maps onto the runtime enum `AlwaysAcceptScope` (snake_case through serde). */
   type AlwaysScope =
     | "this_session"
     | "this_agent"

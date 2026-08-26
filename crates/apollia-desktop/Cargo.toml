@@ -13,11 +13,11 @@ repository.workspace = true
 rust-version.workspace = true
 
 [features]
-# Multi-runner : les backends d'inférence locale vivent dans le crate
-# `apollia-runner` (sidecar). Le desktop ne forward plus de features `local-*`
-# ou `stt-*` au runtime - l'inférence est dispatchée au runner via IPC HTTP.
+# Multi-runner: the local inference backends live in the `apollia-runner`
+# crate (sidecar). The desktop no longer forwards any `local-*` or `stt-*`
+# feature to the runtime; inference is dispatched to the runner over HTTP IPC.
 default = ["cloud"]
-## Active les backends cloud (Anthropic, OpenAI-compatible, etc.).
+## Turns on the cloud backends (Anthropic, OpenAI-compatible, and so on).
 cloud = ["apollia-runtime/cloud"]
 
 [dependencies]
