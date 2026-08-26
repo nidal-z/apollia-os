@@ -13,32 +13,17 @@
 <script lang="ts">
   import { onMount, untrack, tick } from "svelte";
   import { t } from "svelte-i18n";
-  import { Send, Square, Paperclip, Mic, MicOff, Slash, AtSign, ListChecks, Wand2, Loader2, Undo2 } from "lucide-svelte";
   import {
     InputRewriter,
     fetchWorkContext,
     type RewriteFallback,
   } from "$lib/chat/rewriteInput";
   import { addToast } from "$lib/components/ui/toast";
-  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-  import { startTourRecording, stopTourRecording } from "$lib/ipc/stt";
   import { chatInputAppend } from "$lib/stores/artifacts";
-  import {
-    DICTATION_FAILED_EVENT,
-    failureMessageKey,
-    readFailureReason,
-  } from "$lib/stt/dictationFailure";
-  import { ChatRateLimiter } from "$lib/chat/rateLimit";
-  import {
-    type AttachmentCandidate,
-    type PendingAttachment,
-    attachmentId,
-    classifyKind,
-    intakeAttachment,
-    readAsBase64,
-    refusalMessageKey,
-    INLINE_MAX_BYTES,
-  } from "$lib/chat/attachments";
+  import type { PendingAttachment } from "$lib/chat/attachments";
+  import { createComposerAttachments } from "./useComposerAttachments.svelte";
+  import { createComposerDictation } from "./useComposerDictation.svelte";
+  import { createComposerRateLimit } from "./useComposerRateLimit.svelte";
   import {
     type SlashCommand,
     detectSlashPrefix,
@@ -57,6 +42,7 @@
   import PinnedResourceChip from "./PinnedResourceChip.svelte";
   import AttachmentChip from "./AttachmentChip.svelte";
   import InputHints from "./InputHints.svelte";
+  import ChatComposerToolbar from "./ChatComposerToolbar.svelte";
 
   interface Props {
     disabled: boolean;
@@ -116,16 +102,9 @@
   const MAX_HEIGHT_PX = LINE_HEIGHT_PX * MAX_LINES + 16; // + vertical padding
 
   let value = $state("");
-  // ── Speech-to-text - bouton micro ───────────────────────────────────────
-  // Le bouton mic toggle l'enregistrement en réutilisant les Tauri commands
-  // existants `start_tour_recording` / `stop_tour_recording`. La transcription
-  // arrive via l'event Tauri `stt-transcribed` (broadcast par le pipeline
-  // Whisper) - on l'insère dans le textarea à ce moment-là.
-  let recording = $state(false);
-  let sttBusy = $state(false);
-  // Last dictation failure, shown next to the composer so a dictation that
-  // produced nothing says why instead of ending in silence.
-  let sttError = $state<string | null>(null);
+  const dictation = createComposerDictation();
+  const attachments = createComposerAttachments();
+  const rateLimit = createComposerRateLimit();
   let focused = $state(false);
 
   // ── Rewrite input ──────────────────────────────────────────────────────────
@@ -144,11 +123,6 @@
   let placeholderVisible = $state(true);
   let reduceMotion = $state(false);
   let isDesktop = $state(false);
-  let dragOver = $state(false);
-
-  let attachments = $state<PendingAttachment[]>([]);
-  let rateStatus = $state<string | null>(null);
-  let rateTone = $state<"neutral" | "warn">("neutral");
 
   let slashPrefix = $state<string | null>(null);
   let slashCommands = $state<SlashCommand[]>([]);
@@ -169,51 +143,11 @@
     mentionQuery === null ? [] : filterResources(allResources, mentionQuery),
   );
 
-  const limiter = new ChatRateLimiter();
-
-  // reactive rate-limit state so the Send button can be
-  // pre-disabled and a visible countdown is shown until the cooldown elapses.
-  let rateBlockedMs = $state<number>(0);
-  let rateBlockedReason = $state<"too_fast" | "too_many" | null>(null);
-  let rateBlockTimer: ReturnType<typeof setInterval> | undefined;
-
-  function refreshRateState(): void {
-    const check = limiter.check();
-    if (check.allowed) {
-      rateBlockedMs = 0;
-      rateBlockedReason = null;
-      rateStatus = null;
-      rateTone = "neutral";
-    } else {
-      rateBlockedMs = check.retryAfterMs ?? 0;
-      rateBlockedReason = check.reason ?? null;
-      rateStatus = check.reason === "too_fast"
-        ? $t("chat.rate_limit.too_fast_countdown", {
-            values: { s: Math.ceil(rateBlockedMs / 1000) },
-          })
-        : $t("chat.rate_limit.too_many_countdown", {
-            values: { s: Math.ceil(rateBlockedMs / 1000) },
-          });
-      rateTone = "warn";
-    }
-  }
-
-  function ensureRateBlockTimer(): void {
-    if (rateBlockTimer !== undefined) return;
-    rateBlockTimer = setInterval(() => {
-      refreshRateState();
-      if (rateBlockedReason === null && rateBlockTimer !== undefined) {
-        clearInterval(rateBlockTimer);
-        rateBlockTimer = undefined;
-      }
-    }, 200);
-  }
-
   const shouldRotate = $derived(
     !reduceMotion &&
       value === "" &&
       !focused &&
-      attachments.length === 0 &&
+      attachments.items.length === 0 &&
       resolvedSuggestions.length > 1,
   );
 
@@ -225,9 +159,9 @@
   const canSend = $derived(
     !disabled &&
       (value.trim().length > 0 ||
-        attachments.length > 0 ||
+        attachments.items.length > 0 ||
         pinnedResources.length > 0) &&
-      rateBlockedReason === null,
+      rateLimit.blockedReason === null,
   );
 
   onMount(() => {
@@ -250,7 +184,7 @@
       return () => {
         mq.removeEventListener("change", handler);
         unsubscribeAppend();
-        for (const att of untrack(() => attachments)) {
+        for (const att of untrack(() => attachments.items)) {
           if (att.previewUrl) URL.revokeObjectURL(att.previewUrl);
         }
       };
@@ -261,79 +195,14 @@
     };
   });
 
-  // STT event listeners: the Rust pipeline broadcasts `stt-transcribed` for
-  // every transcription. Only the in-app mic button feeds the composer here,
-  // gated on `recording` (set solely by `toggleMic`). The global hotkey
-  // delivers its text through the OS-level clipboard paste
-  // (see `SttFlow::dispatch_result`); appending it again would double-insert
-  // the text when the Apollia window is focused.
-  //
-  // That guard is only as good as the flag it reads. `recording` used to be
-  // cleared by `stt-transcribed` alone, so any dictation that ended without
-  // text (silence, too short, engine error) left it stuck true, and every
-  // later hotkey dictation was then inserted twice inside the window. The
-  // `stt-dictation-failed` listener below is what closes that hole.
-  onMount(() => {
-    let cancelled = false;
-    const unlisteners: UnlistenFn[] = [];
-    const keep = (unlisten: UnlistenFn) => {
-      if (cancelled) unlisten();
-      else unlisteners.push(unlisten);
-    };
-
-    void listen<{ text?: string } | string>("stt-transcribed", (event) => {
-      if (!recording) return;
-      const text =
-        typeof event.payload === "string"
-          ? event.payload
-          : event.payload?.text ?? "";
-      if (!text) return;
+  onMount(() =>
+    dictation.start((text) => {
       const suffix = value.length === 0 || value.endsWith("\n") ? "" : " ";
       value = `${value}${suffix}${text}`;
-      recording = false;
-      sttBusy = false;
-      sttError = null;
       autoResize();
       textareaEl?.focus();
-    }).then(keep);
-
-    void listen(DICTATION_FAILED_EVENT, (event) => {
-      if (!recording && !sttBusy) return;
-      recording = false;
-      sttBusy = false;
-      sttError = $t(failureMessageKey(readFailureReason(event.payload)));
-    }).then(keep);
-
-    return () => {
-      cancelled = true;
-      for (const unlisten of unlisteners) unlisten();
-      unlisteners.length = 0;
-    };
-  });
-
-  async function toggleMic(): Promise<void> {
-    if (sttBusy) return;
-    sttBusy = true;
-    sttError = null;
-    try {
-      if (recording) {
-        await stopTourRecording();
-        // The transcription event flips recording=false once it arrives, and
-        // `stt-dictation-failed` does the same when there is no text to
-        // deliver. sttBusy stays true until one of them lands, so the user
-        // cannot double-click during the inference.
-      } else {
-        await startTourRecording();
-        recording = true;
-        sttBusy = false;
-      }
-    } catch (err) {
-      // STT engine unavailable, no model configured, etc.
-      recording = false;
-      sttBusy = false;
-      sttError = err instanceof Error ? err.message : String(err);
-    }
-  }
+    }),
+  );
 
   /**
    * The sentence the operator reads when no rewrite happened.
@@ -516,11 +385,6 @@
     );
   }
 
-  // Shared styling for the composer toolbar icon buttons (single source so the
-  // gutter no longer mixes h-7 / h-8 and Button-vs-button treatments).
-  const toolBtn =
-    "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed";
-
   // Lets a toolbar button (or an outside click) hide an open menu without
   // touching `value`. Read only in the template, so it can never loop.
   let triggerSuppressed = $state(false);
@@ -652,7 +516,7 @@
     if (
       event.key === "ArrowUp" &&
       value === "" &&
-      attachments.length === 0 &&
+      attachments.items.length === 0 &&
       lastUserMessage
     ) {
       event.preventDefault();
@@ -668,19 +532,10 @@
   function send() {
     if (disabled) return;
     const trimmed = value.trim();
-    if (!trimmed && attachments.length === 0 && pinnedResources.length === 0)
+    if (!trimmed && attachments.items.length === 0 && pinnedResources.length === 0)
       return;
 
-    const check = limiter.check();
-    if (!check.allowed) {
-      refreshRateState();
-      ensureRateBlockTimer();
-      return;
-    }
-    limiter.record();
-    // After a successful send, the min-interval cooldown kicks in - surface it.
-    refreshRateState();
-    ensureRateBlockTimer();
+    if (!rateLimit.admitSend()) return;
 
     // Prepend the pinned MCP resources as an explicit system-prefix block. This
     // is the user-initiative path: the user chose these, so they ride along
@@ -688,10 +543,8 @@
     const prefix = buildPinnedPrefix(pinnedResources);
     const content = prefix ? `${prefix}${trimmed}` : trimmed;
 
-    const payload = attachments;
-    onsend(content, payload);
+    onsend(content, attachments.takeAll());
     value = "";
-    attachments = [];
     pinnedResources = [];
     if (textareaEl) textareaEl.style.height = "auto";
   }
@@ -702,86 +555,6 @@
     slashPrefix = null;
     slashCommands = [];
     oncommand?.(cmd.id);
-  }
-
-  async function ingestFiles(files: FileList | File[]): Promise<void> {
-    const list = Array.from(files);
-    for (const file of list) {
-      const kind = classifyKind(file.type, file.name);
-      const candidate: AttachmentCandidate = {
-        id: attachmentId(),
-        name: file.name,
-        mime: file.type || "application/octet-stream",
-        size: file.size,
-        kind,
-      };
-      if (kind === "image") {
-        candidate.previewUrl = URL.createObjectURL(file);
-      }
-      // Desktop drop events expose `path` on the File (Tauri); a paperclip
-      // pick never does. The path is taken whatever the size, because it is
-      // the only form an image can travel under. Intake still prefers the
-      // inline payload for everything else, so a dropped small text file
-      // keeps travelling as text and needs no approval.
-      const dropPath: unknown = (file as File & { path?: unknown }).path;
-      if (typeof dropPath === "string" && dropPath) candidate.absolutePath = dropPath;
-
-      if (kind !== "image" && file.size <= INLINE_MAX_BYTES) {
-        try {
-          candidate.base64 = await readAsBase64(file);
-        } catch {
-          candidate.readFailed = true;
-        }
-      }
-
-      const intake = intakeAttachment(candidate);
-      if (!intake.accepted) {
-        // The file is dropped rather than queued: a chip the send would not
-        // carry is what let a silently unusable turn leave the composer.
-        if (candidate.previewUrl) URL.revokeObjectURL(candidate.previewUrl);
-        addToast(
-          $t(refusalMessageKey(intake.reason), { values: { name: intake.name } }),
-          "error",
-        );
-        continue;
-      }
-      attachments = [...attachments, intake.attachment];
-    }
-  }
-
-  function removeAttachment(id: string): void {
-    const target = attachments.find((a) => a.id === id);
-    if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
-    attachments = attachments.filter((a) => a.id !== id);
-  }
-
-  function handlePaperclip(): void {
-    fileInputEl?.click();
-  }
-
-  function handleFileInput(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      void ingestFiles(input.files);
-    }
-    input.value = "";
-  }
-
-  function handleDragOver(event: DragEvent): void {
-    event.preventDefault();
-    dragOver = true;
-  }
-
-  function handleDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    dragOver = false;
-  }
-
-  function handleDrop(event: DragEvent): void {
-    event.preventDefault();
-    dragOver = false;
-    const files = event.dataTransfer?.files;
-    if (files && files.length > 0) void ingestFiles(files);
   }
 
   $effect(() => {
@@ -809,18 +582,18 @@
     type="file"
     multiple
     class="hidden"
-    onchange={handleFileInput}
+    onchange={attachments.handleFileInput}
     data-testid="chat-attach-input"
   />
 
   <div
     bind:this={inputCardEl}
     class="relative flex flex-col rounded-xl border bg-surface-1 transition-colors {focused ? 'border-primary/60' : 'border-border/60'}"
-    class:ring-2={dragOver}
-    class:ring-primary={dragOver}
-    ondragover={handleDragOver}
-    ondragleave={handleDragLeave}
-    ondrop={handleDrop}
+    class:ring-2={attachments.dragOver}
+    class:ring-primary={attachments.dragOver}
+    ondragover={attachments.handleDragOver}
+    ondragleave={attachments.handleDragLeave}
+    ondrop={attachments.handleDrop}
     role="presentation"
   >
     {#if slashPrefix !== null && !triggerSuppressed}
@@ -842,7 +615,7 @@
       />
     {/if}
 
-    {#if pinnedResources.length > 0 || attachments.length > 0}
+    {#if pinnedResources.length > 0 || attachments.items.length > 0}
       <div class="flex flex-wrap gap-1.5 px-3 pt-2.5" data-testid="chat-chip-row">
         {#each pinnedResources as pin (pin.server + "::" + pin.uri)}
           <PinnedResourceChip
@@ -850,10 +623,10 @@
             onremove={() => unpinResource(pin.server, pin.uri)}
           />
         {/each}
-        {#each attachments as att (att.id)}
+        {#each attachments.items as att (att.id)}
           <AttachmentChip
             attachment={att}
-            onremove={() => removeAttachment(att.id)}
+            onremove={() => attachments.remove(att.id)}
           />
         {/each}
       </div>
@@ -876,146 +649,30 @@
       class:placeholder-fading={!placeholderVisible}
     ></textarea>
 
-    <!-- Action toolbar: secondary actions left, send anchored right. -->
-    <div class="flex items-center gap-0.5 border-t border-border/40 px-2 py-1.5">
-      {#if onplantoggle}
-        <button
-          type="button"
-          onclick={onplantoggle}
-          disabled={disabled || planDisabled}
-          aria-pressed={planMode}
-          class="mr-1 inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-caption font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 {planMode
-            ? 'border-primary/40 bg-primary/12 text-primary'
-            : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'}"
-          aria-label={$t("chat.planMode.chipLabel")}
-          title={$t("chat.planMode.chipLabel")}
-          data-testid="composer-plan-toggle"
-        >
-          <ListChecks size={12} class="shrink-0" />
-          {$t("chat.planMode.chipLabel")}
-        </button>
-      {/if}
-      <button
-        type="button"
-        onclick={handlePaperclip}
-        {disabled}
-        class={toolBtn}
-        aria-label={$t("chat.attachments.add")}
-        title={$t("chat.attachments.add")}
-        data-testid="chat-attach-button"
-      >
-        <Paperclip size={16} />
-      </button>
-      <button
-        type="button"
-        onclick={toggleMic}
-        disabled={disabled || (sttBusy && !recording)}
-        class="{toolBtn} {recording ? 'bg-destructive text-destructive-foreground hover:bg-destructive hover:text-destructive-foreground mic-pulse' : ''}"
-        aria-label={recording ? $t("chat.dictate_stop") : $t("chat.dictate_start")}
-        title={recording ? $t("chat.dictate_stop") : $t("chat.dictate_start")}
-        data-testid="chat-mic-button"
-      >
-        {#if recording}
-          <MicOff size={16} />
-        {:else}
-          <Mic size={16} />
-        {/if}
-      </button>
-      <button
-        type="button"
-        onclick={handleRewrite}
-        disabled={disabled || isRewriting || value.trim() === ""}
-        class={toolBtn}
-        aria-label={$t("chat.rewrite.button_tooltip")}
-        title={$t("chat.rewrite.button_tooltip")}
-        data-testid="chat-input-rewrite-button"
-      >
-        {#if isRewriting}
-          <Loader2 size={16} class="animate-spin" />
-        {:else}
-          <Wand2 size={16} />
-        {/if}
-      </button>
-      {#if canRestore}
-        <button
-          type="button"
-          onclick={handleRestoreOriginal}
-          disabled={disabled || isRewriting}
-          class={toolBtn}
-          aria-label={$t("chat.rewrite.restore_tooltip")}
-          title={$t("chat.rewrite.restore_tooltip")}
-          data-testid="chat-input-rewrite-restore-button"
-        >
-          <Undo2 size={16} />
-        </button>
-      {/if}
-      <button
-        type="button"
-        onclick={() => toggleTrigger("/")}
-        {disabled}
-        class={toolBtn}
-        aria-label={$t("chat.slash_commands")}
-        title={$t("chat.slash_commands")}
-        data-testid="chat-slash-button"
-      >
-        <Slash size={16} />
-      </button>
-      <button
-        type="button"
-        onclick={() => toggleTrigger("@")}
-        {disabled}
-        class={toolBtn}
-        aria-label={$t("chat.mention_resources")}
-        title={$t("chat.mention_resources")}
-        data-testid="chat-mention-button"
-      >
-        <AtSign size={16} />
-      </button>
-
-      <div class="flex-1"></div>
-
-      {#if isDesktop}
-        <span class="mr-1.5 select-none text-caption text-muted-foreground/50" aria-hidden="true">
-          ⌘↵
-        </span>
-      {/if}
-      {#if busy && onstop}
-        <button
-          type="button"
-          onclick={() => onstop?.()}
-          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md
-            bg-destructive text-destructive-foreground shadow-warm-glow
-            transition-all active:scale-[0.96]"
-          aria-label={$t("chat.stop")}
-          title={$t("chat.stop")}
-          data-testid="chat-stop-button"
-        >
-          <Square size={14} class="fill-current" />
-        </button>
-      {:else}
-        <button
-          onclick={send}
-          disabled={!canSend}
-          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md
-            transition-all active:scale-[0.96]
-            disabled:pointer-events-none disabled:opacity-40 disabled:cursor-not-allowed"
-          class:bg-primary-solid={canSend}
-          class:text-primary-foreground={canSend}
-          class:shadow-warm-glow={canSend}
-          class:bg-muted={!canSend}
-          class:text-muted-foreground={!canSend}
-          aria-label={$t("chat.send")}
-          data-testid="chat-send-button"
-        >
-          <Send size={16} />
-        </button>
-      {/if}
-    </div>
+    <ChatComposerToolbar
+      {disabled}
+      {busy}
+      {isDesktop}
+      {canSend}
+      hasText={value.trim() !== ""}
+      {planMode}
+      {planDisabled}
+      {onplantoggle}
+      {dictation}
+      {isRewriting}
+      {canRestore}
+      onattach={() => fileInputEl?.click()}
+      onrewrite={handleRewrite}
+      onrestore={handleRestoreOriginal}
+      ontrigger={toggleTrigger}
+      {onstop}
+      onsend={send}
+    />
   </div>
 
   <InputHints
-    status={sttError ?? rateStatus}
-    statusTone={sttError ? "warn" : rateTone}
+    status={dictation.error ?? rateLimit.status}
+    statusTone={dictation.error ? "warn" : rateLimit.tone}
   />
 </div>
 
@@ -1024,28 +681,8 @@
     transition: opacity var(--motion-base) ease;
     opacity: 1;
   }
-
-  /* Subtle pulse around the mic button while recording. */
-  :global(.mic-pulse) {
-    box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.5);
-    animation: mic-pulse 1.4s ease-out infinite;
-  }
-  @keyframes mic-pulse {
-    0% {
-      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.55);
-    }
-    70% {
-      box-shadow: 0 0 0 6px hsl(var(--destructive) / 0);
-    }
-    100% {
-      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0);
-    }
-  }
   .chat-input-textarea.placeholder-fading::placeholder {
     opacity: 0;
-  }
-  :global(.shadow-warm-glow) {
-    box-shadow: var(--shadow-warm-focus);
   }
   @media (prefers-reduced-motion: reduce) {
     .chat-input-textarea::placeholder {
