@@ -293,70 +293,6 @@ pub struct ResourcesReadResult {
     pub contents: Vec<ResourceContent>,
 }
 
-// ─── Prompts (server capability) ─────────────────────────────────────────────
-
-/// A prompt template exposed by an MCP server.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct McpPrompt {
-    /// Stable prompt name (e.g. `"summarize-page"`).
-    pub name: String,
-    /// One-line description.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Optional argument declarations.
-    #[serde(default)]
-    pub arguments: Vec<PromptArgument>,
-}
-
-/// Argument declaration for a prompt template.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PromptArgument {
-    /// Argument name.
-    pub name: String,
-    /// Optional description.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Whether the argument is required.
-    #[serde(default)]
-    pub required: bool,
-}
-
-/// Result of `prompts/list`.
-#[derive(Debug, Deserialize)]
-pub struct PromptsListResult {
-    /// Available prompts.
-    pub prompts: Vec<McpPrompt>,
-}
-
-/// Parameters for `prompts/get`.
-#[derive(Debug, Serialize)]
-pub struct PromptsGetParams {
-    /// Prompt name to retrieve.
-    pub name: String,
-    /// Arguments to fill in (server-defined shape).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub arguments: Option<serde_json::Value>,
-}
-
-/// Result of `prompts/get`.
-#[derive(Debug, Deserialize)]
-pub struct PromptsGetResult {
-    /// Optional human-readable description of the assembled prompt.
-    #[serde(default)]
-    pub description: Option<String>,
-    /// Messages composing the prompt, fed to the conversation as a system prefix.
-    pub messages: Vec<PromptMessage>,
-}
-
-/// Single message in a `prompts/get` response.
-#[derive(Debug, Deserialize)]
-pub struct PromptMessage {
-    /// `"user"` or `"assistant"` (kept opaque for v0.1.0).
-    pub role: String,
-    /// Message content (matches the `ToolCallContent` discriminator).
-    pub content: serde_json::Value,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -600,19 +536,6 @@ mod tests {
         assert_eq!(result.resources.len(), 1);
         assert_eq!(result.resources[0].uri, "file:///doc.txt");
         assert_eq!(result.next_cursor.as_deref(), Some("page-2"));
-    }
-
-    #[test]
-    fn test_prompts_list_result_deserializes() {
-        let json_str = r#"{
-            "prompts": [
-                { "name": "summarize", "description": "Summarize a doc", "arguments": [{"name":"uri","required":true}] }
-            ]
-        }"#;
-        let result: PromptsListResult = serde_json::from_str(json_str).unwrap();
-        assert_eq!(result.prompts.len(), 1);
-        assert_eq!(result.prompts[0].name, "summarize");
-        assert!(result.prompts[0].arguments[0].required);
     }
 
     #[test]

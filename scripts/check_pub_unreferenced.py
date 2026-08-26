@@ -106,10 +106,6 @@ BUILDER_GUARD = Path("scripts/check_optional_builders.py")
 # reference, fails the guard as stale, which is what stops an exemption list
 # from rotting into decoration.
 DEAD_RATCHET: dict[str, str] = {
-    "PromptsGetParams@apollia-mcp": (
-        "`prompts/get` has request and result types and no session method that sends it; the `prompts/list` pair beside it is live. Delete both with the request path, or add the call."
-    ),
-    "PromptsGetResult@apollia-mcp": "same pair as `PromptsGetParams`.",
     "default_input@apollia-stt": (
         "convenience wrapper over `AudioCapture::open(None)`; every caller names a device or resolves one first."
     ),
@@ -150,7 +146,7 @@ DEAD_RATCHET: dict[str, str] = {
 # entry that leaves must leave the list too. The way out of it, item by item,
 # is a `TEST-ONLY:` line above the definition saying why it exists.
 TEST_ONLY_RATCHET: frozenset[str] = frozenset([
-    "PromptsListResult@apollia-mcp", "always_accept_default@apollia-runtime", "backend_names@apollia-llm",
+    "always_accept_default@apollia-runtime", "backend_names@apollia-llm",
     "build_a2a_context@apollia-runtime", "build_router_for_test@apollia-runtime", "complete_with_fallback@apollia-llm",
     "context_window_pct@apollia-core", "create_project_async@apollia-tools", "data_dir_or_err@apollia-core",
     "estimate_tokens@apollia-oria", "filter_kinds@apollia-runtime", "from_config_with_bus@apollia-llm",
