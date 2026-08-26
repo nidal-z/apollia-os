@@ -15,7 +15,7 @@
 //! `commands::session_meta` with fixtures.
 
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// Event category shown as a marker in the global scrubber.
 ///
@@ -90,6 +90,16 @@ pub struct SessionEventLog {
 }
 
 impl SessionEventLog {
+    /// The event guard, recovered when a panic poisoned the mutex.
+    ///
+    /// Poisoning records that a previous holder panicked; the vector it
+    /// protects holds plain events, which no panic can leave half written.
+    /// Recovering the guard keeps one panic from making the whole session
+    /// replay unreadable, which is what `expect` did here.
+    fn locked(&self) -> MutexGuard<'_, Vec<SessionEvent>> {
+        self.inner.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// Creates an empty log.
     pub fn new() -> Self {
         Self::default()
@@ -97,7 +107,7 @@ impl SessionEventLog {
 
     /// Adds an event. Re-sorts if `ts` precedes the last entry.
     pub fn push(&self, event: SessionEvent) {
-        let mut guard = self.inner.lock().expect("SessionEventLog poisoned");
+        let mut guard = self.locked();
         let needs_sort = guard.last().map(|last| event.ts < last.ts).unwrap_or(false);
         guard.push(event);
         if needs_sort {
@@ -107,12 +117,12 @@ impl SessionEventLog {
 
     /// Returns a sorted copy of the events.
     pub fn snapshot(&self) -> Vec<SessionEvent> {
-        self.inner.lock().expect("SessionEventLog poisoned").clone()
+        self.locked().clone()
     }
 
     /// Number of events currently stored.
     pub fn len(&self) -> usize {
-        self.inner.lock().expect("SessionEventLog poisoned").len()
+        self.locked().len()
     }
 
     /// `true` when no event is stored.

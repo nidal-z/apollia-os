@@ -262,8 +262,10 @@ struct RuntimeLocks<'a> {
 /// `ctx.mailbox`, `ctx.user_context`, and apollia.toml's `[tools]` overrides.
 fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: RuntimeLocks<'_>) {
     let _ = locks.event_bus.set(runtime_handle.event_sender.clone());
-    *locks.llm_router.write().expect("llm_router_lock poisoned") =
-        runtime_handle.llm_router.clone();
+    *locks
+        .llm_router
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = runtime_handle.llm_router.clone();
     let _ = locks
         .tool_registry
         .set(runtime_handle.tool_registry_handle.clone());
@@ -335,17 +337,24 @@ fn auto_load_installed_agents(
         // Register in AgentRegistry. We're on the main thread (not inside
         // Tokio); reuse the current handle or build a small current-thread
         // runtime to drive the async registration to completion.
-        let rt = tokio::runtime::Handle::try_current()
-            .or_else(|_| {
-                Ok::<_, std::io::Error>(
-                    tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()?
-                        .handle()
-                        .clone(),
-                )
-            })
-            .expect("failed to get tokio handle for agent auto-load");
+        let rt = match tokio::runtime::Handle::try_current().or_else(|_| {
+            Ok::<_, std::io::Error>(
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()?
+                    .handle()
+                    .clone(),
+            )
+        }) {
+            Ok(handle) => handle,
+            Err(e) => {
+                // The contract of this loop is per-agent: a runtime that will
+                // not build is the same class of failure as a manifest that
+                // will not load, and used to abort the boot of every agent.
+                tracing::warn!(name = %agent.name, error = %e, "no tokio handle for agent auto-load - skipping");
+                continue;
+            }
+        };
 
         let registry_handle = runtime_handle.registry_handle.clone();
         let router_handle = runtime_handle.router_handle.clone();
@@ -464,6 +473,22 @@ pub(crate) fn setup_stt_hotkey(
         }
         Err(e) => {
             tracing::warn!(error = %e, "failed to create recording overlay - visual indicator disabled");
+        }
+    }
+}
+
+/// Returns `value`, or ends the process on a startup step that has no recovery.
+///
+/// `main` has no caller to return an error to, and the six steps that used
+/// this wrote the same thing as a panic: an abort with a backtrace, in a
+/// windowless GUI process where nobody reads one. A tracing line naming the
+/// step is the same failure, said where the operator can find it.
+fn or_exit<T, E: std::fmt::Display>(result: Result<T, E>, step: &str) -> T {
+    match result {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::error!(error = %error, step = %step, "desktop.startup.failed");
+            std::process::exit(1);
         }
     }
 }
@@ -611,8 +636,10 @@ fn main() {
     // Load (or generate) the API bearer token so the embedded runtime binds an
     // authenticated TCP listener for the desktop REST bridge. The Unix socket
     // stays local-trust; the TCP port is never served unauthenticated.
-    let api_token = apollia_runtime::api::load_or_generate_token(&apollia_data_dir)
-        .expect("failed to load or generate API token");
+    let api_token = or_exit(
+        apollia_runtime::api::load_or_generate_token(&apollia_data_dir),
+        "load or generate the API token",
+    );
     commands::set_api_token(api_token.clone());
 
     // Do NOT pass agent_repository here: auto-load inside the Supervisor
@@ -628,8 +655,10 @@ fn main() {
         ..EmbeddedConfig::default()
     });
 
-    let runtime_handle: RuntimeHandle =
-        apollia_runtime::init_embedded(config).expect("failed to start embedded runtime");
+    let runtime_handle: RuntimeHandle = or_exit(
+        apollia_runtime::init_embedded(config),
+        "start the embedded runtime",
+    );
 
     // Pin the PyO3 async bridge onto the worker runtime now that it is up, before
     // any Python agent runs a coroutine.
@@ -674,18 +703,19 @@ fn main() {
     // SQLite WAL mode supports concurrent readers.
     let agent_repo: Arc<std::sync::Mutex<AgentRepository>> = {
         let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
-        Arc::new(std::sync::Mutex::new(
-            AgentRepository::open(&db_path).expect("failed to open agents.db for desktop app"),
-        ))
+        Arc::new(std::sync::Mutex::new(or_exit(
+            AgentRepository::open(&db_path),
+            "open agents.db for the desktop app",
+        )))
     };
 
     // Open PackageRepository for Tauri IPC commands (same agents.db, WAL allows concurrent readers).
     let pkg_repo: Arc<std::sync::Mutex<apollia_tools::PackageRepository>> = {
         let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
-        Arc::new(std::sync::Mutex::new(
-            apollia_tools::PackageRepository::open(&db_path)
-                .expect("failed to open agents.db for PackageRepository"),
-        ))
+        Arc::new(std::sync::Mutex::new(or_exit(
+            apollia_tools::PackageRepository::open(&db_path),
+            "open agents.db for the package repository",
+        )))
     };
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
 
@@ -694,12 +724,14 @@ fn main() {
         Err(e) => {
             tracing::warn!(error = %e, "McpRegistryClient failed to initialize - registry commands disabled");
             // Fall back to a client with a writable temp dir so Tauri state is always populated.
-            McpRegistryClient::new(std::path::Path::new("/tmp"))
-                .expect("fallback McpRegistryClient")
+            or_exit(
+                McpRegistryClient::new(std::path::Path::new("/tmp")),
+                "open the fallback MCP registry client",
+            )
         }
     };
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -799,7 +831,7 @@ fn main() {
             // `POST /api/v1/shutdown` before `AppHandle::exit` runs.
             let main_window = app
                 .get_webview_window("main")
-                .expect("main window not found in tauri.conf.json");
+                .ok_or("main window not found in tauri.conf.json")?;
 
             let window_for_close = main_window.clone();
             main_window.on_window_event(move |event| {
@@ -1073,24 +1105,24 @@ fn main() {
             #[cfg(debug_assertions)]
             commands::automation::automation_finish,
         ])
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|app, event| {
-            // Kill every child process before the process exits. Otherwise they
-            // are orphaned: `kill_on_drop` never runs because `app.exit`
-            // terminates the process before the managed `RuntimeHandle` (and
-            // its child handles) is dropped. ExitRequested covers every quit
-            // path: window close, Cmd+Q, and the tray "Quitter".
-            //
-            // This used to stop the runner alone, which left `llama-server`
-            // holding its VRAM and its loopback port after the app had quit.
-            if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
-                if let Some(rt) = app.try_state::<RuntimeHandle>() {
-                    let rt = rt.inner().clone();
-                    tauri::async_runtime::block_on(async move {
-                        rt.stop_child_processes().await;
-                    });
-                }
+        .build(tauri::generate_context!());
+
+    or_exit(app, "build the Tauri application").run(|app, event| {
+        // Kill every child process before the process exits. Otherwise they
+        // are orphaned: `kill_on_drop` never runs because `app.exit`
+        // terminates the process before the managed `RuntimeHandle` (and
+        // its child handles) is dropped. ExitRequested covers every quit
+        // path: window close, Cmd+Q, and the tray "Quitter".
+        //
+        // This used to stop the runner alone, which left `llama-server`
+        // holding its VRAM and its loopback port after the app had quit.
+        if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
+            if let Some(rt) = app.try_state::<RuntimeHandle>() {
+                let rt = rt.inner().clone();
+                tauri::async_runtime::block_on(async move {
+                    rt.stop_child_processes().await;
+                });
             }
-        });
+        }
+    });
 }

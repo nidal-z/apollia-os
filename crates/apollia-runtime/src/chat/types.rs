@@ -4,7 +4,7 @@
 //! and the `ChatError` hierarchy used throughout the chat subsystem.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -655,6 +655,19 @@ pub struct PendingChatApprovals {
 }
 
 impl PendingChatApprovals {
+    /// The map guard, recovered when a panic poisoned the mutex.
+    ///
+    /// Poisoning records that a previous holder panicked; the map it protects
+    /// is a `HashMap` of oneshot senders, which no panic can leave half
+    /// written. Recovering the guard keeps one panic from turning every later
+    /// approval into a second panic, which would strand every ReAct loop
+    /// waiting on a decision.
+    fn locked(
+        inner: &Mutex<HashMap<String, oneshot::Sender<ToolDecision>>>,
+    ) -> MutexGuard<'_, HashMap<String, oneshot::Sender<ToolDecision>>> {
+        inner.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// Create a new empty approval store.
     pub fn new() -> Self {
         Self {
@@ -667,10 +680,7 @@ impl PendingChatApprovals {
     /// The key should follow the format `"session_id::message_id::tool_name"`.
     pub fn register(&self, key: String) -> oneshot::Receiver<ToolDecision> {
         let (tx, rx) = oneshot::channel();
-        let mut map = self
-            .inner
-            .lock()
-            .expect("PendingChatApprovals lock poisoned");
+        let mut map = Self::locked(&self.inner);
         map.insert(key, tx);
         rx
     }
@@ -679,10 +689,7 @@ impl PendingChatApprovals {
     ///
     /// Returns `true` if the key was found and the decision was sent, `false` otherwise.
     pub fn resolve(&self, key: &str, decision: ToolDecision) -> bool {
-        let mut map = self
-            .inner
-            .lock()
-            .expect("PendingChatApprovals lock poisoned");
+        let mut map = Self::locked(&self.inner);
         if let Some(tx) = map.remove(key) {
             // If the receiver has been dropped, we silently ignore the error.
             let _ = tx.send(decision);
@@ -709,10 +716,7 @@ impl PendingChatApprovals {
     /// Returns the number of approvals refused.
     pub fn refuse_session(&self, session_id: &str) -> usize {
         let prefix = format!("{session_id}::");
-        let mut map = self
-            .inner
-            .lock()
-            .expect("PendingChatApprovals lock poisoned");
+        let mut map = Self::locked(&self.inner);
         let keys: Vec<String> = map
             .keys()
             .filter(|k| k.starts_with(&prefix))
@@ -751,7 +755,7 @@ impl PendingChatApprovals {
 
             // Try to resolve, returns false if already resolved
             let still_pending = {
-                let mut map = inner.lock().expect("PendingChatApprovals lock poisoned");
+                let mut map = Self::locked(&inner);
                 if let Some(tx) = map.remove(&key) {
                     let _ = tx.send(ToolDecision::refuse());
                     true
@@ -877,6 +881,19 @@ pub struct PendingFilesystemApprovals {
 }
 
 impl PendingFilesystemApprovals {
+    /// The map guard, recovered when a panic poisoned the mutex.
+    ///
+    /// Poisoning records that a previous holder panicked; the map it protects
+    /// is a `HashMap` of oneshot senders, which no panic can leave half
+    /// written. Recovering the guard keeps one panic from turning every later
+    /// approval into a second panic, which would strand every ReAct loop
+    /// waiting on a decision.
+    fn locked(
+        inner: &Mutex<HashMap<String, oneshot::Sender<FsHitlDecision>>>,
+    ) -> MutexGuard<'_, HashMap<String, oneshot::Sender<FsHitlDecision>>> {
+        inner.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// Create a new empty store.
     pub fn new() -> Self {
         Self {
@@ -887,10 +904,7 @@ impl PendingFilesystemApprovals {
     /// Register a pending HITL request and return a receiver to await the decision.
     pub fn register(&self, request_id: String) -> oneshot::Receiver<FsHitlDecision> {
         let (tx, rx) = oneshot::channel();
-        let mut map = self
-            .inner
-            .lock()
-            .expect("PendingFilesystemApprovals lock poisoned");
+        let mut map = Self::locked(&self.inner);
         map.insert(request_id, tx);
         rx
     }
@@ -899,10 +913,7 @@ impl PendingFilesystemApprovals {
     ///
     /// Returns `true` if the request was found and resolved, `false` otherwise.
     pub fn resolve(&self, request_id: &str, decision: FsHitlDecision) -> bool {
-        let mut map = self
-            .inner
-            .lock()
-            .expect("PendingFilesystemApprovals lock poisoned");
+        let mut map = Self::locked(&self.inner);
         if let Some(tx) = map.remove(request_id) {
             let _ = tx.send(decision);
             true

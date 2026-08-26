@@ -21,7 +21,7 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 use apollia_core::{FilesystemPreview, RuntimeEvent};
 use apollia_tools::executor::{ToolExecutionError, ToolExecutor};
@@ -162,11 +162,15 @@ impl HitlFilesystemGuard {
         // In-memory session allow rules (`<op>:<level>` keys).
         let rule_key = format!("{}:{}", self.op.as_str(), level.as_str());
         {
+            // A poisoned lock means an earlier holder panicked, not that the
+            // rule set is broken: it is a set of `<op>:<level>` strings. Reading
+            // it back is what keeps one panic from denying every later
+            // filesystem operation of the session.
             let guard = self
                 .ctx
                 .fs_allow_rules
                 .lock()
-                .expect("fs_allow_rules lock poisoned");
+                .unwrap_or_else(PoisonError::into_inner);
             if guard.contains(&rule_key) {
                 return Ok(());
             }
@@ -207,7 +211,7 @@ impl HitlFilesystemGuard {
                     .ctx
                     .fs_allow_rules
                     .lock()
-                    .expect("fs_allow_rules lock poisoned");
+                    .unwrap_or_else(PoisonError::into_inner);
                 guard.insert(format!("{rule_op}:{rule_level}"));
                 Ok(())
             }

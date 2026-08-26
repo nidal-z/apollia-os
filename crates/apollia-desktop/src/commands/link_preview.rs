@@ -211,6 +211,8 @@ struct MetaTags {
 
 /// Collect the relevant `<meta og:*>` / `<meta name="description">` values.
 fn collect_meta_tags(doc: &Html) -> MetaTags {
+    // SAFETY: the argument is a source literal, so the parse result is
+    // fixed at compile time; no runtime value reaches `Selector::parse`.
     let meta_sel = Selector::parse("meta").expect("static selector");
     let mut out = MetaTags::default();
     for meta in doc.select(&meta_sel) {
@@ -238,6 +240,8 @@ fn collect_meta_tags(doc: &Html) -> MetaTags {
 
 /// Find the first `<link rel="...icon...">` href, if any.
 fn find_favicon(doc: &Html) -> Option<String> {
+    // SAFETY: the argument is a source literal, so the parse result is
+    // fixed at compile time; no runtime value reaches `Selector::parse`.
     let link_sel = Selector::parse("link[rel]").expect("static selector");
     for link in doc.select(&link_sel) {
         let rel = link.value().attr("rel").unwrap_or("");
@@ -255,6 +259,8 @@ fn find_favicon(doc: &Html) -> Option<String> {
 fn extract_og_tags(base_url: &url::Url, html: &str) -> LinkPreview {
     let doc = Html::parse_document(html);
 
+    // SAFETY: the argument is a source literal, so the parse result is
+    // fixed at compile time; no runtime value reaches `Selector::parse`.
     let title_sel = Selector::parse("title").expect("static selector");
 
     let mut meta = collect_meta_tags(&doc);

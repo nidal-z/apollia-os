@@ -517,12 +517,26 @@ impl AgentRunner for BridgeRunner {
                 );
                 Py::new(py, ctx)
                     .map(|p| p.into_any())
-                    .expect("RuntimeContext PyObject construction failed")
-            });
+                    .map_err(|e| format!("RuntimeContext PyObject construction failed: {e}"))
+            })?;
 
             bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
         })
     }
+}
+
+/// The router held behind the shared lock, recovered when a panic poisoned it.
+///
+/// Poisoning records that a previous holder panicked; the value it protects is
+/// an `Option<Arc<LlmRouter>>`, which no panic can leave half written.
+/// Recovering it keeps one panic from leaving every later agent without a
+/// router, which is what the `expect` on this lock did.
+pub(crate) fn llm_router_snapshot(
+    lock: &std::sync::RwLock<Option<Arc<LlmRouter>>>,
+) -> Option<Arc<LlmRouter>> {
+    lock.read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
 }
 
 /// Add live A2A virtual skills (`a2a:*`) to the allowed-tools list.
@@ -701,11 +715,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 return DynBackend::new(NoopBackend);
             }
         };
-        let llm_router = self
-            .llm_router
-            .read()
-            .expect("llm_router_lock poisoned")
-            .clone();
+        let llm_router = llm_router_snapshot(&self.llm_router);
         let tool_registry = self.tool_registry.get().cloned();
         let audit_trail = self.audit_trail.get().cloned();
         let pending_approvals = self.pending_approvals.get().cloned();
@@ -989,11 +999,7 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             .get()
             .cloned()
             .ok_or("event bus not initialized")?;
-        let llm_router = self
-            .llm_router
-            .read()
-            .expect("llm_router_lock poisoned")
-            .clone();
+        let llm_router = llm_router_snapshot(&self.llm_router);
         let tool_registry = self.tool_registry.get().cloned();
         let audit_trail = self.audit_trail.get().cloned();
         let mailbox = self.mailbox_handle.get().cloned();

@@ -96,20 +96,22 @@ impl GoogleToolExecutor {
                 code: "auth".into(),
                 message: e.to_string(),
             })?;
-        if accounts.is_empty() {
-            return Err(ToolExecutionError::ExecutionFailed {
-                code: "no_account".into(),
-                message: "no Google account connected - open Réglages → Intégrations to sign in"
-                    .into(),
-            });
-        }
         if accounts.len() > 1 {
             tracing::warn!(
                 count = accounts.len(),
                 "multiple Google accounts connected - using the first one (multi-account dispatch is not yet implemented)"
             );
         }
-        Ok(accounts.into_iter().next().expect("len>=1"))
+        // The emptiness test and the `expect` said the same thing twice; `next`
+        // answers it once.
+        accounts
+            .into_iter()
+            .next()
+            .ok_or_else(|| ToolExecutionError::ExecutionFailed {
+                code: "no_account".into(),
+                message: "no Google account connected - open Réglages → Intégrations to sign in"
+                    .into(),
+            })
     }
 
     async fn bearer_for(

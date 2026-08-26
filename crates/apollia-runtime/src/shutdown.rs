@@ -368,17 +368,28 @@ pub async fn wait_for_shutdown_signal() -> &'static str {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{signal, SignalKind};
-        let mut sigterm =
-            signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
 
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
+        // A SIGTERM handler that cannot be installed used to abort the process
+        // it was there to shut down cleanly. The daemon keeps running on Ctrl+C
+        // alone instead, which is the degradation the caller can survive.
+        match signal(SignalKind::terminate()) {
+            Ok(mut sigterm) => {
+                tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {
+                        force_exit_armed.store(true, Ordering::SeqCst);
+                        "SIGINT"
+                    }
+                    _ = sigterm.recv() => {
+                        force_exit_armed.store(true, Ordering::SeqCst);
+                        "SIGTERM"
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "shutdown.sigterm_handler_unavailable");
+                tokio::signal::ctrl_c().await.ok();
                 force_exit_armed.store(true, Ordering::SeqCst);
                 "SIGINT"
-            }
-            _ = sigterm.recv() => {
-                force_exit_armed.store(true, Ordering::SeqCst);
-                "SIGTERM"
             }
         }
     }

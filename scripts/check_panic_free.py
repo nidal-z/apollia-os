@@ -93,7 +93,7 @@ UNWRAP_EXEMPTION_CEILING = 0
 # from zero. The ratchet is two-sided on purpose: a one-sided ceiling records a
 # maximum for ever, and this tree has already paid for an intention nothing
 # executes. Lower it in the commit that removes a site.
-EXPECT_RATCHET = 100
+EXPECT_RATCHET = 51
 
 # An exemption is a `SAFETY:` comment with something after it, within the three
 # lines above the site, and it covers that one site.

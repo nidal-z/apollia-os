@@ -209,7 +209,13 @@ impl NativeChatToolInvoker {
         // Check session allow rules.
         let rule_key = format!("{}:{}", op.as_str(), level.as_str());
         if let Some(ref rules) = self.fs_allow_rules {
-            let guard = rules.lock().expect("fs_allow_rules lock poisoned");
+            // A poisoned lock means an earlier holder panicked, not that the
+            // rule set is broken: it is a set of `<op>:<level>` strings. Reading
+            // it back is what keeps one panic from denying every later
+            // filesystem operation of the session.
+            let guard = rules
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if guard.contains(&rule_key) {
                 return Ok(());
             }
@@ -260,7 +266,9 @@ impl NativeChatToolInvoker {
                 // the requested scope, broader scopes (project, global) are
                 // persisted by the desktop layer before this point is reached.
                 if let Some(ref rules) = self.fs_allow_rules {
-                    let mut guard = rules.lock().expect("fs_allow_rules lock poisoned");
+                    let mut guard = rules
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
                     guard.insert(format!("{rule_op}:{rule_level}"));
                 }
                 Ok(())

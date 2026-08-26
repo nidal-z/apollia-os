@@ -122,7 +122,13 @@ fn with_conn<R>(f: impl FnOnce(&Connection) -> Result<R, String>) -> Result<R, S
         *guard = Some(conn);
     }
 
-    f(guard.as_ref().expect("just initialized"))
+    // The block above stores a connection when the slot is empty, so the slot
+    // is filled here; saying so as an error rather than as a panic keeps a
+    // future edit to that block from taking the whole app down.
+    let conn = guard
+        .as_ref()
+        .ok_or_else(|| "artifacts connection missing after initialization".to_string())?;
+    f(conn)
 }
 
 fn row_to_artifact(row: &rusqlite::Row<'_>) -> rusqlite::Result<Artifact> {

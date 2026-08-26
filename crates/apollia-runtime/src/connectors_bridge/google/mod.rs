@@ -104,16 +104,15 @@ async fn resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String> {
         .list_accounts(ConnectorProvider::Google)
         .await
         .map_err(|e| format!("auth: {e}"))?;
-    if accounts.is_empty() {
-        return Err("no Google account connected - open Réglages → Intégrations to sign in".into());
-    }
     if accounts.len() > 1 {
         tracing::warn!(
             count = accounts.len(),
             "multiple Google accounts connected - using the first"
         );
     }
-    Ok(accounts.into_iter().next().expect("len>=1"))
+    accounts.into_iter().next().ok_or_else(|| {
+        "no Google account connected - open Réglages → Intégrations to sign in".to_string()
+    })
 }
 
 async fn bearer_for(

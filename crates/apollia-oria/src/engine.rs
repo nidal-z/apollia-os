@@ -32,7 +32,7 @@ use crate::observer::{classify, ContextBundle, ExecutionMode, ObserverError};
 use crate::plan::ExecutionPlan;
 use crate::plan_cache::{compute_cache_key, PlanCacheRepository};
 use crate::plan_gate::{PendingPlanGates, PlanGateDecision};
-use crate::plan_repository::PlanRepository;
+use crate::plan_repository::{PlanRepository, PlanRepositoryError};
 use crate::reasoner::{Reasoner, ReasonerError};
 use crate::resilience::ResilienceLayer;
 use crate::verification::{
@@ -906,7 +906,15 @@ impl ORIAEngine {
         let mut replans: u32 = 0;
 
         loop {
-            let repo = self.open_repo_with_plan(db_path, &plan, &manifest.name);
+            let repo = match self.open_repo_with_plan(db_path, &plan, &manifest.name) {
+                Ok(repo) => repo,
+                Err(e) => {
+                    return AIPResult::failed(
+                        "PLAN_REPOSITORY",
+                        &format!("plan repository unavailable: {e}"),
+                    )
+                }
+            };
             let plan_id = plan.plan_id.clone();
             let step_count = plan.steps.len();
 
@@ -1204,17 +1212,22 @@ impl ORIAEngine {
     /// Falls back to `:memory:` if `db_path` fails. Errors during `insert_plan`
     /// or `insert_steps` are logged but do not abort execution (persistence is
     /// non-blocking).
+    ///
+    /// # Errors
+    /// Returns [`PlanRepositoryError`] when neither `db_path` nor `:memory:`
+    /// opens. The in-memory fallback opens a database like any other, so its
+    /// failure is returned rather than asserted.
     fn open_repo_with_plan(
         &self,
         db_path: &str,
         plan: &ExecutionPlan,
         agent_name: &str,
-    ) -> PlanRepository {
+    ) -> Result<PlanRepository, PlanRepositoryError> {
         let repo = match PlanRepository::new(db_path) {
             Ok(r) => r,
             Err(e) => {
                 tracing::error!(error = %e, "Failed to open PlanRepository - falling back to :memory:");
-                PlanRepository::new(":memory:").expect("in-memory SQLite must always succeed")
+                PlanRepository::new(":memory:")?
             }
         };
 
@@ -1225,7 +1238,7 @@ impl ORIAEngine {
             tracing::error!(error = %e, "Failed to persist plan steps (non-blocking)");
         }
 
-        repo
+        Ok(repo)
     }
 
     // Mode Direct

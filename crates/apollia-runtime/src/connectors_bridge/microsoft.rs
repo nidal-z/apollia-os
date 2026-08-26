@@ -48,18 +48,15 @@ async fn ms_resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String
         .list_accounts(ConnectorProvider::Microsoft)
         .await
         .map_err(|e| format!("auth: {e}"))?;
-    if accounts.is_empty() {
-        return Err(
-            "no Microsoft account connected - open Réglages → Intégrations to sign in".into(),
-        );
-    }
     if accounts.len() > 1 {
         tracing::warn!(
             count = accounts.len(),
             "multiple Microsoft accounts connected - using the first"
         );
     }
-    Ok(accounts.into_iter().next().expect("len>=1"))
+    accounts.into_iter().next().ok_or_else(|| {
+        "no Microsoft account connected - open Réglages → Intégrations to sign in".to_string()
+    })
 }
 
 async fn ms_bearer_for(
