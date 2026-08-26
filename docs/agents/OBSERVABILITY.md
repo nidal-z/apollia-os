@@ -62,6 +62,13 @@ past as semantically appropriate.
 The static message is never a sentence. It is a label. The fields carry
 the data.
 
+A message that reads as prose is not a stylistic slip, it is a key that does
+not group: `agent.started` can be counted, `Agent xyz started in 12 ms` answers
+a different string every time. Where the sentence carried something the label
+cannot, that something becomes a field, `reason` for the cause and `detail` for
+the consequence. `scripts/check_tracing_messages.py` holds the rule, per crate,
+on a ratchet that only descends.
+
 Bad : `tracing::info!("Agent {} started in {} ms", id, elapsed.as_millis());`
 Good : `tracing::info!(agent_id = %id, duration_ms = elapsed.as_millis(), "agent.started");`
 

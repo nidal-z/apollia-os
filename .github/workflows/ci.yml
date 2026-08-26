@@ -397,6 +397,14 @@ jobs:
         run: |
           python3 scripts/check_rust_rules.py --selftest
           python3 scripts/check_rust_rules.py
+      # The other half of the same rule: check_rust_rules.py holds the format
+      # strings at zero, and nothing held the label form, so 837 of the 995
+      # production events were prose and no query could group them. Selftest
+      # first, red sample first.
+      - name: Tracing messages are labels, per crate, on a descending ratchet
+        run: |
+          python3 scripts/check_tracing_messages.py --selftest
+          python3 scripts/check_tracing_messages.py
       # Placement, not just existence. The replay asks whether some file carries
       # an id; this asks whether the marker still sits on the paragraph it
       # guards, and reports which of its rules had no coverage.
