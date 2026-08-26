@@ -19,151 +19,24 @@
 //! );
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rusqlite::{params, Connection, OpenFlags};
-use serde::{Deserialize, Serialize};
 
 use crate::error::PermissionError;
+
+mod matching;
+mod types;
+
+pub use matching::extract_first_arg;
+use matching::{
+    current_unix_secs, is_expired, match_in_session, prefix_matches, row_to_rule, scan_rows,
+};
+pub use types::{PermissionScope, PrefixRule, RuleAction, ScopeContext};
 
 // ─────────────────────────────────────────────
 // Public types
 // ─────────────────────────────────────────────
-
-/// Action of a prefix rule: Allow or Deny.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum RuleAction {
-    /// Auto-approve invocations matching this rule.
-    Allow,
-    /// Auto-deny invocations matching this rule.
-    Deny,
-}
-
-impl RuleAction {
-    fn as_str(&self) -> &'static str {
-        match self {
-            RuleAction::Allow => "allow",
-            RuleAction::Deny => "deny",
-        }
-    }
-
-    fn from_str(s: &str) -> Result<Self, PermissionError> {
-        match s {
-            "allow" => Ok(RuleAction::Allow),
-            "deny" => Ok(RuleAction::Deny),
-            other => Err(PermissionError::InvalidRule(format!(
-                "unknown action '{other}', expected 'allow' or 'deny'"
-            ))),
-        }
-    }
-}
-
-/// Scope of a permission rule.
-///
-/// Determines where the rule is stored and how it is filtered during evaluation.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum PermissionScope {
-    /// Rule living only in memory, for the duration of one chat session.
-    ///
-    /// Disappears when the process stops. Never persisted to SQLite.
-    Session,
-    /// Rule persisted and filtered by the canonical path of the current project.
-    ///
-    /// Applies only to invocations issued from the matching project.
-    Project,
-    /// Rule persisted and filtered by the identity of the current agent.
-    ///
-    /// Applies to any invocation issued by the agent whose `agent_id` matches.
-    /// Independent of the project: an agent can run outside a project.
-    Agent,
-    /// Rule persisted and applying to any project.
-    #[default]
-    Global,
-}
-
-impl PermissionScope {
-    /// Textual representation stored in the database.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            PermissionScope::Session => "session",
-            PermissionScope::Project => "project",
-            PermissionScope::Agent => "agent",
-            PermissionScope::Global => "global",
-        }
-    }
-
-    /// Parse the value stored in the database, defaulting to `Global` for null columns.
-    fn from_db_str(s: &str) -> Result<Self, PermissionError> {
-        match s {
-            "session" => Ok(PermissionScope::Session),
-            "project" => Ok(PermissionScope::Project),
-            "agent" => Ok(PermissionScope::Agent),
-            "global" => Ok(PermissionScope::Global),
-            other => Err(PermissionError::InvalidRule(format!(
-                "unknown scope '{other}', expected 'session' | 'project' | 'agent' | 'global'"
-            ))),
-        }
-    }
-}
-
-/// Evaluation context for scope-aware rule matching.
-///
-/// Passed to the `PrefixRuleEngine` to filter `Project`/`Agent` rules.
-#[derive(Debug, Clone, Default)]
-pub struct ScopeContext {
-    /// Scope of the current invocation (informational, not used for filtering).
-    pub scope: PermissionScope,
-    /// Canonical path of the current project (`None` when outside a project).
-    pub project_path: Option<PathBuf>,
-    /// Identifier of the current agent (`None` when outside an agent context).
-    pub agent_id: Option<String>,
-}
-
-/// A prefix rule persisted in SQLite.
-///
-/// A rule binds a tool name and an optional argument prefix to an action.
-/// `arg_prefix = None` means the rule applies to any argument.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PrefixRule {
-    /// Unique identifier (SQLite AUTOINCREMENT). 0 for a non-persisted rule.
-    pub id: i64,
-    /// Name of the targeted tool.
-    pub tool_name: String,
-    /// Argument prefix to match (None = any argument).
-    pub arg_prefix: Option<String>,
-    /// Action to apply when the rule matches.
-    pub action: RuleAction,
-    /// Creation timestamp (Unix epoch, seconds).
-    pub created_at: i64,
-    /// Name of the agent that created the rule (None = human operator).
-    pub created_by_agent: Option<String>,
-    /// Scope of the rule.
-    pub scope: PermissionScope,
-    /// Canonical project path (set when `scope == Project`).
-    pub project_path: Option<PathBuf>,
-    /// Agent identifier (set when `scope == Agent`).
-    pub agent_id: Option<String>,
-    /// Unix expiration timestamp (None = permanent rule).
-    pub expires_at: Option<i64>,
-}
-
-impl Default for PrefixRule {
-    fn default() -> Self {
-        Self {
-            id: 0,
-            tool_name: String::new(),
-            arg_prefix: None,
-            action: RuleAction::Allow,
-            created_at: 0,
-            created_by_agent: None,
-            scope: PermissionScope::Global,
-            project_path: None,
-            agent_id: None,
-            expires_at: None,
-        }
-    }
-}
 
 // ─────────────────────────────────────────────
 // PrefixRuleEngine
@@ -657,193 +530,14 @@ impl PrefixRuleEngine {
 // Free helpers
 // ─────────────────────────────────────────────
 
-fn current_unix_secs() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
-}
-
-fn is_expired(expires_at: Option<i64>, now: i64) -> bool {
-    matches!(expires_at, Some(deadline) if deadline <= now)
-}
-
-fn prefix_matches(tool_name: &str, arg_prefix: Option<&str>, first_arg: Option<&str>) -> bool {
-    if crate::executor_guard::is_code_executor(tool_name) {
-        return code_executor_prefix_matches(arg_prefix, first_arg);
-    }
-    match (arg_prefix, first_arg) {
-        (None, _) => true,
-        (Some(prefix), Some(arg)) => arg.starts_with(prefix),
-        (Some(_), None) => false,
-    }
-}
-
-/// Prefix matching restricted for arbitrary-code executors (`bash_executor`,
-/// `python_executor`).
-///
-/// A no-prefix rule never grants a blanket allow over an entire interpreter,
-/// and a prefix rule matches only when the argument is a single simple command
-/// (no chaining/redirection/substitution), so an approved prefix cannot be
-/// escaped by appending `; rm -rf ...`.
-fn code_executor_prefix_matches(arg_prefix: Option<&str>, command: Option<&str>) -> bool {
-    match (arg_prefix, command) {
-        (None, _) => false,
-        (Some(prefix), Some(cmd)) => {
-            cmd.starts_with(prefix) && crate::executor_guard::is_single_simple_command(cmd)
-        }
-        (Some(_), None) => false,
-    }
-}
-
-fn match_in_session(
-    tool_name: &str,
-    first_arg: Option<&str>,
-    session_rules: &[PrefixRule],
-    now: i64,
-) -> Option<(i64, RuleAction)> {
-    let mut candidates: Vec<&PrefixRule> = session_rules
-        .iter()
-        .filter(|r| r.tool_name == tool_name)
-        .filter(|r| {
-            if is_expired(r.expires_at, now) {
-                tracing::warn!(
-                    rule_id = r.id,
-                    tool = %tool_name,
-                    "permission.session_rule.expired.ignored"
-                );
-                false
-            } else {
-                true
-            }
-        })
-        .collect();
-
-    candidates.sort_by(|a, b| {
-        let la = a.arg_prefix.as_deref().map(str::len).unwrap_or(0);
-        let lb = b.arg_prefix.as_deref().map(str::len).unwrap_or(0);
-        lb.cmp(&la)
-    });
-
-    for rule in candidates {
-        if prefix_matches(tool_name, rule.arg_prefix.as_deref(), first_arg) {
-            return Some((rule.id, rule.action.clone()));
-        }
-    }
-    None
-}
-
-fn row_to_rule(row: &rusqlite::Row<'_>) -> rusqlite::Result<Result<PrefixRule, PermissionError>> {
-    let id: i64 = row.get(0)?;
-    let tool_name: String = row.get(1)?;
-    let arg_prefix: Option<String> = row.get(2)?;
-    let action_str: String = row.get(3)?;
-    let created_at: i64 = row.get(4)?;
-    let created_by_agent: Option<String> = row.get(5)?;
-    let scope_str: String = row.get(6)?;
-    let project_path_str: Option<String> = row.get(7)?;
-    let agent_id: Option<String> = row.get(8)?;
-    let expires_at: Option<i64> = row.get(9)?;
-
-    Ok((|| -> Result<PrefixRule, PermissionError> {
-        Ok(PrefixRule {
-            id,
-            tool_name,
-            arg_prefix,
-            action: RuleAction::from_str(&action_str)?,
-            created_at,
-            created_by_agent,
-            scope: PermissionScope::from_db_str(&scope_str)?,
-            project_path: project_path_str.map(PathBuf::from),
-            agent_id,
-            expires_at,
-        })
-    })())
-}
-
-fn scan_rows(
-    rows: &mut rusqlite::Rows<'_>,
-    tool_name: &str,
-    scope: &str,
-    first_arg: Option<&str>,
-    now: i64,
-) -> Result<Option<(i64, RuleAction)>, PermissionError> {
-    while let Some(row) = rows.next()? {
-        let id: i64 = row.get(0)?;
-        let arg_prefix: Option<String> = row.get(1)?;
-        let action_str: String = row.get(2)?;
-        let expires_at: Option<i64> = row.get(3)?;
-
-        if is_expired(expires_at, now) {
-            tracing::warn!(
-                rule_id = id,
-                tool = %tool_name,
-                scope = %scope,
-                "permission.prefix_rule.expired.ignored"
-            );
-            continue;
-        }
-
-        let action = RuleAction::from_str(&action_str)?;
-        if prefix_matches(tool_name, arg_prefix.as_deref(), first_arg) {
-            tracing::debug!(
-                tool = %tool_name,
-                rule_id = id,
-                scope = %scope,
-                action = ?action,
-                "permission.prefix_rule.matched"
-            );
-            return Ok(Some((id, action)));
-        }
-    }
-    Ok(None)
-}
-
-/// Extracts the first string argument from the JSON input.
-///
-/// Strategy: try the common native-tool keys first
-/// (`cmd`, `command`, `path`, `url`, `query`, `input`, `text`, `content`,
-/// `prompt`), then take the first string value found in the object.
-/// If the input is itself a string, return it as is.
-///
-/// Public because the chat ReAct loop performs the same extraction before it
-/// consults the prefix rules per invocation: the caller and the rule store
-/// must agree on which argument a rule's prefix is matched against.
-pub fn extract_first_arg(input: &serde_json::Value) -> Option<String> {
-    use serde_json::Value;
-
-    match input {
-        Value::String(s) => Some(s.clone()),
-        Value::Object(map) => {
-            // Try the common native-tool keys first.
-            const PRIORITY_KEYS: &[&str] = &[
-                "cmd", "command", "path", "url", "query", "input", "text", "content", "prompt",
-            ];
-
-            for key in PRIORITY_KEYS {
-                if let Some(Value::String(s)) = map.get(*key) {
-                    return Some(s.clone());
-                }
-            }
-            // Fallback: first string value found in the object.
-            map.values().find_map(|v| {
-                if let Value::String(s) = v {
-                    Some(s.clone())
-                } else {
-                    None
-                }
-            })
-        }
-        _ => None,
-    }
-}
-
 // ─────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use tempfile::NamedTempFile;
 

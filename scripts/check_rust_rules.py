@@ -118,7 +118,6 @@ MODULE_SIZE_FILES: set[str] = {
     "crates/apollia-mcp/src/session.rs",
     "crates/apollia-oria/src/actor.rs",
     "crates/apollia-oria/src/engine.rs",
-    "crates/apollia-permissions/src/prefix_rule_engine.rs",
     "crates/apollia-tools/src/executor.rs",
     "crates/apollia-tools/src/task_repository.rs",
     "crates/apollia-triggers/src/engine.rs",
