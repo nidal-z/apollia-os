@@ -616,6 +616,7 @@ mod tests {
         )
         .expect("SseTransport::new must succeed");
 
+        // WHEN its process id is asked for
         // THEN pid() returns None
         assert!(transport.pid().is_none());
     }

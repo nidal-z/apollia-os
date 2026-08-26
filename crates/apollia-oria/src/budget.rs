@@ -602,7 +602,10 @@ mod property {
         /// lower the runtime ceiling, never raise the budget above it.
         #[test]
         fn prop_effective_cap_is_min_and_never_exceeds_ceiling(agent: u32, runtime: u32) {
+            // GIVEN any agent ceiling and any runtime ceiling
+            // WHEN the effective cap is computed
             let cap = effective_cap(agent, runtime);
+            // THEN it stays under both, and equals the smaller of the two
             prop_assert!(cap <= agent);
             prop_assert!(cap <= runtime);
             prop_assert_eq!(cap, agent.min(runtime));
@@ -612,6 +615,9 @@ mod property {
         /// stays reached for any further increment (no wrap-around gap).
         #[test]
         fn prop_dimension_exhausted_is_ge_and_monotonic(used: u32, max: u32, delta: u32) {
+            // GIVEN any usage, any ceiling, and any further increment
+            // WHEN exhaustion is evaluated
+            // THEN it is exactly the `>=` test, and once true it stays true
             prop_assert_eq!(dimension_exhausted(used, max), used >= max);
             if dimension_exhausted(used, max) {
                 prop_assert!(dimension_exhausted(used.saturating_add(delta), max));
@@ -621,7 +627,10 @@ mod property {
         /// `remaining` never underflows and is zero exactly when exhausted.
         #[test]
         fn prop_remaining_saturates_and_zero_iff_exhausted(used: u32, max: u32) {
+            // GIVEN any usage and any ceiling
+            // WHEN the remaining headroom is computed
             let left = remaining(used, max);
+            // THEN it is zero exactly when the dimension is exhausted, and the difference otherwise
             prop_assert_eq!(left == 0, dimension_exhausted(used, max));
             if used < max {
                 prop_assert_eq!(left, max - used);
@@ -636,6 +645,7 @@ mod property {
             agent_steps in 0u32..=64,
             runtime_steps in 1u32..=64,
         ) {
+            // GIVEN an agent budget and a runtime budget, each with its own step ceiling
             let agent = StepBudgetConfig {
                 max_steps: agent_steps,
                 max_tool_calls: u32::MAX,
@@ -648,6 +658,7 @@ mod property {
             };
             let budget = StepBudget::from_capped(&agent, &runtime);
             let cap = agent_steps.min(runtime_steps);
+            // THEN the built budget stops at the smaller of the two ceilings
             prop_assert_eq!(budget.max_steps, cap);
             prop_assert!(budget.max_steps <= runtime_steps);
 

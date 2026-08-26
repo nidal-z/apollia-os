@@ -135,8 +135,9 @@ mod tests {
 
     #[test]
     fn test_service_type_format() {
-        // GIVEN the SERVICE_TYPE constant
-        // THEN it matches the expected mDNS service type
+        // GIVEN the mDNS service type the runtime advertises under
+        // WHEN the constant is read
+        // THEN it is the published one: a change here makes running peers invisible
         assert_eq!(SERVICE_TYPE, "_apollia-mcp._tcp.local.");
     }
 
@@ -149,6 +150,7 @@ mod tests {
             port: 9090,
             tools: vec![],
         };
+        // WHEN its tool list is read
         // THEN tools field is empty, not an error
         assert!(server.tools.is_empty());
     }

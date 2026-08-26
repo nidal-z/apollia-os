@@ -63,7 +63,8 @@ mod tests {
 
     #[test]
     fn test_builder_skips_absent_blocks() {
-        // GIVEN only a base, no optional blocks
+        // GIVEN a base prompt and no optional block
+        // WHEN the prompt is built
         let prompt = ChatPromptBuilder::new("BASE").build();
         // THEN it is just the base plus the footer
         assert!(prompt.starts_with("BASE"));
@@ -73,7 +74,8 @@ mod tests {
 
     #[test]
     fn test_language_footer_can_be_disabled() {
-        // GIVEN a builder with the footer disabled (non-user-facing)
+        // GIVEN a base prompt, with the language footer turned off
+        // WHEN the prompt is built
         let prompt = ChatPromptBuilder::new("BASE")
             .language_footer(false)
             .build();
@@ -83,7 +85,8 @@ mod tests {
 
     #[test]
     fn test_render_substitutes_placeholders() {
-        // GIVEN a template with placeholders
+        // GIVEN a template carrying two placeholders, and a value for each
+        // WHEN the template is rendered
         let out = render(
             "max {max_steps}, tools {tool_names}",
             &[("max_steps", "5"), ("tool_names", "a, b")],

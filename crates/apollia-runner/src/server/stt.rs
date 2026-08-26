@@ -77,24 +77,33 @@ mod tests {
 
     #[test]
     fn rejects_relative_audio_path() {
+        // GIVEN a transcription request whose audio path is relative
         let mut p = base();
         p.audio_path = PathBuf::from("audio.wav");
+        // WHEN the request is validated
         let err = validate(&p).expect_err("must reject relative path");
+        // THEN it is refused as a bad request, the runner resolving no working directory
         assert_eq!(err.code, ErrorCode::BadRequest);
     }
 
     #[test]
     fn rejects_invalid_task() {
+        // GIVEN a transcription request naming a task the backend does not offer
         let mut p = base();
         p.task = "summarize".into();
+        // WHEN the request is validated
         let err = validate(&p).expect_err("must reject invalid task");
+        // THEN it is refused as a bad request
         assert_eq!(err.code, ErrorCode::BadRequest);
     }
 
     #[test]
     fn accepts_translate() {
+        // GIVEN a transcription request asking for the translate task
         let mut p = base();
         p.task = "translate".into();
+        // WHEN the request is validated
+        // THEN it is accepted: translate is one of the two supported tasks
         assert!(validate(&p).is_ok());
     }
 }

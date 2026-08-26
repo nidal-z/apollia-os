@@ -641,6 +641,9 @@ mod tests {
 
     #[test]
     fn test_detect_webhook_kind_discord() {
+        // GIVEN the three Discord webhook hosts in use
+        // WHEN the kind is detected from each URL
+        // THEN all three are recognised as Discord
         assert_eq!(
             detect_webhook_kind("https://discord.com/api/webhooks/123/abc"),
             WebhookKind::Discord
@@ -657,6 +660,9 @@ mod tests {
 
     #[test]
     fn test_detect_webhook_kind_slack() {
+        // GIVEN a Slack incoming-webhook URL
+        // WHEN the kind is detected from it
+        // THEN it is recognised as Slack
         assert_eq!(
             detect_webhook_kind("https://hooks.slack.com/services/T000/B000/xxx"),
             WebhookKind::Slack
@@ -665,6 +671,9 @@ mod tests {
 
     #[test]
     fn test_detect_webhook_kind_custom_falls_back_to_apollia() {
+        // GIVEN two URLs belonging to neither Discord nor Slack
+        // WHEN the kind is detected from each
+        // THEN both fall back on the generic Apollia payload
         assert_eq!(
             detect_webhook_kind("https://my-service.example.com/notify"),
             WebhookKind::Apollia
@@ -677,6 +686,9 @@ mod tests {
 
     #[test]
     fn test_detect_webhook_kind_invalid_url_falls_back_to_apollia() {
+        // GIVEN a string that does not parse as a URL
+        // WHEN the kind is detected from it
+        // THEN it falls back on the generic payload rather than failing
         assert_eq!(detect_webhook_kind("not a url"), WebhookKind::Apollia);
     }
 
@@ -704,8 +716,11 @@ mod tests {
 
     #[test]
     fn test_build_discord_payload_severity_critical_uses_red() {
+        // GIVEN a notification at the critical severity
         let notif = make_notif("llm.cost_alert", None, Severity::Critical);
+        // WHEN the Discord payload is built
         let payload = build_discord_payload(&notif);
+        // THEN the embed carries the red colour
         // 0xB91C1C = 12_131_356
         assert_eq!(payload["embeds"][0]["color"], 12_131_356);
     }
@@ -736,9 +751,12 @@ mod tests {
 
     #[test]
     fn test_build_slack_payload_has_text_and_attachment() {
+        // GIVEN a notification at the info severity, carrying a task id
         let notif = make_notif("task.completed", Some("t-001"), Severity::Info);
+        // WHEN the Slack payload is built
         let payload = build_slack_payload(&notif);
 
+        // THEN it carries a text line and one attachment, coloured and with its fields
         assert!(payload["text"].as_str().is_some());
         let attachments = payload["attachments"].as_array().expect("attachments");
         assert_eq!(attachments.len(), 1);
@@ -748,8 +766,11 @@ mod tests {
 
     #[test]
     fn test_build_slack_payload_severity_error_uses_danger() {
+        // GIVEN a notification at the error severity
         let notif = make_notif("task.failed", None, Severity::Error);
+        // WHEN the Slack payload is built
         let payload = build_slack_payload(&notif);
+        // THEN the attachment is coloured as a danger
         assert_eq!(payload["attachments"][0]["color"], "danger");
     }
 
@@ -943,6 +964,7 @@ mod tests {
     fn test_different_secrets_produce_different_signatures() {
         // GIVEN the same body, different secrets
         let body = b"same payload";
+        // WHEN the same body is signed with each secret in turn
         let sig1 = compute_signature("secret_a", body);
         let sig2 = compute_signature("secret_b", body);
 
@@ -956,6 +978,7 @@ mod tests {
     #[test]
     fn test_signature_format_is_sha256_prefix_hex() {
         // GIVEN an arbitrary secret and body
+        // WHEN the body is signed
         let signature = compute_signature("whsec_test123", b"{\"event\":\"agent.started\"}");
 
         // THEN format "sha256=<64 hex chars>"

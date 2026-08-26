@@ -151,14 +151,20 @@ mod tests {
 
     #[test]
     fn test_validate_channel_webhook_with_url_ok() {
+        // GIVEN a webhook channel carrying a URL
         let ch = make_webhook_channel(serde_json::json!({"url": "https://example.com/hook"}));
+        // WHEN the channel is validated
+        // THEN it is accepted
         assert!(validate_channel(&ch).is_ok());
     }
 
     #[test]
     fn test_validate_channel_webhook_no_url_rejects() {
+        // GIVEN a webhook channel with no URL at all
         let ch = make_webhook_channel(serde_json::json!({}));
+        // WHEN the channel is validated
         let err = validate_channel(&ch).unwrap_err();
+        // THEN it is refused, and the message names the missing field
         assert!(
             matches!(&err, NotificationConfigError::ValidationError(msg) if msg.contains("url"))
         );
@@ -166,13 +172,17 @@ mod tests {
 
     #[test]
     fn test_validate_channel_webhook_empty_url_rejects() {
+        // GIVEN a webhook channel whose URL is the empty string
         let ch = make_webhook_channel(serde_json::json!({"url": ""}));
+        // WHEN the channel is validated
         let err = validate_channel(&ch).unwrap_err();
+        // THEN it is refused: an empty URL is not a URL
         assert!(matches!(&err, NotificationConfigError::ValidationError(_)));
     }
 
     #[test]
     fn test_validate_channel_desktop_no_url_ok() {
+        // GIVEN a desktop channel, which needs no URL
         let ch = NotificationChannelRow {
             id: "desktop".into(),
             label: None,
@@ -184,24 +194,35 @@ mod tests {
             created_at: String::new(),
             updated_at: String::new(),
         };
+        // WHEN the channel is validated
+        // THEN it is accepted
         assert!(validate_channel(&ch).is_ok());
     }
 
     #[test]
     fn test_validate_min_interval_zero_ok() {
+        // GIVEN a minimum interval of zero, meaning no throttling
+        // WHEN it is validated
+        // THEN it is accepted
         assert!(validate_min_interval(0).is_ok());
     }
 
     #[test]
     fn test_validate_min_interval_reasonable_ok() {
+        // GIVEN intervals from one second up to the cap itself
+        // WHEN each is validated
         for v in [1u32, 60, 300, 3600, 7200, MAX_MIN_INTERVAL_SECONDS] {
+            // THEN every one of them is accepted, the cap included
             assert!(validate_min_interval(v).is_ok(), "expected {v} to be ok");
         }
     }
 
     #[test]
     fn test_validate_min_interval_over_cap_rejects() {
+        // GIVEN an interval one second past the cap
+        // WHEN it is validated
         let err = validate_min_interval(MAX_MIN_INTERVAL_SECONDS + 1).unwrap_err();
+        // THEN it is refused, and the message says the value is too large
         assert!(
             matches!(&err, NotificationConfigError::ValidationError(m) if m.contains("too large"))
         );
@@ -244,6 +265,8 @@ mod tests {
     #[test]
     fn test_validate_label_unicode_chars_counted() {
         // GIVEN 80 emoji (1 char each in Unicode), should pass
+        // WHEN each label is validated
+        // THEN the eighty-character label passes and the eighty-first character fails: the limit counts characters, not bytes
         let just_under: String = "🚀".repeat(80);
         assert!(validate_label(Some(&just_under)).is_ok());
 
@@ -254,7 +277,10 @@ mod tests {
 
     #[test]
     fn test_validate_events_all_known_ok() {
+        // GIVEN two event names the runtime declares
         let events = vec!["task.completed".into(), "task.failed".into()];
+        // WHEN the list is validated
+        // THEN it is accepted
         assert!(validate_events(&events).is_ok());
     }
 
@@ -268,8 +294,11 @@ mod tests {
 
     #[test]
     fn test_validate_events_unknown_rejects() {
+        // GIVEN a list mixing a declared event with one the runtime never emits
         let events = vec!["task.completed".into(), "unknown.event".into()];
+        // WHEN the list is validated
         let err = validate_events(&events).unwrap_err();
+        // THEN it is refused, and the message names the offending event
         assert!(
             matches!(&err, NotificationConfigError::ValidationError(msg) if msg.contains("unknown.event"))
         );

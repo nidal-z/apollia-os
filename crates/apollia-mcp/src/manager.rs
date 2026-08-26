@@ -536,13 +536,15 @@ mod tests {
             max_tools: 256,
             tags: vec![],
         };
-        // THEN
+        // WHEN the approval flag is read
+        // THEN the server is not gated behind an approval
         assert!(!config.requires_approval);
     }
 
     #[test]
     fn test_tool_naming_no_collision_across_servers() {
-        // GIVEN two servers exposing a tool with the same base name
+        // GIVEN two servers exposing a tool under the same base name
+        // WHEN each name is qualified with its server
         let notion_tool = format!("mcp:{}/{}", "notion", "search");
         let sqlite_tool = format!("mcp:{}/{}", "sqlite", "search");
         // THEN the qualified names are distinct
@@ -682,6 +684,7 @@ mod tests {
             requires_approval: false,
             tags: vec![],
         };
+        // WHEN the view is inspected
         // THEN only keys are exposed, no values
         assert_eq!(view.env_keys.len(), 2);
         assert!(view.env_keys.contains(&"NOTION_TOKEN".to_string()));
@@ -778,6 +781,7 @@ mod tests {
                 tags: vec![],
             },
         };
+        // WHEN its status, its tools and its config view are read
         // THEN all fields are accessible and correct
         assert_eq!(detail.status.name, "notion");
         assert_eq!(detail.tools.len(), 2);
@@ -835,6 +839,7 @@ mod tests {
             server: "anthropic".to_string(),
         };
 
+        // WHEN it is matched and rendered
         // THEN it formats and matches correctly
         assert!(
             matches!(&err, McpSessionError::ServerReloading { server } if server == "anthropic")
@@ -849,6 +854,7 @@ mod tests {
             server: "inexistant".to_string(),
         };
 
+        // WHEN it is matched and rendered
         // THEN it formats and matches correctly
         assert!(matches!(&err, McpSessionError::ConfigReload { server } if server == "inexistant"));
         assert!(err.to_string().contains("inexistant"));
@@ -863,6 +869,7 @@ mod tests {
             new_tools: vec!["search".to_string(), "insert".to_string()],
         };
 
+        // WHEN it is matched and serialised
         // THEN it matches correctly and serializes
         assert!(matches!(&event,
             apollia_core::RuntimeEvent::McpServerReloaded { name, old_tools, new_tools }

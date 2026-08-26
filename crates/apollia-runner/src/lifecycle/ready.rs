@@ -33,15 +33,21 @@ mod tests {
 
     #[test]
     fn announce_writes_correct_format() {
+        // GIVEN a writable buffer standing in for the runner's stdout
         let mut buf = Vec::new();
+        // WHEN the ready line is announced for a port
         announce_to(&mut buf, 38492).unwrap();
+        // THEN the exact line the parent parses is written, newline included
         assert_eq!(buf, b"READY 38492\n");
     }
 
     #[test]
     fn announce_handles_max_port() {
+        // GIVEN a writable buffer, and the highest port a socket can carry
         let mut buf = Vec::new();
+        // WHEN the ready line is announced for it
         announce_to(&mut buf, u16::MAX).unwrap();
+        // THEN the port is rendered whole, with no truncation
         assert_eq!(buf, b"READY 65535\n");
     }
 }

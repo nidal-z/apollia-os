@@ -323,6 +323,9 @@ mod tests {
 
     #[test]
     fn test_severity_as_str() {
+        // GIVEN the five severity levels
+        // WHEN each is rendered as its stored string
+        // THEN the five persisted forms come out, lower case and unabbreviated
         assert_eq!(Severity::Debug.as_str(), "debug");
         assert_eq!(Severity::Info.as_str(), "info");
         assert_eq!(Severity::Warning.as_str(), "warning");

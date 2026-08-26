@@ -801,9 +801,12 @@ mod tests {
 
     #[test]
     fn set_and_get_roundtrip() {
+        // GIVEN an empty user-memory repository
         let (repo, _) = setup();
+        // WHEN a schema key is written, then read back
         repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
         let entry = repo.get("name").unwrap().expect("entry should exist");
+        // THEN the value, its provenance and its schema flag all survive
         assert_eq!(entry.value, "Nidal");
         assert_eq!(entry.written_by, WrittenBy::Onboarding);
         assert!(entry.in_schema);
@@ -811,12 +814,15 @@ mod tests {
 
     #[test]
     fn list_schema_and_extras_are_partitioned() {
+        // GIVEN one schema key and one key outside the schema
         let (repo, _) = setup();
         repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
         repo.set("favorite_color", "blue", WrittenBy::User).unwrap();
 
+        // WHEN the two listings are read
         let schema = repo.list_schema().unwrap();
         let extras = repo.list_extras().unwrap();
+        // THEN each key appears in exactly one of them
         assert!(schema.iter().any(|e| e.key == "name"));
         assert!(!schema.iter().any(|e| e.key == "favorite_color"));
         assert!(extras.iter().any(|e| e.key == "favorite_color"));
@@ -825,21 +831,27 @@ mod tests {
 
     #[test]
     fn set_rejects_internal_keys() {
+        // GIVEN an empty user-memory repository
         let (repo, _) = setup();
+        // WHEN a key reserved for internal state is written
         let err = repo
             .set("__sneaky", "x", WrittenBy::User)
             .expect_err("internal keys must be rejected");
+        // THEN the write is refused as an invalid key
         assert!(matches!(err, UserMemoryError::InvalidKey(_)));
     }
 
     #[test]
     fn reset_preserves_internal_state() {
+        // GIVEN one visible entry, one covered topic and the skip marker
         let (repo, _) = setup();
         repo.set("name", "Nidal", WrittenBy::User).unwrap();
         repo.mark_topic_covered("identity").unwrap();
         repo.set_onboarding_skipped(true).unwrap();
 
+        // WHEN the repository is reset
         let removed = repo.reset().unwrap();
+        // THEN the visible entry alone is dropped, and the internal state stands
         assert_eq!(removed, 1, "only the user-visible entry should be removed");
         assert!(repo.get("name").unwrap().is_none());
         assert!(repo.get_onboarding_skipped().unwrap());
@@ -848,13 +860,16 @@ mod tests {
 
     #[test]
     fn list_orders_schema_then_extras() {
+        // GIVEN two schema keys and two keys outside it, written out of order
         let (repo, _) = setup();
         repo.set("zzz_extra", "x", WrittenBy::User).unwrap();
         repo.set("role", "CTO", WrittenBy::User).unwrap();
         repo.set("aaa_extra", "y", WrittenBy::User).unwrap();
         repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
 
+        // WHEN everything is listed
         let all = repo.list_all().unwrap();
+        // THEN the schema keys come first, and the extras follow in alphabetical order
         assert_eq!(all[0].key, "name");
         assert_eq!(all[1].key, "role");
         let extras_keys: Vec<&str> = all
@@ -867,31 +882,41 @@ mod tests {
 
     #[test]
     fn forget_returns_not_found_when_missing() {
+        // GIVEN an empty user-memory repository
         let (repo, _) = setup();
+        // WHEN a key that was never written is forgotten
         let err = repo.forget("nonexistent").expect_err("must fail");
+        // THEN the call reports it as not found, rather than succeeding silently
         assert!(matches!(err, UserMemoryError::NotFound(_)));
     }
 
     #[test]
     fn forget_removes_entry() {
+        // GIVEN a repository holding one entry
         let (repo, _) = setup();
         repo.set("name", "Nidal", WrittenBy::User).unwrap();
+        // WHEN that key is forgotten
         repo.forget("name").unwrap();
+        // THEN the entry is gone
         assert!(repo.get("name").unwrap().is_none());
     }
 
     #[test]
     fn update_preserves_provenance() {
+        // GIVEN an entry written by the onboarding
         let (repo, _) = setup();
         repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
+        // WHEN its value is updated
         repo.update("name", "Alice").unwrap();
         let entry = repo.get("name").unwrap().unwrap();
+        // THEN the new value is stored and the original provenance is kept
         assert_eq!(entry.value, "Alice");
         assert_eq!(entry.written_by, WrittenBy::Onboarding);
     }
 
     #[test]
     fn recall_persona_brief_reflects_canonical_keys() {
+        // GIVEN four canonical keys and two extras, all written
         let (repo, _) = setup();
         repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
         repo.set("role", "CTO fintech", WrittenBy::Onboarding)
@@ -909,7 +934,9 @@ mod tests {
         repo.set("tech.proficiency", "expert", WrittenBy::User)
             .unwrap();
 
+        // WHEN the persona brief is recalled
         let brief = repo.recall_persona_brief(20).unwrap();
+        // THEN each of the six values is rendered into it
         assert!(
             brief.contains("Nidal"),
             "brief should contain name: {brief}"
@@ -926,7 +953,10 @@ mod tests {
 
     #[test]
     fn is_empty_on_fresh_and_after_set() {
+        // GIVEN a fresh repository
         let (repo, _) = setup();
+        // WHEN emptiness is asked, then the skip marker set, then a visible entry written
+        // THEN only the visible entry makes it non-empty
         assert!(repo.is_empty().unwrap());
         repo.set_onboarding_skipped(true).unwrap();
         assert!(
@@ -939,20 +969,26 @@ mod tests {
 
     #[test]
     fn search_returns_visible_entries() {
+        // GIVEN two entries, one of them holding the searched term
         let (repo, _) = setup();
         repo.set("name", "Nidal", WrittenBy::Onboarding).unwrap();
         repo.set("preferences.language", "francais", WrittenBy::User)
             .unwrap();
+        // WHEN that term is searched for
         let results = repo.search("francais", 10).unwrap();
+        // THEN the entry holding it comes back
         assert!(results.iter().any(|e| e.key == "preferences.language"));
     }
 
     #[test]
     fn onboarding_topics_round_trip() {
+        // GIVEN a fresh repository
         let (repo, _) = setup();
+        // WHEN two onboarding topics are marked covered, then read back
         repo.mark_topic_covered("identity").unwrap();
         repo.mark_topic_covered("preferences").unwrap();
         let topics = repo.get_covered_topics().unwrap();
+        // THEN both come back
         assert_eq!(topics.len(), 2);
         assert!(topics.contains(&"identity".to_string()));
         assert!(topics.contains(&"preferences".to_string()));
@@ -960,10 +996,13 @@ mod tests {
 
     #[test]
     fn onboarding_session_round_trip() {
+        // GIVEN a fresh repository, carrying no onboarding session
         let (repo, _) = setup();
         assert!(repo.get_last_onboarding_session().unwrap().is_none());
+        // WHEN a session timestamp is stored, then read back
         repo.set_last_onboarding_session("2026-05-11T10:00:00Z")
             .unwrap();
+        // THEN the stored timestamp comes back unchanged
         assert_eq!(
             repo.get_last_onboarding_session().unwrap().as_deref(),
             Some("2026-05-11T10:00:00Z")
@@ -972,6 +1011,9 @@ mod tests {
 
     #[test]
     fn written_by_tag_round_trip() {
+        // GIVEN the three provenance kinds an entry can carry
+        // WHEN each is rendered as its stored tag
+        // THEN the tags are the persisted forms, the agent one carrying its name
         assert_eq!(WrittenBy::Onboarding.tag(), "onboarding");
         assert_eq!(WrittenBy::User.tag(), "user");
         assert_eq!(

@@ -651,25 +651,30 @@ mod tests {
 
     #[test]
     fn test_initialize_timeout_error_includes_stderr_hint() {
+        // GIVEN an initialize timeout carrying a tail of the child's stderr
         let error = McpSessionError::InitializeTimeout {
             server: "filesystem".to_string(),
             timeout_secs: 30,
             stderr_hint: "; stderr: npm: command not found".to_string(),
         };
+        // WHEN the error is rendered
         let msg = error.to_string();
+        // THEN the operator reads the child's own message, not only the timeout
         assert!(msg.contains("npm: command not found"));
         assert!(msg.contains("stderr"));
     }
 
     #[test]
     fn test_format_stderr_hint() {
-        // Empty tail → empty hint
+        // GIVEN an empty stderr tail, then one line, then three
+        // WHEN each is formatted into a hint
+        // THEN an empty tail yields no hint at all
         assert_eq!(format_stderr_hint(&[]), "");
-        // Single line is included
+        // THEN a single line is carried behind the stderr prefix
         let hint = format_stderr_hint(&["boom".to_string()]);
         assert!(hint.contains("boom"));
         assert!(hint.starts_with("; stderr: "));
-        // Multiple lines kept oldest-first, joined with " | "
+        // THEN several lines are kept oldest first, joined by a pipe
         let hint = format_stderr_hint(&["a".to_string(), "b".to_string(), "c".to_string()]);
         assert!(hint.contains("a | b | c"));
     }
@@ -742,6 +747,7 @@ mod tests {
     fn test_shutdown_notification_method() {
         // GIVEN the cancellation notification method name
         let method = "notifications/cancelled";
+        // WHEN its namespace is checked
         // THEN it conforms to the MCP protocol notification namespace
         assert!(method.starts_with("notifications/"));
     }
@@ -799,6 +805,7 @@ mod tests {
             max_delay_secs: 0,
         };
 
+        // WHEN the call is driven through the transport retry
         let result = with_transport_retry(&cfg, "test-server", || {
             let count = call_count_clone.clone();
             async move {

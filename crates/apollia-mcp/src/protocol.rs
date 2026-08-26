@@ -526,13 +526,16 @@ mod tests {
 
     #[test]
     fn test_resources_list_result_deserializes() {
+        // GIVEN a resources/list result carrying one resource and a next cursor
         let json_str = r#"{
             "resources": [
                 { "uri": "file:///doc.txt", "name": "doc", "mimeType": "text/plain" }
             ],
             "nextCursor": "page-2"
         }"#;
+        // WHEN it is deserialised
         let result: ResourcesListResult = serde_json::from_str(json_str).unwrap();
+        // THEN the resource and the camel-cased cursor are both read
         assert_eq!(result.resources.len(), 1);
         assert_eq!(result.resources[0].uri, "file:///doc.txt");
         assert_eq!(result.next_cursor.as_deref(), Some("page-2"));

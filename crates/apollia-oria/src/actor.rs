@@ -1566,6 +1566,9 @@ mod tests {
 
     #[test]
     fn test_step_error_is_retryable() {
+        // GIVEN two transient step errors, and two that are structural
+        // WHEN each is asked whether a retry makes sense
+        // THEN only the transient ones are retryable
         assert!(StepError::ToolCallFailed("timeout".into()).is_retryable());
         assert!(StepError::LlmCallFailed("network error".into()).is_retryable());
         assert!(!StepError::NoLlmBackend.is_retryable());
@@ -1998,6 +2001,9 @@ mod tests {
     // StepError: the new variants are not retryable.
     #[test]
     fn test_step_error_rejected_and_closed_not_retryable() {
+        // GIVEN a step refused by the operator, and an approval channel that closed
+        // WHEN each is asked whether a retry makes sense
+        // THEN neither is: retrying would ask again for an answer already given
         assert!(!StepError::RejectedByUser {
             reason: "Non".into()
         }

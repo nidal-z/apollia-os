@@ -355,6 +355,7 @@ mod tests {
     async fn test_executor_name_and_read_only() {
         // GIVEN a tool_search executor
         let executor = ToolSearchExecutor::new(sample_index(), 20);
+        // WHEN its name and its read-only flag are read
         // THEN it identifies as tool_search and is read-only
         assert_eq!(executor.name(), "tool_search");
         assert!(executor.is_read_only());
@@ -437,6 +438,7 @@ mod tests {
     fn test_input_schema_shape() {
         // GIVEN the published input schema
         let schema = tool_search_input_schema();
+        // WHEN its shape is inspected
         // THEN it advertises an object with query and limit, both optional
         assert_eq!(schema["type"], "object");
         assert!(schema["properties"]["query"].is_object());

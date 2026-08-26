@@ -709,13 +709,16 @@ mod tests {
     /// Verifies that ChannelConfig deserializes correctly from TOML-compatible JSON.
     #[test]
     fn test_channel_config_deserialize() {
+        // GIVEN a channel configuration payload naming a type and two events
         let json = r#"{
             "id": "desktop",
             "type": "desktop",
             "enabled": true,
             "events": ["task.input_required", "task.failed"]
         }"#;
+        // WHEN it is deserialised
         let config: ChannelConfig = serde_json::from_str(json).expect("désérialisation échoue");
+        // THEN the id, the kind, the enabled flag and the event filter are all read
         assert_eq!(config.id, "desktop");
         assert!(matches!(config.kind, ChannelKind::Desktop));
         assert!(config.enabled);

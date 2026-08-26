@@ -302,15 +302,21 @@ mod tests {
 
     #[test]
     fn schema_keys_are_unique() {
+        // GIVEN the declared profile schema
         let mut seen = HashSet::new();
+        // WHEN its keys are collected one by one
         for f in PROFILE_SCHEMA {
+            // THEN no key appears twice
             assert!(seen.insert(f.key), "duplicate key in schema: {}", f.key);
         }
     }
 
     #[test]
     fn schema_select_fields_have_options() {
+        // GIVEN the declared profile schema
+        // WHEN each field is checked against its type
         for f in PROFILE_SCHEMA {
+            // THEN a select field carries options, and any other field carries none
             if f.field_type == ProfileFieldType::Select {
                 assert!(
                     !f.options.is_empty(),
@@ -329,14 +335,20 @@ mod tests {
 
     #[test]
     fn schema_includes_tier_1_keys() {
+        // GIVEN the canonical keys of the profile schema
         let keys: HashSet<&str> = canonical_keys().into_iter().collect();
+        // WHEN the four first-tier keys are looked for
         for required in &["name", "role", "agents.hitl", "constraints.sovereignty"] {
+            // THEN every one of them is present
             assert!(keys.contains(required), "tier 1 key missing: {}", required);
         }
     }
 
     #[test]
     fn is_canonical_matches() {
+        // GIVEN two schema keys and one that is not in the schema
+        // WHEN each is tested for canonicity
+        // THEN the two schema keys are canonical and the third is not
         assert!(is_canonical("name"));
         assert!(is_canonical("agents.hitl"));
         assert!(!is_canonical("random_key"));

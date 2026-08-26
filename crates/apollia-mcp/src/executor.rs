@@ -481,6 +481,7 @@ mod tests {
             code: "hitl_rejected".to_string(),
             message: "HITL approval rejected: user declined".to_string(),
         };
+        // WHEN the error is rendered for the operator
         // THEN the display output is descriptive
         assert!(error.to_string().contains("HITL approval rejected"));
         assert!(error.to_string().contains("user declined"));

@@ -343,14 +343,20 @@ mod tests {
 
     #[test]
     fn mix_to_mono_averages_channels() {
+        // GIVEN two stereo frames, interleaved
         let stereo = vec![0.0, 1.0, 0.5, -0.5];
+        // WHEN they are mixed down to mono
         let mono = mix_to_mono(&stereo, 2);
+        // THEN each frame becomes the average of its two channels
         assert_eq!(mono, vec![0.5, 0.0]);
     }
 
     #[test]
     fn loaded_ids_starts_empty() {
+        // GIVEN a freshly built whisper backend
         let b = WhisperBackend::new();
+        // WHEN its loaded model ids are read
+        // THEN there are none: construction loads nothing
         assert!(b.loaded_ids().is_empty());
     }
 }

@@ -63,6 +63,7 @@ fn shutdown(child: &mut Child, port: u16) {
 
 #[test]
 fn complete_rejects_invalid_temperature() {
+    // GIVEN a running runner, and a completion request with a temperature out of range
     let (mut child, port) = spawn_runner();
 
     let client = reqwest::blocking::Client::builder()
@@ -80,12 +81,14 @@ fn complete_rejects_invalid_temperature() {
         }
     });
 
+    // WHEN it is posted to the completion endpoint
     let resp = client
         .post(format!("http://127.0.0.1:{port}/llm/complete"))
         .json(&body)
         .send()
         .expect("complete request");
 
+    // THEN the runner answers 400 and names the bad request, rather than clamping
     assert_eq!(resp.status(), 400, "temperature=5.0 must yield 400");
     let payload: serde_json::Value = resp.json().expect("parse JSON");
     assert_eq!(payload["ok"], false);
@@ -96,6 +99,7 @@ fn complete_rejects_invalid_temperature() {
 
 #[test]
 fn complete_rejects_oversized_max_tokens() {
+    // GIVEN a running runner, and a completion request asking for far too many tokens
     let (mut child, port) = spawn_runner();
 
     let client = reqwest::blocking::Client::builder()
@@ -113,12 +117,14 @@ fn complete_rejects_oversized_max_tokens() {
         }
     });
 
+    // WHEN it is posted to the completion endpoint
     let resp = client
         .post(format!("http://127.0.0.1:{port}/llm/complete"))
         .json(&body)
         .send()
         .expect("complete request");
 
+    // THEN the runner answers 400 and names the bad request
     assert_eq!(resp.status(), 400);
     let payload: serde_json::Value = resp.json().expect("parse JSON");
     assert_eq!(payload["error"]["code"], "BAD_REQUEST");
@@ -128,6 +134,7 @@ fn complete_rejects_oversized_max_tokens() {
 
 #[test]
 fn complete_without_loaded_model_returns_404() {
+    // GIVEN a running runner with no model loaded
     let (mut child, port) = spawn_runner();
 
     let client = reqwest::blocking::Client::builder()
@@ -145,12 +152,14 @@ fn complete_without_loaded_model_returns_404() {
         }
     });
 
+    // WHEN a completion is asked for a model id it does not hold
     let resp = client
         .post(format!("http://127.0.0.1:{port}/llm/complete"))
         .json(&body)
         .send()
         .expect("complete request");
 
+    // THEN the runner answers 404 rather than loading anything on demand
     assert_eq!(resp.status(), 404, "model not loaded should yield 404");
     let payload: serde_json::Value = resp.json().expect("parse JSON");
     assert_eq!(payload["error"]["code"], "MODEL_NOT_LOADED");
@@ -160,6 +169,7 @@ fn complete_without_loaded_model_returns_404() {
 
 #[test]
 fn load_model_rejects_missing_path() {
+    // GIVEN a running runner, and a load request pointing at a file that does not exist
     let (mut child, port) = spawn_runner();
 
     let client = reqwest::blocking::Client::builder()
@@ -176,12 +186,14 @@ fn load_model_rejects_missing_path() {
         }
     });
 
+    // WHEN it is posted to the load endpoint
     let resp = client
         .post(format!("http://127.0.0.1:{port}/llm/load_model"))
         .json(&body)
         .send()
         .expect("load_model request");
 
+    // THEN the runner answers 400 and names the bad request
     assert_eq!(resp.status(), 400);
     let payload: serde_json::Value = resp.json().expect("parse JSON");
     assert_eq!(payload["error"]["code"], "BAD_REQUEST");
@@ -199,6 +211,7 @@ fn load_and_complete_real_model() {
         }
     };
 
+    // GIVEN a running runner and a GGUF named by the environment
     let (mut child, port) = spawn_runner();
 
     let client = reqwest::blocking::Client::builder()
@@ -208,6 +221,7 @@ fn load_and_complete_real_model() {
         .build()
         .expect("client");
 
+    // WHEN the model is loaded, then a completion asked of it
     // Load.
     let load_body = serde_json::json!({
         "request_id": "55555555-5555-5555-5555-555555555555",
@@ -223,6 +237,7 @@ fn load_and_complete_real_model() {
         .json(&load_body)
         .send()
         .expect("load_model request");
+    // THEN the load succeeds
     assert_eq!(
         load_resp.status(),
         200,
@@ -246,6 +261,7 @@ fn load_and_complete_real_model() {
         .send()
         .expect("complete request");
 
+    // THEN the completion answers on the model just loaded
     assert_eq!(resp.status(), 200);
     let payload: serde_json::Value = resp.json().expect("parse JSON");
     assert_eq!(payload["ok"], true);

@@ -298,6 +298,7 @@ mod tests {
     fn test_is_approved_returns_false_when_no_entry() {
         // GIVEN an empty store
         let s = store();
+        // WHEN a tool of a server is checked for approval
         // THEN is_approved returns false
         assert!(!s.is_approved("code-tools", "bash_exec"));
     }
@@ -331,6 +332,7 @@ mod tests {
                 params![past],
             )
             .expect("insert must succeed");
+        // WHEN the tool is checked for approval
         // THEN is_approved returns false because expires_at is in the past
         assert!(!s.is_approved("srv", "tool"));
     }

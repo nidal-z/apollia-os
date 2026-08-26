@@ -209,6 +209,9 @@ mod tests {
 
     #[test]
     fn preview_short_input_is_unchanged() {
+        // GIVEN an input shorter than the preview limit
+        // WHEN a preview is taken of it
+        // THEN it comes back whole, with nothing appended
         assert_eq!(preview("hi", 10), "hi");
     }
 }

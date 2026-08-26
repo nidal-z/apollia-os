@@ -8,6 +8,7 @@ use std::time::Duration;
 #[test]
 fn spawn_runner_and_handshake() {
     // Localise le binaire compilé.
+    // GIVEN the runner binary, spawned with its stdout piped
     let bin = env!("CARGO_BIN_EXE_apollia-runner");
     let mut child = Command::new(bin)
         .stdout(Stdio::piped())
@@ -16,6 +17,7 @@ fn spawn_runner_and_handshake() {
         .expect("spawn runner");
 
     // Parse READY <port>\n sur stdout.
+    // WHEN the announced port is read, then handshake, health and shutdown are called
     let stdout = child.stdout.take().expect("stdout pipe");
     let mut reader = BufReader::new(stdout);
     let mut first_line = String::new();
@@ -35,6 +37,7 @@ fn spawn_runner_and_handshake() {
         .get(format!("http://127.0.0.1:{port}/handshake"))
         .send()
         .expect("handshake request");
+    // THEN the handshake answers with the protocol version
     assert_eq!(resp.status(), 200);
     let body: serde_json::Value = resp.json().expect("parse JSON");
     assert_eq!(body["ok"], true);
@@ -55,6 +58,7 @@ fn spawn_runner_and_handshake() {
     assert_eq!(resp.status(), 200);
 
     // Le binaire doit exit dans les ~1 seconde.
+    // THEN the process exits on its own, rather than having to be killed
     let exit = child
         .wait_timeout_or_kill(Duration::from_secs(3))
         .expect("wait runner exit");

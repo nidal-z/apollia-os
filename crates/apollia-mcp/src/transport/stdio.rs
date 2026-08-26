@@ -298,6 +298,7 @@ mod tests {
     async fn test_stdio_transport_pid_is_some() {
         // GIVEN a spawned StdioTransport
         let transport = cat_transport();
+        // WHEN its process id is asked for
         // THEN the PID is available
         assert!(transport.pid().is_some());
         transport.shutdown().await.unwrap();
@@ -322,6 +323,7 @@ mod tests {
     #[tokio::test]
     async fn test_spawn_invalid_command_returns_error() {
         // GIVEN a command that does not exist on this system
+        // WHEN a transport is spawned on it
         let result = StdioTransport::spawn(
             "test",
             "nonexistent-binary-xyz-12345",
@@ -352,6 +354,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
         // THEN both lines are available via stderr_tail()
+        // WHEN the stderr tail is read, once the drainer has had its turn
         let tail = transport.stderr_tail();
         assert!(
             tail.iter().any(|l| l == "first"),

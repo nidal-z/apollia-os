@@ -563,27 +563,34 @@ mod tests {
 
     #[test]
     fn prefix_rule_matches_git_wildcard() {
+        // GIVEN an engine carrying an allow rule scoped to the `git` prefix
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&rule("bash_executor", Some("git"), RuleAction::Allow))
             .expect("add_rule");
+        // WHEN a command starting with that prefix is checked
         let result = engine
             .check("bash_executor", Some("git push origin main"))
             .expect("check");
+        // THEN the rule matches and allows it
         assert_eq!(result, Some(RuleAction::Allow));
     }
 
     #[test]
     fn prefix_matches_rejects_non_matching_and_missing_arg() {
+        // GIVEN a rule scoped to a concrete prefix, and calls that do not carry it
         // A concrete prefix that the first argument does not start with must not
         // match, and a required prefix with no argument must not match either.
         // Pins the function against a mutant that unconditionally returns true,
         // which would make a scoped rule apply to every call.
+        // WHEN the prefix match is evaluated on each
+        // THEN a different argument does not match, and a missing one does not either
         assert!(!prefix_matches("file_read", Some("git"), Some("rm -rf /")));
         assert!(!prefix_matches("file_read", Some("git"), None));
 
         // The matching and wildcard (no-prefix) cases still hold for an
         // ordinary, argument-scoped tool.
+        // THEN a matching argument does match, and a rule with no prefix matches anything
         assert!(prefix_matches("file_read", Some("git"), Some("git push")));
         assert!(prefix_matches("file_read", None, Some("anything")));
     }
@@ -629,31 +636,40 @@ mod tests {
 
     #[test]
     fn prefix_rule_no_match_returns_none() {
+        // GIVEN an engine carrying no rule at all
         let (engine, _tmp) = tmp_engine();
+        // WHEN a command is checked
         let result = engine
             .check("bash_executor", Some("git status"))
             .expect("check");
+        // THEN no verdict comes back, so the caller has to ask the operator
         assert!(result.is_none());
     }
 
     #[test]
     fn prefix_rule_deny_action_returned() {
+        // GIVEN an engine carrying a deny rule scoped to a path prefix
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&rule("file_write", Some("/etc"), RuleAction::Deny))
             .expect("add_rule");
+        // WHEN a write under that prefix is checked
         let result = engine
             .check("file_write", Some("/etc/passwd"))
             .expect("check");
+        // THEN the deny comes back, not an absence of verdict
         assert_eq!(result, Some(RuleAction::Deny));
     }
 
     #[test]
     fn prefix_rule_none_prefix_matches_any_arg() {
+        // GIVEN an engine carrying an allow rule with no argument prefix
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&rule("file_read", None, RuleAction::Allow))
             .expect("add_rule");
+        // WHEN a call with an argument, then one without, are checked
+        // THEN both are allowed
         assert_eq!(
             engine
                 .check("file_read", Some("any/path.txt"))
@@ -709,29 +725,36 @@ mod tests {
 
     #[test]
     fn remove_rule_cleans_up() {
+        // GIVEN an engine carrying one rule
         let (mut engine, _tmp) = tmp_engine();
         let id = engine
             .add_rule(&rule("bash_executor", Some("git"), RuleAction::Allow))
             .expect("add_rule");
+        // WHEN the rule is removed and the command checked again
         engine.remove_rule(id).expect("remove_rule");
         let result = engine
             .check("bash_executor", Some("git status"))
             .expect("check");
+        // THEN no verdict comes back: the rule is gone from the store, not only from memory
         assert!(result.is_none());
     }
 
     #[test]
     fn remove_rule_checked_reports_existence() {
+        // GIVEN an engine carrying one rule
         let (mut engine, _tmp) = tmp_engine();
         let id = engine
             .add_rule(&rule("bash_executor", None, RuleAction::Allow))
             .expect("add_rule");
+        // WHEN the same id is removed twice
+        // THEN the first removal reports a hit, the second reports none
         assert!(engine.remove_rule_checked(id).expect("remove_rule_checked"));
         assert!(!engine.remove_rule_checked(id).expect("remove_rule_checked"));
     }
 
     #[test]
     fn list_rules_returns_all() {
+        // GIVEN an engine carrying two rules on two different tools
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&rule("tool_a", Some("prefix_x"), RuleAction::Allow))
@@ -739,7 +762,9 @@ mod tests {
         engine
             .add_rule(&rule("tool_b", Some("prefix_y"), RuleAction::Allow))
             .expect("add_rule");
+        // WHEN the rules are listed
         let rules = engine.list_rules().expect("list_rules");
+        // THEN both come back
         assert_eq!(rules.len(), 2);
     }
 
@@ -852,10 +877,13 @@ mod tests {
     #[test]
     fn add_rule_rejects_empty_tool_name() {
         let (mut engine, _tmp) = tmp_engine();
+        // GIVEN a rule whose tool name is empty
         let r = PrefixRule {
             tool_name: String::new(),
             ..PrefixRule::default()
         };
+        // WHEN it is added
+        // THEN the engine refuses it as an invalid rule
         assert!(matches!(
             engine.add_rule(&r),
             Err(PermissionError::InvalidRule(_))
@@ -865,11 +893,14 @@ mod tests {
     #[test]
     fn add_rule_rejects_session_scope() {
         let (mut engine, _tmp) = tmp_engine();
+        // GIVEN a rule declared at the session scope, which is never persisted
         let r = PrefixRule {
             tool_name: "bash_executor".into(),
             scope: PermissionScope::Session,
             ..PrefixRule::default()
         };
+        // WHEN it is added to the store
+        // THEN the engine refuses it: a session rule lives in memory only
         assert!(matches!(
             engine.add_rule(&r),
             Err(PermissionError::InvalidRule(_))
@@ -879,12 +910,15 @@ mod tests {
     #[test]
     fn add_rule_rejects_project_scope_without_path() {
         let (mut engine, _tmp) = tmp_engine();
+        // GIVEN a rule at the project scope, carrying no project path
         let r = PrefixRule {
             tool_name: "bash_executor".into(),
             scope: PermissionScope::Project,
             project_path: None,
             ..PrefixRule::default()
         };
+        // WHEN it is added
+        // THEN the engine refuses it: a project rule with no project matches everything
         assert!(matches!(
             engine.add_rule(&r),
             Err(PermissionError::InvalidRule(_))
@@ -894,6 +928,7 @@ mod tests {
     #[test]
     fn test_session_rule_found_in_memory() {
         let (engine, _tmp) = tmp_engine();
+        // GIVEN a session rule held in memory, and nothing in the store
         let session = vec![PrefixRule {
             id: 7,
             tool_name: "bash_executor".into(),
@@ -903,14 +938,17 @@ mod tests {
             ..PrefixRule::default()
         }];
         let ctx = ScopeContext::default();
+        // WHEN a matching command is checked with that session
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx, &session)
             .expect("check_with_scope");
+        // THEN the in-memory rule is the one that answers, carrying its id
         assert_eq!(hit, Some((7, RuleAction::Allow)));
     }
 
     #[test]
     fn test_agent_rule_filtered_by_id() {
+        // GIVEN a stored rule scoped to one agent
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&PrefixRule {
@@ -923,6 +961,7 @@ mod tests {
                 ..PrefixRule::default()
             })
             .expect("add_rule");
+        // WHEN the command is checked under another agent, then under that one
         let ctx_other = ScopeContext {
             agent_id: Some("apollia:other".into()),
             ..ScopeContext::default()
@@ -930,6 +969,7 @@ mod tests {
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx_other, &[])
             .expect("check_with_scope");
+        // THEN the other agent gets no verdict, and the owning agent gets the allow
         assert!(
             hit.is_none(),
             "rule for apollia:chat must not match apollia:other"
@@ -948,12 +988,15 @@ mod tests {
     #[test]
     fn test_add_rule_rejects_agent_scope_without_id() {
         let (mut engine, _tmp) = tmp_engine();
+        // GIVEN a rule at the agent scope, carrying no agent id
         let r = PrefixRule {
             tool_name: "bash_executor".into(),
             scope: PermissionScope::Agent,
             agent_id: None,
             ..PrefixRule::default()
         };
+        // WHEN it is added
+        // THEN the engine refuses it: an agent rule with no agent matches every agent
         assert!(matches!(
             engine.add_rule(&r),
             Err(PermissionError::InvalidRule(_))
@@ -962,6 +1005,7 @@ mod tests {
 
     #[test]
     fn test_project_rule_filtered_by_path() {
+        // GIVEN a stored rule scoped to one project path
         let (mut engine, _tmp) = tmp_engine();
         let project_a = PathBuf::from("/home/user/projet-a");
         engine
@@ -975,6 +1019,7 @@ mod tests {
                 ..PrefixRule::default()
             })
             .expect("add_rule");
+        // WHEN the command is checked from another project, then from that one
         let ctx_b = ScopeContext {
             scope: PermissionScope::Project,
             project_path: Some(PathBuf::from("/home/user/projet-b")),
@@ -983,6 +1028,7 @@ mod tests {
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx_b, &[])
             .expect("check_with_scope");
+        // THEN the other project gets no verdict, and the owning project gets the allow
         assert!(hit.is_none(), "rule from projet-a must not match projet-b");
 
         let ctx_a = ScopeContext {
@@ -998,6 +1044,7 @@ mod tests {
 
     #[test]
     fn test_global_rule_applies_everywhere() {
+        // GIVEN a stored rule at the global scope
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&PrefixRule {
@@ -1014,14 +1061,17 @@ mod tests {
             project_path: Some(PathBuf::from("/home/user/anywhere")),
             agent_id: None,
         };
+        // WHEN the command is checked from inside an unrelated project
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx, &[])
             .expect("check_with_scope");
+        // THEN the global rule still answers
         assert!(matches!(hit, Some((_, RuleAction::Allow))));
     }
 
     #[test]
     fn test_expired_rule_ignored() {
+        // GIVEN a stored global rule whose expiry is already past
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&PrefixRule {
@@ -1039,9 +1089,11 @@ mod tests {
             project_path: None,
             agent_id: None,
         };
+        // WHEN the command is checked, through the scoped path and the legacy one
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx, &[])
             .expect("check_with_scope");
+        // THEN neither path returns a verdict: an expired rule grants nothing
         assert!(hit.is_none());
         let hit_legacy = engine
             .check("bash_executor", Some("git status"))
@@ -1051,7 +1103,7 @@ mod tests {
 
     #[test]
     fn test_scope_priority_project_over_agent_over_session_over_global() {
-        // Expected order: Project > Agent > Session > Global.
+        // GIVEN the same command covered at all four scopes, the project one alone allowing
         let (mut engine, _tmp) = tmp_engine();
         let project = PathBuf::from("/home/user/projet");
         let global_id = engine
@@ -1096,7 +1148,7 @@ mod tests {
             ..PrefixRule::default()
         }];
 
-        // Project wins when project_path is set.
+        // WHEN it is checked with a project context
         let ctx = ScopeContext {
             scope: PermissionScope::Project,
             project_path: Some(project),
@@ -1105,9 +1157,10 @@ mod tests {
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx, &session)
             .expect("check_with_scope");
+        // THEN the project rule wins over the three others
         assert_eq!(hit, Some((project_id_rule, RuleAction::Allow)));
 
-        // Without a project, Agent wins over Session and Global.
+        // WHEN it is checked with no project, but with the agent
         let ctx_no_project = ScopeContext {
             scope: PermissionScope::Agent,
             project_path: None,
@@ -1121,24 +1174,28 @@ mod tests {
                 &session,
             )
             .expect("check_with_scope");
+        // THEN the agent rule wins over the session and the global one
         assert_eq!(hit, Some((agent_id_rule, RuleAction::Deny)));
 
-        // Without a project or agent, Session wins over Global.
+        // WHEN it is checked with neither project nor agent
         let ctx_bare = ScopeContext::default();
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx_bare, &session)
             .expect("check_with_scope");
+        // THEN the session rule wins over the global one
         assert_eq!(hit, Some((99, RuleAction::Deny)));
 
-        // With nothing else, Global wins as a last resort.
+        // WHEN it is checked with no session either
         let hit = engine
             .check_with_scope("bash_executor", Some("git status"), &ctx_bare, &[])
             .expect("check_with_scope");
+        // THEN the global rule answers, as the last resort
         assert_eq!(hit, Some((global_id, RuleAction::Deny)));
     }
 
     #[test]
     fn test_backward_compat_check_without_scope() {
+        // GIVEN a stored rule at the global scope
         let (mut engine, _tmp) = tmp_engine();
         engine
             .add_rule(&PrefixRule {
@@ -1150,14 +1207,17 @@ mod tests {
                 ..PrefixRule::default()
             })
             .expect("add_rule");
+        // WHEN the command is checked through the scopeless legacy entry point
         let result = engine
             .check("bash_executor", Some("git push"))
             .expect("check");
+        // THEN the rule still answers, so the older callers keep working
         assert_eq!(result, Some(RuleAction::Allow));
     }
 
     #[test]
     fn list_rules_filtered_by_scope_and_path() {
+        // GIVEN one global rule and one project rule
         let (mut engine, _tmp) = tmp_engine();
         let project = PathBuf::from("/home/user/projet-a");
         engine
@@ -1180,9 +1240,11 @@ mod tests {
             })
             .expect("add_rule");
 
+        // WHEN the rules are listed by scope, and the project ones by path
         let globals = engine
             .list_rules_filtered(Some(PermissionScope::Global), None)
             .expect("list globals");
+        // THEN each filter returns its own rule, and the session scope returns none
         assert_eq!(globals.len(), 1);
         assert_eq!(globals[0].tool_name, "tool_g");
 

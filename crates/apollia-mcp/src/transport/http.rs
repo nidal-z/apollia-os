@@ -427,6 +427,7 @@ mod tests {
         )
         .expect("transport construction must succeed");
 
+        // WHEN two requests are sent in turn through the transport
         // First request: no session ID sent yet
         transport
             .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#)
@@ -503,7 +504,9 @@ mod tests {
     fn test_parse_sse_single_event_with_data() {
         // GIVEN a body with one SSE event carrying a JSON-RPC response
         let body = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":42}\n\n";
+        // WHEN the data events are parsed out of it
         let events = parse_sse_data_events(body);
+        // THEN the single payload comes back, stripped of its field prefix
         assert_eq!(events.len(), 1);
         assert_eq!(events[0], r#"{"jsonrpc":"2.0","id":1,"result":42}"#);
     }
@@ -512,7 +515,9 @@ mod tests {
     fn test_parse_sse_multiple_events() {
         // GIVEN a body with two events (e.g. streaming notifications + result)
         let body = "data: {\"first\":1}\n\ndata: {\"second\":2}\n\n";
+        // WHEN the data events are parsed out of it
         let events = parse_sse_data_events(body);
+        // THEN both payloads come back, in order
         assert_eq!(events, vec![r#"{"first":1}"#, r#"{"second":2}"#]);
     }
 
@@ -520,7 +525,9 @@ mod tests {
     fn test_parse_sse_ignores_comments_and_other_fields() {
         // GIVEN a body with comments and unrelated fields interleaved
         let body = ": keep-alive\nid: 42\nevent: message\ndata: {\"ok\":true}\nretry: 5000\n\n";
+        // WHEN the data events are parsed out of it
         let events = parse_sse_data_events(body);
+        // THEN only the data field survives, the rest being dropped
         assert_eq!(events, vec![r#"{"ok":true}"#]);
     }
 
@@ -528,7 +535,9 @@ mod tests {
     fn test_parse_sse_handles_trailing_event_without_terminator() {
         // GIVEN a body whose final event lacks the trailing blank line
         let body = "data: {\"a\":1}";
+        // WHEN the data events are parsed out of it
         let events = parse_sse_data_events(body);
+        // THEN the last event is still emitted, terminator or not
         assert_eq!(events, vec![r#"{"a":1}"#]);
     }
 
@@ -536,7 +545,9 @@ mod tests {
     fn test_parse_sse_joins_multiline_data() {
         // GIVEN a body with a multi-line data payload (SSE spec joins with \n)
         let body = "data: line1\ndata: line2\n\n";
+        // WHEN the data events are parsed out of it
         let events = parse_sse_data_events(body);
+        // THEN the lines are joined by a newline, as the SSE specification says
         assert_eq!(events, vec!["line1\nline2"]);
     }
 
@@ -544,7 +555,9 @@ mod tests {
     fn test_parse_sse_returns_empty_for_no_data() {
         // GIVEN a body with only comments / event lines, no data
         let body = ": ping\nevent: message\n\n";
+        // WHEN the data events are parsed out of it
         let events = parse_sse_data_events(body);
+        // THEN nothing comes back, rather than an empty payload
         assert!(events.is_empty());
     }
 
@@ -701,6 +714,7 @@ mod tests {
         )
         .expect("transport construction must succeed");
 
+        // WHEN a request is sent through the transport
         let result = transport
             .send(r#"{"jsonrpc":"2.0","id":1,"method":"initialize"}"#)
             .await;
@@ -757,6 +771,7 @@ mod tests {
         )
         .expect("transport construction must succeed");
 
+        // WHEN its process id is asked for
         // THEN pid() returns None
         assert!(transport.pid().is_none());
     }

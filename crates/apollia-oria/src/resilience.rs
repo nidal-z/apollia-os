@@ -1086,7 +1086,8 @@ mod tests {
         // GIVEN RetryPolicy::default()
         let policy = RetryPolicy::default();
 
-        // THEN expected defaults
+        // WHEN its fields are read
+        // THEN the attempt count, the two delays and the jitter flag are the documented ones
         assert_eq!(policy.max_attempts, 3);
         assert_eq!(policy.base_delay_ms, 500);
         assert_eq!(policy.max_delay_ms, 10_000);

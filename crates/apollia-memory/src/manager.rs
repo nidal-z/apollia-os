@@ -568,8 +568,9 @@ mod tests {
     // Lazy opening: store is not created in new()
     #[test]
     fn test_lazy_opening() {
-        // GIVEN
+        // GIVEN a fresh base directory
         let base = temp_base_dir();
+        // WHEN a memory manager is built on a namespace of it
         let _mgr = MemoryManager::new(&base, Some("lazy-ns".into()), vec![]);
         // THEN -- no .db file created yet
         assert!(!base.join("lazy-ns.db").exists());

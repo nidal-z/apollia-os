@@ -24,36 +24,6 @@
 
 [gwt-markers]
 crates/apollia-loom-models/tests/models.rs 7
-crates/apollia-mcp/src/approvals.rs 2
-crates/apollia-mcp/src/discovery.rs 2
-crates/apollia-mcp/src/executor.rs 1
-crates/apollia-mcp/src/health.rs 3
-crates/apollia-mcp/src/manager.rs 7
-crates/apollia-mcp/src/protocol.rs 1
-crates/apollia-mcp/src/session.rs 4
-crates/apollia-mcp/src/tool_search.rs 2
-crates/apollia-mcp/src/transport/http.rs 9
-crates/apollia-mcp/src/transport/sse.rs 1
-crates/apollia-mcp/src/transport/stdio.rs 3
-crates/apollia-mcp/tests/integration_flow.rs 2
-crates/apollia-memory/src/injection_tracker.rs 1
-crates/apollia-memory/src/manager.rs 1
-crates/apollia-memory/src/profile_schema.rs 4
-crates/apollia-memory/src/user_memory.rs 14
-crates/apollia-notifications/src/channels/webhook.rs 9
-crates/apollia-notifications/src/config.rs 1
-crates/apollia-notifications/src/engine.rs 1
-crates/apollia-notifications/src/validation.rs 10
-crates/apollia-oria/src/actor.rs 2
-crates/apollia-oria/src/budget.rs 4
-crates/apollia-oria/src/resilience.rs 1
-crates/apollia-permissions/src/prefix_rule_engine.rs 20
-crates/apollia-prompts/src/lib.rs 3
-crates/apollia-runner/src/backends/whisper.rs 2
-crates/apollia-runner/src/lifecycle/ready.rs 2
-crates/apollia-runner/src/server/stt.rs 3
-crates/apollia-runner/tests/handshake.rs 1
-crates/apollia-runner/tests/llm_load_complete.rs 5
 crates/apollia-tools/src/agent_repository.rs 8
 crates/apollia-tools/src/chat_libre_config.rs 1
 crates/apollia-tools/src/descriptor.rs 2

@@ -144,6 +144,7 @@ async fn test_deferred_manager_indexes_without_registering() {
             .await
             .unwrap();
 
+    // WHEN the tool registry and the tool index are read
     // THEN the registry holds no mcp descriptor (schemas were never loaded)
     assert!(
         registered_mcp_tools(&registry).await.is_empty(),
@@ -179,6 +180,7 @@ async fn test_eager_manager_registers_and_index_empty() {
     .await
     .unwrap();
 
+    // WHEN the tool registry and the tool index are read
     // THEN the registry holds the two mcp descriptors (schemas loaded at boot)
     assert_eq!(registered_mcp_tools(&registry).await.len(), 2);
 

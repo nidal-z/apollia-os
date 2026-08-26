@@ -334,13 +334,16 @@ mod tests {
 
     #[test]
     fn tool_timeout_is_degraded_timeout() {
+        // GIVEN a healthy server and a tool call that timed out
         let prev = McpHealth::Healthy { verified: true };
         let err = McpSessionError::ToolCallTimeout {
             server: "notion".into(),
             tool: "search".into(),
             timeout_secs: 60,
         };
+        // WHEN the health state is advanced with that outcome
         let next = next_health(&prev, OpOutcome::SessionError(&err), NOW);
+        // THEN the server turns degraded, and the category names the timeout
         match next {
             McpHealth::Degraded { category, .. } => assert_eq!(category, ErrorCategory::Timeout),
             other => panic!("expected Degraded, got {other:?}"),
@@ -349,29 +352,34 @@ mod tests {
 
     #[test]
     fn pending_approval_leaves_health_unchanged() {
+        // GIVEN a healthy server and a call waiting on a human approval
         let prev = McpHealth::Healthy { verified: true };
         let err = McpSessionError::PendingApproval {
             server: "notion".into(),
             tool: "search".into(),
             approval_id: "id".into(),
         };
+        // WHEN the health state is advanced with that outcome
         let next = next_health(&prev, OpOutcome::SessionError(&err), NOW);
+        // THEN the state is untouched: waiting on a human is not a server fault
         assert_eq!(next, prev);
     }
 
     #[test]
     fn start_error_classification() {
-        // Initialize timeout -> Unavailable
+        // GIVEN a start that timed out, and a start refused for want of credentials
         let timeout = McpSessionError::InitializeTimeout {
             server: "notion".into(),
             timeout_secs: 30,
             stderr_hint: String::new(),
         };
+        // WHEN each is classified into a health state
+        // THEN the timeout makes the server unavailable
         assert!(matches!(
             from_start_error(&timeout),
             McpHealth::Unavailable { .. }
         ));
-        // Unauthorized at start -> NeedsReauth
+        // THEN the refusal asks for a reauthentication instead
         let unauth = McpSessionError::Unauthorized {
             server: "notion".into(),
             www_authenticate: String::new(),
