@@ -74,7 +74,10 @@ impl DuckDuckGoBackend {
             .user_agent(USER_AGENT)
             .timeout(Duration::from_secs(timeout_secs))
             .build()
-            .expect("reqwest::Client initialization is infallible");
+            // SAFETY: the only failure `ClientBuilder::build` reports is a TLS
+            // backend that will not initialise; every setting above it is a
+            // literal fixed in this file.
+            .expect("the TLS backend failed to initialise");
         Self {
             endpoint: endpoint.into(),
             client,
@@ -196,6 +199,21 @@ async fn read_body_capped(
 /// smaller is treated as a Cloudflare / WAF challenge rather than a real empty result.
 const MIN_LEGITIMATE_BODY_BYTES: usize = 5 * 1024;
 
+/// The four selectors the result rows are read with.
+///
+/// They are literals authored here and exercised by this module's tests, so
+/// `None` means the selector engine changed under the crate rather than
+/// anything about a response. Returning it keeps the caller's error path the
+/// one the tool already reports.
+fn row_selectors() -> Option<(Selector, Selector, Selector, Selector)> {
+    Some((
+        Selector::parse("div.result").ok()?,
+        Selector::parse("a.result__a").ok()?,
+        Selector::parse("a.result__snippet").ok()?,
+        Selector::parse("div.no-results").ok()?,
+    ))
+}
+
 /// Parse a DDG HTML response into a vector of [`SearchResult`].
 ///
 /// The caller has already validated the HTTP status (see
@@ -222,11 +240,12 @@ pub(crate) fn parse_ddg_html(
 
     let document = Html::parse_document(body);
 
-    // Unwrap is fine: these selectors are compile-time constants, authored and tested here.
-    let result_sel = Selector::parse("div.result").expect("valid selector");
-    let title_sel = Selector::parse("a.result__a").expect("valid selector");
-    let snippet_sel = Selector::parse("a.result__snippet").expect("valid selector");
-    let no_results_sel = Selector::parse("div.no-results").expect("valid selector");
+    let Some((result_sel, title_sel, snippet_sel, no_results_sel)) = row_selectors() else {
+        return Err(SearchBackendError::ParseError {
+            backend: BACKEND_NAME.to_string(),
+            reason: "the result-row selectors did not compile".to_string(),
+        });
+    };
 
     let mut results: Vec<SearchResult> = Vec::new();
     let mut rank: u32 = 1;

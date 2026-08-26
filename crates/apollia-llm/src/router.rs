@@ -5,8 +5,11 @@
 //! `Clone + Send + Sync`.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::pin::Pin;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
+
+use futures::Stream;
 
 use tokio_util::sync::CancellationToken;
 
@@ -25,7 +28,7 @@ use apollia_core::{
 
 use crate::types::{
     message_char_len, BackendInfo, ChatMessage, CompletionModel, CompletionRequest,
-    CompletionResponse, LlmError,
+    CompletionResponse, LlmError, StreamChunk,
 };
 
 #[cfg(feature = "cloud")]
@@ -1038,33 +1041,25 @@ impl LlmRouter {
     /// Emits `tracing::warn!` if the named backend is absent from the router
     /// (silent fallback apart from the structured log).
     ///
-    /// # Panics
-    ///
-    /// Panics if the router holds no backend. Do not call `route()` on a router
-    /// built via [`LlmRouter::empty()`].
+    /// A router built via [`LlmRouter::empty()`] holds no default, and routing
+    /// on it returns [`no_backend`], whose every call reports
+    /// [`LlmError::BackendUnavailable`]. That case used to end in a panic
+    /// asserting an invariant the empty constructor never established.
     pub fn route(&self, llm_backend: Option<&str>) -> Arc<dyn CompletionModel> {
-        match llm_backend {
-            None => self
-                .backends
-                .get(&self.default)
-                .expect("LlmRouter invariant: default backend must be present")
-                .clone(),
-            Some(name) => {
-                if let Some(b) = self.backends.get(name) {
-                    b.clone()
-                } else {
-                    tracing::warn!(
-                        backend = %name,
-                        fallback = %self.default,
-                        "unknown LLM backend requested, falling back to default"
-                    );
-                    self.backends
-                        .get(&self.default)
-                        .expect("LlmRouter invariant: default backend must be present")
-                        .clone()
-                }
+        if let Some(name) = llm_backend {
+            if let Some(backend) = self.backends.get(name) {
+                return backend.clone();
             }
+            tracing::warn!(
+                backend = %name,
+                fallback = %self.default,
+                "unknown LLM backend requested, falling back to default"
+            );
         }
+        self.backends
+            .get(&self.default)
+            .cloned()
+            .unwrap_or_else(no_backend)
     }
 
     /// Return the names of all backends loaded in the router.
@@ -1434,6 +1429,58 @@ impl LlmRouter {
             })
             .collect()
     }
+}
+
+/// The backend a router with no backend at all routes to.
+///
+/// `LlmRouter::empty()` builds such a router, and two production paths fall
+/// back to it when no backend could be instantiated. Every call reports
+/// [`LlmError::BackendUnavailable`], which is what the callers of `complete`
+/// and `stream` already handle, and what the degradation paths this
+/// constructor exists to exercise expect to see.
+struct NoBackend;
+
+impl NoBackend {
+    const NAME: &'static str = "none";
+
+    fn unavailable() -> LlmError {
+        LlmError::BackendUnavailable {
+            backend: Self::NAME.to_string(),
+            reason: "the router holds no backend".to_string(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl CompletionModel for NoBackend {
+    async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        Err(Self::unavailable())
+    }
+
+    async fn stream(
+        &self,
+        _req: CompletionRequest,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
+        Err(Self::unavailable())
+    }
+
+    fn is_available(&self) -> bool {
+        false
+    }
+
+    fn backend_name(&self) -> &str {
+        Self::NAME
+    }
+
+    fn model_id(&self) -> &str {
+        Self::NAME
+    }
+}
+
+/// The shared [`NoBackend`] instance, allocated once.
+fn no_backend() -> Arc<dyn CompletionModel> {
+    static INSTANCE: OnceLock<Arc<dyn CompletionModel>> = OnceLock::new();
+    INSTANCE.get_or_init(|| Arc::new(NoBackend)).clone()
 }
 
 /// Resolve the configured default backend name, failing fast when it is absent.
@@ -1940,6 +1987,25 @@ mod tests {
 
         let backend = router.route(Some("phantom"));
         assert_eq!(backend.backend_name(), "local-code");
+    }
+
+    // GIVEN a router built by `empty()`, which holds no backend at all
+    // WHEN route(None), then a completion on what it returned
+    // THEN the call reports BackendUnavailable, where routing used to panic
+    #[tokio::test]
+    async fn test_empty_router_routes_to_an_unavailable_backend() {
+        let router = LlmRouter::empty();
+
+        let backend = router.route(None);
+
+        assert!(!backend.is_available());
+        let outcome = backend
+            .complete(CompletionRequest {
+                messages: vec![ChatMessage::user("anything")],
+                ..Default::default()
+            })
+            .await;
+        assert!(matches!(outcome, Err(LlmError::BackendUnavailable { .. })));
     }
 
     // GIVEN router with 2 backends

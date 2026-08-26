@@ -226,9 +226,10 @@ impl WebSearch {
     pub fn with_default_backends_and_key(brave_api_key: Option<String>) -> Self {
         let backends = build_default_backends(brave_api_key.as_deref());
 
-        // `build_default_backends` always pushes DuckDuckGo, so the list is
-        // never empty: `WebSearch::new` cannot return `NoBackends`.
-        Self::new(backends, None).expect("DuckDuckGo backend is always pushed")
+        // SAFETY: `build_default_backends` pushes DuckDuckGo unconditionally,
+        // so the list handed to `new` is never the empty one `NoBackends`
+        // answers to.
+        Self::new(backends, None).expect("the default backend list came back empty")
     }
 
     /// Build a [`WebSearch`] from an operator-supplied [`WebSearchConfig`] and

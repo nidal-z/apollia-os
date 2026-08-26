@@ -40,8 +40,10 @@ impl FilePathExtractor {
     /// and Windows UNC paths (RFC 8089).
     pub fn new(llm_router: Arc<LlmRouter>) -> Self {
         // DEFAULT_PATH_PATTERN is a compile-time constant, so an error here is a bug.
+        // SAFETY: `DEFAULT_PATH_PATTERN` is a literal constant of this module,
+        // so the compilation is decided where the constant is written.
         let path_pattern =
-            Regex::new(DEFAULT_PATH_PATTERN).expect("DEFAULT_PATH_PATTERN is a valid regex");
+            Regex::new(DEFAULT_PATH_PATTERN).expect("DEFAULT_PATH_PATTERN did not compile");
         Self {
             llm_router,
             path_pattern,

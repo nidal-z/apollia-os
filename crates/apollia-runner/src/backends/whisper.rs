@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
 use hound::{SampleFormat, WavReader};
@@ -74,22 +74,22 @@ impl WhisperBackend {
     }
 
     pub fn loaded_ids(&self) -> Vec<String> {
-        let guard = self.models.lock().expect("whisper models lock poisoned");
+        let guard = self.models.lock().unwrap_or_else(PoisonError::into_inner);
         guard.keys().cloned().collect()
     }
 
     pub fn total_memory_mb(&self) -> u32 {
-        let guard = self.models.lock().expect("whisper models lock poisoned");
+        let guard = self.models.lock().unwrap_or_else(PoisonError::into_inner);
         guard.values().map(|m| m.memory_used_mb).sum()
     }
 
     pub fn unload(&self, model_id: &str) -> bool {
-        let mut guard = self.models.lock().expect("whisper models lock poisoned");
+        let mut guard = self.models.lock().unwrap_or_else(PoisonError::into_inner);
         guard.remove(model_id).is_some()
     }
 
     fn get(&self, model_id: &str) -> Option<std::sync::Arc<LoadedWhisper>> {
-        let guard = self.models.lock().expect("whisper models lock poisoned");
+        let guard = self.models.lock().unwrap_or_else(PoisonError::into_inner);
         guard.get(model_id).cloned()
     }
 
@@ -148,7 +148,7 @@ impl WhisperBackend {
         .await
         .map_err(|e| internal(format!("whisper load task panicked: {e}")))??;
 
-        let mut guard = self.models.lock().expect("whisper models lock poisoned");
+        let mut guard = self.models.lock().unwrap_or_else(PoisonError::into_inner);
         guard.insert(
             model_id,
             std::sync::Arc::new(LoadedWhisper {

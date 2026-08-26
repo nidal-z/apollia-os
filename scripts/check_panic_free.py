@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hold the production `unwrap()` count at zero, and ratchet `expect(` down.
+"""Hold the production `unwrap()` and `expect(` counts at zero.
 
 `FORBIDDEN.md` forbids `.unwrap()` and `.expect("...")` in production Rust, and
 allows a documented exemption. Two lints were supposed to carry that rule.
@@ -31,6 +31,10 @@ The rule this guard enforces, and prints on every red:
   value? If yes, put the reason above the line as `// SAFETY: <reason>` and
   raise the ceiling in this script, in the same commit. If no, return the
   error.
+
+The two forms are held on the same terms everywhere but the crates
+`EXPECT_RATCHET` still names, which carry what is left of the `expect(` debt
+the guard was born measuring, and which shrink to nothing entry by entry.
 
 Scope is `git ls-files`, content is the disk. The inventory makes the scanned
 set the same in a worktree and in an extraction of the same commit, which is
@@ -89,11 +93,20 @@ FORMS = {"unwrap": re.compile(r"\.unwrap\(\)"), "expect": re.compile(r"\.expect\
 # `IntoPyObjectExt::into_py_any`, at the same signature.
 UNWRAP_EXEMPTION_CEILING = 0
 
-# `expect(` has no lint at all, so the sweep starts from the debt instead of
-# from zero. The ratchet is two-sided on purpose: a one-sided ceiling records a
-# maximum for ever, and this tree has already paid for an intention nothing
-# executes. Lower it in the commit that removes a site.
-EXPECT_RATCHET = 51
+# `expect(` has no lint at all, so the sweep started from the debt instead of
+# from zero. The table is empty because that debt is gone: an unexempted
+# `expect()` is now refused by name anywhere under `crates/`, on the same terms
+# as `unwrap()`. Should a crate ever have to carry a residue again, name it
+# here with its count. The entries are two-sided on purpose, since a one-sided
+# ceiling records a maximum for ever and this tree has already paid for an
+# intention nothing executes: lower an entry in the commit that removes a site,
+# and delete it at zero.
+EXPECT_RATCHET: dict[str, int] = {}
+
+# Exempted `expect()` are capped like exempted `unwrap()`. Without a ceiling a
+# `// SAFETY:` line is a way through the rule that costs nothing and shows up
+# in no diff, which is the rule being switched off one site at a time.
+EXPECT_EXEMPTION_CEILING = 18
 
 # An exemption is a `SAFETY:` comment with something after it, within the three
 # lines above the site, and it covers that one site.
@@ -106,8 +119,8 @@ removes it. Ask, in order: does the library already offer an equivalent
 expression with no `unwrap`, at the same signature? If yes, write that instead.
 If no, can you say why it cannot fail without naming a runtime value? If yes,
 put the reason above the line as `// SAFETY: <reason>` and raise
-UNWRAP_EXEMPTION_CEILING in this script, in the same commit. If no, return the
-error."""
+UNWRAP_EXEMPTION_CEILING or EXPECT_EXEMPTION_CEILING in this script, in the
+same commit. If no, return the error."""
 
 
 @dataclass(frozen=True)
@@ -418,6 +431,29 @@ def sites(text: str) -> list[Site]:
     return result
 
 
+def ratchet_prefix(path: str) -> str | None:
+    """The `EXPECT_RATCHET` entry that still covers `path`, when one does."""
+    for prefix in EXPECT_RATCHET:
+        if path.startswith(prefix):
+            return prefix
+    return None
+
+
+def refuses(site: Site, path: str = "") -> bool:
+    """True when the rule refuses this site by name, rather than counting it.
+
+    An exemption allows the site. An `expect()` under a crate `EXPECT_RATCHET`
+    still names is counted against that entry. Everything else is refused, so
+    a path no entry covers, the default here included, holds `expect()` to what
+    `unwrap()` has always been held to.
+    """
+    if site.exempt:
+        return False
+    if site.form == "expect" and ratchet_prefix(path) is not None:
+        return False
+    return True
+
+
 def tracked_sources() -> list[str]:
     """Rust files under `crates/*/src/`, as the index lists them."""
     listing = subprocess.run(
@@ -500,6 +536,7 @@ def main() -> int:
     exempted: list[str] = []
     counts = {form: 0 for form in FORMS}
     exempt_counts = {form: 0 for form in FORMS}
+    ratcheted = {prefix: 0 for prefix in EXPECT_RATCHET}
 
     for path in production:
         text = read(path)
@@ -511,17 +548,27 @@ def main() -> int:
                 exempted.append(f"{path}:{site.line}: {site.form}, {site.reason}")
                 continue
             counts[site.form] += 1
-            if site.form == "unwrap":
-                accused.append(f"{path}:{site.line}: .unwrap() in production, no exemption")
+            if refuses(site, path):
+                accused.append(f"{path}:{site.line}: .{site.form}() in production, no exemption")
+                continue
+            prefix = ratchet_prefix(path)
+            if prefix is not None:
+                ratcheted[prefix] += 1
 
     print(f"production files scanned: {len(production)}")
     print(f"files excluded as test or kani modules: {len(excluded)}")
     print(
         f"unwrap: {counts['unwrap']} without exemption (ceiling 0), "
         f"{exempt_counts['unwrap']} exempted (ceiling {UNWRAP_EXEMPTION_CEILING}) | "
-        f"expect: {counts['expect']} without exemption (ratchet {EXPECT_RATCHET}), "
-        f"{exempt_counts['expect']} exempted"
+        f"expect: {counts['expect']} without exemption, "
+        f"{exempt_counts['expect']} exempted (ceiling {EXPECT_EXEMPTION_CEILING})"
     )
+    if EXPECT_RATCHET:
+        print("expect() still ratcheted, by crate:")
+        for prefix, allowance in sorted(EXPECT_RATCHET.items()):
+            print(f"  {prefix}: {ratcheted[prefix]} of {allowance}")
+    else:
+        print("expect() is refused everywhere: no crate is ratcheted any more")
     if exempted:
         print("\nexempted sites:")
         for line in exempted:
@@ -537,18 +584,28 @@ def main() -> int:
             f"script, in the commit that adds the exemption, so a reader sees the "
             f"grant next to what it grants."
         )
-    if counts["expect"] > EXPECT_RATCHET:
+    if exempt_counts["expect"] > EXPECT_EXEMPTION_CEILING:
         failures.append(
-            f"{counts['expect']} expect() without exemption against a ratchet of "
-            f"{EXPECT_RATCHET}. Remove the new one, or document it as `// SAFETY:`."
+            f"{exempt_counts['expect']} exempted expect() against a ceiling of "
+            f"{EXPECT_EXEMPTION_CEILING}. Raise EXPECT_EXEMPTION_CEILING in this "
+            f"script, in the commit that adds the exemption, so a reader sees the "
+            f"grant next to what it grants."
         )
-    elif counts["expect"] < EXPECT_RATCHET:
-        failures.append(
-            f"{counts['expect']} expect() without exemption against a ratchet of "
-            f"{EXPECT_RATCHET}. The debt went down: lower EXPECT_RATCHET to "
-            f"{counts['expect']} in this same commit, or the ratchet records a "
-            f"maximum nobody will ever come back to."
-        )
+    for prefix, allowance in sorted(EXPECT_RATCHET.items()):
+        found = ratcheted[prefix]
+        if found > allowance:
+            failures.append(
+                f"{prefix}: {found} expect() without exemption against a ratchet "
+                f"of {allowance}. Remove the new one, or document it as "
+                f"`// SAFETY:`."
+            )
+        elif found < allowance:
+            failures.append(
+                f"{prefix}: {found} expect() without exemption against a ratchet "
+                f"of {allowance}. The debt went down: lower this entry to {found} "
+                f"in this same commit, and delete it at zero, or the ratchet "
+                f"records a maximum nobody will ever come back to."
+            )
 
     if failures:
         print(f"\n{len(failures)} rule(s) broken:\n", file=sys.stderr)
@@ -557,7 +614,10 @@ def main() -> int:
         print(f"\n{RULE}", file=sys.stderr)
         return 1
 
-    print("\nno production unwrap(), and expect() sits on its ratchet")
+    print(
+        "\nno production unwrap(), no expect() outside the crates the ratchet "
+        "still names, and every exemption is under its ceiling"
+    )
     return 0
 
 

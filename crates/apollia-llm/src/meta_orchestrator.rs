@@ -518,7 +518,9 @@ impl MetaLlmOrchestrator {
         settings: MetaLlmSettings,
     ) -> MetaOrchestratorHandle {
         let (tx, rx) = mpsc::channel::<MetaCmd>(64);
-        let cache_cap = NonZeroUsize::new(CACHE_CAPACITY).expect("CACHE_CAPACITY > 0");
+        // SAFETY: `CACHE_CAPACITY` is a non-zero literal in this module, so
+        // the conversion is decided at the point the constant is written.
+        let cache_cap = NonZeroUsize::new(CACHE_CAPACITY).expect("CACHE_CAPACITY is zero");
         let actor = MetaLlmOrchestrator {
             router,
             bus,

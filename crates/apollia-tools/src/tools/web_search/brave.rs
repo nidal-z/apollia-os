@@ -95,7 +95,10 @@ impl BraveBackend {
         let client = apollia_core::net::safe_client_builder()
             .timeout(Duration::from_secs(timeout_secs))
             .build()
-            .expect("reqwest::Client initialization is infallible");
+            // SAFETY: the only failure `ClientBuilder::build` reports is a TLS
+            // backend that will not initialise; every setting above it is a
+            // literal fixed in this file.
+            .expect("the TLS backend failed to initialise");
         Self {
             endpoint: endpoint.into(),
             api_key: api_key.into(),
@@ -315,7 +318,9 @@ pub(crate) fn parse_brave_json(
 /// do better. Using a plain function with a fresh Regex on every call is fine
 /// for now; switch to `once_cell::sync::Lazy` if hot-path profiling says so.
 fn tag_regex() -> Regex {
-    Regex::new(r"<[^>]+>").expect("valid regex literal")
+    // SAFETY: the pattern is a literal fixed in this line, and the callers of
+    // this function are exercised by the tests below.
+    Regex::new(r"<[^>]+>").expect("the literal pattern did not compile")
 }
 
 #[cfg(test)]

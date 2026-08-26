@@ -4,7 +4,7 @@
 //! filled in once the llama-cpp and whisper backends grow VRAM accounting.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 /// Minimal LRU cache of loaded models.
 ///
@@ -30,25 +30,25 @@ impl ModelCache {
 
     /// Lists the currently loaded `model_id`s.
     pub fn loaded_ids(&self) -> Vec<String> {
-        let guard = self.loaded.lock().expect("model cache lock poisoned");
+        let guard = self.loaded.lock().unwrap_or_else(PoisonError::into_inner);
         guard.keys().cloned().collect()
     }
 
     /// Total memory used by the loaded models.
     pub fn total_memory_mb(&self) -> u32 {
-        let guard = self.loaded.lock().expect("model cache lock poisoned");
+        let guard = self.loaded.lock().unwrap_or_else(PoisonError::into_inner);
         guard.values().map(|e| e.memory_used_mb).sum()
     }
 
     /// Marks a model as loaded.
     pub fn register(&self, entry: ModelEntry) {
-        let mut guard = self.loaded.lock().expect("model cache lock poisoned");
+        let mut guard = self.loaded.lock().unwrap_or_else(PoisonError::into_inner);
         guard.insert(entry.model_id.clone(), entry);
     }
 
     /// Removes a model from the cache.
     pub fn unregister(&self, model_id: &str) -> bool {
-        let mut guard = self.loaded.lock().expect("model cache lock poisoned");
+        let mut guard = self.loaded.lock().unwrap_or_else(PoisonError::into_inner);
         guard.remove(model_id).is_some()
     }
 }

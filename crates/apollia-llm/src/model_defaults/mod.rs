@@ -98,14 +98,26 @@ struct EmbeddedTable {
 }
 
 /// Lazy load of the embedded table, parsed once per process.
+///
+/// A table that fails to parse leaves the resolver with no curated entry, and
+/// the caller falls through to its own defaults. The `embedded_table_parses`
+/// test below is what holds the file readable; a panic here would have taken
+/// the whole process down for a file the binary carries with it.
 fn embedded_table() -> &'static [EmbeddedEntry] {
     use std::sync::OnceLock;
     static TABLE: OnceLock<Vec<EmbeddedEntry>> = OnceLock::new();
     TABLE.get_or_init(|| {
         let raw = include_str!("embedded.toml");
-        let parsed: EmbeddedTable = toml::from_str(raw)
-            .expect("embedded model_defaults.toml must parse - checked at compile time");
-        parsed.entry
+        match toml::from_str::<EmbeddedTable>(raw) {
+            Ok(parsed) => parsed.entry,
+            Err(error) => {
+                tracing::error!(
+                    error = %error,
+                    "llm.model_defaults.embedded_table_unparsable"
+                );
+                Vec::new()
+            }
+        }
     })
 }
 

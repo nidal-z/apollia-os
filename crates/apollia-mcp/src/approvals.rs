@@ -12,7 +12,7 @@
 //! holds it to await other futures without violating Tokio's `Send` requirement.
 
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 use rusqlite::{params, Connection};
 use thiserror::Error;
@@ -173,7 +173,7 @@ impl McpApprovalStore {
 
         self.conn
             .lock()
-            .expect("approval store mutex poisoned")
+            .unwrap_or_else(PoisonError::into_inner)
             .execute(
                 "INSERT INTO mcp_pending_approvals
                  (id, server_name, tool_name, arguments, requested_at, status)
@@ -204,7 +204,7 @@ impl McpApprovalStore {
             Some((now + chrono::Duration::hours(self.approval_ttl_hours as i64)).to_rfc3339())
         };
 
-        let conn = self.conn.lock().expect("approval store mutex poisoned");
+        let conn = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
 
         conn.execute(
             "INSERT INTO mcp_approvals (server_name, tool_name, approved_at, expires_at)
@@ -240,7 +240,7 @@ impl McpApprovalStore {
     pub fn revoke(&self, server_name: &str, tool_name: &str) -> Result<(), McpApprovalError> {
         self.conn
             .lock()
-            .expect("approval store mutex poisoned")
+            .unwrap_or_else(PoisonError::into_inner)
             .execute(
                 "DELETE FROM mcp_approvals WHERE server_name = ?1 AND tool_name = ?2",
                 params![server_name, tool_name],
@@ -257,7 +257,7 @@ impl McpApprovalStore {
 
     /// Return all requests currently in `status = 'pending'`, ordered by `requested_at`.
     pub fn list_pending(&self) -> Result<Vec<PendingApprovalEntry>, McpApprovalError> {
-        let conn = self.conn.lock().expect("approval store mutex poisoned");
+        let conn = self.conn.lock().unwrap_or_else(PoisonError::into_inner);
         let mut stmt = conn.prepare(
             "SELECT id, server_name, tool_name, requested_at, status
              FROM mcp_pending_approvals

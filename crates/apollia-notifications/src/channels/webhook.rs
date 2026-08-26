@@ -77,7 +77,10 @@ impl WebhookChannel {
             .timeout(Duration::from_secs(5))
             .user_agent(format!("apollia-os/{}", env!("CARGO_PKG_VERSION")))
             .build()
-            .expect("reqwest::Client build ne peut pas échouer avec la config par défaut");
+            // SAFETY: the only failure `ClientBuilder::build` reports is a TLS
+            // backend that will not initialise; every setting above it is a
+            // literal fixed in this file.
+            .expect("the TLS backend failed to initialise");
         Self::with_client(config, client)
     }
 
@@ -112,8 +115,9 @@ impl WebhookChannel {
 /// HMAC accepts keys of any size, so the internal `expect` can never trigger in
 /// practice.
 pub fn compute_signature(secret: &str, body: &[u8]) -> String {
-    let mut mac =
-        HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts keys of any size");
+    // SAFETY: HMAC is defined for a key of any length, so the only error
+    // `new_from_slice` can report on this type is unreachable.
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC refused a key length");
     mac.update(body);
     let result = mac.finalize();
     format!("sha256={}", hex::encode(result.into_bytes()))

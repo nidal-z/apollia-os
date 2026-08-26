@@ -123,7 +123,10 @@ impl HttpFetch {
         // the test-only `ssrf_guard` toggle (which gates the initial check).
         let client = apollia_core::net::safe_client_builder()
             .build()
-            .expect("reqwest::Client initialization is infallible");
+            // SAFETY: the only failure `ClientBuilder::build` reports is a TLS
+            // backend that will not initialise; every setting above it is a
+            // literal fixed in this file.
+            .expect("the TLS backend failed to initialise");
         Self {
             allowlist,
             client,

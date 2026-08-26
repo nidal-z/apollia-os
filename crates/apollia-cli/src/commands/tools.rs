@@ -659,7 +659,9 @@ fn ensure_table<'a>(root: &'a mut toml_edit::Table, path: &[&str]) -> &'a mut to
         }
         current = item
             .as_table_mut()
-            .expect("freshly created or matched table item");
+            // SAFETY: the two branches above both leave `item` an
+            // `Item::Table`, and nothing between them and here replaces it.
+            .expect("the item was just matched or set as a table");
     }
     current
 }

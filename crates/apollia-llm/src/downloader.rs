@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -113,7 +113,10 @@ impl DownloadManager {
             // (multi-GB) are not killed mid-stream after 60 s.
             .connect_timeout(std::time::Duration::from_secs(30))
             .build()
-            .expect("reqwest client build never fails");
+            // SAFETY: the only failure `ClientBuilder::build` reports is a TLS
+            // backend that will not initialise; every setting above it is a
+            // literal fixed in this file.
+            .expect("the TLS backend failed to initialise");
         Self {
             client,
             active: Arc::new(Mutex::new(HashMap::new())),
@@ -129,7 +132,7 @@ impl DownloadManager {
         let cancel = CancellationToken::new();
 
         {
-            let mut active = self.active.lock().expect("active lock not poisoned");
+            let mut active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
             active.insert(id.clone(), cancel.clone());
         }
 
@@ -149,7 +152,7 @@ impl DownloadManager {
 
             // Clean up active map
             {
-                let mut map = active.lock().expect("active lock");
+                let mut map = active.lock().unwrap_or_else(PoisonError::into_inner);
                 map.remove(&task_id);
             }
 
@@ -166,7 +169,7 @@ impl DownloadManager {
     /// # Errors
     /// [`DownloadError::NotFound`] if the ID is unknown or already finished.
     pub fn cancel(&self, id: &str) -> Result<(), DownloadError> {
-        let active = self.active.lock().expect("active lock");
+        let active = self.active.lock().unwrap_or_else(PoisonError::into_inner);
         match active.get(id) {
             Some(token) => {
                 token.cancel();

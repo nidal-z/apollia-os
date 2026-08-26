@@ -339,7 +339,10 @@ impl HfRegistryClient {
             .user_agent("Apollia-OS/1.0")
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .expect("reqwest client build never fails with valid config");
+            // SAFETY: the only failure `ClientBuilder::build` reports is a TLS
+            // backend that will not initialise; every setting above it is a
+            // literal fixed in this file.
+            .expect("the TLS backend failed to initialise");
         Self { client, token }
     }
 

@@ -8,29 +8,86 @@
 ///
 /// On Unix: `SIGINT` (Ctrl+C) or `SIGTERM`.
 /// On Windows: `Ctrl+C` or `Ctrl+Break`.
+/// A handler that could not be installed leaves its signal the default
+/// disposition, and the operating system terminates the process on its own.
+/// So a stream that is absent waits for ever here rather than completing:
+/// completing would shut a healthy runner down the moment it started, on the
+/// grounds that one handler out of two failed to install.
 pub async fn shutdown_signal() {
     #[cfg(unix)]
     {
-        use tokio::signal::unix::{signal, SignalKind};
+        use tokio::signal::unix::{signal, Signal, SignalKind};
 
-        let mut sigterm = signal(SignalKind::terminate()).expect("install SIGTERM handler");
-        let mut sigint = signal(SignalKind::interrupt()).expect("install SIGINT handler");
+        async fn next(stream: &mut Option<Signal>) {
+            match stream {
+                Some(stream) => {
+                    stream.recv().await;
+                }
+                None => std::future::pending().await,
+            }
+        }
+
+        fn install(kind: SignalKind, name: &'static str) -> Option<Signal> {
+            match signal(kind) {
+                Ok(stream) => Some(stream),
+                Err(error) => {
+                    tracing::error!(
+                        error = %error,
+                        signal = %name,
+                        "runner.signal_handler_not_installed"
+                    );
+                    None
+                }
+            }
+        }
+
+        let mut sigterm = install(SignalKind::terminate(), "SIGTERM");
+        let mut sigint = install(SignalKind::interrupt(), "SIGINT");
 
         tokio::select! {
-            _ = sigterm.recv() => tracing::info!("SIGTERM received, shutting down"),
-            _ = sigint.recv() => tracing::info!("SIGINT received, shutting down"),
+            () = next(&mut sigterm) => tracing::info!("SIGTERM received, shutting down"),
+            () = next(&mut sigint) => tracing::info!("SIGINT received, shutting down"),
         }
     }
 
     #[cfg(windows)]
     {
-        let mut ctrl_c = tokio::signal::windows::ctrl_c().expect("install Ctrl-C handler");
-        let mut ctrl_break =
-            tokio::signal::windows::ctrl_break().expect("install Ctrl-Break handler");
+        use tokio::signal::windows::{ctrl_break, ctrl_c, CtrlBreak, CtrlC};
+
+        async fn next_ctrl_c(stream: &mut Option<CtrlC>) {
+            match stream {
+                Some(stream) => {
+                    stream.recv().await;
+                }
+                None => std::future::pending().await,
+            }
+        }
+
+        async fn next_ctrl_break(stream: &mut Option<CtrlBreak>) {
+            match stream {
+                Some(stream) => {
+                    stream.recv().await;
+                }
+                None => std::future::pending().await,
+            }
+        }
+
+        fn report(name: &'static str, error: &std::io::Error) {
+            tracing::error!(
+                error = %error,
+                signal = %name,
+                "runner.signal_handler_not_installed"
+            );
+        }
+
+        let mut ctrl_c_stream = ctrl_c().inspect_err(|error| report("Ctrl-C", error)).ok();
+        let mut ctrl_break_stream = ctrl_break()
+            .inspect_err(|error| report("Ctrl-Break", error))
+            .ok();
 
         tokio::select! {
-            _ = ctrl_c.recv() => tracing::info!("Ctrl-C received, shutting down"),
-            _ = ctrl_break.recv() => tracing::info!("Ctrl-Break received, shutting down"),
+            () = next_ctrl_c(&mut ctrl_c_stream) => tracing::info!("Ctrl-C received, shutting down"),
+            () = next_ctrl_break(&mut ctrl_break_stream) => tracing::info!("Ctrl-Break received, shutting down"),
         }
     }
 }

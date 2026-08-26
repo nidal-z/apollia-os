@@ -170,7 +170,12 @@ impl MemoryManager {
             self.open_store(namespace)?;
         }
 
-        Ok(self.stores.get(namespace).expect("store was just inserted"))
+        self.stores
+            .get(namespace)
+            .ok_or_else(|| MemoryManagerError::OpenFailed {
+                namespace: namespace.to_string(),
+                reason: "opened, then absent from the store map".to_string(),
+            })
     }
 
     /// Statistics for a namespace.

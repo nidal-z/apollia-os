@@ -92,11 +92,15 @@ impl StdioTransport {
             .spawn()
             .map_err(|e| TransportError::SpawnFailed(e.to_string()))?;
 
-        // Both pipes are guaranteed by the Stdio::piped() calls above.
+        // The three `Stdio::piped()` calls above are what fills these, and
+        // nothing between them and here takes a handle. A `None` would mean the
+        // spawn returned something other than what it was asked for, which is a
+        // spawn failure the caller has to see rather than a crash.
         let pid = child.id();
-        let raw_stdin = child.stdin.take().expect("stdin was piped");
-        let raw_stdout = child.stdout.take().expect("stdout was piped");
-        let raw_stderr = child.stderr.take().expect("stderr was piped");
+        let missing = |pipe: &str| TransportError::SpawnFailed(format!("{pipe} was not piped"));
+        let raw_stdin = child.stdin.take().ok_or_else(|| missing("stdin"))?;
+        let raw_stdout = child.stdout.take().ok_or_else(|| missing("stdout"))?;
+        let raw_stderr = child.stderr.take().ok_or_else(|| missing("stderr"))?;
 
         let stderr_tail = Arc::new(std::sync::Mutex::new(VecDeque::with_capacity(
             STDERR_TAIL_CAPACITY,

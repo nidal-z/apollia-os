@@ -137,7 +137,9 @@ pub enum LlmBackendError {
 fn validate_name(name: &str) -> Result<(), LlmBackendError> {
     // No `OnceLock` needed: validation runs rarely (write operations only),
     // so recompiling the pattern each call is acceptable.
-    let re = Regex::new(r"^[a-z0-9_-]+$").expect("static pattern is valid");
+    // SAFETY: the pattern is a literal fixed in this line, so it compiles or
+    // fails to compile on every run alike, and the tests below run it.
+    let re = Regex::new(r"^[a-z0-9_-]+$").expect("the literal pattern did not compile");
     if name.is_empty() || !re.is_match(name) {
         return Err(LlmBackendError::InvalidName(name.to_string()));
     }

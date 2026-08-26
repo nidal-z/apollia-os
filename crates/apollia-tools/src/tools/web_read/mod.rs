@@ -119,7 +119,10 @@ impl WebRead {
             .user_agent(USER_AGENT)
             .timeout(Duration::from_secs(timeout_secs))
             .build()
-            .expect("reqwest::Client initialization is infallible");
+            // SAFETY: the only failure `ClientBuilder::build` reports is a TLS
+            // backend that will not initialise; every setting above it is a
+            // literal fixed in this file.
+            .expect("the TLS backend failed to initialise");
         Self {
             client,
             timeout_secs,

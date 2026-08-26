@@ -341,7 +341,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         let secrets_declared = manifest.secrets.clone();
         let secret_store = open_secret_store(&self.data_dir);
 
-        let ctx: PyObject = Python::with_gil(|py| {
+        let built = Python::with_gil(|py| {
             let ctx = RuntimeContext::new_with_llm(
                 llm_router,
                 Arc::new(StepBudgetView::unlimited()),
@@ -378,10 +378,12 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                     .iter()
                     .any(|t| t == "mailbox:send"),
             );
-            Py::new(py, ctx)
-                .map(|p| p.into_any())
-                .expect("RuntimeContext PyObject construction failed")
+            Py::new(py, ctx).map(|p| p.into_any())
         });
+        let ctx: PyObject = match built {
+            Ok(object) => object,
+            Err(error) => return Err(format!("RuntimeContext construction failed: {error}")),
+        };
 
         bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
     }
@@ -992,7 +994,7 @@ impl AgentRunner for BridgeRunner {
                 )
             };
 
-            let ctx: PyObject = Python::with_gil(|py| {
+            let built = Python::with_gil(|py| {
                 let ctx = RuntimeContext::new_with_llm(
                     llm_router,
                     Arc::clone(&budget_view),
@@ -1020,10 +1022,12 @@ impl AgentRunner for BridgeRunner {
                 // task_id used to label ctx.log() in the trace.
                 .with_task_id(task.task_id.clone())
                 .with_run_id(task.run_id.clone());
-                Py::new(py, ctx)
-                    .map(|p| p.into_any())
-                    .expect("RuntimeContext PyObject construction failed")
+                Py::new(py, ctx).map(|p| p.into_any())
             });
+            let ctx: PyObject = match built {
+                Ok(object) => object,
+                Err(error) => return Err(format!("RuntimeContext construction failed: {error}")),
+            };
 
             bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
         })
@@ -1052,7 +1056,7 @@ impl apollia_oria::engine::AIPAgent for BridgeRunner {
         let event_bus = self.event_bus.clone();
 
         Box::pin(async move {
-            let ctx: PyObject = Python::with_gil(|py| {
+            let built = Python::with_gil(|py| {
                 let ctx = RuntimeContext::new_with_llm(
                     None,
                     Arc::new(StepBudgetView::unlimited()),
@@ -1071,10 +1075,17 @@ impl apollia_oria::engine::AIPAgent for BridgeRunner {
                     None,
                     false,
                 );
-                Py::new(py, ctx)
-                    .map(|p| p.into_any())
-                    .expect("RuntimeContext PyObject construction failed")
+                Py::new(py, ctx).map(|p| p.into_any())
             });
+            let ctx: PyObject = match built {
+                Ok(object) => object,
+                Err(error) => {
+                    return AIPResult::failed(
+                        "ON_PLAN_COMPLETE_FAILED",
+                        &format!("RuntimeContext construction failed: {error}"),
+                    )
+                }
+            };
 
             match bridge.call_on_plan_complete(step_results, ctx).await {
                 Ok(result) => result,

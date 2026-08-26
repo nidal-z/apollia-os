@@ -636,7 +636,17 @@ fn main() {
     // call chain is how it came to be honoured by two nouns out of two hundred.
     output::set_quiet(cli.quiet);
 
-    let rt = tokio::runtime::Runtime::new().expect("failed to create Tokio runtime");
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            let code = output::emit_error(
+                cli.json,
+                exit_codes::RUNTIME_ERROR,
+                &format!("failed to start the async runtime: {error}"),
+            );
+            std::process::exit(code);
+        }
+    };
 
     let json = cli.json;
     let no_color = cli.no_color;

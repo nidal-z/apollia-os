@@ -505,15 +505,13 @@ impl<'a> SemanticMemory<'a> {
 
 /// Returns the current UTC time as an ISO 8601 string.
 ///
-/// Delegates to SQLite's `strftime` for consistency with datetime comparisons
-/// used in queries (e.g. `purge_expired`).
+/// The format is the one SQLite's `strftime('%Y-%m-%dT%H:%M:%SZ', 'now')`
+/// produces, so the value still compares as text against the columns
+/// `purge_expired` and its kin filter on. It is formatted in process: opening
+/// an in-memory database to read a clock cost two fallible calls on a path
+/// that cannot report a failure.
 fn chrono_now_utc() -> String {
-    let conn = rusqlite::Connection::open_in_memory()
-        .expect("in-memory SQLite connection should always succeed");
-    conn.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%SZ', 'now')", [], |row| {
-        row.get(0)
-    })
-    .expect("strftime should always succeed")
+    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
 #[cfg(test)]
