@@ -197,7 +197,7 @@ impl AuditTrail {
                             error = %e,
                             tool = %record.tool_name,
                             id   = %record.id,
-                            "audit insert failed"
+                            "tool.audit.insert.failed"
                         );
                     }
                 }
@@ -391,10 +391,16 @@ impl AuditTrailHandle {
         match self.sender.try_send(AuditMessage::Record(Box::new(record))) {
             Ok(()) => {}
             Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
-                tracing::warn!("audit trail channel full, record dropped (backpressure)");
+                tracing::warn!(
+                    reason = "the audit channel is full",
+                    "tool.audit.record.dropped"
+                );
             }
             Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
-                tracing::warn!("audit trail actor disconnected, record dropped");
+                tracing::warn!(
+                    reason = "the audit actor is disconnected",
+                    "tool.audit.record.dropped"
+                );
             }
         }
     }

@@ -103,7 +103,7 @@ impl GovernanceDb {
                 from = %legacy.display(),
                 to = %path.display(),
                 backup = %backup.display(),
-                "migrated permissions.db to governance.db"
+                "governance.db.migrated"
             );
         }
 

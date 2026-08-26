@@ -81,7 +81,6 @@ ALLOWED: dict[str, int] = {
     "apollia-permissions": 4,
     "apollia-runner": 10,
     "apollia-stt": 5,
-    "apollia-tools": 38,
     "apollia-workspace": 8,
 }
 

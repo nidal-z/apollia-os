@@ -106,7 +106,8 @@ pub async fn resolve(
             tracing::info!(
                 agent = %manifest.name,
                 dep = %tool_name,
-                "ToolResolver: A2A dependency declared (resolved at invocation, not at boot)"
+                detail = "resolved at invocation, not at boot",
+                "tool.resolver.a2a.declared"
             );
             resolved.push(tool_name.clone());
             continue;
@@ -116,7 +117,8 @@ pub async fn resolve(
                 tracing::info!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: required tool resolved from deferred MCP index"
+                    detail = "from the deferred MCP index",
+                    "tool.resolver.required.resolved"
                 );
                 resolved.push(tool_name.clone());
             }
@@ -124,7 +126,7 @@ pub async fn resolve(
                 tracing::error!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: required tool missing"
+                    "tool.resolver.required.missing"
                 );
                 return Err(ToolResolutionError::RequiredToolMissing(tool_name.clone()));
             }
@@ -132,7 +134,8 @@ pub async fn resolve(
                 tracing::error!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: dangerous tool not allowed by manifest"
+                    reason = "the manifest does not allow a dangerous tool",
+                    "tool.resolver.required.denied"
                 );
                 return Err(ToolResolutionError::DangerousToolNotAllowed(
                     tool_name.clone(),
@@ -142,7 +145,7 @@ pub async fn resolve(
                 tracing::info!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: required tool resolved"
+                    "tool.resolver.required.resolved"
                 );
                 resolved.push(tool_name.clone());
             }
@@ -155,7 +158,8 @@ pub async fn resolve(
             tracing::info!(
                 agent = %manifest.name,
                 dep = %tool_name,
-                "ToolResolver: A2A dependency declared (resolved at invocation, not at boot)"
+                detail = "resolved at invocation, not at boot",
+                "tool.resolver.a2a.declared"
             );
             resolved.push(tool_name.clone());
             continue;
@@ -165,7 +169,8 @@ pub async fn resolve(
                 tracing::info!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: optional tool resolved from deferred MCP index"
+                    detail = "from the deferred MCP index",
+                    "tool.resolver.optional.resolved"
                 );
                 resolved.push(tool_name.clone());
             }
@@ -174,7 +179,8 @@ pub async fn resolve(
                 tracing::warn!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: optional tool missing - agent will run in DEGRADED mode"
+                    detail = "the agent runs degraded",
+                    "tool.resolver.optional.missing"
                 );
                 warnings.push(warning);
             }
@@ -183,7 +189,8 @@ pub async fn resolve(
                 tracing::warn!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: dangerous optional tool not allowed - skipping"
+                    reason = "the manifest does not allow a dangerous tool",
+                    "tool.resolver.optional.skipped"
                 );
                 warnings.push(warning);
             }
@@ -191,7 +198,7 @@ pub async fn resolve(
                 tracing::info!(
                     agent = %manifest.name,
                     tool = %tool_name,
-                    "ToolResolver: optional tool resolved"
+                    "tool.resolver.optional.resolved"
                 );
                 resolved.push(tool_name.clone());
             }

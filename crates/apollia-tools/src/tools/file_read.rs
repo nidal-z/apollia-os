@@ -192,7 +192,7 @@ impl FileRead {
                 tracing::warn!(
                     path = %resolved_path.display(),
                     error = %e,
-                    "file timestamp cache record failed"
+                    "tool.file.timestamp.record.failed"
                 );
             }
         }

@@ -428,7 +428,8 @@ impl PythonExecutor {
         if self.python_bin.exists() {
             tracing::info!(
                 agent_id = %self.agent_id,
-                "python_executor: virtualenv already exists, skipping creation"
+                detail = "creation skipped",
+                "tool.python.venv.present"
             );
         } else {
             // `--clear` purges any existing (possibly broken) venv directory before recreating.
@@ -443,7 +444,7 @@ impl PythonExecutor {
                 agent_id = %self.agent_id,
                 venv_path = %self.venv_path.display(),
                 clear = self.venv_path.is_dir(),
-                "python_executor: creating virtualenv"
+                "tool.python.venv.creating"
             );
 
             let venv_path_str = self.venv_path.to_str().unwrap_or("");
@@ -475,7 +476,7 @@ impl PythonExecutor {
             tracing::info!(
                 agent_id = %self.agent_id,
                 package = %package,
-                "python_executor: installing package"
+                "tool.python.package.installing"
             );
 
             let mut pip_cmd = tokio::process::Command::new(&pip_bin);
@@ -629,9 +630,9 @@ impl PythonExecutor {
     fn build_command(&self, script_path: &Path) -> tokio::process::Command {
         tracing::warn!(
             agent_id = %self.agent_id,
-            "python_executor: running in Dev mode - no sandbox active. \
-             Linux namespaces are not available on this platform. \
-             Production deployments require Linux."
+            detail = "dev mode, Linux namespaces are unavailable on this platform, \
+                      production deployments require Linux",
+            "tool.python.sandbox.absent"
         );
         let mut cmd = std::process::Command::new(&self.python_bin);
         cmd.arg(script_path);

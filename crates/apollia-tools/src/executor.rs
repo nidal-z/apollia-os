@@ -259,7 +259,7 @@ impl ToolDispatcher {
             if !filter.is_allowed(tool_name) {
                 tracing::debug!(
                     tool = %tool_name,
-                    "session filter: tool not allowed"
+                    "tool.session.filter.denied"
                 );
                 return Err(ToolExecutionError::ToolNotAllowed {
                     tool_name: tool_name.to_string(),
@@ -289,7 +289,8 @@ impl ToolDispatcher {
             tracing::debug!(
                 lines_truncated = lines,
                 tool = %tool_name,
-                "output tronqué middle-trim"
+                detail = "trimmed in the middle",
+                "tool.output.truncated"
             );
             Ok(Value::String(output))
         } else {

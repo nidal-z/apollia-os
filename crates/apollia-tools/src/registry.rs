@@ -65,7 +65,7 @@ impl ToolRegistry {
                     let _ = reply.send(result);
                 }
                 ToolRegistryMessage::Shutdown => {
-                    tracing::info!("ToolRegistry shutting down");
+                    tracing::info!("tool.registry.shutdown");
                     break;
                 }
             }
@@ -81,7 +81,7 @@ impl ToolRegistry {
             return Err(ToolRegistryError::AlreadyRegistered(descriptor.name));
         }
 
-        tracing::info!(tool = %descriptor.name, version = %descriptor.version, "tool registered");
+        tracing::info!(tool = %descriptor.name, version = %descriptor.version, "tool.registered");
         self.catalogue.insert(descriptor.name.clone(), descriptor);
         Ok(())
     }

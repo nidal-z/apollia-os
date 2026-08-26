@@ -261,7 +261,7 @@ impl PermissionRuleAdd {
             rule_id = id,
             tool = %rule.tool_name,
             agent = %self.agent_id,
-            "permission_rule_add"
+            "permission.rule.added"
         );
         Ok(PermissionRuleAddOutput { rule_id: id })
     }
@@ -374,7 +374,7 @@ impl PermissionRuleRemove {
     ) -> Result<PermissionRuleRemoveOutput, PermissionRuleToolError> {
         let mut engine = PrefixRuleEngine::new(&self.db_path)?;
         let removed = engine.remove_rule_checked(input.rule_id)?;
-        tracing::info!(rule_id = input.rule_id, removed, "permission_rule_remove");
+        tracing::info!(rule_id = input.rule_id, removed, "permission.rule.removed");
         Ok(PermissionRuleRemoveOutput { removed })
     }
 

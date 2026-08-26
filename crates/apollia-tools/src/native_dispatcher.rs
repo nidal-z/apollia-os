@@ -173,7 +173,11 @@ pub fn build_dispatcher_with(
                 // would surface as UnknownTool with no hint that Python is
                 // the missing prerequisite. push_sandbox_tool failures are
                 // candidates for the same treatment later.
-                tracing::warn!(error = %e, "python_executor unavailable - registered as stub");
+                tracing::warn!(
+                    error = %e,
+                    detail = "registered as a stub",
+                    "tool.python_executor.unavailable"
+                );
                 executors.push(Box::new(UnavailableTool {
                     name: "python_executor",
                     reason: e.to_string(),
@@ -203,7 +207,11 @@ pub fn build_dispatcher_with(
             match WebSearch::from_config(&cfg.web_search_config, cfg.brave_api_key.clone()) {
                 Ok(tool) => executors.push(Box::new(tool)),
                 Err(e) => {
-                    tracing::warn!(error = %e, "web_search disabled - configuration invalid");
+                    tracing::warn!(
+                        error = %e,
+                        reason = "the configuration is invalid",
+                        "tool.web_search.disabled"
+                    );
                 }
             }
         }
@@ -342,7 +350,14 @@ fn push_sandbox_tool<T, E>(
 {
     match built {
         Ok(exec) => executors.push(Box::new(exec)),
-        Err(e) => tracing::warn!(tool = name, error = %e, "native tool unavailable - skipped"),
+        Err(e) => {
+            tracing::warn!(
+                tool = name,
+                error = %e,
+                reason = "the tool is unavailable",
+                "tool.native.skipped"
+            )
+        }
     }
 }
 

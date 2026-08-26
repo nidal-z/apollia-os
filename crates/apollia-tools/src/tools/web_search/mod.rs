@@ -549,7 +549,8 @@ async fn dispatch(
             tracing::warn!(
                 backend = backend.name(),
                 error = %e,
-                "backend failed - trying next if available"
+                detail = "trying the next backend if available",
+                "tool.web_search.backend.failed"
             );
             Err(WebSearchError::AllBackendsFailed {
                 last: e.to_string(),

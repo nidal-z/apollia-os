@@ -85,7 +85,7 @@ impl FilePathExtractor {
                     tracing::warn!(
                         error = %err,
                         command = %command,
-                        "file_path_extractor: LLM extraction failed"
+                        "tool.file_path.extraction.failed"
                     );
                 }
             }

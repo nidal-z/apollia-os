@@ -175,7 +175,7 @@ impl JournalWriter {
                 warn!(
                     root = %root.display(),
                     error = %e,
-                    "journal retention purge failed"
+                    "journal.retention.purge.failed"
                 );
             }
             writer.run(rx).await;
@@ -192,7 +192,8 @@ impl JournalWriter {
                         error!(
                             session_id = %self.session_id,
                             error = %e,
-                            "journal write failed - caller must abort mutation"
+                            detail = "the caller must abort the mutation",
+                            "journal.write.failed"
                         );
                     }
                     let _ = reply.send(result);
@@ -303,10 +304,10 @@ async fn purge_oldest_sessions(root: &Path, max_sessions: usize) -> Result<(), J
             warn!(
                 path = %path.display(),
                 error = %e,
-                "failed to remove old journal session"
+                "journal.session.remove.failed"
             );
         } else {
-            info!(path = %path.display(), "journal session purged by retention policy");
+            info!(path = %path.display(), "journal.session.purged");
         }
     }
 
@@ -360,7 +361,7 @@ pub async fn rollback_session(
     info!(
         session_id = %session_id,
         ops = entries.len(),
-        "journal session rolled back"
+        "journal.session.rolled_back"
     );
 
     Ok(entries)

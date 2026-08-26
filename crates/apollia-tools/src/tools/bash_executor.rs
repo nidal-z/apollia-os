@@ -275,7 +275,8 @@ impl BashExecutor {
             tracing::warn!(
                 command = %input.command,
                 category = ?category,
-                "bash_executor: command blocked by risk classifier"
+                reason = "the risk classifier refused it",
+                "tool.bash.command.blocked"
             );
             return Err(BashExecutorError::RiskyCommand {
                 command: input.command,
@@ -405,9 +406,9 @@ impl BashExecutor {
     fn build_command(input: &BashInput, shell: &std::path::Path) -> tokio::process::Command {
         tracing::warn!(
             command = %input.command,
-            "bash_executor: running in Dev mode - no sandbox active. \
-             Linux namespaces are not available on this platform. \
-             Production deployments require Linux."
+            detail = "dev mode, Linux namespaces are unavailable on this platform, \
+                      production deployments require Linux",
+            "tool.bash.sandbox.absent"
         );
         let mut cmd = std::process::Command::new(shell);
         cmd.args(["-c", &input.command]);
@@ -432,8 +433,9 @@ impl BashExecutor {
         tracing::warn!(
             command = %input.command,
             shell = %shell.display(),
-            "bash_executor: no OS sandbox on this platform and no resource limits. \
-             Production deployments require Linux."
+            detail = "no OS sandbox and no resource limits on this platform, \
+                      production deployments require Linux",
+            "tool.bash.sandbox.absent"
         );
         let mut cmd = std::process::Command::new(shell);
         cmd.args(["-c", &input.command]);
