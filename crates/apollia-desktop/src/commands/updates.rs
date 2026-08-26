@@ -10,6 +10,7 @@ use thiserror::Error;
 
 /// Possible errors when querying the updater plugin.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum UpdateError {
     #[error("updater plugin unavailable: {0}")]
     Plugin(String),

@@ -21,6 +21,7 @@ use thiserror::Error;
 
 /// Errors from the MCP approval store.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum McpApprovalError {
     /// A SQLite operation failed.
     #[error("database error: {0}")]

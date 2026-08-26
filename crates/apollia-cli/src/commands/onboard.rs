@@ -18,6 +18,7 @@ const VALID_TOPICS: &[&str] = &["identity", "preferences", "tools", "domain", "a
 
 /// Errors specific to the `onboard` command.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum OnboardError {
     /// The user specified a topic that does not exist.
     #[error("invalid topic '{topic}', valid topics: {}", valid.join(", "))]

@@ -772,6 +772,9 @@ fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<BackendErrorResp
         LlmBackendError::Db(_) | LlmBackendError::Io(_) | LlmBackendError::Schema(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
         }
+        // The enum is #[non_exhaustive]: a variant added upstream reaches the
+        // client as a 500 carrying its own message, never as a compile break.
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     };
     (status, Json(BackendErrorResponse { error: msg }))
 }

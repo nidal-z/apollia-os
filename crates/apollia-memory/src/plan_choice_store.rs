@@ -14,6 +14,7 @@ use crate::store::MemoryStore;
 
 /// Errors of the [`PlanChoiceStore`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PlanChoiceStoreError {
     /// Writing a choice to the database failed.
     #[error("failed to log plan choice: {0}")]

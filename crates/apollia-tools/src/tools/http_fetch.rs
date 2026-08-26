@@ -30,6 +30,7 @@ pub struct HttpFetch {
 
 /// Errors produced by [`HttpFetch`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum HttpFetchError {
     /// Hostname is not in the configured allowlist.
     #[error("network not allowed: hostname '{hostname}' is not in the allowlist")]

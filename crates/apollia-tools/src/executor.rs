@@ -39,6 +39,7 @@ use crate::tools::web_read::{WebRead, WebReadError, WebReadInput};
 
 /// Unified error type for tool execution via [`ToolExecutor`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ToolExecutionError {
     /// The input JSON could not be deserialized into the expected schema.
     #[error("invalid input: {message}")]

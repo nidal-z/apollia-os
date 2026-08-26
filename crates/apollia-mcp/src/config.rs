@@ -216,6 +216,7 @@ const MAX_MAX_TOOLS: u32 = 8192;
 
 /// Errors that can occur while loading or validating MCP configuration.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum McpConfigError {
     /// The `mcp.toml` file could not be read.
     #[error("failed to read mcp.toml: {0}")]

@@ -29,6 +29,7 @@ pub struct ValidatedAgent {
 
 /// Errors that can occur during AIP validation of a Python agent.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AIPValidationError {
     /// The agent class is missing `__apollia_manifest__`: the @agent
     /// decorator was not applied.

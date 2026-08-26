@@ -14,6 +14,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 /// Errors that can occur during overlay window operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum OverlayError {
     /// Failed to create the overlay window.
     #[error("failed to create overlay window: {0}")]

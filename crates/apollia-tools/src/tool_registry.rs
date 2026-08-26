@@ -58,6 +58,7 @@ pub const AGENT_CREDENTIALS_NAMESPACE: &str = "agent";
 
 /// Error returned by [`ToolRegistry`] and [`ToolCredentialStore`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ToolGovernanceError {
     /// SQLite error during a governance query.
     #[error("governance database error: {0}")]

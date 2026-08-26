@@ -56,6 +56,7 @@ pub struct WebSearch {
 /// Errors raised by [`WebSearch::try_with_default_backends`] when the
 /// configured backend list cannot be honoured at startup.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ToolConfigError {
     /// A required credential is missing or empty. The dispatcher surfaces this
     /// as a startup-time failure (Fail fast) so the operator notices before an
@@ -113,6 +114,7 @@ fn brave_key_is_configured() -> bool {
 /// Errors produced at the [`WebSearch`] orchestration layer (above the
 /// individual [`SearchBackend`] failures).
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum WebSearchError {
     /// The caller submitted an empty or whitespace-only query.
     #[error("invalid query: {reason}")]

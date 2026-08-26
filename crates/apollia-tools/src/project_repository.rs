@@ -128,6 +128,7 @@ pub struct ProjectPatch {
 
 /// Errors raised by the project repository.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ProjectRepositoryError {
     /// Underlying SQLite error.
     #[error("erreur SQLite : {0}")]

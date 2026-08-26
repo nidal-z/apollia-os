@@ -37,6 +37,7 @@ use config::{build_args, display_opt, env_getter, resolve_env_overrides};
 
 /// Errors from spawning or supervising the embedded `llama-server`.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum LlamaServerError {
     /// The `llama-server` binary was not found next to the executable or on PATH.
     #[error("llama-server binary not found: {0}")]

@@ -35,6 +35,7 @@ impl OffloadRef {
 
 /// Error writing an offloaded result to disk.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum OffloadError {
     /// I/O failure during the write.
     #[error("failed to write offload file '{path}': {source}")]

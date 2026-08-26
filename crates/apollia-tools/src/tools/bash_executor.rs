@@ -80,6 +80,7 @@ pub struct BashOutput {
 
 /// Errors produced by [`BashExecutor::run`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum BashExecutorError {
     /// `command` is empty or whitespace-only, rejected before any I/O (fail fast).
     #[error("command must not be empty")]

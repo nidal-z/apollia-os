@@ -28,6 +28,7 @@ use tower::{Layer, Service};
 
 /// Errors returned by the token authentication middleware.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AuthError {
     /// The `Authorization` header is absent from the request.
     #[error("missing Authorization header")]
@@ -50,6 +51,7 @@ impl IntoResponse for AuthError {
 
 /// Errors that can occur when loading or generating the API token file.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum TokenFileError {
     /// I/O error creating the parent data directory before the first write.
     #[error("failed to create data directory: {0}")]

@@ -32,6 +32,7 @@ pub struct FileRead {
 
 /// Errors produced by [`FileRead`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum FileReadError {
     /// Path attempts to escape the sandbox root.
     #[error("sandbox violation: path '{path}' escapes the sandbox root")]

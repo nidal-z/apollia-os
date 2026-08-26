@@ -19,6 +19,7 @@ use crate::types::{
 
 /// Errors returned by [`parse_triggers_from_toml_str`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum TriggerTomlError {
     /// The TOML content is malformed (invalid syntax, wrong type).
     #[error("invalid TOML: {0}")]

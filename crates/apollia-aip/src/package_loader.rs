@@ -15,6 +15,7 @@ use crate::loader::{load_agent_module, AIPLoaderError};
 
 /// Errors returned by [`load_package`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PackageLoaderError {
     #[error("agent.toml introuvable dans '{0}'")]
     ManifestNotFound(String),

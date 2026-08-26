@@ -87,6 +87,7 @@ pub trait ToolProxyTrait: Send + Sync {
 
 /// Error from a single step produced by [`ActorLoop::execute_step`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum StepError {
     /// The tool call failed.
     #[error("tool call failed: {0}")]

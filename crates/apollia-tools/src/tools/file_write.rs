@@ -27,6 +27,7 @@ pub struct FileWrite {
 
 /// Errors produced by [`FileWrite`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum FileWriteError {
     /// Path attempts to escape the sandbox root.
     #[error("sandbox violation: path '{path}' escapes the sandbox root")]

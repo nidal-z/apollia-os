@@ -22,6 +22,7 @@ use tracing::{error, info, warn};
 
 /// Errors produced by the journal actor and [`rollback_session`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum JournalError {
     /// Underlying I/O failure while reading or writing a journal file.
     #[error("journal I/O failure: {0}")]

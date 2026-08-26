@@ -32,6 +32,7 @@ use apollia_core::SandboxProfile;
 
 /// Domain errors specific to the `permission_rule_*` tools.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum PermissionRuleToolError {
     /// The provided action is neither `"allow"` nor `"deny"`.
     #[error("invalid action '{action}': expected 'allow' or 'deny'")]

@@ -105,6 +105,7 @@ pub struct RandomSample {
 
 /// Errors raised while extracting or advancing captured inputs for replay.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ReplayCaptureError {
     /// The journal holds no captures of the requested kind for the run.
     #[error("no captures found in journal for run {run_id}")]

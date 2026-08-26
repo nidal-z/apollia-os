@@ -26,6 +26,8 @@ Strict rules, red on the first site:
                      blocking thread::sleep, FuturesUnordered in production
   internal-refs      tracker identifiers and numbered planning vocabulary,
                      minus the named waivers below
+  error-enums        a public thiserror enum declared without
+                     #[non_exhaustive]
 
 Ratchet rules, frozen as named tables that move only with the code:
 
@@ -35,8 +37,6 @@ Ratchet rules, frozen as named tables that move only with the code:
   module-size        the files allowed to exceed 800 production lines
   arc-mutex          per-file counts of Arc<Mutex|RwLock> sites and the
                      named type aliases that wrap one
-  error-enums        per-file counts of public thiserror enums without
-                     #[non_exhaustive]
 
 A ratchet is two-sided: a site above the table is a regression, a site below
 it is debt paid that must lower the table in the same commit, otherwise the
@@ -239,142 +239,6 @@ ARC_MUTEX_ALIASES: set[str] = {
     "crates/apollia-runtime/src/api/server.rs::SharedSttRepository",
     "crates/apollia-runtime/src/session_metrics.rs::SessionMetricsStore",
     "crates/apollia-workspace/src/assembler.rs::SnapshotCache",
-}
-
-# Per-file counts of public thiserror enums without #[non_exhaustive].
-ERROR_ENUM_COUNTS: dict[str, int] = {
-    "crates/apollia-aip/src/bridge.rs": 1,
-    "crates/apollia-aip/src/context.rs": 1,
-    "crates/apollia-aip/src/loader.rs": 1,
-    "crates/apollia-aip/src/memory.rs": 1,
-    "crates/apollia-aip/src/package_loader.rs": 1,
-    "crates/apollia-aip/src/python_provider.rs": 1,
-    "crates/apollia-aip/src/validator.rs": 1,
-    "crates/apollia-auth/src/error.rs": 1,
-    "crates/apollia-auth/src/mcp_oauth_orchestrator.rs": 1,
-    "crates/apollia-cli/src/client.rs": 1,
-    "crates/apollia-cli/src/commands/mcp.rs": 1,
-    "crates/apollia-cli/src/commands/mcp_server.rs": 1,
-    "crates/apollia-cli/src/commands/memory.rs": 1,
-    "crates/apollia-cli/src/commands/onboard.rs": 1,
-    "crates/apollia-cli/src/commands/start.rs": 1,
-    "crates/apollia-cli/src/commands/update.rs": 1,
-    "crates/apollia-cli/src/commands/workspace.rs": 1,
-    "crates/apollia-cli/src/community.rs": 1,
-    "crates/apollia-cli/src/config.rs": 1,
-    "crates/apollia-connectors/src/error.rs": 1,
-    "crates/apollia-core/src/config/mod.rs": 1,
-    "crates/apollia-core/src/llm_backend.rs": 1,
-    "crates/apollia-core/src/pending_approvals.rs": 1,
-    "crates/apollia-core/src/stt_config.rs": 1,
-    "crates/apollia-desktop/src/commands/automation.rs": 1,
-    "crates/apollia-desktop/src/commands/integrations.rs": 1,
-    "crates/apollia-desktop/src/commands/model_hub.rs": 1,
-    "crates/apollia-desktop/src/commands/observability.rs": 1,
-    "crates/apollia-desktop/src/commands/onboarding.rs": 1,
-    "crates/apollia-desktop/src/commands/updates.rs": 1,
-    "crates/apollia-desktop/src/mcp/registry_client.rs": 1,
-    "crates/apollia-desktop/src/mcp/secret_store.rs": 1,
-    "crates/apollia-desktop/src/stt/clipboard.rs": 1,
-    "crates/apollia-desktop/src/stt/overlay.rs": 1,
-    "crates/apollia-llm/src/downloader.rs": 1,
-    "crates/apollia-llm/src/hf_registry.rs": 1,
-    "crates/apollia-llm/src/meta/next_steps.rs": 1,
-    "crates/apollia-llm/src/meta/rewrite_input.rs": 1,
-    "crates/apollia-llm/src/repository.rs": 1,
-    "crates/apollia-llm/src/types.rs": 1,
-    "crates/apollia-mcp/src/approvals.rs": 1,
-    "crates/apollia-mcp/src/config.rs": 1,
-    "crates/apollia-mcp/src/discovery.rs": 1,
-    "crates/apollia-mcp/src/server.rs": 1,
-    "crates/apollia-mcp/src/server_repository.rs": 1,
-    "crates/apollia-mcp/src/session.rs": 1,
-    "crates/apollia-mcp/src/transport/mod.rs": 1,
-    "crates/apollia-memory/src/episodic.rs": 1,
-    "crates/apollia-memory/src/export.rs": 1,
-    "crates/apollia-memory/src/file_timestamp_cache.rs": 1,
-    "crates/apollia-memory/src/manager.rs": 1,
-    "crates/apollia-memory/src/plan_choice_store.rs": 1,
-    "crates/apollia-memory/src/procedural.rs": 1,
-    "crates/apollia-memory/src/search.rs": 1,
-    "crates/apollia-memory/src/semantic.rs": 1,
-    "crates/apollia-memory/src/store.rs": 1,
-    "crates/apollia-memory/src/user_memory.rs": 1,
-    "crates/apollia-notifications/src/config.rs": 1,
-    "crates/apollia-notifications/src/engine.rs": 1,
-    "crates/apollia-notifications/src/validation.rs": 1,
-    "crates/apollia-oria/src/actor.rs": 1,
-    "crates/apollia-oria/src/arg_resolver.rs": 1,
-    "crates/apollia-oria/src/engine.rs": 1,
-    "crates/apollia-oria/src/observer.rs": 1,
-    "crates/apollia-oria/src/plan_cache.rs": 1,
-    "crates/apollia-oria/src/plan_repository.rs": 1,
-    "crates/apollia-oria/src/reasoner.rs": 2,
-    "crates/apollia-oria/src/resilience.rs": 1,
-    "crates/apollia-oria/src/tool_offload.rs": 1,
-    "crates/apollia-permissions/src/error.rs": 1,
-    "crates/apollia-runtime/src/a2a/invoker.rs": 1,
-    "crates/apollia-runtime/src/a2a/mod.rs": 1,
-    "crates/apollia-runtime/src/a2a/sidechain.rs": 1,
-    "crates/apollia-runtime/src/agents/registry_remote.rs": 1,
-    "crates/apollia-runtime/src/api/middleware.rs": 2,
-    "crates/apollia-runtime/src/api/server.rs": 1,
-    "crates/apollia-runtime/src/audit_journal/error.rs": 1,
-    "crates/apollia-runtime/src/audit_journal/signer.rs": 1,
-    "crates/apollia-runtime/src/chat/extractor.rs": 1,
-    "crates/apollia-runtime/src/chat/summarizer.rs": 1,
-    "crates/apollia-runtime/src/chat/types.rs": 1,
-    "crates/apollia-runtime/src/coordinator.rs": 1,
-    "crates/apollia-runtime/src/embedded.rs": 1,
-    "crates/apollia-runtime/src/llama_server/mod.rs": 1,
-    "crates/apollia-runtime/src/llm_timings.rs": 1,
-    "crates/apollia-runtime/src/mailbox.rs": 1,
-    "crates/apollia-runtime/src/observability/persistor.rs": 1,
-    "crates/apollia-runtime/src/observability/repository.rs": 1,
-    "crates/apollia-runtime/src/registry.rs": 1,
-    "crates/apollia-runtime/src/replay/capture.rs": 1,
-    "crates/apollia-runtime/src/replay/harness.rs": 1,
-    "crates/apollia-runtime/src/router.rs": 1,
-    "crates/apollia-runtime/src/runner_supervisor/error.rs": 1,
-    "crates/apollia-runtime/src/shutdown.rs": 1,
-    "crates/apollia-runtime/src/stt/engine.rs": 1,
-    "crates/apollia-runtime/src/supervisor/mod.rs": 1,
-    "crates/apollia-runtime/src/timeout_watcher.rs": 1,
-    "crates/apollia-stt/src/types.rs": 1,
-    "crates/apollia-tools/src/agent_repository.rs": 1,
-    "crates/apollia-tools/src/audit.rs": 1,
-    "crates/apollia-tools/src/descriptor.rs": 1,
-    "crates/apollia-tools/src/executor.rs": 1,
-    "crates/apollia-tools/src/governance_db.rs": 1,
-    "crates/apollia-tools/src/journal.rs": 1,
-    "crates/apollia-tools/src/package_repository.rs": 1,
-    "crates/apollia-tools/src/project_repository.rs": 1,
-    "crates/apollia-tools/src/registry.rs": 1,
-    "crates/apollia-tools/src/resolver.rs": 1,
-    "crates/apollia-tools/src/sandbox_path.rs": 1,
-    "crates/apollia-tools/src/task_repository.rs": 1,
-    "crates/apollia-tools/src/tool_registry.rs": 1,
-    "crates/apollia-tools/src/tools/bash_executor.rs": 1,
-    "crates/apollia-tools/src/tools/file_edit.rs": 1,
-    "crates/apollia-tools/src/tools/file_glob.rs": 1,
-    "crates/apollia-tools/src/tools/file_grep.rs": 1,
-    "crates/apollia-tools/src/tools/file_list.rs": 1,
-    "crates/apollia-tools/src/tools/file_read.rs": 1,
-    "crates/apollia-tools/src/tools/file_write.rs": 1,
-    "crates/apollia-tools/src/tools/http_fetch.rs": 1,
-    "crates/apollia-tools/src/tools/memory_search.rs": 1,
-    "crates/apollia-tools/src/tools/notebook_edit.rs": 1,
-    "crates/apollia-tools/src/tools/notebook_read.rs": 1,
-    "crates/apollia-tools/src/tools/permission_rules.rs": 1,
-    "crates/apollia-tools/src/tools/python_executor.rs": 1,
-    "crates/apollia-tools/src/tools/web_read/error.rs": 1,
-    "crates/apollia-tools/src/tools/web_search/backend.rs": 1,
-    "crates/apollia-tools/src/tools/web_search/mod.rs": 2,
-    "crates/apollia-triggers/src/definition_repository.rs": 1,
-    "crates/apollia-triggers/src/engine.rs": 1,
-    "crates/apollia-triggers/src/persistence.rs": 1,
-    "crates/apollia-triggers/src/toml_config.rs": 1,
-    "crates/apollia-triggers/src/types.rs": 1,
 }
 
 # Empty since the prose rule extension reworded the last waived message
@@ -676,6 +540,30 @@ def rule_internal_refs(sources):
     return hits, {}
 
 
+_ENUM_DECL = re.compile(r"(?m)^((?:\s*#\[[^\n]*\]\s*\n)+)\s*pub\s+enum\s+([A-Za-z0-9_]+)")
+
+
+def rule_error_enums(sources):
+    hits = []
+    for s in sources:
+        for m in _ENUM_DECL.finditer(s.raw):
+            attrs, name = m.group(1), m.group(2)
+            if "Error" not in attrs and not name.endswith("Error"):
+                continue
+            if not re.search(r"derive\([^)]*Error", attrs):
+                continue
+            n = line_of(s.raw, m.start(2))
+            if n not in s.prod_lines:
+                continue
+            if "non_exhaustive" not in attrs:
+                hits.append(
+                    f"{s.path}:{n}: pub enum {name} derives Error without "
+                    f"#[non_exhaustive]. Adding a variant later is a breaking "
+                    f"change for every caller that matches on it"
+                )
+    return hits, {}
+
+
 # ── ratchet rules ────────────────────────────────────────────────────────────
 
 
@@ -808,26 +696,6 @@ def rule_arc_mutex(sources):
             f"Remove the entry in this same commit"
         )
     return hits, {}
-
-
-_ENUM_DECL = re.compile(r"(?m)^((?:\s*#\[[^\n]*\]\s*\n)+)\s*pub\s+enum\s+([A-Za-z0-9_]+)")
-
-
-def rule_error_enums(sources):
-    found: Counter = Counter()
-    for s in sources:
-        for m in _ENUM_DECL.finditer(s.raw):
-            attrs, name = m.group(1), m.group(2)
-            if "Error" not in attrs and not name.endswith("Error"):
-                continue
-            if not re.search(r"derive\([^)]*Error", attrs):
-                continue
-            n = line_of(s.raw, m.start(2))
-            if n not in s.prod_lines:
-                continue
-            if "non_exhaustive" not in attrs:
-                found[s.path] += 1
-    return _two_sided(dict(found), ERROR_ENUM_COUNTS, "public error enum(s) without #[non_exhaustive]"), {}
 
 
 RULES = {
@@ -1003,15 +871,33 @@ def _selftest() -> int:
 
     # 14. an Arc<Mutex> in a file the table does not carry fires
     hits, _ = rule_arc_mutex(
-        [
-            _sample(
-                "struct A { m: Arc<Mutex<u8>>, r: Arc<tokio::sync::RwLock<u8>>, s: Arc<u8> }\n"
-            )
-        ]
+        [_sample("struct A { m: Arc<Mutex<u8>>, r: Arc<tokio::sync::RwLock<u8>>, s: Arc<u8> }\n")]
     )
     control("arc-mutex new site", strip_tree(hits), 1)
 
-    # 15. the ratchet is two-sided: an entry the tree no longer carries fires
+    # 15. a public thiserror enum without #[non_exhaustive] fires; the same
+    # enum carrying the attribute, a non-error enum and a test-gated one stay
+    hits, _ = rule_error_enums(
+        [
+            _sample(
+                "#[derive(Debug, thiserror::Error)]\n"
+                "pub enum OpenError { A }\n"
+                "#[derive(Debug, thiserror::Error)]\n"
+                "#[non_exhaustive]\n"
+                "pub enum SealedError { B }\n"
+                "#[derive(Debug, Clone)]\n"
+                "pub enum Colour { Red }\n"
+                "#[cfg(test)]\n"
+                "mod t {\n"
+                "    #[derive(Debug, thiserror::Error)]\n"
+                "    pub enum FixtureError { C }\n"
+                "}\n"
+            )
+        ]
+    )
+    control("error-enums", hits, 1)
+
+    # 16. the ratchet is two-sided: an entry the tree no longer carries fires
     stale = _two_sided({}, {"crates/apollia-x/src/lib.rs": 2}, "site(s)")
     control("ratchet two-sided", stale, 1)
 

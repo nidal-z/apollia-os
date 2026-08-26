@@ -29,6 +29,7 @@ pub struct FileGlob {
 
 /// Errors produced by [`FileGlob`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum FileGlobError {
     /// Path attempts to escape the sandbox root.
     #[error("sandbox violation: path '{path}' escapes the sandbox root")]

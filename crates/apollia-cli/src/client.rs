@@ -104,6 +104,7 @@ pub struct ChannelTestResult {
 
 /// Errors that can occur when communicating with the runtime.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ClientError {
     /// Failed to connect to the Unix socket (runtime not started).
     #[error("runtime not started (connection refused)")]

@@ -192,6 +192,7 @@ pub(crate) async fn stop_supervisors(
 
 /// Error returned by [`init_embedded()`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum EmbeddedError {
     /// The Supervisor failed to start.
     #[error("supervisor startup failed: {0}")]

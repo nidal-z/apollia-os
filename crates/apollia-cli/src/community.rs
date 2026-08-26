@@ -116,6 +116,7 @@ pub fn validation_sys_paths(agent_py_path: &Path) -> Vec<PathBuf> {
 
 /// Errors raised during community agent validation.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AgentValidationError {
     /// The agent file does not exist at the given path.
     #[error("agent file not found: {0}")]

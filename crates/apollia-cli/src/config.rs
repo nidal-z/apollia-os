@@ -37,6 +37,7 @@ use apollia_llm::{BackendKind, LlmConfig};
 
 /// Possible errors when parsing `apollia.toml`.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ConfigError {
     /// I/O error while reading the configuration file.
     #[error("failed to read config file: {0}")]

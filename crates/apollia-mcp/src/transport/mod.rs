@@ -23,6 +23,7 @@ pub use stdio::StdioTransport;
 
 /// Errors that can occur at the transport layer.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum TransportError {
     /// A transport-level I/O operation failed.
     #[error("transport I/O error: {0}")]

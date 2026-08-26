@@ -12,6 +12,7 @@ use pyo3::types::PyModule;
 
 /// Errors that can occur when loading a Python agent module.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AIPLoaderError {
     /// The specified file does not exist on disk.
     #[error("file not found: {0}")]

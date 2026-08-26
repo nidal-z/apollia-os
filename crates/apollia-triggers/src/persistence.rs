@@ -16,6 +16,7 @@ use rusqlite::{params, Connection};
 
 /// Trigger persistence errors.
 #[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
 pub enum TriggerPersistenceError {
     /// Underlying SQLite error.
     #[error("database error: {0}")]

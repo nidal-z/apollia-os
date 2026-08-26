@@ -14,6 +14,7 @@ use crate::result::InputResponseData;
 
 /// Errors from the pending approvals registry.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PendingApprovalError {
     /// No pending approval for the given task.
     #[error("aucune approbation en attente pour la tâche : {0}")]

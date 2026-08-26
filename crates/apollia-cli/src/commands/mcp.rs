@@ -223,6 +223,7 @@ pub enum McpSecretCommand {
 
 /// Errors returned by MCP subcommands.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum McpCommandError {
     /// The MCP configuration file could not be loaded or parsed.
     #[error("failed to load MCP config: {0}")]

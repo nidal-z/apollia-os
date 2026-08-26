@@ -103,6 +103,7 @@ impl PythonProvider {
 
 /// Errors loading a [`PythonProvider`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PythonProviderError {
     /// The Python file path is invalid (non-UTF-8 characters).
     #[error("invalid provider path: {0}")]

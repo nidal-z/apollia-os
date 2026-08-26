@@ -95,6 +95,7 @@ impl TryFrom<&str> for LlmProvider {
 
 /// Errors returned by [`LlmBackendRepository`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum LlmBackendError {
     /// No backend found for the given name.
     #[error("backend '{0}' not found")]

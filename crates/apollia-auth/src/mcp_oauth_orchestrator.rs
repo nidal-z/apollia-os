@@ -50,6 +50,7 @@ use crate::secret_storage::SecretStore;
 /// adds orchestration-specific variants (no AS available, PKCE unsupported,
 /// no client registration method, reauthentication required).
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum McpOAuthError {
     /// Lower-level transport, parsing, or storage error.
     #[error(transparent)]

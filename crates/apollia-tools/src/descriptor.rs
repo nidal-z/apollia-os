@@ -151,6 +151,7 @@ pub enum McpTransport {
 
 /// Errors produced by [`ToolDescriptor::validate`].
 #[derive(Debug, Error, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ToolDescriptorError {
     /// `name` field is an empty string.
     #[error("tool name must not be empty")]

@@ -84,6 +84,7 @@ pub struct ExtractedEntry {
 
 /// Errors that can occur during memory extraction.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ExtractionError {
     /// The LLM call itself failed.
     #[error("LLM call failed: {0}")]

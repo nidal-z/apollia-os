@@ -15,6 +15,7 @@ use thiserror::Error;
 
 /// Errors produced by [`FileTimestampCache`] operations.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum FileTimestampCacheError {
     /// The database could not be opened or initialised.
     #[error("failed to open file timestamp cache: {0}")]

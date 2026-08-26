@@ -51,6 +51,7 @@ impl Default for TimeoutWatcherConfig {
 /// Returned by [`TimeoutWatcher::scan_and_cancel`]. The main loop
 /// [`TimeoutWatcher::run`] logs the error and continues without propagating or panicking.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum TimeoutWatcherError {
     /// SQLite error while accessing the [`TaskRepository`].
     #[error("erreur DB : {0}")]

@@ -32,6 +32,7 @@ pub struct MemorySearchTool {
 
 /// Errors produced by [`MemorySearchTool`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum MemorySearchToolError {
     /// The search query is empty or contains only whitespace.
     #[error("empty search query")]

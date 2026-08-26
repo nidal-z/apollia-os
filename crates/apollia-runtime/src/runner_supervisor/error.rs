@@ -4,6 +4,7 @@ use thiserror::Error;
 
 /// Possible errors during spawn, health check, or execution of a runner.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum RunnerError {
     /// The expected runner binary was not found on disk.
     #[error("runner binary not found: {0}")]

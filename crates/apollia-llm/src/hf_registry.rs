@@ -18,6 +18,7 @@ use crate::hardware::{CompatibilityBadge, HardwareProfile};
 
 /// Errors of the HuggingFace client.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum HfError {
     /// HTTP network error.
     #[error("http error: {0}")]

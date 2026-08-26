@@ -101,6 +101,7 @@ impl CircuitBreaker {
 
 /// Errors from the resilience layer.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ResilienceError {
     /// Circuit is open for the given tool: call rejected without execution.
     #[error("circuit open for tool '{tool_name}': {failure_count} consecutive failures, retry after cooldown")]

@@ -1146,6 +1146,7 @@ pub struct MailboxMessageRow {
 
 /// Errors raised while reading the durable mailbox store.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum MailboxQueryError {
     /// The blocking read task failed to join.
     #[error("mailbox read task failed: {0}")]

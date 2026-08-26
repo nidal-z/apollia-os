@@ -40,6 +40,7 @@ pub struct ProcedureEntry {
 
 /// Errors from the procedural backend.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ProceduralMemoryError {
     /// Learning a procedure failed.
     #[error("failed to learn procedure: {0}")]

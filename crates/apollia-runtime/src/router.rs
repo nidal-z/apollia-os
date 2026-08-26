@@ -14,6 +14,7 @@ use crate::registry::AgentRegistryHandle;
 
 /// Task submission errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SubmitError {
     /// The agent is still initializing.
     #[error("agent '{0}' not ready (still initializing)")]

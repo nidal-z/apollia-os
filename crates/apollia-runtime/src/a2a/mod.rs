@@ -42,6 +42,7 @@ use crate::router::{SubmitError, TaskRouterHandle};
 
 /// A2A resolution and delegation errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum A2aError {
     /// No active agent declares the requested skill.
     #[error("no active agent declares skill '{skill_id}' (available: {available})")]

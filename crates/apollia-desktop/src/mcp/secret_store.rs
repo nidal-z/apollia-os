@@ -22,6 +22,7 @@ pub struct SecretStore {
 
 /// Errors that can occur when interacting with the OS keychain.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SecretStoreError {
     /// The keyring backend is not available on this system (e.g. no D-Bus on headless Linux).
     #[error("keyring backend unavailable: {0}")]

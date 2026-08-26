@@ -230,6 +230,7 @@ fn parse_source_config(
 
 /// Errors from the trigger definition repository.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum TriggerDefinitionError {
     /// The requested trigger does not exist.
     #[error("trigger not found: {0}")]

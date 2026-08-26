@@ -31,6 +31,7 @@ pub struct FileEdit {
 
 /// Errors produced by [`FileEdit`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum FileEditError {
     /// Path attempts to escape the sandbox root.
     #[error("sandbox violation: path '{path}' escapes the sandbox root")]

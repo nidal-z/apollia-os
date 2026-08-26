@@ -811,6 +811,9 @@ fn map_notif_error(err: NotificationConfigError) -> (StatusCode, Json<serde_json
         NotificationConfigError::Database(_) | NotificationConfigError::Schema(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
         }
+        // The enum is #[non_exhaustive]: a variant added upstream reaches the
+        // client as a 500 carrying its own message, never as a compile break.
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     };
     (status, Json(serde_json::json!({ "error": msg })))
 }

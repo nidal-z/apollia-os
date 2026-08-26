@@ -10,6 +10,7 @@ use thiserror::Error;
 /// from the desktop app, Settings > Integrations") or retry transparently
 /// (`RateLimited`, `Network`).
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ConnectorError {
     /// No OAuth token is stored for the requested `(provider, account_id)`.
     ///

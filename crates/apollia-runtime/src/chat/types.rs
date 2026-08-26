@@ -571,6 +571,7 @@ impl SessionMetrics {
 
 /// Errors that can occur in the chat subsystem.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ChatError {
     /// The requested session does not exist.
     #[error("session not found: {0}")]

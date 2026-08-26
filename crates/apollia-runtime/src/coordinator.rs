@@ -50,6 +50,7 @@ impl ExecutionBackend for DynBackend {
 
 /// Errors from the execution coordinator.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum CoordinatorError {
     /// Concurrency limit reached for this agent.
     #[error("concurrency limit reached for agent '{0}' (max_concurrent_tasks)")]

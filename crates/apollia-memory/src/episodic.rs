@@ -44,6 +44,7 @@ pub struct EpisodicEntry {
 
 /// Errors of the episodic backend.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum EpisodicMemoryError {
     /// Inserting an episode failed.
     #[error("failed to record episode: {0}")]

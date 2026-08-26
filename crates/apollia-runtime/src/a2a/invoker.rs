@@ -76,6 +76,7 @@ pub struct RuntimeContextConfig {
 /// A domain-oriented error surface, distinct from the low-level
 /// [`crate::a2a::A2aError`] that covers the delegation layer.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum A2AError {
     /// No available A2A agent declares the requested skill.
     #[error("skill '{skill_id}' not found - available: {available:?}")]

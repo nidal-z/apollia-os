@@ -22,6 +22,7 @@ use rusqlite::params;
 
 /// Errors specific to [`TaskRepository`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum TaskRepoError {
     /// No task found for the given `task_id`.
     #[error("tâche introuvable : {0}")]

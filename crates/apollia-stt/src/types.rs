@@ -55,6 +55,7 @@ pub struct TranscriptSegment {
 /// Covers all possible error cases during model loading,
 /// transcription, and backend management.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SttError {
     /// The specified model file could not be found.
     #[error("STT model not found: {path}")]

@@ -83,6 +83,7 @@ fn pending_flows() -> &'static DashMap<String, FlowEntry> {
 /// the renderer for nice error messaging.
 #[derive(Debug, thiserror::Error, Serialize)]
 #[serde(tag = "kind", content = "detail", rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum IntegrationsError {
     /// The active sovereignty profile (`local_only`) bans cloud connectors.
     #[error("sovereignty profile blocks cloud connectors")]

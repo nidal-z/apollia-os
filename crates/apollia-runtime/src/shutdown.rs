@@ -45,6 +45,7 @@ impl Default for ShutdownConfig {
 
 /// Errors that can occur during graceful shutdown.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ShutdownError {
     /// Some tasks did not complete within the drain timeout.
     #[error("drain timeout: {count} tasks still running after {timeout_secs}s")]

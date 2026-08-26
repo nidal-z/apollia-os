@@ -93,6 +93,7 @@ pub trait AIPAgent: Send + Sync {
 
 /// ORIA engine errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ORIAError {
     /// Execution budget exhausted.
     #[error("step budget exceeded: {reason}")]

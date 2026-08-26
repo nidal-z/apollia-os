@@ -198,6 +198,7 @@ pub struct TriggerStatus {
 
 /// Errors from the `TriggerEngine`.
 #[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
 pub enum TriggerEngineError {
     /// No trigger found for the given identifier.
     #[error("trigger '{id}' not found")]

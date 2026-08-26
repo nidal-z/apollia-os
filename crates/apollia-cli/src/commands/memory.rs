@@ -212,6 +212,7 @@ pub enum MemoryCommand {
 
 /// Errors raised by the `memory` command.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum MemoryCommandError {
     /// The requested namespace does not exist.
     #[error("namespace '{namespace}' not found ({path} does not exist)")]

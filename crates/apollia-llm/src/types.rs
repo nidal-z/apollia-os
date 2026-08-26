@@ -414,6 +414,7 @@ pub struct BackendInfo {
 /// Each variant covers a distinct failure mode so the caller can react
 /// differently (retry, degraded, abort, etc.).
 #[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
 pub enum LlmError {
     /// The requested backend is not available.
     #[error("backend '{backend}' unavailable: {reason}")]

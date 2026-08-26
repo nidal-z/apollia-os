@@ -18,6 +18,7 @@ use crate::plan::ExecutionPlan;
 
 /// Errors returned by [`PlanCacheRepository`] operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PlanCacheError {
     /// Underlying SQLite error.
     #[error("SQLite error: {0}")]

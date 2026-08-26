@@ -115,6 +115,7 @@ impl Default for MailboxConfig {
 
 /// Errors returned by mailbox operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum MailboxError {
     /// The agent's message queue has reached its capacity.
     #[error("mailbox full for agent '{agent}' (max {capacity})")]

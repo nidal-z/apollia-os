@@ -156,6 +156,7 @@ pub fn channel_accepts_event(
 
 /// Error returned by [`build_channels`] when the configuration is invalid.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum NotifConfigError {
     /// Missing `url` field for a `webhook` channel.
     #[error("url manquante pour le canal webhook '{id}'")]

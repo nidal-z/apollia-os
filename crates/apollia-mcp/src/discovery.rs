@@ -19,6 +19,7 @@ const SCAN_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// Errors produced by mDNS discovery operations.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum DiscoveryError {
     /// The mDNS daemon could not be created, or service registration failed.
     #[error("mDNS daemon error: {0}")]

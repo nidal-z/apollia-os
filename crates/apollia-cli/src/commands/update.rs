@@ -50,6 +50,7 @@ fn lock_path() -> PathBuf {
 
 /// Errors produced by the `update` command.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum UpdateError {
     /// Network request failed.
     #[error("network error: {0}")]

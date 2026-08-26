@@ -41,6 +41,7 @@ pub trait JournalSigner: Send + Sync + 'static {
 
 /// Errors raised while building or using a [`JournalSigner`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SignerError {
     /// The secret store backend could not be reached.
     #[error("secret store unavailable: {0}")]

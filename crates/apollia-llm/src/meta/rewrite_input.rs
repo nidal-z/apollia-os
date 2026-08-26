@@ -112,6 +112,7 @@ pub struct RewriteInputResponse {
 /// Errors surfaced by [`rewrite_input`]. The caller should not abort on
 /// these: the helper already returns the original text as fallback.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum RewriteInputError {
     #[error("LLM call failed: {0}")]
     Llm(#[from] LlmError),

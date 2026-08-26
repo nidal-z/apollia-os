@@ -92,6 +92,7 @@ pub struct ProfileEntry {
 
 /// Errors from [`UserMemoryRepository`] operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum UserMemoryError {
     /// A storage operation failed.
     #[error("storage error: {0}")]

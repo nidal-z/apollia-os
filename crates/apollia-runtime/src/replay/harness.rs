@@ -81,6 +81,7 @@ pub enum ReplayFailReason {
 
 /// Errors raised while constructing or driving a replay.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ReplayError {
     /// Loading the trace from the journal failed.
     #[error("journal access failed: {0}")]

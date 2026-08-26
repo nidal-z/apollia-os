@@ -22,6 +22,7 @@ pub struct FileGrep {
 
 /// Errors produced by [`FileGrep`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum FileGrepError {
     /// Path attempts to escape the sandbox root.
     #[error("sandbox violation: path '{path}' escapes the sandbox root")]

@@ -18,6 +18,7 @@ use apollia_tools::{
 
 /// Errors from tool invocation via the proxy.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ToolProxyError {
     /// The requested tool was not found in the registry.
     #[error("tool not found: '{0}'")]

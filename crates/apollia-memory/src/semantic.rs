@@ -61,6 +61,7 @@ pub struct SemanticEntry {
 
 /// Errors from the semantic backend.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SemanticMemoryError {
     /// Inserting or updating a piece of knowledge failed.
     #[error("failed to store knowledge: {0}")]

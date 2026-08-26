@@ -25,6 +25,7 @@ Do not include greetings or small talk. Be factual and precise.";
 
 /// Errors that can occur during conversation summarization.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SummarizerError {
     /// The LLM call failed.
     #[error("LLM call failed: {0}")]

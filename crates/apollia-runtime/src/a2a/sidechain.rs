@@ -33,6 +33,7 @@ fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
 
 /// Errors returned by the sidechain SQLite operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SidechainError {
     /// Underlying SQLite error.
     #[error("sqlite error: {0}")]

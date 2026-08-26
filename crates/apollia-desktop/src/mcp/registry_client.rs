@@ -200,6 +200,7 @@ pub struct RegistryMetadata {
 
 /// Errors produced by [`McpRegistryClient`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum RegistryClientError {
     /// HTTP transport error or non-2xx response from the registry.
     #[error("HTTP request failed: {0}")]

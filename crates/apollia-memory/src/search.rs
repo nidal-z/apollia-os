@@ -43,6 +43,7 @@ pub enum SearchSource {
 
 /// Search errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum MemorySearchError {
     /// The FTS5 query failed.
     #[error("search query failed: {0}")]

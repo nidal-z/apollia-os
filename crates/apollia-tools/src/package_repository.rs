@@ -47,6 +47,7 @@ pub struct InstalledPackage {
 
 /// Package repository errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PackageRepositoryError {
     #[error("erreur SQLite : {0}")]
     Sqlite(#[from] rusqlite::Error),

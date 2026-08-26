@@ -24,6 +24,7 @@ use apollia_memory::semantic::{RememberInput, SemanticMemory};
 
 /// Errors from memory operations via the Python proxy.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum MemoryInterfaceError {
     /// A memory operation failed.
     #[error("memory operation failed: {0}")]

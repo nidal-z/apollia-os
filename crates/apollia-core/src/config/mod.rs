@@ -66,6 +66,7 @@ pub use web::{
 /// Produced by the `validate()` methods of the section configs. The runtime
 /// must treat these as fatal errors (fail-fast principle).
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ConfigError {
     /// A configuration value lies outside the acceptable range.
     #[error("invalid configuration value for '{field}': {reason}")]

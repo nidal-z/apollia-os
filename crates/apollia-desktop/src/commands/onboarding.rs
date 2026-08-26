@@ -193,6 +193,7 @@ pub struct TriggerResult {
 
 /// Errors specific to onboarding IPC commands.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum OnboardingError {
     /// The onboarding agent is not registered in the runtime.
     ///

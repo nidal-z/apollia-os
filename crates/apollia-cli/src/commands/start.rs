@@ -46,6 +46,7 @@ use crate::client::{default_socket_path, DEFAULT_TCP_PORT};
 
 /// Errors that can occur during runtime startup.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum StartError {
     /// Supervisor failed to start actors.
     #[error("failed to start runtime: {0}")]

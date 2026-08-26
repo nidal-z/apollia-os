@@ -37,6 +37,7 @@ pub enum ImportMode {
 
 /// Export/import error.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ExportError {
     /// SQLite error.
     #[error("SQLite error: {0}")]

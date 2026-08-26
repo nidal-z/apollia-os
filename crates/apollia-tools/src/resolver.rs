@@ -45,6 +45,7 @@ pub enum ResolutionStatus {
 ///
 /// These errors move the agent to `STOPPED` with a clear error message.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ToolResolutionError {
     /// A required tool is absent from the catalogue.
     #[error("required tool not found in registry: {0}")]

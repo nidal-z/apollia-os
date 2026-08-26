@@ -80,6 +80,7 @@ fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
 
 /// Possible errors from the [`PlanRepository`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PlanRepositoryError {
     /// Underlying SQLite error.
     #[error("SQLite error: {0}")]

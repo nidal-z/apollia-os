@@ -8,6 +8,7 @@ use thiserror::Error;
 
 /// Error type for sandbox path validation.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SandboxPathError {
     /// Path attempts to escape the sandbox root.
     #[error("sandbox violation: path '{path}' escapes the sandbox root")]

@@ -25,6 +25,7 @@ use serde::Deserialize;
 /// Absence is not an error: the transport hands the object over only when the
 /// engine reported one, so there is no "absent" case to represent here.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum TimingsError {
     /// The `timings` value was not a JSON object.
     #[error("timings is not an object")]

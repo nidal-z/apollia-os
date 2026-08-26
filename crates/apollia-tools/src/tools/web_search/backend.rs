@@ -84,6 +84,7 @@ pub struct SearchResult {
 /// failures when more than one backend is configured. Error *codes* are
 /// intentionally backend-agnostic so the LLM can react uniformly.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SearchBackendError {
     /// Low-level networking error (DNS, TCP, TLS). Usually transient.
     #[error("backend '{backend}' request failed: {message}")]

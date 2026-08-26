@@ -113,6 +113,7 @@ pub struct LlmDailyCostSummary {
 
 /// Errors of the LLM repository.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum LlmRepositoryError {
     /// Underlying SQLite error.
     #[error("SQLite error: {0}")]

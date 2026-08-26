@@ -46,6 +46,7 @@ pub struct RuntimeEventRecord {
 
 /// Read errors.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum RepositoryError {
     /// Failed to open the SQLite file.
     #[error("failed to open runtime_events database at {path}: {source}")]

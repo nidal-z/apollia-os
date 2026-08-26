@@ -21,6 +21,7 @@ use uuid::Uuid;
 
 /// Errors of the download module.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum DownloadError {
     /// Network error.
     #[error("http error: {0}")]

@@ -55,6 +55,7 @@ pub struct InstalledAgent {
 
 /// Agent repository errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AgentRepositoryError {
     /// Underlying SQLite error.
     #[error("erreur SQLite : {0}")]

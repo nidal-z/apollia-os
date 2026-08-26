@@ -45,6 +45,7 @@ pub enum WorkspaceCommand {
 
 /// Errors emitted by the `workspace` subcommand.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum WorkspaceCliError {
     /// APOLLIA.md already exists and `--force` was not supplied.
     #[error("APOLLIA.md already exists, use --force to overwrite")]

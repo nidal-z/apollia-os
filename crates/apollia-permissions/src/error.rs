@@ -2,6 +2,7 @@
 
 /// Error raised by the permission-rule store and its audit-log reader.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PermissionError {
     /// SQLite error during a rule database or audit log operation.
     #[error("SQLite error: {0}")]

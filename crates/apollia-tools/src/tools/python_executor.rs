@@ -87,6 +87,7 @@ pub struct PythonOutput {
 
 /// Errors produced by [`PythonExecutor`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum PythonExecutorError {
     /// `code` is empty, rejected before any I/O (fail fast).
     #[error("code must not be empty")]

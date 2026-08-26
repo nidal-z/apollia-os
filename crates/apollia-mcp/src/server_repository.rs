@@ -18,6 +18,7 @@ use crate::config::McpServerConfig;
 
 /// Errors returned by [`McpServerRepository`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum McpRepoError {
     /// No server with this name exists in the database.
     #[error("server '{0}' not found")]

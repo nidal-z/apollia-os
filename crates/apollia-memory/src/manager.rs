@@ -62,6 +62,7 @@ pub enum MemoryAccess {
 
 /// MemoryManager errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum MemoryManagerError {
     /// No memory namespace configured for this agent.
     #[error("no memory namespace configured for this agent")]

@@ -41,6 +41,7 @@ pub struct McpServerArgs {
 
 /// Errors returned by [`run`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum McpServerCommandError {
     /// Could not determine the user home directory for the default sandbox root.
     #[error("cannot determine home directory - set --sandbox-root explicitly")]

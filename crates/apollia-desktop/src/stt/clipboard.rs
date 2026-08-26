@@ -15,6 +15,7 @@ use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 
 /// Errors that can occur during clipboard injection.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ClipboardError {
     /// Failed to initialise the system clipboard handle.
     #[error("clipboard init failed: {0}")]

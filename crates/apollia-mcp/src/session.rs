@@ -104,6 +104,7 @@ where
 
 /// Errors that can arise during MCP session operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum McpSessionError {
     /// The server subprocess could not be spawned.
     #[error("failed to spawn server '{server}': {cause}")]

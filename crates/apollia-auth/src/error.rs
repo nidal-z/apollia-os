@@ -4,6 +4,7 @@ use thiserror::Error;
 
 /// Errors that can occur during the OAuth2 PKCE authentication flow.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum AuthError {
     /// The `state` parameter in the callback does not match the expected value.
     ///

@@ -100,6 +100,7 @@ fn default_trigger_mode() -> String {
 
 /// Errors from [`SttConfigRepository`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SttConfigError {
     /// Underlying SQLite error.
     #[error("database error: {0}")]

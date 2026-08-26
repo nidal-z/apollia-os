@@ -412,6 +412,7 @@ pub async fn delete_installed_model(path: String) -> Result<(), String> {
 /// Error raised while importing a user-selected model file into the managed
 /// models directory.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ImportModelError {
     /// The chosen source path does not point to a regular file.
     #[error("source file not found: {0}")]

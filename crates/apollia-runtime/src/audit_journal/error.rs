@@ -4,6 +4,7 @@ use thiserror::Error;
 
 /// Errors raised while opening, writing, or querying the audit journal.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum AuditJournalError {
     /// Failed to open the SQLite file backing the journal.
     #[error("failed to open audit journal database: {0}")]

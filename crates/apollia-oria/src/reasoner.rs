@@ -29,6 +29,7 @@ use crate::plan::{ExecutionPlan, PlanStep};
 /// Returned by [`Reasoner::parse_and_validate`]; wrapped in
 /// [`ReasonerError::PlanParseError`] after the retries are exhausted.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PlanValidationError {
     /// The LLM response is not valid JSON.
     #[error("invalid JSON: {0}")]
@@ -69,6 +70,7 @@ pub fn validate_steps(steps: &[PlanStep]) -> Result<(), PlanValidationError> {
 
 /// ORIA Reasoner errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ReasonerError {
     /// An LLM call failed (network, timeout, backend unavailable, etc.).
     #[error("LLM call failed: {0}")]

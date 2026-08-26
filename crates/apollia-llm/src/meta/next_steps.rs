@@ -193,6 +193,7 @@ pub struct NextStepsResponse {
 /// Errors surfaced by [`generate_next_steps`]. Callers should not abort on
 /// these: the helper already returns a heuristic fallback and never panics.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum NextStepsError {
     #[error("LLM call failed: {0}")]
     Llm(#[from] LlmError),

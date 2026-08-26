@@ -24,6 +24,7 @@ use serde_json::Value;
 
 /// Errors raised while resolving a tool step's arguments.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ArgResolveError {
     /// The underlying model call failed.
     #[error("model call failed: {0}")]

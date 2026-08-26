@@ -301,6 +301,7 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
 
 /// Supervisor errors.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SupervisorError {
     /// An actor did not become ready within the timeout.
     #[error("startup timeout: {actor} did not become ready within {timeout_secs}s")]

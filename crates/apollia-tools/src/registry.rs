@@ -190,6 +190,7 @@ impl ToolRegistryHandle {
 
 /// Errors returned by [`ToolRegistryHandle`] operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ToolRegistryError {
     /// A tool with this name is already present in the catalogue.
     #[error("tool already registered: {0}")]

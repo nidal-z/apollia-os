@@ -65,6 +65,7 @@ pub struct SttStatus {
 
 /// Errors specific to the [`SttEngineHandle`] lifecycle and communication.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum SttEngineError {
     /// The underlying STT backend returned an error.
     #[error("STT backend error: {0}")]

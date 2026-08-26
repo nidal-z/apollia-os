@@ -9,6 +9,7 @@ use thiserror::Error;
 ///
 /// [`ToolExecutor`]: crate::executor::ToolExecutor
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum WebReadError {
     /// URL could not be parsed, or has no host component.
     #[error("invalid url: {0}")]

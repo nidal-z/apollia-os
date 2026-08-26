@@ -54,6 +54,7 @@ pub trait SubmitTaskHandler: Send + Sync {
 
 /// Errors that can terminate the MCP stdio server loop.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum McpServerError {
     /// I/O failure on stdin or stdout.
     #[error("I/O error: {0}")]

@@ -23,6 +23,7 @@ pub struct AgentEntry {
 
 /// Possible errors from registry operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AgentRegistryError {
     /// The requested agent does not exist in the registry.
     #[error("agent '{0}' not found in the registry")]

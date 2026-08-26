@@ -421,6 +421,7 @@ impl APIServerHandle {
 
 /// Errors that can occur when starting or running the APIServer.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum APIServerError {
     /// TCP bind failed (port already in use, permission denied, etc.).
     #[error("failed to bind TCP on port {port}: {source}")]

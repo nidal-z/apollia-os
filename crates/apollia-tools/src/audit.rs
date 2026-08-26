@@ -61,6 +61,7 @@ pub struct AuditStats {
 
 /// Errors when opening or initializing the audit trail.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum AuditTrailError {
     /// Failed to open the SQLite file.
     #[error("failed to open SQLite database: {0}")]

@@ -25,6 +25,7 @@ use crate::validator::ValidatedAgent;
 
 /// Errors that can occur when calling a Python agent via the bridge.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum AIPBridgeError {
     /// A Python exception was raised during the async call.
     #[error("Python exception: {0}")]

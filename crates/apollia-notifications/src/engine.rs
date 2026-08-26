@@ -17,6 +17,7 @@ use crate::{config::NotificationConfig, config::Severity, event_filter};
 /// `warn!` by the [`NotificationEngine`]; they never interrupt dispatch to the
 /// other channels.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum NotifError {
     /// Desktop channel unavailable (OS notifications unsupported or permission denied).
     #[error("canal desktop indisponible : {0}")]

@@ -311,6 +311,7 @@ pub fn parse_interval(value: &str) -> Result<Duration, TriggerDefinitionError> {
 
 /// Validation errors for a [`TriggerDefinition`].
 #[derive(thiserror::Error, Debug)]
+#[non_exhaustive]
 pub enum TriggerDefinitionError {
     /// The trigger identifier is empty.
     #[error("trigger id cannot be empty")]

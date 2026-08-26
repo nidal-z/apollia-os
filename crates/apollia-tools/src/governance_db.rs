@@ -23,6 +23,7 @@ use rusqlite::{Connection, OpenFlags};
 
 /// Error returned by [`GovernanceDb`].
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum GovernanceError {
     /// I/O error while creating the directory or migrating the file.
     #[error("governance.db I/O error at {path}: {source}")]

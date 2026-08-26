@@ -101,6 +101,7 @@ pub struct MemoryStore {
 
 /// Errors from [`MemoryStore`] operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum MemoryStoreError {
     /// The database file could not be opened or created.
     #[error("failed to open memory database: {0}")]

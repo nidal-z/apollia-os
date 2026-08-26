@@ -71,6 +71,7 @@ fn migrate_v1(conn: &rusqlite::Connection) -> Result<(), rusqlite::Error> {
 
 /// Errors raised while opening or initializing the persistor.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum EventPersistorError {
     /// Failed to open the SQLite file.
     #[error("failed to open runtime_events database at {path}: {source}")]

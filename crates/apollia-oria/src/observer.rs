@@ -118,6 +118,7 @@ impl Default for ContextBundle {
 
 /// Errors that can occur during observation.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ObserverError {
     /// Failed to build context from available data.
     #[error("failed to build context: {0}")]

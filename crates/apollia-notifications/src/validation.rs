@@ -29,6 +29,7 @@ pub const KNOWN_EVENTS: &[&str] = &[
 
 /// Error returned by [`NotificationConfigRepository`](crate::repository::NotificationConfigRepository) operations.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum NotificationConfigError {
     /// The requested channel does not exist in the database.
     #[error("channel not found: {0}")]

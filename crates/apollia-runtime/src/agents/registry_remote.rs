@@ -59,6 +59,7 @@ pub struct RegistryEntry {
 
 /// Errors raised during remote or local community agent installation.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum RemoteInstallError {
     /// `git` executable was not found in the system PATH.
     #[error("git is required but not found in PATH")]

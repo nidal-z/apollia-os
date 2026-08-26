@@ -21,6 +21,7 @@ pub struct NotebookRead {
 
 /// Errors produced by [`NotebookRead`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum NotebookReadError {
     /// Path attempts to escape the sandbox root.
     #[error("sandbox violation: path '{path}' escapes the sandbox root")]
