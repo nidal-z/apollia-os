@@ -169,6 +169,43 @@ legible 9px glyph into an illegible 9px logo.
 
 ---
 
+## 3c. Module size, 800 lines, the same rule as Rust
+
+**Never a `.svelte` or a `.ts` module over 800 lines.** This is the rule
+`docs/agents/FORBIDDEN.md` states in its Rust section, and it applies here
+unchanged. It is written down in this file because it was not: the rule lived in
+the Rust half of the corpus alone, nothing measured the frontend, and six modules
+grew past it, the largest at 2358 lines, close to three times the threshold.
+
+What is counted is every line of the file, markup, script and style together. A
+`.svelte` file is all three at once and no part of it is free to a reader. Test
+modules (`*.test.ts`) and type declarations (`*.d.ts`) are out of scope, as they
+are on the Rust side.
+
+Stylesheets are out of scope too, and a long one is the sanctioned way out of a
+long component: a co-located `.css` file whose every rule is namespaced under the
+component's root class, imported from the script the way
+`src/lib/components/ui/markdown/markdown-prose.css` is. Scoped `<style>` cannot
+be shared between two components split out of one, and duplicating the rules to
+keep the scoping costs more than it buys.
+
+The three ways out, in the order to try them:
+
+1. **A subcomponent**, when a region of the template has its own boundary. It
+   takes its markup and its styles with it.
+2. **A rune module** (`*.svelte.ts`), when a feature has its own live state.
+   `src/components/agents/useAgentActions.svelte.ts` is the shape: a
+   `createX()` factory returning an object of `readonly` getters and methods.
+3. **A plain module** (`*.ts`), when the code is a decision rather than a state.
+   That is the cheapest to test, since Vitest runs in `node` here (section 11).
+
+The rule is measured by `scripts/check_module_size.py`, which reads both sides of
+the tree, runs in `just guards`, at pre-commit and in CI, and carries a named
+table of exemptions that only ever shrinks. The frontend half of that table is
+empty and there is no reason for it to grow.
+
+---
+
 ## 4. Tailwind usage
 
 - Utility-first by default. Compose classes inline.

@@ -556,6 +556,7 @@ guards:
       "scripts/check_guard_verdicts.py"
       "scripts/check_http_clients.py"
       "scripts/check_i18n_catalogue.py"
+      "scripts/check_module_size.py"
       "scripts/check_instrument_verdicts.py"
       "scripts/check_no_font_cdn.py"
       "scripts/check_openapi_routes.py"

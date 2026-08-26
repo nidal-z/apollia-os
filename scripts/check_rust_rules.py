@@ -67,8 +67,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check_panic_free as guard  # noqa: E402
+import check_module_size  # noqa: E402
 
-MODULE_SIZE_THRESHOLD = 800
+# One reader for the 800-line rule: `check_module_size.py` holds the threshold,
+# the table and the comparison, and measures the frontend by the same rule. The
+# names below are kept so this file reads as one corpus of rules.
+MODULE_SIZE_THRESHOLD = check_module_size.THRESHOLD
 
 # ── ratchet tables ───────────────────────────────────────────────────────────
 # Each entry is debt the tree carried when the table was written. Remove the
@@ -108,22 +112,12 @@ ASYNC_TRAIT_MANIFESTS = {
     "crates/apollia-workspace/Cargo.toml",
 }
 
-# Modules over the threshold that hold one indivisible item, where a split
-# would change behaviour rather than move lines. Each one states why in a
-# `// REASON:` comment at the top of the file, and the rule reads that marker
-# back: an exemption whose justification is deleted goes red, and so does one
-# whose file has since come back under the threshold.
-MODULE_SIZE_EXEMPT: set[str] = {
-    # 115 externally tagged variants of one serialized enum. Nesting them into
-    # sub-enums moves the variant name one level down in the JSON, and the only
-    # nesting that preserves the shape (#[serde(untagged)]) rewrites the 967
-    # construction sites the tree carries across 90 files.
-    "crates/apollia-core/src/events/runtime_event.rs",
-}
+# Both tables live with the rule, in `scripts/check_module_size.py`: the
+# ratchet of modules that still owe a split, and the ones exempted because they
+# hold one indivisible item and say so in a `REASON:` comment.
+MODULE_SIZE_FILES: set[str] = check_module_size.RUST_EXEMPT
+MODULE_SIZE_EXEMPT: set[str] = check_module_size.RUST_REASONED
 
-# Files over 800 production lines when the table was written. A split removes
-# the entry in the same commit.
-MODULE_SIZE_FILES: set[str] = set()
 
 # Per-file counts of Arc<Mutex|RwLock> production sites. The actor migration
 # that shrinks a count lowers the entry with it.
@@ -688,53 +682,7 @@ def rule_async_trait(sources):
     return hits, {}
 
 
-def rule_module_size(sources):
-    hits, aside = [], []
-    for s in sources:
-        prod = len(s.prod_lines)
-        over = prod > MODULE_SIZE_THRESHOLD
-        if s.path in MODULE_SIZE_EXEMPT:
-            if not over:
-                hits.append(
-                    f"{s.path}: exempted from the module-size rule but now at {prod} "
-                    f"production lines. Remove the entry from MODULE_SIZE_EXEMPT in "
-                    f"this same commit"
-                )
-            elif not any("REASON:" in line for line in s.raw_lines[:20]):
-                hits.append(
-                    f"{s.path}: exempted from the module-size rule without a REASON: "
-                    f"comment in its first 20 lines. State why the module cannot be "
-                    f"split, or split it"
-                )
-            else:
-                aside.append(f"{s.path}: {prod} production lines, exempted with a reason")
-        elif over and s.path not in MODULE_SIZE_FILES:
-            hits.append(
-                f"{s.path}: {prod} production lines (threshold {MODULE_SIZE_THRESHOLD}). "
-                f"Split the module"
-            )
-        elif not over and s.path in MODULE_SIZE_FILES:
-            hits.append(
-                f"{s.path}: listed in MODULE_SIZE_FILES but now at {prod} production "
-                f"lines. The debt went down: remove the entry in this same commit"
-            )
-        elif over:
-            aside.append(f"{s.path}: {prod} production lines, listed")
-    both = MODULE_SIZE_FILES & MODULE_SIZE_EXEMPT
-    for path in sorted(both):
-        hits.append(
-            f"{path}: carried in MODULE_SIZE_FILES and in MODULE_SIZE_EXEMPT at once. "
-            f"A module is either debt on a ratchet or an exemption with a reason, "
-            f"not both"
-        )
-    known = {s.path for s in sources}
-    for path in sorted((MODULE_SIZE_FILES | MODULE_SIZE_EXEMPT) - known):
-        table = "MODULE_SIZE_FILES" if path in MODULE_SIZE_FILES else "MODULE_SIZE_EXEMPT"
-        hits.append(
-            f"{path}: listed in {table} but absent from the inventory. "
-            f"Remove the entry in this same commit"
-        )
-    return hits, {"listed files still over the threshold (aside)": aside}
+rule_module_size = check_module_size.rule_module_size
 
 
 # `Arc<` followed by a path whose last segment names a lock type. The path is

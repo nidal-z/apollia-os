@@ -189,6 +189,17 @@ repos:
         files: '^(crates/apollia-desktop/(src|ui/src)/.+|scripts/check_tauri_ipc_callers\.py)$'
         pass_filenames: false
 
+      # The 800-line module rule of docs/agents/FORBIDDEN.md, on both sides of
+      # the tree. It lived in the Rust half of the corpus alone, so the desktop
+      # UI grew six modules past it, one of them at three times the threshold,
+      # with nothing to say so.
+      - id: check-module-size
+        name: no module over 800 lines outside its table
+        entry: python3 scripts/check_module_size.py
+        language: system
+        pass_filenames: false
+        files: '^(crates/.+\.rs|crates/apollia-desktop/ui/src/.+\.(svelte|ts)|scripts/check_module_size\.py)$'
+
       - id: check-unimported-files
         name: every desktop UI source is reached from a bundle entry
         entry: python3 scripts/check_unimported_files.py

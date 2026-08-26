@@ -485,6 +485,13 @@ jobs:
       # invisible. Four components and a knip.json nothing executed sat in
       # that state; the barrels' blanket re-exports laundered them past
       # `noUnusedLocals`.
+      # The same rule on both sides of the tree. It was stated once, in the
+      # Rust section of FORBIDDEN.md, and measured nowhere on the frontend: six
+      # desktop UI modules stood over the threshold, the largest at 2358 lines.
+      - name: No module exceeds 800 lines outside its table
+        run: |
+          python3 scripts/check_module_size.py --selftest
+          python3 scripts/check_module_size.py
       - name: Every desktop UI source is reached from a bundle entry
         run: |
           python3 scripts/check_unimported_files.py --selftest
