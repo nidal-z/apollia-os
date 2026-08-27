@@ -26,14 +26,15 @@ Three rules, each falsifiable on its own:
               subject is gone is a row nobody can replay.
 
   location    The location cell of a row declares its boundaries as a bracketed
-              token list, and the declared set equals the measured set. The four
-              mechanical tokens are `just guards`, `pré-commit`, `CI` and
-              `verdicts`, read from the justfile, from `.pre-commit-config.yaml`,
-              from `.github/workflows/*.yml` and from the `GUARDS` table of
-              `scripts/worktree_verdicts.py`. `local` and `local préparé` are
-              declarative: no boundary file carries them, they are established by
-              running the guard in a fresh worktree, and this file accepts them
-              without checking them rather than pretending otherwise.
+              token list, and the declared set equals the measured set. The five
+              mechanical tokens are `just guards`, `just method-refs`,
+              `pré-commit`, `CI` and `verdicts`, read from the justfile, from
+              `.pre-commit-config.yaml`, from `.github/workflows/*.yml` and from
+              the `GUARDS` table of `scripts/worktree_verdicts.py`. `local` and
+              `local préparé` are declarative: no boundary file carries them,
+              they are established by running the guard in a fresh worktree, and
+              this file accepts them without checking them rather than
+              pretending otherwise.
 
 A subject that starts with `scripts/` is matched against a launching line by
 exact equality once `python3 ` and surrounding backticks are stripped, so
@@ -47,6 +48,18 @@ What follows is prose for the reader, and prose that named a boundary would be
 the drift this file exists to close, so the token list is the only thing a
 boundary is read from.
 
+This file is itself launched by `just method-refs` and not by `just guards`,
+which is the one boundary decision its own subject forces. The table lives under
+`docs/internal/`, which `.gitignore` carries, so it is absent from every clone by
+construction; inside the `guards` recipe this file answered 2 in every tree but
+the maintainer's, and a recipe that stopped counting a skip as a pass would then
+hand every clone a 2 for a reason that is not a defect of the tree. Making the
+absence answer 0 instead was the other candidate and it was refused on a
+measurement: `git check-ignore` answers `.gitignore:74:docs/internal/` in a fresh
+clone and in the maintainer's tree alike, so it cannot tell an absence by
+construction from a table the maintainer has just lost, and the green it would
+buy would cover both.
+
 Exit codes:
     0  every rule holds
     1  at least one rule is broken
@@ -56,6 +69,7 @@ Exit codes:
        cannot be said to carry a wrong one.
 
 Usage:
+    just method-refs
     python3 scripts/check_method_references.py
     python3 scripts/check_method_references.py --selftest
 """
@@ -74,7 +88,7 @@ PRECOMMIT = Path(".pre-commit-config.yaml")
 WORKFLOWS = Path(".github/workflows")
 VERDICTS = Path("scripts/worktree_verdicts.py")
 
-MECHANICAL = ("just guards", "pré-commit", "CI", "verdicts")
+MECHANICAL = ("just guards", "just method-refs", "pré-commit", "CI", "verdicts")
 DECLARATIVE = ("local", "local préparé")
 
 # Two boundaries name a guard by something other than the command it runs, so
@@ -175,6 +189,28 @@ def justfile_guards(root: Path) -> list[str]:
     return subjects
 
 
+def justfile_recipe_body(root: Path, name: str) -> list[str]:
+    """The launching lines of one plain recipe, normalised.
+
+    `guards` is read from its two arrays instead, the recipe body around them
+    being a loop rather than a list of subjects. Every other boundary recipe of
+    this vocabulary is a handful of commands, one per line.
+    """
+    text = (root / JUSTFILE).read_text(encoding="utf-8")
+    head = re.search(rf"^{re.escape(name)}(?:[^:\n]*)?:[^\n]*\n", text, re.M)
+    if head is None:
+        return []
+    out: list[str] = []
+    for line in text[head.end() :].splitlines():
+        if line.strip() and not line.startswith((" ", "\t")):
+            break
+        body = line.strip()
+        if not body or body.startswith("#"):
+            continue
+        out.append(normalise(body))
+    return out
+
+
 def justfile_recipes(root: Path) -> set[str]:
     text = (root / JUSTFILE).read_text(encoding="utf-8")
     return set(re.findall(r"^([a-z0-9][a-z0-9-]*)[^:\n]*:", text, re.M))
@@ -184,6 +220,7 @@ def launch_lines(root: Path) -> dict[str, list[str]]:
     """The launching lines of each mechanical boundary, already normalised."""
     lines: dict[str, list[str]] = {name: [] for name in MECHANICAL}
     lines["just guards"] = justfile_guards(root)
+    lines["just method-refs"] = justfile_recipe_body(root, "method-refs")
 
     config = root / PRECOMMIT
     if config.exists():
@@ -450,6 +487,10 @@ guards:
       "cargo machete"
     )
 
+method-refs:
+    # a comment is not a launch
+    python3 scripts/check_gamma.py
+
 linux-check target:
     echo {{target}}
 """
@@ -494,6 +535,7 @@ FIXTURE_TABLE = """\
 | alpha | `python3 scripts/check_alpha.py` | [local + `just guards` + pré-commit] runs anywhere | base | `rust` | vert | 1 s |
 | beta | `python3 scripts/check_beta.py --strict` | [local + `just guards` + CI + pré-commit] | lentille | `rust` | vert | 1 s |
 | machete | `cargo machete` | [local + `just guards` + pré-commit + verdicts] | lentille | `rust` | vert | 1 s |
+| gamma | `python3 scripts/check_gamma.py` | [local + `just method-refs`] | lentille | `méthode` | vert | 1 s |
 | recette | `just linux-check arm` | [local] | base | `rust` | vert, sous Docker | 2 s |
 """
 
@@ -504,6 +546,7 @@ def write_fixture(root: Path, table: str) -> None:
     (root / "docs/internal/method/reference").mkdir(parents=True, exist_ok=True)
     (root / "scripts/check_alpha.py").write_text("", encoding="utf-8")
     (root / "scripts/check_beta.py").write_text("", encoding="utf-8")
+    (root / "scripts/check_gamma.py").write_text("", encoding="utf-8")
     (root / "justfile").write_text(FIXTURE_JUSTFILE, encoding="utf-8")
     (root / PRECOMMIT).write_text(FIXTURE_PRECOMMIT, encoding="utf-8")
     (root / ".github/workflows/ci.yml").write_text(FIXTURE_WORKFLOW, encoding="utf-8")
@@ -663,6 +706,32 @@ def selftest() -> int:
         f"same drift a third time",
     )
 
+    orphaned = FIXTURE_TABLE.replace(
+        "| gamma | `python3 scripts/check_gamma.py` | [local + `just method-refs`]",
+        "| gamma | `python3 scripts/check_gamma.py` | [local]",
+    )
+    code, defects = verdict(orphaned)
+    case(
+        "a recipe boundary that launches a guard the row omits is reported",
+        code == 1 and any("`just method-refs` launches" in d for d in defects),
+        f"a row silent about the recipe that launches it answered {code} with "
+        f"{defects!r}; this guard left the `guards` recipe for a recipe of its "
+        f"own, and a token nothing reads would make that move unverifiable",
+    )
+
+    borrowed = FIXTURE_TABLE.replace(
+        "| alpha | `python3 scripts/check_alpha.py` | [local + `just guards` + pré-commit]",
+        "| alpha | `python3 scripts/check_alpha.py` | "
+        "[local + `just guards` + `just method-refs` + pré-commit]",
+    )
+    code, defects = verdict(borrowed)
+    case(
+        "a row claiming a recipe boundary that does not launch it is reported",
+        code == 1 and any("declares `just method-refs`" in d for d in defects),
+        f"a row borrowing a recipe it never appears in answered {code} with "
+        f"{defects!r}",
+    )
+
     code, _ = verdict(None)
     case(
         "an absent table is nothing measured, not a pass",
@@ -679,8 +748,9 @@ def selftest() -> int:
     print(
         "\nall cases pass: a complete table passes, a missing row, a declared "
         "boundary that launches nothing, a boundary the row omits, an absent "
-        "script, an absent recipe, an unparsable cell and an unknown token each "
-        "fail, and an absent table is reported as nothing measured"
+        "script, an absent recipe, an unparsable cell, an unknown token and "
+        "either direction of a recipe boundary each fail, and an absent table "
+        "is reported as nothing measured"
     )
     return 0
 

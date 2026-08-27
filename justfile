@@ -562,7 +562,6 @@ guards:
       "scripts/check_i18n_catalogue.py"
       "scripts/check_module_size.py"
       "scripts/check_instrument_verdicts.py"
-      "scripts/check_method_references.py"
       "scripts/check_no_font_cdn.py"
       "scripts/check_openapi_routes.py"
       "scripts/check_optional_builders.py --strict"
@@ -672,6 +671,17 @@ guards:
     echo "$green guards green, ${#reds[@]} red, ${#skips[@]} measured nothing, $total in the recipe"
     if [ "${#reds[@]}" -ne 0 ]; then exit 1; fi
     if [ "${#skips[@]}" -ne 0 ]; then exit 2; fi
+
+# The method reference this guard reads, docs/internal/method/, is gitignored,
+# so it is absent from every clone by construction. Inside the `guards` recipe
+# it therefore answered 2 forever in any tree but this one, and since that
+# recipe stopped treating a skip as a pass, a clone could never get a green out
+# of it for a reason that is not a defect of the tree. Its subject is the
+# maintainer's, so its boundary is too: this recipe, and not `guards` nor `ci`.
+
+# Cross the guard table of the method with the tree it describes
+method-refs:
+    python3 scripts/check_method_references.py
 
 # Local CI: guards + lint + tests
 ci: guards lint test

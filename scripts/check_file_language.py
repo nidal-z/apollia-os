@@ -264,7 +264,7 @@ FRENCH_DATA: dict[str, int] = {
     # bracketed location tokens and the column header, plus the fixture table
     # its self-test parses. The table is French; a guard that read it in
     # English would match nothing.
-    "scripts/check_method_references.py": 17,
+    "scripts/check_method_references.py": 18,
     "scripts/check_python_rules.py": 4,
     "tests/cli/seed/files/agents/onboarding-agent/agent.py": 28,
     "tests/test_onboarding_heuristic_recovery.py": 9,
