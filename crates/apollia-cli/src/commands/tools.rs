@@ -263,7 +263,7 @@ mod tests {
         for native in NATIVE_TOOL_NAMES {
             assert!(
                 entries.iter().any(|e| e.name == *native),
-                "outil natif manquant : {native}"
+                "native tool missing: {native}"
             );
         }
     }

@@ -375,9 +375,9 @@ mod tests {
             tool_name: "http_get".into(),
             success: false,
             output_preview: String::new(),
-            analysis: Some("reseau indisponible".into()),
+            analysis: Some("network unreachable".into()),
         }]);
-        assert_eq!(out, "  ✗ http_get\n  └── reseau indisponible\n");
+        assert_eq!(out, "  ✗ http_get\n  └── network unreachable\n");
     }
 
     // GIVEN tokens already streamed then response_completed WHEN handled THEN
@@ -531,7 +531,7 @@ mod tests {
     async fn test_loop_error_mid_stream_terminates() {
         let lines = vec![
             r#"data: {"event":"token","message_id":"m1","token":"deb"}"#,
-            r#"data: {"event":"error","message_id":"m1","error":"backend indisponible"}"#,
+            r#"data: {"event":"error","message_id":"m1","error":"backend unavailable"}"#,
             r#"data: {"event":"token","message_id":"m1","token":"after"}"#,
         ];
         let (out, _) = run_case(lines, "m1").await;

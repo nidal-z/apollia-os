@@ -83,7 +83,7 @@ pub fn execute_clear(
         return Ok(output);
     }
 
-    Ok(format!("{deleted} entree(s) supprimee(s) ({type_label})."))
+    Ok(format!("{deleted} entry(ies) deleted ({type_label})."))
 }
 
 /// Execute the `memory purge` command.
@@ -142,7 +142,7 @@ pub fn execute_purge(
     }
 
     Ok(format!(
-        "{total} entree(s) purgee(s) (episodic: {}, semantic: {}, procedural: {}).",
+        "{total} entry(ies) purged (episodic: {}, semantic: {}, procedural: {}).",
         report.episodic_deleted, report.semantic_deleted, report.procedural_deleted
     ))
 }

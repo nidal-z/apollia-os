@@ -573,14 +573,14 @@ mod tests {
     fn test_update_not_found() {
         // GIVEN an empty repository
         let (_dir, repo) = open_test_repo();
-        let def = make_cron_def("inconnu", "agent", "0 0 8 * * MON *");
+        let def = make_cron_def("no-such-trigger", "agent", "0 0 8 * * MON *");
 
-        // WHEN update("inconnu")
-        let result = repo.update("inconnu", &def);
+        // WHEN update("no-such-trigger")
+        let result = repo.update("no-such-trigger", &def);
 
         // THEN NotFound error
         assert!(
-            matches!(result, Err(TriggerDefinitionError::NotFound(ref id)) if id == "inconnu"),
+            matches!(result, Err(TriggerDefinitionError::NotFound(ref id)) if id == "no-such-trigger"),
             "expected NotFound, got: {result:?}"
         );
     }

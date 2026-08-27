@@ -345,7 +345,7 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&json_str).expect("parse");
         assert!(
             parsed["workspace_root"].is_string(),
-            "workspace_root manquant"
+            "workspace_root missing"
         );
         assert!(
             parsed["git_branch"].is_string() || parsed["git_branch"].is_null(),

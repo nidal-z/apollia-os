@@ -26,7 +26,7 @@ use dispatch::{
 #[non_exhaustive]
 pub enum NotifError {
     /// Desktop channel unavailable (OS notifications unsupported or permission denied).
-    #[error("canal desktop indisponible : {0}")]
+    #[error("desktop channel unavailable: {0}")]
     DesktopUnavailable(String),
     /// Webhook call failed (network error, timeout, non-2xx HTTP code).
     #[error("webhook failed: {0}")]
@@ -35,7 +35,7 @@ pub enum NotifError {
     #[error("internal error: {0}")]
     Internal(String),
     /// Malformed webhook URL: parsing failed.
-    #[error("URL webhook invalide : {0}")]
+    #[error("invalid webhook URL: {0}")]
     InvalidUrl(String),
     /// SSRF guard refused the send (URL pointing to loopback / RFC1918 /
     /// link-local / cloud metadata / `.local|.internal|localhost` domain).

@@ -95,6 +95,19 @@ FR_WORDS = {
     "souvent", "surtout", "tandis", "tellement", "toutefois", "vide",
     "aucun", "aucune", "chaine", "couleur", "lecture", "ecriture", "obtenu",
     "obtenue", "premiere", "derniere", "suivante", "precedent", "precedente",
+    # The vocabulary of a diagnostic message. Four `#[error]` attributes and a
+    # notification body survived every sweep of this campaign because not one
+    # of `invalide`, `introuvable`, `indisponible`, `inconnu` and `manquant`
+    # was on this list: the line carried no French evidence at all, so no
+    # arbitration between the languages ever took place. Each has no English
+    # homograph, which is why they can sit here and `active` or `refuse`
+    # cannot: those two read as English on a `data-testid` and produced
+    # forty-nine hits naming no language when they were tried.
+    "invalide", "invalides", "introuvable", "introuvables", "indisponible",
+    "indisponibles", "inconnu", "inconnue", "inconnus", "inconnues",
+    "manquant", "manquante", "manquants", "manquantes",
+    "supprime", "supprimee", "supprimes", "supprimees",
+    "purgee", "purgees", "entree", "entrees",
 }
 EN_WORDS = {
     "a", "all", "also", "an", "and", "any", "are", "as", "at", "be",
@@ -137,12 +150,52 @@ NEUTRAL = re.compile(r"https?://\S*|\blocale\b|\bfr-FR\b|\ben-US\b|sans-serif|fo
 GWT = re.compile(r"\b(?:GIVEN|WHEN|THEN|AND|BUT|SAFETY|REASON|TODO|NOTE)\b")
 
 
+# A literal in a diagnostic-message position: the text an operator reads out
+# of an error, a panic or a formatted message. Judging *every* literal was
+# measured first and refused: it named twelve English comments that quote a
+# French interface label ("the desktop \"Modifier les arguments\" dialog"),
+# which is the same false positive the line rule was built to avoid, with
+# double quotes in place of backticks. A message position is not a quotation.
+MSG_LITERAL = re.compile(
+    r'(?:\#\[error\(|format!\(|panic!\(|unreachable!\(|\.expect\('
+    r'|\.context\(|\.with_context\(|write!\([^,\n]*,)\s*"((?:[^"\\\n]|\\.)*)"'
+)
+# A backticked span is a quotation, not code. This file's own docstring quotes
+# `#[error("erreur SQLite : {0}")]` inside an English sentence, and so does the
+# comment that explains the single-word case; without this the string rule
+# would call both French.
+BACKTICKED = re.compile(r"`[^`\n]*`")
+
+
 def _words(line: str) -> list[str]:
     return [w.lower() for w in WORD.findall(NEUTRAL.sub(" ", GWT.sub(" ", line)))]
 
 
+def french_message(line: str) -> bool:
+    """True when a diagnostic message on the line reads as French on its own.
+
+    The line rule counts the whole line, so an identifier votes as loudly as
+    the text a user reads. A notification body that formatted a French
+    sentence offered six words of which one was French, and a message diluted
+    below the threshold by the code around it is invisible. Judging the
+    literal on its own words removes the dilution. A literal of fewer than two
+    words is skipped, because a one-word literal is a key or an identifier far
+    more often than a sentence.
+    """
+    return any(
+        _line_is_french(literal)
+        for literal in MSG_LITERAL.findall(BACKTICKED.sub(" ", line))
+        if len(_words(literal)) >= 2
+    )
+
+
 def is_french(line: str) -> bool:
-    """True when the line reads as French rather than as English."""
+    """True when the line, or a message it carries, reads as French."""
+    return _line_is_french(line) or french_message(line)
+
+
+def _line_is_french(line: str) -> bool:
+    """True when the text of the line reads as French rather than as English."""
     words = _words(line)
     if not words:
         return False
@@ -258,7 +311,7 @@ FRENCH_DATA: dict[str, int] = {
     # This file: its own French word list, and the French lines its self-test
     # feeds to the detector. A guard that exempted itself silently would be
     # the first place a French line could hide.
-    "scripts/check_file_language.py": 35,
+    "scripts/check_file_language.py": 44,
     "scripts/check_i18n_catalogue.py": 20,
     # parser: the French vocabulary of the method reference it reads, the
     # bracketed location tokens and the column header, plus the fixture table
@@ -390,6 +443,17 @@ FRENCH_LINES = (
     '.expect("la table doit exister apres la migration")',
     "# attraper les regressions en moins de 15 min de feedback",
     "  * Store des traces d'exécution event-sourced.",
+    # No accent, and one French word the list had to gain: this exact shape
+    # sat in production through the whole campaign because the line offered
+    # the detector no French evidence at all.
+    '    #[error("agent.toml invalide : {0}")]',
+)
+
+# Diagnostic messages the *line* rule cannot see, because the English code
+# around them outvotes them. Only the message rule reaches these.
+FRENCH_MESSAGE_LINES = (
+    'if it is not there, return Err(E::X(format!("agent introuvable dans le registre")));',
+    'let m = if ok { "fine" } else { format!("canal desktop indisponible : {id}") };',
 )
 ENGLISH_LINES = (
     "// Guard against inactivity: if no SSE line arrives within this delay",
@@ -401,6 +465,11 @@ ENGLISH_LINES = (
     # English sentence that quotes a French label.
     "// the `Dépannage` section of the catalogue is the one that moved",
     "// returns `Réglages` when the locale asks for it, and `Settings` otherwise",
+    # The same case with double quotes, which is why the message rule is bound
+    # to a message position rather than applied to every literal: applied to
+    # every literal it named twelve of these on this tree.
+    '/// Used by the desktop "Modifier les arguments" dialog when it reopens',
+    '// THEN they differ - FR is "Lecture de {path}", not "Reading {path}"',
 )
 
 
@@ -421,6 +490,21 @@ def selftest() -> int:
         not missed,
         f"{len(missed)} French line(s) read as not French: {missed!r}. A "
         f"detector that recognises nothing passes every tree",
+    )
+    blind = [line for line in FRENCH_MESSAGE_LINES if _line_is_french(line)]
+    case(
+        "the line rule alone is blind to a diluted message",
+        not blind,
+        f"{len(blind)} line(s) were already caught by the line rule, so the "
+        f"message rule below would be green without measuring anything",
+    )
+    diluted = [line for line in FRENCH_MESSAGE_LINES if not is_french(line)]
+    case(
+        "a French message survives the English code around it",
+        not diluted,
+        f"{len(diluted)} French message(s) read as not French: {diluted!r}. "
+        f"A message diluted by identifiers is how a French `#[error]` reaches "
+        f"an operator with nothing having judged it",
     )
     invented = [line for line in ENGLISH_LINES if is_french(line)]
     case(

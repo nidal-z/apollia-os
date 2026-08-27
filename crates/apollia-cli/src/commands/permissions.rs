@@ -278,7 +278,7 @@ fn run_revoke(
 
     let parsed: i64 = match raw_id.parse() {
         Ok(n) => n,
-        Err(_) => return emit_error(format!("identifiant invalide : '{raw_id}'"), json),
+        Err(_) => return emit_error(format!("invalid rule id: '{raw_id}'"), json),
     };
 
     if !confirm(&format!("Revoke rule #{parsed}? [y/N] "), yes, json) {

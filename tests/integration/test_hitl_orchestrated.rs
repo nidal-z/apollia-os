@@ -398,7 +398,7 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
                 &format!("{task_id_clone}::s2"),
                 InputResponseData {
                     approved: false,
-                    reason: Some("Destinataire invalide".into()),
+                    reason: Some("invalid recipient".into()),
                     context: serde_json::Value::Null,
                     responded_at: "2026-01-01T00:00:00Z".into(),
                 },

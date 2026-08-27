@@ -56,7 +56,7 @@ pub enum PackageRepositoryError {
     #[error(transparent)]
     Schema(#[from] apollia_core::schema::SchemaError),
 
-    #[error("package '{0}' introuvable")]
+    #[error("package '{0}' not found")]
     NotFound(String),
 
     #[error("JSON serialisation error: {0}")]

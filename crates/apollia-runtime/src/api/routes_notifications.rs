@@ -1138,7 +1138,7 @@ mod tests {
         };
         // WHEN an unknown identifier is looked up
         // THEN the answer is unknown rather than a panic
-        assert_eq!(channel_kind_by_id("inconnu", &config), "unknown");
+        assert_eq!(channel_kind_by_id("no-such-channel", &config), "unknown");
     }
 
     #[test]

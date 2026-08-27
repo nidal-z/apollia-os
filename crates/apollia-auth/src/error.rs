@@ -53,6 +53,6 @@ pub enum AuthError {
     NoRefreshToken,
 
     /// The requested provider name is not supported.
-    #[error("provider inconnu: {0}")]
+    #[error("unknown provider: {0}")]
     UnknownProvider(String),
 }

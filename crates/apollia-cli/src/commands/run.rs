@@ -102,7 +102,7 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
             Err(_) => {
                 return output_error(
                     &format!(
-                        "niveau d'autonomie invalide '{s}'; valeurs acceptees : \
+                        "invalid autonomy level '{s}'; accepted values: \
                          assisted, supervised, bounded_autonomous, long_autonomous"
                     ),
                     json,

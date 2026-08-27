@@ -66,7 +66,7 @@ pub enum AgentRepositoryError {
     Schema(#[from] apollia_core::schema::SchemaError),
 
     /// Agent not found for the given name.
-    #[error("agent '{0}' introuvable")]
+    #[error("agent '{0}' not found")]
     NotFound(String),
 
     /// Manifest JSON serialization/deserialization error.
@@ -490,7 +490,7 @@ mod tests {
         assert_eq!(agents[2].name, "agent-c");
     }
 
-    // delete() supprime l'agent
+    // delete() removes the agent
     #[test]
     fn test_delete_agent() {
         // GIVEN one saved agent

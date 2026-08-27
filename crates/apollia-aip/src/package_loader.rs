@@ -35,7 +35,7 @@ pub enum PackageLoaderError {
     #[error("agent '{name}': AIP duck-typing failed: {reason}")]
     DuckTypingFailed { name: String, reason: String },
 
-    #[error("agent.toml invalide : {0}")]
+    #[error("invalid agent.toml: {0}")]
     InvalidManifest(String),
 }
 

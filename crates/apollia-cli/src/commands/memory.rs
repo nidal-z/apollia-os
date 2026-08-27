@@ -768,7 +768,7 @@ mod tests {
         // THEN all three types deleted
         assert!(result.is_ok());
         let output = result.unwrap();
-        assert!(output.contains("3 entree(s)"));
+        assert!(output.contains("3 entry(ies)"));
     }
 
     // learn-procedure stores a procedure and is retrievable

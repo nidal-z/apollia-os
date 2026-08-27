@@ -181,7 +181,7 @@ pub fn map_event(base_url: &str, event: &RuntimeEvent) -> Option<Notification> {
                 timestamp: Utc::now(),
                 task_id: None,
                 agent: None,
-                message: format!("Backend LLM indisponible : {}", reason),
+                message: format!("LLM backend unavailable: {}", reason),
                 metadata,
                 severity: Severity::Error,
             })
@@ -332,7 +332,7 @@ mod tests {
         // GIVEN
         let event = RuntimeEvent::AgentDegraded {
             agent_id: AgentId::from("mon-agent"),
-            reason: "outil manquant : smtp".into(),
+            reason: "missing tool: smtp".into(),
         };
         // WHEN
         let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");
@@ -366,7 +366,7 @@ mod tests {
         // GIVEN
         let event = RuntimeEvent::LlmModelFailed {
             backend: "anthropic".into(),
-            reason: "API key invalide".into(),
+            reason: "invalid API key".into(),
         };
         // WHEN
         let notif = map_event(DEFAULT_BASE_URL, &event).expect("must return Some");

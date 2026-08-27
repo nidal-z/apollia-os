@@ -1085,7 +1085,7 @@ mod tests {
         let state = make_state_with_repo(&dir.path().join("triggers.db")).await;
         let router = make_crud_router(state);
 
-        // WHEN PUT /api/v1/triggers/inconnu
+        // WHEN PUT /api/v1/triggers/no-such-trigger
         let update_body = serde_json::json!({
             "agent": "agent",
             "source": {
@@ -1097,7 +1097,7 @@ mod tests {
 
         let req = Request::builder()
             .method("PUT")
-            .uri("/api/v1/triggers/inconnu")
+            .uri("/api/v1/triggers/no-such-trigger")
             .header("content-type", "application/json")
             .body(Body::from(update_body))
             .expect("build request");

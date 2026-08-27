@@ -164,7 +164,7 @@ async fn test_transition_invalide_preserve_etat() {
     // Drain the 2 events already published (AgentRegistered + AgentReady)
     collect_events(&mut bus_rx, 2, 100).await;
 
-    // WHEN - transition invalide Active → Initializing
+    // WHEN - an invalid transition Active → Initializing
     let result = registry
         .update_state(id.as_str(), ProcessState::Initializing)
         .await;
