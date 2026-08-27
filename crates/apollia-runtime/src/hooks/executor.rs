@@ -200,22 +200,14 @@ impl HookExecutor {
 
         let mut injected: Vec<String> = Vec::new();
         for handler in handlers {
-            if let Some(body) = self
+            let body = self
                 .fetch_response(handler, HookEventKind::PostToolUse.as_str(), &payload)
-                .await
-            {
-                if let Some(text) = parse_inject(&body) {
-                    if !text.is_empty() {
-                        injected.push(text);
-                    }
-                }
+                .await;
+            if let Some(text) = injection_from(body.as_deref()) {
+                injected.push(text);
             }
         }
-        if injected.is_empty() {
-            None
-        } else {
-            Some(injected.join("\n"))
-        }
+        join_injections(injected)
     }
 
     /// Runs all `PreCompact` handlers before context compaction.
@@ -475,6 +467,34 @@ fn parse_decision(body: &str) -> Option<HookDecision> {
 fn parse_inject(body: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
     value.get("inject")?.as_str().map(str::to_string)
+}
+
+/// What one `PostToolUse` handler answer contributes to the injection buffer.
+///
+/// `body` is `None` when delivery failed (spawn error, transport error, or
+/// timeout); such an answer contributes nothing, which is the best-effort
+/// fallback documented on [`HookExecutor::run_post_tool_use`]. An answer that
+/// does not parse, carries no `inject` field, or carries an empty one
+/// contributes nothing either.
+///
+/// This half of the composition is pure and free of I/O, so it is tested by
+/// folding literal answers rather than by spawning handlers and reading
+/// whichever answer the machine allowed.
+fn injection_from(body: Option<&str>) -> Option<String> {
+    let text = parse_inject(body?)?;
+    (!text.is_empty()).then_some(text)
+}
+
+/// Joins what the handlers asked to inject, in declaration order.
+///
+/// `None` is what tells the caller there is nothing to add to the message
+/// buffer: no handler answered, or none of the answers carried usable text.
+fn join_injections(parts: Vec<String>) -> Option<String> {
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("\n"))
+    }
 }
 
 /// Truncates a tool output to [`POST_TOOL_USE_SNIPPET_MAX`] characters,
@@ -795,14 +815,90 @@ mod tests {
         }
     }
 
+    /// Replays the executor's injection fold over a sequence of handler
+    /// answers, the way `run_post_tool_use` does. `None` stands for a delivery
+    /// that failed.
+    ///
+    /// The composition is exercised here rather than through spawned scripts.
+    /// A handler that fails to start, or answers past its timeout, yields
+    /// `None` and injects nothing, so a test that spawns cannot tell "the
+    /// texts are not joined" from "the machine could not fork". With no fork
+    /// headroom left, the spawning version of this test read `None` for the
+    /// second reason, ten times out of ten.
+    fn replay_injections(answers: &[Option<&str>]) -> Option<String> {
+        let mut injected: Vec<String> = Vec::new();
+        for answer in answers {
+            if let Some(text) = injection_from(*answer) {
+                injected.push(text);
+            }
+        }
+        join_injections(injected)
+    }
+
+    #[test]
+    fn test_injected_texts_are_joined_in_declaration_order() {
+        // GIVEN three handler answers: H1 injects, H2 asks for nothing, H3
+        //       injects too
+        let answers = [
+            Some(r#"{"inject":"extra context"}"#),
+            Some(r#"{}"#),
+            Some(r#"{"inject":"and more"}"#),
+        ];
+
+        // WHEN the executor's injection fold runs over them
+        let injected = replay_injections(&answers);
+
+        // THEN the two texts come back joined by a newline, in the order the
+        // handlers were declared
+        assert_eq!(injected, Some("extra context\nand more".to_string()));
+    }
+
+    #[test]
+    fn test_a_failed_post_tool_use_delivery_injects_nothing() {
+        // GIVEN one handler that did not answer at all and one that injects
+        let answers = [None, Some(r#"{"inject":"extra context"}"#)];
+
+        // WHEN the executor's injection fold runs over them
+        let injected = replay_injections(&answers);
+
+        // THEN the silent handler adds nothing and does not swallow the other
+        assert_eq!(injected, Some("extra context".to_string()));
+
+        // AND a run where every delivery failed injects nothing at all
+        assert_eq!(replay_injections(&[None, None]), None);
+    }
+
+    #[test]
+    fn test_an_answer_without_usable_text_injects_nothing() {
+        // GIVEN the four shapes that carry no text to inject: an empty
+        //       object, an empty string, a non-string value, and junk
+        for answer in [r#"{}"#, r#"{"inject":""}"#, r#"{"inject":42}"#, "not json"] {
+            // WHEN the answer is folded on its own
+            let injected = replay_injections(&[Some(answer)]);
+
+            // THEN nothing is injected, and the caller reads None rather than
+            // an empty line
+            assert_eq!(injected, None, "{answer}");
+        }
+    }
+
     #[tokio::test]
-    async fn test_post_tool_use_with_injection() {
-        // GIVEN a PostToolUse handler that asks to inject context
+    async fn test_post_tool_use_delivers_the_payload_and_reads_the_answer() {
+        // GIVEN a PostToolUse handler that answers with an injection and then
+        //       records the payload it was handed, so its own trace says
+        //       whether it ran at all. Shell builtins only: `cat` would need a
+        //       fork of its own, and a machine short of processes would then
+        //       lose the trace of a delivery that did happen.
         let dir = tempfile::tempdir().expect("tempdir");
+        let capture = dir.path().join("payload.json");
         let script = write_script(
             dir.path(),
             "inject.sh",
-            "#!/bin/sh\nprintf '{\"inject\":\"extra context\"}'\n",
+            &format!(
+                "#!/bin/sh\nprintf '{{\"inject\":\"extra context\"}}'\n\
+                 IFS= read -r payload\nprintf '%s' \"$payload\" > '{}'\n",
+                capture.display()
+            ),
         );
         let exec = executor_with(vec![cmd_handler(
             vec![HookEventKind::PostToolUse],
@@ -815,28 +911,23 @@ mod tests {
             .run_post_tool_use("read_file", "file body", true, "sess-1")
             .await;
 
-        // THEN the injected text is returned
-        assert_eq!(injected, Some("extra context".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_post_tool_use_no_injection_returns_none() {
-        // GIVEN a PostToolUse handler that returns an empty object
-        let dir = tempfile::tempdir().expect("tempdir");
-        let script = write_script(dir.path(), "empty.sh", "#!/bin/sh\nprintf '{}'\n");
-        let exec = executor_with(vec![cmd_handler(
-            vec![HookEventKind::PostToolUse],
-            vec![script],
-            5_000,
-        )]);
-
-        // WHEN run_post_tool_use is called
-        let injected = exec
-            .run_post_tool_use("read_file", "body", true, "sess-1")
-            .await;
-
-        // THEN nothing is injected
-        assert_eq!(injected, None);
+        // THEN either the handler ran, and it received the PostToolUse payload
+        // and its injection came back, or the machine could not start it, and
+        // the best-effort path injected nothing. The verdict is read off the
+        // handler's own trace, never off a fork the machine may refuse.
+        match std::fs::read_to_string(&capture) {
+            Ok(payload) => {
+                assert!(payload.contains("\"event\":\"post_tool_use\""), "{payload}");
+                assert!(payload.contains("\"tool_name\":\"read_file\""), "{payload}");
+                assert!(
+                    payload.contains("\"output_snippet\":\"file body\""),
+                    "{payload}"
+                );
+                assert!(payload.contains("\"success\":true"), "{payload}");
+                assert_eq!(injected, Some("extra context".to_string()));
+            }
+            Err(_) => assert_eq!(injected, None),
+        }
     }
 
     #[tokio::test]

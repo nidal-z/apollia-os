@@ -234,6 +234,9 @@ ARC_MUTEX_ALIASES: set[str] = {
 #    code. `shutdown.rs` and `hooks/executor.rs` were both in this family and
 #    both cost a red verdict on a green tree; each lost the sites it did not
 #    need, which is why their entries here are lower than the tree once was.
+#    `hooks/executor.rs` cost a second one after that, on its `PostToolUse`
+#    half, which had kept the shape its `PreToolUse` half had just lost: same
+#    file, same defect, half of it left standing.
 #    `audit.rs` left the table entirely and `triggers/engine.rs` went from 14
 #    to 2 the same way: every one of their sleeps sat between a command whose
 #    handle already awaits the actor's reply and an assertion on what that
@@ -242,6 +245,17 @@ ARC_MUTEX_ALIASES: set[str] = {
 #
 # `test_support.rs` is the reservation helper itself: its four sites are the
 # probe listener and the poll interval that every other test borrows.
+#
+# What the numbers are not: a count of the tests that can actually go red. A
+# site is only a lottery ticket when the test's expected value differs from
+# what the production fallback yields when the machine refuses. Measured on
+# `hooks/executor.rs` with no fork headroom left, four of its nine sites
+# failed and five stayed green, because those five expect exactly the fallback
+# (`Allow`, or no injection) and cannot tell it apart from a real answer.
+# Separating the two needs each test's expectation weighed against the
+# fallback of the code it calls, which is not readable from the text, so the
+# table counts dependence and leaves exposure to be measured by running the
+# tests starved. Read an entry as debt, not as a defect count.
 #
 # An entry is lowered in the commit that removes the site, like every other
 # ratchet here. A new site above the entry is red and has to be argued.
@@ -270,7 +284,7 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-oria/src/resilience.rs": 3,
     "crates/apollia-runtime/src/api/server.rs": 12,
     "crates/apollia-runtime/src/chat/builtin_agent/tests.rs": 1,
-    "crates/apollia-runtime/src/hooks/executor.rs": 9,
+    "crates/apollia-runtime/src/hooks/executor.rs": 8,
     "crates/apollia-runtime/src/llama_server/mod.rs": 1,
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,
