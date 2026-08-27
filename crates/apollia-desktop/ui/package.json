@@ -17,7 +17,6 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:perf": "playwright test tests/perf",
     "audit:a11y": "node scripts/audit-a11y.mjs && node scripts/audit-a11y-forms.mjs",
     "audit:i18n": "node scripts/audit-i18n.mjs"
   },

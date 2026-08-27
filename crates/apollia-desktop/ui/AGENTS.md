@@ -347,9 +347,26 @@ field exposed). When fusing duplicated screens or features :
   against the production bundle served by `vite preview` with the Tauri bridge
   stubbed through `window.__TAURI_INTERNALS__.invoke`. They cover UI machinery
   that needs a real browser (dirty state, nav guards, hotkey capture,
-  responsive layout, perf). They do **not** exercise the packaged application.
-  Run with `npm run test:perf` and the sibling scripts; the package manager is
-  `npm`, not pnpm.
+  responsive layout). They do **not** exercise the packaged application. Run
+  them with `npx playwright test`; the package manager is `npm`, not pnpm.
+  **Read this before adding to the corpus, or before believing it.** Measured
+  on 2026-08-27, `npx playwright test` returned 19 failures out of 19, every
+  one of them at mount rather than on an assertion of substance. Nothing in CI
+  runs the corpus, so that red has never been reported anywhere. Two causes,
+  both still live for the five remaining specs:
+  - The stub is stale. Defining `__TAURI_INTERNALS__` with `invoke` alone is
+    worse than defining nothing: the application takes the Tauri path, the
+    event API asks for `transformCallback`, and the boot freezes on
+    `app-loading`. With no stub at all the same bundle boots to the home page.
+  - Four specs navigate through `?route=<page>&sub=<subpage>`, and one through
+    `#settings`. No commit of `src/` has ever read those. The application
+    routes through the navigation store; only `#design`, `#motion`,
+    `#design-empty-states` and `#design-dark-mode` are honoured from the URL,
+    and only in dev builds.
+  `scripts/check_playwright_specs.py` holds the unreachable-navigation count on
+  a descending ratchet and refuses a storage key the UI never reads, which is
+  what a spec used to be able to invent without anything noticing. It still
+  does not measure whether a spec passes; only running the corpus does that.
 - **End-to-end on the packaged application : none in this repository.** macOS
   has no WebDriver for WKWebView, so the Tauri shell cannot be driven by a
   standard browser harness. The runtime paths behind the UI are covered through

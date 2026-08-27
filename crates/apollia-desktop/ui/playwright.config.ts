@@ -10,9 +10,13 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * One project per subdirectory of `tests/`, so every spec is reachable by
  * the runner (`playwright test --list` names them all) and a subset can be
- * run alone (`playwright test --project=perf`, or by path filter as
- * `npm run test:perf` does).  `scripts/check_playwright_specs.py` fails when
- * a spec lands outside every `testDir` declared here.
+ * run alone (`playwright test --project=settings`, or by path filter).
+ * `scripts/check_playwright_specs.py` fails when a spec lands outside every
+ * `testDir` declared here.
+ *
+ * A project is removed only together with the specs it carried: an entry
+ * naming an empty directory makes `--project=<name>` answer "0 tests" instead
+ * of failing, which is the same silence the guard exists to break.
  */
 export default defineConfig({
   testDir: "./tests",
@@ -29,11 +33,6 @@ export default defineConfig({
     {
       name: "companion",
       testDir: "./tests/companion",
-      use: { ...devices["Desktop Chrome"] },
-    },
-    {
-      name: "perf",
-      testDir: "./tests/perf",
       use: { ...devices["Desktop Chrome"] },
     },
     {

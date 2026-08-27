@@ -610,11 +610,17 @@ jobs:
       # A `testDir` narrowed to one subdirectory left 5 of the 7 Playwright
       # specs invisible to the runner: `--list` answered "0 tests in 0 files",
       # which is an error to no caller, and 5 of their testid anchors had been
-      # removed from the UI source with nothing failing. A spec the runner
-      # never lists can neither pass nor fail, so its rot is silent by
-      # construction; this reads the config and the anchors at rest instead.
+      # removed from the UI source with nothing failing. Two more specs seeded
+      # a storage bridge and a query flag that no commit of the UI has ever
+      # read. A spec the runner never lists, or that navigates somewhere the
+      # application cannot be sent to, can neither pass nor fail, so its rot is
+      # silent by construction; this reads the config, the anchors and the
+      # navigation targets at rest instead. Selftest first, so a rule that
+      # cannot fire is reported before its green on the real tree is believed.
       - name: Every Playwright spec is reachable and anchored
-        run: python3 scripts/check_playwright_specs.py
+        run: |
+          python3 scripts/check_playwright_specs.py --selftest
+          python3 scripts/check_playwright_specs.py
 
   # ── Python SDK : strict type check (lint/format cleanup tracked separately) ─
   python-types:
