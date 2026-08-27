@@ -102,9 +102,34 @@ plainly rather than smoothed over, because an operator choosing a platform is
 choosing a threat model. See [the agent trust
 model](/explanation/agent-trust-model) for what that means in practice.
 
-Outbound HTTP is checked against private address ranges on every redirect hop,
-not only on the first request, so a public URL cannot redirect into the local
-network.
+## Outbound HTTP {#outbound-http}
+
+Every outbound HTTP call goes through one module, `apollia_core::net`, and
+`scripts/check_http_clients.py` refuses a client built anywhere else or a
+response body consumed by any other means.
+
+The module carries two rules. A destination must resolve outside the loopback,
+private, link-local, multicast and unique-local ranges, and outside the internal
+domain suffixes, checked on the first URL and again on every redirect hop, so a
+public URL cannot redirect into the local network. A response body is read
+through a cap that abandons the stream once the budget is crossed, rather than
+buffering the whole answer and measuring it afterwards, by which point the
+memory is already spent.
+
+One exception is named rather than left implicit. A destination the operator
+configured may legitimately be internal: a local MCP server, the runner, a
+self-hosted model endpoint. Those clients are built through a separate
+constructor that keeps the body cap and drops the address check.
+
+Holding both rules in `apollia-core` is what puts `reqwest` and `url` in the
+crate every other crate depends on. They sit behind an optional `net` feature.
+Nine of the crates that depend on `apollia-core` turn it on; the others keep the
+dependency closure they had, and neither crate is new to the tree: both were
+already workspace dependencies, and the lockfile gained no package. The cost is
+that the foundation crate is no longer dependency-free in every configuration.
+That is worth paying, because the address policy previously existed in two
+copies and the capped read in six, and each rule was simply absent wherever its
+copy had not been made.
 
 ## Permission model {#permission-model}
 
@@ -304,6 +329,25 @@ so a host product drives the runtime without reverse-engineering route modules.
 
 Breaking changes go through a new version prefix, never through a silent
 mutation of the current one.
+
+## Public error surface {#public-error-enums}
+
+Every public error enum in the workspace carries `#[non_exhaustive]`, and
+`scripts/check_rust_rules.py` refuses one that does not. Adding a variant to an
+error type is then an ordinary change rather than a breaking one for every crate
+that matches on it, which is what the attribute exists to absorb.
+
+`apollia-core` is sealed like the rest, and it is the crate where the attribute
+earns the most: every other crate depends on it, so an unabsorbed variant there
+would break the whole workspace at once.
+
+The cost lands on the matching side, and only across a crate boundary. A match
+on one of these enums from another crate needs a fallback arm, and the compiler
+stops asking that match to be exhaustive, so a variant added later reaches the
+fallback instead of failing the build. Three cross-crate matches were exhaustive
+when the attribute went on, all three mapping a runtime error to an HTTP status;
+each now answers an unmatched variant with a 500 carrying the error's own
+message rather than with a panic.
 
 ## Platforms and release {#platforms-and-release}
 

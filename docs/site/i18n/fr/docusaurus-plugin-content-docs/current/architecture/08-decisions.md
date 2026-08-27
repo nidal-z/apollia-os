@@ -110,9 +110,36 @@ C'est dit franchement plutôt que lissé, parce qu'un opérateur qui choisit une
 plateforme choisit un modèle de menace. Voir [le modèle de confiance des
 agents](/explanation/agent-trust-model) pour ce que cela implique en pratique.
 
-Le trafic HTTP sortant est vérifié contre les plages d'adresses privées à chaque
-saut de redirection, pas seulement sur la première requête, donc une URL publique
-ne peut pas rediriger vers le réseau local.
+## HTTP sortant {#outbound-http}
+
+Tout appel HTTP sortant passe par un seul module, `apollia_core::net`, et
+`scripts/check_http_clients.py` refuse un client construit ailleurs ou un corps
+de réponse consommé par un autre moyen.
+
+Le module porte deux règles. Une destination doit se résoudre hors des plages de
+bouclage, privées, lien-local, multicast et unique-local, et hors des suffixes
+de domaine internes, vérifié sur la première URL puis à chaque saut de
+redirection, donc une URL publique ne peut pas rediriger vers le réseau local.
+Un corps de réponse est lu à travers un plafond qui abandonne le flux dès que le
+budget est franchi, plutôt que de tamponner la réponse entière et de la mesurer
+ensuite, quand la mémoire est déjà dépensée.
+
+Une exception est nommée plutôt que laissée implicite. Une destination que
+l'opérateur a configurée peut légitimement être interne : un serveur MCP local,
+le runner, un point d'accès de modèle auto-hébergé. Ces clients-là sont
+construits par un constructeur distinct, qui garde le plafond de corps et laisse
+tomber la vérification d'adresse.
+
+Tenir les deux règles dans `apollia-core` est ce qui met `reqwest` et `url` dans
+la crate dont toutes les autres dépendent. Elles sont derrière une option de
+compilation `net`. Neuf des crates qui dépendent d'`apollia-core` l'activent ;
+les autres gardent la fermeture de dépendances qu'elles avaient, et aucune des
+deux n'est nouvelle dans l'arbre : les deux étaient déjà des dépendances de
+l'espace de travail, et le fichier de verrouillage n'a gagné aucun paquet. Le
+coût est que la crate de socle n'est plus sans dépendance dans toutes les
+configurations. Il vaut la peine d'être payé : la politique d'adresses existait
+auparavant en deux copies et la lecture plafonnée en six, et chaque règle était
+tout simplement absente partout où sa copie n'avait pas été faite.
 
 ## Modèle de permissions {#permission-model}
 
@@ -332,6 +359,27 @@ rétro-concevoir des modules de routes.
 
 Les ruptures passent par un nouveau préfixe de version, jamais par une mutation
 silencieuse de la version courante.
+
+## Surface d'erreur publique {#public-error-enums}
+
+Toute énumération d'erreur publique de l'espace de travail porte
+`#[non_exhaustive]`, et `scripts/check_rust_rules.py` en refuse une qui ne le
+porte pas. Ajouter une variante à un type d'erreur devient alors un changement
+ordinaire, plutôt qu'une rupture pour chaque crate qui filtre dessus, ce que
+l'attribut existe précisément pour absorber.
+
+`apollia-core` est scellée comme les autres, et c'est la crate où l'attribut
+rapporte le plus : toutes les autres en dépendent, donc une variante non
+absorbée y casserait l'espace de travail entier d'un coup.
+
+Le coût tombe du côté du filtrage, et seulement au franchissement d'une
+frontière de crate. Un `match` sur une de ces énumérations depuis une autre
+crate demande un bras de repli, et le compilateur cesse d'exiger que ce `match`
+soit exhaustif, donc une variante ajoutée plus tard atteint le repli au lieu de
+casser la compilation. Trois `match` inter-crates étaient exhaustifs quand
+l'attribut est arrivé, tous les trois traduisant une erreur du runtime en statut
+HTTP ; chacun répond désormais à une variante non filtrée par un 500 portant le
+message de l'erreur, plutôt que par une panique.
 
 ## Plateformes et publication {#platforms-and-release}
 
