@@ -2882,12 +2882,36 @@ impl ToolInvoker for CountingToolInvoker {
     }
 }
 
+/// Where the script written by [`write_hook_script`] records the payload it
+/// was handed, so a test can tell "the handler ran and answered this" from
+/// "the machine never delivered to it".
+fn hook_capture_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    dir.join(format!("{name}.payload"))
+}
+
 /// Writes an executable hook script returning the given decision JSON.
+///
+/// The script answers first, then reads its stdin and records it. Both halves
+/// are deliberate. Reading stdin is what keeps the executor's write from
+/// meeting a pipe the handler has already closed by exiting: that write fails
+/// with `Broken pipe`, the delivery is reported as failed, and every hook then
+/// falls back to its permissive default, which a test expecting a deny, a
+/// rewrite or an injection reads as a broken product. Answering before reading
+/// means a recorded payload on disk implies the answer was already on stdout.
+/// Only shell builtins are used, so no second fork stands between the two.
 fn write_hook_script(dir: &std::path::Path, name: &str, decision_json: &str) -> String {
     use std::os::unix::fs::PermissionsExt;
     let path = dir.join(name);
-    std::fs::write(&path, format!("#!/bin/sh\nprintf '{decision_json}'\n"))
-        .expect("write hook script");
+    let capture = hook_capture_path(dir, name);
+    std::fs::write(
+        &path,
+        format!(
+            "#!/bin/sh\nprintf '{decision_json}'\n\
+             IFS= read -r payload\nprintf '%s' \"$payload\" > '{}'\n",
+            capture.display()
+        ),
+    )
+    .expect("write hook script");
     let mut perms = std::fs::metadata(&path).expect("metadata").permissions();
     perms.set_mode(0o755);
     std::fs::set_permissions(&path, perms).expect("chmod");
@@ -3380,7 +3404,10 @@ async fn test_posttooluse_injection_reaches_next_turn() {
         )
         .await;
 
-    // THEN the injected context appears as a system message on the next turn
+    // THEN either the handler ran, and its injected context appears as a
+    // system message on the next turn, or the machine never delivered to it,
+    // and the best-effort path injected nothing. The verdict is read off the
+    // handler's own trace, never off a delivery the machine may refuse.
     result.expect("final response");
     let injected = {
         let msgs = captured.lock().expect("captured lock");
@@ -3392,10 +3419,24 @@ async fn test_posttooluse_injection_reaches_next_turn() {
                 )
         })
     };
-    assert!(
-        injected,
-        "the PostToolUse injection must be visible to the next LLM turn"
-    );
+    match std::fs::read_to_string(hook_capture_path(dir.path(), "inject.sh")) {
+        Ok(payload) => {
+            assert!(payload.contains("\"event\":\"post_tool_use\""), "{payload}");
+            assert!(
+                payload.contains("\"tool_name\":\"bash_executor\""),
+                "{payload}"
+            );
+            assert!(payload.contains("\"success\":true"), "{payload}");
+            assert!(
+                injected,
+                "the PostToolUse injection must be visible to the next LLM turn"
+            );
+        }
+        Err(_) => assert!(
+            !injected,
+            "nothing was delivered to the handler, so nothing may be injected"
+        ),
+    }
 
     tool_registry.shutdown().await;
 }
