@@ -224,7 +224,11 @@ ARC_MUTEX_ALIASES: set[str] = {
 #  * the transport is the subject. `apollia-tools` executors, the MCP stdio
 #    transport, `subprocess_env`, `subprocess_window`: they exist to prove a
 #    child process is spawned and answers. A spawn cannot be removed from a
-#    test of spawning.
+#    test of spawning. `apollia-core/src/net.rs` is the same shape one layer
+#    up: its capped readers take a `reqwest::Response`, which reqwest exposes
+#    no constructor for, so the only body they can be shown is one served over
+#    a socket. Its single entry is one loopback bind in one helper, shared by
+#    the six tests that need a response.
 #  * the clock is the subject. `apollia-triggers` cron, interval, file-watch
 #    and oneshot sources, `inactivity_watcher`, `retry`, `resilience`: what
 #    they assert is that something fires after a delay.
@@ -267,6 +271,7 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-cli/src/commands/agent/tests.rs": 1,
     "crates/apollia-cli/src/commands/eval.rs": 1,
     "crates/apollia-cli/src/commands/start.rs": 1,
+    "crates/apollia-core/src/net.rs": 1,
     "crates/apollia-core/src/subprocess_env.rs": 3,
     "crates/apollia-core/src/subprocess_window.rs": 2,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,

@@ -338,6 +338,7 @@ pub async fn read_capped_json<T: serde::de::DeserializeOwned>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     fn parse(u: &str) -> url::Url {
         url::Url::parse(u).expect("valid url")
@@ -482,6 +483,156 @@ mod tests {
         let decision = evaluate_redirect(&target, 5, 5);
         // THEN the chain is stopped before the public check even matters
         assert!(matches!(decision, RedirectDecision::TooMany));
+    }
+
+    // -----------------------------------------------------------------------
+    // Helpers: a one-shot HTTP/1.1 origin on the loopback interface.
+    //
+    // The capped readers take a `reqwest::Response`, which reqwest exposes no
+    // constructor for, so the only way to exercise them without adding a
+    // mocking dependency is to serve one real response over a socket the test
+    // owns. That destination is loopback, which is why these tests go through
+    // `configured_endpoint_client_builder`, the named exception to the SSRF
+    // policy, rather than through `safe_client`.
+    // -----------------------------------------------------------------------
+
+    /// Serve `raw` verbatim to the first connection, and return the URL of the
+    /// port it was bound to.
+    async fn serve_once_raw(raw: Vec<u8>) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind loopback listener");
+        let port = listener.local_addr().expect("local addr").port();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept");
+            let mut request = vec![0u8; 8192];
+            let _ = socket.read(&mut request).await;
+            socket.write_all(&raw).await.expect("write response");
+        });
+        format!("http://127.0.0.1:{port}/")
+    }
+
+    /// Serve `body` as a 200 with an exact `Content-Length`.
+    async fn serve_once(body: Vec<u8>) -> String {
+        let mut raw = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        raw.extend_from_slice(&body);
+        serve_once_raw(raw).await
+    }
+
+    /// Serve a 302 pointing at `location`.
+    async fn serve_once_redirect(location: &str) -> String {
+        serve_once_raw(
+            format!(
+                "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+            .into_bytes(),
+        )
+        .await
+    }
+
+    /// Fetch `url` through the configured-endpoint client, the one allowed to
+    /// reach loopback.
+    async fn fetch(url: &str) -> reqwest::Response {
+        configured_endpoint_client_builder()
+            .build()
+            .expect("build client")
+            .get(url)
+            .send()
+            .await
+            .expect("send request")
+    }
+
+    #[tokio::test]
+    async fn read_capped_bytes_returns_a_body_under_the_cap() {
+        // GIVEN a loopback origin serving five bytes
+        let url = serve_once(b"hello".to_vec()).await;
+        // WHEN the body is read under a cap it cannot reach
+        let bytes = read_capped_bytes(fetch(&url).await, MAX_METADATA_BYTES)
+            .await
+            .expect("body under the cap");
+        // THEN the whole body comes back
+        assert_eq!(bytes.as_slice(), b"hello");
+    }
+
+    #[tokio::test]
+    async fn read_capped_bytes_refuses_a_body_over_the_cap() {
+        // GIVEN a loopback origin serving a hundred bytes
+        let url = serve_once(vec![b'x'; 100]).await;
+        // WHEN the body is read under a ten-byte cap
+        let err = read_capped_bytes(fetch(&url).await, 10)
+            .await
+            .expect_err("body over the cap");
+        // THEN it is refused, and the size reported is what was seen, not the cap
+        assert!(
+            matches!(err, ReadCappedError::TooLarge { limit: 10, read } if read > 10),
+            "expected TooLarge above ten bytes, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_capped_text_decodes_lossily() {
+        // GIVEN a loopback origin serving bytes that are not valid UTF-8
+        let url = serve_once(vec![b'o', b'k', 0xff]).await;
+        // WHEN the body is read as text
+        let text = read_capped_text(fetch(&url).await, MAX_METADATA_BYTES)
+            .await
+            .expect("lossy decode");
+        // THEN the invalid byte became a replacement character instead of an error
+        assert_eq!(text, "ok\u{fffd}");
+    }
+
+    #[tokio::test]
+    async fn read_capped_json_parses_and_refuses_what_is_not_json() {
+        // GIVEN one origin serving JSON and one serving prose
+        let json_url = serve_once(br#"{"ok":true}"#.to_vec()).await;
+        let prose_url = serve_once(b"not json at all".to_vec()).await;
+        // WHEN each body is read as JSON
+        let parsed: serde_json::Value =
+            read_capped_json(fetch(&json_url).await, MAX_METADATA_BYTES)
+                .await
+                .expect("valid json");
+        let err =
+            read_capped_json::<serde_json::Value>(fetch(&prose_url).await, MAX_METADATA_BYTES)
+                .await
+                .expect_err("prose is not json");
+        // THEN the first deserialises and the second fails as JSON, not as transport
+        assert_eq!(parsed["ok"], serde_json::Value::Bool(true));
+        assert!(matches!(err, ReadCappedError::Json(_)), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn redirect_policy_blocks_a_hop_to_a_private_host() {
+        // GIVEN a loopback origin redirecting to an RFC 1918 address
+        let url = serve_once_redirect("http://10.0.0.1/").await;
+        // WHEN a client carrying the SSRF redirect policy follows the chain
+        let result = safe_client_builder_with_redirects(5)
+            .build()
+            .expect("build client")
+            .get(&url)
+            .send()
+            .await;
+        // THEN the chain is aborted instead of the private host being reached
+        assert!(result.is_err(), "a hop to 10.0.0.1 must not be followed");
+    }
+
+    #[tokio::test]
+    async fn redirect_policy_stops_at_the_hop_cap() {
+        // GIVEN a loopback origin redirecting to a public address, and a client
+        //       whose hop budget is already exhausted at the first redirect
+        let url = serve_once_redirect("http://198.51.100.7/").await;
+        // WHEN the chain is followed
+        let result = safe_client_builder_with_redirects(0)
+            .build()
+            .expect("build client")
+            .get(&url)
+            .send()
+            .await;
+        // THEN it stops before any socket to that address is opened
+        assert!(result.is_err(), "a zero hop budget must stop the chain");
     }
 
     #[test]
