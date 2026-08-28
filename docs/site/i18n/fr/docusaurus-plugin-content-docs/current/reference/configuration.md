@@ -117,7 +117,7 @@ Client MCP : chargement des outils et limites de réponse.
 
 ### `[hooks]`
 
-Gestionnaires de hooks de cycle de vie.
+Gestionnaires de hooks de cycle de vie. `PreToolUse` ne fait pas partie de la surface prise en charge de `v0.1.0-preview` : sa décision est appliquée au mieux, et un gestionnaire qui expire, dont la livraison échoue, ou qui répond quelque chose d'illisible retombe sur `allow`, donc l'appel d'outil passe.
 
 | Clé | Type | Valeur par défaut | Signification |
 | --- | --- | --- | --- |

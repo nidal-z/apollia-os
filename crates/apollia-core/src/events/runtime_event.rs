@@ -1116,12 +1116,15 @@ pub enum RuntimeEvent {
     },
 
     // ── Hook decision events ─────────────────────
-    /// A blocking `PreToolUse` hook resolved a decision for a tool call.
+    /// A `PreToolUse` hook resolved a decision for a tool call.
     ///
     /// Emitted once per call after the registered `PreToolUse` handlers run,
     /// carrying the aggregate decision (`allow`, `deny`, or `rewrite`). The
-    /// desktop accumulates these live to build the decision log; decisions are
-    /// not persisted, so the log is scoped to the running session.
+    /// decision is applied best effort: a handler that times out, fails to
+    /// deliver, or answers with something unparseable falls back to `allow`,
+    /// and the tool call proceeds. The desktop accumulates these live to build
+    /// the decision log; decisions are not persisted, so the log is scoped to
+    /// the running session.
     HookDecisionRecorded {
         /// Run that issued the tool call.
         run_id: RunId,

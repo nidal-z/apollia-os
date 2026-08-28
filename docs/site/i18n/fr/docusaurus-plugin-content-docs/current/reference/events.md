@@ -58,6 +58,12 @@ descriptions vivent dans les commentaires de documentation de la source, qui
 sont en anglais, et la règle « une langue par fichier » interdit de les servir
 ici : la page anglaise les rend.
 
+Avant le tableau, une réserve qu'il ne porte pas. `HookDecisionRecorded` rapporte
+la décision d'un hook `PreToolUse`, et `PreToolUse` ne fait pas partie de la
+surface prise en charge de `v0.1.0-preview`. Sa décision est appliquée au mieux :
+un gestionnaire qui expire, dont la livraison échoue, ou qui répond quelque chose
+d'illisible retombe sur `allow`, et l'appel d'outil passe.
+
 <!-- BEGIN GENERATED: eventbus-catalogue -->
 
 ### `a2a`

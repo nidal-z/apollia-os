@@ -47,7 +47,10 @@ SECTIONS = [
     ("mcp", "McpConfig", "crates/apollia-core/src/config/mcp.rs",
      "MCP client: tool loading and response limits."),
     ("hooks", "HooksConfig", "crates/apollia-core/src/config/hooks.rs",
-     "Lifecycle hook handlers."),
+     "Lifecycle hook handlers. `PreToolUse` is outside the supported surface of "
+     "`v0.1.0-preview`: its decision is applied best effort, and a handler that "
+     "times out, fails to deliver, or answers with something unparseable falls "
+     "back to `allow`, so the tool call proceeds."),
     ("chat", "ChatConfig", "crates/apollia-core/src/config/chat.rs",
      "Chat session defaults."),
     ("observability", "ObservabilityConfig", "crates/apollia-core/src/observability.rs",

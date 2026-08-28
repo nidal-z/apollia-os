@@ -115,7 +115,7 @@ MCP client: tool loading and response limits.
 
 ### `[hooks]`
 
-Lifecycle hook handlers.
+Lifecycle hook handlers. `PreToolUse` is outside the supported surface of `v0.1.0-preview`: its decision is applied best effort, and a handler that times out, fails to deliver, or answers with something unparseable falls back to `allow`, so the tool call proceeds.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
