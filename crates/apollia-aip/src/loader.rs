@@ -336,24 +336,38 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    /// Helper: create a temporary `.py` file with the given content.
-    fn create_temp_py(content: &str) -> tempfile::NamedTempFile {
-        let mut file = tempfile::Builder::new()
-            .suffix(".py")
-            .tempfile()
-            .expect("failed to create temp file");
-        file.write_all(content.as_bytes())
-            .expect("failed to write temp file");
-        file
+    /// Helper: create a temporary `.py` file in a directory of its own, and
+    /// return that directory alongside the file so the caller keeps it alive.
+    ///
+    /// The directory is what matters. [`load_agent_module`] treats the parent
+    /// of the file as the agent directory, and [`purge_stale_modules`] then
+    /// drops from `sys.modules` every cached module whose source lives under
+    /// it. A file created straight in the system temporary directory makes
+    /// that parent the system temporary directory itself, so one test's load
+    /// evicts the modules every other test loaded from its own tempdir under
+    /// the same root. `sys.modules` is shared by the whole process, and
+    /// CPython's `_bootstrap._load` pops the module it has just executed:
+    /// popped by another thread first, the import raises
+    /// `KeyError: '<module>'`, which is what the reload tests read under load.
+    ///
+    /// `module_name` is per-test because the stem becomes the module name, and
+    /// two tests importing under one name would share a `sys.modules` entry.
+    fn create_temp_py(module_name: &str, content: &str) -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::tempdir().expect("failed to create temp dir");
+        let path = write_py(dir.path(), &format!("{module_name}.py"), content);
+        (dir, path)
     }
 
     #[test]
     fn test_load_valid_agent_module() {
         // GIVEN a .py file with a valid agent object
-        let file = create_temp_py("class MonAgent:\n    pass\nagent = MonAgent()\n");
+        let (_dir, file) = create_temp_py(
+            "valid_agent_module",
+            "class MonAgent:\n    pass\nagent = MonAgent()\n",
+        );
 
         // WHEN we load the module
-        let result = load_agent_module(file.path());
+        let result = load_agent_module(&file);
 
         // THEN we get a valid Py<PyAny>
         assert!(result.is_ok());
@@ -374,10 +388,10 @@ mod tests {
     #[test]
     fn test_load_import_failed_syntax_error() {
         // GIVEN a .py file with a syntax error
-        let file = create_temp_py("def broken(\n");
+        let (_dir, file) = create_temp_py("syntax_error_module", "def broken(\n");
 
         // WHEN we attempt to load
-        let result = load_agent_module(file.path());
+        let result = load_agent_module(&file);
 
         // THEN we get ImportFailed
         assert!(matches!(result, Err(AIPLoaderError::ImportFailed { .. })));
@@ -386,10 +400,10 @@ mod tests {
     #[test]
     fn test_load_no_agent_attribute() {
         // GIVEN a valid .py file without an 'agent' attribute
-        let file = create_temp_py("x = 42\n");
+        let (_dir, file) = create_temp_py("no_agent_attribute_module", "x = 42\n");
 
         // WHEN we attempt to load
-        let result = load_agent_module(file.path());
+        let result = load_agent_module(&file);
 
         // THEN we get NoAgentFound
         assert!(matches!(result, Err(AIPLoaderError::NoAgentFound(_))));
