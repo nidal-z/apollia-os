@@ -284,7 +284,7 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-oria/src/resilience.rs": 3,
     "crates/apollia-runtime/src/api/server.rs": 12,
     "crates/apollia-runtime/src/chat/builtin_agent/tests.rs": 1,
-    "crates/apollia-runtime/src/hooks/executor.rs": 8,
+    "crates/apollia-runtime/src/hooks/executor.rs": 7,
     "crates/apollia-runtime/src/llama_server/mod.rs": 1,
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,

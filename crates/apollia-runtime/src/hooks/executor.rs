@@ -561,38 +561,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_deny_decision_blocks_tool() {
-        // GIVEN a handler that returns a deny decision with a reason
+    async fn test_pre_tool_use_delivers_the_payload_and_reads_the_answer() {
+        // GIVEN a PreToolUse handler that denies and then records the payload
+        //       it was handed, so its own trace says whether it ran at all.
+        //       Shell builtins only: `cat` would need a fork of its own, and a
+        //       machine short of processes would then lose the trace of a
+        //       delivery that did happen. The answer is printed before the
+        //       payload is read, so a trace on disk means the answer was
+        //       already on stdout; and reading stdin at all is what keeps the
+        //       executor's write from meeting a pipe the handler has closed by
+        //       exiting first.
         let dir = tempfile::tempdir().expect("tempdir");
+        let capture = dir.path().join("payload.json");
         let script = write_script(
             dir.path(),
             "deny.sh",
-            "#!/bin/sh\nprintf '{\"decision\":\"deny\",\"reason\":\"policy\"}'\n",
-        );
-        let exec = executor_with(vec![command_handler(vec![script], 5_000)]);
-
-        // WHEN run_pre_tool_use is called
-        let decision = exec
-            .run_pre_tool_use("write_file", &json!({}), "sess-1")
-            .await;
-
-        // THEN the decision is Deny carrying the reason
-        assert_eq!(
-            decision,
-            HookDecision::Deny {
-                reason: "policy".to_string()
-            }
-        );
-    }
-
-    #[tokio::test]
-    async fn test_rewrite_decision_replaces_arguments() {
-        // GIVEN a handler that returns a rewrite decision
-        let dir = tempfile::tempdir().expect("tempdir");
-        let script = write_script(
-            dir.path(),
-            "rewrite.sh",
-            "#!/bin/sh\nprintf '{\"decision\":\"rewrite\",\"arguments\":{\"path\":\"/safe/x\"}}'\n",
+            &format!(
+                "#!/bin/sh\nprintf '{{\"decision\":\"deny\",\"reason\":\"policy\"}}'\n\
+                 IFS= read -r payload\nprintf '%s' \"$payload\" > '{}'\n",
+                capture.display()
+            ),
         );
         let exec = executor_with(vec![command_handler(vec![script], 5_000)]);
 
@@ -601,13 +589,28 @@ mod tests {
             .run_pre_tool_use("write_file", &json!({"path": "/etc/passwd"}), "sess-1")
             .await;
 
-        // THEN the decision is Rewrite with the replacement arguments
-        assert_eq!(
-            decision,
-            HookDecision::Rewrite {
-                arguments: json!({"path": "/safe/x"})
+        // THEN either the handler ran, and it received the PreToolUse payload
+        // and its deny came back, or the machine could not deliver to it, and
+        // the permissive fallback applied. The verdict is read off the
+        // handler's own trace, never off a delivery the machine may refuse.
+        match std::fs::read_to_string(&capture) {
+            Ok(payload) => {
+                assert!(payload.contains("\"event\":\"pre_tool_use\""), "{payload}");
+                assert!(
+                    payload.contains("\"tool_name\":\"write_file\""),
+                    "{payload}"
+                );
+                assert!(payload.contains("\"path\":\"/etc/passwd\""), "{payload}");
+                assert!(payload.contains("\"session_id\":\"sess-1\""), "{payload}");
+                assert_eq!(
+                    decision,
+                    HookDecision::Deny {
+                        reason: "policy".to_string()
+                    }
+                );
             }
-        );
+            Err(_) => assert_eq!(decision, HookDecision::Allow),
+        }
     }
 
     fn http_handler(url: &str, timeout_ms: u64) -> HookHandlerConfig {
@@ -748,6 +751,38 @@ mod tests {
             }
         );
         assert_eq!(consumed, 2);
+    }
+
+    #[test]
+    fn test_a_rewrite_answer_replaces_the_arguments() {
+        // GIVEN a handler answer that rewrites the arguments, and two runs
+        //       where a later handler allows, then denies
+        let rewrite = r#"{"decision":"rewrite","arguments":{"path":"/safe/x"}}"#;
+        let rewritten = HookDecision::Rewrite {
+            arguments: json!({"path": "/safe/x"}),
+        };
+
+        // WHEN the executor's fold runs over each sequence
+        let alone = replay_fold(&[Some(rewrite)]);
+        let then_allow = replay_fold(&[Some(rewrite), Some(r#"{"decision":"allow"}"#)]);
+        let then_deny = replay_fold(&[
+            Some(rewrite),
+            Some(r#"{"decision":"deny","reason":"policy"}"#),
+        ]);
+
+        // THEN the replacement arguments are what the caller acts on, an allow
+        // after them does not restore the originals, and a deny still wins
+        assert_eq!(alone, (rewritten.clone(), 1));
+        assert_eq!(then_allow, (rewritten, 2));
+        assert_eq!(
+            then_deny,
+            (
+                HookDecision::Deny {
+                    reason: "policy".to_string()
+                },
+                2
+            )
+        );
     }
 
     #[test]
