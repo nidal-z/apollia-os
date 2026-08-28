@@ -21,6 +21,26 @@ would turn a contract into a report on itself, the mark would be committed and
 would read as a normal state, and above all it would offer a way to ship a
 divergence by writing prose around it.
 
+The four files this generator points at are declared in ``SOURCES`` and crossed
+with the tree before the first read, by ``declared_sources.require``. A sibling
+generator looked for ``LlmConfig`` in a module a split had emptied, warned, and
+exited 0 over a page with the section deleted; the same crossing here answers 2
+instead. Two codes, and they say different things: **1** is a divergence found
+between the two halves of the contract, **2** is a run that read nothing, either
+because a declared file has moved or because the crossing came back under its
+service floor. The floor branch answered 1 until this pass, so a run that
+measured nothing read as a contract that diverges.
+
+The four files this generator points at are declared in ``SOURCES`` and crossed
+with the tree before the first read, by ``declared_sources.require``. A sibling
+generator looked for ``LlmConfig`` in a module a split had emptied, warned, and
+exited 0 over a page with the section deleted; the same crossing here answers 2
+instead. Two codes, and they say different things: **1** is a divergence found
+between the two halves of the contract, **2** is a run that read nothing, either
+because a declared file has moved or because the crossing came back under its
+service floor. The floor branch answered 1 until this pass, so a run that
+measured nothing read as a contract that diverges.
+
 Run via ``docs/site/regen.sh`` (or ``python3 docs/site/scripts/gen_sdk_ref.py``).
 """
 
@@ -39,8 +59,23 @@ OUT_DIR = REPO_ROOT / "docs" / "site" / "docs" / "reference" / "sdk"
 BRIDGE_ROOT = REPO_ROOT / "crates" / "apollia-aip" / "src"
 
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check_ctx_contract  # noqa: E402
+import declared_sources  # noqa: E402
+from declared_sources import Source  # noqa: E402
+
+# Declared once, crossed with the tree before the first read, and read from the
+# outside by `scripts/check_doc_generators.py`. `Ctx` is the symbol that decides
+# the whole run: `build_service_index` walks the class body for the service
+# list, so a rename or a move would have produced seventeen pages with no
+# service on them.
+SOURCES = [
+    Source("sdk/apollia/types.py", "class Ctx", why="the ordered service list"),
+    Source("sdk/apollia/context", why="one page per service protocol"),
+    Source("crates/apollia-aip/src", why="the bridge half of the contract"),
+    Source("scripts/check_ctx_contract.py", "def cross(", why="the crossing engine"),
+]
 
 # Published on the services the bridge declares `ctx-attachment: optional`, and
 # on those only. Deriving it from the presence of a `None =>` arm in the
@@ -267,6 +302,10 @@ def write_page(rel_name: str, frontmatter: dict, body: str) -> Path:
 
 
 def main() -> int:
+    absent = declared_sources.require("gen_sdk_ref", SOURCES)
+    if absent is not None:
+        return absent
+
     crossing = check_ctx_contract.cross(SDK_ROOT, BRIDGE_ROOT)
     measured = len(crossing.services)
     if measured < check_ctx_contract.REAL_TREE.service_floor:
@@ -275,7 +314,10 @@ def main() -> int:
             f"than the floor of {check_ctx_contract.REAL_TREE.service_floor}. "
             "No page written."
         )
-        return 1
+        # Nothing was measured, so the run says nothing about the contract. The
+        # corpus rule is that this answers a code distinct from a defect found,
+        # and it answered 1 here, which read as "the contract diverges".
+        return 2
     if not crossing.clean:
         print(
             "gen_sdk_ref: the protocol and the bridge diverge, so there is no "

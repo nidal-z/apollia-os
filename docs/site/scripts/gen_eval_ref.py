@@ -16,11 +16,25 @@ regeneration:
     <!-- END GENERATED: eval-schema -->
 
 Run via `docs/site/regen.sh`, and replayed by the `docs-generated` CI job.
+
+The four types read here are pointers into the tree, and each one used to fail
+silently: a missing struct printed a warning and returned an empty table, and a
+missing enum returned an empty table without even the warning. The generator
+then exited 0 over a page with the schema removed. That is what happened to the
+configuration reference when a module split moved `LlmConfig`, so the same
+crossing is applied here: `SOURCES` is declared, `declared_sources.require`
+proves it against the tree before anything is written, and a type that is no
+longer there answers 2 rather than publishing a page without it.
 """
 
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import declared_sources  # noqa: E402
+from declared_sources import Source  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SOURCE = REPO_ROOT / "crates" / "apollia-eval" / "src" / "suite.rs"
@@ -28,6 +42,18 @@ OUT = REPO_ROOT / "docs" / "site" / "docs" / "reference" / "eval-suites.md"
 
 BEGIN = "<!-- BEGIN GENERATED: eval-schema -->"
 END = "<!-- END GENERATED: eval-schema -->"
+
+SUITE_RS = "crates/apollia-eval/src/suite.rs"
+
+# The four types this generator publishes, declared once and crossed with the
+# tree before the first read. `scripts/check_doc_generators.py` reads the same
+# list from the outside.
+SOURCES = [
+    Source(SUITE_RS, "pub struct EvalSuite", why="the suite table"),
+    Source(SUITE_RS, "pub struct EvalTask", why="the task table"),
+    Source(SUITE_RS, "pub enum Assertion", why="the assertion table"),
+    Source(SUITE_RS, "pub enum OutputChannel", why="the `on` values"),
+]
 
 
 def braced_body(source: str, header: str) -> str | None:
@@ -73,11 +99,13 @@ VARIANT_RE = re.compile(
 )
 
 
-def struct_table(source: str, name: str, optional_note: dict[str, str]) -> str:
+def struct_table(source: str, name: str, optional_note: dict[str, str]) -> str | None:
     body = braced_body(source, f"pub struct {name}")
     if body is None:
-        print(f"warning: struct {name} not found", file=sys.stderr)
-        return ""
+        # `require` proved the declaration line is present, so an unreadable
+        # body is a parse defect rather than an absent subject.
+        print(f"error: the body of struct {name} does not close", file=sys.stderr)
+        return None
     rows = []
     for doc, attrs, field, rust_type in FIELD_RE.findall(body):
         if "serde(skip" in attrs:
@@ -85,15 +113,16 @@ def struct_table(source: str, name: str, optional_note: dict[str, str]) -> str:
         required = "optional" if ("serde(default" in attrs or rust_type.startswith("Option<")) else "**required**"
         rows.append(f"| `{field}` | `{rust_type.strip()}` | {required} | {summarize(doc)} |")
     if not rows:
-        return ""
+        print(f"error: struct {name} yielded no documented field", file=sys.stderr)
+        return None
     return "\n".join(["| Key | Type | Required | Meaning |", "| --- | --- | --- | --- |", *rows])
 
 
-def assertion_table(source: str) -> str:
+def assertion_table(source: str) -> str | None:
     body = braced_body(source, "pub enum Assertion")
     if body is None:
-        print("warning: enum Assertion not found", file=sys.stderr)
-        return ""
+        print("error: the body of enum Assertion does not close", file=sys.stderr)
+        return None
     rows = []
     for doc, variant, fields in VARIANT_RE.findall(body):
         # The serde tag is snake_case of the variant name.
@@ -101,24 +130,31 @@ def assertion_table(source: str) -> str:
         names = [f"`{f}`" for _d, _a, f, _t in FIELD_RE.findall(fields)]
         rows.append(f"| `{tag}` | {', '.join(names) or 'none'} | {summarize(doc)} |")
     if not rows:
-        return ""
+        print("error: enum Assertion yielded no variant", file=sys.stderr)
+        return None
     return "\n".join(["| `type` | Its fields | What it checks |", "| --- | --- | --- |", *rows])
 
 
-def enum_values(source: str, name: str) -> str:
+def enum_values(source: str, name: str) -> str | None:
     body = braced_body(source, f"pub enum {name}")
     if body is None:
-        return ""
+        print(f"error: the body of enum {name} does not close", file=sys.stderr)
+        return None
     out = []
     for doc, variant in re.findall(r"((?:^[ \t]*///[^\n]*\n)+)^[ \t]*(\w+),", body, re.MULTILINE):
         tag = re.sub(r"(?<!^)(?=[A-Z])", "_", variant).lower()
         out.append(f"| `{tag}` | {summarize(doc)} |")
     if not out:
-        return ""
+        print(f"error: enum {name} yielded no documented value", file=sys.stderr)
+        return None
     return "\n".join(["| Value | Meaning |", "| --- | --- |", *out])
 
 
 def main() -> int:
+    absent = declared_sources.require("gen_eval_ref", SOURCES)
+    if absent is not None:
+        return absent
+
     source = SOURCE.read_text(encoding="utf-8")
 
     blocks = [
@@ -133,6 +169,14 @@ def main() -> int:
         enum_values(source, "OutputChannel"),
         "",
     ]
+    if any(b is None for b in blocks):
+        print("gen_eval_ref: a declared type was found but could not be read. "
+              "No page written.", file=sys.stderr)
+        return 1
+    if any(b is None for b in blocks):
+        print("gen_eval_ref: a declared type was found but could not be read. "
+              "No page written.", file=sys.stderr)
+        return 1
     generated = "\n".join(b for b in blocks if b)
 
     page = OUT.read_text(encoding="utf-8")

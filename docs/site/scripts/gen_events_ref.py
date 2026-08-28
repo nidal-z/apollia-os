@@ -23,6 +23,16 @@ around it survives regeneration:
     <!-- BEGIN GENERATED: eventbus-catalogue -->
     <!-- END GENERATED: eventbus-catalogue -->
 
+Both are declared in `SOURCES` and crossed with the tree before the first read.
+The file half of that check was here from the start; the symbol half was not,
+and the symbol is what a module split moves. A sibling generator lost the whole
+`### [llm]` table of the configuration reference that way, warning and exiting 0.
+
+Both are declared in `SOURCES` and crossed with the tree before the first read.
+The file half of that check was here from the start; the symbol half was not,
+and the symbol is what a module split moves. A sibling generator lost the whole
+`### [llm]` table of the configuration reference that way, warning and exiting 0.
+
 Run via `docs/site/regen.sh`, and replayed by the `docs-generated` CI job.
 """
 
@@ -30,9 +40,25 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import declared_sources  # noqa: E402
+from declared_sources import Source  # noqa: E402
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
-ENUM = REPO_ROOT / "crates/apollia-core/src/events/runtime_event.rs"
-BRIDGE = REPO_ROOT / "crates/apollia-desktop/src/events.rs"
+ENUM_RS = "crates/apollia-core/src/events/runtime_event.rs"
+BRIDGE_RS = "crates/apollia-desktop/src/events.rs"
+ENUM = REPO_ROOT / ENUM_RS
+BRIDGE = REPO_ROOT / BRIDGE_RS
+
+# Declared once, crossed with the tree before the first read, and read from the
+# outside by `scripts/check_doc_generators.py`. The file check alone was here
+# already; naming the symbol is what a module split breaks, and what a path
+# check cannot see.
+SOURCES = [
+    Source(ENUM_RS, "pub enum RuntimeEvent", why="the variants and their doc-comments"),
+    Source(BRIDGE_RS, "fn categorize(", why="the bridge category of each variant"),
+]
 
 BEGIN = "<!-- BEGIN GENERATED: eventbus-catalogue -->"
 END = "<!-- END GENERATED: eventbus-catalogue -->"
@@ -140,9 +166,9 @@ def render(
 
 
 def main() -> int:
-    if not ENUM.exists() or not BRIDGE.exists():
-        print("error: the enum or the bridge is absent", file=sys.stderr)
-        return 2
+    absent = declared_sources.require("gen_events_ref", SOURCES)
+    if absent is not None:
+        return absent
     rows = variants(ENUM.read_text(encoding="utf-8"))
     category_of = categories(BRIDGE.read_text(encoding="utf-8"))
     if not rows or not category_of:

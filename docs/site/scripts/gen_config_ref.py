@@ -20,11 +20,24 @@ regeneration:
     <!-- END GENERATED: config-fields -->
 
 Run via `docs/site/regen.sh`, and replayed by the `docs-generated` CI job.
+
+Every entry of `SECTIONS` is a pointer into the tree, and a pointer is only as
+good as the check on it. `LlmConfig` moved from `router.rs` to `router/config.rs`
+in a module split; this generator went on looking for it in the old file, printed
+a warning, exited 0, and the regeneration deleted the whole `### [llm]` table
+from the published page. The declarations below are therefore crossed with the
+tree before anything is written, by `declared_sources.require`, and a pointer
+that no longer resolves answers 2 instead of publishing an amputated page.
 """
 
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import declared_sources  # noqa: E402
+from declared_sources import Source  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 OUT = REPO_ROOT / "docs" / "site" / "docs" / "reference" / "configuration.md"
@@ -34,7 +47,7 @@ END = "<!-- END GENERATED: config-fields -->"
 
 # (toml section, struct name, source file, one-line purpose)
 SECTIONS = [
-    ("llm", "LlmConfig", "crates/apollia-llm/src/router.rs",
+    ("llm", "LlmConfig", "crates/apollia-llm/src/router/config.rs",
      "LLM backends and routing."),
     ("runtime", "RuntimeConfig", "crates/apollia-core/src/config/runtime.rs",
      "EventBus and mailbox capacities."),
@@ -55,6 +68,22 @@ SECTIONS = [
      "Chat session defaults."),
     ("observability", "ObservabilityConfig", "crates/apollia-core/src/observability.rs",
      "Trace capture and retention. Read by the desktop application only."),
+]
+
+# The pointers this generator commits to, read by `declared_sources.require`
+# below and by `scripts/check_doc_generators.py` from the outside. One list, so
+# the guard cannot answer green on a table the generator no longer uses.
+SOURCES = [
+    Source(path, f"pub struct {struct}", why=f"the `[{toml}]` field table")
+    for toml, struct, path, _purpose in SECTIONS
+]
+
+# The pointers this generator commits to, read by `declared_sources.require`
+# below and by `scripts/check_doc_generators.py` from the outside. One list, so
+# the guard cannot answer green on a table the generator no longer uses.
+SOURCES = [
+    Source(path, f"pub struct {struct}", why=f"the `[{toml}]` field table")
+    for toml, struct, path, _purpose in SECTIONS
 ]
 
 FIELD_RE = re.compile(
@@ -116,13 +145,17 @@ def default_for(attrs: str, rust_type: str, defaults: dict[str, str]) -> str:
     return "**required**"
 
 
-def render_section(toml_name: str, struct: str, rel_path: str, purpose: str) -> str:
+def render_section(toml_name: str, struct: str, rel_path: str, purpose: str) -> str | None:
     path = REPO_ROOT / rel_path
     source = path.read_text(encoding="utf-8")
     body = struct_body(source, struct)
     if body is None:
-        print(f"warning: struct {struct} not found in {rel_path}", file=sys.stderr)
-        return ""
+        # `require` has already proven the declaration line is in the file, so
+        # reaching here means the braces do not match: a parse defect, not an
+        # absent subject.
+        print(f"error: the body of struct {struct} in {rel_path} does not close",
+              file=sys.stderr)
+        return None
     defaults = {n: v for n, v in DEFAULT_FN_RE.findall(source)}
 
     rows = []
@@ -134,7 +167,9 @@ def render_section(toml_name: str, struct: str, rel_path: str, purpose: str) -> 
             f"| {summarize(doc)} |"
         )
     if not rows:
-        return ""
+        print(f"error: struct {struct} in {rel_path} yielded no documented field",
+              file=sys.stderr)
+        return None
 
     out = [f"### `[{toml_name}]`", "", purpose, ""]
     out.append("| Key | Type | Default | Meaning |")
@@ -145,7 +180,15 @@ def render_section(toml_name: str, struct: str, rel_path: str, purpose: str) -> 
 
 
 def main() -> int:
+    absent = declared_sources.require("gen_config_ref", SOURCES)
+    if absent is not None:
+        return absent
+
     blocks = [render_section(*s) for s in SECTIONS]
+    if any(b is None for b in blocks):
+        print("gen_config_ref: a declared struct was found but could not be read. "
+              "No page written.", file=sys.stderr)
+        return 1
     generated = "\n".join(b for b in blocks if b)
 
     page = OUT.read_text(encoding="utf-8")
