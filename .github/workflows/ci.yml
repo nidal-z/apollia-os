@@ -963,6 +963,20 @@ jobs:
       # workspace gate sat at 70 while apollia-runtime was at 72.90. Each
       # floor is the measured baseline rounded down to the half point, and it
       # ratchets up with the measure, never down.
+      #
+      # --all-features is per crate, and it is what makes the number honest.
+      # Without it, `-p apollia-core` never compiles src/net.rs, which lives
+      # behind the optional `net` feature, so the tests that file carries never
+      # run. The file reached the report anyway, at 0%: the workspace step
+      # above leaves its object files in the same llvm-cov target directory,
+      # apollia-runtime among them, and those carry apollia-core built with
+      # `net` on and no counter from this run. Those 123 phantom uncovered
+      # lines are what read apollia-core at 83.70% against its 85.0 floor on
+      # the first public run, while the same crate measured with its feature on
+      # sits above the floor. --all-features over the whole workspace stays
+      # impossible, because apollia-runner declares three mutually exclusive
+      # whisper backends, but none of the five crates gated here is
+      # apollia-runner and none of their features is exclusive.
       - name: cargo llvm-cov (per-crate floor gates)
         run: |
           set -euo pipefail
@@ -972,7 +986,7 @@ jobs:
             crate="${pair%%:*}"
             floor="${pair##*:}"
             echo "::group::coverage floor ${crate} >= ${floor}"
-            cargo llvm-cov -p "${crate}" --summary-only \
+            cargo llvm-cov -p "${crate}" --all-features --summary-only \
               --ignore-filename-regex '(/tests/|/benches/)' \
               --fail-under-lines "${floor}"
             echo "::endgroup::"
