@@ -267,6 +267,19 @@ repos:
         files: '^(crates/apollia-desktop/(src|ui/src)/.+|scripts/check_custom_event_listeners\.py)$'
         pass_filenames: false
 
+      # The filter is broad on purpose. What this guard crosses is a pointer
+      # from a generator into the Rust and Python sources, and the commit that
+      # breaks such a pointer is the one that moves the file, not the one that
+      # touches docs/site. A filter scoped to the generators would have stayed
+      # silent through the module split that emptied the `[llm]` table. The
+      # crossing costs 0.2s, so a wide filter costs nothing.
+      - id: check-doc-generators
+        name: doc generators still find the sources they declare
+        entry: python3 scripts/check_doc_generators.py
+        language: system
+        files: '^(crates/.+\.rs|sdk/apollia/.+\.py|docs/site/(scripts/.+|regen\.sh)|scripts/check_(doc_generators|ctx_contract)\.py)$'
+        pass_filenames: false
+
       - id: check-docs-routes
         name: documentation routes and category files
         entry: python3 scripts/check_docs_routes.py

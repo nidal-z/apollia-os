@@ -683,6 +683,13 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y libssl-dev cmake clang pkg-config
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      # Before the generators, not after: a generator whose pointer has moved
+      # answers "nothing measured" and writes no page, so the drift check at the
+      # end of this job would report a clean tree over a source nobody read.
+      - name: The generators still find the sources they declare
+        run: |
+          python3 scripts/check_doc_generators.py
+          python3 scripts/check_doc_generators.py --selftest
       - name: Regenerate the SDK reference
         run: python3 docs/site/scripts/gen_sdk_ref.py
       - name: Regenerate the configuration reference
