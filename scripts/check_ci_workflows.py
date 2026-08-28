@@ -58,6 +58,7 @@ Usage:
 """
 
 import argparse
+import ast
 import re
 import sys
 import tempfile
@@ -150,6 +151,112 @@ One source, or the copy drifts again.
 """
 
 
+SCRIPT_DISTRIBUTIONS = {"yaml": "PyYAML"}
+"""Third-party modules the tracked guard scripts import, and their wheel.
+
+Measured on 2026-08-28 by walking the imports of `scripts/**.py` and
+`docs/site/scripts/**.py` against `sys.stdlib_module_names`: `yaml` is the
+only one, imported by `check_ci_workflows.py` and `check_release_artifacts.py`.
+
+The runner's own `python3` ships PyYAML, so a job that uses it never noticed.
+A job that calls `actions/setup-python` gets a clean interpreter and does not,
+which is how `regen.sh` halted at its second step on a job that had regenerated
+nothing. A new third-party import has to be named here, wheel included, or the
+crossing below cannot ask for it.
+"""
+
+
+def _third_party_imports() -> dict[str, str]:
+    """Modules the tracked scripts import that neither stdlib nor this tree owns."""
+    roots = [REPO_ROOT / "scripts", REPO_ROOT / "docs/site/scripts"]
+    local = {path.stem for root in roots if root.is_dir() for path in root.glob("*.py")}
+    seen: dict[str, str] = {}
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for path in sorted(root.glob("*.py")):
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+            except SyntaxError:
+                continue
+            for node in ast.walk(tree):
+                names: list[str] = []
+                if isinstance(node, ast.Import):
+                    names = [alias.name.split(".")[0] for alias in node.names]
+                elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                    names = [node.module.split(".")[0]]
+                for name in names:
+                    if name in sys.stdlib_module_names or name in local:
+                        continue
+                    if name == "__future__":
+                        continue
+                    seen.setdefault(name, path.name)
+    return seen
+
+
+_SCRIPT_REF = re.compile(r"(?:scripts/|docs/site/scripts/)([A-Za-z0-9_]+)\.py")
+
+
+def _script_needs() -> dict[str, set[str]]:
+    """Per script, the third-party modules it needs, its local imports included.
+
+    A job that runs `check_selftest.py` runs `check_ci_workflows` with it, so
+    the wheel follows the import chain rather than the file named on the
+    command line. The closure is taken to a fixed point; the tree is small.
+    """
+    roots = [REPO_ROOT / "scripts", REPO_ROOT / "docs/site/scripts"]
+    files = {path.stem: path for root in roots if root.is_dir() for path in root.glob("*.py")}
+    direct: dict[str, set[str]] = {}
+    local: dict[str, set[str]] = {}
+    for stem, path in files.items():
+        direct[stem], local[stem] = set(), set()
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            names: list[str] = []
+            if isinstance(node, ast.Import):
+                names = [alias.name.split(".")[0] for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                names = [node.module.split(".")[0]]
+            for name in names:
+                if name in files:
+                    local[stem].add(name)
+                elif name not in sys.stdlib_module_names and name != "__future__":
+                    direct[stem].add(name)
+    changed = True
+    while changed:
+        changed = False
+        for stem in files:
+            for other in local[stem]:
+                if not direct[other] <= direct[stem]:
+                    direct[stem] |= direct[other]
+                    changed = True
+    return direct
+
+
+def _scripts_a_job_runs(job: dict) -> set[str]:
+    """Script stems a job invokes, those `regen.sh` calls for it included."""
+    stems: set[str] = set()
+    regen = REPO_ROOT / "docs/site/regen.sh"
+    for step in _steps(job):
+        run = str(step.get("run", ""))
+        stems |= set(_SCRIPT_REF.findall(run))
+        if any(REGEN_CALL.match(line) for line in run.splitlines()) and regen.is_file():
+            stems |= set(
+                _SCRIPT_REF.findall(regen.read_text(encoding="utf-8", errors="replace"))
+            )
+    return stems
+
+
+def _has_own_python(job: dict) -> bool:
+    """True when the job installs its own interpreter instead of the runner's."""
+    return any(
+        "actions/setup-python" in str(step.get("uses", "")) for step in _steps(job)
+    )
+
+
 def _matrix_include(job: dict) -> list[dict]:
     """The `strategy.matrix.include` entries of one job, mappings only."""
     strategy = job.get("strategy")
@@ -198,6 +305,17 @@ def audit_file(path: Path) -> tuple[list[str], int]:
     options = _dispatch_options(doc)
     uses_seen = 0
 
+    # A module the scripts import and this file has never heard of cannot be
+    # asked for below, so the crossing would pass while the job it protects
+    # dies on the import. Named once here, judged everywhere.
+    for module, first_seen in sorted(_third_party_imports().items()):
+        if module not in SCRIPT_DISTRIBUTIONS:
+            defects.append(
+                f"{path.name}: [own-python-deps] {first_seen} imports "
+                f"{module!r}, absent from SCRIPT_DISTRIBUTIONS; name its wheel "
+                f"there or no job will be asked to install it"
+            )
+
     for job_id, job in jobs.items():
         if not isinstance(job, dict):
             defects.append(f"{path.name}: job {job_id}: not a mapping")
@@ -219,6 +337,24 @@ def audit_file(path: Path) -> tuple[list[str], int]:
                 f"{path.name}: job {job_id}: [advisory-name] continue-on-error "
                 f"without 'advisory' in its name {name!r}"
             )
+
+        if _has_own_python(job):
+            needs = _script_needs()
+            wanted = {
+                module
+                for stem in _scripts_a_job_runs(job)
+                for module in needs.get(stem, set())
+            }
+            installed = " ".join(str(step.get("run", "")) for step in _steps(job))
+            for module in sorted(wanted):
+                wheel = SCRIPT_DISTRIBUTIONS.get(module, module)
+                if wheel.lower() not in installed.lower():
+                    defects.append(
+                        f"{path.name}: job {job_id}: [own-python-deps] brings "
+                        f"its own interpreter and runs a script importing "
+                        f"{module!r}, but no step installs {wheel}; the "
+                        f"runner's python3 carries it and this one does not"
+                    )
 
         for step in _steps(job):
             run = str(step.get("run", ""))

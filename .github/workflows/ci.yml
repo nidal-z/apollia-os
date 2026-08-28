@@ -678,6 +678,12 @@ jobs:
           python-version: "3.13"
       - name: Set PYO3_PYTHON
         run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
+      # `setup-python` hands this job a clean interpreter, unlike the runner's
+      # own python3 which ships PyYAML. `regen.sh` reaches
+      # `check_release_artifacts.py`, which reads the packaging manifest, so
+      # without this the script answers "nothing measured" and halts the whole
+      # regeneration at its second step.
+      - run: pip install PyYAML==6.0.2
       # The CLI reference is emitted by the `apollia-os` binary, so this job
       # links the whole dependency tree, audio backends included. The short
       # list it carried lacked libasound2-dev: `alsa-sys` failed its build
