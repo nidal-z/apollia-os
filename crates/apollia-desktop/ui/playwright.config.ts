@@ -50,8 +50,14 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
+  // `vite preview` serves `dist/`, and on a tree that has never been built
+  // there is no `dist/`: the server exits at once and the run answers
+  // "Timed out waiting 120000ms from config.webServer" two minutes later,
+  // naming neither the missing bundle nor the command that produces it. The
+  // build is therefore part of starting the server. `reuseExistingServer`
+  // skips both when a preview is already up.
   webServer: {
-    command: "npm run preview -- --port 4173",
+    command: "npm run build && npm run preview -- --port 4173",
     url: "http://localhost:4173",
     reuseExistingServer: true,
     timeout: 120_000,
