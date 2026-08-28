@@ -554,8 +554,21 @@ impl MemoryInterface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use apollia_memory::injection_tracker::{global_entries_for, global_tracker_clear};
+    use apollia_memory::injection_tracker::global_entries_for;
     use tempfile::TempDir;
+
+    // The injection tracker is one process-global map, shared by every test of
+    // this binary. `global_tracker_clear` empties all of it, so a test calling
+    // it erases what a concurrent test has just recorded: measured at two reds
+    // on a hundred and twenty runs of this binary on one core with 24 threads,
+    // the reader seeing zero tracked turns where it had recorded one.
+    //
+    // Neither test below needs an empty tracker. Each needs an empty entry
+    // under its own key, and that holds by construction: a turn id names the
+    // test that owns it, and no test here clears the tracker.
+    const TURN_FALLBACK_REASON: &str = "turn-aip-record-injected-entry-fallback-reason";
+    const TURN_MISSING_ID: &str = "turn-aip-record-injected-entry-missing-id";
+    const TURN_NEVER_WRITTEN: &str = "turn-aip-record-injected-entry-never-written";
 
     #[test]
     fn set_turn_id_round_trips() {
@@ -574,8 +587,8 @@ mod tests {
 
     #[test]
     fn record_injected_entry_pushes_to_tracker_with_fallback_reason() {
-        // GIVEN a cleared global tracker
-        global_tracker_clear();
+        // GIVEN a turn id owned by this test, on which nothing is recorded yet
+        assert!(global_entries_for(TURN_FALLBACK_REASON).is_empty());
         let json = serde_json::json!({
             "id": "sem-abc",
             "key": "budget",
@@ -585,7 +598,7 @@ mod tests {
 
         // WHEN an entry is recorded with the fallback reason pattern
         record_injected_entry(
-            "turn-p7-aip",
+            TURN_FALLBACK_REASON,
             "agent-x",
             &json,
             "Matched query: budget".to_string(),
@@ -593,26 +606,30 @@ mod tests {
         );
 
         // THEN the tracker exposes the entry with preview/namespace/reason/score
-        let entries = global_entries_for("turn-p7-aip");
+        let entries = global_entries_for(TURN_FALLBACK_REASON);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].id, "sem-abc");
         assert_eq!(entries[0].namespace, "agent-x");
         assert_eq!(entries[0].content_preview, "15000");
         assert_eq!(entries[0].injection_reason, "Matched query: budget");
         assert!((entries[0].relevance_score - 0.8).abs() < f32::EPSILON);
+
+        // AND it is filed under that turn only, which is what makes clearing
+        // the whole tracker unnecessary here
+        assert!(global_entries_for(TURN_NEVER_WRITTEN).is_empty());
     }
 
     #[test]
     fn record_injected_entry_skips_when_id_missing() {
-        // GIVEN a cleared tracker
-        global_tracker_clear();
+        // GIVEN a turn id owned by this test, on which nothing is recorded yet
+        assert!(global_entries_for(TURN_MISSING_ID).is_empty());
 
         // WHEN the JSON has no id/key fields
         let json = serde_json::json!({ "value": "orphan" });
-        record_injected_entry("turn-orphan", "ns", &json, "r".to_string(), None);
+        record_injected_entry(TURN_MISSING_ID, "ns", &json, "r".to_string(), None);
 
         // THEN nothing is recorded
-        assert!(global_entries_for("turn-orphan").is_empty());
+        assert!(global_entries_for(TURN_MISSING_ID).is_empty());
     }
 
     fn setup_interface(namespace: &str) -> (MemoryInterface, TempDir) {
