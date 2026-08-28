@@ -27,7 +27,10 @@ properties rather than the fixes:
   4. A guard that reports a red says why. The CLI E2E suite computed the cause
      of every failed assertion and threw it away before writing its artifact,
      which is the same bias one step further on: the reader who cannot resolve
-     the red falls back on believing the green.
+     the red falls back on believing the green. The heavy-guard recorder held
+     the same shape one level up: its `linux-test` line answered `exit 1, 79
+     bin, 4437 tst` and kept no name, so learning which three tests had fallen
+     took a replay of the whole Linux suite under artificial load.
   5. A rule carrying a named exemption reports when the exemption grows. The
      tracker-reference rule of `check_prose.py` excuses exactly one path, and a
      green run alone cannot tell one excused path from five. The exemption is
@@ -1110,6 +1113,173 @@ def check_worktree_comparator() -> None:
             f"The exempt row must still print so the absence stays visible. "
             f"Output:\n{run.stdout}{run.stderr}",
         )
+
+
+# ── The recorder that says which tests fell ─────────────────────────────
+# Case 4 again, on the heavy-guard recorder rather than on the CLI artifact.
+# The `linux-test` line answered `exit 1, 79 bin, 4437 tst` inside a recording
+# on 2026-08-27 and kept no name, so learning which three tests had fallen took
+# a replay of the whole Linux suite under artificial load.
+#
+# The two fixtures below are the shape of a real run, captured on 2026-08-28
+# from a throwaway crate built to be red: two failing unit tests and one
+# failing doc-test. They carry the three shapes the extraction has to tell
+# apart, an ignored test ending `... ignored, <reason>`, a doc-test name
+# holding spaces, and the summary line `test result: FAILED.` that names no
+# test at all.
+
+RED_CARGO = """running 4 tests
+test tests::skipped ... ignored, never runs
+test tests::it_passes ... ok
+test tests::result_tests_shaped_like_the_trap ... FAILED
+test tests::it_fails ... FAILED
+
+failures:
+
+---- tests::it_fails stdout ----
+thread 'tests::it_fails' panicked at src/lib.rs:19:9:
+assertion `left == right` failed: deliberate
+
+failures:
+    tests::it_fails
+    tests::result_tests_shaped_like_the_trap
+
+test result: FAILED. 1 passed; 2 failed; 1 ignored; 0 measured; 0 filtered out
+
+running 1 test
+test src/lib.rs - add (line 3) ... FAILED
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out
+"""
+
+# The green fixture carries the HOME-SENTINEL line the wrapper appends around
+# the real `cargo test`, so the run it stands for is fully measured and the
+# control below can assert that a green suite reads as a green suite rather
+# than as a guard that measured nothing.
+GREEN_CARGO = """running 1 test
+test tests::it_passes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out
+HOME-SENTINEL: CLEAN
+"""
+
+RED_E2E = """  PASS  : 151
+  FAIL  : 3
+  SKIP  : 12
+
+Failed assertions:
+  - track1 :: agent list --json :: exit code
+  - track1 :: config show :: missing field
+"""
+
+GREEN_E2E = """  PASS  : 154
+  FAIL  : 0
+  SKIP  : 12
+All assertions passed.
+"""
+
+
+def check_red_tests_are_named() -> None:
+    print("worktree verdicts: a red names the tests that made it red")
+
+    guards = {guard.key: guard for guard in worktree_verdicts.GUARDS}
+    red = worktree_verdicts.measure_cargo_test(RED_CARGO, 101)
+    case(
+        "a red run records the name of every failing test",
+        red["failed_tests"]
+        == [
+            "tests::result_tests_shaped_like_the_trap",
+            "tests::it_fails",
+            "src/lib.rs - add (line 3)",
+        ]
+        and red["failed"] == 3,
+        f"measured {red!r}. The recorder kept the counts and threw the names "
+        f"away, which is the difference between a guard that says red and a "
+        f"guard that says what fell",
+    )
+
+    green = worktree_verdicts.measure_cargo_test(GREEN_CARGO, 0)
+    case(
+        "positive control: a green run invents no name and is not `not measured`",
+        green["failed_tests"] == []
+        and green["failed"] == 0
+        and not worktree_verdicts.unmeasured({"measures": green}),
+        f"measured {green!r}. An extraction that answered None on a green "
+        f"would satisfy the case above and read every green run as a guard "
+        f"that measured nothing",
+    )
+
+    nothing = worktree_verdicts.measure_cargo_test("", 101)
+    entry = {"prepared": True, "measures": nothing}
+    case(
+        "a run that measured nothing names nothing, and says so",
+        nothing["failed_tests"] is None
+        and nothing["failed"] is None
+        and worktree_verdicts.cell(entry, guards["cargo-test"]) == "not measured",
+        f"measured {nothing!r}, cell "
+        f"{worktree_verdicts.cell(entry, guards['cargo-test'])!r}. An empty "
+        f"list on a run that never reported would claim a suite ran clean when "
+        f"no suite ran at all",
+    )
+
+    linux = worktree_verdicts.measure_linux_test(RED_CARGO, 1)
+    case(
+        "the Linux mirror names its red too, and its counts are unchanged",
+        linux["failed_tests"] == red["failed_tests"]
+        and (linux["binaries"], linux["tests"]) == (2, 4),
+        f"measured {linux!r}. The container prints the same lines and "
+        f"linux-check.sh tees them, so a Linux red is readable without the "
+        f"replay it cost on 2026-08-27",
+    )
+
+    e2e_red = worktree_verdicts.measure_cli_e2e(RED_E2E, 1)
+    e2e_green = worktree_verdicts.measure_cli_e2e(GREEN_E2E, 0)
+    e2e_blind = worktree_verdicts.measure_cli_e2e("built nothing", 2)
+    case(
+        "the CLI suite names its failed assertions, and only when it ran",
+        e2e_red["failed_cases"]
+        == [
+            "track1 :: agent list --json :: exit code",
+            "track1 :: config show :: missing field",
+        ]
+        and e2e_green["failed_cases"] == []
+        and e2e_blind["failed_cases"] is None,
+        f"red {e2e_red!r}, green {e2e_green!r}, blind {e2e_blind!r}. The three "
+        f"states are the same three the counters already carry, and the names "
+        f"must follow them rather than invent a fourth",
+    )
+
+    many = "\n".join(f"test crate::mod::t{i:02d} ... FAILED" for i in range(40))
+    many += "\ntest result: FAILED. 0 passed; 40 failed; 0 ignored; 0 measured\n"
+    capped = worktree_verdicts.measure_cargo_test(many, 101)
+    lines = worktree_verdicts.red_lines(guards["cargo-test"], capped)
+    case(
+        "the list is capped, and the cap says what it hid",
+        len(capped["failed_tests"]) == worktree_verdicts.FAILED_CAP
+        and capped["failed"] == 40
+        and lines[-1].endswith(f"more not listed (cap {worktree_verdicts.FAILED_CAP})"),
+        f"kept {len(capped['failed_tests'])} of {capped['failed']}, last line "
+        f"{lines[-1]!r}. A silent truncation is a second thing thrown away, "
+        f"and an uncapped list is a record nobody reads",
+    )
+
+    named = [(guard.key, guard.reds) for guard in worktree_verdicts.GUARDS if guard.reds]
+    compared = [
+        (guard.key, key)
+        for guard in worktree_verdicts.GUARDS
+        if guard.reds
+        for key in guard.reds
+        if key in guard.compared
+    ]
+    case(
+        "the three suites name their red, and no name decides the comparison",
+        [key for key, _ in named] == ["cargo-test", "cli-e2e", "linux-test"]
+        and compared == [("cli-e2e", "fail")],
+        f"guards that name a red {named!r}, name keys inside the comparison "
+        f"{compared!r}. Comparing which tests fell would hand the criterion to "
+        f"the flaky test the framing took it away from; `fail` is a count, and "
+        f"it was already compared before the names existed",
+    )
 
 
 # ── The desktop automation report reader ─────────────────────────────────────
@@ -2501,6 +2671,8 @@ def main() -> int:
     print()
     check_worktree_comparator()
     print()
+    check_red_tests_are_named()
+    print()
     check_automation_report_reader()
     print()
     check_e2e_failure_detail()
@@ -2532,7 +2704,9 @@ def main() -> int:
         "and its one exemption is bounded from both sides, two equal exit codes "
         "over different measures are not the same verdict, and a failed "
         "assertion reaches the artifact with its cause while a passing one adds "
-        "nothing to it, every tracked guard is named by a file that launches "
+        "nothing to it, and the heavy-guard recorder names the tests that made "
+        "a suite red where a green one invents none, every tracked guard is "
+        "named by a file that launches "
         "it, the recipe that launches them answers 2 rather than 0 when one "
         "of them measured nothing, every tracked script answers --help "
         "without measuring, "

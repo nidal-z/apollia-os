@@ -34,6 +34,18 @@ cause that has nothing to do with the worktree. The number of test binaries and
 the number of tests executed separate "died at the build" from "ran, and one
 test flinched", which is the distinction that matters here.
 
+A guard that runs a test suite also keeps the names of the tests that made it
+red. It kept none until 2026-08-27, and the cost was measured that day: the
+`linux-test` line answered `exit 1, 79 bin, 4437 tst` inside a recording, and
+learning which three tests had fallen took a replay of the whole Linux suite
+under artificial load. The names are a diagnostic, not a measure. They are
+recorded and printed, and they stay outside the comparison for the reason the
+paragraph above gives: two trees that fail on different tests with the same
+counts are the flaky test taking the criterion hostage, not a parity gap. The
+list is capped, and the cap prints what it hid instead of truncating in
+silence. An empty list is a suite that ran with nothing red; a `null` is a
+suite that measured nothing at all, and the two never read alike.
+
 Preconditions are probed on the spot rather than read from a state file, because
 a state file believes and a probe measures. A guard whose precondition is
 missing is recorded as `not prepared`, never as a verdict: a wrong verdict is
@@ -91,7 +103,7 @@ def strip(text: str) -> str:
     return ANSI.sub("", text)
 
 
-def measure_exit(_: str, code: int) -> dict[str, int | None]:
+def measure_exit(_: str, code: int) -> dict[str, object]:
     return {"exit": code}
 
 
@@ -109,9 +121,43 @@ TEST_SUMMARY = re.compile(
 HOME_SENTINEL = re.compile(r"^HOME-SENTINEL: (?:CLEAN|CHANGED (\d+))$", re.M)
 
 
-def measure_cargo_test(output: str, code: int) -> dict[str, int | None]:
-    """Test binaries that reported a result, tests they executed, and the
-    home-sentinel verdict.
+# One line per failing test, printed by libtest and by the doc-test harness
+# alike. Read on a real red rather than assumed: a throwaway crate with two
+# failing unit tests and one failing doc-test renders
+#
+#     test tests::it_fails ... FAILED
+#     test src/lib.rs - add (line 3) ... FAILED
+#
+# so the name holds spaces and is read lazily up to the ` ... FAILED` marker.
+# The two neighbouring shapes are excluded by the same anchors: an ignored test
+# ends `... ignored, <reason>`, and the summary line `test result: FAILED. 1
+# passed; 2 failed;` carries no ` ... ` at all. The indented list under the
+# second `failures:` block names the same tests, and is deliberately not the
+# source here: its lines cannot be told apart from a panic message a failing
+# test printed with the same indentation.
+TEST_FAILED = re.compile(r"^test (.+?) \.\.\. FAILED$", re.M)
+
+# Failed assertions of tests/cli/cli-e2e.sh, printed under a header once the
+# summary is out: `Failed assertions:` then one `  - <label>` per assertion.
+E2E_FAILED_HEADER = "Failed assertions:"
+E2E_FAILED_LABEL = re.compile(r"^ {2}- (.+)$")
+
+# A suite that breaks deep enough names hundreds of tests, and a record nobody
+# can read is a record nobody reads. Twenty-five names identify the cluster and
+# the crate it lives in, which is what the reader of a red needs before
+# replaying it; past that the shape of the failure is the information, not the
+# list. What the cap drops is counted and printed, never dropped in silence.
+FAILED_CAP = 25
+
+
+def failed_tests(output: str) -> list[str]:
+    """The names of the tests this output reports as FAILED, capped."""
+    return TEST_FAILED.findall(output)[:FAILED_CAP]
+
+
+def measure_cargo_test(output: str, code: int) -> dict[str, object]:
+    """Test binaries that reported a result, tests they executed, the tests
+    that failed, and the home-sentinel verdict.
 
     Ignored tests are counted out: they are compiled and skipped, so counting
     them would let a `#[ignore]` added on one side hide a test that stopped
@@ -125,6 +171,11 @@ def measure_cargo_test(output: str, code: int) -> dict[str, int | None]:
     the wrapper pointed HOME at; an absent verdict line records None, which
     reads `not measured`, because a run that never watched the sentinel is not
     a run that left it untouched.
+
+    `failed` is the total the summary lines declare and `failed_tests` the
+    names the run printed, capped. The two are kept apart on purpose: a run
+    declaring five failures and naming none is an extraction that broke, and
+    saying so is the whole subject of this key.
     """
     summaries = TEST_SUMMARY.findall(output)
     sentinel = HOME_SENTINEL.search(output)
@@ -134,6 +185,8 @@ def measure_cargo_test(output: str, code: int) -> dict[str, int | None]:
             "exit": code,
             "binaries": None,
             "tests": None,
+            "failed": None,
+            "failed_tests": None,
             "home_changes": home_changes,
         }
     executed = sum(int(passed) + int(failed) for passed, failed, _ in summaries)
@@ -141,11 +194,13 @@ def measure_cargo_test(output: str, code: int) -> dict[str, int | None]:
         "exit": code,
         "binaries": len(summaries),
         "tests": executed,
+        "failed": sum(int(failed) for _, failed, _ in summaries),
+        "failed_tests": failed_tests(output),
         "home_changes": home_changes,
     }
 
 
-def measure_linux_test(output: str, code: int) -> dict[str, int | None]:
+def measure_linux_test(output: str, code: int) -> dict[str, object]:
     """The cargo test summaries of a containerised Linux run.
 
     Same summary-line reading as `measure_cargo_test`, without the home
@@ -155,25 +210,70 @@ def measure_linux_test(output: str, code: int) -> dict[str, int | None]:
     measured (no docker, daemon silent, image or container failure); no
     summary line is printed on that path, so both counts stay None and the
     row reads `not measured` rather than passing for a verdict.
+
+    The container prints the same `test <name> ... FAILED` lines as a local
+    run, and linux-check.sh tees them to its own standard output, so the names
+    of a Linux red are readable here without replaying the suite. That replay
+    is what the absence of this key cost on 2026-08-27.
     """
     summaries = TEST_SUMMARY.findall(output)
     if not summaries:
-        return {"exit": code, "binaries": None, "tests": None}
+        return {
+            "exit": code,
+            "binaries": None,
+            "tests": None,
+            "failed": None,
+            "failed_tests": None,
+        }
     executed = sum(int(passed) + int(failed) for passed, failed, _ in summaries)
-    return {"exit": code, "binaries": len(summaries), "tests": executed}
+    return {
+        "exit": code,
+        "binaries": len(summaries),
+        "tests": executed,
+        "failed": sum(int(failed) for _, failed, _ in summaries),
+        "failed_tests": failed_tests(output),
+    }
 
 
-def measure_cli_e2e(output: str, code: int) -> dict[str, int | None]:
+def failed_assertions(output: str) -> list[str]:
+    """The assertion labels cli-e2e.sh lists under its red header, capped.
+
+    The header is followed by one label per line and by nothing else, so the
+    run of `  - ` lines that follows it is the list. Reading every `  - ` line
+    of the output instead would collect the bullets of any track that prints
+    one.
+    """
+    lines = output.splitlines()
+    header = [i for i, line in enumerate(lines) if line.strip() == E2E_FAILED_HEADER]
+    if not header:
+        return []
+    labels: list[str] = []
+    for line in lines[header[0] + 1 :]:
+        found = E2E_FAILED_LABEL.match(line.rstrip())
+        if found is None:
+            break
+        labels.append(found.group(1))
+    return labels[:FAILED_CAP]
+
+
+def measure_cli_e2e(output: str, code: int) -> dict[str, object]:
+    """The counters of the CLI suite, and the assertions that made it red.
+
+    `failed_cases` follows the counters: a suite whose summary was never
+    printed measured nothing, and an empty list there would claim it ran
+    without a red.
+    """
     passed = re.search(r"^\s*PASS\s*:\s*(\d+)\s*$", output, re.M)
     failed = re.search(r"^\s*FAIL\s*:\s*(\d+)\s*$", output, re.M)
     return {
         "exit": code,
         "pass": int(passed.group(1)) if passed else None,
         "fail": int(failed.group(1)) if failed else None,
+        "failed_cases": None if failed is None else failed_assertions(output),
     }
 
 
-def measure_svelte_check(output: str, code: int) -> dict[str, int | None]:
+def measure_svelte_check(output: str, code: int) -> dict[str, object]:
     done = re.search(r"COMPLETED (\d+) FILES (\d+) ERRORS", output)
     return {
         "exit": code,
@@ -182,7 +282,7 @@ def measure_svelte_check(output: str, code: int) -> dict[str, int | None]:
     }
 
 
-def measure_vitest(output: str, code: int) -> dict[str, int | None]:
+def measure_vitest(output: str, code: int) -> dict[str, object]:
     total = re.search(r"^\s*Tests\s+.*\((\d+)\)\s*$", output, re.M)
     return {"exit": code, "tests": int(total.group(1)) if total else None}
 
@@ -195,7 +295,7 @@ AUTOMATION_RED = re.compile(
 )
 
 
-def measure_automation(output: str, code: int) -> dict[str, int | None]:
+def measure_automation(output: str, code: int) -> dict[str, object]:
     green = AUTOMATION_GREEN.search(output)
     if green:
         return {
@@ -237,6 +337,7 @@ class Guard:
         compared: tuple[str, ...],
         render,
         *,
+        reds: tuple[str, str] | None = None,
         exempt_when_unprepared: str | None = None,
         exempt: str | None = None,
     ) -> None:
@@ -248,6 +349,11 @@ class Guard:
         self.measure = measure
         self.compared = compared
         self.render = render
+        # A guard that runs a suite names its reds: the measure key holding the
+        # names, and the key holding how many failures the run declared. The
+        # second is what makes the cap visible, and what tells a run with five
+        # failures and no name from a run with five names.
+        self.reds = reds
         # A guard whose preparation is a manual act (a run of the real desktop
         # app) cannot be demanded of every comparison: exempting its
         # "not prepared" state keeps the comparison usable while still
@@ -265,34 +371,65 @@ class Guard:
         return None
 
 
-def render_exit(m: dict[str, int | None]) -> str:
+def render_exit(m: dict[str, object]) -> str:
     return f"exit {m['exit']}"
 
 
-def render_cargo_test(m: dict[str, int | None]) -> str:
+def render_cargo_test(m: dict[str, object]) -> str:
     # `.get`: a record written by the pre-sentinel version of this script has
-    # no `home_changes` key, and rendering it must not crash the comparison.
-    return f"exit {m['exit']}, {m['binaries']} bin, {m['tests']} tst, home {m.get('home_changes')}"
+    # no `home_changes` key, and one written before the failing tests were kept
+    # has no `failed` key. Rendering either must not crash the comparison.
+    return (
+        f"exit {m['exit']}, {m['binaries']} bin, {m['tests']} tst, "
+        f"{m.get('failed')} red, home {m.get('home_changes')}"
+    )
 
 
-def render_linux_test(m: dict[str, int | None]) -> str:
-    return f"exit {m['exit']}, {m['binaries']} bin, {m['tests']} tst"
+def render_linux_test(m: dict[str, object]) -> str:
+    return (
+        f"exit {m['exit']}, {m['binaries']} bin, {m['tests']} tst, {m.get('failed')} red"
+    )
 
 
-def render_cli_e2e(m: dict[str, int | None]) -> str:
+def render_cli_e2e(m: dict[str, object]) -> str:
     return f"exit {m['exit']}, PASS {m['pass']}, FAIL {m['fail']}"
 
 
-def render_svelte_check(m: dict[str, int | None]) -> str:
+def render_svelte_check(m: dict[str, object]) -> str:
     return f"exit {m['exit']}, {m['files']} FILES, {m['errors']} ERR"
 
 
-def render_vitest(m: dict[str, int | None]) -> str:
+def render_vitest(m: dict[str, object]) -> str:
     return f"exit {m['exit']}, {m['tests']} tests"
 
 
-def render_automation(m: dict[str, int | None]) -> str:
+def render_automation(m: dict[str, object]) -> str:
     return f"exit {m['exit']}, {m['steps']} steps, {m['failed']} failed"
+
+
+def red_lines(guard: Guard, measures: dict[str, object]) -> list[str]:
+    """What a red guard names, one line per test, plus what the cap hid.
+
+    Nothing is printed for a guard that has no such measure, for a run that
+    measured nothing (the row already reads `not measured`), or for a suite
+    that ran with nothing red. The three are distinguished here rather than
+    collapsed: `None` is an absence of measure, `[]` is a measured green.
+    """
+    if guard.reds is None:
+        return []
+    names_key, total_key = guard.reds
+    names = measures.get(names_key)
+    if not isinstance(names, list) or not names:
+        return []
+    lines = [f"red  {name}" for name in names]
+    total = measures.get(total_key)
+    if isinstance(total, int) and total > len(names):
+        hidden = total - len(names)
+        if len(names) == FAILED_CAP:
+            lines.append(f"...  {hidden} more not listed (cap {FAILED_CAP})")
+        else:
+            lines.append(f"...  {hidden} more the run declared and did not name")
+    return lines
 
 
 # The eight guards of the acceptance criterion, in the order the criterion
@@ -344,6 +481,7 @@ GUARDS = [
         measure_cargo_test,
         ("binaries", "tests", "home_changes"),
         render_cargo_test,
+        reds=("failed_tests", "failed"),
     ),
     Guard(
         "cli-e2e",
@@ -367,6 +505,7 @@ GUARDS = [
         measure_cli_e2e,
         ("exit", "pass", "fail"),
         render_cli_e2e,
+        reds=("failed_cases", "fail"),
     ),
     Guard(
         "ui-build",
@@ -472,6 +611,7 @@ GUARDS = [
         measure_linux_test,
         ("exit", "binaries", "tests"),
         render_linux_test,
+        reds=("failed_tests", "failed"),
         exempt=(
             "needs a Docker daemon and a container build: on a machine where "
             "the daemon is absent or silent the run measures nothing (exit 2), "
@@ -539,6 +679,8 @@ def record(tree: Path, out: Path) -> int:
             "seconds": elapsed,
         }
         print(f"                {guard.render(measures)}   {elapsed}s", flush=True)
+        for line in red_lines(guard, measures):
+            print(f"                {line}", flush=True)
 
     out.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     print(f"\nrecorded {len(GUARDS)} guards to {out}")
@@ -608,12 +750,28 @@ def compare(left_path: Path, right_path: Path) -> int:
     unextracted: list[str] = []
     exempted: list[tuple[str, str]] = []
     outside: list[Guard] = []
+    reds: list[tuple[str, str, list[str]]] = []
 
     for guard in GUARDS:
         left_entry = left["guards"].get(guard.key, {})
         right_entry = right["guards"].get(guard.key, {})
         left_cell = cell(left_entry, guard)
         right_cell = cell(right_entry, guard)
+
+        # Collected before any branch: a guard that leaves the comparison,
+        # exempt or unprepared, still names its red where the reader can act
+        # on it. That is the whole point of keeping the names. Two trees that
+        # fell on the same tests are printed once, under both trees: the
+        # reader of a parity table is looking for what separates them.
+        left_red = red_lines(guard, left_entry.get("measures", {}))
+        right_red = red_lines(guard, right_entry.get("measures", {}))
+        if left_red and left_red == right_red:
+            reds.append((guard.label, "both trees", left_red))
+        else:
+            if left_red:
+                reds.append((guard.label, "main tree", left_red))
+            if right_red:
+                reds.append((guard.label, "worktree", right_red))
 
         if guard.exempt is not None:
             # Printed, never counted: the reason is on the guard and listed
@@ -665,6 +823,15 @@ def compare(left_path: Path, right_path: Path) -> int:
         )
 
     print()
+    if reds:
+        # Printed whatever the verdict is, and printed on standard output: a
+        # red named here is a diagnostic for the reader, not a parity gap. It
+        # never enters `gaps`, so it never decides the exit code.
+        print(f"{len(reds)} guard run(s) named the tests that made them red:")
+        for label, side, named in reds:
+            print(f"  {label}, {side}")
+            for line in named:
+                print(f"    {line}")
     if outside:
         print(f"{len(outside)} guard(s) recorded outside the comparison:")
         for guard in outside:
