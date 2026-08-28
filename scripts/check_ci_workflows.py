@@ -88,6 +88,17 @@ RELEASE_FILE = "release.yml"
 DESKTOP_JOB_PREFIX = "desktop-"
 
 
+SOURCE_ONLY_EXTRACTORS = frozenset({"rust"})
+"""CodeQL languages whose extractor refuses every build mode but `none`.
+
+Measured on 2026-08-28: the `rust` entry carried `build-mode: manual`, and
+every run since the workflow was written died on `A fatal error occurred:
+Rust does not support the manual build mode`, while `python` and
+`javascript-typescript` were analysed normally in the same run. Add a
+language here only once its extractor has refused a mode in a real log.
+"""
+
+
 def _has_updater_guard(job: dict) -> bool:
     """True when one step reads the signing key and names the updater flag."""
     for step in _steps(job):
@@ -121,6 +132,20 @@ def _dispatch_options(doc: dict) -> list[str] | None:
         return None
     options = job_input.get("options")
     return [str(option) for option in options] if isinstance(options, list) else None
+
+
+def _matrix_include(job: dict) -> list[dict]:
+    """The `strategy.matrix.include` entries of one job, mappings only."""
+    strategy = job.get("strategy")
+    if not isinstance(strategy, dict):
+        return []
+    matrix = strategy.get("matrix")
+    if not isinstance(matrix, dict):
+        return []
+    include = matrix.get("include")
+    if not isinstance(include, list):
+        return []
+    return [entry for entry in include if isinstance(entry, dict)]
 
 
 def _steps(job: dict) -> list[dict]:
@@ -178,6 +203,17 @@ def audit_file(path: Path) -> tuple[list[str], int]:
                 f"{path.name}: job {job_id}: [advisory-name] continue-on-error "
                 f"without 'advisory' in its name {name!r}"
             )
+
+        for entry in _matrix_include(job):
+            language = str(entry.get("language", ""))
+            mode = str(entry.get("build-mode", ""))
+            if language in SOURCE_ONLY_EXTRACTORS and mode and mode != "none":
+                defects.append(
+                    f"{path.name}: job {job_id}: [codeql-build-mode] language "
+                    f"{language!r} declares build-mode {mode!r}; its extractor "
+                    f"reads sources and accepts only 'none', so the job dies "
+                    f"before it analyses a single file"
+                )
 
         if options is not None:
             if job_id not in options:

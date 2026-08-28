@@ -26,12 +26,19 @@ jobs:
             build-mode: none
           - language: python
             build-mode: none
+          # The Rust extractor reads sources; it rejects `manual` outright,
+          # naming `none` as the only mode it accepts. A manual entry here
+          # failed every run until 2026-08-28 while the other two languages
+          # were analysed normally.
           - language: rust
-            build-mode: manual
+            build-mode: none
 
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
+      # Kept although `none` builds nothing: the extractor resolves the
+      # workspace through cargo metadata when a toolchain is on PATH, and the
+      # step costs seconds against a dependency graph it would otherwise miss.
       - if: matrix.language == 'rust'
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
@@ -42,10 +49,6 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
-
-      - if: matrix.language == 'rust'
-        name: Build Rust workspace
-        run: cargo build --workspace --locked
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4
