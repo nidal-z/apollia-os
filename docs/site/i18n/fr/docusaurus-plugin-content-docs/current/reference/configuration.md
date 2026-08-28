@@ -80,7 +80,7 @@ Capacités de l'EventBus et des mailbox.
 | `bind` | `String` | `"127.0.0.1".to_owned()` | Adresse IP sur laquelle lier l'écouteur TCP. |
 | `port` | `u16` | `7771` | Port TCP du serveur REST. |
 | `require_token` | `bool` | `true` | Exige un jeton Bearer sur chaque connexion TCP entrante. |
-| `unix_socket` | `PathBuf` | `~/.apollia/runtime.sock` | Chemin du socket Unix local. Le serveur le passe en `0600` après le bind. |
+| `unix_socket` | `PathBuf` | `crate::paths::socket_path_or_temp()` | Chemin du socket Unix local. |
 | `tls_cert` | `Option<PathBuf>` | `None` | Chaîne de certificats PEM pour le TLS natif sur l'écouteur TCP. |
 | `tls_key` | `Option<PathBuf>` | `None` | Clé privée PEM correspondant à [`tls_cert`](Self::tls_cert). |
 
@@ -148,6 +148,16 @@ Capture et rétention des traces. Lu par l'application desktop uniquement.
 | `capture_agent_logs` | `bool` | `true` | Si `true`, persiste les appels Python `ctx.log()` sur la trace (défaut `true`). Désactiver laisse `tracing::*` fonctionner mais n'écrit plus rien dans `runtime_events.db`. |
 | `retention_days` | `u32` | `90` | Durée de rétention en jours des `runtime_events` avant purge automatique (défaut 90, cohérent avec audit.db). |
 <!-- END GENERATED: config-fields -->
+
+### Le socket Unix, en entier
+
+La valeur par défaut de `[api].unix_socket` est rendue ci-dessus sous la forme
+de l'expression Rust vers laquelle le type se replie, puisque la table est
+dérivée de la source. Elle se résout en `~/.apollia/runtime.sock`, et en un
+socket sous le répertoire temporaire de la plateforme lorsque aucun répertoire
+personnel ne peut être résolu. Le serveur passe le fichier en `0600` juste
+après le bind, si bien que seul le compte qui a démarré le runtime peut
+l'atteindre.
 
 ### Sections retirées
 

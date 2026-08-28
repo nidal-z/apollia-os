@@ -78,7 +78,7 @@ TCP listener, authentication, TLS, Unix socket.
 | `bind` | `String` | `"127.0.0.1".to_owned()` | IP address to bind the TCP listener to. |
 | `port` | `u16` | `7771` | TCP port of the REST server. |
 | `require_token` | `bool` | `true` | Require a Bearer token on every inbound TCP connection. |
-| `unix_socket` | `PathBuf` | `~/.apollia/runtime.sock` | Local Unix socket path. The server sets it to `0600` after binding. |
+| `unix_socket` | `PathBuf` | `crate::paths::socket_path_or_temp()` | Local Unix socket path. |
 | `tls_cert` | `Option<PathBuf>` | `None` | PEM certificate chain for native TLS on the TCP listener. |
 | `tls_key` | `Option<PathBuf>` | `None` | PEM private key matching [`tls_cert`](Self::tls_cert). |
 
@@ -146,6 +146,15 @@ Trace capture and retention. Read by the desktop application only.
 | `capture_agent_logs` | `bool` | `true` | If `true`, persists Python `ctx.log()` calls on the trace (default `true`). Disabling keeps `tracing::*` working but writes no record in `runtime_events.db`. |
 | `retention_days` | `u32` | `90` | Retention period in days for `runtime_events` before automatic purge (default 90, consistent with audit.db). |
 <!-- END GENERATED: config-fields -->
+
+### The Unix socket, in full
+
+The default of `[api].unix_socket` is rendered above as the Rust expression the
+type falls back to, since the table is derived from the source. It resolves to
+`~/.apollia/runtime.sock`, and to a socket under the platform temporary
+directory when no home directory can be resolved. The server sets the file to
+mode `0600` right after binding, so only the account that started the runtime
+can reach it.
 
 ### Sections that were withdrawn
 
