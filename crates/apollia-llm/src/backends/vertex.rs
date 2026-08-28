@@ -95,7 +95,15 @@ struct GoogleToken {
 impl GoogleToken {
     /// Return `true` if the token is still usable, accounting for the safety margin.
     fn is_valid(&self) -> bool {
-        Utc::now() < self.expires_at - Duration::seconds(TOKEN_EXPIRY_MARGIN_SECS)
+        // `expires_at` is built by `checked_add_signed`, so it is a
+        // representable instant; the margin is a small constant, and an
+        // unrepresentable difference means the token is not usable.
+        match Duration::try_seconds(TOKEN_EXPIRY_MARGIN_SECS)
+            .and_then(|margin| self.expires_at.checked_sub_signed(margin))
+        {
+            Some(deadline) => Utc::now() < deadline,
+            None => false,
+        }
     }
 }
 
@@ -241,9 +249,21 @@ impl VertexClient {
                     LlmError::ParseError(format!("cannot parse OAuth2 token refresh response: {e}"))
                 })?;
 
+        // `expires_in` is a number a remote endpoint chose. chrono's `Add`
+        // panics on overflow, so an absurd lifetime is a malformed response,
+        // not a dead thread.
+        let expires_at = Duration::try_seconds(refresh.expires_in)
+            .and_then(|lifetime| Utc::now().checked_add_signed(lifetime))
+            .ok_or_else(|| {
+                LlmError::ParseError(format!(
+                    "OAuth2 token refresh response carries an unusable expires_in: {}",
+                    refresh.expires_in
+                ))
+            })?;
+
         Ok(GoogleToken {
             access_token: refresh.access_token,
-            expires_at: Utc::now() + Duration::seconds(refresh.expires_in),
+            expires_at,
         })
     }
 

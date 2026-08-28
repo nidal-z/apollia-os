@@ -386,12 +386,21 @@ fn parse_interval_schedule(folded: &str, now_utc: DateTime<Utc>) -> Option<Parse
     if !(folded.contains("toutes les") || folded.contains("every") || folded.contains("chaque")) {
         return None;
     }
+    // An interval whose first run cannot be expressed as a UTC instant is not a
+    // schedule, it is an unreadable phrase. chrono panics on overflow for both
+    // `TimeDelta::seconds` and `DateTime + TimeDelta`, so both steps are taken
+    // fallibly and a dictated "every 7777777777 days" joins the inputs the
+    // parser declines rather than killing the thread that parsed it.
+    let next_run_at = i64::try_from(every_seconds)
+        .ok()
+        .and_then(Duration::try_seconds)
+        .and_then(|delta| now_utc.checked_add_signed(delta))?;
     Some(ParsedSchedule::Interval {
         every,
         every_seconds,
         human_label_fr: format!("Toutes les {}", humanize_interval_fr(every_seconds)),
         human_label_en: format!("Every {}", humanize_interval_en(every_seconds)),
-        next_run_at: now_utc + Duration::seconds(every_seconds as i64),
+        next_run_at,
     })
 }
 
