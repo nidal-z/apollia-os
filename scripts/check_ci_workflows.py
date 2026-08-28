@@ -134,6 +134,22 @@ def _dispatch_options(doc: dict) -> list[str] | None:
     return [str(option) for option in options] if isinstance(options, list) else None
 
 
+REGEN_CALL = re.compile(r"^\s*(?:bash|sh|\./)\s*\S*regen\.sh\b")
+"""A line that runs `regen.sh`, as opposed to one that merely names it."""
+
+
+REGEN_ONLY_INVOCATIONS = ("gen-cli-docs", "docs/site/scripts/gen_")
+"""Generation commands a workflow must reach through `docs/site/regen.sh`.
+
+Measured on 2026-08-28: the `docs-generated` job carried its own copy of the
+five generation steps. The copy had drifted from the script in the way that
+decides a verdict, `set -euo pipefail`: a failed `cargo run` was swallowed by
+the `perl` closing its pipe, the page was written with its header alone, and
+the drift check reported stale documentation over a build that never ran.
+One source, or the copy drifts again.
+"""
+
+
 def _matrix_include(job: dict) -> list[dict]:
     """The `strategy.matrix.include` entries of one job, mappings only."""
     strategy = job.get("strategy")
@@ -203,6 +219,24 @@ def audit_file(path: Path) -> tuple[list[str], int]:
                 f"{path.name}: job {job_id}: [advisory-name] continue-on-error "
                 f"without 'advisory' in its name {name!r}"
             )
+
+        for step in _steps(job):
+            run = str(step.get("run", ""))
+            # An invocation, not a mention: the step this rule was written for
+            # names regen.sh inside an `echo` that stamps the generated header,
+            # and a substring test excused it on the strength of its own banner.
+            if any(REGEN_CALL.match(line) for line in run.splitlines()):
+                continue
+            for invocation in REGEN_ONLY_INVOCATIONS:
+                if invocation in run:
+                    defects.append(
+                        f"{path.name}: job {job_id}: [regen-single-source] a "
+                        f"step runs {invocation!r} itself instead of "
+                        f"`bash docs/site/regen.sh`; the copy drops the "
+                        f"script's `set -euo pipefail` and turns a failed "
+                        f"generator into stale-looking documentation"
+                    )
+                    break
 
         for entry in _matrix_include(job):
             language = str(entry.get("language", ""))
