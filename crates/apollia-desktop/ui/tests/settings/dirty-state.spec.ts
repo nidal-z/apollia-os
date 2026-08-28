@@ -8,6 +8,19 @@ import { test, expect } from "@playwright/test";
  * payloads so we can focus on the UI's dirty-state machinery.
  */
 
+// Skipped, with the condition stated rather than left to the reader. Same
+// discipline as `#[ignore = "..."]` on the Rust side.
+test.skip(
+  true,
+  "runs again once (a) the stub in this file exposes " +
+    "__TAURI_INTERNALS__.transformCallback and array-shaped list_* payloads, " +
+    "without which the bundle stays on app-loading with nothing logged, and " +
+    "(b) these cases reach the settings pages through a gesture the " +
+    "application supports: nothing in src/ reads the '?route=&sub=' query, " +
+    "navigation goes through the currentRoute store " +
+    "(src/lib/stores/navigation.ts), so the page under test never mounts",
+);
+
 type InvokeStub = (cmd: string, args: unknown) => unknown;
 
 // Install a Tauri stub before any app code runs. Each spec specialises the

@@ -38,16 +38,29 @@ Navigation anchors are held two ways, because the tree is not clean on them:
     fragment, that the application has never implemented. Repairing them is a
     separate piece of work; until then the ceiling forbids a ninth.
 
-What this guard still does not measure is whether a spec has ever *passed*.
-Nothing in CI runs the corpus, so a spec can be reachable, correctly anchored,
-and red on every run since the day it was written. That is the state of the
-five remaining specs, and the ratchet above is the pressure on it rather than
-the cure.
+A skipped case is held the same way a Rust `#[ignore]` is: it names, on the
+spot, what has to be true for it to run again. Three things are checked, and
+the third is the one a reader feels:
+
+  - every `test.skip` / `test.fixme` site carries a reason string. A bare
+    `test.skip(true)` is a case nobody can ever justify re-enabling.
+  - the number of such sites is a descending ratchet. Measured at 5 on
+    2026-08-28: four spec files whose harness stub and navigation both predate
+    the application they address, plus one case inside the responsive spec.
+  - the configuration declares a `globalSetup` that prints those reasons. The
+    `list` reporter renders a skip as a bare dash and drops the annotation, so
+    without that banner an honest skip reads exactly like a silent one.
+
+What this guard still does not measure is whether a running spec asserts
+something the application still does. Nothing in CI runs the corpus; three
+responsive cases pass locally and the rest is skipped under the conditions
+above.
 
 Exit codes:
     0  measured, every spec sits under a configured testDir, every testid it
-       anchors on resolves, every storage key it writes is read by the UI, and
-       the unreachable-navigation count sits at or below the ceiling
+       anchors on resolves, every storage key it writes is read by the UI, the
+       unreachable-navigation count sits at or below the ceiling, and every
+       skipped case names its condition
     1  defect found
     2  nothing measured (no tracked spec, no testDir, or an empty corpus)
 
@@ -91,6 +104,21 @@ NEGATIVE_ANCHORS = {"this-should-match-nothing"}
 # place the application cannot be sent to, which is how the two perf specs
 # spent their whole life red.
 MAX_UNREACHABLE_NAVIGATIONS = 8
+
+# Skip sites, measured at 5 on 2026-08-28: a file-scope skip in each of the
+# four specs whose stub and navigation predate the application, and one case
+# inside `multi-viewport.spec.ts` whose three siblings run. This number
+# descends. It is the count of cases the corpus has stopped covering, and the
+# only honest way down is repairing a spec, never widening the ceiling.
+MAX_SKIP_SITES = 5
+
+# A reason shorter than this names nothing. The shortest condition in the
+# corpus is a full sentence naming a file and a symbol.
+MIN_REASON_CHARS = 60
+
+SKIP_SITE_RE = re.compile(r"\btest(?:\.describe)?\.(?:skip|fixme)\s*\(")
+REASON_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
+GLOBAL_SETUP_RE = re.compile(r'globalSetup:\s*["\']([^"\']+)["\']')
 
 
 def tracked(pattern: str) -> list[str]:
@@ -190,6 +218,39 @@ def unreachable_navigations(spec_text: str, src: str) -> list[str]:
     return found
 
 
+def skip_sites(spec_text: str) -> list[str | None]:
+    """One entry per `test.skip` / `test.fixme` site, its reason or None.
+
+    The reason is the concatenation of the double-quoted literals inside the
+    call, because a condition long enough to be useful is written as a sum of
+    string parts rather than one line over the formatter's width.
+    """
+    sites: list[str | None] = []
+    for match in SKIP_SITE_RE.finditer(spec_text):
+        depth = 0
+        end = None
+        for i in range(match.end() - 1, len(spec_text)):
+            char = spec_text[i]
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        args = spec_text[match.end() : end] if end is not None else ""
+        parts = REASON_RE.findall(args)
+        sites.append("".join(parts) if parts else None)
+    return sites
+
+
+def configured_globalsetup(config_text: str) -> str | None:
+    match = GLOBAL_SETUP_RE.search(config_text)
+    if match is None:
+        return None
+    return str(PurePosixPath(UI_DIR) / PurePosixPath(match.group(1)))
+
+
 def configured_testdirs(config_text: str) -> list[PurePosixPath]:
     dirs = []
     for raw in TESTDIR_RE.findall(config_text):
@@ -207,7 +268,8 @@ def main() -> int:
     if not config_path.is_file():
         print(f"NOTHING MEASURED: {CONFIG} not found")
         return 2
-    testdirs = configured_testdirs(config_path.read_text(encoding="utf-8"))
+    config_text = config_path.read_text(encoding="utf-8")
+    testdirs = configured_testdirs(config_text)
     if not testdirs:
         print(f"NOTHING MEASURED: no testDir declared in {CONFIG}")
         return 2
@@ -226,6 +288,7 @@ def main() -> int:
     total_ids = 0
     total_keys = 0
     unreachable: list[str] = []
+    skips: list[str] = []
     for spec in specs:
         path = PurePosixPath(spec)
         if not any(td == path.parent or td in path.parents for td in testdirs):
@@ -262,6 +325,49 @@ def main() -> int:
             for site in unreachable_navigations(text, src)
         )
 
+        for reason in skip_sites(text):
+            skips.append(spec)
+            if reason is None:
+                detail = "no reason string at all"
+            elif len(reason) < MIN_REASON_CHARS:
+                detail = f"{len(reason)} chars, floor is {MIN_REASON_CHARS}"
+            else:
+                continue
+            problems.append(
+                f"{spec}: a skip site names no condition ({detail}); a case "
+                f"skipped without saying what has to be true first is a case "
+                f"nobody can ever justify re-enabling"
+            )
+
+    if skips:
+        declared = configured_globalsetup(config_text)
+        if declared is None:
+            problems.append(
+                f"{len(skips)} skip site(s) but {CONFIG} declares no "
+                f"globalSetup; the list reporter renders a skip as a bare dash "
+                f"and drops its annotation, so the conditions reach nobody"
+            )
+        elif declared not in tracked(declared):
+            problems.append(
+                f"{CONFIG} declares globalSetup {declared!r}, which is not a "
+                f"tracked file; the banner that prints the skip conditions "
+                f"does not exist"
+            )
+
+    if len(skips) > MAX_SKIP_SITES:
+        problems.extend(f"{spec}: skip site" for spec in skips)
+        problems.append(
+            f"{len(skips)} skip site(s), ceiling is {MAX_SKIP_SITES}; a case "
+            f"that stops running is coverage the corpus has given up, and the "
+            f"ceiling exists so it is given up deliberately"
+        )
+    elif len(skips) < MAX_SKIP_SITES:
+        problems.append(
+            f"{len(skips)} skip site(s) but MAX_SKIP_SITES is still "
+            f"{MAX_SKIP_SITES}; lower it in this commit so the ratchet keeps "
+            f"the ground it just gained"
+        )
+
     if len(unreachable) > MAX_UNREACHABLE_NAVIGATIONS:
         problems.extend(unreachable)
         problems.append(
@@ -287,7 +393,8 @@ def main() -> int:
         f"{len(specs)} spec(s), {total_ids} testid(s) resolved against a "
         f"corpus of {corpus_size} literal ids, {total_keys} storage key(s) "
         f"read by the UI, {len(unreachable)} unreachable navigation site(s) "
-        f"at a ceiling of {MAX_UNREACHABLE_NAVIGATIONS}, "
+        f"at a ceiling of {MAX_UNREACHABLE_NAVIGATIONS}, {len(skips)} skip "
+        f"site(s) naming their condition at a ceiling of {MAX_SKIP_SITES}, "
         f"{len(testdirs)} testDir(s)."
     )
     return 0
@@ -323,11 +430,28 @@ def selftest() -> int:
     if STORAGE_RE.findall(dead) != ["apollia.perftest.messages"]:
         failures.append("STORAGE_RE missed a sessionStorage bridge")
 
+    skipped = (
+        'test.skip(true, "runs again once " + "the router exists");\n'
+        "test.skip(true);\n"
+        'test("kept", async () => { await page.goto("/"); });'
+    )
+    sites = skip_sites(skipped)
+    if sites != ["runs again once the router exists", None]:
+        failures.append(f"skip_sites read {sites!r}, want a reason then None")
+    if skip_sites('test("kept", () => {});'):
+        failures.append("skip_sites invented a site in a spec that skips none")
+
+    if configured_globalsetup('{ testDir: "./tests" }') is not None:
+        failures.append("configured_globalsetup invented a banner")
+    declared = configured_globalsetup('globalSetup: "./tests/skip.ts",')
+    if declared != f"{UI_DIR}/tests/skip.ts":
+        failures.append(f"configured_globalsetup read {declared!r}")
+
     if failures:
         for f in failures:
             print(f"SELFTEST FAILED: {f}")
         return 1
-    print("selftest: 8 rule(s) fired on synthetic input, none misfired.")
+    print("selftest: 12 rule(s) fired on synthetic input, none misfired.")
     return 0
 
 

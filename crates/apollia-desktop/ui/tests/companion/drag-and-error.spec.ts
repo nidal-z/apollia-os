@@ -9,6 +9,21 @@ import { test, expect, type Page } from "@playwright/test";
  * reloads, and minimize hiding the panel.
  */
 
+// This file is skipped, and the annotation below is the whole reason. It is
+// the Playwright form of the rule that governs `#[ignore]` in the Rust tree:
+// a suite that no runner can turn green states what has to be true first.
+test.skip(
+  true,
+  "runs again once (a) the stub in this file exposes " +
+    "__TAURI_INTERNALS__.transformCallback and array-shaped list_* payloads, " +
+    "without which the bundle stays on app-loading with nothing logged, and " +
+    "(b) these cases open the companion themselves: the bundle enables it " +
+    "through get_companion_enabled (src/lib/stores/companion.ts:418), not " +
+    "the get_user_memory key stubbed here, and it deliberately restores the " +
+    "opt-in with the panel closed, so a panel visible on load is a state the " +
+    "application no longer produces",
+);
+
 type InvokeStub = (cmd: string, args: unknown) => unknown;
 
 async function installTauriStub(

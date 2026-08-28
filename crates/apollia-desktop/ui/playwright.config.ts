@@ -20,6 +20,10 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./tests",
+  // Reasons for every skipped case, printed before the run: the `list`
+  // reporter renders a skip as a dash and drops its annotation, which is the
+  // same silence as a red suite nobody reads. See `tests/skip-conditions.ts`.
+  globalSetup: "./tests/skip-conditions.ts",
   timeout: 60_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,
