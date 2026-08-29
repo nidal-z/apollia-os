@@ -89,6 +89,16 @@ jobs:
           # contract), never here: each job reads its name from the contract,
           # so a preset absent from it fails loudly instead of shipping a
           # name no consumer knows.
+          #
+          # Windows ARM carried two presets and carries none for 0.1.0. pandas
+          # publishes no win_arm64 wheel, so pip fell back to the source
+          # archive whose sum is not pinned and --require-hashes refused, which
+          # is the guard working. Building it from source on the runner would
+          # need a C toolchain and NumPy in place for an architecture that is
+          # in none of the three blocking platforms and that neither the
+          # gestural automaton nor a hand pass can reach. Removed rather than
+          # left permanently red: a job nobody can act on teaches an operator
+          # to read past red.
           read -r -d '' FULL <<'JSON' || true
           {
             "include": [
@@ -102,9 +112,7 @@ jobs:
               {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm", "triple":"aarch64-unknown-linux-gnu", "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
               {"preset":"windows-x86-cuda",   "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
               {"preset":"windows-x86-rocm",   "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-rocm",   "needs_rocm":true, "allow_fail":true},
-              {"preset":"windows-x86-vulkan", "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-vulkan", "needs_vulkan":true, "allow_fail":true},
-              {"preset":"windows-arm-cpu",    "runner":"windows-11-arm",   "triple":"aarch64-pc-windows-msvc",   "features":"local-cpu",    "allow_fail":true},
-              {"preset":"windows-arm-cuda",   "runner":"windows-11-arm",   "triple":"aarch64-pc-windows-msvc",   "features":"local-cuda",   "needs_cuda":true, "allow_fail":true}
+              {"preset":"windows-x86-vulkan", "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-vulkan", "needs_vulkan":true, "allow_fail":true}
             ]
           }
           JSON

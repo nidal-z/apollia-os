@@ -129,26 +129,6 @@
       "sha256": true,
       "llama_server": "vulkan",
       "self_update": false
-    },
-    {
-      "preset": "windows-arm-cpu",
-      "os": "windows",
-      "arch": "aarch64",
-      "triple": "aarch64-pc-windows-msvc",
-      "archive": "apollia-os-windows-arm-cpu.zip",
-      "sha256": true,
-      "llama_server": null,
-      "self_update": true
-    },
-    {
-      "preset": "windows-arm-cuda",
-      "os": "windows",
-      "arch": "aarch64",
-      "triple": "aarch64-pc-windows-msvc",
-      "archive": "apollia-os-windows-arm-cuda.zip",
-      "sha256": true,
-      "llama_server": null,
-      "self_update": false
     }
   ],
   "desktop": [
