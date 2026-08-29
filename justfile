@@ -632,9 +632,26 @@ guards:
         reds+=("$guard")
       fi
     done
+    # The externals get the same three codes as the guards above, and for the
+    # same reason. 127 is the shell's own reserved answer for a command it
+    # could not find, so a gate whose tool is not installed observed nothing
+    # and is counted as a skip: reporting it red sent an operator hunting a
+    # defect the corpus never saw. `ruff check scripts` on a machine without
+    # ruff is the case that forced this.
+    #
+    # The bound, stated rather than hidden: this catches a missing tool, not a
+    # missing cargo subcommand. Cargo resolves `cargo machete` through
+    # $CARGO_HOME/bin as well as PATH and answers 101 when the subcommand is
+    # absent, which is indistinguishable here from a subcommand that ran and
+    # found something. Those four gates still read red when uninstalled.
     for gate in "${externals[@]}"; do
-      if bash -c "$gate"; then
+      bash -c "$gate"
+      code=$?
+      if [ "$code" -eq 0 ]; then
         echo "== ok   $gate"
+      elif [ "$code" -eq 127 ]; then
+        echo "== skip $gate (nothing measured: the tool is not installed)"
+        skips+=("$gate")
       else
         echo "== RED  $gate"
         reds+=("$gate")

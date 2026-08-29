@@ -1952,6 +1952,18 @@ def check_guards_recipe_exit() -> None:
             f"code {code}, output {said!r}",
         )
 
+        code, said = _run_recipe(tmp, body, [0], ["apollia-no-such-tool-1a2b3c"])
+        case(
+            "an external gate whose tool is absent measured nothing, not a defect",
+            code == 2 and "1 measured nothing" in said,
+            f"code {code}, output {said!r}. A red here is the confusion this "
+            f"case exists to close, and the externals loop shipped with it "
+            f"while the guards loop above had already been taught the "
+            f"distinction: a tool that is not installed observed nothing, and "
+            f"calling that a defect sends an operator hunting something the "
+            f"corpus never saw",
+        )
+
 
 def _help_reply(script: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
