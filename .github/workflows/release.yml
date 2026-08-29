@@ -277,10 +277,29 @@ jobs:
           bash packaging/build-python-bundle.sh \
             ${{ matrix.triple }} \
             target/python-bundle/${{ matrix.triple }}
-          if [ -x "target/python-bundle/${{ matrix.triple }}/python/bin/python3.13" ]; then
-            echo "PYO3_PYTHON=$(pwd)/target/python-bundle/${{ matrix.triple }}/python/bin/python3.13" >> $GITHUB_ENV
+          # Two spellings of one directory, and the split is deliberate. The
+          # tests run under Git Bash on the Windows runners, where a native
+          # `D:\a\...` path is unreliable, so they stay relative. The values
+          # are read by rustc and PyO3, which are native binaries and cannot
+          # open the MSYS path `$(pwd)` would answer there.
+          REL="target/python-bundle/${{ matrix.triple }}/python"
+          NAT="${{ github.workspace }}/target/python-bundle/${{ matrix.triple }}/python"
+          if [ -x "$REL/bin/python3.13" ]; then
+            echo "PYO3_PYTHON=$NAT/bin/python3.13" >> $GITHUB_ENV
           else
-            echo "PYO3_PYTHON=$(pwd)/target/python-bundle/${{ matrix.triple }}/python/python.exe" >> $GITHUB_ENV
+            echo "PYO3_PYTHON=$NAT/python.exe" >> $GITHUB_ENV
+          fi
+          # python-build-standalone answers `sysconfig` with its build-time
+          # prefix, `LIBDIR=/install/lib`, a directory that exists on no runner.
+          # PyO3 turns that into the only link search path it emits, so the link
+          # dies on `-lpython3.13` while the library sits in the bundle. The two
+          # desktop jobs below already carry this flag; the CLI matrix never did,
+          # which is why they linked and it did not. Windows keeps its import
+          # library in `libs/`, the other two in `lib/`.
+          if [ -d "$REL/libs" ]; then
+            echo "RUSTFLAGS=-L $NAT/libs" >> $GITHUB_ENV
+          else
+            echo "RUSTFLAGS=-L $NAT/lib" >> $GITHUB_ENV
           fi
 
       # ── Build ─────────────────────────────────────────────────────────────
