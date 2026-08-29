@@ -211,7 +211,12 @@ jobs:
           sudo apt-get install -y wget gnupg
           wget -O- https://repo.radeon.com/rocm/rocm.gpg.key | \
             sudo gpg --dearmor -o /usr/share/keyrings/rocm.gpg
-          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0/ jammy main" | \
+          # 6.4 on noble, and both halves of that matter. ROCm 6.0 and 6.1
+          # publish nothing for Ubuntu 24.04 (`dists/noble` answers 404 on
+          # both, 6.2 upward answer 200), while this job runs on ubuntu-24.04:
+          # the jammy line it used to add left apt with held broken packages
+          # and exit 100. The runner moved and the pin did not.
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.4/ noble main" | \
             sudo tee /etc/apt/sources.list.d/rocm.list
           sudo apt-get update -q
           sudo apt-get install -y rocm-hip-sdk rocm-llvm rocblas hipblas
