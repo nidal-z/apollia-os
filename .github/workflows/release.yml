@@ -505,7 +505,13 @@ jobs:
     if: needs.setup.outputs.run_desktop == 'true'
     runs-on: macos-latest
     env:
-      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      # Deliberately not named APPLE_SIGNING_IDENTITY. The Tauri bundler reads
+      # that variable and takes it over the `signingIdentity` pinned in
+      # tauri.conf.json, and a variable defined-but-empty is still a value to
+      # it: it signed with the identity "" and stopped on "no identity found".
+      # A build without the Apple secrets must produce an ad hoc bundle, so the
+      # real variable is exported below, only once it has content.
+      APPLE_IDENTITY_INPUT: ${{ secrets.APPLE_SIGNING_IDENTITY }}
       APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -558,7 +564,7 @@ jobs:
       # re-signed the .app on disk after the build, so the sealed .dmg kept
       # the ad hoc payload and notarization could only refuse it.
       - name: Prepare Apple Developer ID signing (if secrets present)
-        if: env.APPLE_SIGNING_IDENTITY != '' && env.APPLE_API_KEY_P8_BASE64 != ''
+        if: env.APPLE_IDENTITY_INPUT != '' && env.APPLE_API_KEY_P8_BASE64 != ''
         env:
           APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
           APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
@@ -567,6 +573,7 @@ jobs:
         run: |
           echo "$APPLE_API_KEY_P8_BASE64" | base64 -d > "$RUNNER_TEMP/AuthKey.p8"
           {
+            echo "APPLE_SIGNING_IDENTITY=$APPLE_IDENTITY_INPUT"
             echo "APPLE_CERTIFICATE=$APPLE_CERT_P12_BASE64"
             echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERT_PASSWORD"
             echo "APPLE_API_KEY=$APPLE_API_KEY_ID"
