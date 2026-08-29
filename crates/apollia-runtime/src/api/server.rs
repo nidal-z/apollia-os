@@ -41,7 +41,12 @@ use crate::router::TaskRouterHandle;
 pub mod listeners;
 pub mod router;
 
-use listeners::{build_tls_acceptor, is_loopback_addr, serve_tcp, serve_unix};
+use listeners::{build_tls_acceptor, is_loopback_addr, serve_tcp};
+// `serve_unix` is defined under `#[cfg(unix)]` and its only call site is
+// gated the same way. An ungated import here is what kept every Windows
+// target from compiling: the name does not exist off Unix.
+#[cfg(unix)]
+use listeners::serve_unix;
 use router::build_router;
 
 /// Shared, swappable handle to the active [`LlmRouter`].
