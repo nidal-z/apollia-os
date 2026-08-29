@@ -124,10 +124,25 @@ echo "==> Extracting to $PYTHON_DIR"
 tar -xzf "$CACHED_ARCHIVE" -C "$OUT_DIR"
 # The tarball extracts as `python/` - already the layout we want.
 
-# Strip symbols on Linux to shave ~15 MB; macOS `install_only` is already stripped.
+# Strip the shared libraries on Linux; macOS `install_only` is already stripped.
+# Two things this must not do, both measured on the 20260414 x86_64 distribution:
+#
+#   - Touch bin/python3.13. That interpreter is a 111 MB binary which GNU strip
+#     mangles whatever the flag, --strip-debug included: it then answers every
+#     invocation with "no version information available" against itself and
+#     exits 127. That is how the first end-to-end release run died, before it
+#     had installed a single requirement.
+#   - Stop the pattern at `*.so`. libpython3.13.so.1.0 holds 239 MB of the
+#     395 MB tree and the old glob skipped it, so the line took the risk
+#     without collecting the prize.
+#
+# Measured: 395 MB intact, 186 MB after, and the interpreter still imports
+# sqlite3, ssl, ctypes and lzma, which are themselves stripped extension
+# modules. The `--version` check at the end of this script is what renders the
+# verdict on all of it.
 if [[ "$TARGET" == *"linux"* ]]; then
-    find "$PYTHON_DIR" -type f \( -name "*.so" -o -name "python3.13" \) \
-        -exec strip --strip-unneeded {} \; 2>/dev/null || true
+    find "$PYTHON_DIR" -type f -name "*.so*" \
+        -exec strip --strip-debug {} \; 2>/dev/null || true
 fi
 
 echo "==> Python bundle ready at $PYTHON_DIR"
