@@ -238,19 +238,22 @@ pub(super) async fn socket_is_in_use(path: &std::path::Path) -> bool {
     }
 }
 
-/// On Windows there is no Unix socket, so we check whether the default TCP
-/// port is already bound by another daemon.
+/// On Windows there is no Unix socket, so we ask the named pipe instead.
+///
+/// Opening it answers the question directly: a pipe exists only while a
+/// runtime holds it. `ERROR_PIPE_BUSY` counts as in use too, since a busy pipe
+/// is a pipe someone is serving. This used to probe the TCP port, which stops
+/// being the right question once the port is no longer how the CLI reaches the
+/// runtime, and would have reported "free" on a running daemon that opened no
+/// port.
 #[cfg(windows)]
 pub(super) async fn socket_is_in_use(_path: &std::path::Path) -> bool {
-    use crate::client::DEFAULT_TCP_PORT;
-    match tokio::time::timeout(
-        std::time::Duration::from_millis(200),
-        tokio::net::TcpStream::connect(format!("127.0.0.1:{}", DEFAULT_TCP_PORT)),
-    )
-    .await
-    {
-        Ok(Ok(_)) => true,
-        Ok(Err(_)) | Err(_) => false,
+    /// `ERROR_PIPE_BUSY`: every instance is serving a client, so one exists.
+    const ERROR_PIPE_BUSY: i32 = 231;
+    let name = apollia_core::paths::named_pipe_name();
+    match tokio::net::windows::named_pipe::ClientOptions::new().open(&name) {
+        Ok(_) => true,
+        Err(e) => e.raw_os_error() == Some(ERROR_PIPE_BUSY),
     }
 }
 

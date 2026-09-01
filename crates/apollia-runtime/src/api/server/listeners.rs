@@ -1,12 +1,15 @@
-//! The two accept loops behind the server, TCP (optionally TLS) and Unix.
+//! The accept loops behind the server: TCP (optionally TLS), and the local
+//! transport, a Unix socket off Windows and a named pipe on it.
 //!
 //! axum 0.7 serves a bare `TcpListener` natively, which can terminate neither
-//! TLS nor a Unix socket, so both loops are manual `hyper-util` accepts driving
-//! the same router.
+//! TLS, nor a Unix socket, nor a named pipe, so every loop here is a manual
+//! `hyper-util` accept driving the same router.
 
 use std::path::Path;
 
 use axum::Router;
+#[cfg(windows)]
+use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use tokio::net::TcpListener;
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -188,6 +191,81 @@ pub(super) async fn serve_unix(
                     }
                     Err(e) => {
                         tracing::error!(error = %e, "api.unix.accept.failed");
+                    }
+                }
+            }
+            _ = shutdown_rx.wait_for(|v| *v) => break,
+        }
+    }
+}
+
+/// Serve HTTP requests over a Windows named pipe using hyper-util.
+///
+/// The local transport on Windows, where there is no Unix socket to serve. It
+/// replaces a listening TCP port, so a workstation shows no open port for the
+/// runtime, and it carries the token-authenticated router: a pipe takes a
+/// default security descriptor, which is a weaker guarantee than the `0o600`
+/// that guards the socket elsewhere, so the token is what gates access rather
+/// than the pipe's own permissions.
+///
+/// A named pipe serves one client per instance, so the loop creates the next
+/// instance as soon as one connects, and there is always exactly one instance
+/// waiting. Failing to create a successor ends the loop: the server can no
+/// longer accept, and pretending otherwise would leave a runtime that answers
+/// nothing while reporting itself started.
+#[cfg(windows)]
+pub(super) async fn serve_named_pipe(
+    first: NamedPipeServer,
+    pipe_name: String,
+    router: Router,
+    shutdown_rx: &mut watch::Receiver<bool>,
+) {
+    use hyper_util::rt::TokioIo;
+    use hyper_util::server::conn::auto::Builder as ServerBuilder;
+    use hyper_util::service::TowerToHyperService;
+
+    let builder = ServerBuilder::new(hyper_util::rt::TokioExecutor::new());
+    let mut waiting = first;
+
+    loop {
+        tokio::select! {
+            result = waiting.connect() => {
+                match result {
+                    Ok(()) => {
+                        let next = match ServerOptions::new().create(&pipe_name) {
+                            Ok(next) => next,
+                            Err(e) => {
+                                tracing::error!(
+                                    error = %e,
+                                    pipe = %pipe_name,
+                                    "api.pipe.instance.failed"
+                                );
+                                break;
+                            }
+                        };
+                        let connected = std::mem::replace(&mut waiting, next);
+                        let io = TokioIo::new(connected);
+                        let svc = TowerToHyperService::new(router.clone());
+                        let conn_builder = builder.clone();
+                        tokio::spawn(async move {
+                            if let Err(e) = conn_builder.serve_connection(io, svc).await {
+                                // Same benign endings as the Unix loop: the client
+                                // closed its end before hyper finished shutting the
+                                // connection down.
+                                let msg = e.to_string();
+                                if msg.contains("shut")
+                                    || msg.contains("broken pipe")
+                                    || msg.contains("connection reset")
+                                {
+                                    tracing::debug!(error = %e, "api.pipe.connection.closed");
+                                } else {
+                                    tracing::error!(error = %e, "api.pipe.connection.failed");
+                                }
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "api.pipe.accept.failed");
                     }
                 }
             }

@@ -194,6 +194,49 @@ pub fn socket_path() -> Option<PathBuf> {
     data_dir().map(|d| d.join(SOCKET_FILE_NAME))
 }
 
+/// The API's named pipe on Windows: `\\.\pipe\apollia-runtime-<user>`.
+///
+/// Windows has no Unix domain socket the runtime can serve, so the local
+/// transport there is a named pipe. It plays the same role the socket plays
+/// elsewhere, and replaces a listening TCP port: nothing appears in a port
+/// scan, which is what a workstation policy asks of a background service.
+///
+/// The user name is part of the name so two accounts on one machine, a
+/// terminal server among them, do not contend for a single pipe. The name is
+/// not a secret and is not access control: unlike the socket, which is served
+/// unauthenticated behind `0o600`, the pipe carries the same bearer token the
+/// TCP listener carries.
+///
+/// `USERNAME` absent leaves the bare name, which is correct for a single
+/// account and no worse than the port it replaces.
+#[cfg(windows)]
+pub fn named_pipe_name() -> String {
+    pipe_name_for(std::env::var("USERNAME").ok().as_deref())
+}
+
+/// The pipe name for a given account name, or the bare name without one.
+///
+/// Split from [`named_pipe_name`] so the derivation is exercised on every
+/// platform rather than only where it runs. The two things that can be wrong,
+/// a reserved character in the account name and an empty name, need no Windows
+/// to be checked. Everything outside `[A-Za-z0-9]` becomes `-`, because a pipe
+/// name may not carry a backslash and an account name may.
+///
+/// Compiled on Windows, where it is called, and under `cfg(test)`, where the
+/// three cases below hold it on every platform the suite runs on.
+#[cfg(any(windows, test))]
+fn pipe_name_for(user: Option<&str>) -> String {
+    match user {
+        Some(user) if !user.trim().is_empty() => {
+            let safe: String = user
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+                .collect();
+            format!(r"\\.\pipe\apollia-runtime-{safe}")
+        }
+        _ => r"\\.\pipe\apollia-runtime".to_owned(),
+    }
+}
 /// The API's Unix socket under an explicit home.
 pub fn socket_path_under(home: impl Into<PathBuf>) -> PathBuf {
     data_dir_under(home).join(SOCKET_FILE_NAME)
@@ -327,5 +370,41 @@ mod tests {
             data_dir_under(home),
             PathBuf::from("/somewhere/home").join(DATA_DIR_NAME)
         );
+    }
+
+    // GIVEN an ordinary account name
+    // WHEN the runtime's pipe name is derived from it
+    // THEN the account is part of the name, so two sessions on one machine
+    //      do not contend for a single pipe
+    #[test]
+    fn test_pipe_name_carries_the_account() {
+        assert_eq!(
+            pipe_name_for(Some("nidal")),
+            r"\\.\pipe\apollia-runtime-nidal"
+        );
+    }
+
+    // GIVEN an account name holding characters a pipe name cannot carry
+    // WHEN the pipe name is derived from it
+    // THEN every one of them is replaced, so the name stays a single pipe
+    //      under `\\.\pipe\` instead of naming a path that does not exist
+    #[test]
+    fn test_pipe_name_replaces_reserved_characters() {
+        assert_eq!(
+            pipe_name_for(Some(r"DOMAIN\Jean Dupont")),
+            r"\\.\pipe\apollia-runtime-DOMAIN-Jean-Dupont"
+        );
+    }
+
+    // GIVEN no account name, or one that is blank
+    // WHEN the pipe name is derived
+    // THEN the bare name answers, which serves a single account correctly
+    //      rather than producing a name ending on a dangling separator
+    #[test]
+    fn test_pipe_name_without_an_account_stays_bare() {
+        let bare = r"\\.\pipe\apollia-runtime";
+        assert_eq!(pipe_name_for(None), bare);
+        assert_eq!(pipe_name_for(Some("")), bare);
+        assert_eq!(pipe_name_for(Some("   ")), bare);
     }
 }

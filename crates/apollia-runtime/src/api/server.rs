@@ -41,7 +41,11 @@ use crate::router::TaskRouterHandle;
 pub mod listeners;
 pub mod router;
 
+#[cfg(windows)]
+use listeners::serve_named_pipe;
 use listeners::{build_tls_acceptor, is_loopback_addr, serve_tcp};
+#[cfg(windows)]
+use tokio::net::windows::named_pipe::ServerOptions;
 // `serve_unix` is defined under `#[cfg(unix)]` and its only call site is
 // gated the same way. An ungated import here is what kept every Windows
 // target from compiling: the name does not exist off Unix.
@@ -440,6 +444,19 @@ pub enum APIServerError {
         source: std::io::Error,
     },
 
+    /// Named pipe creation failed, the Windows local transport.
+    ///
+    /// `first_pipe_instance` is set on the first instance, so this also
+    /// reports the name being held by another runtime: the Windows equivalent
+    /// of a socket already bound.
+    #[error("failed to create the named pipe {name}: {source}")]
+    PipeBindFailed {
+        /// The pipe name that could not be created.
+        name: String,
+        /// The underlying IO error.
+        source: std::io::Error,
+    },
+
     /// Unix socket bind failed.
     #[error("failed to bind Unix socket at {path}: {source}")]
     SocketBindFailed {
@@ -612,7 +629,35 @@ impl APIServer {
         // listener above is the whole surface.
         #[cfg(unix)]
         let unix_router = router;
-        #[cfg(not(unix))]
+
+        // Windows local transport. There is no Unix socket to serve there, and
+        // until now that left a TCP port as the only way in, which is the one
+        // thing a managed workstation is asked to avoid. The pipe carries the
+        // token-authenticated router rather than the socket's unauthenticated
+        // one: a pipe takes a default security descriptor, so the token is the
+        // access control here, not the transport's own permissions.
+        #[cfg(windows)]
+        {
+            let pipe_router = match &config.api_token {
+                Some(token) => router.layer(TokenAuthLayer::new(token.as_str())),
+                None => router,
+            };
+            let pipe_name = apollia_core::paths::named_pipe_name();
+            let first = ServerOptions::new()
+                .first_pipe_instance(true)
+                .create(&pipe_name)
+                .map_err(|source| APIServerError::PipeBindFailed {
+                    name: pipe_name.clone(),
+                    source,
+                })?;
+            info!(pipe = %pipe_name, "api.pipe.listening");
+            let mut pipe_shutdown_rx = shutdown_tx.subscribe();
+            tokio::spawn(async move {
+                serve_named_pipe(first, pipe_name, pipe_router, &mut pipe_shutdown_rx).await;
+            });
+        }
+
+        #[cfg(not(any(unix, windows)))]
         drop(router);
 
         info!(

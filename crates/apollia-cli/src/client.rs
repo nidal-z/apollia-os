@@ -4,9 +4,13 @@
 //! `--socket` path (default `~/.apollia/runtime.sock`). Filesystem-based
 //! security: the runtime chmods the socket to `0o600` after binding.
 //!
-//! On **Windows**: `tokio::net::TcpStream` on `127.0.0.1:DEFAULT_TCP_PORT`.
-//! The runtime always listens on TCP in parallel, and Windows has no native
-//! support for Unix domain sockets in hyper 1.x.
+//! On **Windows**: a named pipe, `\\.\pipe\apollia-runtime-<user>`. It plays
+//! the role the socket plays elsewhere. This used to be a TCP connection to
+//! `127.0.0.1:DEFAULT_TCP_PORT`, which obliged the runtime to hold a listening
+//! port open for the CLI alone; the pipe removes it. Access control differs
+//! between the two: the socket is unauthenticated behind `0o600`, the pipe
+//! takes a default security descriptor and is guarded by the bearer token this
+//! client already sends.
 
 use std::path::{Path, PathBuf};
 
@@ -18,7 +22,7 @@ use hyper::client::conn::http1;
 use hyper_util::rt::TokioIo;
 
 #[cfg(windows)]
-use tokio::net::TcpStream;
+use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
 #[cfg(unix)]
 use tokio::net::UnixStream;
 
@@ -26,20 +30,51 @@ use tokio::net::UnixStream;
 #[cfg(unix)]
 type RuntimeStream = UnixStream;
 #[cfg(windows)]
-type RuntimeStream = TcpStream;
+type RuntimeStream = NamedPipeClient;
 
 /// Opens a connection to the runtime.
 ///
 /// On Unix, uses `socket_path` (Unix domain socket).
-/// On Windows, ignores the path and connects to `127.0.0.1:DEFAULT_TCP_PORT`.
+/// On Windows, ignores the path and opens the runtime's named pipe.
 #[cfg(unix)]
 async fn connect_runtime(socket_path: &Path) -> std::io::Result<RuntimeStream> {
     UnixStream::connect(socket_path).await
 }
 
+/// `ERROR_PIPE_BUSY`, the Windows code for "every instance is serving someone".
+///
+/// Spelled as its number rather than pulled from `windows-sys`: one constant
+/// does not justify a direct dependency on the Windows API crates, and the
+/// value is fixed by the platform.
+#[cfg(windows)]
+const ERROR_PIPE_BUSY: i32 = 231;
+
 #[cfg(windows)]
 async fn connect_runtime(_socket_path: &Path) -> std::io::Result<RuntimeStream> {
-    TcpStream::connect(format!("127.0.0.1:{}", DEFAULT_TCP_PORT)).await
+    // The server keeps one instance waiting at all times, so a busy pipe means
+    // another client took it in the instant between its accept and the creation
+    // of the successor. Retrying briefly covers that window; retrying forever
+    // would turn a runtime that never came up into a command that never
+    // returns, so the attempts are counted and the last error is surfaced.
+    const ATTEMPTS: u32 = 20;
+    const PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+
+    let name = apollia_core::paths::named_pipe_name();
+    let mut last = None;
+    for _ in 0..ATTEMPTS {
+        match ClientOptions::new().open(&name) {
+            Ok(client) => return Ok(client),
+            Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY) => last = Some(e),
+            Err(e) => return Err(e),
+        }
+        tokio::time::sleep(PAUSE).await;
+    }
+    Err(last.unwrap_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("the named pipe {name} stayed busy"),
+        )
+    }))
 }
 
 /// Default Unix socket path for the Apollia runtime: `~/.apollia/runtime.sock`.
