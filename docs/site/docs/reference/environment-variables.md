@@ -21,7 +21,7 @@ tune and why.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `APOLLIA_LLAMA_SERVER_BIN` | resolved from `PATH` | Absolute path to the `llama-server` binary. |
+| `APOLLIA_LLAMA_SERVER_BIN` | the engine bundled with the artifact | Absolute path to a `llama-server` binary, which takes precedence over the bundled one. The way to run a build of your own, a CUDA build on Linux among them. |
 | `APOLLIA_LLAMA_MODEL_PATH` | from the configured backend | Overrides the GGUF the engine loads. |
 | `APOLLIA_LLAMA_MAX_LOADED` | see the source default | How many models may stay resident at once. |
 | `APOLLIA_LLAMA_N_CTX` | `32768` | Context window in tokens. The default is a fixed value, not read from the model. |

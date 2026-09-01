@@ -25,6 +25,28 @@ default, because the embedded engine is that server:
 Tracking upstream llama.cpp also widens model coverage: newer architectures land
 in the engine as they land upstream.
 
+## Which engine ships with which artifact
+
+The engine is chosen when the artifact is built, one per artifact, so there is
+nothing to select at install time. What ships:
+
+| Artifact | Engine | Covers |
+|---|---|---|
+| Desktop app, macOS | Metal | Apple Silicon |
+| Desktop app, Windows and Linux | Vulkan | NVIDIA, AMD and Intel |
+| CLI, `*-cpu` presets | CPU | any machine, no GPU offload |
+| CLI, `*-vulkan` presets | Vulkan | NVIDIA, AMD and Intel |
+| CLI, `*-cuda` presets | CUDA | NVIDIA |
+
+Vulkan rather than CUDA in the desktop app is a deliberate trade. One 32 MB
+binary reaches all three vendors, where the CUDA engine covers NVIDIA alone,
+weighs 238 MB plus a 373 MB runtime, and falls back to the processor on every
+other card. On Linux the question does not arise: upstream llama.cpp publishes
+no CUDA build for it, so Vulkan is the only prebuilt GPU engine available there.
+
+If your card is NVIDIA and you want CUDA rather than Vulkan, point the daemon at
+a build of your own, below.
+
 ## Configure a local backend
 
 Register a `.gguf` model as a local backend and let the daemon serve it. The
@@ -84,7 +106,7 @@ the default of one slot, requests queue.
 The full list, including the secret-storage and diagnostic variables, is in
 [Environment variables](/reference/environment-variables).
 
-## Developer: run a separate tuned `llama-server`
+## Run an engine of your own
 
 On a source build the daemon uses the `llama-server` it finds on your `PATH`
 rather than a bundled binary. The repository ships a recipe to start one for
@@ -100,6 +122,18 @@ GPU offload (`-ngl`), flash attention (`--flash-attn on`), and a quantized KV
 cache (`-ctk q8_0 -ctv q8_0`, which needs flash attention). These are upstream
 llama.cpp flags, useful for probing what your hardware sustains before you settle
 on a model and quantization.
+
+`APOLLIA_LLAMA_SERVER_BIN` points the daemon at a binary of your choosing, and
+it wins over the bundled one:
+
+```sh
+export APOLLIA_LLAMA_SERVER_BIN=/opt/llama.cpp/build/bin/llama-server
+```
+
+This is also the supported path for a CUDA build on Linux, where upstream
+publishes none. An operator running NVIDIA cards usually already has a
+llama.cpp compiled for those cards and tuned for that load; Apollia uses it
+rather than replacing it with a build of its own.
 
 ## Related
 

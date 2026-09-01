@@ -29,6 +29,29 @@ Suivre llama.cpp en amont élargit aussi la couverture de modèles : les nouvell
 architectures arrivent dans le moteur au fur et à mesure qu'elles arrivent en
 amont.
 
+## Quel moteur part avec quel artefact
+
+Le moteur est choisi à la construction de l'artefact, un par artefact, donc il
+n'y a rien à sélectionner à l'installation. Ce qui est livré :
+
+| Artefact | Moteur | Couvre |
+|---|---|---|
+| Application de bureau, macOS | Metal | Apple Silicon |
+| Application de bureau, Windows et Linux | Vulkan | NVIDIA, AMD et Intel |
+| CLI, presets `*-cpu` | processeur | toute machine, sans offload GPU |
+| CLI, presets `*-vulkan` | Vulkan | NVIDIA, AMD et Intel |
+| CLI, presets `*-cuda` | CUDA | NVIDIA |
+
+Vulkan plutôt que CUDA dans l'application de bureau est un arbitrage assumé. Un
+binaire de 32 Mo atteint les trois fabricants, là où le moteur CUDA ne couvre
+que NVIDIA, pèse 238 Mo plus 373 Mo de runtime, et retombe sur le processeur
+avec toute autre carte. Sous Linux la question ne se pose pas : llama.cpp ne
+publie aucune construction CUDA pour cet OS, donc Vulkan y est le seul moteur
+GPU préconstruit disponible.
+
+Si votre carte est NVIDIA et que vous voulez CUDA plutôt que Vulkan, désignez
+une compilation à vous, plus bas.
+
 ## Configurer un backend local
 
 Enregistrez un modèle `.gguf` comme backend local et laissez le daemon le
@@ -92,7 +115,7 @@ La liste complète, y compris les variables de stockage de secrets et de
 diagnostic, se trouve dans
 [Variables d'environnement](/reference/environment-variables).
 
-## Développeur : lancer un `llama-server` séparé et réglé sur mesure
+## Lancer un moteur à vous
 
 Sur une build depuis les sources, le daemon utilise le `llama-server` qu'il
 trouve sur votre `PATH` plutôt qu'un binaire embarqué. Le dépôt fournit une
@@ -109,6 +132,18 @@ attention (`--flash-attn on`), et cache KV quantifié (`-ctk q8_0 -ctv q8_0`, qu
 nécessite flash attention). Ce sont des options llama.cpp en amont, utiles pour
 sonder ce que votre matériel encaisse avant d'arrêter votre choix sur un modèle
 et une quantization.
+
+`APOLLIA_LLAMA_SERVER_BIN` désigne au démon le binaire de votre choix, et il
+l'emporte sur celui qui est embarqué :
+
+```sh
+export APOLLIA_LLAMA_SERVER_BIN=/opt/llama.cpp/build/bin/llama-server
+```
+
+C'est aussi le chemin prévu pour une compilation CUDA sous Linux, qu'aucune
+publication amont ne fournit. Un exploitant qui fait tourner des cartes NVIDIA
+dispose en général déjà d'un llama.cpp compilé pour ces cartes et réglé pour sa
+charge ; Apollia l'utilise plutôt que de lui substituer le sien.
 
 ## Voir aussi
 

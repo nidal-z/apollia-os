@@ -23,7 +23,7 @@ quoi régler et pourquoi.
 
 | Variable | Valeur par défaut | Effet |
 |---|---|---|
-| `APOLLIA_LLAMA_SERVER_BIN` | résolu depuis `PATH` | Chemin absolu vers le binaire `llama-server`. |
+| `APOLLIA_LLAMA_SERVER_BIN` | le moteur livré avec l'artefact | Chemin absolu vers un binaire `llama-server`, prioritaire sur celui embarqué. C'est la façon d'utiliser une compilation à vous, une compilation CUDA sous Linux par exemple. |
 | `APOLLIA_LLAMA_MODEL_PATH` | depuis le backend configuré | Remplace le GGUF chargé par le moteur. |
 | `APOLLIA_LLAMA_MAX_LOADED` | voir la valeur par défaut du code source | Nombre de modèles pouvant rester résidents en mémoire simultanément. |
 | `APOLLIA_LLAMA_N_CTX` | `32768` | Fenêtre de contexte en tokens. La valeur par défaut est fixe, elle n'est pas lue dans le modèle. |
