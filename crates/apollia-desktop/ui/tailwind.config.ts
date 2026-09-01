@@ -148,6 +148,33 @@ const config: Config = {
         micro: "var(--text-micro)",
         "micro-sm": "var(--text-micro-sm)",
         "micro-xs": "var(--text-micro-xs)",
+
+        // Tailwind's own keys, given the tiers above rather than its defaults.
+        //
+        // A measure of this tree found 1520 uses of the scale above and 529 of
+        // Tailwind's default one, `text-sm` at 260 sites and `text-xs` at 234.
+        // The sizes agreed, which is why nothing looked plainly wrong; the
+        // leading did not. Tailwind puts `text-sm` on a 1.25rem line and
+        // `text-xs` on a 1rem line, where `body-md` and `body-xs` put the same
+        // sizes on 1.55 and 1.5. Five hundred places rendered at the right
+        // size with the wrong rhythm, which reads as untidy without any number
+        // being visibly false.
+        //
+        // Aliased rather than swept across 529 call sites: both vocabularies
+        // now emit the same declarations, so a component keeps the name it was
+        // written with and a page stops mixing two rhythms.
+        //
+        // The three body tiers only, covering 512 of the 529. `lg`, `xl` and
+        // `2xl` are left on Tailwind's defaults at seventeen sites between
+        // them: the tiers that would receive them are heading tiers carrying
+        // `fontWeight: 600`, and an alias that silently bolds seventeen places
+        // is a different change from one that fixes their leading.
+        xs: ["var(--text-body-xs)", { lineHeight: "1.5", letterSpacing: "0em" }],
+        sm: ["var(--text-body-md)", { lineHeight: "1.55", letterSpacing: "0em" }],
+        base: [
+          "var(--text-body-lg)",
+          { lineHeight: "1.6", letterSpacing: "-0.003em" },
+        ],
       },
       // The `--z-*` stack of app.css, reachable as a class, so a stacking
       // decision is taken by name rather than by a number a reader has to
