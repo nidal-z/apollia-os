@@ -1,7 +1,59 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
 import { get } from "svelte/store";
 import { t } from "svelte-i18n";
+
+/**
+ * The font-size keys `tailwind.config.ts` adds on top of Tailwind's own.
+ *
+ * tailwind-merge resolves conflicts from a table of the class groups it ships
+ * with, and `text-*` is ambiguous: it is a font size for the keys Tailwind
+ * declares and a colour for everything else. A key this list does not name
+ * therefore lands in the colour group, and a colour class written after it in
+ * the same `cn()` call removes it as a conflict.
+ *
+ * That is not theoretical. Measured on the tree, `cn("text-overline",
+ * "text-info")` returned `text-info` alone, so every `Badge` shipped with no
+ * size class at all and rendered at the 16px it inherited, whatever the scale
+ * said. Four rounds of adjusting the scale could not move it, because the size
+ * never reached the element. `text-xs` survived the same call, being a key
+ * tailwind-merge already knows, which is what made the defect look like a
+ * question of tiers.
+ *
+ * `src/lib/utils.tailwind-merge.test.ts` reads the keys back out of the config
+ * and fails when one of them is missing here.
+ */
+export const CUSTOM_FONT_SIZE_TIERS = [
+  "display-xl",
+  "display-lg",
+  "display-md",
+  "display-sm",
+  "heading-lg",
+  "heading-md",
+  "heading-sm",
+  "body-lg",
+  "body-md",
+  "body-sm",
+  "body-xs",
+  "label-md",
+  "label-sm",
+  "caption",
+  "caption-lg",
+  "overline",
+  "code-sm",
+  "micro-lg",
+  "micro",
+  "micro-sm",
+  "micro-xs",
+] as const;
+
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [{ text: [...CUSTOM_FONT_SIZE_TIERS] }],
+    },
+  },
+});
 
 /** Merge Tailwind classes with clsx and tailwind-merge (shadcn-svelte pattern). */
 export function cn(...inputs: ClassValue[]) {
