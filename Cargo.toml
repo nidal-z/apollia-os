@@ -177,7 +177,7 @@ sysinfo = "0.31"
 
 # --- Clipboard + keyboard simulation (apollia-desktop STT injection) ---
 arboard = "3"
-enigo = "0.5"
+enigo = "0.6"
 
 # --- File opener (cross-platform) ---
 open = "5"
@@ -186,7 +186,7 @@ open = "5"
 regex = "1"
 
 # --- Auth / OAuth2 PKCE ---
-base64      = "0.22"
+base64      = "0.23"
 # `apple-native` + `linux-native` + `windows-native` route writes through
 # the real OS keychain. Without these the crate's default backend is a no-op
 # that returns Ok from `set_password` while persisting nothing - silent data
@@ -217,7 +217,7 @@ serde_yaml = "0.9"
 minijinja = { version = "2", default-features = false, features = ["builtins", "serde"] }
 
 # --- Filesystem paths and temp files ---
-dirs = "5"
+dirs = "6"
 dirs-next = "2"
 glob = "0.3"
 # 3.14 is the strictest floor previously declared in-tree (apollia-tools).
@@ -245,7 +245,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 
 # --- HTML parsing and readability (apollia-desktop, apollia-tools) ---
-scraper = "0.26"
+scraper = "0.27"
 dom_smoothie = "0.17"
 url = "2"
 
