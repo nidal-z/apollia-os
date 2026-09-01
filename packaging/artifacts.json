@@ -61,16 +61,6 @@
       "self_update": false
     },
     {
-      "preset": "linux-x86-rocm",
-      "os": "linux",
-      "arch": "x86_64",
-      "triple": "x86_64-unknown-linux-gnu",
-      "archive": "apollia-os-linux-x86-rocm.tar.gz",
-      "sha256": true,
-      "llama_server": "rocm",
-      "self_update": false
-    },
-    {
       "preset": "linux-x86-vulkan",
       "os": "linux",
       "arch": "x86_64",
@@ -108,16 +98,6 @@
       "archive": "apollia-os-windows-x86-cuda.zip",
       "sha256": true,
       "llama_server": "cuda",
-      "self_update": false
-    },
-    {
-      "preset": "windows-x86-rocm",
-      "os": "windows",
-      "arch": "x86_64",
-      "triple": "x86_64-pc-windows-msvc",
-      "archive": "apollia-os-windows-x86-rocm.zip",
-      "sha256": true,
-      "llama_server": null,
       "self_update": false
     },
     {

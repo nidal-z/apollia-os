@@ -106,12 +106,10 @@ jobs:
               {"preset":"linux-x86-cpu",      "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-cpu"},
               {"preset":"windows-x86-cpu",    "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-cpu"},
               {"preset":"linux-x86-cuda",     "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
-              {"preset":"linux-x86-rocm",     "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-rocm",   "needs_rocm":true, "allow_fail":true},
               {"preset":"linux-x86-vulkan",   "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-vulkan", "needs_vulkan":true, "allow_fail":true},
               {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm", "triple":"aarch64-unknown-linux-gnu", "features":"local-cpu",    "allow_fail":true},
               {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm", "triple":"aarch64-unknown-linux-gnu", "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
               {"preset":"windows-x86-cuda",   "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
-              {"preset":"windows-x86-rocm",   "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-rocm",   "needs_rocm":true, "allow_fail":true},
               {"preset":"windows-x86-vulkan", "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-vulkan", "needs_vulkan":true, "allow_fail":true}
             ]
           }
@@ -246,9 +244,9 @@ jobs:
           #
           # ubuntu2404 and not ubuntu2204: this job runs on ubuntu-24.04-arm,
           # and the jammy repository it used to install here is the same
-          # runner-moved-pin-stayed mismatch that broke ROCm below. It was
-          # latent because the x86 CUDA preset died first, on a version this
-          # runner has never carried.
+          # runner-moved-pin-stayed mismatch that took ROCm out of this
+          # release entirely. It was latent here because the x86 CUDA preset
+          # died first, on a version this runner has never carried.
           CUDA_DEB_SHA256=c9bafa1d2370d371884e43569feea7e04533eb6acb8921675d6c747e28129d8c
           wget -q https://developer.download.nvidia.com/compute/cuda/12.6.0/local_installers/cuda-repo-ubuntu2404-12-6-local_12.6.0-560.28.03-1_arm64.deb -O /tmp/cuda.deb
           echo "${CUDA_DEB_SHA256}  /tmp/cuda.deb" | sha256sum -c -
@@ -258,42 +256,6 @@ jobs:
           sudo apt-get install -y cuda-toolkit-12-6 || echo "::warning::CUDA aarch64 install failed (L4T only)"
           echo "CUDA_PATH=/usr/local/cuda-12.6" >> $GITHUB_ENV
           echo "/usr/local/cuda-12.6/bin" >> $GITHUB_PATH
-
-      - name: Install ROCm (Linux)
-        if: matrix.needs_rocm && startsWith(matrix.runner, 'ubuntu')
-        run: |
-          sudo apt-get install -y wget gnupg
-          wget -O- https://repo.radeon.com/rocm/rocm.gpg.key | \
-            sudo gpg --dearmor -o /usr/share/keyrings/rocm.gpg
-          # 6.4 on noble, and both halves of that matter. ROCm 6.0 and 6.1
-          # publish nothing for Ubuntu 24.04 (`dists/noble` answers 404 on
-          # both, 6.2 upward answer 200), while this job runs on ubuntu-24.04:
-          # the jammy line it used to add left apt with held broken packages
-          # and exit 100. The runner moved and the pin did not.
-          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.4/ noble main" | \
-            sudo tee /etc/apt/sources.list.d/rocm.list
-          sudo apt-get update -q
-          sudo apt-get install -y rocm-hip-sdk rocm-llvm rocblas hipblas
-          echo "ROCM_PATH=/opt/rocm" >> $GITHUB_ENV
-          echo "/opt/rocm/bin" >> $GITHUB_PATH
-
-      - name: Install HIP SDK (Windows)
-        if: matrix.needs_rocm && startsWith(matrix.runner, 'windows')
-        shell: pwsh
-        run: |
-          # Same integrity rule as the CUDA installer above: verified before
-          # execution, sha256 computed from the archive at this URL (AMD
-          # publishes no digest for it).
-          $url = "https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q3-WinSvr2022-For-HIP.exe"
-          $expected = "e27223f1c01b8f0f04abca18560aa2b236d4299a2ef37df014b48dead2b6a650"
-          Invoke-WebRequest -Uri $url -OutFile hip-installer.exe -UseBasicParsing
-          $actual = (Get-FileHash hip-installer.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actual -ne $expected) {
-              throw "hip-installer.exe sha256 mismatch: expected $expected, got $actual"
-          }
-          Start-Process -FilePath ".\hip-installer.exe" -ArgumentList "-install","-quiet" -Wait
-          echo "HIP_PATH=C:\Program Files\AMD\ROCm\6.1" >> $env:GITHUB_ENV
-          echo "C:\Program Files\AMD\ROCm\6.1\bin" >> $env:GITHUB_PATH
 
       - name: Install Vulkan SDK (Linux)
         if: matrix.needs_vulkan && startsWith(matrix.runner, 'ubuntu')

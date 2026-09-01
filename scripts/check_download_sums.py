@@ -52,11 +52,11 @@ SCRIPT_DIRS = ("packaging", "crates/apollia-desktop/scripts")
 
 # Workflow steps that download without a pinned sum, named one by one so the
 # list can only shrink: removing an entry is the fix, adding one is a defect
-# this guard exists to refuse. The four remaining fetches feed apt's keyring
-# and predate this guard; the three toolchain installers that used to sit
-# here are now verified against pinned sums inside release.yml itself.
+# this guard exists to refuse. The three remaining fetches feed apt's keyring
+# and predate this guard; the toolchain installers that used to sit here are
+# now verified against pinned sums inside release.yml itself, and the ROCm
+# entry left with the step it named when the release dropped that preset.
 EXEMPT_WORKFLOW_STEPS = {
-    ("release.yml", "Install ROCm (Linux)"),
     ("release.yml", "Install Vulkan SDK (Linux)"),
     ("nightly.yml", "Install ROCm"),
     ("nightly.yml", "Install Vulkan SDK"),
