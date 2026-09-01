@@ -175,15 +175,28 @@ done
 # Escape hatches, both explicit: LLAMA_SERVER_DIR=<bin dir> bundles a local
 # build instead of downloading, and APOLLIA_ALLOW_NO_LLAMA_SERVER=1 accepts a
 # bundle with no engine (offline work on a non-inference change only).
-llama_backend="cpu"
-for backend in $RUNNERS; do
-    case "$backend" in
-        metal | cuda | rocm | vulkan)
-            llama_backend="$backend"
-            break
-            ;;
-    esac
-done
+# The engine backend is chosen independently of the STT runners, because the
+# two accelerations are unrelated. whisper-rs has no Vulkan backend, so
+# `local-vulkan` is `local-cpu` under another name and asking for it would
+# stage a second, byte-identical runner. llama.cpp does have one. And a CUDA
+# STT runner needs a CUDA toolchain in the build, where the engine is a
+# prebuilt download that needs none: coupling them made the cheap half wait on
+# the expensive one.
+#
+# APOLLIA_DESKTOP_LLAMA_BACKEND decides when set. Otherwise the first GPU
+# backend named in RUNNERS, which keeps every existing caller unchanged.
+llama_backend="${APOLLIA_DESKTOP_LLAMA_BACKEND:-}"
+if [ -z "$llama_backend" ]; then
+    llama_backend="cpu"
+    for backend in $RUNNERS; do
+        case "$backend" in
+            metal | cuda | rocm | vulkan)
+                llama_backend="$backend"
+                break
+                ;;
+        esac
+    done
+fi
 if bash "${REPO_ROOT}/packaging/fetch-llama-server.sh" "$llama_backend" "${STAGING}/runners"; then
     echo "==> llama-server bundled (${llama_backend})"
 elif [ "${APOLLIA_ALLOW_NO_LLAMA_SERVER:-}" = "1" ]; then

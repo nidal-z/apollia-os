@@ -752,6 +752,12 @@ jobs:
           PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/bin/python3.13
           RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/lib
           APOLLIA_DESKTOP_RUNNERS: "cpu"
+          # The inference engine is Vulkan here, and the STT runner stays CPU.
+          # Vulkan reaches NVIDIA, AMD and Intel from one 32 MB binary, where
+          # the CUDA engine covers NVIDIA alone, weighs 238 MB plus a 373 MB
+          # runtime, and falls back to the CPU on every other card. whisper-rs
+          # has no Vulkan backend, so the STT side has nothing to gain here.
+          APOLLIA_DESKTOP_LLAMA_BACKEND: "vulkan"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # linuxdeploy and its appimage plugin are themselves AppImages, and
@@ -878,6 +884,12 @@ jobs:
           PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-pc-windows-msvc/python/python.exe
           CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
           APOLLIA_DESKTOP_RUNNERS: "cpu"
+          # The inference engine is Vulkan here, and the STT runner stays CPU.
+          # Vulkan reaches NVIDIA, AMD and Intel from one 32 MB binary, where
+          # the CUDA engine covers NVIDIA alone, weighs 238 MB plus a 373 MB
+          # runtime, and falls back to the CPU on every other card. whisper-rs
+          # has no Vulkan backend, so the STT side has nothing to gain here.
+          APOLLIA_DESKTOP_LLAMA_BACKEND: "vulkan"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
