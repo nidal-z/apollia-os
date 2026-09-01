@@ -219,17 +219,17 @@
     --text-body-lg: 1rem;
     --text-body-md: 0.875rem;
     --text-body-sm: 0.8125rem;
-    --text-body-xs: 0.75rem;
+    --text-body-xs: 0.8125rem;
     --text-label-md: 0.8125rem;
-    --text-label-sm: 0.75rem;
-    --text-code-sm: 0.78125rem;
-    --text-caption-lg: 0.71875rem;
-    --text-caption: 0.6875rem;
-    --text-overline: 0.65625rem;
-    --text-micro-lg: 0.65625rem;
-    --text-micro: 0.625rem;
-    --text-micro-sm: 0.59375rem;
-    --text-micro-xs: 0.5625rem;
+    --text-label-sm: 0.8125rem;
+    --text-code-sm: 0.8125rem;
+    --text-caption-lg: 0.78125rem;
+    --text-caption: 0.78125rem;
+    --text-overline: 0.75rem;
+    --text-micro-lg: 0.75rem;
+    --text-micro: 0.71875rem;
+    --text-micro-sm: 0.6875rem;
+    --text-micro-xs: 0.6875rem;
 
     /* ── Hover ── */
     --hover-surface-lift: -2px;
@@ -522,7 +522,7 @@
      ═════════════════════════════════════════════════════════ */
   .section-meta {
     font-family: theme("fontFamily.mono");
-    font-size: 10px;
+    font-size: var(--text-micro);
     letter-spacing: 1.4px;
     font-weight: 600;
     color: hsl(var(--muted-foreground) / 0.7);
@@ -1236,7 +1236,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--text-body-xs);
   color: hsl(var(--foreground));
   background: hsl(var(--surface-2));
   border: 1px solid hsl(var(--border-soft));
@@ -1253,7 +1253,7 @@
 }
 
 .tb-iolabel {
-  font-size: 10.5px;
+  font-size: var(--text-micro-lg);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1265,7 +1265,7 @@
   border: 1px solid hsl(var(--border-soft));
   border-radius: 9px;
   padding: 11px 13px;
-  font-size: 12px;
+  font-size: var(--text-body-xs);
   line-height: 1.5;
   overflow-x: auto;
   color: hsl(var(--foreground) / 0.85);
@@ -1284,7 +1284,7 @@
   border: 1px solid hsl(var(--border-soft));
   border-radius: 9px;
   padding: 11px 13px;
-  font-size: 12px;
+  font-size: var(--text-body-xs);
   line-height: 1.55;
   overflow-x: auto;
   white-space: pre-wrap;
@@ -1302,7 +1302,7 @@
 .tb-term .tb-meta { color: hsl(var(--term-fg) / 0.5); font-variant-numeric: tabular-nums; }
 
 .tb-preview {
-  font-size: 12px;
+  font-size: var(--text-body-xs);
   color: hsl(var(--muted-foreground));
   background: hsl(var(--code-bg));
   border: 1px solid hsl(var(--border-soft));
@@ -1337,7 +1337,7 @@
   gap: 9px;
   padding: 6px 8px;
   border-radius: 7px;
-  font-size: 12.5px;
+  font-size: var(--text-code-sm);
   transition: background 0.12s var(--ease-apple, cubic-bezier(0.22, 1, 0.36, 1));
 }
 .tb-frow:hover { background: hsl(var(--surface-2) / 0.6); }
@@ -1357,7 +1357,7 @@
 .tb-frow .tb-fmeta {
   margin-left: auto;
   flex: none;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: hsl(var(--faint-foreground));
   font-variant-numeric: tabular-nums;
 }
@@ -1368,7 +1368,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   padding: 2px 8px;
@@ -1387,7 +1387,7 @@
   align-items: center;
   gap: 4px;
   flex: none;
-  font-size: 10.5px;
+  font-size: var(--text-micro-lg);
   font-weight: 600;
   padding: 1px 7px;
   border-radius: 999px;
@@ -1408,7 +1408,7 @@
   gap: 8px;
   padding: 5px 8px;
   border-radius: 7px;
-  font-size: 12.5px;
+  font-size: var(--text-code-sm);
   background: hsl(var(--surface-2) / 0.5);
 }
 .tb-step .tb-step-glyph {
@@ -1442,7 +1442,7 @@
 }
 .tb-card .tb-card-body {
   color: hsl(var(--foreground));
-  font-size: 12.5px;
+  font-size: var(--text-code-sm);
   line-height: 1.5;
 }
 
@@ -1450,7 +1450,7 @@
 .tb-grep { display: flex; flex-direction: column; gap: 8px; }
 .tb-grep-group { display: flex; flex-direction: column; gap: 2px; }
 .tb-grep-file {
-  font-size: 11.5px;
+  font-size: var(--text-caption-lg);
   font-weight: 600;
   color: hsl(var(--foreground));
   display: flex;
@@ -1468,7 +1468,7 @@
 .tb-grep-row {
   display: flex;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--text-body-xs);
   line-height: 1.5;
 }
 .tb-grep-row .tb-grep-ln {
@@ -1487,20 +1487,20 @@
 
 /* Readable article extract (web_read). */
 .tb-extract {
-  font-size: 12.5px;
+  font-size: var(--text-code-sm);
   line-height: 1.6;
   color: hsl(var(--foreground) / 0.85);
   white-space: pre-wrap;
   word-break: break-word;
 }
-.tb-extract-title { font-weight: 600; color: hsl(var(--foreground)); font-size: 13px; letter-spacing: -0.005em; }
-.tb-extract-byline { font-size: 11px; color: hsl(var(--faint-foreground)); }
+.tb-extract-title { font-weight: 600; color: hsl(var(--foreground)); font-size: var(--text-body-sm); letter-spacing: -0.005em; }
+.tb-extract-byline { font-size: var(--text-caption); color: hsl(var(--faint-foreground)); }
 
 /* ── Honest, neutral metric ──
    Counts, durations, sizes: tabular, muted, never coloured. Green stays
    reserved for genuine success (exit 0, http-2xx, the shared success check). */
 .tb-metric {
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: hsl(var(--muted-foreground));
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.005em;
@@ -1621,7 +1621,7 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
-  font-size: 10px;
+  font-size: var(--text-micro);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -1675,7 +1675,7 @@
   gap: 9px;
   width: 100%;
   padding: 8px 11px;
-  font-size: 12.5px;
+  font-size: var(--text-code-sm);
   text-align: left;
   cursor: pointer;
   user-select: none;
@@ -1722,7 +1722,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: var(--text-caption);
   color: hsl(var(--faint-foreground));
   font-variant-numeric: tabular-nums;
 }

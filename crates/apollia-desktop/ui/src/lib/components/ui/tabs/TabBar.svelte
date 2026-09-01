@@ -83,7 +83,7 @@
                 : "text-muted-foreground hover:text-foreground",
             )
           : cn(
-              "px-3 py-2 text-code-sm -mb-px border-b-2 bg-transparent",
+              "px-3 py-2 text-sm -mb-px border-b-2 bg-transparent",
               active
                 ? "text-foreground font-semibold border-primary"
                 : "text-muted-foreground font-medium border-transparent hover:text-foreground",

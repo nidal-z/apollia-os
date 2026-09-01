@@ -151,7 +151,7 @@ DURATION = re.compile(r"(?<![\w.])([\d.]+)(ms|s)?(?![\w.])")
 # a file with no entry is allowed nothing. `src/app.css` is the last entry, and
 # its 96 are the chat and topbar surfaces that still write their own values.
 ALLOWED: dict[str, int] = {
-    "src/app.css": 96,
+    "src/app.css": 75,
 }
 
 

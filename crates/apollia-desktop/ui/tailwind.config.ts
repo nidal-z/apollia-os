@@ -59,18 +59,26 @@ const config: Config = {
         // the class it replaces.
         //
         // The px map of the scale:
-        //    9px    → micro-xs
-        //    9.5px  → micro-sm
-        //   10px    → micro     (.tb-card-top)
-        //   10.5px  → overline as a role, micro-lg as a plain size
+        //   11px    → micro-xs, micro-sm
+        //   11.5px  → micro     (.tb-card-top, .section-meta)
+        //   12px    → overline as a role, micro-lg as a plain size
         //             (.tb-iolabel, .tb-pill)
-        //   11px    → caption    (.tb-badge, .tb-metric, .chat-ft-meta, .tb-fmeta)
-        //   11.5px  → caption-lg
-        //   12px    → body-xs / label-sm (.tb-chip, .tb-code, .tb-term, .tb-preview)
-        //   12.5px  → code-sm    (.tb-frow, .tb-step, .chat-ft-head, .tb-card-body, .tb-extract)
-        //   13px    → body-sm / label-md (.tb-extract-title)
+        //   12.5px  → caption    (.tb-badge, .tb-metric, .chat-ft-meta, .tb-fmeta)
+        //             and caption-lg (.tb-grep-file)
+        //   13px    → body-xs / label-sm (.tb-chip, .tb-code, .tb-term,
+        //             .tb-preview, .tb-grep-row), code-sm (.tb-frow, .tb-step,
+        //             .chat-ft-head, .tb-card-body, .tb-extract), and
+        //             body-sm / label-md (.tb-extract-title)
         //   14px    → body-md    (chat body copy)
-        //   16px    → body-lg / heading-sm (.chat-answer rounds up to it)
+        //   16px    → body-lg / heading-sm
+        //
+        // The floor of that map used to sit at 9px, and 95% of the 1569 sizing
+        // sites of src/ resolved below 14px, 612 of them to the 11px `caption`
+        // alone, against 17 sites on the 14px body tier. The scale described a
+        // product read at arm's length rather than one read on a desktop, so
+        // the sub-14 band was lifted: nothing renders below 11px now, and the
+        // twelve tiers that shared a 4px band, where no reader perceives a
+        // half-pixel step, share four.
         //
         // The five chrome tiers carry a size and nothing else. They were
         // added for the sizes a measure of the tree found at least five times
@@ -169,8 +177,14 @@ const config: Config = {
         // them: the tiers that would receive them are heading tiers carrying
         // `fontWeight: 600`, and an alias that silently bolds seventeen places
         // is a different change from one that fixes their leading.
-        xs: ["var(--text-body-xs)", { lineHeight: "1.5", letterSpacing: "0em" }],
-        sm: ["var(--text-body-md)", { lineHeight: "1.55", letterSpacing: "0em" }],
+        xs: [
+          "var(--text-body-xs)",
+          { lineHeight: "1.5", letterSpacing: "0em" },
+        ],
+        sm: [
+          "var(--text-body-md)",
+          { lineHeight: "1.55", letterSpacing: "0em" },
+        ],
         base: [
           "var(--text-body-lg)",
           { lineHeight: "1.6", letterSpacing: "-0.003em" },

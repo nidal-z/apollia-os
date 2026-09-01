@@ -86,8 +86,11 @@
       "bg-destructive/10 text-danger-a11y dark:bg-destructive/20",
   };
 
+  // `sm` is the default and carries 95 of the 98 badges of the tree. It sat on
+  // `micro`, the lowest tier of the scale, where the config's own px map gives
+  // a badge the `caption` role. The three sizes now read 12.5 / 13 / 14.
   const sizeClasses: Record<Size, string> = {
-    sm: "text-micro px-2 py-0.5 gap-1",
+    sm: "text-caption px-2 py-0.5 gap-1",
     md: "text-xs px-2.5 py-0.5 gap-1.5",
     lg: "text-sm px-3 py-1 gap-1.5",
   };
