@@ -752,6 +752,15 @@ jobs:
           APOLLIA_DESKTOP_RUNNERS: "cpu"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # linuxdeploy and its appimage plugin are themselves AppImages, and
+          # an AppImage mounts itself through FUSE 2, which Ubuntu 24.04 does
+          # not ship and whose fallback it blocks by restricting unprivileged
+          # user namespaces. Both ran and died without a word: tauri reports
+          # `failed to run linuxdeploy` and swallows the child's stderr, so the
+          # bundle step spent fifteen seconds producing no diagnosis at all.
+          # This variable makes an AppImage unpack into a temporary directory
+          # and run from there, which needs neither FUSE nor a namespace.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
           if [ -n "${TAURI_BUNDLE_CONFIG:-}" ]; then
             cargo tauri build --target x86_64-unknown-linux-gnu --config "$TAURI_BUNDLE_CONFIG"
