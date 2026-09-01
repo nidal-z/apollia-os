@@ -708,7 +708,8 @@ jobs:
             libayatana-appindicator3-dev librsvg2-dev \
             libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
             libxdo-dev curl wget file \
-            python3-dev clang cmake
+            python3-dev clang cmake \
+            patchelf librsvg2-common libgdk-pixbuf2.0-bin desktop-file-utils
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
@@ -766,10 +767,13 @@ jobs:
           # and run from there, which needs neither FUSE nor a namespace.
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
+          # --verbose so the bundler passes its children's output through
+          # instead of swallowing it: `failed to run linuxdeploy` twice with no
+          # cause attached is what this flag exists to stop.
           if [ -n "${TAURI_BUNDLE_CONFIG:-}" ]; then
-            cargo tauri build --target x86_64-unknown-linux-gnu --config "$TAURI_BUNDLE_CONFIG"
+            cargo tauri build --verbose --target x86_64-unknown-linux-gnu --config "$TAURI_BUNDLE_CONFIG"
           else
-            cargo tauri build --target x86_64-unknown-linux-gnu
+            cargo tauri build --verbose --target x86_64-unknown-linux-gnu
           fi
 
       # Flat staging: actions/upload-artifact roots the artifact at the
@@ -777,6 +781,48 @@ jobs:
       # appimage/*.AppImage as-is buries the installers in sub-folders the
       # release job's flat globs never see. An unmatched glob here fails the
       # copy, loudly.
+      # linuxdeploy runs as a child of `cargo tauri build`, which captures its
+      # output and reports only `failed to run linuxdeploy`. Two runs have now
+      # died on that sentence with no cause attached, so this step exists to
+      # take the cause out of the bundler's hands: it runs only on failure, and
+      # replays whatever the bundler left on disk with the output going to the
+      # log instead of into a pipe.
+      #
+      # `|| true` throughout, deliberately: this step reports, it does not
+      # judge. The build step above already failed the job.
+      - name: Say why linuxdeploy failed
+        if: failure()
+        run: |
+          BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle/appimage
+          echo "=== what the bundler left behind"
+          ls -la "$BUNDLE" 2>/dev/null || echo "  no appimage directory at all"
+          echo "=== the AppDir"
+          find "$BUNDLE" -maxdepth 2 -name '*.AppDir' -printf '%p\n' 2>/dev/null || true
+          echo "=== the script the bundler generated, replayed with tracing"
+          SCRIPT=$(find "$BUNDLE" -maxdepth 2 -name 'build_appimage.sh' 2>/dev/null | head -1)
+          if [ -n "$SCRIPT" ]; then
+            echo "  replaying $SCRIPT"
+            ( cd "$(dirname "$SCRIPT")" && bash -x "$(basename "$SCRIPT")" 2>&1 | tail -80 ) || true
+          else
+            echo "  no build_appimage.sh; running linuxdeploy directly"
+            LD=$(find "$BUNDLE" ~/.cache/tauri -maxdepth 2 -name 'linuxdeploy-x86_64.AppImage' 2>/dev/null | head -1)
+            APPDIR=$(find "$BUNDLE" -maxdepth 2 -name '*.AppDir' 2>/dev/null | head -1)
+            if [ -n "$LD" ] && [ -n "$APPDIR" ]; then
+              chmod +x "$LD" || true
+              "$LD" --appdir "$APPDIR" --plugin gtk --output appimage 2>&1 | tail -80 || true
+            else
+              echo "  found neither linuxdeploy ($LD) nor an AppDir ($APPDIR)"
+            fi
+          fi
+          echo "=== the tools the plugin looks for"
+          for t in patchelf gdk-pixbuf-query-loaders gtk-update-icon-cache desktop-file-validate; do
+            printf '  %-28s %s\n' "$t" "$(command -v "$t" || echo ABSENT)"
+          done
+          echo "=== the pkg-config modules it queries"
+          for m in gdk-pixbuf-2.0 librsvg-2.0 pango pangocairo pangoft2 gobject-2.0 gio-2.0; do
+            printf '  %-18s %s\n' "$m" "$(pkg-config --modversion "$m" 2>/dev/null || echo ABSENT)"
+          done
+
       - name: Collect installers (flat paths)
         run: |
           BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle
@@ -997,7 +1043,8 @@ jobs:
             libayatana-appindicator3-dev librsvg2-dev \
             libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
             libxdo-dev curl wget file \
-            python3-dev clang cmake
+            python3-dev clang cmake \
+            patchelf librsvg2-common libgdk-pixbuf2.0-bin desktop-file-utils
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
@@ -1078,13 +1125,55 @@ jobs:
           BASE="${TAURI_BUNDLE_CONFIG:-}"
           [ -n "$BASE" ] || BASE='{}'
           PATCH=$(jq -c -s '.[0] * .[1]' <<<"$BASE $CHANNEL")
-          cargo tauri build --target x86_64-unknown-linux-gnu --config "$PATCH"
+          cargo tauri build --verbose --target x86_64-unknown-linux-gnu --config "$PATCH"
 
       # Flat staging: actions/upload-artifact roots the artifact at the
       # longest common ancestor of its paths, so uploading deb/*.deb and
       # appimage/*.AppImage as-is buries the installers in sub-folders the
       # release job's flat globs never see. An unmatched glob here fails the
       # copy, loudly.
+      # linuxdeploy runs as a child of `cargo tauri build`, which captures its
+      # output and reports only `failed to run linuxdeploy`. Two runs have now
+      # died on that sentence with no cause attached, so this step exists to
+      # take the cause out of the bundler's hands: it runs only on failure, and
+      # replays whatever the bundler left on disk with the output going to the
+      # log instead of into a pipe.
+      #
+      # `|| true` throughout, deliberately: this step reports, it does not
+      # judge. The build step above already failed the job.
+      - name: Say why linuxdeploy failed
+        if: failure()
+        run: |
+          BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle/appimage
+          echo "=== what the bundler left behind"
+          ls -la "$BUNDLE" 2>/dev/null || echo "  no appimage directory at all"
+          echo "=== the AppDir"
+          find "$BUNDLE" -maxdepth 2 -name '*.AppDir' -printf '%p\n' 2>/dev/null || true
+          echo "=== the script the bundler generated, replayed with tracing"
+          SCRIPT=$(find "$BUNDLE" -maxdepth 2 -name 'build_appimage.sh' 2>/dev/null | head -1)
+          if [ -n "$SCRIPT" ]; then
+            echo "  replaying $SCRIPT"
+            ( cd "$(dirname "$SCRIPT")" && bash -x "$(basename "$SCRIPT")" 2>&1 | tail -80 ) || true
+          else
+            echo "  no build_appimage.sh; running linuxdeploy directly"
+            LD=$(find "$BUNDLE" ~/.cache/tauri -maxdepth 2 -name 'linuxdeploy-x86_64.AppImage' 2>/dev/null | head -1)
+            APPDIR=$(find "$BUNDLE" -maxdepth 2 -name '*.AppDir' 2>/dev/null | head -1)
+            if [ -n "$LD" ] && [ -n "$APPDIR" ]; then
+              chmod +x "$LD" || true
+              "$LD" --appdir "$APPDIR" --plugin gtk --output appimage 2>&1 | tail -80 || true
+            else
+              echo "  found neither linuxdeploy ($LD) nor an AppDir ($APPDIR)"
+            fi
+          fi
+          echo "=== the tools the plugin looks for"
+          for t in patchelf gdk-pixbuf-query-loaders gtk-update-icon-cache desktop-file-validate; do
+            printf '  %-28s %s\n' "$t" "$(command -v "$t" || echo ABSENT)"
+          done
+          echo "=== the pkg-config modules it queries"
+          for m in gdk-pixbuf-2.0 librsvg-2.0 pango pangocairo pangoft2 gobject-2.0 gio-2.0; do
+            printf '  %-18s %s\n' "$m" "$(pkg-config --modversion "$m" 2>/dev/null || echo ABSENT)"
+          done
+
       - name: Collect installers (flat paths)
         run: |
           BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle
