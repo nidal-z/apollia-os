@@ -195,6 +195,35 @@ jobs:
           sub-packages: '["nvcc","cudart","cublas","cublas_dev","curand","curand_dev","thrust","visual_studio_integration"]'
           use-github-cache: true
 
+      # `visual_studio_integration` only drops the MSBuild extensions under
+      # CUDA_PATH; nothing copies them into Visual Studio itself. CMake looks
+      # for them in the VC BuildCustomizations folder of the installed toolset
+      # and answers "No CUDA toolset found" when they are absent, which is
+      # exactly where whisper-rs-sys stopped on a run whose toolkit install
+      # had reported success.
+      #
+      # vswhere resolves the installation and the toolset folder is globbed
+      # rather than spelled v170: the hosted image has moved edition and
+      # toolset before, and a hardcoded path would fail silently by copying
+      # into a directory CMake does not read. Both halves throw instead.
+      - name: Wire the CUDA MSBuild extensions into Visual Studio (Windows x86)
+        if: matrix.needs_cuda && matrix.runner == 'windows-latest'
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -property installationPath
+          if (-not $vs) { throw "vswhere reported no Visual Studio installation" }
+          $src = Join-Path $env:CUDA_PATH "extras\visual_studio_integration\MSBuildExtensions"
+          if (-not (Test-Path $src)) { throw "CUDA MSBuild extensions absent at $src" }
+          $dests = Get-ChildItem (Join-Path $vs "MSBuild\Microsoft\VC") -Directory |
+                   ForEach-Object { Join-Path $_.FullName "BuildCustomizations" } |
+                   Where-Object { Test-Path $_ }
+          if (-not $dests) { throw "no BuildCustomizations folder under $vs" }
+          foreach ($d in $dests) {
+            Copy-Item "$src\*" -Destination $d -Force
+            Write-Host "wired the CUDA build customizations into $d"
+          }
+
       - name: Install CUDA aarch64 (Jetson SBSA)
         if: matrix.needs_cuda && matrix.runner == 'ubuntu-24.04-arm'
         run: |
