@@ -66,7 +66,7 @@ running behind the menu-bar icon.
 
 Local LLM inference goes through the embedded `llama-server` engine, shipped with the bundle. Speech-to-text (STT) uses the `apollia-runner` runner, and the AppImage / `.deb` package embeds its CPU variant. To accelerate dictation on GPU:
 
-1. Download the dedicated CLI bundle: `apollia-os-linux-x86-cuda.tar.gz` (or rocm/vulkan).
+1. Download the GPU CLI bundle: `apollia-os-linux-x86-vulkan.tar.gz`. Vulkan drives NVIDIA, AMD and Intel cards alike; the `-cpu` bundle is the one to take on a machine with no graphics driver.
 2. Extract it and copy `apollia-runner-<backend>` into the installation's
    `runners/` directory (for the `.deb`, `/usr/lib/apollia-os/runners/`, owned
    by root, so use `sudo cp`).

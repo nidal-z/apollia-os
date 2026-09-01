@@ -100,8 +100,8 @@ Git Bash, WSL or MSYS2, and fails without one.
 
 Local LLM inference goes through the embedded `llama-server` engine, shipped with the bundle. Speech-to-text (STT) uses the `apollia-runner` runner, and the MSI installer embeds its CPU variant. To accelerate dictation on a CUDA / Vulkan GPU:
 
-1. Download `apollia-os-windows-x86-cuda.zip` (or vulkan).
-2. Extract it and copy `apollia-runner-cuda.exe` (or `apollia-runner-vulkan.exe`) into `C:\Program Files\Apollia OS\`.
+1. Download `apollia-os-windows-x86-vulkan.zip`. Vulkan drives NVIDIA, AMD and Intel cards alike; the `-cpu` bundle is the one to take on a machine with no graphics driver.
+2. Extract it and copy `apollia-runner-vulkan.exe` into `C:\Program Files\Apollia OS\`.
 3. Restart the app.
 
 ## What is different on Windows

@@ -51,16 +51,6 @@
       "self_update": true
     },
     {
-      "preset": "linux-x86-cuda",
-      "os": "linux",
-      "arch": "x86_64",
-      "triple": "x86_64-unknown-linux-gnu",
-      "archive": "apollia-os-linux-x86-cuda.tar.gz",
-      "sha256": true,
-      "llama_server": null,
-      "self_update": false
-    },
-    {
       "preset": "linux-x86-vulkan",
       "os": "linux",
       "arch": "x86_64",
@@ -79,26 +69,6 @@
       "sha256": true,
       "llama_server": "cpu",
       "self_update": true
-    },
-    {
-      "preset": "linux-arm-cuda",
-      "os": "linux",
-      "arch": "aarch64",
-      "triple": "aarch64-unknown-linux-gnu",
-      "archive": "apollia-os-linux-arm-cuda.tar.gz",
-      "sha256": true,
-      "llama_server": null,
-      "self_update": false
-    },
-    {
-      "preset": "windows-x86-cuda",
-      "os": "windows",
-      "arch": "x86_64",
-      "triple": "x86_64-pc-windows-msvc",
-      "archive": "apollia-os-windows-x86-cuda.zip",
-      "sha256": true,
-      "llama_server": "cuda",
-      "self_update": false
     },
     {
       "preset": "windows-x86-vulkan",

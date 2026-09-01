@@ -90,7 +90,7 @@ case "${1:-x86}" in
         PLATFORM="linux/arm64"
         ARCH="aarch64"
         WANT_TRIPLE="aarch64-unknown-linux-gnu"
-        PRESET="linux-arm-cpu and linux-arm-cuda, both allow_fail (release.yml:97-98)"
+        PRESET="linux-arm-cpu, allow_fail (release.yml)"
         OTHER_LINUX="x86_64-unknown-linux-gnu"
         ;;
     *)

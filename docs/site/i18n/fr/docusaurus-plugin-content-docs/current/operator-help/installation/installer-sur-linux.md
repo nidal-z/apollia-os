@@ -65,7 +65,7 @@ d'une fenêtre y laisse l'app active derrière l'icône de la barre de menus.
 
 L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré avec le bundle. La reconnaissance vocale (STT) utilise le runner `apollia-runner`, dont l'AppImage / paquet `.deb` embarque la variante CPU. Pour accélérer la dictée sur GPU :
 
-1. Téléchargez le bundle CLI dédié : `apollia-os-linux-x86-cuda.tar.gz` (ou rocm/vulkan).
+1. Téléchargez le bundle CLI GPU : `apollia-os-linux-x86-vulkan.tar.gz`. Vulkan pilote indifféremment les cartes NVIDIA, AMD et Intel ; le bundle `-cpu` est celui à prendre sur une machine sans pilote graphique.
 2. Décompressez et copiez `apollia-runner-<backend>` dans le répertoire
    `runners/` de l'installation (pour le `.deb`, `/usr/lib/apollia-os/runners/`,
    propriété de root, donc `sudo cp`).

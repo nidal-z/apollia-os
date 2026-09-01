@@ -101,8 +101,8 @@ via Git Bash, WSL ou MSYS2, et échoue sans lui.
 
 L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré avec le bundle. La reconnaissance vocale (STT) utilise le runner `apollia-runner`, dont l'installeur MSI embarque la variante CPU. Pour accélérer la dictée sur GPU CUDA / Vulkan :
 
-1. Téléchargez `apollia-os-windows-x86-cuda.zip` (ou vulkan).
-2. Décompressez et copiez `apollia-runner-cuda.exe` (ou `apollia-runner-vulkan.exe`) dans `C:\Program Files\Apollia OS\`.
+1. Téléchargez `apollia-os-windows-x86-vulkan.zip`. Vulkan pilote indifféremment les cartes NVIDIA, AMD et Intel ; le bundle `-cpu` est celui à prendre sur une machine sans pilote graphique.
+2. Décompressez et copiez `apollia-runner-vulkan.exe` dans `C:\Program Files\Apollia OS\`.
 3. Relancez l'app.
 
 ## Ce qui change sur Windows

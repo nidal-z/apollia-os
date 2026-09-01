@@ -25,7 +25,7 @@ on:
   workflow_dispatch:
     inputs:
       presets:
-        description: "CLI presets to build (comma-separated, e.g. macos-silicon,windows-x86-cuda). 'all' = every one."
+        description: "CLI presets to build (comma-separated, e.g. macos-silicon,linux-x86-vulkan). 'all' = every one."
         required: false
         default: "all"
       skip_desktop:
@@ -105,11 +105,8 @@ jobs:
               {"preset":"macos-silicon",      "runner":"macos-latest",     "triple":"aarch64-apple-darwin",      "features":"local-metal"},
               {"preset":"linux-x86-cpu",      "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-cpu"},
               {"preset":"windows-x86-cpu",    "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-cpu"},
-              {"preset":"linux-x86-cuda",     "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
               {"preset":"linux-x86-vulkan",   "runner":"ubuntu-24.04",     "triple":"x86_64-unknown-linux-gnu",  "features":"local-vulkan", "needs_vulkan":true, "allow_fail":true},
               {"preset":"linux-arm-cpu",      "runner":"ubuntu-24.04-arm", "triple":"aarch64-unknown-linux-gnu", "features":"local-cpu",    "allow_fail":true},
-              {"preset":"linux-arm-cuda",     "runner":"ubuntu-24.04-arm", "triple":"aarch64-unknown-linux-gnu", "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
-              {"preset":"windows-x86-cuda",   "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-cuda",   "needs_cuda":true, "allow_fail":true},
               {"preset":"windows-x86-vulkan", "runner":"windows-latest",   "triple":"x86_64-pc-windows-msvc",    "features":"local-vulkan", "needs_vulkan":true, "allow_fail":true}
             ]
           }
@@ -169,94 +166,6 @@ jobs:
         with:
           python-version: "3.13"
 
-      # ── GPU SDK install (only if matrix says so) ──────────────────────────
-      # CUDA Linux x86 : sub-packages minimaux suffisent (CMake trouve nvcc + libs).
-      # cublas and curand are not spelled the same on the two sides. The
-      # action prefixes `cuda-` to every name in `sub-packages`, which is right
-      # for nvcc, cudart and thrust and wrong for these four: NVIDIA's apt
-      # repository names them libcublas-12-6, libcublas-dev-12-6,
-      # libcurand-12-6 and libcurand-dev-12-6, so apt answered `Unable to
-      # locate package cuda-cublas-12-6` on four of the seven. They move to
-      # `non-cuda-sub-packages`, which exists for exactly this and which the
-      # action documents as working with `network` on Linux only. The Windows
-      # step below keeps the short names: it drives the .exe installer, whose
-      # components really are called cublas and curand.
-      - name: Install CUDA Toolkit (Linux x86)
-        if: matrix.needs_cuda && matrix.runner == 'ubuntu-24.04'
-        uses: Jimver/cuda-toolkit@b8bf9c6c28f8a92fbb04dcfcaee872e60c57462d # v0.2.36
-        with:
-          cuda: '12.6.0'
-          method: 'network'
-          sub-packages: '["nvcc","cudart","thrust"]'
-          non-cuda-sub-packages: '["libcublas","libcublas-dev","libcurand","libcurand-dev"]'
-          use-github-cache: true
-
-      # CUDA Windows x86: MUST include `visual_studio_integration` so CMake
-      # detects the CUDA-MSBuild toolset. Without that sub-package the build
-      # fails with: "CMake Error : No CUDA toolset found".
-      # (Cf. ggml/src/ggml-cuda/CMakeLists.txt:58 → enable_language(CUDA))
-      - name: Install CUDA Toolkit (Windows x86)
-        if: matrix.needs_cuda && matrix.runner == 'windows-latest'
-        uses: Jimver/cuda-toolkit@b8bf9c6c28f8a92fbb04dcfcaee872e60c57462d # v0.2.36
-        with:
-          cuda: '12.6.0'
-          method: 'network'
-          sub-packages: '["nvcc","cudart","cublas","cublas_dev","curand","curand_dev","thrust","visual_studio_integration"]'
-          use-github-cache: true
-
-      # `visual_studio_integration` only drops the MSBuild extensions under
-      # CUDA_PATH; nothing copies them into Visual Studio itself. CMake looks
-      # for them in the VC BuildCustomizations folder of the installed toolset
-      # and answers "No CUDA toolset found" when they are absent, which is
-      # exactly where whisper-rs-sys stopped on a run whose toolkit install
-      # had reported success.
-      #
-      # vswhere resolves the installation and the toolset folder is globbed
-      # rather than spelled v170: the hosted image has moved edition and
-      # toolset before, and a hardcoded path would fail silently by copying
-      # into a directory CMake does not read. Both halves throw instead.
-      - name: Wire the CUDA MSBuild extensions into Visual Studio (Windows x86)
-        if: matrix.needs_cuda && matrix.runner == 'windows-latest'
-        shell: pwsh
-        run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vs = & $vswhere -latest -products * -property installationPath
-          if (-not $vs) { throw "vswhere reported no Visual Studio installation" }
-          $src = Join-Path $env:CUDA_PATH "extras\visual_studio_integration\MSBuildExtensions"
-          if (-not (Test-Path $src)) { throw "CUDA MSBuild extensions absent at $src" }
-          $dests = Get-ChildItem (Join-Path $vs "MSBuild\Microsoft\VC") -Directory |
-                   ForEach-Object { Join-Path $_.FullName "BuildCustomizations" } |
-                   Where-Object { Test-Path $_ }
-          if (-not $dests) { throw "no BuildCustomizations folder under $vs" }
-          foreach ($d in $dests) {
-            Copy-Item "$src\*" -Destination $d -Force
-            Write-Host "wired the CUDA build customizations into $d"
-          }
-
-      - name: Install CUDA aarch64 (Jetson SBSA)
-        if: matrix.needs_cuda && matrix.runner == 'ubuntu-24.04-arm'
-        run: |
-          # The toolchain installer runs on the host that produces artifacts
-          # later signed by cosign, so its integrity is pinned. The sha256 is
-          # computed from the archive at this URL, whose md5 matches the value
-          # NVIDIA publishes (docs/sidebar/md5sum.txt:
-          # 4313fb8d387cf9b930499f407f8db94b).
-          #
-          # ubuntu2404 and not ubuntu2204: this job runs on ubuntu-24.04-arm,
-          # and the jammy repository it used to install here is the same
-          # runner-moved-pin-stayed mismatch that took ROCm out of this
-          # release entirely. It was latent here because the x86 CUDA preset
-          # died first, on a version this runner has never carried.
-          CUDA_DEB_SHA256=c9bafa1d2370d371884e43569feea7e04533eb6acb8921675d6c747e28129d8c
-          wget -q https://developer.download.nvidia.com/compute/cuda/12.6.0/local_installers/cuda-repo-ubuntu2404-12-6-local_12.6.0-560.28.03-1_arm64.deb -O /tmp/cuda.deb
-          echo "${CUDA_DEB_SHA256}  /tmp/cuda.deb" | sha256sum -c -
-          sudo dpkg -i /tmp/cuda.deb
-          sudo cp /var/cuda-repo-*/cuda-*-keyring.gpg /usr/share/keyrings/ || true
-          sudo apt-get update -q
-          sudo apt-get install -y cuda-toolkit-12-6 || echo "::warning::CUDA aarch64 install failed (L4T only)"
-          echo "CUDA_PATH=/usr/local/cuda-12.6" >> $GITHUB_ENV
-          echo "/usr/local/cuda-12.6/bin" >> $GITHUB_PATH
-
       - name: Install Vulkan SDK (Linux)
         if: matrix.needs_vulkan && startsWith(matrix.runner, 'ubuntu')
         run: |
@@ -271,7 +180,8 @@ jobs:
         if: matrix.needs_vulkan && startsWith(matrix.runner, 'windows')
         shell: pwsh
         run: |
-          # Same integrity rule as the CUDA installer above: verified before
+          # The installer runs on the host that produces signed artifacts, so
+          # its integrity is pinned: the sha256 is verified before
           # execution, sha256 computed from the archive at this URL.
           $url = "https://sdk.lunarg.com/sdk/download/1.3.290.0/windows/VulkanSDK-1.3.290.0-Installer.exe"
           $expected = "0ba0392a78157b82354157c5c988d74ddc6bc15573cc9c8653aa60245355fe8a"
