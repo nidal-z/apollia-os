@@ -147,7 +147,7 @@
         <span class="h-4 w-4 shrink-0 rounded bg-primary-gradient"></span>
         <span class="h-1.5 w-2/3 rounded-full bg-muted"></span>
       </div>
-      <span class="inline-flex w-fit rounded-full bg-primary/10 px-2 py-0.5 text-overline uppercase text-primary">
+      <span class="inline-flex w-fit rounded-full leading-none bg-primary/10 px-2 py-0.5 text-overline uppercase text-primary">
         {$t($uiMode === "operator" ? "settings.mode_operator" : "settings.mode_builder")}
       </span>
       <span class="h-1.5 w-2/5 rounded-full bg-muted"></span>
@@ -165,7 +165,7 @@
         {$t(isDark ? "settings.theme_dark" : "settings.theme_light")}
       </span>
       {#if systemMatch}
-        <span class="ml-auto rounded-full bg-muted px-2 py-0.5 text-overline uppercase text-muted-foreground">
+        <span class="ml-auto rounded-full leading-none bg-muted px-2 py-0.5 text-overline uppercase text-muted-foreground">
           {$t("settings.appearance.preview_active_now")}
         </span>
       {/if}

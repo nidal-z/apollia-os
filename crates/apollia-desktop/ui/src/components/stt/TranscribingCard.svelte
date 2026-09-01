@@ -32,7 +32,7 @@
           {$t("transcriptions.recording")}
         </span>
         <span
-          class="ml-auto inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-2 py-0.5 text-overline font-semibold text-destructive"
+          class="ml-auto inline-flex items-center gap-1.5 rounded-full leading-none bg-destructive/10 px-2 py-0.5 text-overline font-semibold text-destructive"
           role="status"
         >
           <span class="rec-dot size-1.5 rounded-full bg-current"></span>

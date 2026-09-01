@@ -29,7 +29,7 @@
   <ProfileSourceBadge {source} />
   {#if sensitive}
     <span
-      class="rounded-full bg-warning/15 px-1.5 py-px text-overline font-semibold uppercase tracking-wider text-warning-a11y"
+      class="rounded-full leading-none bg-warning/15 px-1.5 py-px text-overline font-semibold uppercase tracking-wider text-warning-a11y"
     >
       {$t("settings.profile.sensitive_badge")}
     </span>

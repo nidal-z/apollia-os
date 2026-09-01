@@ -62,7 +62,7 @@
         </span>
       {/if}
       <span
-        class="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary"
+        class="inline-flex items-center gap-1 rounded-full leading-none border border-primary/30 bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary"
         data-testid="chat-plan-review-phase"
       >
         {$t("chat.planMode.phaseLabel")}: {$t(phaseLabelKey(planState.phase))}

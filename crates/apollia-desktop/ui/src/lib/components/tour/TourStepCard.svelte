@@ -145,7 +145,7 @@
 
   {#if anchorless}
     <span
-      class="mt-1.5 inline-flex items-center gap-1.5 self-start rounded-full bg-warning/10 px-2 py-0.5 text-caption font-semibold text-warning"
+      class="mt-1.5 inline-flex items-center gap-1.5 self-start rounded-full leading-none bg-warning/10 px-2 py-0.5 text-caption font-semibold text-warning"
       data-testid="tour-anchorless"
     >
       <TriangleAlert size={11} strokeWidth={2.2} />

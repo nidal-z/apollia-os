@@ -130,7 +130,7 @@
             <span class="section-meta">{$t("observability.hooks_col_events")}</span>
             {#each hook.events as event (event)}
               <span
-                class="rounded-full border border-border/40 glass-inset px-2 py-px font-mono text-caption text-muted-foreground"
+                class="rounded-full leading-none border border-border/40 glass-inset px-2 py-px font-mono text-caption text-muted-foreground"
               >
                 {event}
               </span>

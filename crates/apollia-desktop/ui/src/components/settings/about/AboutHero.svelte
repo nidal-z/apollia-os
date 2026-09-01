@@ -48,21 +48,21 @@
   <div class="mt-4 flex flex-wrap items-center gap-2">
     {#if version}
       <span
-        class="inline-flex items-center rounded-full border border-border bg-surface-1/70 px-2.5 py-0.5 font-mono text-caption text-foreground"
+        class="inline-flex items-center rounded-full leading-none border border-border bg-surface-1/70 px-2.5 py-0.5 font-mono text-caption text-foreground"
         data-testid="about-version"
       >
         v{version}
       </span>
     {:else}
       <span
-        class="inline-flex items-center rounded-full border border-border bg-surface-1/70 px-2.5 py-0.5 text-caption text-muted-foreground"
+        class="inline-flex items-center rounded-full leading-none border border-border bg-surface-1/70 px-2.5 py-0.5 text-caption text-muted-foreground"
       >
         {$t("settings.about.version_unknown")}
       </span>
     {/if}
 
     {#if channelLabel}
-      <span class="channel-pill inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-caption font-medium">
+      <span class="channel-pill inline-flex items-center gap-1.5 rounded-full leading-none border px-2.5 py-0.5 text-caption font-medium">
         <span class="channel-dot h-1.5 w-1.5 rounded-full" aria-hidden="true"></span>
         {channelLabel}
       </span>
@@ -70,7 +70,7 @@
 
     {#if os}
       <span
-        class="inline-flex items-center rounded-full border border-border bg-surface-1/50 px-2.5 py-0.5 font-mono text-caption text-muted-foreground"
+        class="inline-flex items-center rounded-full leading-none border border-border bg-surface-1/50 px-2.5 py-0.5 font-mono text-caption text-muted-foreground"
         data-testid="about-os"
       >
         {os}

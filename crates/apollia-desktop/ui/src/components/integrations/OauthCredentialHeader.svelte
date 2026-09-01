@@ -56,14 +56,14 @@
     </span>
   {:else if configured}
     <span
-      class="inline-flex items-center gap-1.5 rounded-full bg-success/12 px-2 py-0.5 text-caption font-medium text-success-a11y"
+      class="inline-flex items-center gap-1.5 rounded-full leading-none bg-success/12 px-2 py-0.5 text-caption font-medium text-success-a11y"
     >
       <Check size={11} strokeWidth={2.5} aria-hidden="true" />
       {$t("settings.credential.configured")}
     </span>
   {:else}
     <span
-      class="inline-flex items-center gap-1.5 rounded-full bg-warning/12 px-2 py-0.5 text-caption font-medium text-warning-a11y"
+      class="inline-flex items-center gap-1.5 rounded-full leading-none bg-warning/12 px-2 py-0.5 text-caption font-medium text-warning-a11y"
     >
       <AlertTriangle size={11} strokeWidth={2} aria-hidden="true" />
       {$t("settings.credential.absent")}

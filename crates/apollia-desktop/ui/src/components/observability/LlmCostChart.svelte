@@ -517,7 +517,7 @@
         <TrendingUp size={11} class="text-muted-foreground/60 mr-1" aria-hidden="true" />
         {#each backendTotals as entry (entry.backend)}
           <span
-            class="inline-flex items-center gap-1.5 rounded-full glass-inset px-2.5 py-1"
+            class="inline-flex items-center gap-1.5 rounded-full leading-none glass-inset px-2.5 py-1"
             title={entry.backend}
           >
             <span

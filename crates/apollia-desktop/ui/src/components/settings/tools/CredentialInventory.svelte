@@ -64,7 +64,7 @@
       {$t("settings.tool_credentials.heading")}
     </h4>
     <span
-      class="rounded-full bg-muted/60 px-1.5 text-overline font-semibold text-muted-foreground/80"
+      class="rounded-full leading-none bg-muted/60 px-1.5 text-overline font-semibold text-muted-foreground/80"
       data-testid="credentials-count"
     >
       {entries.length}

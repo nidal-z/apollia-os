@@ -155,21 +155,21 @@
     <div class="flex shrink-0 flex-col items-end gap-2">
       {#if readiness === "ready"}
         <span
-          class="inline-flex items-center gap-1.5 rounded-full border border-success/28 bg-success/12 px-2.5 py-1 text-caption font-semibold text-success-a11y"
+          class="inline-flex items-center gap-1.5 rounded-full leading-none border border-success/28 bg-success/12 px-2.5 py-1 text-caption font-semibold text-success-a11y"
         >
           <CheckCircle2 size={12} strokeWidth={2} aria-hidden="true" />
           {$t("settings.integrations.status.ready")}
         </span>
       {:else if readiness === "partial"}
         <span
-          class="inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/13 px-2.5 py-1 text-caption font-semibold text-warning-a11y"
+          class="inline-flex items-center gap-1.5 rounded-full leading-none border border-warning/30 bg-warning/13 px-2.5 py-1 text-caption font-semibold text-warning-a11y"
         >
           <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
           {$t("settings.integrations.status.partial")}
         </span>
       {:else}
         <span
-          class="inline-flex items-center gap-1.5 rounded-full border border-destructive/28 bg-destructive/10 px-2.5 py-1 text-caption font-semibold text-danger-a11y"
+          class="inline-flex items-center gap-1.5 rounded-full leading-none border border-destructive/28 bg-destructive/10 px-2.5 py-1 text-caption font-semibold text-danger-a11y"
         >
           <XCircle size={12} strokeWidth={2} aria-hidden="true" />
           {$t("settings.integrations.status.none")}

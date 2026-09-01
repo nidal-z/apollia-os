@@ -38,7 +38,7 @@
 >
   <!-- Language toggle (top-right) -->
   <div
-    class="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-border/60 bg-card/80 px-1 py-0.5 backdrop-blur"
+    class="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full leading-none border border-border/60 bg-card/80 px-1 py-0.5 backdrop-blur"
     data-testid="onboarding-lang-toggle"
   >
     <Languages size={12} aria-hidden="true" class="ml-1.5 text-muted-foreground" />

@@ -228,7 +228,7 @@
         {#if channel.events.length > 0}
           {#each channel.events as event (event)}
             <span
-              class="rounded-full bg-primary/10 px-2 py-px text-caption text-primary/80"
+              class="rounded-full leading-none bg-primary/10 px-2 py-px text-caption text-primary/80"
               title={event}
             >
               {eventDisplay(event)}

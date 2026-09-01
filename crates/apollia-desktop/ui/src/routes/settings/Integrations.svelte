@@ -90,18 +90,18 @@
         {$t("settings.integrations.explain_intro")}
       </p>
       <div class="mt-2.5 flex flex-wrap items-center gap-2 text-caption" aria-hidden="true">
-        <span class="rounded-full border border-border bg-surface-1 px-2.5 py-1">
+        <span class="rounded-full leading-none border border-border bg-surface-1 px-2.5 py-1">
           <!-- i18n-ignore: environment variable name -->
           <span class="font-mono">APOLLIA_*_CLIENT_ID</span>
           <span class="text-foreground/80">{$t("settings.integrations.source.env")}</span>
         </span>
         <ArrowRight size={13} class="text-muted-foreground/60" />
-        <span class="rounded-full border border-primary/40 bg-primary/8 px-2.5 py-1 text-primary">
+        <span class="rounded-full leading-none border border-primary/40 bg-primary/8 px-2.5 py-1 text-primary">
           <span class="font-mono">oauth-clients.toml</span>
           <span>{$t("settings.integrations.source.file")}</span>
         </span>
         <ArrowRight size={13} class="text-muted-foreground/60" />
-        <span class="rounded-full border border-border bg-surface-1 px-2.5 py-1">
+        <span class="rounded-full leading-none border border-border bg-surface-1 px-2.5 py-1">
           {$t("settings.integrations.source.builtin")}
         </span>
       </div>

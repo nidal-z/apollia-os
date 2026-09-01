@@ -417,7 +417,7 @@
                 <span class="flex-1 truncate font-mono text-foreground">{model.filename}</span>
                 <span class="shrink-0 text-muted-foreground">{model.size_human}</span>
                 {#if model.recommended}
-                  <span class="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-overline font-semibold text-primary">
+                  <span class="shrink-0 rounded-full leading-none bg-primary/10 px-1.5 py-0.5 text-overline font-semibold text-primary">
                     {$t("settings.llm_dialog.recommended")}
                   </span>
                 {/if}

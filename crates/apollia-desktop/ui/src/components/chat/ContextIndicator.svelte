@@ -75,7 +75,7 @@
   {:else if onclick}
     <button
       type="button"
-      class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-micro text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+      class="inline-flex items-center gap-1 rounded-full leading-none bg-primary/10 px-2 py-0.5 text-micro text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       data-testid="context-indicator-pill"
       aria-label={$t("chat.context_inspect")}
       {onclick}
@@ -85,7 +85,7 @@
     </button>
   {:else}
     <span
-      class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-micro text-primary"
+      class="inline-flex items-center gap-1 rounded-full leading-none bg-primary/10 px-2 py-0.5 text-micro text-primary"
       data-testid="context-indicator-pill"
     >
       <Gauge size={10} />

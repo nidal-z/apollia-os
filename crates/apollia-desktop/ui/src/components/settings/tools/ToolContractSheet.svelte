@@ -279,7 +279,7 @@
                     <span class="font-mono text-body-sm text-foreground">{field.name}</span>
                     <span class="font-mono text-overline text-primary">{field.type}</span>
                     {#if field.required}
-                      <span class="rounded-full bg-warning/15 px-1.5 text-overline font-semibold text-warning-a11y">
+                      <span class="rounded-full leading-none bg-warning/15 px-1.5 text-overline font-semibold text-warning-a11y">
                         {$t("settings.tool_contract.required")}
                       </span>
                     {:else}

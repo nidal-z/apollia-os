@@ -178,7 +178,7 @@
             {$t(`settings.danger.${action.key}.description`)}
           </p>
           {#if action.irreversible}
-            <span class="mt-1 inline-flex items-center gap-1 rounded-full border border-destructive/25 bg-destructive/10 px-2 py-0.5 text-overline uppercase text-destructive">
+            <span class="mt-1 inline-flex items-center gap-1 rounded-full leading-none border border-destructive/25 bg-destructive/10 px-2 py-0.5 text-overline uppercase text-destructive">
               <Ban size={11} strokeWidth={2} aria-hidden="true" />
               {$t("settings.danger.irreversible")}
             </span>

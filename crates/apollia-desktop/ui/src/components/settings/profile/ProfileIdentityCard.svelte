@@ -103,7 +103,7 @@
         <div class="mt-2 flex flex-wrap gap-1.5">
           {#each chips as chipKey (chipKey)}
             <span
-              class="rounded-full border border-border/70 bg-surface-2 px-2 py-0.5 text-caption text-muted-foreground"
+              class="rounded-full leading-none border border-border/70 bg-surface-2 px-2 py-0.5 text-caption text-muted-foreground"
             >
               {$t(chipKey)}
             </span>

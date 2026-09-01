@@ -340,7 +340,7 @@
     {#snippet icon()}<Scale size={15} strokeWidth={1.75} />{/snippet}
     <SettingsFieldRow label={$t("settings.about.kv_license")} border={false}>
       {#snippet control()}
-        <span class="inline-flex items-center rounded-full border border-border bg-muted/50 px-2.5 py-0.5 font-mono text-caption text-foreground">
+        <span class="inline-flex items-center rounded-full leading-none border border-border bg-muted/50 px-2.5 py-0.5 font-mono text-caption text-foreground">
           {LICENSE_SPDX}
         </span>
       {/snippet}

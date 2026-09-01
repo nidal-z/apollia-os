@@ -232,7 +232,7 @@
         />
       </div>
       <span
-        class="ml-auto whitespace-nowrap rounded-full border border-border/60 bg-muted/50 px-2.5 py-1 text-caption text-muted-foreground"
+        class="ml-auto whitespace-nowrap rounded-full leading-none border border-border/60 bg-muted/50 px-2.5 py-1 text-caption text-muted-foreground"
         data-testid="tools-count"
       >
         {$t("settings.tools_page.count_active", { values: { active: activeCount, total: totalCount } })}
@@ -261,7 +261,7 @@
               <h4 class="text-overline font-semibold uppercase text-muted-foreground">
                 {$t(group.labelKey)}
               </h4>
-              <span class="rounded-full bg-muted/60 px-1.5 text-overline font-semibold text-muted-foreground/80">
+              <span class="rounded-full leading-none bg-muted/60 px-1.5 text-overline font-semibold text-muted-foreground/80">
                 {group.rows.length}
               </span>
               <span class="h-px flex-1 bg-gradient-to-r from-border to-transparent" aria-hidden="true"></span>

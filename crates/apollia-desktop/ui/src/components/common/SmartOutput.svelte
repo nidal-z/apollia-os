@@ -256,7 +256,7 @@
           <div class="flex items-center gap-2">
             <span class="text-xs text-muted-foreground">{humanizeKey(key)}</span>
             <span
-              class="inline-flex items-center rounded-full border border-transparent bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground"
+              class="inline-flex items-center rounded-full leading-none border border-transparent bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground"
               data-testid="smart-output-badge"
             >
               {String(value)}

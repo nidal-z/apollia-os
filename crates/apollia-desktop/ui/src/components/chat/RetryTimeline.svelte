@@ -63,7 +63,7 @@
 {#if visible.length > 0}
   {#if skin === "operator"}
     <span
-      class="inline-flex items-center gap-1 rounded-full bg-muted/40 px-1.5 py-0.5 text-micro text-muted-foreground"
+      class="inline-flex items-center gap-1 rounded-full leading-none bg-muted/40 px-1.5 py-0.5 text-micro text-muted-foreground"
       data-testid="retry-badge"
       title={$t("chat.retry.badge_title", {
         values: { n: retryCount },

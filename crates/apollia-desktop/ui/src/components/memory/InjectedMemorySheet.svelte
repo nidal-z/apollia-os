@@ -69,7 +69,7 @@
     {#snippet actions()}
       {#if entries.length > 0}
         <span
-          class="rounded-full bg-primary/10 px-2 py-0.5 text-micro text-primary tabular-nums"
+          class="rounded-full leading-none bg-primary/10 px-2 py-0.5 text-micro text-primary tabular-nums"
           data-testid="injected-memory-count"
         >
           {entries.length}

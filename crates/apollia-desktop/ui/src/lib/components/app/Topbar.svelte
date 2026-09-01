@@ -68,7 +68,7 @@
   <div class="flex flex-shrink-0 items-center gap-1.5">
     {#if agentsAtWork > 0}
       <span
-        class="v4-hair inline-flex items-center gap-1.5 rounded-full border bg-surface-1 px-2.5 py-1 text-caption text-muted-foreground"
+        class="v4-hair inline-flex items-center gap-1.5 rounded-full leading-none border bg-surface-1 px-2.5 py-1 text-caption text-muted-foreground"
         data-testid="topbar-agents-at-work"
         aria-label={$t("topbar.agents_at_work", { values: { count: agentsAtWork } })}
       >

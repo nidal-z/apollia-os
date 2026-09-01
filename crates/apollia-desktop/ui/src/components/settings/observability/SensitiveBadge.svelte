@@ -16,7 +16,7 @@
 </script>
 
 <span
-  class="inline-flex items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-overline uppercase text-warning"
+  class="inline-flex items-center gap-1 rounded-full leading-none border border-warning/30 bg-warning/10 px-2 py-0.5 text-overline uppercase text-warning"
 >
   <AlertTriangle size={10} strokeWidth={2} aria-hidden="true" />
   {label}

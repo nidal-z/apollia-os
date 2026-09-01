@@ -86,7 +86,7 @@
   {#snippet trigger(triggerProps: Record<string, unknown>)}
     <button
       {...triggerProps}
-      class="inline-flex items-center gap-1 rounded-full border border-secondary/30 bg-secondary/10 px-2 py-0.5 text-micro font-medium text-secondary hover:bg-secondary/20 transition-colors"
+      class="inline-flex items-center gap-1 rounded-full leading-none border border-secondary/30 bg-secondary/10 px-2 py-0.5 text-micro font-medium text-secondary hover:bg-secondary/20 transition-colors"
       aria-label={$t("chat.a2a_workers")}
       data-testid="a2a-worker-badge"
     >

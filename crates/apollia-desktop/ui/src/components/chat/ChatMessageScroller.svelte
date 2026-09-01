@@ -116,7 +116,7 @@
         />
         {#if $uiMode === "builder" && hasCrossSessionRefs && isSingleCrossSession}
           <div
-            class="absolute -top-1 -right-1 flex items-center gap-1 rounded-full bg-secondary/20 px-2 py-0.5"
+            class="absolute -top-1 -right-1 flex items-center gap-1 rounded-full leading-none bg-secondary/20 px-2 py-0.5"
             data-testid="cross-session-badge"
           >
             <Link size={9} class="text-secondary" />

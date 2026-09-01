@@ -69,7 +69,7 @@
   <SettingsFieldRow label={$t('settings.stt_acceleration')} hint={$t('settings.stt.acceleration_hint')} border={false}>
     {#snippet control()}
       {#if accelerationLabel}
-        <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-caption font-medium text-primary">
+        <span class="inline-flex items-center gap-1 rounded-full leading-none bg-primary/10 px-2 py-0.5 text-caption font-medium text-primary">
           <Sparkles size={12} strokeWidth={2} />
           {accelerationLabel}
         </span>

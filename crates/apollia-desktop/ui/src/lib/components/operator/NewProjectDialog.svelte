@@ -128,7 +128,7 @@
                 <div class="flex gap-1 flex-wrap">
                   {#each tpl.agents as a}
                     <span
-                      class="text-micro-sm px-1.5 py-px rounded-full bg-card text-muted-foreground border border-border"
+                      class="text-micro-sm px-1.5 py-px rounded-full leading-none bg-card text-muted-foreground border border-border"
                     >
                       {a}
                     </span>

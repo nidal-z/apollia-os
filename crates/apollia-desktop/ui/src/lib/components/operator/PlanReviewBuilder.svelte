@@ -140,17 +140,17 @@
             {#snippet detail()}
               <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span
-                  class="rounded-full bg-surface-2 px-2 py-0.5 font-mono text-overline text-muted-foreground"
+                  class="rounded-full leading-none bg-surface-2 px-2 py-0.5 font-mono text-overline text-muted-foreground"
                 >
                   {entry.step.step_id}
                 </span>
                 {#if entry.step.tool_hint}
-                  <span class="rounded-full bg-accent/10 px-2 py-0.5 text-overline text-accent-foreground">
+                  <span class="rounded-full leading-none bg-accent/10 px-2 py-0.5 text-overline text-accent-foreground">
                     {entry.step.tool_hint}
                   </span>
                 {/if}
                 {#if entry.step.model_hint}
-                  <span class="rounded-full bg-surface-2 px-2 py-0.5 text-overline text-muted-foreground">
+                  <span class="rounded-full leading-none bg-surface-2 px-2 py-0.5 text-overline text-muted-foreground">
                     {entry.step.model_hint}
                   </span>
                 {/if}

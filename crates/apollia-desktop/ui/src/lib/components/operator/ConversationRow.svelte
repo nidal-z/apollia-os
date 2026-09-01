@@ -210,7 +210,7 @@
   </div>
   {#if unreadCount !== undefined && unreadCount > 0}
     <span
-      class="self-center bg-primary text-primary-foreground text-micro-sm font-semibold px-1.5 py-px rounded-full"
+      class="self-center bg-primary text-primary-foreground text-micro-sm font-semibold px-1.5 py-px rounded-full leading-none"
     >
       {unreadCount}
     </span>

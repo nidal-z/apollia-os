@@ -72,7 +72,7 @@
         >
           {#snippet trailing()}
             <span
-              class="inline-flex items-center rounded-full border border-border/40 bg-background/60 px-2 py-0.5 text-micro font-medium text-muted-foreground backdrop-blur-sm"
+              class="inline-flex items-center rounded-full leading-none border border-border/40 bg-background/60 px-2 py-0.5 text-micro font-medium text-muted-foreground backdrop-blur-sm"
             >
               {variant}
             </span>
