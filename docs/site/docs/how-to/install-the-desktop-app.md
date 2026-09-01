@@ -51,6 +51,8 @@ writes them:
 | macOS (Apple Silicon) | `Apollia OS_0.1.0-1_aarch64.dmg` |
 | Linux (x86-64) | `Apollia OS_0.1.0-1_amd64.AppImage`, `Apollia OS_0.1.0-1_amd64.deb` |
 | Windows (x86-64) | `Apollia OS_0.1.0-1_x64_en-US.msi`, `Apollia OS_0.1.0-1_x64-setup.exe` |
+| Linux (x86-64), CUDA engine | `Apollia OS_0.1.0-1_amd64-cuda.AppImage`, `Apollia OS_0.1.0-1_amd64-cuda.deb` |
+| Windows (x86-64), CUDA engine | `Apollia OS_0.1.0-1_x64_en-US-cuda.msi`, `Apollia OS_0.1.0-1_x64-setup-cuda.exe` |
 <!-- release-artifacts:end -->
 
 Each release also attaches a `SHA256SUMS` file. To confirm your download is

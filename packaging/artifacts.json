@@ -84,10 +84,13 @@
   "desktop": [
     {
       "platform": "darwin-aarch64",
+      "job": "desktop-macos",
       "os": "macos",
       "arch": "aarch64",
       "triple": "aarch64-apple-darwin",
-      "installers": ["Apollia OS_{version}_aarch64.dmg"],
+      "installers": [
+        "Apollia OS_{version}_aarch64.dmg"
+      ],
       "updater": {
         "artifact": "Apollia OS.app.tar.gz",
         "signature": "Apollia OS.app.tar.gz.sig"
@@ -95,6 +98,7 @@
     },
     {
       "platform": "linux-x86_64",
+      "job": "desktop-linux",
       "os": "linux",
       "arch": "x86_64",
       "triple": "x86_64-unknown-linux-gnu",
@@ -109,6 +113,7 @@
     },
     {
       "platform": "windows-x86_64",
+      "job": "desktop-windows",
       "os": "windows",
       "arch": "x86_64",
       "triple": "x86_64-pc-windows-msvc",
@@ -120,6 +125,30 @@
         "artifact": "Apollia OS_{version}_x64-setup.exe",
         "signature": "Apollia OS_{version}_x64-setup.exe.sig"
       }
+    },
+    {
+      "platform": "linux-x86_64-cuda",
+      "job": "desktop-linux-cuda",
+      "os": "linux",
+      "arch": "x86_64",
+      "triple": "x86_64-unknown-linux-gnu",
+      "installers": [
+        "Apollia OS_{version}_amd64-cuda.AppImage",
+        "Apollia OS_{version}_amd64-cuda.deb"
+      ],
+      "updater": null
+    },
+    {
+      "platform": "windows-x86_64-cuda",
+      "job": "desktop-windows-cuda",
+      "os": "windows",
+      "arch": "x86_64",
+      "triple": "x86_64-pc-windows-msvc",
+      "installers": [
+        "Apollia OS_{version}_x64_en-US-cuda.msi",
+        "Apollia OS_{version}_x64-setup-cuda.exe"
+      ],
+      "updater": null
     }
   ]
 }

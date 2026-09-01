@@ -428,6 +428,92 @@ jobs:
           retention-days: 30
 
   # ────────────────────────────────────────────────────────────────────────────
+  # llama-server with CUDA for Linux, built here because upstream ships none.
+  # ────────────────────────────────────────────────────────────────────────────
+  # llama.cpp publishes a CUDA engine for Windows and none for Linux: of the 25
+  # assets on the pinned tag, `ubuntu-*` covers cpu, vulkan, rocm, sycl and
+  # openvino, and stops there. Their dated CUDA container images stop around
+  # b9002, a thousand builds behind the tag this workspace pins, so pulling one
+  # would either move under us or ship Linux users a different llama.cpp from
+  # everyone else. Compiling it here is what remains, and it is the ordinary
+  # thing to do: the toolkit installs, the cmake invocation is upstream's own.
+  #
+  # The cost is stated rather than hidden: nvcc compiles the kernels once per
+  # architecture, so this job is the long pole of a release run.
+  #
+  # The architecture list is a product decision, not a default. Real SASS for
+  # Turing (75), A100 (80), Ampere consumer (86) and Ada (89), which together
+  # cover every consumer card from the RTX 20 series on and the datacenter part
+  # people actually rent, plus virtual 90 so a newer card still runs through
+  # PTX rather than refusing to start. Cards older than Turing are out: adding
+  # them costs build time on every release for hardware that cannot hold a
+  # useful model anyway.
+  llama-cuda-linux:
+    name: llama-server CUDA (Linux x86_64)
+    needs: setup
+    if: needs.setup.outputs.run_desktop == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Install the CUDA toolkit
+        uses: Jimver/cuda-toolkit@b8bf9c6c28f8a92fbb04dcfcaee872e60c57462d # v0.2.36
+        with:
+          cuda: '12.6.0'
+          method: 'network'
+          sub-packages: '["nvcc","cudart","thrust"]'
+          non-cuda-sub-packages: '["libcublas","libcublas-dev","libcurand","libcurand-dev"]'
+          use-github-cache: true
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev
+
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      # The tag is read from the packaging script rather than repeated here, so
+      # the engine this job builds and the engine every other platform downloads
+      # can never drift apart silently.
+      - name: Read the pinned llama.cpp tag
+        id: tag
+        run: |
+          TAG=$(grep -oE 'b[0-9]{4,6}' packaging/fetch-llama-server.sh | head -1)
+          [ -n "$TAG" ] || { echo "no pinned llama.cpp tag in packaging/fetch-llama-server.sh" >&2; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build llama-server
+        run: |
+          git clone --depth 1 --branch "${{ steps.tag.outputs.tag }}" \
+            https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp
+          cmake -S /tmp/llama.cpp -B /tmp/llama.cpp/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_CUDA=ON \
+            -DGGML_NATIVE=OFF \
+            -DLLAMA_BUILD_TESTS=OFF \
+            -DLLAMA_BUILD_EXAMPLES=OFF \
+            -DLLAMA_BUILD_SERVER=ON \
+            -DCMAKE_CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90-virtual"
+          cmake --build /tmp/llama.cpp/build --target llama-server --config Release -j"$(nproc)"
+
+      # Flat staging: the desktop job hands this directory to
+      # packaging/fetch-llama-server.sh through LLAMA_SERVER_DIR, which copies
+      # the binary and the shared objects beside it. Anything missing here is
+      # missing from the bundle.
+      - name: Stage the engine and its libraries
+        run: |
+          mkdir -p engine
+          cp /tmp/llama.cpp/build/bin/llama-server engine/
+          find /tmp/llama.cpp/build/bin -maxdepth 1 -name '*.so*' -exec cp {} engine/ \;
+          ls -lh engine/
+          ./engine/llama-server --version 2>&1 | head -3 || true
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: llama-server-cuda-linux-x86_64
+          path: engine/
+          if-no-files-found: error
+          retention-days: 1
+
+  # ────────────────────────────────────────────────────────────────────────────
   # Desktop bundle Tauri - macOS ARM64 .dmg (extension future : Linux/Win)
   # ────────────────────────────────────────────────────────────────────────────
   desktop-macos:
@@ -877,12 +963,330 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+
+  desktop-linux-cuda:
+    name: Desktop Linux CUDA (x86_64)
+    needs: [setup, llama-cuda-linux]
+    if: needs.setup.outputs.run_desktop == 'true'
+    # Pinned to 24.04 (noble), the same base as the Linux CLI builds; GitHub
+    # retires the 22.04 image on 2026-09-17.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-gnu
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Tauri / Linux build deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            build-essential pkg-config libssl-dev \
+            libasound2-dev libpulse-dev libjack-jackd2-dev \
+            libgtk-3-dev libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            libxdo-dev curl wget file \
+            python3-dev clang cmake
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: desktop-linux-cuda-x86_64
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend deps
+        working-directory: crates/apollia-desktop/ui
+        run: npm ci
+
+      # The engine is the one llama-cuda-linux compiled, handed to
+      # bundle-cli.sh through the LLAMA_SERVER_DIR mode it already provides for
+      # local builds. Nothing downloads a CUDA engine here because upstream
+      # publishes none for Linux.
+      - name: Take the CUDA engine built upstream of this job
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: llama-server-cuda-linux-x86_64
+          path: ${{ github.workspace }}/llama-cuda
+      - name: Make the engine executable
+        run: |
+          chmod +x "${{ github.workspace }}/llama-cuda/llama-server"
+          echo "LLAMA_SERVER_DIR=${{ github.workspace }}/llama-cuda" >> $GITHUB_ENV
+
+      - name: Build Python bundle (x86_64-unknown-linux-gnu)
+        run: |
+          ./packaging/build-python-bundle.sh x86_64-unknown-linux-gnu \
+            target/python-bundle/x86_64-unknown-linux-gnu
+
+      # `createUpdaterArtifacts: true` + `pubkey` make `cargo tauri build`
+      # demand TAURI_SIGNING_PRIVATE_KEY. The build must finish either way:
+      # with the secret it emits updater artifacts, without it it builds with
+      # createUpdaterArtifacts=false and the run summary says so. Configuring
+      # the secret stays a human act.
+      - name: Guard the updater signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not configured: building with createUpdaterArtifacts=false, this build ships no updater artifact"
+            echo "TAURI_SIGNING_PRIVATE_KEY absent : createUpdaterArtifacts=false, no updater artifact" >> "$GITHUB_STEP_SUMMARY"
+            echo 'TAURI_BUNDLE_CONFIG={"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_ENV"
+          fi
+
+      - name: Build Tauri app
+        working-directory: crates/apollia-desktop
+        env:
+          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/bin/python3.13
+          RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/lib
+          APOLLIA_DESKTOP_RUNNERS: "cpu"
+          # CUDA here, against Vulkan in the sibling job. The STT runner stays
+          # CPU either way: whisper-rs has no Vulkan backend, and a CUDA one
+          # would drag nvcc into this build for the smaller half of the gain.
+          # LLAMA_SERVER_DIR, set above, is what makes this reachable at all.
+          APOLLIA_DESKTOP_LLAMA_BACKEND: "cuda"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # linuxdeploy and its appimage plugin are themselves AppImages, and
+          # an AppImage mounts itself through FUSE 2, which Ubuntu 24.04 does
+          # not ship and whose fallback it blocks by restricting unprivileged
+          # user namespaces. Both ran and died without a word: tauri reports
+          # `failed to run linuxdeploy` and swallows the child's stderr, so the
+          # bundle step spent fifteen seconds producing no diagnosis at all.
+          # This variable makes an AppImage unpack into a temporary directory
+          # and run from there, which needs neither FUSE nor a namespace.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          if [ -n "${TAURI_BUNDLE_CONFIG:-}" ]; then
+            cargo tauri build --target x86_64-unknown-linux-gnu --config "$TAURI_BUNDLE_CONFIG"
+          else
+            cargo tauri build --target x86_64-unknown-linux-gnu
+          fi
+
+      # Flat staging: actions/upload-artifact roots the artifact at the
+      # longest common ancestor of its paths, so uploading deb/*.deb and
+      # appimage/*.AppImage as-is buries the installers in sub-folders the
+      # release job's flat globs never see. An unmatched glob here fails the
+      # copy, loudly.
+      - name: Collect installers (flat paths)
+        run: |
+          BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle
+          mkdir -p "$BUNDLE/dist"
+          # Tauri names both variants identically, so the CUDA files take a
+          # suffix before they reach a release that already holds the Vulkan
+          # ones. The name is what a download page shows, so it says cuda
+          # rather than a number.
+          for f in "$BUNDLE"/deb/*.deb; do cp "$f" "$BUNDLE/dist/$(basename "${f%.deb}")-cuda.deb"; done
+          for f in "$BUNDLE"/appimage/*.AppImage; do cp "$f" "$BUNDLE/dist/$(basename "${f%.AppImage}")-cuda.AppImage"; done
+          # The updater signature of the AppImage exists only on a keyed build;
+          # its absence is said out loud, because latest.json is composed from
+          # the signatures the release job receives.
+          if compgen -G "$BUNDLE/appimage/*.AppImage.sig" > /dev/null; then
+            for f in "$BUNDLE"/appimage/*.AppImage.sig; do cp "$f" "$BUNDLE/dist/$(basename "${f%.AppImage.sig}")-cuda.AppImage.sig"; done
+          else
+            echo "::warning::no Linux CUDA updater signature (TAURI_SIGNING_PRIVATE_KEY absent)"
+          fi
+
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/x86_64-unknown-linux-gnu/release/bundle
+          format: cyclonedx-json
+          output-file: target/x86_64-unknown-linux-gnu/release/bundle/dist/apollia-desktop-linux-x86_64.cdx.json
+          upload-artifact: false
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/x86_64-unknown-linux-gnu/release/bundle
+          format: spdx-json
+          output-file: target/x86_64-unknown-linux-gnu/release/bundle/dist/apollia-desktop-linux-x86_64.spdx.json
+          upload-artifact: false
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: apollia-desktop-linux-cuda-x86_64
+          path: target/x86_64-unknown-linux-gnu/release/bundle/dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Desktop bundle Tauri - Windows x86_64 (.msi + .exe NSIS)
+  # ────────────────────────────────────────────────────────────────────────────
+
+  desktop-windows-cuda:
+    name: Desktop Windows CUDA (x86_64)
+    needs: setup
+    if: needs.setup.outputs.run_desktop == 'true'
+    runs-on: windows-latest
+    env:
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.13"
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          key: desktop-windows-cuda-x86_64
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend deps
+        working-directory: crates/apollia-desktop/ui
+        run: npm ci
+
+      - name: Build Python bundle (x86_64-pc-windows-msvc)
+        shell: bash
+        run: |
+          ./packaging/build-python-bundle.sh x86_64-pc-windows-msvc \
+            target/python-bundle/x86_64-pc-windows-msvc
+
+      # `createUpdaterArtifacts: true` + `pubkey` make `cargo tauri build`
+      # demand TAURI_SIGNING_PRIVATE_KEY. The build must finish either way:
+      # with the secret it emits updater artifacts, without it it builds with
+      # createUpdaterArtifacts=false and the run summary says so. Configuring
+      # the secret stays a human act.
+      - name: Guard the updater signing key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY is not configured: building with createUpdaterArtifacts=false, this build ships no updater artifact"
+            echo "TAURI_SIGNING_PRIVATE_KEY absent : createUpdaterArtifacts=false, no updater artifact" >> "$GITHUB_STEP_SUMMARY"
+            echo 'TAURI_BUNDLE_CONFIG={"bundle":{"createUpdaterArtifacts":false}}' >> "$GITHUB_ENV"
+          fi
+
+      - name: Build Tauri app
+        working-directory: crates/apollia-desktop
+        shell: bash
+        env:
+          PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-pc-windows-msvc/python/python.exe
+          CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
+          APOLLIA_DESKTOP_RUNNERS: "cpu"
+          # CUDA here, against Vulkan in the sibling job. Unlike Linux, this
+          # engine is a download: llama.cpp publishes a Windows CUDA build and
+          # its separate runtime archive, both handled by fetch-llama-server.sh.
+          # No CUDA toolchain enters this build, which is why the nvcc crash
+          # against Visual Studio 18 that stops the CLI CUDA preset does not
+          # reach here.
+          APOLLIA_DESKTOP_LLAMA_BACKEND: "cuda"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -n "${TAURI_BUNDLE_CONFIG:-}" ]; then
+            cargo tauri build --target x86_64-pc-windows-msvc --config "$TAURI_BUNDLE_CONFIG"
+          else
+            cargo tauri build --target x86_64-pc-windows-msvc
+          fi
+
+      # ── Code signing with signtool (gated by secrets) ──────────────────────
+      # The PFX cert is passed as base64 and signed with signtool of the
+      # Windows SDK (present by default on the windows-latest runner).
+      - name: Sign MSI + NSIS installers (if cert present)
+        if: env.WINDOWS_CERT_PFX_BASE64 != ''
+        env:
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "code.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $signtool = (Get-ChildItem "C:/Program Files (x86)/Windows Kits/10/bin" -Recurse -Filter signtool.exe |
+              Where-Object { $_.FullName -match 'x64\\signtool.exe$' } |
+              Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          $bundleDir = "target/x86_64-pc-windows-msvc/release/bundle"
+          $targets = @()
+          if (Test-Path "$bundleDir/msi") { $targets += Get-ChildItem "$bundleDir/msi/*.msi" }
+          if (Test-Path "$bundleDir/nsis") { $targets += Get-ChildItem "$bundleDir/nsis/*.exe" }
+          foreach ($t in $targets) {
+              & $signtool sign /fd SHA256 /tr "http://timestamp.digicert.com" /td SHA256 `
+                  /f $pfx /p $env:WINDOWS_CERT_PASSWORD $t.FullName
+              & $signtool verify /pa $t.FullName
+          }
+
+      # Flat staging, same reason as the Linux job: keep the installers out
+      # of msi/ and nsis/ sub-folders the release job's flat globs never see.
+      # GitHub's pwsh shell runs with $ErrorActionPreference = 'Stop', so an
+      # unmatched glob fails the step.
+      - name: Collect installers (flat paths)
+        shell: pwsh
+        run: |
+          $bundle = "target/x86_64-pc-windows-msvc/release/bundle"
+          New-Item -ItemType Directory -Force -Path "$bundle/dist" | Out-Null
+          # Tauri names both variants identically, so the CUDA files take a
+          # suffix before they reach a release that already holds the Vulkan
+          # ones. The name is what a download page shows, so it says cuda.
+          Get-ChildItem "$bundle/msi/*.msi" | ForEach-Object {
+              Copy-Item $_ "$bundle/dist/$($_.BaseName)-cuda$($_.Extension)"
+          }
+          Get-ChildItem "$bundle/nsis/*.exe" | ForEach-Object {
+              Copy-Item $_ "$bundle/dist/$($_.BaseName)-cuda$($_.Extension)"
+          }
+          # Updater signatures exist only on a keyed build; their absence is
+          # said out loud, because latest.json is composed from the signatures
+          # the release job receives.
+          $sigs = @(Get-ChildItem "$bundle/msi/*.msi.sig", "$bundle/nsis/*.exe.sig" -ErrorAction SilentlyContinue)
+          if ($sigs.Count -gt 0) {
+              $sigs | ForEach-Object {
+                  Copy-Item $_ "$bundle/dist/$($_.BaseName -replace '(\.msi|\.exe)$', '-cuda$1')$($_.Extension)"
+              }
+          } else {
+              Write-Output "::warning::no Windows CUDA updater signature (TAURI_SIGNING_PRIVATE_KEY absent)"
+          }
+
+      - name: Generate SBOM (CycloneDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/x86_64-pc-windows-msvc/release/bundle
+          format: cyclonedx-json
+          output-file: target/x86_64-pc-windows-msvc/release/bundle/dist/apollia-desktop-windows-cuda-x86_64.cdx.json
+          upload-artifact: false
+
+      - name: Generate SBOM (SPDX)
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          path: target/x86_64-pc-windows-msvc/release/bundle
+          format: spdx-json
+          output-file: target/x86_64-pc-windows-msvc/release/bundle/dist/apollia-desktop-windows-cuda-x86_64.spdx.json
+          upload-artifact: false
+
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: apollia-desktop-windows-cuda-x86_64
+          path: target/x86_64-pc-windows-msvc/release/bundle/dist/*
+          if-no-files-found: error
+          retention-days: 30
+
   # ────────────────────────────────────────────────────────────────────────────
   # Aggregation → GitHub Release draft (tag push uniquement)
   # ────────────────────────────────────────────────────────────────────────────
   release:
     name: Publish GitHub Release (draft)
-    needs: [cli, desktop-macos, desktop-linux, desktop-windows]
+    needs: [cli, desktop-macos, desktop-linux, desktop-linux-cuda, desktop-windows, desktop-windows-cuda]
     # No `always()`: a missing installer is a broken release, not something a
     # reviewer discovers after the draft exists. When one platform fails, fix
     # it or re-run the failed job; the three blocking presets and three

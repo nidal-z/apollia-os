@@ -92,8 +92,12 @@ HARDCODED_ASSET = re.compile(
     r'"apollia-os-[A-Za-z0-9_.-]*(?:musl|darwin|msvc|\.tar\.gz|\.zip)[A-Za-z0-9_.-]*"'
 )
 
-# The desktop job that builds each contract platform.
-JOB_BY_OS = {"macos": "desktop-macos", "linux": "desktop-linux", "windows": "desktop-windows"}
+# The desktop job that builds a platform is named by the contract itself, in
+# each entry's `job`. It used to be a table keyed on `os` here, which stopped
+# working the day one system got two variants: Windows and Linux each ship a
+# Vulkan bundle and a CUDA one, and an operating system no longer identifies a
+# producer. Naming the job in the contract also puts the two sides of the
+# question in one file rather than two.
 
 
 def shell_lines(run: str) -> list[str]:
@@ -142,6 +146,8 @@ def render_block(contract: dict, version: str, lang: str) -> str:
             "darwin-aarch64": "macOS (Apple Silicon)",
             "linux-x86_64": "Linux (x86-64)",
             "windows-x86_64": "Windows (x86-64)",
+            "linux-x86_64-cuda": "Linux (x86-64), moteur CUDA",
+            "windows-x86_64-cuda": "Windows (x86-64), moteur CUDA",
         }
         origin = (
             f"{BLOCK_BEGIN} - genere depuis packaging/artifacts.json par "
@@ -153,6 +159,8 @@ def render_block(contract: dict, version: str, lang: str) -> str:
             "darwin-aarch64": "macOS (Apple Silicon)",
             "linux-x86_64": "Linux (x86-64)",
             "windows-x86_64": "Windows (x86-64)",
+            "linux-x86_64-cuda": "Linux (x86-64), CUDA engine",
+            "windows-x86_64-cuda": "Windows (x86-64), CUDA engine",
         }
         origin = (
             f"{BLOCK_BEGIN} - generated from packaging/artifacts.json by "
@@ -329,8 +337,20 @@ def check(root: Path) -> list[str] | int:
 
     # ── updater-uploads ───────────────────────────────────────────────────
     for entry in contract.get("desktop", []):
-        job_id = JOB_BY_OS.get(entry["os"])
-        job = jobs.get(job_id, {})
+        job_id = entry.get("job")
+        if job_id not in jobs:
+            defects.append(
+                f"{CONTRACT}: updater-uploads: platform {entry['platform']} names "
+                f"job {job_id!r}, which {WORKFLOW} does not define"
+            )
+            continue
+        job = jobs[job_id]
+        # `updater: null` is a bundle that does not self-update, and says so
+        # rather than leaving the reader to infer it from a missing key. The
+        # CUDA variants are that case: Tauri resolves one manifest per platform
+        # triple, so two bundles for one triple cannot both be offered by it.
+        if entry.get("updater") is None:
+            continue
         sig = entry["updater"]["signature"]
         # The extension suffix, stable across the {version} placeholder,
         # e.g. ".AppImage.sig", ".exe.sig", ".gz.sig".
@@ -348,7 +368,8 @@ def check(root: Path) -> list[str] | int:
             )
 
     # ── flat-uploads ──────────────────────────────────────────────────────
-    for job_id in ["cli", *JOB_BY_OS.values()]:
+    desktop_jobs = [e["job"] for e in contract.get("desktop", []) if e.get("job")]
+    for job_id in ["cli", *dict.fromkeys(desktop_jobs)]:
         for step in upload_steps(jobs.get(job_id, {})):
             paths = [
                 p.strip()
