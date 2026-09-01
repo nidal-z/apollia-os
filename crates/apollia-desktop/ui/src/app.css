@@ -218,18 +218,18 @@
     --text-heading-sm: 1rem;
     --text-body-lg: 1rem;
     --text-body-md: 0.875rem;
-    --text-body-sm: 0.8125rem;
+    --text-body-sm: 0.875rem;
     --text-body-xs: 0.8125rem;
-    --text-label-md: 0.8125rem;
+    --text-label-md: 0.875rem;
     --text-label-sm: 0.8125rem;
     --text-code-sm: 0.8125rem;
-    --text-caption-lg: 0.78125rem;
+    --text-caption-lg: 0.8125rem;
     --text-caption: 0.78125rem;
-    --text-overline: 0.75rem;
-    --text-micro-lg: 0.75rem;
-    --text-micro: 0.71875rem;
-    --text-micro-sm: 0.6875rem;
-    --text-micro-xs: 0.6875rem;
+    --text-overline: 0.78125rem;
+    --text-micro-lg: 0.78125rem;
+    --text-micro: 0.78125rem;
+    --text-micro-sm: 0.71875rem;
+    --text-micro-xs: 0.71875rem;
 
     /* ── Hover ── */
     --hover-surface-lift: -2px;

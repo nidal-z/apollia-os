@@ -58,27 +58,33 @@ const config: Config = {
         // inside a style block reads the same token, and cannot drift from
         // the class it replaces.
         //
-        // The px map of the scale:
-        //   11px    → micro-xs, micro-sm
-        //   11.5px  → micro     (.tb-card-top, .section-meta)
-        //   12px    → overline as a role, micro-lg as a plain size
-        //             (.tb-iolabel, .tb-pill)
-        //   12.5px  → caption    (.tb-badge, .tb-metric, .chat-ft-meta, .tb-fmeta)
-        //             and caption-lg (.tb-grep-file)
-        //   13px    → body-xs / label-sm (.tb-chip, .tb-code, .tb-term,
-        //             .tb-preview, .tb-grep-row), code-sm (.tb-frow, .tb-step,
-        //             .chat-ft-head, .tb-card-body, .tb-extract), and
-        //             body-sm / label-md (.tb-extract-title)
-        //   14px    → body-md    (chat body copy)
+        // The px map of the scale, five rungs:
+        //   11.5px  → micro-xs, micro-sm   the key caps and superscripts that
+        //             sit inside a line of chrome text
+        //   12.5px  → micro (.tb-card-top, .section-meta), micro-lg and
+        //             overline (.tb-iolabel, .tb-pill), caption (.tb-badge,
+        //             .tb-metric, .chat-ft-meta, .tb-fmeta) - the chips
+        //   13px    → caption-lg (.tb-grep-file), body-xs / label-sm (.tb-chip,
+        //             .tb-code, .tb-term, .tb-preview, .tb-grep-row), code-sm
+        //             (.tb-frow, .tb-step, .chat-ft-head, .tb-card-body,
+        //             .tb-extract) - meta lines and code
+        //   14px    → body-sm / label-md (.tb-extract-title), body-md - titles
+        //             and body copy
         //   16px    → body-lg / heading-sm
         //
-        // The floor of that map used to sit at 9px, and 95% of the 1569 sizing
-        // sites of src/ resolved below 14px, 612 of them to the 11px `caption`
-        // alone, against 17 sites on the 14px body tier. The scale described a
-        // product read at arm's length rather than one read on a desktop, so
-        // the sub-14 band was lifted: nothing renders below 11px now, and the
-        // twelve tiers that shared a 4px band, where no reader perceives a
-        // half-pixel step, share four.
+        // The floor used to sit at 9px, and 95% of the 1569 sizing sites of
+        // src/ resolved below 14px, 612 of them to the 11px `caption` alone,
+        // against 17 sites on the 14px body tier. Twelve tiers shared the band
+        // between 9 and 13px, where no reader perceives the half-pixel steps
+        // that separate them.
+        //
+        // Lifting that floor alone was not enough, and a test round said so: a
+        // chip rose 25% while the title beside it rose nothing, so a bold
+        // uppercase badge came to read as large as the entity it annotates, and
+        // a key cap as large as the sentence holding it. What a scale owes a
+        // reader is the ratio, not the size. The rungs above the chips were
+        // lifted with them, and a chip now sits one rung under the meta line
+        // and two under the title.
         //
         // The five chrome tiers carry a size and nothing else. They were
         // added for the sizes a measure of the tree found at least five times
