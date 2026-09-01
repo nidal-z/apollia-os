@@ -89,10 +89,15 @@
   // `sm` is the default and carries 95 of the 98 badges of the tree. It sat on
   // `micro`, the lowest tier of the scale, where the config's own px map gives
   // a badge the `caption` role. The three sizes now read 12.5 / 13 / 14.
+  // `leading-none` is what keeps a pill the height of its glyph. Without it the
+  // tier's own line-height applies, and `caption` carries 1.45: a 12.5px badge
+  // measured 24.1px tall beside a 21px title, so the metadata stood taller than
+  // the entity it annotates. The sidebar count badge already carried the class;
+  // this one did not. The three sizes now measure 18.5 / 23 / 28px.
   const sizeClasses: Record<Size, string> = {
-    sm: "text-caption px-2 py-0.5 gap-1",
-    md: "text-xs px-2.5 py-0.5 gap-1.5",
-    lg: "text-sm px-3 py-1 gap-1.5",
+    sm: "text-caption leading-none px-2 py-0.5 gap-1",
+    md: "text-xs leading-none px-2.5 py-1 gap-1.5",
+    lg: "text-sm leading-none px-3 py-1.5 gap-1.5",
   };
 
   // Foreground-only classes for outline mode. Mirrors the `fg` slot of the
