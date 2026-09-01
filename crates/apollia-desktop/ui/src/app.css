@@ -225,11 +225,11 @@
     --text-code-sm: 0.8125rem;
     --text-caption-lg: 0.8125rem;
     --text-caption: 0.78125rem;
-    --text-overline: 0.78125rem;
-    --text-micro-lg: 0.78125rem;
-    --text-micro: 0.78125rem;
-    --text-micro-sm: 0.71875rem;
-    --text-micro-xs: 0.71875rem;
+    --text-overline: 0.65625rem;
+    --text-micro-lg: 0.6875rem;
+    --text-micro: 0.6875rem;
+    --text-micro-sm: 0.65625rem;
+    --text-micro-xs: 0.65625rem;
 
     /* ── Hover ── */
     --hover-surface-lift: -2px;

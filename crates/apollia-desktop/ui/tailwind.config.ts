@@ -58,19 +58,27 @@ const config: Config = {
         // inside a style block reads the same token, and cannot drift from
         // the class it replaces.
         //
-        // The px map of the scale, five rungs:
-        //   11.5px  → micro-xs, micro-sm   the key caps and superscripts that
-        //             sit inside a line of chrome text
-        //   12.5px  → micro (.tb-card-top, .section-meta), micro-lg and
-        //             overline (.tb-iolabel, .tb-pill), caption (.tb-badge,
-        //             .tb-metric, .chat-ft-meta, .tb-fmeta) - the chips
+        // The px map of the scale, six rungs:
+        //   10.5px  → overline, the uppercase role a badge carries, plus
+        //             micro-xs / micro-sm for a key cap inside a line
+        //   11px    → micro (.tb-card-top, .section-meta), micro-lg
+        //             (.tb-iolabel, .tb-pill) - the lowercase chips
+        //   12.5px  → caption (.tb-badge, .tb-metric, .chat-ft-meta, .tb-fmeta)
+        //             - the meta line under a title
         //   13px    → caption-lg (.tb-grep-file), body-xs / label-sm (.tb-chip,
         //             .tb-code, .tb-term, .tb-preview, .tb-grep-row), code-sm
         //             (.tb-frow, .tb-step, .chat-ft-head, .tb-card-body,
-        //             .tb-extract) - meta lines and code
+        //             .tb-extract) - secondary lines and code
         //   14px    → body-sm / label-md (.tb-extract-title), body-md - titles
         //             and body copy
         //   16px    → body-lg / heading-sm
+        //
+        // The uppercase rung sits three rungs under the title rather than one,
+        // and that gap is deliberate. Set in caps at semibold, a label reads
+        // larger than its nominal size, because what the eye compares is the
+        // cap height against the neighbour's x-height. Rendered side by side
+        // against the built stylesheet, a 12.5px badge weighed as much as the
+        // 14px name it annotates; at 10.5px it reads as the annotation it is.
         //
         // The floor used to sit at 9px, and 95% of the 1569 sizing sites of
         // src/ resolved below 14px, 612 of them to the 11px `caption` alone,
