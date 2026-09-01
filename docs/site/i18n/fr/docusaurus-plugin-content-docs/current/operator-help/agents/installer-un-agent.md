@@ -1,5 +1,6 @@
 ---
 title: Installer un agent
+slug: /operator-help/agents/install-an-agent
 sidebar_position: 1
 ---
 

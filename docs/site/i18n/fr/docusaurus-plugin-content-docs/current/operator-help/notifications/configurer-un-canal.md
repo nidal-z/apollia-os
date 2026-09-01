@@ -1,5 +1,6 @@
 ---
 title: Configurer un canal de notification
+slug: /operator-help/notifications/set-up-a-channel
 sidebar_position: 1
 ---
 

@@ -1,5 +1,6 @@
 ---
 title: Le runner sidecar ne démarre pas
+slug: /operator-help/troubleshooting/the-runner-does-not-start
 sidebar_position: 2
 ---
 

@@ -13,7 +13,7 @@ se termine avec un code de sortie non nul si une assertion échoue sur une
 exécution.
 
 Pour le guide opérateur, avec les étapes de l'interface et comment lire un
-rapport, voir [Mesurer un agent avec eval](/operator-help/agents/mesurer-un-agent-avec-eval).
+rapport, voir [Mesurer un agent avec eval](/operator-help/agents/measure-an-agent-with-eval).
 
 Les tableaux ci-dessous sont générés à partir des types Rust qui analysent le
 fichier ; ils ne peuvent donc pas diverger de ce que l'analyseur accepte. Un

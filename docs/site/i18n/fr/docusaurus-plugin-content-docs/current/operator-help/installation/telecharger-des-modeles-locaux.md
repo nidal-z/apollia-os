@@ -1,5 +1,6 @@
 ---
 title: Télécharger des modèles locaux
+slug: /operator-help/installation/download-local-models
 sidebar_position: 5
 ---
 

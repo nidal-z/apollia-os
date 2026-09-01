@@ -1,5 +1,6 @@
 ---
 title: Activer l'Aide Apollia
+slug: /operator-help/transversal/enable-apollia-help
 sidebar_position: 4
 ---
 

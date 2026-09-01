@@ -1,5 +1,6 @@
 ---
 title: Activer les context providers
+slug: /operator-help/projects/enable-context-providers
 sidebar_position: 3
 ---
 

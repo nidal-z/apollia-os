@@ -1,5 +1,6 @@
 ---
 title: Installer Apollia sur Linux
+slug: /operator-help/installation/install-on-linux
 sidebar_position: 3
 ---
 

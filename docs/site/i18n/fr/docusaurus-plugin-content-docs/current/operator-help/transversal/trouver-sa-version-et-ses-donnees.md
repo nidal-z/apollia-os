@@ -1,5 +1,6 @@
 ---
 title: Retrouver sa version et ses données
+slug: /operator-help/transversal/find-your-version-and-data
 sidebar_position: 5
 ---
 

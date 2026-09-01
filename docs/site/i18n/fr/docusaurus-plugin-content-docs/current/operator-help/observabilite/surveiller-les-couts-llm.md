@@ -1,5 +1,6 @@
 ---
 title: Surveiller les coûts d'IA
+slug: /operator-help/observability/monitor-ai-costs
 sidebar_position: 3
 ---
 

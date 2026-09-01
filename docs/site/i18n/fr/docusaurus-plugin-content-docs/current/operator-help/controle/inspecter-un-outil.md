@@ -1,5 +1,6 @@
 ---
 title: Inspecter un outil
+slug: /operator-help/control/inspect-a-tool
 sidebar_position: 3
 ---
 

@@ -1,5 +1,6 @@
 ---
 title: Choisir un palier d'autonomie pour un agent
+slug: /operator-help/agents/choose-an-autonomy-level
 sidebar_position: 3
 ---
 

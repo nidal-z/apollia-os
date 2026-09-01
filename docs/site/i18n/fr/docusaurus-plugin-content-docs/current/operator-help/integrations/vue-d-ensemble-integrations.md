@@ -1,5 +1,6 @@
 ---
 title: Vue d'ensemble des intégrations
+slug: /operator-help/integrations/integrations-overview
 sidebar_position: 1
 ---
 

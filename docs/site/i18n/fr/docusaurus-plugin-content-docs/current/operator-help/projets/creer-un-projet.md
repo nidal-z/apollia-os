@@ -1,5 +1,6 @@
 ---
 title: Créer un projet
+slug: /operator-help/projects/create-a-project
 sidebar_position: 1
 ---
 

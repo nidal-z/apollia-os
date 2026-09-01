@@ -1,0 +1,58 @@
+# Cloudflare Pages response headers for docs.apollia.fr.
+#
+# Same shape as the showcase site's static/_headers, minus the third parties it
+# carries (no Calendly here, no web manifest, no OAuth metadata document). The
+# file is read only at the deployment root, so the copy Docusaurus also writes
+# under /fr/ is inert.
+#
+# The policy is deliberately narrow: the built site loads nothing off-origin.
+# Fonts are the self-hosted @fontsource files under /assets/fonts, diagrams are
+# rendered in-page by Mermaid, and there is no search provider and no analytics
+# script in docusaurus.config.js. The one third-party URL the bundle contains,
+# the devicon language icons in the OpenAPI theme stylesheet, is never rendered:
+# the API pages carry no code-sample tabs, so no built page references the
+# `openapi-tabs__code-item--*` classes those rules hang off. Keeping img-src at
+# 'self' means enabling those tabs later cannot silently start fetching from
+# raw.githubusercontent.com on a local-first project's own documentation.
+#
+# 'unsafe-inline' is required on both script-src and style-src: Docusaurus emits
+# an inline theme-init script, an inline base-url banner script and inline
+# JSON-LD in every page head, and the theme sets element styles inline.
+#
+# The Cloudflare Insights allowances are the one forward-looking entry. Web
+# Analytics is switched on in the Pages console, not in this tree, and without
+# them the injected beacon would be blocked with no error visible in the console
+# the operator is looking at.
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  X-DNS-Prefetch-Control: on
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com https://*.cloudflareinsights.com; object-src 'none'; upgrade-insecure-requests
+
+# Everything Docusaurus emits under /assets carries a content hash in its file
+# name (js, css, fonts, images alike), so a year is safe and a redeploy never
+# serves a stale byte.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# /img is copied verbatim from static/img, so the names are stable and the
+# bytes can change under them. A week, not a year.
+/img/*
+  Cache-Control: public, max-age=604800
+
+/sitemap.xml
+  Cache-Control: public, max-age=3600
+  Content-Type: application/xml; charset=utf-8
+
+/fr/sitemap.xml
+  Cache-Control: public, max-age=3600
+  Content-Type: application/xml; charset=utf-8
+
+/robots.txt
+  Cache-Control: public, max-age=86400

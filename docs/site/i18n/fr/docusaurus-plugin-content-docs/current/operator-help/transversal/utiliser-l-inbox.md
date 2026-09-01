@@ -1,5 +1,6 @@
 ---
 title: Utiliser la Boîte de réception
+slug: /operator-help/transversal/use-the-inbox
 sidebar_position: 2
 ---
 

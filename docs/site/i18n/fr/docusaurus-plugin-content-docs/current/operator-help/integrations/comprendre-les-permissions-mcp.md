@@ -1,5 +1,6 @@
 ---
 title: Comprendre les permissions MCP
+slug: /operator-help/integrations/understand-mcp-permissions
 sidebar_position: 7
 ---
 

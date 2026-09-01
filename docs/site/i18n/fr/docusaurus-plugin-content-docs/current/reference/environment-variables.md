@@ -55,13 +55,13 @@ conséquence.
 application cliente publique et embarque son identifiant, si bien qu'aucune
 configuration n'est nécessaire. Un client public ne détient aucun secret, ce
 qui rend l'embarquement de l'identifiant sans risque ; voir
-[Se connecter à Microsoft 365](/operator-help/integrations/connecter-microsoft-365).
+[Se connecter à Microsoft 365](/operator-help/integrations/connect-microsoft-365).
 
 **Google** est livré **sans** client, et aucune version publiée n'en embarque
 un. Vous enregistrez votre propre application et fournissez ses identifiants
 à Apollia, car Google exige un écran de consentement vérifié et un secret
 client qu'un binaire distribué ne peut pas détenir. Voir
-[Se connecter à Google Workspace](/operator-help/integrations/connecter-google-workspace)
+[Se connecter à Google Workspace](/operator-help/integrations/connect-google-workspace)
 et [Configurer un client OAuth Google](/how-to/set-up-a-google-oauth-client).
 
 Dans les deux cas, la voie prise en charge est Réglages → Intégrations OAuth,

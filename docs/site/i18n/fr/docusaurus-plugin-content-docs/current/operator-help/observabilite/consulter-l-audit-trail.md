@@ -1,5 +1,6 @@
 ---
 title: Consulter l'audit trail
+slug: /operator-help/observability/read-the-audit-trail
 sidebar_position: 2
 ---
 

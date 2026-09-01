@@ -1,0 +1,21 @@
+# Cloudflare Pages redirect rules for docs.apollia.fr. Intentionally empty.
+#
+# Two things are worth writing down here rather than rediscovering them.
+#
+# 1. Do not add a single-page-application fallback. A line such as
+#    `/* /index.html 200` is the reflex on a JavaScript site and it is wrong
+#    here: it answers every unknown URL with HTTP 200 and the home page.
+#    Docusaurus emits a real 404.html at the deployment root and one per locale
+#    under /fr/, and Pages serves the nearest of those with a genuine 404 status
+#    when nothing matches. That is the correct behaviour and it needs no rule.
+#
+# 2. The old French help-center URLs are already redirected, but not from here.
+#    plugins/operator-help-redirects.js writes one hundred redirect pages at build
+#    time, each carrying a canonical link, a meta refresh and a script, and it
+#    fails the build if a target stops being a route. Duplicating them as edge
+#    rules would create a second list to keep in step with the first.
+#
+# The documentation is served from one host and one only. The two extra
+# subdomains once planned for the manual and for the help center were dropped
+# before launch, neither ever resolved, and a Pages rule cannot answer for a
+# hostname with no DNS record pointed at this project anyway.

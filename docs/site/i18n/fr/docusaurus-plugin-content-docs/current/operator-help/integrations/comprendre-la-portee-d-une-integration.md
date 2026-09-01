@@ -1,5 +1,6 @@
 ---
 title: Comprendre la portée d'une intégration
+slug: /operator-help/integrations/understand-integration-scope
 sidebar_position: 2
 ---
 

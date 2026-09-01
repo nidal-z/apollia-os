@@ -1,5 +1,6 @@
 ---
 title: Suivre la visite guidée
+slug: /operator-help/transversal/take-the-guided-tour
 sidebar_position: 1
 ---
 

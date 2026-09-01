@@ -1,5 +1,6 @@
 ---
 title: Consulter la chronologie d'activité
+slug: /operator-help/observability/read-the-activity-timeline
 sidebar_position: 1
 ---
 

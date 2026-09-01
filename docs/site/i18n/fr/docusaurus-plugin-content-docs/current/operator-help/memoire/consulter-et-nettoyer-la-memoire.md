@@ -1,5 +1,6 @@
 ---
 title: Consulter et nettoyer la mémoire
+slug: /operator-help/memory/review-and-clean-up-memory
 sidebar_position: 2
 ---
 

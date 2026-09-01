@@ -1,5 +1,6 @@
 ---
 title: Connecter Microsoft 365
+slug: /operator-help/integrations/connect-microsoft-365
 sidebar_position: 4
 ---
 
@@ -15,7 +16,7 @@ sidebar_position: 4
 - Si votre tenant Entra ID exige une approbation administrative, l'administrateur doit pré-approuver l'application.
 - Connexion internet active.
 
-Rien à inscrire, rien à coller. Si vous venez de lire la page Google, cette différence est voulue et expliquée dans [la vue d'ensemble des intégrations](/operator-help/integrations/vue-d-ensemble-integrations).
+Rien à inscrire, rien à coller. Si vous venez de lire la page Google, cette différence est voulue et expliquée dans [la vue d'ensemble des intégrations](/operator-help/integrations/integrations-overview).
 
 ## Rien à configurer
 

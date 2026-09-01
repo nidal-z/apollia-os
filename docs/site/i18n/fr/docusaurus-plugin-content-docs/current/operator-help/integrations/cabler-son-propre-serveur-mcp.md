@@ -1,5 +1,6 @@
 ---
 title: Câbler son propre serveur MCP
+slug: /operator-help/integrations/wire-your-own-mcp-server
 sidebar_position: 9
 ---
 

@@ -57,8 +57,8 @@ consignés dans le journal d'audit.
 
 Pour le détail de la configuration côté desktop, consultez l'aide opérateur
 (en français) sur
-[la connexion d'un serveur MCP](/operator-help/integrations/connecter-un-serveur-mcp)
-et [le câblage de votre propre serveur MCP](/operator-help/integrations/cabler-son-propre-serveur-mcp).
+[la connexion d'un serveur MCP](/operator-help/integrations/connect-an-mcp-server)
+et [le câblage de votre propre serveur MCP](/operator-help/integrations/wire-your-own-mcp-server).
 
 ## Étape 3 : soumettre les écritures à une approbation humaine
 

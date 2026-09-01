@@ -107,4 +107,4 @@ le bureau n'offre aucun réglage de palier.
 
 - [Le modèle de responsabilité](/explanation/accountability-model)
 - [Le modèle de plan et d'exécution orchestrée](/explanation/the-plan-model)
-- [Choisir un palier d'autonomie](/operator-help/agents/choisir-un-palier-d-autonomie)
+- [Choisir un palier d'autonomie](/operator-help/agents/choose-an-autonomy-level)

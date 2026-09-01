@@ -1,5 +1,6 @@
 ---
 title: Gérer les autorisations d'outils
+slug: /operator-help/control/manage-tool-permissions
 sidebar_position: 2
 ---
 

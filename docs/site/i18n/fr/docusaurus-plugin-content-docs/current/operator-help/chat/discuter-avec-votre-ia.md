@@ -1,5 +1,6 @@
 ---
 title: Discuter avec votre IA
+slug: /operator-help/chat/chat-with-your-ai
 sidebar_position: 1
 ---
 

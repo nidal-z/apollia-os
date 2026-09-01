@@ -1,5 +1,6 @@
 ---
 title: Installer Apollia sur Windows
+slug: /operator-help/installation/install-on-windows
 sidebar_position: 2
 ---
 

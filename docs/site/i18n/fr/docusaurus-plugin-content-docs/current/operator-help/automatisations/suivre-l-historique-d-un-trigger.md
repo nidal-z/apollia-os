@@ -1,5 +1,6 @@
 ---
 title: Suivre l'historique d'un trigger
+slug: /operator-help/automations/track-a-trigger-history
 sidebar_position: 2
 ---
 

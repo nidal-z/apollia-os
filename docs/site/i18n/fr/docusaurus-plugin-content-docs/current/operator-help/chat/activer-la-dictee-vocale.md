@@ -1,5 +1,6 @@
 ---
 title: Activer la dictée vocale
+slug: /operator-help/chat/enable-voice-dictation
 sidebar_position: 2
 ---
 

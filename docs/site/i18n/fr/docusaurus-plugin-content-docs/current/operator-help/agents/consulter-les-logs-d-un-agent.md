@@ -1,5 +1,6 @@
 ---
 title: Consulter les logs d'un agent
+slug: /operator-help/agents/view-an-agent-logs
 sidebar_position: 4
 ---
 

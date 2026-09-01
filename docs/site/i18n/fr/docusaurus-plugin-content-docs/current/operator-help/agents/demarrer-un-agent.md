@@ -1,5 +1,6 @@
 ---
 title: Démarrer un agent ou un package
+slug: /operator-help/agents/start-an-agent
 sidebar_position: 2
 ---
 

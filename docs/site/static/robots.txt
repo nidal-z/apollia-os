@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
 
-# Apollia OS est open source : on laisse les crawlers indexer le centre d'aide.
+# Apollia OS is open source: the help center is left open to crawlers.
 User-agent: GPTBot
 Allow: /
 
@@ -17,4 +17,9 @@ Allow: /
 User-agent: CCBot
 Allow: /
 
+# One sitemap per locale. Docusaurus writes the default locale at the site root
+# and every other locale under its own prefix, and a crawler only ever reads the
+# robots.txt at the root, so the French one has to be declared here or its 252
+# pages are never announced.
 Sitemap: https://docs.apollia.fr/sitemap.xml
+Sitemap: https://docs.apollia.fr/fr/sitemap.xml

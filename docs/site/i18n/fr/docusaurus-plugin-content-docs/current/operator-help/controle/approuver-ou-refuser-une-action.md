@@ -1,5 +1,6 @@
 ---
 title: Approuver ou refuser une action d'agent
+slug: /operator-help/control/approve-or-reject-an-action
 sidebar_position: 1
 ---
 

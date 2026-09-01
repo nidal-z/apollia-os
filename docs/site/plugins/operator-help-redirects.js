@@ -13,8 +13,14 @@
 // shape that plugin emits: a canonical link, a meta refresh and a script, so
 // crawlers move over and browsers follow even with scripts off.
 //
-// Only the default locale gets the redirect files. Under `/fr/` the French
-// routes are the real pages, so writing a redirect there would overwrite them.
+// Both locales get the redirect files, because the rename moved both routes.
+// The French mirror declares the same `slug:` as its English source, which is
+// what Docusaurus needs for the language switcher and the `hreflang` alternates
+// to resolve: those are computed by swapping the locale prefix of the current
+// path, so a page whose route differs between locales advertises a French URL
+// that does not exist. Aligning the routes fixed fifty dead alternates and
+// retired the fifty French URLs the mirror used to serve, so those are
+// redirected here too, under `/fr/`, from the same table.
 
 const fs = require('fs');
 const path = require('path');
@@ -75,10 +81,10 @@ const REDIRECTS = {
   '/operator-help/troubleshooting/reinitialiser-apollia-factory-reset': '/operator-help/troubleshooting/factory-reset',
 };
 
-function redirectHtml(toUrl) {
+function redirectHtml(toUrl, locale) {
   return [
     '<!DOCTYPE html>',
-    '<html lang="en">',
+    `<html lang="${locale}">`,
     '<head>',
     '<meta charset="UTF-8">',
     `<meta http-equiv="refresh" content="0; url=${toUrl}">`,
@@ -94,25 +100,33 @@ module.exports = function operatorHelpRedirects(context) {
   return {
     name: 'operator-help-redirects',
     async postBuild({outDir, routesPaths}) {
-      if (context.i18n.currentLocale !== context.i18n.defaultLocale) {
-        return;
-      }
+      // A localized build carries its own baseUrl (`/fr/`) and writes into its
+      // own outDir (`build/fr`), so the routes it reports are prefixed while
+      // the files are not. The table below is written once, without a prefix,
+      // and read against the prefixed routes.
+      const locale = context.i18n.currentLocale;
+      const prefix = context.baseUrl.replace(/\/$/, '');
       const routes = new Set(routesPaths);
       for (const [from, to] of Object.entries(REDIRECTS)) {
-        if (!routes.has(to) && !routes.has(`${to}/`)) {
+        const fromRoute = `${prefix}${from}`;
+        const toRoute = `${prefix}${to}`;
+        if (!routes.has(toRoute) && !routes.has(`${toRoute}/`)) {
           throw new Error(
-            `operator-help-redirects: target ${to} is not a built route`,
+            `operator-help-redirects: target ${toRoute} is not a built route`,
           );
         }
-        if (routes.has(from) || routes.has(`${from}/`)) {
+        if (routes.has(fromRoute) || routes.has(`${fromRoute}/`)) {
           throw new Error(
-            `operator-help-redirects: ${from} is still a real route, a ` +
+            `operator-help-redirects: ${fromRoute} is still a real route, a ` +
               'redirect would shadow it',
           );
         }
         const dir = path.join(outDir, ...from.split('/').filter(Boolean));
         fs.mkdirSync(dir, {recursive: true});
-        fs.writeFileSync(path.join(dir, 'index.html'), redirectHtml(to));
+        fs.writeFileSync(
+          path.join(dir, 'index.html'),
+          redirectHtml(toRoute, locale),
+        );
       }
     },
   };

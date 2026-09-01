@@ -1,5 +1,6 @@
 ---
 title: Centre d'aide operateur
+slug: /operator-help
 sidebar_position: 0
 ---
 

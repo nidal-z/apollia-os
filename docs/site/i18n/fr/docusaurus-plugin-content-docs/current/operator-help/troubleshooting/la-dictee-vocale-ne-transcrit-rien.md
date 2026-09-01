@@ -1,5 +1,6 @@
 ---
 title: La dictée vocale ne transcrit rien
+slug: /operator-help/troubleshooting/voice-dictation-transcribes-nothing
 sidebar_position: 5
 ---
 

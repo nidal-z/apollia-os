@@ -16,7 +16,7 @@ suffit.
 
 Si vous voulez seulement la version courte, les mêmes étapes sont
 condensées sur
-[Connecter Google Workspace](/operator-help/integrations/connecter-google-workspace).
+[Connecter Google Workspace](/operator-help/integrations/connect-google-workspace).
 
 :::note Microsoft 365 n'a besoin de rien de tout cela
 Microsoft se connecte sans rien à configurer, parce qu'Apollia embarque
@@ -175,7 +175,7 @@ carte les acceptent directement. Le client ID se termine par
 
 Vous avez terminé dans la console. Pour connecter un compte, allez dans
 **Connexions**, sélectionnez **Google Workspace**, et suivez
-[Connecter Google Workspace](/operator-help/integrations/connecter-google-workspace).
+[Connecter Google Workspace](/operator-help/integrations/connect-google-workspace).
 
 ## Ce que coûte le statut Testing
 

@@ -1,5 +1,6 @@
 ---
 title: Une action a été refusée
+slug: /operator-help/troubleshooting/an-action-was-refused
 sidebar_position: 3
 ---
 

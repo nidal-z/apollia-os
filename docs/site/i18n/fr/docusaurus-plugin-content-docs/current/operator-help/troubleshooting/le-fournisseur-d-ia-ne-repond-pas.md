@@ -1,5 +1,6 @@
 ---
 title: Le fournisseur d'IA ne répond pas
+slug: /operator-help/troubleshooting/the-ai-provider-does-not-answer
 sidebar_position: 1
 ---
 
