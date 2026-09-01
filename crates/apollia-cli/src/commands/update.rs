@@ -511,7 +511,13 @@ mod tests {
         couples.sort();
         couples.dedup();
         assert_eq!(total, couples.len(), "duplicated (os, arch) couple");
-        assert!(total >= 5, "expected at least 5 platforms, got {total}");
+        // Four couples carry a self-update archive: macos/aarch64,
+        // linux/x86_64, linux/aarch64 and windows/x86_64. The floor was five
+        // until windows/aarch64 left the release, pandas publishing no
+        // win_arm64 wheel. It is a floor and not an equality so that adding a
+        // platform needs no test change, and it exists so that losing one
+        // needs a deliberate one.
+        assert!(total >= 4, "expected at least 4 platforms, got {total}");
     }
 
     #[test]
