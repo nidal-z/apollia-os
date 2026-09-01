@@ -79,6 +79,23 @@ find "$PYTHON_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
 # pandas ships internal tests - ~30 MB.
 find "${SITE_PACKAGES}/pandas" -type d \( -name "tests" -o -name "_tests" \) -prune -exec rm -rf {} + 2>/dev/null || true
 
+# Tk, and everything that reaches for it. Nothing in this product opens a Tk
+# window: the interface is Tauri, the CLI is a terminal. It is dead weight, and
+# it is worse than dead weight on Linux, where it stops the AppImage from being
+# built at all: linuxdeploy walks the ELF files of the AppDir, reaches
+# `_tkinter...so`, and refuses on `Could not find dependency: libtcl9.0.so`.
+# The library is right there in python/lib, but resolving a dependency is not
+# the same as having deployed the file, and linuxdeploy searches the system
+# path, not ours. Removing the extension removes the question.
+find "${PYTHON_DIR}" -name "_tkinter*.so" -delete 2>/dev/null || true
+find "${PYTHON_DIR}" -type f \( -name "libtcl*" -o -name "libtk*" \) -delete 2>/dev/null || true
+find "${PYTHON_DIR}" -maxdepth 3 -type d \
+    \( -name "tcl*" -o -name "tk*" -o -name "itcl*" -o -name "thread[0-9]*" \) \
+    -prune -exec rm -rf {} + 2>/dev/null || true
+find "${PYTHON_DIR}" -maxdepth 4 -type d \( -name "tkinter" -o -name "idlelib" -o -name "turtledemo" \) \
+    -prune -exec rm -rf {} + 2>/dev/null || true
+find "${PYTHON_DIR}" -maxdepth 4 -type f -name "turtle.py" -delete 2>/dev/null || true
+
 echo "==> Step 4/4: rewrite library paths for bundle-relative resolution"
 case "$TARGET" in
     *-apple-darwin|universal-apple-darwin)
