@@ -29,13 +29,25 @@ on:
         required: false
         default: "all"
       skip_desktop:
-        description: "Skip the macOS desktop bundle (about 12 min saved when testing the CLI alone)"
+        description: "Skip every desktop bundle (saves the whole desktop half when testing the CLI alone)"
         required: false
         default: "false"
         type: choice
         options:
           - "false"
           - "true"
+      desktop:
+        description: "Which desktop bundles to build. Narrowing one platform is how you iterate on it without paying for the others; the CUDA pair also drags in the llama-server compile."
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - "all"
+          - "macos"
+          - "linux"
+          - "linux-cuda"
+          - "windows"
+          - "windows-cuda"
 
 env:
   CARGO_TERM_COLOR: always
@@ -64,11 +76,13 @@ jobs:
     outputs:
       matrix: ${{ steps.compute.outputs.matrix }}
       run_desktop: ${{ steps.compute.outputs.run_desktop }}
+      desktop: ${{ steps.compute.outputs.desktop }}
     steps:
       - id: compute
         env:
           PRESETS_INPUT: ${{ github.event.inputs.presets || 'all' }}
           SKIP_DESKTOP: ${{ github.event.inputs.skip_desktop || 'false' }}
+          DESKTOP: ${{ github.event.inputs.desktop || 'all' }}
           EVENT_NAME: ${{ github.event_name }}
         shell: bash
         run: |
@@ -126,12 +140,21 @@ jobs:
           # GH Actions output: compact JSON (single line).
           echo "matrix=$(echo "$MATRIX" | jq -c .)" >> "$GITHUB_OUTPUT"
 
-          # Desktop gate.
+          # Desktop gate. `skip_desktop` still turns the whole half off; the
+          # `desktop` choice then narrows what remains, so iterating on one
+          # bundle does not pay for the four others. A tag push takes every
+          # bundle: the filter is a manual-run affordance, never a release one.
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$SKIP_DESKTOP" == "true" ]]; then
             echo "run_desktop=false" >> "$GITHUB_OUTPUT"
           else
             echo "run_desktop=true" >> "$GITHUB_OUTPUT"
           fi
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "desktop=${DESKTOP}" >> "$GITHUB_OUTPUT"
+          else
+            echo "desktop=all" >> "$GITHUB_OUTPUT"
+          fi
+          echo "  desktop selection: ${DESKTOP}"
 
   # ────────────────────────────────────────────────────────────────────────────
   # CLI binaries (13 presets at most) - self-contained bundles with Python
@@ -451,7 +474,7 @@ jobs:
   llama-cuda-linux:
     name: llama-server CUDA (Linux x86_64)
     needs: setup
-    if: needs.setup.outputs.run_desktop == 'true'
+    if: needs.setup.outputs.run_desktop == 'true' && (needs.setup.outputs.desktop == 'all' || needs.setup.outputs.desktop == 'linux-cuda')
     runs-on: ubuntu-24.04
     steps:
       - name: Install the CUDA toolkit
@@ -519,7 +542,7 @@ jobs:
   desktop-macos:
     name: Desktop macOS (ARM64)
     needs: setup
-    if: needs.setup.outputs.run_desktop == 'true'
+    if: needs.setup.outputs.run_desktop == 'true' && (needs.setup.outputs.desktop == 'all' || needs.setup.outputs.desktop == 'macos')
     runs-on: macos-latest
     env:
       # Deliberately not named APPLE_SIGNING_IDENTITY. The Tauri bundler reads
@@ -678,7 +701,7 @@ jobs:
   desktop-linux:
     name: Desktop Linux (x86_64)
     needs: setup
-    if: needs.setup.outputs.run_desktop == 'true'
+    if: needs.setup.outputs.run_desktop == 'true' && (needs.setup.outputs.desktop == 'all' || needs.setup.outputs.desktop == 'linux')
     # Pinned to 24.04 (noble), the same base as the Linux CLI builds; GitHub
     # retires the 22.04 image on 2026-09-17.
     runs-on: ubuntu-24.04
@@ -866,7 +889,7 @@ jobs:
   desktop-windows:
     name: Desktop Windows (x86_64)
     needs: setup
-    if: needs.setup.outputs.run_desktop == 'true'
+    if: needs.setup.outputs.run_desktop == 'true' && (needs.setup.outputs.desktop == 'all' || needs.setup.outputs.desktop == 'windows')
     runs-on: windows-latest
     env:
       WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
@@ -1013,7 +1036,7 @@ jobs:
   desktop-linux-cuda:
     name: Desktop Linux CUDA (x86_64)
     needs: [setup, llama-cuda-linux]
-    if: needs.setup.outputs.run_desktop == 'true'
+    if: needs.setup.outputs.run_desktop == 'true' && (needs.setup.outputs.desktop == 'all' || needs.setup.outputs.desktop == 'linux-cuda')
     # Pinned to 24.04 (noble), the same base as the Linux CLI builds; GitHub
     # retires the 22.04 image on 2026-09-17.
     runs-on: ubuntu-24.04
@@ -1223,7 +1246,7 @@ jobs:
   desktop-windows-cuda:
     name: Desktop Windows CUDA (x86_64)
     needs: setup
-    if: needs.setup.outputs.run_desktop == 'true'
+    if: needs.setup.outputs.run_desktop == 'true' && (needs.setup.outputs.desktop == 'all' || needs.setup.outputs.desktop == 'windows-cuda')
     runs-on: windows-latest
     env:
       WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
