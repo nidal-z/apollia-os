@@ -517,17 +517,47 @@ jobs:
             -DCMAKE_CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90-virtual"
           cmake --build /tmp/llama.cpp/build --target llama-server --config Release -j"$(nproc)"
 
-      # Flat staging: the desktop job hands this directory to
-      # packaging/fetch-llama-server.sh through LLAMA_SERVER_DIR, which copies
-      # the binary and the shared objects beside it. Anything missing here is
-      # missing from the bundle.
+      # `cmake --install` rather than reaching into build/bin. An install tree
+      # carries the versioned names and the symlink chain that each library's
+      # SONAME actually asks for; a build tree does not have to, and this one
+      # did not: the first version of this step copied what it found beside the
+      # binary, and the AppImage bundler stopped on
+      # `Could not find dependency: libggml-base.so.0`.
+      #
+      # Flat, because LLAMA_SERVER_DIR expects the server and its libraries in
+      # one directory, which is also how the upstream archives are laid out and
+      # how $ORIGIN resolves them at run time.
       - name: Stage the engine and its libraries
         run: |
+          cmake --install /tmp/llama.cpp/build --prefix /tmp/llama-install
           mkdir -p engine
-          cp /tmp/llama.cpp/build/bin/llama-server engine/
-          find /tmp/llama.cpp/build/bin -maxdepth 1 -name '*.so*' -exec cp {} engine/ \;
-          ls -lh engine/
-          ./engine/llama-server --version 2>&1 | head -3 || true
+          cp -a /tmp/llama-install/bin/llama-server engine/
+          find /tmp/llama-install/lib /tmp/llama-install/bin -maxdepth 1 \
+               \( -type f -o -type l \) -name '*.so*' -exec cp -a {} engine/ \;
+          ls -la engine/
+
+      # Every library the staged files ask for must be staged too, or present
+      # on any machine. Without this the answer arrives fifteen minutes later
+      # and one job away, from a bundler walking the AppDir, which is how the
+      # missing SONAME above was found the first time. `readelf -d` names what
+      # each file needs; anything neither beside it nor in the system loader's
+      # cache fails this job, where the cause is still in reach.
+      - name: Refuse an engine whose libraries are not all here
+        run: |
+          cd engine
+          missing=""
+          for f in llama-server *.so*; do
+            [ -e "$f" ] || continue
+            for need in $(readelf -d "$f" 2>/dev/null | awk '/NEEDED/ {gsub(/[][]/,"",$5); print $5}'); do
+              if [ ! -e "$need" ] && ! ldconfig -p | awk '{print $1}' | grep -qx "$need"; then
+                echo "::error::${f} needs ${need}, which is neither staged beside it nor on the system"
+                missing="yes"
+              fi
+            done
+          done
+          [ -z "$missing" ] || exit 1
+          echo "every NEEDED entry of the staged engine resolves"
+          ./llama-server --version 2>&1 | head -3 || true
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
