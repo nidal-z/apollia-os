@@ -91,6 +91,7 @@
       "installers": [
         "Apollia OS_{version}_aarch64.dmg"
       ],
+      "manifest": "latest.json",
       "updater": {
         "artifact": "Apollia OS.app.tar.gz",
         "signature": "Apollia OS.app.tar.gz.sig"
@@ -106,6 +107,7 @@
         "Apollia OS_{version}_amd64.AppImage",
         "Apollia OS_{version}_amd64.deb"
       ],
+      "manifest": "latest.json",
       "updater": {
         "artifact": "Apollia OS_{version}_amd64.AppImage",
         "signature": "Apollia OS_{version}_amd64.AppImage.sig"
@@ -121,6 +123,7 @@
         "Apollia OS_{version}_x64_en-US.msi",
         "Apollia OS_{version}_x64-setup.exe"
       ],
+      "manifest": "latest.json",
       "updater": {
         "artifact": "Apollia OS_{version}_x64-setup.exe",
         "signature": "Apollia OS_{version}_x64-setup.exe.sig"
@@ -136,7 +139,11 @@
         "Apollia OS_{version}_amd64-cuda.AppImage",
         "Apollia OS_{version}_amd64-cuda.deb"
       ],
-      "updater": null
+      "manifest": "latest-cuda.json",
+      "updater": {
+        "artifact": "Apollia OS_{version}_amd64-cuda.AppImage",
+        "signature": "Apollia OS_{version}_amd64-cuda.AppImage.sig"
+      }
     },
     {
       "platform": "windows-x86_64-cuda",
@@ -148,7 +155,15 @@
         "Apollia OS_{version}_x64_en-US-cuda.msi",
         "Apollia OS_{version}_x64-setup-cuda.exe"
       ],
-      "updater": null
+      "manifest": "latest-cuda.json",
+      "updater": {
+        "artifact": "Apollia OS_{version}_x64-setup-cuda.exe",
+        "signature": "Apollia OS_{version}_x64-setup-cuda.exe.sig"
+      }
     }
+  ],
+  "updater_manifests": [
+    "latest.json",
+    "latest-cuda.json"
   ]
 }

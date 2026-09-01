@@ -1068,11 +1068,17 @@ jobs:
           # and run from there, which needs neither FUSE nor a namespace.
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
-          if [ -n "${TAURI_BUNDLE_CONFIG:-}" ]; then
-            cargo tauri build --target x86_64-unknown-linux-gnu --config "$TAURI_BUNDLE_CONFIG"
-          else
-            cargo tauri build --target x86_64-unknown-linux-gnu
-          fi
+          # This bundle asks a different file for its updates than the Vulkan
+          # one. A Tauri manifest keys platforms by triple, so both variants
+          # would claim `linux-x86_64` in a single file and the second written
+          # would win: every installed bundle would then be offered whichever
+          # engine happened to be composed last. The channel is chosen here, at
+          # build time, and baked into the installed app.
+          CHANNEL='{"plugins":{"updater":{"endpoints":["https://github.com/Apollia-OS/apollia-os/releases/latest/download/latest-cuda.json"]}}}'
+          BASE="${TAURI_BUNDLE_CONFIG:-}"
+          [ -n "$BASE" ] || BASE='{}'
+          PATCH=$(jq -c -s '.[0] * .[1]' <<<"$BASE $CHANNEL")
+          cargo tauri build --target x86_64-unknown-linux-gnu --config "$PATCH"
 
       # Flat staging: actions/upload-artifact roots the artifact at the
       # longest common ancestor of its paths, so uploading deb/*.deb and
@@ -1198,11 +1204,15 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          if [ -n "${TAURI_BUNDLE_CONFIG:-}" ]; then
-            cargo tauri build --target x86_64-pc-windows-msvc --config "$TAURI_BUNDLE_CONFIG"
-          else
-            cargo tauri build --target x86_64-pc-windows-msvc
-          fi
+          # Same reasoning as the Linux CUDA job: a Tauri manifest keys
+          # platforms by triple, so this bundle asks a different file for its
+          # updates than the Vulkan one rather than the two fighting over
+          # `windows-x86_64` in a single manifest.
+          CHANNEL='{"plugins":{"updater":{"endpoints":["https://github.com/Apollia-OS/apollia-os/releases/latest/download/latest-cuda.json"]}}}'
+          BASE="${TAURI_BUNDLE_CONFIG:-}"
+          [ -n "$BASE" ] || BASE='{}'
+          PATCH=$(jq -c -s '.[0] * .[1]' <<<"$BASE $CHANNEL")
+          cargo tauri build --target x86_64-pc-windows-msvc --config "$PATCH"
 
       # ── Code signing with signtool (gated by secrets) ──────────────────────
       # The PFX cert is passed as base64 and signed with signtool of the
@@ -1368,29 +1378,46 @@ jobs:
           tag = os.environ["TAG"]
           base = f"https://github.com/{repo}/releases/download/{tag}/"
 
-          platforms = {}
+          # One manifest per channel, because a Tauri manifest keys platforms by
+          # triple and two bundles share a triple: the CUDA variants would
+          # otherwise overwrite the default ones and offer an NVIDIA build to
+          # every Windows machine. Each contract entry names the channel it
+          # belongs to, and each bundle was built pointing at that file.
+          channels = {}
           for entry in contract["desktop"]:
               artifact = entry["updater"]["artifact"].replace("{version}", version)
               signature = entry["updater"]["signature"].replace("{version}", version)
+              name = entry["manifest"]
               sig_path = pathlib.Path("artifacts") / signature
               if not sig_path.is_file():
-                  print(f"::warning::{signature} missing, {entry['platform']} left out of latest.json")
+                  print(f"::warning::{signature} missing, {entry['platform']} left out of {name}")
+                  channels.setdefault(name, {})
                   continue
-              platforms[entry["platform"]] = {
+              channels.setdefault(name, {})[entry["platform"]] = {
                   "url": base + urllib.parse.quote(artifact),
                   "signature": sig_path.read_text().strip(),
               }
 
-          manifest = {
-              "version": version,
-              "notes": f"Apollia OS {tag}",
-              "pub_date": datetime.datetime.now(datetime.timezone.utc)
-                  .isoformat(timespec="seconds").replace("+00:00", "Z"),
-              "platforms": platforms,
-          }
-          out = pathlib.Path("artifacts") / contract["updater_manifest"]
-          out.write_text(json.dumps(manifest, indent=2) + "\n")
-          print(f"wrote {out} covering {sorted(platforms)}")
+          stamp = (
+              datetime.datetime.now(datetime.timezone.utc)
+              .isoformat(timespec="seconds").replace("+00:00", "Z")
+          )
+          for name in contract["updater_manifests"]:
+              platforms = channels.get(name, {})
+              # A platform key is the triple, so the CUDA channel drops the
+              # suffix that distinguishes the two contract entries: the
+              # installed app asks for `windows-x86_64` whichever variant it is,
+              # and the file it asks in is what tells the two apart.
+              keyed = {p.removesuffix("-cuda"): v for p, v in platforms.items()}
+              manifest = {
+                  "version": version,
+                  "notes": f"Apollia OS {tag}",
+                  "pub_date": stamp,
+                  "platforms": keyed,
+              }
+              out = pathlib.Path("artifacts") / name
+              out.write_text(json.dumps(manifest, indent=2) + "\n")
+              print(f"wrote {out} covering {sorted(keyed)}")
           EOF
 
       # One SHA256SUMS covering every artifact. The three per-job files of the

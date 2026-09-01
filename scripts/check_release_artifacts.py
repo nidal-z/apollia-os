@@ -27,8 +27,12 @@ Rules:
                     no hardcoded release-asset name outside its tests
   endpoint-manifest the tauri.conf.json updater endpoint names the contract's
                     manifest under the contract's repo
-  manifest-step     a step of the release job writes the manifest from the
-                    contract; shell comments do not count
+  manifest-step     a step of the release job writes the manifests from the
+                    contract, iterating `updater_manifests`; comments do not
+                    count
+  channel-endpoint  a desktop entry on a channel other than the default is
+                    built by a job that points the updater there, so an
+                    installed variant asks its own manifest for updates
   updater-uploads   each desktop job stages the updater signature its contract
                     entry declares, in a run line that is not a comment
   flat-uploads      every upload-artifact path of the cli and desktop jobs
@@ -325,7 +329,7 @@ def check(root: Path) -> list[str] | int:
             continue
         lines = shell_lines(step["run"])
         if any(str(CONTRACT) in line for line in lines) and any(
-            "updater_manifest" in line for line in lines
+            "updater_manifests" in line for line in lines
         ):
             manifest_step_ok = True
             break
@@ -334,6 +338,33 @@ def check(root: Path) -> list[str] | int:
             f"{WORKFLOW}: manifest-step: no release step composes {manifest} from "
             f"the contract's updater_manifest (comments do not count)"
         )
+
+    # ── channel-endpoint ──────────────────────────────────────────────────
+    # A Tauri manifest keys platforms by triple, so two bundles sharing a
+    # triple cannot share a manifest: the second written wins and every
+    # installed copy is then offered whichever engine was composed last. A
+    # variant on its own channel must therefore be built pointing at that
+    # channel, and the endpoint is baked in at build time.
+    default_manifest = contract.get("updater_manifest", "latest.json")
+    for entry in contract.get("desktop", []):
+        channel = entry.get("manifest", default_manifest)
+        if channel == default_manifest:
+            continue
+        job_id = entry.get("job")
+        job = jobs.get(job_id, {})
+        points_there = any(
+            channel in line
+            for step in job.get("steps", [])
+            if isinstance(step.get("run"), str)
+            for line in shell_lines(step["run"])
+        )
+        if not points_there:
+            defects.append(
+                f"{WORKFLOW}: channel-endpoint: {entry['platform']} declares the "
+                f"channel {channel!r} and job {job_id} never points the updater "
+                f"at it, so the bundle would ask {default_manifest!r} and be "
+                f"offered another variant"
+            )
 
     # ── updater-uploads ───────────────────────────────────────────────────
     for entry in contract.get("desktop", []):
