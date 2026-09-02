@@ -514,7 +514,20 @@ jobs:
             -DLLAMA_BUILD_TESTS=OFF \
             -DLLAMA_BUILD_EXAMPLES=OFF \
             -DLLAMA_BUILD_SERVER=ON \
+            -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
             -DCMAKE_CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90-virtual"
+          # `$ORIGIN` on the install RPATH, and it is not cosmetic. CMake strips
+          # the build tree's RPATH when it installs, which the install log said
+          # in as many words: `Set non-toolchain portion of runtime path of
+          # ... to ""`. A library with no RPATH cannot be found beside the file
+          # that needs it, so the AppImage bundler stopped on
+          # `Could not find dependency: libllama.so.0` while deploying
+          # `libllama-common.so.0` from the same directory, and a user's loader
+          # would have stopped the same way. The upstream archives this job
+          # replaces carry `$ORIGIN`, which is why the Vulkan bundle never hit
+          # this.
+          #
           # Everything the configuration declares, not just the one target.
           # `cmake --install` runs the install rules of every subdirectory
           # configured, and stops on the first artefact that was never built:
@@ -682,6 +695,33 @@ jobs:
           done
           [ -z "$missing" ] || exit 1
           echo "every NEEDED entry of the staged engine resolves"
+
+          # A sibling that exists is not a sibling that is found. `cmake
+          # --install` clears the RPATH it built with, and a file with none is
+          # searched for only in the system cache: the AppImage bundler stopped
+          # on `Could not find dependency: libllama.so.0` while deploying
+          # `libllama-common.so.0` out of the same directory, and a user's
+          # loader would have done the same. Every file that needs a sibling
+          # must therefore say where to look, and the answer is `$ORIGIN`
+          # because this directory is flat.
+          rootless=""
+          for f in llama-server *.so*; do
+            [ -e "$f" ] || continue
+            needs_sibling=""
+            for need in $(readelf -d "$f" 2>/dev/null | awk '/NEEDED/ {gsub(/[][]/,"",$5); print $5}'); do
+              [ -e "$need" ] && needs_sibling="yes"
+            done
+            [ -n "$needs_sibling" ] || continue
+            if ! readelf -d "$f" 2>/dev/null | grep -qE '\(RUNPATH\)|\(RPATH\)'; then
+              echo "::error::${f} loads a library from this directory and carries no RUNPATH, so nothing will find it"
+              rootless="yes"
+            elif ! readelf -d "$f" 2>/dev/null | grep -E '\(RUNPATH\)|\(RPATH\)' | grep -q 'ORIGIN'; then
+              echo "::error::${f} carries a RUNPATH that does not mention \$ORIGIN, so it will not look beside itself"
+              rootless="yes"
+            fi
+          done
+          [ -z "$rootless" ] || exit 1
+          echo "every file that needs a sibling looks beside itself"
           # Not run here: without an NVIDIA driver the loader cannot satisfy
           # libcuda.so.1, so a failure would say nothing about the build.
 
