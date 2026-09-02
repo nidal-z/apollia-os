@@ -38,7 +38,7 @@ Apollia restricts some sensitive paths and tools by default. An action on a forb
 
 **Solution:**
 1. If you see the refusal line in the Inbox history, read the technical reason - it mentions the path or the tool concerned.
-2. If the access is legitimate, open **Settings → Permissions** and use the *Always for this assistant* / *Always for this project* scope on the **next** approval (instead of a deny rule). See [Approve or refuse an agent action](../controle/approuver-ou-refuser-une-action.md).
+2. If the access is legitimate, open **Settings → Permissions** and use the *Always for this assistant* / *Always for this project* scope on the **next** approval (instead of a deny rule). See [Approve or refuse an agent action](../controle/approve-or-reject-an-action.md).
 3. Restart the task from the chat.
 
 ### 4. The same type of action is refused over and over

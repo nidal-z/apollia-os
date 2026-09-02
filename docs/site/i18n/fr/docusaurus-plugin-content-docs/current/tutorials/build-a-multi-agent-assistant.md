@@ -1,6 +1,7 @@
 ---
 sidebar_position: 3
 title: Construire un assistant multi-agents
+description: "Construire un système multi-agents complet : un directeur qui planifie, des workers qui exécutent, et la délégation qui les relie."
 ---
 
 # Construire un assistant multi-agents

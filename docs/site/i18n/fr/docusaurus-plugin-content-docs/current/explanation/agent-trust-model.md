@@ -1,6 +1,7 @@
 ---
 sidebar_position: 6
 title: Le modèle de confiance de l'agent
+description: Un agent est du Python arbitraire. Ce qu'Apollia isole et ce qu'il n'isole pas, quelles frontières sont réelles aujourd'hui, et ce que cela implique.
 ---
 
 # Le modèle de confiance de l'agent

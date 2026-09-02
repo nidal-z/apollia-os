@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: Explications
+description: "Les concepts d'Apollia et le raisonnement qui les a produits : souveraineté, paliers d'autonomie, modèle de confiance, plans et responsabilité."
 ---
 
 # Explications

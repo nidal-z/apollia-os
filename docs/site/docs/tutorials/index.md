@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: Tutorials
+description: Lessons that take you end to end, from your first agent to a multi-agent assistant and to driving Apollia from your own product.
 ---
 
 # Tutorials

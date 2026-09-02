@@ -1,6 +1,7 @@
 ---
 sidebar_position: 7
 title: Installer et lancer le runtime
+description: "Compiler Apollia OS depuis les sources et lancer le runtime : prérequis, compilation, premier démarrage, et comment vérifier qu'il sert vraiment."
 ---
 
 # Installer et lancer le runtime

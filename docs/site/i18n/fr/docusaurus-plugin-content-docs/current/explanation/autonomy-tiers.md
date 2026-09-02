@@ -1,6 +1,7 @@
 ---
 sidebar_position: 4
 title: Paliers d'autonomie
+description: "L'autonomie d'un agent est un réglage, pas une propriété : les paliers d'autonomie, ce que chacun lâche, et qui en décide."
 ---
 
 # Paliers d'autonomie

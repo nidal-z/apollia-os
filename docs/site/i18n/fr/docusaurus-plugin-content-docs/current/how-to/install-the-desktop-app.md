@@ -1,6 +1,7 @@
 ---
 sidebar_position: 6.5
 title: Installer l'application de bureau
+description: Installer l'application de bureau Apollia sur macOS, Windows ou Linux, et aller du téléchargement à une première conversation qui fonctionne.
 ---
 
 # Installer l'application de bureau

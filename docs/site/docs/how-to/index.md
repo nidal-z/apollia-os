@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: How-to guides
+description: "Task-oriented recipes: install and run the runtime, write agents and workers, test them, embed Apollia, and keep a human in the loop."
 ---
 
 # How-to guides

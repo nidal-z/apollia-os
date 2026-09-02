@@ -117,7 +117,7 @@ The backend named in `frontier` must be configured and active in **Settings - LL
 - **"Model not found" error**: check the exact spelling of the name (case sensitive, for example `claude-3-5-sonnet-20241022` and not `Claude-3.5-Sonnet`).
 - **Timeout on cloud**: check your internet connection or the provider status.
 - **Ollama unreachable**: check that `ollama serve` is running on the target host and that port 11434 is open. For remote Ollama, test with `curl http://<host>:11434/api/tags` from your machine.
-- **No answer in the chat despite a green dot**: see [The AI provider is not responding](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
+- **No answer in the chat despite a green dot**: see [The AI provider is not responding](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **Ceiling reached and the agent does not finish**: the ceiling counts the cumulative cost of a routing session, not of a single run. When it is reached, the runtime degrades to local automatically for the rest of the session, unless `ceiling_action = "hard_stop"` is set, in which case the run ends with an error instead. If the task absolutely needs the frontier model all the way, raise the ceiling or disable hybrid routing by removing the `[llm.routing.hybrid]` section.
 
 > **Technical reference:** [Apollia reference](/reference) , every supported provider, advanced parameters (temperature, top_k, context_size, fallback policy), multi-backend routing.

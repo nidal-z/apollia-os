@@ -1,6 +1,7 @@
 ---
 sidebar_position: 1
 title: The 8 principles
+description: The eight principles Apollia is built on, from local-first to safeguards the runtime cannot bypass, and what each one rules out.
 ---
 
 # The 8 principles

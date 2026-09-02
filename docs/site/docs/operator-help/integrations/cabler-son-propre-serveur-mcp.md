@@ -68,12 +68,12 @@ Apollia can discover MCP servers on your local network through mDNS (service typ
 
 - Green dot next to the server in the sidebar.
 - The detail view shows the `tools`, `resources` and `prompts` sections filled in with what the server advertises.
-- A ping test confirms the latency (see [Test an MCP connection](tester-une-connexion-mcp.md)).
+- A ping test confirms the latency (see [Test an MCP connection](test-an-mcp-connection.md)).
 
 ## Security, what Apollia applies by default
 
 - **Trust level**: any manually added server is marked `custom`. No automatic `verified_official` level.
-- **HITL approval**: by default the tool is in *requires_approval* mode, every call asks for your validation. You can loosen this per tool on the [Understand MCP permissions](comprendre-les-permissions-mcp.md) page.
+- **HITL approval**: by default the tool is in *requires_approval* mode, every call asks for your validation. You can loosen this per tool on the [Understand MCP permissions](understand-mcp-permissions.md) page.
 - **Roots**: Apollia declares the accessible directories to the server (the agent workspace + the current project). The server sees nothing else.
 - **Sampling and elicitation**: not implemented. Apollia does not advertise these two capabilities during the handshake, so a server that supports them will not try to call back through them.
 

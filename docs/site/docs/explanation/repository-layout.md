@@ -1,6 +1,7 @@
 ---
 sidebar_position: 7
 title: Repository layout
+description: What every top-level file and directory of the Apollia OS repository is for, and where to look when you need to change one of them.
 ---
 
 # Repository layout

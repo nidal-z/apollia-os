@@ -1,6 +1,7 @@
 ---
 sidebar_position: 5
 title: The plan and orchestrated execution model
+description: How the runtime decides to run a task, plan-first or direct, what a plan contains, and where a human approves it before anything executes.
 ---
 
 # The plan and orchestrated execution model

@@ -18,5 +18,17 @@
   "item.label.GitHub": {
     "message": "GitHub",
     "description": "Navbar item with label GitHub"
+  },
+  "item.label.Help center": {
+    "message": "Guide utilisateur",
+    "description": "Navbar item with label Help center"
+  },
+  "item.label.Product": {
+    "message": "Le produit",
+    "description": "Navbar item with label Product"
+  },
+  "item.label.Download": {
+    "message": "Télécharger",
+    "description": "Navbar item with label Download"
   }
 }

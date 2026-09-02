@@ -1,6 +1,7 @@
 ---
 sidebar_position: 7
 title: Install and run the runtime
+description: "Build Apollia OS from source and run the runtime: prerequisites, the build, the first start, and how to check it is actually serving."
 ---
 
 # Install and run the runtime

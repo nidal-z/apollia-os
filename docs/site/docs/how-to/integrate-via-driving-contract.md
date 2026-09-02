@@ -1,6 +1,7 @@
 ---
 sidebar_position: 1
 title: Integrate Apollia via the driving contract
+description: "Embed an Apollia runtime in your product: the driving contract, authentication, the SDKs, and the calls that start and follow a task."
 ---
 
 # Integrate Apollia via the driving contract

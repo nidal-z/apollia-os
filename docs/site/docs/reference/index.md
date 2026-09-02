@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: Reference
+description: "The machine-checked facts about Apollia OS: HTTP API, CLI, SDK contract, configuration keys, native tools, events and evaluation suites."
 ---
 
 # Reference

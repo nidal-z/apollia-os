@@ -39,7 +39,7 @@ sidebar_position: 5
 
 ## Verification
 
-For a GGUF model, open a new chat, select your local model in the backend picker, and send a message: the answer arrives without an internet connection. For a Whisper model, follow the [Enable voice dictation](../chat/activer-la-dictee-vocale.md) page.
+For a GGUF model, open a new chat, select your local model in the backend picker, and send a message: the answer arrives without an internet connection. For a Whisper model, follow the [Enable voice dictation](../chat/enable-voice-dictation.md) page.
 
 ## If it does not work
 

@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: Architecture
+description: "La cartographie arc42 d'Apollia OS : objectifs, contraintes, blocs de construction, vues d'exécution, décisions consignées et dette technique."
 slug: /architecture
 ---
 

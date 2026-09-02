@@ -1,6 +1,7 @@
 ---
 sidebar_position: 3
 title: Build a multi-agent assistant
+description: "Build a complete multi-agent system end to end: a director that plans, workers that execute, and the delegation that connects them."
 ---
 
 # Build a multi-agent assistant

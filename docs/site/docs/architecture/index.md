@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: Architecture
+description: "The arc42 cartography of Apollia OS: goals, constraints, building blocks, runtime views, recorded decisions and the technical debt on the books."
 slug: /architecture
 ---
 

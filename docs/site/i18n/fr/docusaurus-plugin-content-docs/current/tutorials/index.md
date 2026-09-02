@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: Tutoriels
+description: Des leçons qui vous mènent de bout en bout, du premier agent à un assistant multi-agents, jusqu'au pilotage d'Apollia depuis votre produit.
 ---
 
 # Tutoriels

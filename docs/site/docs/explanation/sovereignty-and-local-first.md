@@ -1,6 +1,7 @@
 ---
 sidebar_position: 3
 title: Sovereignty and local-first
+description: "What sovereignty means in practice: what stays on your machine, what leaves it only on an explicit action, and how that line is enforced."
 ---
 
 # Sovereignty and local-first

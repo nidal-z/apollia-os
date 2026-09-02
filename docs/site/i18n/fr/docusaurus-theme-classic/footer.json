@@ -28,7 +28,7 @@
     "description": "The title of the footer links column with title=Using Apollia in the footer"
   },
   "link.item.label.Help center": {
-    "message": "Centre d'aide",
+    "message": "Guide utilisateur",
     "description": "The label of footer link with label=Help center linking to /operator-help"
   },
   "link.item.label.Install the desktop app": {
@@ -58,5 +58,21 @@
   "copyright": {
     "message": "Apollia OS. Sous licence MIT OR Apache-2.0.",
     "description": "The footer copyright"
+  },
+  "link.title.Apollia": {
+    "message": "Apollia",
+    "description": "The title of the footer links column with title=Apollia in the footer"
+  },
+  "link.item.label.The product": {
+    "message": "Le produit",
+    "description": "The label of footer link with label=The product linking to https://apollia.fr"
+  },
+  "link.item.label.Download": {
+    "message": "Télécharger",
+    "description": "The label of footer link with label=Download linking to https://apollia.fr/telecharger"
+  },
+  "link.item.label.For integrators": {
+    "message": "Pour les intégrateurs",
+    "description": "The label of footer link with label=For integrators linking to https://apollia.fr/entreprises"
   }
 }

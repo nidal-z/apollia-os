@@ -67,9 +67,9 @@ On screen: step 4 of the wizard, with 3 example cards each carrying a Try button
 
 - **The test fails with "Authentication refused"**: your key or token is invalid or revoked. Go back to step 2 and paste the value again without stray spaces.
 - **The test fails with "Service not found"**: the server is not reachable. Check your connection or the provider's status.
-- **The installed server exposes no tool**: the server starts but declares nothing. See [Test an MCP connection](tester-une-connexion-mcp.md) to run the test again, then check the logs on the provider side.
+- **The installed server exposes no tool**: the server starts but declares nothing. See [Test an MCP connection](test-an-mcp-connection.md) to run the test again, then check the logs on the provider side.
 - **You want to plug in a server that is not in the catalogue**: see [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
 - **The agent says it has no access to the tool in deferred mode**: in `deferred` mode, the agent has to call `tool_search` to load the tool on demand. If the agent does not do it, check that its manifest does list this MCP server among its allowed connections. Otherwise, update the manifest.
-- **The agent says it has no access to the tool**: open the agent's page, the Tools tab lists what its manifest declares. If the tool is not there, the agent is what needs updating. See [Understand the scope of an integration](comprendre-la-portee-d-une-integration.md).
+- **The agent says it has no access to the tool**: open the agent's page, the Tools tab lists what its manifest declares. If the tool is not there, the agent is what needs updating. See [Understand the scope of an integration](understand-integration-scope.md).
 
 > **Technical reference:** [Apollia reference](/reference) , MCP protocol, transports, trust levels, governance.

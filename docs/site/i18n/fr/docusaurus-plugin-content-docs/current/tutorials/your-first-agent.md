@@ -1,6 +1,7 @@
 ---
 sidebar_position: 2
 title: Votre premier agent
+description: "Écrire, installer et lancer votre premier agent Apollia : un petit coach conversationnel, d'un dossier vide à une réponse qui fonctionne."
 ---
 
 # Votre premier agent

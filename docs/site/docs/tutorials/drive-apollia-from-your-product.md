@@ -1,6 +1,7 @@
 ---
 sidebar_position: 1
 title: Drive Apollia from your product
+description: Start a real Apollia daemon, authenticate to it, and drive a task from your own code through the HTTP API, from first call to result.
 ---
 
 # Drive Apollia from your product

@@ -120,7 +120,7 @@ Le backend désigné dans `frontier` doit être configuré et actif dans **Param
 - **Erreur "Modèle non trouvé"** : vérifiez l'orthographe exacte du nom (case-sensitive, par exemple `claude-3-5-sonnet-20241022` et pas `Claude-3.5-Sonnet`).
 - **Timeout sur cloud** : vérifiez votre connexion internet ou le statut du fournisseur.
 - **Ollama injoignable** : vérifiez que `ollama serve` tourne sur l'hôte cible et que le port 11434 est ouvert. Pour Ollama distant, testez avec `curl http://<host>:11434/api/tags` depuis votre machine.
-- **Pas de réponse dans le chat malgré pastille verte** : voir [Le fournisseur d'IA ne répond pas](../troubleshooting/le-fournisseur-d-ia-ne-repond-pas.md).
+- **Pas de réponse dans le chat malgré pastille verte** : voir [Le fournisseur d'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **Plafond atteint et l'agent ne termine pas** : le plafond compte le coût cumulé d'une session de routing, pas d'une seule exécution. Quand il est atteint, le runtime dégrade automatiquement en local pour la suite de la session, sauf si `ceiling_action = "hard_stop"` est posé, auquel cas l'exécution se termine sur une erreur. Si la tâche nécessite absolument le modèle frontier jusqu'au bout, augmentez le plafond ou désactivez le routage hybride en retirant la section `[llm.routing.hybrid]`.
 
 > **Référence technique :** [Référence Apollia](/reference) , tous les fournisseurs supportés, paramètres avancés (temperature, top_k, context_size, fallback policy), routing multi-backend.

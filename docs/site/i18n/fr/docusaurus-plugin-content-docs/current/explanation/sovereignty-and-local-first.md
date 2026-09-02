@@ -1,6 +1,7 @@
 ---
 sidebar_position: 3
 title: Souveraineté et local-first
+description: "Ce que la souveraineté veut dire en pratique : ce qui reste sur votre machine, ce qui n'en sort que sur une action explicite, et comment c'est tenu."
 ---
 
 # Souveraineté et local-first

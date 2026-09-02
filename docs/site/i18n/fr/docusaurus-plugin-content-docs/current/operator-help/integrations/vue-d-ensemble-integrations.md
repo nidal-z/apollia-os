@@ -65,8 +65,8 @@ Vous pouvez aussi ajouter vos propres serveurs ou modifier le catalogue.
 
 ## Garder le contrôle
 
-- **Approbation HITL** : toutes les écritures (envoi mail, création événement, écriture fichier) demandent votre confirmation avant exécution. Voir [Comprendre les permissions MCP](comprendre-les-permissions-mcp.md).
-- **Tokens locaux** : aucun secret ne quitte votre machine. Voir [Gérer les tokens OAuth](gerer-les-tokens-oauth.md).
+- **Approbation HITL** : toutes les écritures (envoi mail, création événement, écriture fichier) demandent votre confirmation avant exécution. Voir [Comprendre les permissions MCP](understand-mcp-permissions.md).
+- **Tokens locaux** : aucun secret ne quitte votre machine. Voir [Gérer les tokens OAuth](manage-oauth-tokens.md).
 - **Profil de souveraineté** : Apollia accepte par défaut les connecteurs cloud (`cloud_allowed`). En profil `local_only`, les boutons de connexion cloud sont désactivés et seuls les MCPs stdio purement locaux restent disponibles. En v0.1.0, le profil se règle côté configuration backend (pas encore de bascule dans l'interface).
 
 ## Vérification

@@ -1,6 +1,7 @@
 ---
 sidebar_position: 1
 title: Les 8 principes
+description: Les huit principes sur lesquels Apollia est construit, du local-first aux garde-fous que le runtime ne peut pas contourner, et ce qu'ils excluent.
 ---
 
 # Les 8 principes

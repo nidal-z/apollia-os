@@ -31,10 +31,6 @@
     "message": "Architecture",
     "description": "The label for category 'Architecture' in sidebar 'docs'"
   },
-  "sidebar.docs.category.Operator help": {
-    "message": "Aide opérateur",
-    "description": "The label for category 'Operator help' in sidebar 'docs'"
-  },
   "sidebar.docs.category.Installation": {
     "message": "Installation",
     "description": "The label for category 'Installation' in sidebar 'docs'"
@@ -82,5 +78,9 @@
   "sidebar.docs.category.Troubleshooting": {
     "message": "Dépannage",
     "description": "The label for category 'Troubleshooting' in sidebar 'docs'"
+  },
+  "sidebar.docs.category.Help center": {
+    "message": "Guide utilisateur",
+    "description": "The label for category 'Operator help' in sidebar 'docs'"
   }
 }

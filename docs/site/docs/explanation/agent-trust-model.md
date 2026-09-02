@@ -1,6 +1,7 @@
 ---
 sidebar_position: 6
 title: The agent trust model
+description: An agent is arbitrary Python. What Apollia isolates and what it does not, which boundaries are real today, and what that means for what you run.
 ---
 
 # The agent trust model

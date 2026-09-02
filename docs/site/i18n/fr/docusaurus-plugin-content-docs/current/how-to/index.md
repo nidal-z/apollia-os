@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: Guides pratiques
+description: "Des recettes par tâche : installer et lancer le runtime, écrire des agents et des workers, les tester, embarquer Apollia, garder l'humain dans la boucle."
 ---
 
 # Guides pratiques

@@ -1,6 +1,7 @@
 ---
 sidebar_position: 2
 title: Your first agent
+description: "Build, install and run your first Apollia agent: a small conversational coach, from an empty folder to a working answer."
 ---
 
 # Your first agent

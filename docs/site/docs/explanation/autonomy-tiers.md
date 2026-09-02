@@ -1,6 +1,7 @@
 ---
 sidebar_position: 4
 title: Autonomy tiers
+description: "How far an agent runs on its own is a setting, not a property of the agent: the autonomy tiers, what each one lets go of, and who decides."
 ---
 
 # Autonomy tiers

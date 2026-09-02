@@ -1,6 +1,7 @@
 ---
 sidebar_position: 1
 title: Piloter Apollia depuis votre produit
+description: Démarrer un vrai démon Apollia, s'y authentifier et piloter une tâche depuis votre propre code via l'API HTTP, du premier appel au résultat.
 ---
 
 # Piloter Apollia depuis votre produit

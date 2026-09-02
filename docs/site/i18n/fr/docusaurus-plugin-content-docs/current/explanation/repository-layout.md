@@ -1,6 +1,7 @@
 ---
 sidebar_position: 7
 title: Structure du dépôt
+description: À quoi sert chaque fichier et chaque dossier de premier niveau du dépôt Apollia OS, et où regarder quand il faut en modifier un.
 ---
 
 # Structure du dépôt

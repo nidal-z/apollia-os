@@ -298,3 +298,23 @@
     transition: none;
   }
 }
+
+/* The one call to action of the navbar: the way from a page a search engine
+   sent someone to, back to the product they cannot install from here. It reads
+   as a button rather than as a seventh link, because a reader scanning a row of
+   links does not stop on one that looks like the others. */
+.navbar-download {
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  margin-left: 0.35rem;
+  background: var(--ifm-color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.navbar-download:hover,
+.navbar-download:focus-visible {
+  background: var(--ifm-color-primary-dark);
+  color: #fff;
+  text-decoration: none;
+}

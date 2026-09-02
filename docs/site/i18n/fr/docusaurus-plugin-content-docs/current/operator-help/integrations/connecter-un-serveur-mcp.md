@@ -67,9 +67,9 @@ A l'ecran : l'étape 4 de l'assistant, avec 3 cartes d'exemples portant chacune 
 
 - **Le test échoue avec "Authentification refusée"** : votre clé ou token est invalide ou révoqué. Revenez à l'étape 2 et recollez la valeur sans espaces parasites.
 - **Le test échoue avec "Service introuvable"** : le serveur n'est pas joignable. Vérifiez votre connexion ou le statut du fournisseur.
-- **Le serveur installé n'expose aucun outil** : le serveur démarre mais ne déclare rien. Voir [Tester une connexion MCP](tester-une-connexion-mcp.md) pour relancer le test, puis vérifier les logs côté fournisseur.
+- **Le serveur installé n'expose aucun outil** : le serveur démarre mais ne déclare rien. Voir [Tester une connexion MCP](test-an-mcp-connection.md) pour relancer le test, puis vérifier les logs côté fournisseur.
 - **Vous voulez brancher un serveur qui n'est pas dans le catalogue** : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
 - **L'agent dit qu'il n'a pas accès à l'outil en mode deferred** : en mode `deferred`, l'agent doit appeler `tool_search` pour charger l'outil à la demande. Si l'agent ne le fait pas, vérifiez que son manifest liste bien ce serveur MCP parmi ses connexions autorisées. Sinon, mettez le manifest à jour.
-- **L'agent dit qu'il n'a pas accès à l'outil** : ouvrez la fiche de l'agent, l'onglet Outils liste ce que son manifest déclare. Si l'outil n'y figure pas, c'est l'agent qu'il faut mettre à jour. Voir [Comprendre la portée d'une intégration](comprendre-la-portee-d-une-integration.md).
+- **L'agent dit qu'il n'a pas accès à l'outil** : ouvrez la fiche de l'agent, l'onglet Outils liste ce que son manifest déclare. Si l'outil n'y figure pas, c'est l'agent qu'il faut mettre à jour. Voir [Comprendre la portée d'une intégration](understand-integration-scope.md).
 
 > **Référence technique :** [Référence Apollia](/reference) , protocole MCP, transports, trust levels, gouvernance.

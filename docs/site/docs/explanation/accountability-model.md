@@ -1,6 +1,7 @@
 ---
 sidebar_position: 2
 title: The accountability model
+description: "Who did what, and on whose authority: how Apollia records an agent's actions so a run can be replayed and answered for after the fact."
 ---
 
 # The accountability model

@@ -1,6 +1,7 @@
 ---
 sidebar_position: 5
 title: Le modèle de plan et d'exécution orchestrée
+description: Comment le runtime décide d'exécuter une tâche, plan d'abord ou direct, ce que contient un plan, et où un humain l'approuve avant toute exécution.
 ---
 
 # Le modèle de plan et d'exécution orchestrée

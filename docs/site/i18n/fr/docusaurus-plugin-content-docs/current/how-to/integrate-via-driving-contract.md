@@ -1,6 +1,7 @@
 ---
 sidebar_position: 1
 title: Intégrer Apollia via le contrat de pilotage
+description: "Embarquer un runtime Apollia dans votre produit : le contrat de pilotage, l'authentification, les SDK, et les appels qui lancent et suivent une tâche."
 ---
 
 # Intégrer Apollia via le contrat de pilotage

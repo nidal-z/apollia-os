@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: Référence
+description: "Les faits vérifiés par la machine : API HTTP, CLI, contrat du SDK, clés de configuration, outils natifs, événements et suites d'évaluation."
 ---
 
 # Référence

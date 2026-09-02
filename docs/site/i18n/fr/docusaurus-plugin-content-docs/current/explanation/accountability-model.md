@@ -1,6 +1,7 @@
 ---
 sidebar_position: 2
 title: Le modèle de redevabilité
+description: "Qui a fait quoi, et sur quelle autorité : comment Apollia consigne les actions d'un agent pour qu'une exécution se rejoue et se justifie après coup."
 ---
 
 # Le modèle de redevabilité

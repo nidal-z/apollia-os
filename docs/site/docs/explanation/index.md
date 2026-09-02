@@ -1,6 +1,7 @@
 ---
 sidebar_position: 0
 title: Explanation
+description: "The concepts behind Apollia and the reasoning that produced them: sovereignty, autonomy tiers, the trust model, plans and accountability."
 ---
 
 # Explanation

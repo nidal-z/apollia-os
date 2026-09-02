@@ -1,6 +1,7 @@
 ---
 sidebar_position: 6.5
 title: Install the desktop app
+description: Install the Apollia desktop application on macOS, Windows or Linux, and get from the download to a first working conversation.
 ---
 
 # Install the desktop app
