@@ -153,6 +153,19 @@ Le répertoire de travail lui-même, `[chat] default_workspace` ou celui du proj
 est l'endroit où se résolvent les chemins relatifs. Il est de confiance au même
 titre que les entrées ci-dessus et n'est jamais une limite à lui seul.
 
+Les deux surfaces ne lisent pas cette liste de la même façon, et la différence
+mérite d'être connue avant de la vider :
+
+| Surface | Ce que fait la liste |
+| --- | --- |
+| Chat | Règle une friction. Hors des racines, l'opération est suspendue et l'utilisateur est sollicité. |
+| Mode agent | Pose une frontière. Hors des racines, un outil fichier refuse, en nommant ce réglage. |
+
+Le mode agent n'a pas de demande d'approbation sur laquelle se rabattre :
+l'événement d'approbation filesystem n'est émis que par l'invocateur du chat, et
+un agent peut s'exécuter sans personne devant l'écran. Tant que cette surface
+n'existe pas, un chemin dont un agent a besoin doit être nommé ici.
+
 ```toml
 [filesystem]
 trusted_paths = ["~", "/Volumes/travail", "/opt/data"]

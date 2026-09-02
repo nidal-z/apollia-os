@@ -46,6 +46,9 @@ pub(super) struct ProductionBackendFactory {
     pub(super) router: Arc<std::sync::OnceLock<TaskRouterHandle<DynBackend>>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Filesystem roots an agent may reach, from `[filesystem] trusted_paths`
+    /// with `~` already resolved. The first is the anchor for relative paths.
+    pub(super) trusted_paths: Vec<std::path::PathBuf>,
     /// Base data directory (`~/.apollia/`), used to open the shared
     /// [`ToolCredentialStore`] on each agent execution (`ctx.secrets`).
     pub(super) data_dir: PathBuf,
@@ -145,6 +148,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 task_repository,
                 a2a_invoker,
                 tools_config: self.tools_config.clone(),
+                trusted_paths: self.trusted_paths.clone(),
                 user_memory_write,
                 datasources_declared,
                 templates_declared,

@@ -330,6 +330,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         registry: registry_lock.clone(),
         router: router_lock.clone(),
         tools_config: tools_config.clone(),
+        trusted_paths: filesystem_config.resolved_trusted_paths(),
         data_dir: data_dir_for_chat.clone(),
         mcp_handle: mcp_handle_lock.clone(),
     });
@@ -349,6 +350,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             task_router: router_lock.clone(),
             data_dir: data_dir_for_chat,
             tools_config,
+            trusted_paths: filesystem_config.resolved_trusted_paths(),
             mcp_handle: mcp_handle_lock.clone(),
         }));
 
@@ -740,6 +742,7 @@ agent = A()
             user_memory_write: false,
             a2a_invoker: None,
             tools_config: apollia_core::ToolsConfig::default(),
+            trusted_paths: Vec::new(),
             datasources_declared: vec![],
             templates_declared: vec![],
             agent_dir: Some(tmp.clone()),

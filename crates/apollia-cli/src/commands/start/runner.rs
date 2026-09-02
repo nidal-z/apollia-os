@@ -23,7 +23,7 @@ use apollia_tools::{
 use pyo3::prelude::*;
 
 use super::chat_runner::mcp_executors_for;
-use super::llm_glue::{merge_disabled, sandbox_root_for_agent, NoopToolInvoker, RouterModel};
+use super::llm_glue::{merge_disabled, sandbox_roots_for_agent, NoopToolInvoker, RouterModel};
 use super::open_secret_store;
 
 // ─────────────────────────────────────────────────────────────
@@ -52,6 +52,9 @@ pub(super) struct BridgeRunner {
     pub(super) a2a_invoker: Option<Arc<apollia_runtime::a2a::A2AInvoker>>,
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Filesystem roots an agent may reach, from `[filesystem] trusted_paths`
+    /// with `~` already resolved. The first is the anchor for relative paths.
+    pub(super) trusted_paths: Vec<std::path::PathBuf>,
     /// Manifest opt-in for `ctx.memory.remember_user()` writes into `__user__`.
     pub(super) user_memory_write: bool,
     /// Datasources declared in the manifest.
@@ -127,7 +130,7 @@ impl BridgeRunner {
         let extra_executors = mcp_executors_for(&self.mcp_handle).await;
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
-                sandbox_root: sandbox_root_for_agent(),
+                sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
                 agent_id: self.agent_id.clone(),
                 venv_base_dir: self
                     .memory_base_dir
@@ -186,6 +189,7 @@ impl AgentRunner for BridgeRunner {
         let memory_base_dir = self.memory_base_dir.clone();
         let a2a_invoker = self.a2a_invoker.clone();
         let tools_config = self.tools_config.clone();
+        let trusted_paths = self.trusted_paths.clone();
         let user_memory_write = self.user_memory_write;
         let datasources_declared = self.datasources_declared.clone();
         let templates_declared = self.templates_declared.clone();
@@ -234,7 +238,7 @@ impl AgentRunner for BridgeRunner {
             let extra_executors = mcp_executors_for(&mcp_handle).await;
             let dispatcher = Arc::new(build_dispatcher_with(
                 &NativeDispatcherConfig {
-                    sandbox_root: sandbox_root_for_agent(),
+                    sandbox_roots: sandbox_roots_for_agent(&trusted_paths),
                     agent_id: agent_id.clone(),
                     venv_base_dir: memory_base_dir
                         .parent()

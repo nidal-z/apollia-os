@@ -75,7 +75,7 @@ pub use project_repository::{
 };
 pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
-pub use sandbox_path::{SandboxPathError, SandboxRoot};
+pub use sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
 pub use task_repository::{
     ApprovalInfo, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail, TaskRepoError,
     TaskRepository,

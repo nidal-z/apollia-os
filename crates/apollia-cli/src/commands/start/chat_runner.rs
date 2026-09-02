@@ -21,7 +21,7 @@ use apollia_tools::{
 };
 use pyo3::prelude::*;
 
-use super::llm_glue::{merge_disabled, sandbox_root_for_agent, NoopToolInvoker, RouterModel};
+use super::llm_glue::{merge_disabled, sandbox_roots_for_agent, NoopToolInvoker, RouterModel};
 use super::open_secret_store;
 
 // ─────────────────────────────────────────────────────────────
@@ -69,6 +69,9 @@ pub(super) struct AIPChatAgentRunner {
     /// Operator-supplied tools configuration loaded from `apollia.toml`.
     /// Drives `disabled` tools and `web_search` / `web_read` parameters.
     pub(super) tools_config: apollia_core::ToolsConfig,
+    /// Filesystem roots an agent may reach, from `[filesystem] trusted_paths`
+    /// with `~` already resolved. The first is the anchor for relative paths.
+    pub(super) trusted_paths: Vec<PathBuf>,
     /// MCP client manager handle, populated after `supervisor.start()` so the
     /// chat-agent dispatcher can route `mcp:<server>/<tool>` invocations.
     pub(super) mcp_handle:
@@ -133,7 +136,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         let extra_executors = mcp_executors_for(&mcp_handle).await;
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
-                sandbox_root: sandbox_root_for_agent(),
+                sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
                 agent_id: agent_name.to_string(),
                 venv_base_dir: self.data_dir.join("venvs"),
                 memory_namespace: manifest.memory_namespace.clone(),

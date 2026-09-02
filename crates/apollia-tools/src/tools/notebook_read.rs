@@ -1,11 +1,10 @@
 //! Read and format Jupyter notebook files for LLM consumption.
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
-use crate::sandbox_path::SandboxRoot;
+use crate::sandbox_path::{SandboxRoot, SandboxSpec};
 use apollia_core::SandboxProfile;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::path::PathBuf;
 use thiserror::Error;
 use tokio::fs;
 
@@ -24,7 +23,10 @@ pub struct NotebookRead {
 #[non_exhaustive]
 pub enum NotebookReadError {
     /// Path attempts to escape the sandbox root.
-    #[error("sandbox violation: path '{path}' escapes the sandbox root")]
+    #[error(
+        "path '{path}' is outside every trusted root; add it to [filesystem] \
+         trusted_paths in apollia.toml to reach it"
+    )]
     SandboxViolation {
         /// The offending path.
         path: String,
@@ -77,7 +79,7 @@ impl NotebookRead {
     ///
     /// Returns [`NotebookReadError::Io`] if the sandbox root cannot be created
     /// or canonicalized.
-    pub fn new(sandbox_root: PathBuf) -> Result<Self, NotebookReadError> {
+    pub fn new(sandbox_root: impl Into<SandboxSpec>) -> Result<Self, NotebookReadError> {
         let sandbox = SandboxRoot::new(sandbox_root).map_err(|e| NotebookReadError::Io {
             path: "sandbox_root".to_string(),
             reason: e.to_string(),

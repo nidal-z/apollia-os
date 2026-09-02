@@ -221,7 +221,7 @@ fn build_full_chat_dispatcher(
     }
 
     let native_cfg = apollia_tools::NativeDispatcherConfig {
-        sandbox_root: sandbox_root.to_path_buf(),
+        sandbox_roots: vec![sandbox_root.to_path_buf()],
         agent_id: format!("apollia:chat:{session_id}"),
         venv_base_dir: cfg.data_dir.join("venvs"),
         // Per-session memory namespace so `memory_search` reads/writes

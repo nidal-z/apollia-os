@@ -48,6 +48,9 @@ pub struct ProductionBackendFactory {
     pub mailbox_handle: Arc<std::sync::OnceLock<AgentMailboxHandle>>,
     /// Operator tools configuration (`[tools]` of apollia.toml).
     pub tools_config: Arc<std::sync::OnceLock<ToolsConfig>>,
+    /// Filesystem roots an agent may reach (`[filesystem] trusted_paths`, `~`
+    /// already resolved). Set after the runtime boots, like every lock here.
+    pub trusted_paths: Arc<std::sync::OnceLock<Vec<std::path::PathBuf>>>,
     /// Shared plan-gate registry, forwarded to each per-agent engine so the
     /// desktop UI can resolve a pending plan gate.
     pub plan_gates: Arc<std::sync::OnceLock<Arc<PendingPlanGates>>>,
@@ -147,6 +150,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 a2a_invoker,
                 mailbox,
                 tools_config,
+                trusted_paths: self.trusted_paths.get().cloned().unwrap_or_default(),
                 datasources_declared,
                 templates_declared,
                 agent_dir,

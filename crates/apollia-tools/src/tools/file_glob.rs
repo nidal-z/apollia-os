@@ -16,7 +16,7 @@ use serde_json::json;
 use thiserror::Error;
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
-use crate::sandbox_path::{SandboxPathError, SandboxRoot};
+use crate::sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
 
 /// Search for files matching a glob pattern inside the agent's sandbox.
 ///
@@ -32,7 +32,10 @@ pub struct FileGlob {
 #[non_exhaustive]
 pub enum FileGlobError {
     /// Path attempts to escape the sandbox root.
-    #[error("sandbox violation: path '{path}' escapes the sandbox root")]
+    #[error(
+        "path '{path}' is outside every trusted root; add it to [filesystem] \
+         trusted_paths in apollia.toml to reach it"
+    )]
     SandboxViolation { path: String },
 
     /// Glob pattern is syntactically invalid.
@@ -88,7 +91,7 @@ impl FileGlob {
     /// # Errors
     ///
     /// Returns `FileGlobError::IoError` if the sandbox root cannot be initialized.
-    pub fn new(sandbox_root: PathBuf) -> Result<Self, FileGlobError> {
+    pub fn new(sandbox_root: impl Into<SandboxSpec>) -> Result<Self, FileGlobError> {
         let sandbox = SandboxRoot::new(sandbox_root)?;
         Ok(Self { sandbox })
     }

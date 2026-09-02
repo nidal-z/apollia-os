@@ -8,7 +8,7 @@ use serde_json::json;
 use thiserror::Error;
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
-use crate::sandbox_path::{SandboxPathError, SandboxRoot};
+use crate::sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
 
 /// Search file contents for a regex pattern inside the sandbox.
 ///
@@ -25,7 +25,10 @@ pub struct FileGrep {
 #[non_exhaustive]
 pub enum FileGrepError {
     /// Path attempts to escape the sandbox root.
-    #[error("sandbox violation: path '{path}' escapes the sandbox root")]
+    #[error(
+        "path '{path}' is outside every trusted root; add it to [filesystem] \
+         trusted_paths in apollia.toml to reach it"
+    )]
     SandboxViolation { path: String },
 
     /// The provided regex pattern is syntactically invalid.
@@ -103,7 +106,7 @@ impl FileGrep {
     ///
     /// Returns `FileGrepError::IoError` if the sandbox directory cannot be created
     /// or canonicalized.
-    pub fn new(sandbox_root: PathBuf) -> Result<Self, FileGrepError> {
+    pub fn new(sandbox_root: impl Into<SandboxSpec>) -> Result<Self, FileGrepError> {
         let sandbox = SandboxRoot::new(sandbox_root)?;
         Ok(Self { sandbox })
     }

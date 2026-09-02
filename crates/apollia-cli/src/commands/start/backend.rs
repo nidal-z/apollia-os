@@ -37,6 +37,7 @@ impl ExecutionBackend for AIPProductionBackend {
             memory_base_dir: self.memory_base_dir.clone(),
             a2a_invoker: self.a2a_invoker.clone(),
             tools_config: self.tools_config.clone(),
+            trusted_paths: self.trusted_paths.clone(),
             user_memory_write: self.user_memory_write,
             datasources_declared: self.datasources_declared.clone(),
             templates_declared: self.templates_declared.clone(),

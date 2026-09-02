@@ -92,17 +92,32 @@ impl apollia_oria::actor::ToolProxyTrait for OriaToolProxy {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Filesystem sandbox root for native tools (dev mode).
-// `FileIo` and friends sandbox all paths under this root: we keep
-// `$HOME` for parity with the previous embedded `NativeToolExecutor`
-// so workspaces located anywhere under the user's home remain usable.
+// Filesystem roots for native tools.
+// `FileIo` and friends confine every path to these roots.
 // ─────────────────────────────────────────────────────────────
 
-/// Return the sandbox root used for file-oriented native tools.
+/// Return the filesystem roots used by file-oriented native tools.
 ///
-/// Centralised so every runner in this crate points at the same root.
-pub(super) fn sandbox_root_for_agent() -> PathBuf {
-    apollia_core::paths::home_dir_or_temp()
+/// `trusted` is `[filesystem] trusted_paths`, `~` already resolved. It defaults
+/// to the user's home directory, which is what the root used to be, hardcoded:
+/// an agent whose work lives on a mounted volume or under `/opt` had no way to
+/// reach it and no setting to change that.
+///
+/// The home directory is the fallback when the list is empty, rather than
+/// nothing at all: a file tool needs an anchor for relative paths, and an agent
+/// with no reachable root is an agent that fails on its first call.
+///
+/// Centralised so every runner in this crate points at the same roots.
+pub(super) fn sandbox_roots_for_agent(trusted: &[PathBuf]) -> Vec<PathBuf> {
+    let roots: Vec<PathBuf> = trusted
+        .iter()
+        .filter(|p| !p.as_os_str().is_empty())
+        .cloned()
+        .collect();
+    if roots.is_empty() {
+        return vec![apollia_core::paths::home_dir_or_temp()];
+    }
+    roots
 }
 
 /// Union of statically-disabled tools (from `apollia.toml`) with the runtime
@@ -118,4 +133,47 @@ pub(super) fn merge_disabled(
         }
     }
     runtime_disabled
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sandbox_roots_for_agent;
+    use std::path::PathBuf;
+
+    #[test]
+    fn an_empty_trusted_list_still_yields_a_root() {
+        // GIVEN an operator who emptied `[filesystem] trusted_paths`
+        let trusted: Vec<PathBuf> = Vec::new();
+
+        // WHEN the agent roots are derived
+        let roots = sandbox_roots_for_agent(&trusted);
+
+        // THEN one root remains. An empty list reaches `SandboxRoot::new` as a
+        // construction failure, and the dispatcher logs and skips a tool it
+        // cannot build: emptying a setting would silently remove every file
+        // tool from the agent rather than narrow it.
+        assert_eq!(roots.len(), 1);
+        assert!(!roots[0].as_os_str().is_empty());
+    }
+
+    #[test]
+    fn configured_roots_are_kept_in_order_and_empties_dropped() {
+        // GIVEN a configured list carrying an entry that resolved to nothing
+        let trusted = vec![
+            PathBuf::from("/mnt/work"),
+            PathBuf::new(),
+            PathBuf::from("/opt/data"),
+        ];
+
+        // WHEN the agent roots are derived
+        let roots = sandbox_roots_for_agent(&trusted);
+
+        // THEN order is preserved, since the first entry is the anchor relative
+        // paths land under, and the empty entry is gone: every path starts with
+        // it, so keeping one would trust the whole disk.
+        assert_eq!(
+            roots,
+            vec![PathBuf::from("/mnt/work"), PathBuf::from("/opt/data")]
+        );
+    }
 }

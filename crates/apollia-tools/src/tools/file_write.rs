@@ -2,11 +2,10 @@
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
 use crate::journal::{JournalEntry, JournalError, JournalWriterHandle};
-use crate::sandbox_path::SandboxRoot;
+use crate::sandbox_path::{SandboxRoot, SandboxSpec};
 use apollia_core::SandboxProfile;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::path::PathBuf;
 use thiserror::Error;
 use tokio::fs;
 
@@ -30,7 +29,10 @@ pub struct FileWrite {
 #[non_exhaustive]
 pub enum FileWriteError {
     /// Path attempts to escape the sandbox root.
-    #[error("sandbox violation: path '{path}' escapes the sandbox root")]
+    #[error(
+        "path '{path}' is outside every trusted root; add it to [filesystem] \
+         trusted_paths in apollia.toml to reach it"
+    )]
     SandboxViolation { path: String },
 
     /// I/O error while writing the file.
@@ -57,7 +59,7 @@ impl FileWrite {
     /// # Errors
     ///
     /// Returns an error if the sandbox root cannot be initialized.
-    pub fn new(sandbox_root: PathBuf) -> Result<Self, FileWriteError> {
+    pub fn new(sandbox_root: impl Into<SandboxSpec>) -> Result<Self, FileWriteError> {
         let sandbox = SandboxRoot::new(sandbox_root).map_err(|e| FileWriteError::IoError {
             path: "sandbox_root".to_string(),
             cause: e.to_string(),

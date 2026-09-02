@@ -1,11 +1,10 @@
 //! List files and directories inside the agent's sandbox.
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
-use crate::sandbox_path::{SandboxPathError, SandboxRoot};
+use crate::sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
 use apollia_core::SandboxProfile;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::path::PathBuf;
 use thiserror::Error;
 
 /// List files and directories inside a sandbox directory.
@@ -22,7 +21,10 @@ pub struct FileList {
 #[non_exhaustive]
 pub enum FileListError {
     /// Path attempts to escape the sandbox root.
-    #[error("sandbox violation: path '{path}' escapes the sandbox root")]
+    #[error(
+        "path '{path}' is outside every trusted root; add it to [filesystem] \
+         trusted_paths in apollia.toml to reach it"
+    )]
     SandboxViolation { path: String },
 
     /// Directory not found at the specified path.
@@ -82,7 +84,7 @@ impl FileList {
     /// # Errors
     ///
     /// Returns `FileListError::IoError` if the sandbox root cannot be initialized.
-    pub fn new(sandbox_root: PathBuf) -> Result<Self, FileListError> {
+    pub fn new(sandbox_root: impl Into<SandboxSpec>) -> Result<Self, FileListError> {
         let sandbox = SandboxRoot::new(sandbox_root)?;
         Ok(Self { sandbox })
     }

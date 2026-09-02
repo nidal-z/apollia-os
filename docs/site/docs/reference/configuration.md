@@ -151,6 +151,18 @@ The working directory itself, `[chat] default_workspace` or the project's, is
 where relative paths resolve. It is trusted like any entry here and is never a
 limit on its own.
 
+The two surfaces do not read the list the same way, and the difference is worth
+knowing before you empty it:
+
+| Surface | What the list does |
+| --- | --- |
+| Chat | Sets friction. Outside the roots, an operation is suspended and the user is asked. |
+| Agent mode | Sets a boundary. Outside the roots, a file tool refuses, naming this setting. |
+
+Agent mode has no approval prompt to fall back on: the filesystem approval event
+is emitted by the chat invoker alone, and an agent can run with nobody watching.
+Until that surface exists, a path an agent needs has to be named here.
+
 ```toml
 [filesystem]
 trusted_paths = ["~", "/Volumes/work", "/opt/data"]

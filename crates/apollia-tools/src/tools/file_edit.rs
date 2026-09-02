@@ -2,11 +2,10 @@
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
 use crate::journal::{JournalEntry, JournalError, JournalWriterHandle};
-use crate::sandbox_path::SandboxRoot;
+use crate::sandbox_path::{SandboxRoot, SandboxSpec};
 use apollia_core::SandboxProfile;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::path::PathBuf;
 use thiserror::Error;
 use tokio::fs;
 use tokio::io::AsyncReadExt;
@@ -34,7 +33,10 @@ pub struct FileEdit {
 #[non_exhaustive]
 pub enum FileEditError {
     /// Path attempts to escape the sandbox root.
-    #[error("sandbox violation: path '{path}' escapes the sandbox root")]
+    #[error(
+        "path '{path}' is outside every trusted root; add it to [filesystem] \
+         trusted_paths in apollia.toml to reach it"
+    )]
     SandboxViolation { path: String },
 
     /// File not found at the specified path.
@@ -93,7 +95,7 @@ impl FileEdit {
     /// # Errors
     ///
     /// Returns [`FileEditError::IoError`] if the sandbox root cannot be initialized.
-    pub fn new(sandbox_root: PathBuf) -> Result<Self, FileEditError> {
+    pub fn new(sandbox_root: impl Into<SandboxSpec>) -> Result<Self, FileEditError> {
         let sandbox = SandboxRoot::new(sandbox_root).map_err(|e| FileEditError::IoError {
             path: "sandbox_root".to_string(),
             cause: e.to_string(),

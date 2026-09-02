@@ -50,8 +50,13 @@ use crate::tools::web_read::WebRead;
 /// the dispatcher can be reused across tool calls within a single `run()`.
 #[derive(Clone)]
 pub struct NativeDispatcherConfig {
-    /// Filesystem sandbox root for file and notebook tools.
-    pub sandbox_root: PathBuf,
+    /// Filesystem roots the file and notebook tools may reach, anchor first.
+    ///
+    /// The anchor is where a relative path lands and is created if missing. The
+    /// rest come from `[filesystem] trusted_paths` and only widen what an
+    /// absolute path reaches; naming a disk that is not mounted does not create
+    /// it. A single-root caller passes a one-entry vector.
+    pub sandbox_roots: Vec<PathBuf>,
     /// Agent identifier, namespaces the per-agent Python venv.
     pub agent_id: String,
     /// Root directory under which per-agent venvs are created for `python_executor`.
@@ -248,7 +253,7 @@ pub fn build_dispatcher_with(
 }
 
 /// Register the sandbox-bound file and notebook tools that are not explicitly
-/// disabled. Each is constructed against `cfg.sandbox_root`; construction
+/// disabled. Each is constructed against `cfg.sandbox_roots`; construction
 /// failures are logged and skipped by [`push_sandbox_tool`].
 fn register_sandbox_tools(
     executors: &mut Vec<Box<dyn ToolExecutor>>,
@@ -259,56 +264,56 @@ fn register_sandbox_tools(
         push_sandbox_tool(
             executors,
             "file_read",
-            FileRead::new(cfg.sandbox_root.clone()),
+            FileRead::new(cfg.sandbox_roots.clone()),
         );
     }
     if is_active("file_write") {
         push_sandbox_tool(
             executors,
             "file_write",
-            FileWrite::new(cfg.sandbox_root.clone()),
+            FileWrite::new(cfg.sandbox_roots.clone()),
         );
     }
     if is_active("file_list") {
         push_sandbox_tool(
             executors,
             "file_list",
-            FileList::new(cfg.sandbox_root.clone()),
+            FileList::new(cfg.sandbox_roots.clone()),
         );
     }
     if is_active("file_edit") {
         push_sandbox_tool(
             executors,
             "file_edit",
-            FileEdit::new(cfg.sandbox_root.clone()),
+            FileEdit::new(cfg.sandbox_roots.clone()),
         );
     }
     if is_active("file_glob") {
         push_sandbox_tool(
             executors,
             "file_glob",
-            FileGlob::new(cfg.sandbox_root.clone()),
+            FileGlob::new(cfg.sandbox_roots.clone()),
         );
     }
     if is_active("file_grep") {
         push_sandbox_tool(
             executors,
             "file_grep",
-            FileGrep::new(cfg.sandbox_root.clone()),
+            FileGrep::new(cfg.sandbox_roots.clone()),
         );
     }
     if is_active("notebook_read") {
         push_sandbox_tool(
             executors,
             "notebook_read",
-            NotebookRead::new(cfg.sandbox_root.clone()),
+            NotebookRead::new(cfg.sandbox_roots.clone()),
         );
     }
     if is_active("notebook_edit") {
         push_sandbox_tool(
             executors,
             "notebook_edit",
-            NotebookEdit::new(cfg.sandbox_root.clone()),
+            NotebookEdit::new(cfg.sandbox_roots.clone()),
         );
     }
 }

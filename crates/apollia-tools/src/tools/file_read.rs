@@ -1,11 +1,10 @@
 //! Read files inside the agent's sandbox with offset/limit support.
 
 use crate::descriptor::{ToolDescriptor, ToolKind};
-use crate::sandbox_path::SandboxRoot;
+use crate::sandbox_path::{SandboxRoot, SandboxSpec};
 use apollia_core::SandboxProfile;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::path::PathBuf;
 use thiserror::Error;
 use tokio::fs;
 use tokio::io::AsyncReadExt;
@@ -35,7 +34,10 @@ pub struct FileRead {
 #[non_exhaustive]
 pub enum FileReadError {
     /// Path attempts to escape the sandbox root.
-    #[error("sandbox violation: path '{path}' escapes the sandbox root")]
+    #[error(
+        "path '{path}' is outside every trusted root; add it to [filesystem] \
+         trusted_paths in apollia.toml to reach it"
+    )]
     SandboxViolation { path: String },
 
     /// File not found at the specified path.
@@ -81,7 +83,7 @@ impl FileRead {
     /// # Errors
     ///
     /// Returns an error if the sandbox root cannot be initialized.
-    pub fn new(sandbox_root: PathBuf) -> Result<Self, FileReadError> {
+    pub fn new(sandbox_root: impl Into<SandboxSpec>) -> Result<Self, FileReadError> {
         let sandbox = SandboxRoot::new(sandbox_root).map_err(|e| FileReadError::IoError {
             path: "sandbox_root".to_string(),
             cause: e.to_string(),
@@ -261,6 +263,7 @@ impl FileRead {
 mod tests {
     use super::*;
     use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     async fn create_test_file(dir: &TempDir, name: &str, content: &str) -> PathBuf {

@@ -11,7 +11,10 @@ use thiserror::Error;
 #[non_exhaustive]
 pub enum SandboxPathError {
     /// Path attempts to escape the sandbox root.
-    #[error("sandbox violation: path '{path}' escapes the sandbox root")]
+    #[error(
+        "path '{path}' is outside every trusted root; add it to [filesystem] \
+         trusted_paths in apollia.toml to reach it"
+    )]
     SandboxViolation { path: String },
 
     /// Failed to initialize sandbox root directory.
@@ -19,45 +22,121 @@ pub enum SandboxPathError {
     InitFailed { path: String, cause: String },
 }
 
-/// Validated sandbox root directory.
+/// What a file tool is allowed to reach: one anchor, and any number of
+/// additional roots.
 ///
-/// Created once per tool instance. All path operations validate against this root.
-/// The sandbox root is canonicalized at creation time. Every resolved path has
-/// its existing prefix canonicalized and re-checked against the root, so a
-/// symlink is followed only while it stays inside the sandbox and any symlink
-/// escaping the root is rejected.
+/// The anchor is where a relative path lands, so there is exactly one and it is
+/// created if missing. The additional roots only widen what an absolute path may
+/// reach; they are never created, because naming `/Volumes/work` in a setting is
+/// a statement about a disk that may not be mounted, not a request to make one.
+///
+/// `From<PathBuf>` and `From<Vec<PathBuf>>` mean a caller with a single root
+/// writes what it always wrote. An empty vector is rejected at construction
+/// rather than silently treated as no confinement.
+#[derive(Debug, Clone)]
+pub struct SandboxSpec {
+    anchor: PathBuf,
+    extra: Vec<PathBuf>,
+}
+
+impl From<PathBuf> for SandboxSpec {
+    fn from(anchor: PathBuf) -> Self {
+        Self {
+            anchor,
+            extra: Vec::new(),
+        }
+    }
+}
+
+impl From<&Path> for SandboxSpec {
+    fn from(anchor: &Path) -> Self {
+        Self::from(anchor.to_path_buf())
+    }
+}
+
+impl From<Vec<PathBuf>> for SandboxSpec {
+    /// The first entry is the anchor; an empty vector yields an empty anchor,
+    /// which [`SandboxRoot::new`] then refuses.
+    fn from(mut roots: Vec<PathBuf>) -> Self {
+        if roots.is_empty() {
+            return Self {
+                anchor: PathBuf::new(),
+                extra: Vec::new(),
+            };
+        }
+        let anchor = roots.remove(0);
+        Self {
+            anchor,
+            extra: roots,
+        }
+    }
+}
+
+/// Validated sandbox roots.
+///
+/// Created once per tool instance. All path operations validate against these
+/// roots. Each is canonicalized at creation time. Every resolved path has its
+/// existing prefix canonicalized and re-checked against them, so a symlink is
+/// followed only while it stays inside one root and any symlink escaping all of
+/// them is rejected.
 #[derive(Debug, Clone)]
 pub struct SandboxRoot {
-    /// Canonicalized absolute path to the sandbox root directory.
+    /// Canonicalized absolute path of the anchor: where a relative path lands.
+    /// Always the first entry of `roots`.
     canonical: PathBuf,
+    /// Every root a resolved path may sit under, canonicalized where the
+    /// directory exists.
+    roots: Vec<PathBuf>,
 }
 
 impl SandboxRoot {
-    /// Create and canonicalize the sandbox root directory.
+    /// Create and canonicalize the sandbox roots.
     ///
-    /// Creates the directory (and parents) if it doesn't exist.
-    /// Canonicalizes the root path itself to resolve symlinks and normalize.
+    /// The anchor is created (with parents) if it does not exist, then
+    /// canonicalized to resolve symlinks and normalize. Additional roots are
+    /// canonicalized when they exist and kept as written when they do not: a
+    /// root that is not there yet cannot be reached, and comparing an
+    /// uncanonicalized form against a canonicalized real path fails closed
+    /// (macOS `/var` against `/private/var`) rather than opening a hole.
+    ///
     /// Per-request paths are resolved and symlink-checked separately in
     /// [`SandboxRoot::resolve`].
     ///
     /// # Errors
     ///
-    /// Returns `SandboxPathError::InitFailed` if the directory cannot be created
-    /// or canonicalized.
-    pub fn new(path: PathBuf) -> Result<Self, SandboxPathError> {
-        std::fs::create_dir_all(&path).map_err(|e| SandboxPathError::InitFailed {
-            path: path.display().to_string(),
+    /// Returns `SandboxPathError::InitFailed` if the anchor cannot be created
+    /// or canonicalized, including the case of an empty root list.
+    pub fn new(spec: impl Into<SandboxSpec>) -> Result<Self, SandboxPathError> {
+        let SandboxSpec { anchor, extra } = spec.into();
+
+        if anchor.as_os_str().is_empty() {
+            return Err(SandboxPathError::InitFailed {
+                path: String::new(),
+                cause: "no sandbox root given".to_string(),
+            });
+        }
+
+        std::fs::create_dir_all(&anchor).map_err(|e| SandboxPathError::InitFailed {
+            path: anchor.display().to_string(),
             cause: e.to_string(),
         })?;
 
-        let canonical = path
+        let canonical = anchor
             .canonicalize()
             .map_err(|e| SandboxPathError::InitFailed {
-                path: path.display().to_string(),
+                path: anchor.display().to_string(),
                 cause: e.to_string(),
             })?;
 
-        Ok(Self { canonical })
+        let mut roots = vec![canonical.clone()];
+        for root in extra {
+            if root.as_os_str().is_empty() {
+                continue;
+            }
+            roots.push(root.canonicalize().unwrap_or(root));
+        }
+
+        Ok(Self { canonical, roots })
     }
 
     /// Resolve a relative path within the sandbox.
@@ -70,8 +149,8 @@ impl SandboxRoot {
     /// (e.g. a fresh `file_write`), the longest existing ancestor is
     /// canonicalized and the not-yet-created tail is re-appended.
     ///
-    /// Absolute paths are accepted if their canonical form stays under the
-    /// canonical root (e.g. `/Users/alice/docs` with root `/Users/alice`).
+    /// Absolute paths are accepted if their canonical form stays under one of
+    /// the roots (e.g. `/Users/alice/docs` with root `/Users/alice`).
     /// The comparison happens after canonicalizing the path's existing
     /// prefix, so an uncanonicalized alias of an in-root path is accepted
     /// (macOS `/var/...` for a root stored as `/private/var/...`, Windows
@@ -130,10 +209,10 @@ impl SandboxRoot {
     /// Canonicalize the existing portion of `resolved` and re-check confinement.
     ///
     /// Walks up to the longest existing ancestor, canonicalizes it (resolving
-    /// every symlink), and verifies the real path still starts with the
-    /// canonical root. The not-yet-existing tail is re-appended so callers that
-    /// create files (`file_write`) keep working. Any failure to confirm
-    /// confinement is treated as an escape (fail-closed).
+    /// every symlink), and verifies the real path still starts with one of the
+    /// roots. The not-yet-existing tail is re-appended so callers that create
+    /// files (`file_write`) keep working. Any failure to confirm confinement is
+    /// treated as an escape (fail-closed).
     fn contain_within_root(
         &self,
         resolved: &Path,
@@ -159,7 +238,7 @@ impl SandboxRoot {
             }
         };
 
-        if !real_prefix.starts_with(&self.canonical) {
+        if !self.roots.iter().any(|root| real_prefix.starts_with(root)) {
             return Err(violation());
         }
 
@@ -170,9 +249,14 @@ impl SandboxRoot {
         Ok(full)
     }
 
-    /// Return a reference to the canonical sandbox root path.
+    /// Return the anchor: the canonical root a relative path lands under.
     pub fn path(&self) -> &Path {
         &self.canonical
+    }
+
+    /// Return every root a resolved path may sit under, anchor first.
+    pub fn roots(&self) -> &[PathBuf] {
+        &self.roots
     }
 }
 
@@ -318,6 +402,140 @@ mod tests {
             !resolved.to_string_lossy().contains("/~/"),
             "resolved path must not contain a literal '~' segment, got {resolved:?}"
         );
+    }
+
+    /// Two throwaway directories, both created, plus a third path that is never
+    /// created. Returned in that order.
+    fn two_roots_and_a_ghost() -> (PathBuf, PathBuf, PathBuf) {
+        let base = std::env::temp_dir().join(format!("apollia-test-{}", uuid::Uuid::new_v4()));
+        let anchor = base.join("anchor");
+        let second = base.join("second");
+        std::fs::create_dir_all(&anchor).expect("anchor");
+        std::fs::create_dir_all(&second).expect("second");
+        (anchor, second, base.join("never-created"))
+    }
+
+    #[test]
+    fn resolve_accepts_an_absolute_path_under_a_second_root() {
+        // GIVEN two roots, the second being the kind of path an operator names
+        // in `[filesystem] trusted_paths` (a mounted volume, /opt, a work disk)
+        let (anchor, second, _) = two_roots_and_a_ghost();
+        std::fs::write(second.join("report.csv"), b"x").expect("write");
+        let sandbox =
+            SandboxRoot::new(vec![anchor.clone(), second.clone()]).expect("two-root sandbox");
+
+        // WHEN an absolute path under the second root is resolved
+        let resolved = sandbox
+            .resolve(&second.join("report.csv").display().to_string())
+            .expect("a path under a trusted root resolves");
+
+        // THEN it is accepted. A single root is what made an agent whose work
+        // sits outside the home directory unusable.
+        assert!(resolved.ends_with("report.csv"));
+
+        let _ = std::fs::remove_dir_all(anchor.parent().expect("base"));
+    }
+
+    #[test]
+    fn resolve_still_rejects_a_path_under_no_root() {
+        // GIVEN the same two roots
+        let (anchor, second, _) = two_roots_and_a_ghost();
+        let sandbox = SandboxRoot::new(vec![anchor.clone(), second]).expect("two-root sandbox");
+
+        // WHEN a path under neither is resolved
+        let result = sandbox.resolve("/etc/passwd");
+
+        // THEN it is refused. Widening to a list is not the same as opening up.
+        assert!(matches!(
+            result,
+            Err(SandboxPathError::SandboxViolation { .. })
+        ));
+
+        let _ = std::fs::remove_dir_all(anchor.parent().expect("base"));
+    }
+
+    #[test]
+    fn a_relative_path_lands_under_the_anchor_not_a_later_root() {
+        // GIVEN two roots
+        let (anchor, second, _) = two_roots_and_a_ghost();
+        let sandbox =
+            SandboxRoot::new(vec![anchor.clone(), second.clone()]).expect("two-root sandbox");
+
+        // WHEN a relative path is resolved
+        let resolved = sandbox.resolve("notes.md").expect("relative resolves");
+
+        // THEN it lands under the first root. The anchor is a single directory
+        // by construction: a relative path with several candidate roots would
+        // otherwise have no defined meaning.
+        let canonical_anchor = anchor.canonicalize().expect("canonical anchor");
+        assert!(
+            resolved.starts_with(&canonical_anchor),
+            "{resolved:?} should sit under {canonical_anchor:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(anchor.parent().expect("base"));
+    }
+
+    #[test]
+    fn an_empty_root_list_is_refused_at_construction() {
+        // GIVEN no root at all
+        // WHEN a sandbox is built from it
+        let result = SandboxRoot::new(Vec::<PathBuf>::new());
+
+        // THEN construction fails for the stated reason rather than yielding a
+        // sandbox that confines nothing: an empty anchor is a prefix of every
+        // path on the machine. Asserting the cause matters, because creating an
+        // empty directory also fails, which would make this pass with the guard
+        // removed.
+        match result {
+            Err(SandboxPathError::InitFailed { cause, .. }) => {
+                assert_eq!(cause, "no sandbox root given", "wrong reason: {cause}");
+            }
+            other => panic!("expected InitFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn an_extra_root_that_does_not_exist_opens_nothing() {
+        // GIVEN an anchor plus a trusted root that is not there, the shape of an
+        // unmounted volume named in the configuration
+        let (anchor, _, ghost) = two_roots_and_a_ghost();
+        let sandbox = SandboxRoot::new(vec![anchor.clone(), ghost.clone()]).expect("sandbox");
+
+        // WHEN a path outside the anchor is resolved
+        let result = sandbox.resolve("/etc/passwd");
+
+        // THEN it is still refused, and the missing root did not become a
+        // wildcard on its way through canonicalization.
+        assert!(matches!(
+            result,
+            Err(SandboxPathError::SandboxViolation { .. })
+        ));
+
+        let _ = std::fs::remove_dir_all(anchor.parent().expect("base"));
+    }
+
+    #[test]
+    fn a_symlink_from_the_anchor_into_a_second_root_is_followed() {
+        // GIVEN a symlink inside the anchor pointing at the second root, which
+        // the operator has declared trusted
+        let (anchor, second, _) = two_roots_and_a_ghost();
+        std::fs::write(second.join("data.txt"), b"x").expect("write");
+        let link = anchor.join("shortcut");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&second, &link).expect("symlink");
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(&second, &link).expect("symlink");
+        let sandbox = SandboxRoot::new(vec![anchor.clone(), second]).expect("sandbox");
+
+        // WHEN the link is walked
+        let resolved = sandbox.resolve("shortcut/data.txt");
+
+        // THEN it resolves: the real target sits under a declared root. The
+        // symlink check refuses an escape from every root, not from the anchor.
+        assert!(resolved.is_ok(), "{resolved:?}");
+
+        let _ = std::fs::remove_dir_all(anchor.parent().expect("base"));
     }
 
     #[test]
