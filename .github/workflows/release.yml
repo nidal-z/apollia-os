@@ -550,6 +550,77 @@ jobs:
                \( -type f -o -type l \) -name '*.so*' -exec cp -a {} engine/ \;
           ls -la engine/
 
+      # The CUDA runtime libraries, resolved as a closure rather than listed.
+      #
+      # `libggml-cuda.so` links `CUDA::cudart` and `CUDA::cublas` dynamically at
+      # this tag, and a user with an NVIDIA GPU has the driver but not the
+      # toolkit, so those files have to travel with the engine. Upstream reaches
+      # the same conclusion for its own Windows CUDA build, which ships the
+      # engine and a separate archive of redistributables beside it; it
+      # publishes no Linux CUDA archive at all, which is why this job exists.
+      #
+      # Computed, not enumerated. A hand-written list is right until llama.cpp
+      # links one more library, and then it is a runtime failure on a user's
+      # machine rather than a red job here. This walks what is staged, copies
+      # any CUDA library it asks for and does not have, and repeats until a pass
+      # adds nothing, so a new dependency is picked up by the same rule.
+      #
+      # `libcuda.so.1` is excluded by name: it belongs to the driver, and
+      # copying it would pin users to this runner's driver version.
+      #
+      # `cp -L` flattens each symlink chain into one real file named after the
+      # SONAME the loader asks for, which is all $ORIGIN resolution needs and
+      # avoids replicating three names per library.
+      - name: Stage the CUDA runtime libraries the engine asks for
+        run: |
+          cd engine
+          search_dirs="${CUDA_PATH}/lib64 ${CUDA_PATH}/targets/x86_64-linux/lib"
+          found_dir=""
+          for d in $search_dirs; do
+            [ -d "$d" ] && found_dir="yes"
+          done
+          if [ -z "$found_dir" ]; then
+            echo "::error::no CUDA library directory found under ${CUDA_PATH}"
+            exit 1
+          fi
+          added=1
+          rounds=0
+          while [ "$added" -ne 0 ]; do
+            added=0
+            rounds=$((rounds + 1))
+            if [ "$rounds" -gt 10 ]; then
+              echo "::error::the CUDA closure did not settle in 10 rounds"
+              exit 1
+            fi
+            for f in llama-server *.so*; do
+              [ -e "$f" ] || continue
+              for need in $(readelf -d "$f" 2>/dev/null | awk '/NEEDED/ {gsub(/[][]/,"",$5); print $5}'); do
+                [ "$need" = "libcuda.so.1" ] && continue
+                case "$need" in
+                  libcu*|libnv*) ;;
+                  *) continue ;;
+                esac
+                [ -e "$need" ] && continue
+                src=""
+                for d in $search_dirs; do
+                  [ -d "$d" ] || continue
+                  cand=$(find "$d" -maxdepth 1 -name "$need" | head -1)
+                  [ -n "$cand" ] && { src="$cand"; break; }
+                done
+                if [ -z "$src" ]; then
+                  echo "::error::${f} needs ${need}, which is in no CUDA library directory of this runner"
+                  exit 1
+                fi
+                cp -L "$src" .
+                echo "  staged ${need} for ${f}"
+                added=$((added + 1))
+              done
+            done
+          done
+          echo "closure settled after ${rounds} round(s)"
+          echo "engine size: $(du -sh . | cut -f1)"
+          du -h --threshold=1M . 2>/dev/null | sort -h | tail -8 || true
+
       # Every library the staged files ask for must reach the machine that runs
       # them. Without this the answer arrives fifteen minutes later and one job
       # away, from a bundler walking the AppDir, which is how the missing SONAME
