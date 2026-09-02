@@ -66,6 +66,11 @@ SECTIONS = [
      "back to `allow`, so the tool call proceeds."),
     ("chat", "ChatConfig", "crates/apollia-core/src/config/chat.rs",
      "Chat session defaults."),
+    ("filesystem", "FilesystemConfig", "crates/apollia-core/src/config/filesystem.rs",
+     "The reversible journal, and the paths an agent works in without being "
+     "asked. `trusted_paths` sets friction rather than a wall, and the two "
+     "surfaces read it differently; see *Trusted paths, and what happens "
+     "outside them* below."),
     ("observability", "ObservabilityConfig", "crates/apollia-core/src/observability.rs",
      "Trace capture and retention. Read by the desktop application only."),
 ]

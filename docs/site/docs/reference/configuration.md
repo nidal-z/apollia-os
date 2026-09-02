@@ -133,40 +133,12 @@ Chat session defaults.
 
 ### `[filesystem]`
 
-The paths an agent may work in without being asked.
+The reversible journal, and the paths an agent works in without being asked. `trusted_paths` sets friction rather than a wall, and the two surfaces read it differently; see *Trusted paths, and what happens outside them* below.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
-| `trusted_paths` | `Vec<String>` | `["~"]` | Paths an agent reads and writes without an approval prompt. `~` is resolved at startup. |
-
-`trusted_paths` sets friction, not a boundary. A path under none of these roots,
-and outside the session's working directory, is not refused: the operation is
-suspended and the user is asked. Emptying the list therefore does not lock an
-agent out of the machine, it means every write outside the working directory
-raises an approval. Adding a path is a statement of trust, and the sensitive
-paths of the risk table (`~/.ssh`, `/etc`, stored credentials) keep their own
-classification whatever this list contains.
-
-The working directory itself, `[chat] default_workspace` or the project's, is
-where relative paths resolve. It is trusted like any entry here and is never a
-limit on its own.
-
-The two surfaces do not read the list the same way, and the difference is worth
-knowing before you empty it:
-
-| Surface | What the list does |
-| --- | --- |
-| Chat | Sets friction. Outside the roots, an operation is suspended and the user is asked. |
-| Agent mode | Sets a boundary. Outside the roots, a file tool refuses, naming this setting. |
-
-Agent mode has no approval prompt to fall back on: the filesystem approval event
-is emitted by the chat invoker alone, and an agent can run with nobody watching.
-Until that surface exists, a path an agent needs has to be named here.
-
-```toml
-[filesystem]
-trusted_paths = ["~", "/Volumes/work", "/opt/data"]
-```
+| `journal` | `JournalConfig` | type default | Sub-section dedicated to the reversible journal. |
+| `trusted_paths` | `Vec<PathBuf>` | `vec![PathBuf::from("~")]` | Paths an agent may read and write without an approval prompt. |
 
 ### `[observability]`
 
@@ -192,6 +164,37 @@ type falls back to, since the table is derived from the source. It resolves to
 directory when no home directory can be resolved. The server sets the file to
 mode `0600` right after binding, so only the account that started the runtime
 can reach it.
+
+### Trusted paths, and what happens outside them
+
+`[filesystem] trusted_paths` sets friction, not a boundary. A path under none of
+these roots, and outside the session's working directory, is not refused: the
+operation is suspended and the user is asked. Emptying the list therefore does
+not lock an agent out of the machine, it means every write outside the working
+directory raises an approval. Adding a path is a statement of trust, and the
+sensitive paths of the risk table (`~/.ssh`, `/etc`, stored credentials) keep
+their own classification whatever this list contains.
+
+The working directory itself, `[chat] default_workspace` or the project's, is
+where relative paths resolve. It is trusted like any entry in the list and is
+never a limit on its own.
+
+The two surfaces do not read the list the same way, and the difference is worth
+knowing before you empty it:
+
+| Surface | What the list does |
+| --- | --- |
+| Chat | Sets friction. Outside the roots, an operation is suspended and the user is asked. |
+| Agent mode | Sets a boundary. Outside the roots, a file tool refuses, naming this setting. |
+
+Agent mode has no approval prompt to fall back on: the filesystem approval event
+is emitted by the chat invoker alone, and an agent can run with nobody watching.
+Until that surface exists, a path an agent needs has to be named here.
+
+```toml
+[filesystem]
+trusted_paths = ["~", "/Volumes/work", "/opt/data"]
+```
 
 ### Sections that were withdrawn
 

@@ -135,41 +135,12 @@ Valeurs par défaut de session de chat.
 
 ### `[filesystem]`
 
-Les chemins dans lesquels un agent travaille sans qu'on lui demande.
+Le journal réversible, et les chemins dans lesquels un agent travaille sans qu'on lui demande. `trusted_paths` règle une friction plutôt qu'un mur, et les deux surfaces ne le lisent pas de la même façon ; voir *Chemins de confiance, et ce qui se passe en dehors* plus bas.
 
 | Clé | Type | Défaut | Signification |
 | --- | --- | --- | --- |
-| `trusted_paths` | `Vec<String>` | `["~"]` | Chemins qu'un agent lit et écrit sans demande d'approbation. `~` est résolu au démarrage. |
-
-`trusted_paths` règle une friction, pas une frontière. Un chemin situé sous aucune
-de ces racines, et hors du répertoire de travail de la session, n'est pas refusé :
-l'opération est suspendue et l'utilisateur est sollicité. Vider la liste
-n'enferme donc pas l'agent, cela signifie que toute écriture hors du répertoire de
-travail lève une approbation. Ajouter un chemin est une déclaration de confiance,
-et les chemins sensibles de la table de risque (`~/.ssh`, `/etc`, secrets stockés)
-gardent leur propre classification quoi que contienne cette liste.
-
-Le répertoire de travail lui-même, `[chat] default_workspace` ou celui du projet,
-est l'endroit où se résolvent les chemins relatifs. Il est de confiance au même
-titre que les entrées ci-dessus et n'est jamais une limite à lui seul.
-
-Les deux surfaces ne lisent pas cette liste de la même façon, et la différence
-mérite d'être connue avant de la vider :
-
-| Surface | Ce que fait la liste |
-| --- | --- |
-| Chat | Règle une friction. Hors des racines, l'opération est suspendue et l'utilisateur est sollicité. |
-| Mode agent | Pose une frontière. Hors des racines, un outil fichier refuse, en nommant ce réglage. |
-
-Le mode agent n'a pas de demande d'approbation sur laquelle se rabattre :
-l'événement d'approbation filesystem n'est émis que par l'invocateur du chat, et
-un agent peut s'exécuter sans personne devant l'écran. Tant que cette surface
-n'existe pas, un chemin dont un agent a besoin doit être nommé ici.
-
-```toml
-[filesystem]
-trusted_paths = ["~", "/Volumes/travail", "/opt/data"]
-```
+| `journal` | `JournalConfig` | défaut du type | Sous-section dédiée au journal réversible. |
+| `trusted_paths` | `Vec<PathBuf>` | `vec![PathBuf::from("~")]` | Chemins qu'un agent peut lire et écrire sans demande d'approbation. |
 
 ### `[observability]`
 
@@ -196,6 +167,39 @@ socket sous le répertoire temporaire de la plateforme lorsque aucun répertoire
 personnel ne peut être résolu. Le serveur passe le fichier en `0600` juste
 après le bind, si bien que seul le compte qui a démarré le runtime peut
 l'atteindre.
+
+### Chemins de confiance, et ce qui se passe en dehors
+
+`[filesystem] trusted_paths` règle une friction, pas une frontière. Un chemin
+situé sous aucune de ces racines, et hors du répertoire de travail de la
+session, n'est pas refusé : l'opération est suspendue et l'utilisateur est
+sollicité. Vider la liste n'enferme donc pas l'agent, cela signifie que toute
+écriture hors du répertoire de travail lève une approbation. Ajouter un chemin
+est une déclaration de confiance, et les chemins sensibles de la table de risque
+(`~/.ssh`, `/etc`, secrets stockés) gardent leur propre classification quoi que
+contienne cette liste.
+
+Le répertoire de travail lui-même, `[chat] default_workspace` ou celui du
+projet, est l'endroit où se résolvent les chemins relatifs. Il est de confiance
+au même titre que les entrées de la liste et n'est jamais une limite à lui seul.
+
+Les deux surfaces ne lisent pas cette liste de la même façon, et la différence
+mérite d'être connue avant de la vider :
+
+| Surface | Ce que fait la liste |
+| --- | --- |
+| Chat | Règle une friction. Hors des racines, l'opération est suspendue et l'utilisateur est sollicité. |
+| Mode agent | Pose une frontière. Hors des racines, un outil fichier refuse, en nommant ce réglage. |
+
+Le mode agent n'a pas de demande d'approbation sur laquelle se rabattre :
+l'événement d'approbation filesystem n'est émis que par l'invocateur du chat, et
+un agent peut s'exécuter sans personne devant l'écran. Tant que cette surface
+n'existe pas, un chemin dont un agent a besoin doit être nommé ici.
+
+```toml
+[filesystem]
+trusted_paths = ["~", "/Volumes/travail", "/opt/data"]
+```
 
 ### Sections retirées
 
