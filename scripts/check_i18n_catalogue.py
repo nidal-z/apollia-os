@@ -139,6 +139,10 @@ CODE_IDENTICAL = (
 
 # Navbar and footer labels both languages spell identically.
 CLASSIC_IDENTICAL = (
+    # The footer column that groups the links back to the product. A brand name
+    # is not translated, and calling the column anything else in French would
+    # name something the reader cannot find.
+    "Apollia",
     "Architecture",
     "Discussions",
     "GitHub",

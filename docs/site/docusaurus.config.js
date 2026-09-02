@@ -174,6 +174,13 @@ const config = {
     // every reader's query to a third party to find its own pages, and this
     // site already serves its fonts from its own origin and carries no tracker.
     // The index is built into the bundle; nothing leaves the browser.
+    //
+    // One limitation, upstream and not ours: the plugin hardcodes
+    // `aria-label="Search"` on its input rather than translating it, so a
+    // French screen reader announces the English word while the visible
+    // placeholder reads "Rechercher". Reaching it would mean swizzling the
+    // whole SearchBar component into src/theme and carrying a fork of it for
+    // one attribute. Recorded here rather than hidden.
     [
       require.resolve('@easyops-cn/docusaurus-search-local'),
       {
