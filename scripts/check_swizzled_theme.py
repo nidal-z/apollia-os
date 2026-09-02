@@ -42,6 +42,7 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import sys
@@ -174,7 +175,25 @@ def selftest() -> int:
 
 
 def main() -> int:
-    if "--selftest" in sys.argv:
+    # argparse rather than a positional read of sys.argv, so `--help` prints the
+    # usage and exits 0 without measuring anything. check_selftest holds every
+    # guard to that: a script that answers its own exit code to `--help` cannot
+    # be asked what it does without running it.
+    parser = argparse.ArgumentParser(
+        prog="check_swizzled_theme.py",
+        description=(
+            "Hold the swizzled search theme of docs/site against the plugin it "
+            "was copied from, allowing only the deviations this tree declares."
+        ),
+    )
+    parser.add_argument(
+        "--selftest",
+        action="store_true",
+        help="prove the derivation and the comparison both bite, and measure nothing else",
+    )
+    args = parser.parse_args()
+
+    if args.selftest:
         return selftest()
 
     if not UPSTREAM.exists():
