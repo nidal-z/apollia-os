@@ -550,28 +550,69 @@ jobs:
                \( -type f -o -type l \) -name '*.so*' -exec cp -a {} engine/ \;
           ls -la engine/
 
-      # Every library the staged files ask for must be staged too, or present
-      # on any machine. Without this the answer arrives fifteen minutes later
-      # and one job away, from a bundler walking the AppDir, which is how the
-      # missing SONAME above was found the first time. `readelf -d` names what
-      # each file needs; anything neither beside it nor in the system loader's
-      # cache fails this job, where the cause is still in reach.
+      # Every library the staged files ask for must reach the machine that runs
+      # them. Without this the answer arrives fifteen minutes later and one job
+      # away, from a bundler walking the AppDir, which is how the missing SONAME
+      # above was found the first time. `readelf -d` names what each file needs,
+      # and each name is answered here rather than on a user's machine.
+      #
+      # Two names cannot be judged by "is it on this runner", and the split is
+      # the whole point of this step:
+      #
+      #   - `libcuda.so.1` belongs to the NVIDIA driver, not to the toolkit. It
+      #     ships with the driver on the machine that has the GPU, and copying
+      #     it into a release would pin users to this runner's driver version.
+      #     It is legitimately absent here, where there is a toolkit and no GPU.
+      #
+      #   - the toolkit's own libraries are the mirror image: present on this
+      #     runner and on almost no user machine. Finding one in the loader
+      #     cache here proves nothing about where the engine will run, so they
+      #     are required to be staged rather than accepted as found.
+      #
+      # Each entry prints how it resolved, so the next failure reads as a
+      # verdict rather than as a name with no context.
       - name: Refuse an engine whose libraries are not all here
         run: |
           cd engine
+          driver_provided='libcuda.so.1'
+          toolkit_prefixes='libcudart libcublas libcublasLt libcufft libcurand
+                            libcusparse libcusolver libnvJitLink libnvrtc'
           missing=""
           for f in llama-server *.so*; do
             [ -e "$f" ] || continue
             for need in $(readelf -d "$f" 2>/dev/null | awk '/NEEDED/ {gsub(/[][]/,"",$5); print $5}'); do
-              if [ ! -e "$need" ] && ! ldconfig -p | awk '{print $1}' | grep -qx "$need"; then
-                echo "::error::${f} needs ${need}, which is neither staged beside it nor on the system"
-                missing="yes"
+              if printf '%s\n' $driver_provided | grep -qx "$need"; then
+                echo "  ${f} needs ${need}: comes from the NVIDIA driver on the target machine"
+                continue
               fi
+              if [ -e "$need" ]; then
+                echo "  ${f} needs ${need}: staged beside it"
+                continue
+              fi
+              staged_check_done=""
+              for prefix in $toolkit_prefixes; do
+                case "$need" in
+                  "${prefix}".so*)
+                    echo "::error::${f} needs ${need}, a CUDA toolkit library that is not staged beside it. This runner has the toolkit and a user machine does not, so it has to ship with the engine."
+                    missing="yes"
+                    staged_check_done="yes"
+                    break
+                    ;;
+                esac
+              done
+              [ -z "$staged_check_done" ] || continue
+              if ldconfig -p | awk '{print $1}' | grep -qx "$need"; then
+                echo "  ${f} needs ${need}: in the system loader cache"
+                continue
+              fi
+              echo "::error::${f} needs ${need}, which is neither staged beside it nor on the system"
+              missing="yes"
             done
           done
           [ -z "$missing" ] || exit 1
           echo "every NEEDED entry of the staged engine resolves"
-          ./llama-server --version 2>&1 | head -3 || true
+          # Not run here: without an NVIDIA driver the loader cannot satisfy
+          # libcuda.so.1, so a failure would say nothing about the build.
 
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
