@@ -785,6 +785,13 @@ jobs:
       # defaults from node_modules to spot a French message never translated.
       - name: The i18n catalogue is complete in both locales
         run: python3 scripts/check_i18n_catalogue.py
+      # Same reason as above, and the same frontier: the guard derives what each
+      # swizzled file should be from the plugin in node_modules, so it can only
+      # answer after the install. Without it the fork under docs/site/src/theme
+      # would keep rendering the version taken on the day it was made and no
+      # chain would say so.
+      - name: The swizzled search theme still matches the plugin
+        run: python3 scripts/check_swizzled_theme.py
       - name: Build site (onBrokenLinks throw)
         working-directory: docs/site
         run: npm run build

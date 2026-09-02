@@ -14,7 +14,12 @@ repos:
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
-        exclude: '\.md$'
+        # `docs/site/src/theme/` mirrors four files of a third-party plugin,
+        # byte for byte apart from two declared deviations, and
+        # scripts/check_swizzled_theme.py holds it there. Stripping whitespace
+        # this tree did not write turns that comparison red for a reason no
+        # reader can see: the diff shows two identical-looking lines.
+        exclude: '(\.md$|^docs/site/src/theme/)'
       - id: end-of-file-fixer
       - id: check-merge-conflict
       - id: check-yaml
