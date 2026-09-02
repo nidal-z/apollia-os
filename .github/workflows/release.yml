@@ -503,7 +503,7 @@ jobs:
           [ -n "$TAG" ] || { echo "no pinned llama.cpp tag in packaging/fetch-llama-server.sh" >&2; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Build llama-server
+      - name: Build llama.cpp with CUDA
         run: |
           git clone --depth 1 --branch "${{ steps.tag.outputs.tag }}" \
             https://github.com/ggml-org/llama.cpp.git /tmp/llama.cpp
@@ -515,13 +515,27 @@ jobs:
             -DLLAMA_BUILD_EXAMPLES=OFF \
             -DLLAMA_BUILD_SERVER=ON \
             -DCMAKE_CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90-virtual"
-          cmake --build /tmp/llama.cpp/build --target llama-server --config Release -j"$(nproc)"
+          # Everything the configuration declares, not just the one target.
+          # `cmake --install` runs the install rules of every subdirectory
+          # configured, and stops on the first artefact that was never built:
+          # with `--target llama-server` it stopped on
+          # `cannot find build/bin/libllama-batched-bench-impl.so`.
+          #
+          # The tools cannot simply be configured away. `tools/` is gated on
+          # LLAMA_BUILD_TOOLS and the server lives inside it, so turning tools
+          # off removes what this job exists to produce. Nor can the install be
+          # split: `install(TARGETS llama ...)` sits in the root CMakeLists,
+          # whose install script includes the tools one.
+          #
+          # The extra targets are CPU-side C++ linking against libllama. The
+          # CUDA kernels above dominate this job and are built once either way.
+          cmake --build /tmp/llama.cpp/build --config Release -j"$(nproc)"
 
-      # `cmake --install` rather than reaching into build/bin. An install tree
-      # carries the versioned names and the symlink chain that each library's
-      # SONAME actually asks for; a build tree does not have to, and this one
-      # did not: the first version of this step copied what it found beside the
-      # binary, and the AppImage bundler stopped on
+      # The libraries come from an install tree rather than from build/bin. An
+      # install tree carries the versioned names and the symlink chain that each
+      # library's SONAME actually asks for; a build tree does not have to, and
+      # this one did not: the first version of this step copied what it found
+      # beside the binary, and the AppImage bundler stopped on
       # `Could not find dependency: libggml-base.so.0`.
       #
       # Flat, because LLAMA_SERVER_DIR expects the server and its libraries in
