@@ -159,6 +159,7 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
         chat_default_workspace: None,
+        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
     };
     (config, temp_dir)
@@ -352,6 +353,7 @@ async fn test_startup_timeout_rollback() {
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
         chat_default_workspace: None,
+        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
     };
     let supervisor = Supervisor::new(config);
@@ -440,6 +442,7 @@ async fn test_start_without_llm_config_succeeds() {
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
         chat_default_workspace: None,
+        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
     };
     // Release the probe listener only now, right before the bind it protects.
@@ -570,6 +573,7 @@ async fn test_supervisor_starts_with_zero_triggers() {
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
         chat_default_workspace: None,
+        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
     };
     // Release the probe listener only now, right before the bind it protects.
@@ -642,6 +646,7 @@ async fn test_no_notifications_section_starts_ok() {
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
         chat_default_workspace: None,
+        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
     };
     // Release the probe listener only now, right before the bind it protects.
@@ -725,6 +730,7 @@ async fn test_trigger_engine_loads_from_sqlite() {
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
         chat_default_workspace: None,
+        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
     };
     // Release the probe listener only now, right before the bind it protects.
@@ -985,6 +991,7 @@ async fn test_story187_appstate_contains_repos() {
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
         chat_default_workspace: None,
+        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
     };
     // Release the probe listener only now, right before the bind it protects.

@@ -133,6 +133,31 @@ Valeurs par défaut de session de chat.
 | `default_workspace` | `Option<String>` | `None` | Répertoire de travail par défaut pour les sessions de chat libre (sans projet). |
 | `tool_turn_temperature` | `Option<f32>` | `None` | Température LLM appliquée à un tour de chat qui expose des outils au modèle. |
 
+### `[filesystem]`
+
+Les chemins dans lesquels un agent travaille sans qu'on lui demande.
+
+| Clé | Type | Défaut | Signification |
+| --- | --- | --- | --- |
+| `trusted_paths` | `Vec<String>` | `["~"]` | Chemins qu'un agent lit et écrit sans demande d'approbation. `~` est résolu au démarrage. |
+
+`trusted_paths` règle une friction, pas une frontière. Un chemin situé sous aucune
+de ces racines, et hors du répertoire de travail de la session, n'est pas refusé :
+l'opération est suspendue et l'utilisateur est sollicité. Vider la liste
+n'enferme donc pas l'agent, cela signifie que toute écriture hors du répertoire de
+travail lève une approbation. Ajouter un chemin est une déclaration de confiance,
+et les chemins sensibles de la table de risque (`~/.ssh`, `/etc`, secrets stockés)
+gardent leur propre classification quoi que contienne cette liste.
+
+Le répertoire de travail lui-même, `[chat] default_workspace` ou celui du projet,
+est l'endroit où se résolvent les chemins relatifs. Il est de confiance au même
+titre que les entrées ci-dessus et n'est jamais une limite à lui seul.
+
+```toml
+[filesystem]
+trusted_paths = ["~", "/Volumes/travail", "/opt/data"]
+```
+
 ### `[observability]`
 
 Capture et rétention des traces. Lu par l'application desktop uniquement.
@@ -161,13 +186,16 @@ l'atteindre.
 
 ### Sections retirées
 
-`[a2a]`, `[oria]`, `[registry]`, `[permissions]`, `[filesystem]`, `[memory]` et
-`[budget]` étaient acceptées auparavant. Chacune se désérialisait dans une
-structure typée que rien ensuite ne consultait, si bien qu'écrire une valeur
-dedans n'avait aucun effet et ne produisait pas non plus d'erreur. Elles ne
-sont plus acceptées, et un fichier qui en porte encore une consigne un
-avertissement au démarrage. Les retirer n'a changé aucun comportement, puisque
-ces sections n'en avaient aucun.
+`[a2a]`, `[oria]`, `[registry]`, `[permissions]`, `[memory]` et `[budget]`
+étaient acceptées auparavant. Chacune se désérialisait dans une structure typée
+que rien ensuite ne consultait, si bien qu'écrire une valeur dedans n'avait aucun
+effet et ne produisait pas non plus d'erreur. Elles ne sont plus acceptées, et un
+fichier qui en porte encore une consigne un avertissement au démarrage. Les
+retirer n'a changé aucun comportement, puisque ces sections n'en avaient aucun.
+
+`[filesystem]` figurait dans cette liste. C'est de nouveau une section vivante :
+`trusted_paths` est lue au démarrage et parvient au classifieur de risque, qui
+décide si une opération s'exécute ou demande.
 
 `[permissions]` mérite d'être détaillée, car son nom suggère le contraire :
 aucune de ses quatre clés n'a jamais eu de lecteur sur un chemin d'exécution. La

@@ -152,20 +152,46 @@ impl RiskClassifier {
         risks
     }
 
+    /// Merge the session's working directory into the operator's trusted paths.
+    ///
+    /// The working directory is where relative paths land, so it is trusted by
+    /// construction. Naming that here rather than at each call site is what
+    /// keeps the callers of [`RiskClassifier::classify_filesystem`] from
+    /// drifting apart. An empty entry is dropped: every path starts with it,
+    /// so keeping one would trust the whole disk.
+    pub fn trusted_roots(
+        workspace: Option<&std::path::Path>,
+        configured: &[std::path::PathBuf],
+    ) -> Vec<std::path::PathBuf> {
+        workspace
+            .map(std::path::Path::to_path_buf)
+            .into_iter()
+            .chain(configured.iter().cloned())
+            .filter(|p| !p.as_os_str().is_empty())
+            .collect()
+    }
+
     /// Classifies a filesystem operation by risk level.
     ///
     /// Classification is **synchronous and I/O-free** (fail fast). It is based on:
     /// 1. The operation type (`Delete` / `Chmod` are always `High`)
     /// 2. The configured system paths (write -> `High`)
     /// 3. The credential paths (write -> `High`; read -> `Low`)
-    /// 4. The path's position relative to the current workspace
+    /// 4. Whether the path sits under one of the `trusted` roots
+    ///
+    /// `trusted` is what the operator has said an agent may work in without
+    /// being asked: the session's working directory, plus `[filesystem]
+    /// trusted_paths`. It raises no wall. A path outside every root is
+    /// classified one level higher, which is what suspends the operation for
+    /// approval, and an empty list means every write is asked about rather
+    /// than that nothing can be written.
     ///
     /// If `canonicalize()` fails (path does not exist yet), classification is
     /// performed on the path as-is.
     pub fn classify_filesystem(
         op: FilesystemOp,
         path: &std::path::Path,
-        workspace: Option<&std::path::Path>,
+        trusted: &[std::path::PathBuf],
         config: &FilesystemRiskConfig,
     ) -> RiskLevel {
         // 1. Destructive operations are High regardless of the path.
@@ -203,18 +229,20 @@ impl RiskClassifier {
             return RiskLevel::Low;
         }
 
-        // 4. In/out workspace.
-        let in_workspace = workspace
-            .map(|ws| {
-                let canonical_ws = ws.canonicalize().unwrap_or_else(|_| ws.to_path_buf());
-                p.starts_with(&canonical_ws)
-            })
-            .unwrap_or(false);
+        // 4. Inside or outside the trusted roots. An empty root is dropped:
+        // every path starts with it, which would trust the whole disk.
+        let in_trusted = trusted.iter().any(|root| {
+            if root.as_os_str().is_empty() {
+                return false;
+            }
+            let canonical_root = root.canonicalize().unwrap_or_else(|_| root.clone());
+            p.starts_with(&canonical_root) || p.starts_with(root)
+        });
 
         match op {
-            FilesystemOp::Read if in_workspace => RiskLevel::Safe,
+            FilesystemOp::Read if in_trusted => RiskLevel::Safe,
             FilesystemOp::Read => RiskLevel::Low,
-            FilesystemOp::Write if in_workspace => RiskLevel::Low,
+            FilesystemOp::Write if in_trusted => RiskLevel::Low,
             FilesystemOp::Write => RiskLevel::Medium,
             // Delete / Chmod handled above.
             FilesystemOp::Delete | FilesystemOp::Chmod => RiskLevel::High,
@@ -392,7 +420,7 @@ mod tests_filesystem {
         let level = RiskClassifier::classify_filesystem(
             FilesystemOp::Read,
             path,
-            Some(ws),
+            &[ws.to_path_buf()],
             &default_fs_config(),
         );
         // THEN Safe (or at worst Low if canonicalize fails; both are below Medium)
@@ -408,7 +436,7 @@ mod tests_filesystem {
         let level = RiskClassifier::classify_filesystem(
             FilesystemOp::Write,
             path,
-            Some(ws),
+            &[ws.to_path_buf()],
             &default_fs_config(),
         );
         // THEN Medium (outside the workspace, not a system path)
@@ -423,7 +451,7 @@ mod tests_filesystem {
         let level = RiskClassifier::classify_filesystem(
             FilesystemOp::Write,
             path,
-            None,
+            &[],
             &default_fs_config(),
         );
         // THEN High
@@ -439,7 +467,7 @@ mod tests_filesystem {
         let level = RiskClassifier::classify_filesystem(
             FilesystemOp::Delete,
             path,
-            Some(ws),
+            &[ws.to_path_buf()],
             &default_fs_config(),
         );
         // THEN High (delete is always high regardless of workspace)
@@ -454,7 +482,7 @@ mod tests_filesystem {
         let level = RiskClassifier::classify_filesystem(
             FilesystemOp::Read,
             path,
-            None,
+            &[],
             &default_fs_config(),
         );
         // THEN Low (reading credentials is not high risk)
@@ -469,7 +497,7 @@ mod tests_filesystem {
         let level = RiskClassifier::classify_filesystem(
             FilesystemOp::Write,
             path,
-            None,
+            &[],
             &default_fs_config(),
         );
         // THEN High (writing credentials is always High)
@@ -484,7 +512,7 @@ mod tests_filesystem {
         let level = RiskClassifier::classify_filesystem(
             FilesystemOp::Write,
             path,
-            None,
+            &[],
             &default_fs_config(),
         );
         // THEN Medium
@@ -499,11 +527,82 @@ mod tests_filesystem {
         let level = RiskClassifier::classify_filesystem(
             FilesystemOp::Read,
             path,
-            None,
+            &[],
             &default_fs_config(),
         );
         // THEN Low (no workspace = slightly elevated vs Safe)
         assert_eq!(level, RiskLevel::Low);
+    }
+
+    #[test]
+    fn classify_write_in_a_trusted_path_outside_the_workspace_is_low() {
+        // GIVEN a path outside the workspace but under a configured trusted root
+        let trusted = vec![PathBuf::from("/home/alice")];
+        let path = Path::new("/home/alice/docs/note.md");
+
+        // WHEN a write is classified
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            &trusted,
+            &default_fs_config(),
+        );
+
+        // THEN it stays under Medium, so it runs without an approval prompt.
+        // Trusting a path is what makes an agent usable outside one folder.
+        assert!(level < RiskLevel::Medium, "{level:?}");
+    }
+
+    #[test]
+    fn classify_write_outside_every_trusted_path_asks_rather_than_refuses() {
+        // GIVEN a path under none of the trusted roots
+        let trusted = vec![PathBuf::from("/home/alice")];
+        let path = Path::new("/opt/data/report.csv");
+
+        // WHEN a write is classified
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            &trusted,
+            &default_fs_config(),
+        );
+
+        // THEN it is Medium: the caller suspends and asks. Nothing here refuses,
+        // which is the whole point of a friction boundary over a wall.
+        assert_eq!(level, RiskLevel::Medium);
+    }
+
+    #[test]
+    fn an_empty_trusted_root_does_not_trust_the_whole_disk() {
+        // GIVEN a trusted list holding an empty path, which every path starts with
+        let trusted = vec![PathBuf::new()];
+        let path = Path::new("/opt/data/report.csv");
+
+        // WHEN a write is classified
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            &trusted,
+            &default_fs_config(),
+        );
+
+        // THEN the empty entry is ignored. An unresolved `~` with no HOME would
+        // otherwise silently trust the machine.
+        assert_eq!(level, RiskLevel::Medium);
+    }
+
+    #[test]
+    fn trusted_roots_merges_the_working_directory_and_drops_empties() {
+        // GIVEN a working directory, a configured path, and an empty entry
+        let ws = PathBuf::from("/home/alice/proj");
+        let configured = vec![PathBuf::from("/mnt/data"), PathBuf::new()];
+
+        // WHEN the roots are merged
+        let roots = RiskClassifier::trusted_roots(Some(&ws), &configured);
+
+        // THEN the working directory leads, the configured path follows, and the
+        // empty entry is gone
+        assert_eq!(roots, vec![ws, PathBuf::from("/mnt/data")]);
     }
 
     #[test]

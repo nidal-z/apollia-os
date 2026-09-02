@@ -346,6 +346,7 @@ impl Supervisor {
                         .clone()
                         .map(std::path::PathBuf::from),
                     tool_turn_temperature: self.config.chat_tool_turn_temperature,
+                    trusted_paths: self.config.filesystem_trusted_paths.clone(),
                 })),
                 self.config.mcp_loading,
                 self.config.tool_search_limit,

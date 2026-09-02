@@ -219,6 +219,7 @@ fn test_supervisor_config(
         hooks_config: apollia_core::HooksConfig::default(),
         plan_mode_default: false,
         chat_default_workspace: None,
+        filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
     }
 }

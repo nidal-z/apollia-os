@@ -9,6 +9,9 @@ pub struct HitlInvokerParams {
     pub pending_fs: super::super::types::PendingFilesystemApprovals,
     pub fs_allow_rules: std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
     pub risk_config: apollia_core::FilesystemRiskConfig,
+    /// Paths the operator trusts (`[filesystem] trusted_paths`). They ride with
+    /// the risk table because they are read by the same classification.
+    pub trusted_paths: Vec<std::path::PathBuf>,
 }
 
 /// Production [`ToolInvoker`] that dispatches to native Apollia tools.
@@ -39,6 +42,10 @@ pub struct NativeChatToolInvoker {
     /// Original workspace path for risk classification (may differ from sandbox_root
     /// when sandbox_root has been resolved via fallback).
     workspace_path: Option<std::path::PathBuf>,
+    /// Paths the operator trusts, from `[filesystem] trusted_paths`. A path
+    /// under none of them, nor under the workspace, is escalated and therefore
+    /// asked about; it is never refused on that ground alone.
+    trusted_paths: Vec<std::path::PathBuf>,
     /// EventBus sender for emitting `HitlFilesystemRequired` events.
     #[allow(
         dead_code,
@@ -101,6 +108,7 @@ impl NativeChatToolInvoker {
         Self {
             sandbox_root,
             workspace_path,
+            trusted_paths: Vec::new(),
             event_bus: None,
             pending_fs: None,
             fs_allow_rules: None,
@@ -123,6 +131,7 @@ impl NativeChatToolInvoker {
         Self {
             sandbox_root: std::path::PathBuf::from("/"),
             workspace_path,
+            trusted_paths: Vec::new(),
             event_bus: None,
             pending_fs: None,
             fs_allow_rules: None,
@@ -166,12 +175,23 @@ impl NativeChatToolInvoker {
     /// When enabled, write and edit operations are classified by risk level before
     /// execution. Operations at `RiskLevel::Medium` or above are suspended pending
     /// user approval via `HitlFilesystemModal`.
+    /// Set the paths the operator trusts, from `[filesystem] trusted_paths`.
+    ///
+    /// They join the session's working directory as the roots under which an
+    /// operation needs no approval. Leaving them empty is not a lockout: it
+    /// means every write outside the working directory is asked about.
+    pub fn with_trusted_paths(mut self, paths: Vec<std::path::PathBuf>) -> Self {
+        self.trusted_paths = paths;
+        self
+    }
+
     pub fn with_hitl_support(mut self, params: HitlInvokerParams) -> Self {
         self.session_id = Some(params.session_id);
         self.event_bus = Some(params.event_bus);
         self.pending_fs = Some(params.pending_fs);
         self.fs_allow_rules = Some(params.fs_allow_rules);
         self.risk_config = params.risk_config;
+        self.trusted_paths = params.trusted_paths;
         self
     }
 
@@ -197,7 +217,10 @@ impl NativeChatToolInvoker {
         let level = apollia_tools::RiskClassifier::classify_filesystem(
             op,
             resolved_path,
-            self.workspace_path.as_deref(),
+            &apollia_tools::RiskClassifier::trusted_roots(
+                self.workspace_path.as_deref(),
+                &self.trusted_paths,
+            ),
             &self.risk_config,
         );
 

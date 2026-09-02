@@ -191,6 +191,17 @@ fn build_config_view(
             redirect_route: None,
         },
         ConfigSection {
+            name: "filesystem".to_string(),
+            description: "Paths an agent works in without being asked".to_string(),
+            entries: vec![ConfigEntry {
+                key: "trusted_paths".to_string(),
+                value: toml_value
+                    .map(|t| toml_string(t, "filesystem", "trusted_paths", "[\"~\"]"))
+                    .unwrap_or_else(|| "[\"~\"]".to_string()),
+            }],
+            redirect_route: None,
+        },
+        ConfigSection {
             name: "llm".to_string(),
             description: "LLM backend configuration".to_string(),
             entries: vec![],
@@ -441,7 +452,25 @@ mod tests {
 
         // THEN all sections are present with defaults
         assert!(!view.config_exists);
-        assert_eq!(view.sections.len(), 7);
+        assert_eq!(view.sections.len(), 8);
+
+        // AND the trusted paths default to the home directory, which is what
+        // makes an agent usable outside one folder without an approval on every
+        // write. A path outside them is asked about, never refused.
+        let filesystem = view
+            .sections
+            .iter()
+            .find(|s| s.name == "filesystem")
+            .expect("filesystem section");
+        assert_eq!(
+            filesystem
+                .entries
+                .iter()
+                .find(|e| e.key == "trusted_paths")
+                .expect("trusted_paths entry")
+                .value,
+            "[\"~\"]"
+        );
 
         let chat = view
             .sections

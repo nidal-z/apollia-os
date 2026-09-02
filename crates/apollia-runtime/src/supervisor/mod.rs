@@ -155,6 +155,16 @@ pub struct SupervisorConfig {
     /// `~/.apollia`. Read once at boot.
     pub chat_default_workspace: Option<String>,
 
+    /// Paths an agent may read and write without an approval prompt, from the
+    /// `[filesystem] trusted_paths` key of `apollia.toml`, `~` already
+    /// resolved. Read once at boot.
+    ///
+    /// It is a friction boundary, not a wall: a path outside every entry is
+    /// classified one level higher, which asks the user rather than refusing.
+    /// An empty list therefore means every write outside the working directory
+    /// is asked about. Default: the user's home directory.
+    pub filesystem_trusted_paths: Vec<std::path::PathBuf>,
+
     /// Temperature applied to a chat turn that advertises tools (the
     /// `[chat] tool_turn_temperature` key of `apollia.toml`).
     ///

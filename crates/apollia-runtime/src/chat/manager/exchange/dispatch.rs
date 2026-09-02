@@ -157,6 +157,11 @@ impl ChatSessionManager {
                 pending_fs: self.pending_fs_approvals.clone(),
                 fs_allow_rules: std::sync::Arc::clone(&session.fs_allow_rules),
                 risk_config: apollia_core::FilesystemRiskConfig::default(),
+                trusted_paths: self
+                    .chat_tools_config
+                    .as_ref()
+                    .map(|c| c.trusted_paths.clone())
+                    .unwrap_or_default(),
             };
 
             tokio::spawn(run_libre_exchange(LibreExchangeParams {

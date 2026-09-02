@@ -209,13 +209,20 @@ Do not add any prose before or after the JSON.";
 /// Frames the directory as the default for relative paths, not a jail: chat
 /// sessions can read and write anywhere on the machine (sensitive paths go
 /// through user approval).
-pub fn working_directory_note(path: &str) -> String {
-    format!(
-        "Your default working directory is `{path}`: relative file paths resolve there. You are \
-         NOT limited to this folder, you can read and write elsewhere on the machine using \
-         absolute paths (sensitive operations may ask the user for approval). Never refuse a \
-         path on the grounds that it is outside this directory."
-    )
+pub fn working_directory_note(path: Option<&str>) -> String {
+    match path {
+        Some(path) => format!(
+            "Your default working directory is `{path}`: relative file paths resolve there. You \
+             are NOT limited to this folder, you can read and write elsewhere on the machine \
+             using absolute paths (sensitive operations may ask the user for approval). Never \
+             refuse a path on the grounds that it is outside this directory."
+        ),
+        None => "You have no default working directory: give file tools an absolute path. You \
+                 can read and write anywhere on the machine (sensitive operations may ask the \
+                 user for approval). Never refuse a path on the grounds that it is outside some \
+                 directory."
+            .to_string(),
+    }
 }
 
 /// Wraps a user-persona memory brief under a stable header.
@@ -236,12 +243,19 @@ pub fn persona_block(brief: &str) -> String {
 /// The word "sandbox" is deliberately absent: the filesystem root is a path
 /// check on the file tools, not OS confinement, and the documentation
 /// reserves the word for the latter.
+///
+/// `fs_limit` is a real confinement or nothing. It used to be the session's
+/// working directory, which produced a block announcing a limit next to a
+/// working-directory note denying one, in the same prompt: the agent read the
+/// restrictive half and refused paths its tools would have accepted. A caller
+/// whose file tools are not confined passes `None`, and the block says nothing
+/// about limits rather than naming a directory the agent then treats as one.
 pub fn environment_block(
     os: &str,
     os_version: Option<&str>,
     arch: &str,
     posix_shell: Option<&str>,
-    fs_root: Option<&str>,
+    fs_limit: Option<&str>,
 ) -> String {
     let os_line = match os_version {
         Some(version) => format!("- OS: {os} {version} ({arch})"),
@@ -253,12 +267,12 @@ pub fn environment_block(
                  until Git Bash, MSYS2 or WSL provides bash on PATH"
             .to_string(),
     };
-    let root_line = match fs_root {
-        Some(root) => format!("- File tools operate under: {root}"),
-        None => "- File tools operate under: the session workspace root".to_string(),
+    let root_line = match fs_limit {
+        Some(root) => format!("\n- File tools cannot leave: {root}"),
+        None => String::new(),
     };
     format!(
-        "## HOST ENVIRONMENT\n{os_line}\n{shell_line}\n{root_line}\n\
+        "## HOST ENVIRONMENT\n{os_line}\n{shell_line}{root_line}\n\
          Match your shell syntax and paths to this host. Do not assume a different OS."
     )
 }

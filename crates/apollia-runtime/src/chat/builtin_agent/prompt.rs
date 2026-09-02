@@ -39,13 +39,20 @@ impl BuiltInChatAgent {
         let temporal = format!(
             "{}\n{}",
             apollia_core::temporal_context::temporal_context_block(),
-            host_environment_block(self.workspace_path.clone())
+            host_environment_block()
         );
 
-        let working_dir_note = self
+        // The working directory is an anchor for relative paths, never a
+        // boundary: the chat invoker runs unrestricted and the HITL layer is
+        // what stops an operation. The note says so in both cases, including
+        // the one where there is no workspace at all.
+        let workspace_display = self
             .workspace_path
             .as_deref()
-            .map(|ws| apollia_prompts::blocks::working_directory_note(&ws.display().to_string()));
+            .map(|ws| ws.display().to_string());
+        let working_dir_note = Some(apollia_prompts::blocks::working_directory_note(
+            workspace_display.as_deref(),
+        ));
 
         // User-persona brief, memory at the agent's initiative, gated by tier.
         let persona = if inject_memory {
@@ -96,15 +103,16 @@ impl BuiltInChatAgent {
 ///
 /// Gathering lives in `apollia-tools` (shell discovery, OS version probes),
 /// rendering in `apollia-prompts` (zero-I/O crate); this helper is the glue.
-pub(crate) fn host_environment_block(fs_root: Option<std::path::PathBuf>) -> String {
-    let env = apollia_tools::host_env::gather_host_environment(fs_root);
+pub(crate) fn host_environment_block() -> String {
+    let env = apollia_tools::host_env::gather_host_environment(None);
     let shell = env.posix_shell.as_ref().map(|p| p.display().to_string());
-    let root = env.fs_root.as_ref().map(|p| p.display().to_string());
+    // No confinement to declare: the chat invoker runs with `/` as its root and
+    // the HITL layer, not a path check, is what stops an operation.
     apollia_prompts::blocks::environment_block(
         env.os,
         env.os_version.as_deref(),
         env.arch,
         shell.as_deref(),
-        root.as_deref(),
+        None,
     )
 }

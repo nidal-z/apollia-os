@@ -32,6 +32,10 @@ pub struct ChatToolsConfig {
     /// Temperature applied to a chat turn that advertises tools (`[chat]
     /// tool_turn_temperature`). `None` resolves to the agent default.
     pub tool_turn_temperature: Option<f32>,
+    /// Paths an agent may work in without being asked (`[filesystem]
+    /// trusted_paths`, `~` already resolved). Empty means every write outside
+    /// the working directory is asked about, never that it is refused.
+    pub trusted_paths: Vec<std::path::PathBuf>,
 }
 
 /// Snapshot of a tool-level `scope=session` authorization for an active session.

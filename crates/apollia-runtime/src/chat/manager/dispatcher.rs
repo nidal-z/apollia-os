@@ -30,7 +30,12 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
         .and_then(|c| c.default_workspace.clone());
     let workspace_path =
         resolve_workspace_path(&project_id, &project_repo, default_workspace.as_deref()).await?;
-    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone());
+    let trusted_paths = chat_tools_config
+        .as_ref()
+        .map(|c| c.trusted_paths.clone())
+        .unwrap_or_default();
+    let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone())
+        .with_trusted_paths(trusted_paths.clone());
     if let Some(pending) = pending_user_inputs.clone() {
         invoker = invoker.with_ask_user_support(pending);
     }
@@ -279,6 +284,7 @@ fn push_hitl_natives(
         fs_allow_rules: p.fs_allow_rules.clone(),
         session_id: p.session_id.clone(),
         workspace_path: workspace_path.clone(),
+        trusted_paths: p.trusted_paths.clone(),
         sandbox_root: sandbox_root.to_path_buf(),
         risk_config: p.risk_config.clone(),
     };
@@ -403,6 +409,7 @@ mod tests {
             pending_fs: crate::chat::types::PendingFilesystemApprovals::new(),
             fs_allow_rules,
             risk_config: apollia_core::FilesystemRiskConfig::default(),
+            trusted_paths: Vec::new(),
         }
     }
 
@@ -430,6 +437,7 @@ mod tests {
             tools_config: apollia_core::ToolsConfig::default(),
             default_workspace: None,
             tool_turn_temperature: None,
+            trusted_paths: Vec::new(),
         })
     }
 

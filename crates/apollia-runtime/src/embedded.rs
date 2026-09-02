@@ -147,6 +147,16 @@ pub struct RuntimeHandle {
     /// back to `~/.apollia`. Surfaced to the desktop Settings page.
     pub chat_default_workspace: Option<String>,
 
+    /// Paths an agent may read and write without an approval prompt, from the
+    /// `[filesystem] trusted_paths` key of `apollia.toml`, `~` already
+    /// resolved. Read once at boot.
+    ///
+    /// It is a friction boundary, not a wall: a path outside every entry is
+    /// classified one level higher, which asks the user rather than refusing.
+    /// An empty list therefore means every write outside the working directory
+    /// is asked about. Default: the user's home directory.
+    pub filesystem_trusted_paths: Vec<std::path::PathBuf>,
+
     /// Temperature applied to a chat turn that advertises tools, read from the
     /// `[chat] tool_turn_temperature` key of `apollia.toml` at boot. `None`
     /// resolves to the agent default.
@@ -285,6 +295,13 @@ pub struct EmbeddedConfig {
     /// Maps to the `[chat]` section in `apollia.toml`.
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub chat_config: apollia_core::ChatConfig,
+
+    /// Filesystem configuration: reversible journal, and the paths an agent may
+    /// work in without being asked.
+    ///
+    /// Maps to the `[filesystem]` section in `apollia.toml`.
+    /// Populated by [`EmbeddedConfig::apply_toml`].
+    pub filesystem_config: apollia_core::FilesystemConfig,
 }
 
 impl Default for EmbeddedConfig {
@@ -310,6 +327,7 @@ impl Default for EmbeddedConfig {
             mcp_config: apollia_core::McpConfig::default(),
             hooks_config: apollia_core::HooksConfig::default(),
             chat_config: apollia_core::ChatConfig::default(),
+            filesystem_config: apollia_core::FilesystemConfig::default(),
         }
     }
 }
@@ -331,6 +349,7 @@ impl EmbeddedConfig {
             mcp: Option<apollia_core::McpConfig>,
             hooks: Option<apollia_core::HooksConfig>,
             chat: Option<apollia_core::ChatConfig>,
+            filesystem: Option<apollia_core::FilesystemConfig>,
             observability: Option<ObservabilityConfig>,
         }
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
@@ -359,6 +378,9 @@ impl EmbeddedConfig {
             }
             if let Some(chat) = s.chat {
                 self.chat_config = chat;
+            }
+            if let Some(fs) = s.filesystem {
+                self.filesystem_config = fs;
             }
             if let Some(obs) = s.observability {
                 self.obs_config = obs;
@@ -472,6 +494,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
     let tool_search_limit = config.mcp_config.tool_search_limit;
     let plan_mode_default = config.chat_config.plan_mode_default;
     let chat_default_workspace = config.chat_config.default_workspace.clone();
+    let filesystem_trusted_paths = config.filesystem_config.resolved_trusted_paths();
     let chat_tool_turn_temperature = config.chat_config.tool_turn_temperature;
     let supervisor_config = SupervisorConfig {
         api_config: APIServerConfig {
@@ -499,6 +522,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         plan_mode_default: config.chat_config.plan_mode_default,
         chat_default_workspace: chat_default_workspace.clone(),
         chat_tool_turn_temperature,
+        filesystem_trusted_paths: filesystem_trusted_paths.clone(),
     };
 
     let supervisor = Supervisor::new(supervisor_config);
@@ -542,6 +566,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         plan_mode_default,
         chat_default_workspace,
         chat_tool_turn_temperature,
+        filesystem_trusted_paths,
     })
 }
 

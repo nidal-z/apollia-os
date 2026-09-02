@@ -131,6 +131,31 @@ Chat session defaults.
 | `default_workspace` | `Option<String>` | `None` | Default working directory for free-chat (project-less) sessions. |
 | `tool_turn_temperature` | `Option<f32>` | `None` | LLM temperature applied to a chat turn that advertises tools to the model. |
 
+### `[filesystem]`
+
+The paths an agent may work in without being asked.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `trusted_paths` | `Vec<String>` | `["~"]` | Paths an agent reads and writes without an approval prompt. `~` is resolved at startup. |
+
+`trusted_paths` sets friction, not a boundary. A path under none of these roots,
+and outside the session's working directory, is not refused: the operation is
+suspended and the user is asked. Emptying the list therefore does not lock an
+agent out of the machine, it means every write outside the working directory
+raises an approval. Adding a path is a statement of trust, and the sensitive
+paths of the risk table (`~/.ssh`, `/etc`, stored credentials) keep their own
+classification whatever this list contains.
+
+The working directory itself, `[chat] default_workspace` or the project's, is
+where relative paths resolve. It is trusted like any entry here and is never a
+limit on its own.
+
+```toml
+[filesystem]
+trusted_paths = ["~", "/Volumes/work", "/opt/data"]
+```
+
 ### `[observability]`
 
 Trace capture and retention. Read by the desktop application only.
@@ -158,11 +183,15 @@ can reach it.
 
 ### Sections that were withdrawn
 
-`[a2a]`, `[oria]`, `[registry]`, `[permissions]`, `[filesystem]`, `[memory]` and
-`[budget]` used to be accepted. Each deserialized into a typed structure that
-nothing then consulted, so writing a value there had no effect and produced no
-error either. They are no longer accepted, and a file that still carries one logs
-a warning at startup. Removing them changed no behaviour, because they had none.
+`[a2a]`, `[oria]`, `[registry]`, `[permissions]`, `[memory]` and `[budget]` used
+to be accepted. Each deserialized into a typed structure that nothing then
+consulted, so writing a value there had no effect and produced no error either.
+They are no longer accepted, and a file that still carries one logs a warning at
+startup. Removing them changed no behaviour, because they had none.
+
+`[filesystem]` was in that list. It is a live section again: `trusted_paths` is
+read at startup and reaches the risk classifier, which is what decides whether an
+operation runs or asks.
 
 `[permissions]` is worth spelling out, since its name suggests otherwise: not
 one of its four keys ever had a reader on an execution path. The governance that

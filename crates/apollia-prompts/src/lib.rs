@@ -128,6 +128,42 @@ mod tests {
     }
 
     #[test]
+    fn environment_block_declares_no_limit_when_there_is_none() {
+        // GIVEN a caller whose file tools are not confined to a directory
+        let block = blocks::environment_block("macos", None, "aarch64", Some("/bin/sh"), None);
+
+        // WHEN reading the block
+        // THEN it says nothing about a boundary. It used to name the session
+        // workspace on this line, in the same prompt as a note denying any
+        // limit, and the agent read the restrictive half: it refused paths its
+        // own tools would have accepted, so the approval flow never fired.
+        assert!(!block.contains("cannot leave"), "{block}");
+        assert!(!block.to_lowercase().contains("operate under"), "{block}");
+    }
+
+    #[test]
+    fn working_directory_note_forbids_a_scope_refusal_in_both_shapes() {
+        // GIVEN a session that has a working directory and one that has none
+        let shapes = [
+            blocks::working_directory_note(Some("/Users/x/proj")),
+            blocks::working_directory_note(None),
+        ];
+
+        // WHEN reading each note
+        // THEN both say the rest of the machine is reachable and forbid the
+        // refusal outright, so neither shape leaves the agent to guess
+        for note in shapes {
+            assert!(note.contains("Never refuse a path"), "{note}");
+            assert!(
+                note.contains("elsewhere on the machine")
+                    || note.contains("anywhere on the machine"),
+                "{note}"
+            );
+            assert!(note.contains("ask the user for approval"), "{note}");
+        }
+    }
+
+    #[test]
     fn environment_block_never_says_sandbox() {
         // GIVEN both shapes of the block
         let with_all = blocks::environment_block(

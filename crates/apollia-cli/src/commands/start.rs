@@ -150,6 +150,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         mcp_file_config,
         hooks_file_config,
         chat_file_config,
+        filesystem_file_config,
     ) = match loaded_config {
         Some(cfg) => (
             cfg.llm,
@@ -160,8 +161,9 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             cfg.mcp,
             cfg.hooks,
             cfg.chat,
+            cfg.filesystem,
         ),
-        None => (None, None, None, None, None, None, None, None),
+        None => (None, None, None, None, None, None, None, None, None),
     };
 
     let llm_label = llm_config
@@ -233,6 +235,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     let mcp_config = mcp_file_config.unwrap_or_default();
     let hooks_config = hooks_file_config.unwrap_or_default();
     let chat_config = chat_file_config.unwrap_or_default();
+    let filesystem_config = filesystem_file_config.unwrap_or_default();
     let config = SupervisorConfig {
         api_config: APIServerConfig {
             socket_path: socket_path.clone(),
@@ -270,6 +273,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         plan_mode_default: chat_config.plan_mode_default,
         chat_default_workspace: chat_config.default_workspace.clone(),
         chat_tool_turn_temperature: chat_config.tool_turn_temperature,
+        filesystem_trusted_paths: filesystem_config.resolved_trusted_paths(),
     };
     let supervisor = Supervisor::new(config);
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(AIPAgentLoader);

@@ -27,7 +27,8 @@
 use std::path::{Path, PathBuf};
 
 use apollia_core::{
-    ApiConfig, ChatConfig, HitlConfig, HooksConfig, McpConfig, RuntimeConfig, ToolsConfig,
+    ApiConfig, ChatConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig, RuntimeConfig,
+    ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -103,6 +104,13 @@ pub struct ApolliaCConfig {
     ///
     /// `None` when absent; the [`ChatConfig`] defaults apply (plan mode off).
     pub chat: Option<ChatConfig>,
+
+    /// Section `[filesystem]`: reversible journal and the paths an agent may
+    /// work in without being asked.
+    ///
+    /// `None` when absent; the [`FilesystemConfig`] defaults apply, which trust
+    /// the user's home directory and nothing else.
+    pub filesystem: Option<FilesystemConfig>,
 }
 
 /// Names of the TOML sections that are now deprecated.
@@ -119,8 +127,10 @@ const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
 ///
 /// - `[memory]` and `[budget]` had no field on [`ApolliaCConfig`] and no module
 ///   under `apollia-core/src/config/` at all.
-/// - `[a2a]`, `[oria]`, `[registry]`, `[permissions]` and `[filesystem]` did
-///   deserialize into a typed struct, and that struct was then never consulted.
+/// - `[a2a]`, `[oria]`, `[registry]` and `[permissions]` did deserialize into a
+///   typed struct, and that struct was then never consulted. `[filesystem]` was
+///   in this list until `trusted_paths` gave it a reader on the execution path;
+///   it is a live section again.
 ///   `[permissions]` is the one worth spelling out: not one of its four keys
 ///   ever had a reader on an execution path, so setting any of them changed
 ///   nothing. The typed struct behind it has since been removed.
@@ -128,15 +138,7 @@ const DEPRECATED_SECTIONS: &[&str] = &["triggers", "notifications", "stt"];
 ///   this section: it is opened on the `governance.db` path alone.
 ///
 /// Removing the surface does not change behaviour: these values had none.
-const INERT_SECTIONS: &[&str] = &[
-    "memory",
-    "budget",
-    "a2a",
-    "oria",
-    "registry",
-    "permissions",
-    "filesystem",
-];
+const INERT_SECTIONS: &[&str] = &["memory", "budget", "a2a", "oria", "registry", "permissions"];
 
 // ─────────────────────────────────────────────
 // Public functions
@@ -169,7 +171,15 @@ pub fn expand_tilde(path: &Path) -> PathBuf {
 /// the loose table before typed deserialization and to reject unknown keys in
 /// `config set` (see [`is_known_top_level_section`]).
 pub const KNOWN_SECTIONS: &[&str] = &[
-    "llm", "runtime", "tools", "api", "hitl", "mcp", "hooks", "chat",
+    "llm",
+    "runtime",
+    "tools",
+    "api",
+    "hitl",
+    "mcp",
+    "hooks",
+    "chat",
+    "filesystem",
 ];
 
 /// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
@@ -599,18 +609,21 @@ max_sessions = 100
         // so no caller can mistake them for a setting that does something.
         // They used to deserialize into a struct nothing ever consulted.
         assert!(!is_known_top_level_section("permissions"));
-        assert!(!is_known_top_level_section("filesystem"));
         assert!(INERT_SECTIONS.contains(&"permissions"));
-        assert!(INERT_SECTIONS.contains(&"filesystem"));
+
+        // AND `[filesystem]` is live again: `trusted_paths` reaches the risk
+        // classifier, which is what decides whether an operation runs or asks.
+        assert!(is_known_top_level_section("filesystem"));
+        assert!(!INERT_SECTIONS.contains(&"filesystem"));
     }
 
-    // GIVEN the five sections that deserialized into an unread struct
+    // GIVEN the four sections that deserialized into an unread struct
     // WHEN config set validates a key path
     // THEN they are rejected instead of silently accepted then dropped
     #[test]
     fn test_inert_sections_are_rejected_as_key_paths() {
         // GIVEN / WHEN / THEN
-        for section in ["a2a", "oria", "registry", "permissions", "filesystem"] {
+        for section in ["a2a", "oria", "registry", "permissions"] {
             assert!(
                 !is_known_top_level_section(section),
                 "[{section}] must not be settable: nothing reads it"
@@ -697,6 +710,7 @@ plan_mode_default = true
             mcp: None,
             hooks: None,
             chat: None,
+            filesystem: None,
         };
 
         // THEN every field is optional and absent
@@ -708,12 +722,13 @@ plan_mode_default = true
         assert!(config.mcp.is_none());
         assert!(config.hooks.is_none());
         assert!(config.chat.is_none());
+        assert!(config.filesystem.is_none());
 
         // AND the typed struct agrees with the key-path guard, so a section can
         // never again be settable without a field to land in.
         assert_eq!(
             KNOWN_SECTIONS.len(),
-            8,
+            9,
             "adding a section here means adding a field above, and a reader below"
         );
     }
