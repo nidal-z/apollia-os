@@ -544,86 +544,67 @@ jobs:
           # CUDA kernels above dominate this job and are built once either way.
           cmake --build /tmp/llama.cpp/build --config Release -j"$(nproc)"
 
-      # The libraries come from an install tree rather than from build/bin. An
-      # install tree carries the versioned names and the symlink chain that each
-      # library's SONAME actually asks for; a build tree does not have to, and
-      # this one did not: the first version of this step copied what it found
-      # beside the binary, and the AppImage bundler stopped on
-      # `Could not find dependency: libggml-base.so.0`.
+      # What ships is what the server needs, walked from the server outwards.
+      #
+      # `cmake --install` lays down everything the project declares, which after
+      # the full build above includes seven tool libraries this release does not
+      # ship: quantize, bench, cli, perplexity and their siblings. Copying the
+      # whole install tree put them in the bundle, and one of them dragged the
+      # AppImage bundler into resolving a CUDA driver library on a runner that
+      # has no driver.
+      #
+      # So the rule is a closure rather than a copy: start at `llama-server`,
+      # take what it asks for, take what those ask for, and stop when a pass adds
+      # nothing. Two source directories feed it, the llama.cpp install tree and
+      # the CUDA toolkit, because the answer to "where does this library live"
+      # differs for the two and the walk should not have to care.
+      #
+      # `libcuda.so.1` is skipped by name: it belongs to the NVIDIA driver, it
+      # ships with the driver on the machine that has the GPU, and copying it
+      # would pin every user to the driver version of a CI runner.
+      #
+      # `cp -L` flattens each symlink chain into one real file named after the
+      # SONAME the loader asks for, which is all $ORIGIN resolution needs.
       #
       # Flat, because LLAMA_SERVER_DIR expects the server and its libraries in
-      # one directory, which is also how the upstream archives are laid out and
-      # how $ORIGIN resolves them at run time.
-      - name: Stage the engine and its libraries
+      # one directory, which is also how the upstream archives are laid out.
+      - name: Stage the engine and everything it asks for
         run: |
           cmake --install /tmp/llama.cpp/build --prefix /tmp/llama-install
           mkdir -p engine
-          cp -a /tmp/llama-install/bin/llama-server engine/
-          find /tmp/llama-install/lib /tmp/llama-install/bin -maxdepth 1 \
-               \( -type f -o -type l \) -name '*.so*' -exec cp -a {} engine/ \;
-          ls -la engine/
-
-      # The CUDA runtime libraries, resolved as a closure rather than listed.
-      #
-      # `libggml-cuda.so` links `CUDA::cudart` and `CUDA::cublas` dynamically at
-      # this tag, and a user with an NVIDIA GPU has the driver but not the
-      # toolkit, so those files have to travel with the engine. Upstream reaches
-      # the same conclusion for its own Windows CUDA build, which ships the
-      # engine and a separate archive of redistributables beside it; it
-      # publishes no Linux CUDA archive at all, which is why this job exists.
-      #
-      # Computed, not enumerated. A hand-written list is right until llama.cpp
-      # links one more library, and then it is a runtime failure on a user's
-      # machine rather than a red job here. This walks what is staged, copies
-      # any CUDA library it asks for and does not have, and repeats until a pass
-      # adds nothing, so a new dependency is picked up by the same rule.
-      #
-      # `libcuda.so.1` is excluded by name: it belongs to the driver, and
-      # copying it would pin users to this runner's driver version.
-      #
-      # `cp -L` flattens each symlink chain into one real file named after the
-      # SONAME the loader asks for, which is all $ORIGIN resolution needs and
-      # avoids replicating three names per library.
-      - name: Stage the CUDA runtime libraries the engine asks for
-        run: |
+          cp -L /tmp/llama-install/bin/llama-server engine/
           cd engine
-          search_dirs="${CUDA_PATH}/lib64 ${CUDA_PATH}/targets/x86_64-linux/lib"
-          found_dir=""
-          for d in $search_dirs; do
-            [ -d "$d" ] && found_dir="yes"
+
+          search_dirs="/tmp/llama-install/lib /tmp/llama-install/bin"
+          for d in "${CUDA_PATH}/lib64" "${CUDA_PATH}/targets/x86_64-linux/lib"; do
+            [ -d "$d" ] && search_dirs="$search_dirs $d"
           done
-          if [ -z "$found_dir" ]; then
-            echo "::error::no CUDA library directory found under ${CUDA_PATH}"
-            exit 1
-          fi
+          echo "searching: $search_dirs"
+
           added=1
           rounds=0
           while [ "$added" -ne 0 ]; do
             added=0
             rounds=$((rounds + 1))
-            if [ "$rounds" -gt 10 ]; then
-              echo "::error::the CUDA closure did not settle in 10 rounds"
+            if [ "$rounds" -gt 20 ]; then
+              echo "::error::the dependency closure did not settle in 20 rounds"
               exit 1
             fi
             for f in llama-server *.so*; do
               [ -e "$f" ] || continue
               for need in $(readelf -d "$f" 2>/dev/null | awk '/NEEDED/ {gsub(/[][]/,"",$5); print $5}'); do
                 [ "$need" = "libcuda.so.1" ] && continue
-                case "$need" in
-                  libcu*|libnv*) ;;
-                  *) continue ;;
-                esac
                 [ -e "$need" ] && continue
                 src=""
                 for d in $search_dirs; do
-                  [ -d "$d" ] || continue
-                  cand=$(find "$d" -maxdepth 1 -name "$need" | head -1)
+                  cand=$(find "$d" -maxdepth 1 -name "$need" 2>/dev/null | head -1)
                   [ -n "$cand" ] && { src="$cand"; break; }
                 done
-                if [ -z "$src" ]; then
-                  echo "::error::${f} needs ${need}, which is in no CUDA library directory of this runner"
-                  exit 1
-                fi
+                # Not every NEEDED entry is ours to ship: libc and its friends
+                # come from the machine. Only a name we can find in one of the
+                # directories above is staged, and the check that follows is
+                # what decides whether a name we did not find is a defect.
+                [ -n "$src" ] || continue
                 cp -L "$src" .
                 echo "  staged ${need} for ${f}"
                 added=$((added + 1))
@@ -631,6 +612,7 @@ jobs:
             done
           done
           echo "closure settled after ${rounds} round(s)"
+          ls -la
           echo "engine size: $(du -sh . | cut -f1)"
           du -h --threshold=1M . 2>/dev/null | sort -h | tail -8 || true
 
@@ -1322,6 +1304,20 @@ jobs:
           # would drag nvcc into this build for the smaller half of the gain.
           # LLAMA_SERVER_DIR, set above, is what makes this reachable at all.
           APOLLIA_DESKTOP_LLAMA_BACKEND: "cuda"
+          # The one library the engine needs and must never carry.
+          # `libcuda.so.1` belongs to the NVIDIA driver: it arrives with the
+          # driver on the machine that has the GPU, and shipping it would pin
+          # every user to the driver version of a CI runner. This runner has a
+          # toolkit and no driver, so linuxdeploy walked the AppDir, failed to
+          # resolve it, and stopped the bundle with
+          # `ERROR: Could not find dependency: libcuda.so.1`.
+          #
+          # linuxdeploy reads this variable in `AppDir::PrivateData`, splits it
+          # on `;`, and passes the patterns into `traceDynamicDependencies`, so
+          # an excluded name is skipped before resolution rather than after:
+          # the very failure above. Read from its source at the version the
+          # bundler downloads, not assumed from a flag name.
+          LINUXDEPLOY_EXCLUDED_LIBRARIES: "libcuda.so.1"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # linuxdeploy and its appimage plugin are themselves AppImages, and
