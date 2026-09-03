@@ -844,6 +844,15 @@ jobs:
           else
             echo "::warning::no macOS updater artifact (TAURI_SIGNING_PRIVATE_KEY absent): latest.json will not cover darwin-aarch64"
           fi
+          # GitHub rewrites any character outside [A-Za-z0-9._-] in a release
+          # asset name, so "Apollia OS_..." is served as "Apollia.OS_...". The
+          # file is renamed here rather than the name being guessed downstream:
+          # one name from the runner to the download URL, and a contract a
+          # guard can check on disk.
+          for f in "$BUNDLE/dmg"/"Apollia OS"*; do
+            [ -e "$f" ] || continue
+            mv "$f" "$BUNDLE/dmg/$(basename "$f" | sed 's/^Apollia OS/Apollia-OS/')"
+          done
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -1037,6 +1046,15 @@ jobs:
           else
             echo "::warning::no Linux updater signature (TAURI_SIGNING_PRIVATE_KEY absent): latest.json will not cover linux-x86_64"
           fi
+          # GitHub rewrites any character outside [A-Za-z0-9._-] in a release
+          # asset name, so "Apollia OS_..." is served as "Apollia.OS_...". The
+          # file is renamed here rather than the name being guessed downstream:
+          # one name from the runner to the download URL, and a contract a
+          # guard can check on disk.
+          for f in "$BUNDLE/dist"/"Apollia OS"*; do
+            [ -e "$f" ] || continue
+            mv "$f" "$BUNDLE/dist/$(basename "$f" | sed 's/^Apollia OS/Apollia-OS/')"
+          done
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -1185,6 +1203,14 @@ jobs:
               $sigs | Copy-Item -Destination "$bundle/dist/"
           } else {
               Write-Output "::warning::no Windows updater signature (TAURI_SIGNING_PRIVATE_KEY absent): latest.json will not cover windows-x86_64"
+          }
+          # GitHub rewrites any character outside [A-Za-z0-9._-] in a release
+          # asset name, so "Apollia OS_..." is served as "Apollia.OS_...". The
+          # file is renamed here rather than the name being guessed downstream:
+          # one name from the runner to the download URL, and a contract a
+          # guard can check on disk.
+          Get-ChildItem "$bundle/dist/Apollia OS*" -ErrorAction SilentlyContinue | ForEach-Object {
+              Rename-Item $_.FullName ($_.Name -replace '^Apollia OS', 'Apollia-OS')
           }
 
       - name: Generate SBOM (CycloneDX)
@@ -1345,6 +1371,15 @@ jobs:
           # ones. The name is what a download page shows, so it says cuda
           # rather than a number.
           for f in "$BUNDLE"/deb/*.deb; do cp "$f" "$BUNDLE/dist/$(basename "${f%.deb}")-cuda.deb"; done
+          # GitHub rewrites any character outside [A-Za-z0-9._-] in a release
+          # asset name, so "Apollia OS_..." is served as "Apollia.OS_...". The
+          # file is renamed here rather than the name being guessed downstream:
+          # one name from the runner to the download URL, and a contract a
+          # guard can check on disk.
+          for f in "$BUNDLE/dist"/"Apollia OS"*; do
+            [ -e "$f" ] || continue
+            mv "$f" "$BUNDLE/dist/$(basename "$f" | sed 's/^Apollia OS/Apollia-OS/')"
+          done
           # No updater signature is staged, and none is expected: the contract
           # carries `updater: null` for this platform. Tauri's Linux updater
           # replaces an AppImage in place and has no path for a .deb, so a
@@ -1511,6 +1546,14 @@ jobs:
               }
           } else {
               Write-Output "::warning::no Windows CUDA updater signature (TAURI_SIGNING_PRIVATE_KEY absent)"
+          }
+          # GitHub rewrites any character outside [A-Za-z0-9._-] in a release
+          # asset name, so "Apollia OS_..." is served as "Apollia.OS_...". The
+          # file is renamed here rather than the name being guessed downstream:
+          # one name from the runner to the download URL, and a contract a
+          # guard can check on disk.
+          Get-ChildItem "$bundle/dist/Apollia OS*" -ErrorAction SilentlyContinue | ForEach-Object {
+              Rename-Item $_.FullName ($_.Name -replace '^Apollia OS', 'Apollia-OS')
           }
 
       - name: Generate SBOM (CycloneDX)
@@ -1679,8 +1722,10 @@ jobs:
       - name: SHA256SUMS
         working-directory: artifacts
         run: |
-          # NUL-separated: the tauri-bundler artifact names carry a space
-          # ("Apollia OS_...").
+          # NUL-separated on principle rather than on need: the desktop jobs
+          # rename their bundles out of the space tauri-bundler puts there, but
+          # a separator that cannot appear in a name costs nothing and does not
+          # depend on that staying true.
           find . -maxdepth 1 -type f -printf '%f\0' | sort -z | \
             xargs -0 shasum -a 256 > SHA256SUMS
           cat SHA256SUMS

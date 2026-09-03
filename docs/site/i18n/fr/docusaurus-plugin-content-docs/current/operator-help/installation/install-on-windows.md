@@ -21,7 +21,7 @@ Apollia est distribué pour Windows x86_64 sous trois formats :
 
 ## Installation (MSI)
 
-1. Téléchargez `Apollia OS_<version>_x64_en-US.msi` (le nom de fichier contient une espace).
+1. Téléchargez `Apollia-OS_<version>_x64_en-US.msi`.
 2. Double-cliquez, suivez l'assistant. Il affiche le nom du produit, l'éditeur
    (Apollia), la version et la double licence MIT / Apache-2.0.
 3. L'app apparaît dans le menu Démarrer.

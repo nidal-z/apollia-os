@@ -49,11 +49,11 @@ writes them:
 <!-- release-artifacts:begin - generated from packaging/artifacts.json by docs/site/regen.sh; do not edit by hand -->
 | Platform | Files on the release page |
 |---|---|
-| macOS (Apple Silicon) | `Apollia OS_0.1.0-1_aarch64.dmg` |
-| Linux (x86-64) | `Apollia OS_0.1.0-1_amd64.AppImage`, `Apollia OS_0.1.0-1_amd64.deb` |
-| Windows (x86-64) | `Apollia OS_0.1.0-1_x64_en-US.msi`, `Apollia OS_0.1.0-1_x64-setup.exe` |
-| Linux (x86-64), CUDA engine | `Apollia OS_0.1.0-1_amd64-cuda.deb` |
-| Windows (x86-64), CUDA engine | `Apollia OS_0.1.0-1_x64_en-US-cuda.msi`, `Apollia OS_0.1.0-1_x64-setup-cuda.exe` |
+| macOS (Apple Silicon) | `Apollia-OS_0.1.0-1_aarch64.dmg` |
+| Linux (x86-64) | `Apollia-OS_0.1.0-1_amd64.AppImage`, `Apollia-OS_0.1.0-1_amd64.deb` |
+| Windows (x86-64) | `Apollia-OS_0.1.0-1_x64_en-US.msi`, `Apollia-OS_0.1.0-1_x64-setup.exe` |
+| Linux (x86-64), CUDA engine | `Apollia-OS_0.1.0-1_amd64-cuda.deb` |
+| Windows (x86-64), CUDA engine | `Apollia-OS_0.1.0-1_x64_en-US-cuda.msi`, `Apollia-OS_0.1.0-1_x64-setup-cuda.exe` |
 <!-- release-artifacts:end -->
 
 Each release also attaches a `SHA256SUMS` file. To confirm your download is
@@ -134,14 +134,14 @@ The `.AppImage` is portable and needs no installation. Its file name contains
 a space, so quote it:
 
 ```sh
-chmod +x "Apollia OS_"*.AppImage
-"./Apollia OS_"*.AppImage
+chmod +x Apollia-OS_*.AppImage
+./Apollia-OS_*.AppImage
 ```
 
 The `.deb` installs system-wide on Debian and Ubuntu:
 
 ```sh
-sudo apt install "./Apollia OS_"*.deb
+sudo apt install ./Apollia-OS_*.deb
 ```
 
 After installing the `.deb`, launch **Apollia OS** from your desktop application

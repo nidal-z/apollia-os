@@ -9,7 +9,7 @@ sidebar_position: 3
 Apollia est distribué pour Linux x86_64 sous trois formats :
 
 - **`.AppImage`** (recommandé) : application desktop portable, aucune installation requise.
-- **`.deb`** : paquet Debian/Ubuntu (`sudo apt install "./Apollia OS_<version>_amd64.deb"`, le nom de fichier contient une espace).
+- **`.deb`** : paquet Debian/Ubuntu (`sudo apt install ./Apollia-OS_<version>_amd64.deb`).
 - **`apollia-os-linux-x86-*.tar.gz`** : bundles CLI par accélérateur (CPU, CUDA, ROCm, Vulkan).
 
 ## Pré-requis
@@ -22,8 +22,8 @@ Apollia est distribué pour Linux x86_64 sous trois formats :
 ## Installation (AppImage)
 
 ```sh
-chmod +x "Apollia OS_<version>_amd64.AppImage"
-"./Apollia OS_<version>_amd64.AppImage"
+chmod +x Apollia-OS_<version>_amd64.AppImage
+./Apollia-OS_<version>_amd64.AppImage
 ```
 
 L'app démarre le daemon en arrière-plan. Le daemon sert l'inférence LLM locale via le moteur embarqué `llama-server` et lance le runner de reconnaissance vocale (STT) adapté à votre GPU.
@@ -31,7 +31,7 @@ L'app démarre le daemon en arrière-plan. Le daemon sert l'inférence LLM local
 ## Installation (.deb)
 
 ```sh
-sudo apt install "./Apollia OS_<version>_amd64.deb"
+sudo apt install ./Apollia-OS_<version>_amd64.deb
 ```
 
 Lancez ensuite **Apollia OS** depuis le menu des applications de votre bureau :

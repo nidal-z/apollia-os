@@ -19,6 +19,10 @@ Rules:
                     `self_update` archive exists per (os, arch) couple
   matrix-bijection  the presets of the release.yml matrix and of the contract
                     are the same set
+  asset-name-form   every name the contract declares survives publication
+                    unchanged: GitHub rewrites any character outside
+                    [A-Za-z0-9._-] in a release asset name, so a name holding
+                    one is served under a name nothing else in the tree cites
   producer-names    the cli job reads its archive name from the contract (a
                     `jq` step over packaging/artifacts.json) and uploads that
                     name plus `.sha256`; with the bijection above, every
@@ -443,6 +447,33 @@ def check(root: Path) -> list[str] | int:
                 f"{WORKFLOW}: manifest-published: the contract declares the channel "
                 f"{manifest!r} and no upload pattern of the release job matches it, "
                 f"so the file is composed and then left behind"
+            )
+
+    # ── asset-name-form ───────────────────────────────────────────────────
+    # A release asset name is not free text. GitHub replaces every character
+    # outside [A-Za-z0-9._-], so `Apollia OS_0.1.0-1_amd64.deb` was served as
+    # `Apollia.OS_0.1.0-1_amd64.deb`: the download page linked a name that did
+    # not exist, and latest.json sent every installed copy to a 404 while the
+    # file sat on the release under its rewritten name. The version placeholder
+    # is expanded first, since that is what finally reaches the release.
+    served = re.compile(r"^[A-Za-z0-9._-]+$")
+    declared: list[str] = list(contract.get("updater_manifests", []))
+    for entry in contract.get("desktop", []):
+        declared.extend(entry.get("installers", []))
+        updater = entry.get("updater")
+        if updater:
+            declared.extend([updater["artifact"], updater["signature"]])
+    for preset in contract.get("cli", []):
+        declared.append(preset["archive"])
+    for name in declared:
+        concrete = name.replace("{version}", conf.get("version", "0.0.0"))
+        if not served.match(concrete):
+            rewritten = re.sub(r"[^A-Za-z0-9._-]", ".", concrete)
+            defects.append(
+                f"{CONTRACT}: asset-name-form: {concrete!r} is published by GitHub as "
+                f"{rewritten!r}, so every URL built from the declared name is a 404. "
+                f"Rename the file where it is staged, so one name runs from the runner "
+                f"to the download URL"
             )
 
     # ── signing-outputs ───────────────────────────────────────────────────
