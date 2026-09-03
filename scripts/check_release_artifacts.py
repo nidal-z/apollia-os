@@ -33,6 +33,9 @@ Rules:
   channel-endpoint  a desktop entry on a channel other than the default is
                     built by a job that points the updater there, so an
                     installed variant asks its own manifest for updates
+  manifest-published every channel the contract declares is matched by an upload
+                    pattern of the release job, so a composed manifest reaches
+                    the release rather than staying in the runner
   updater-uploads   each desktop job stages the updater signature its contract
                     entry declares, in a run line that is not a comment
   flat-uploads      every upload-artifact path of the cli and desktop jobs
@@ -57,6 +60,7 @@ Usage:
 """
 
 import argparse
+import fnmatch
 import json
 import re
 import shutil
@@ -414,6 +418,29 @@ def check(root: Path) -> list[str] | int:
                     f"directories {sorted(parents)}; the release job reads the merged "
                     f"artifacts with flat globs"
                 )
+
+    # ── manifest-published ────────────────────────────────────────────────
+    # Composing a channel and publishing it are two different acts, and only
+    # the first was checked. `latest-cuda.json` was written by the release job
+    # and matched by none of its upload globs, so a CUDA bundle would have
+    # asked a file that never reached the release and been told nothing is
+    # available, for as long as nobody looked.
+    release_files: list[str] = []
+    for step in jobs.get("release", {}).get("steps", []):
+        with_ = step.get("with") or {}
+        if "draft" in with_:
+            release_files = [
+                line.strip().removeprefix("artifacts/")
+                for line in str(with_.get("files", "")).splitlines()
+                if line.strip()
+            ]
+    for manifest in contract.get("updater_manifests", []):
+        if not any(fnmatch.fnmatch(manifest, pattern) for pattern in release_files):
+            defects.append(
+                f"{WORKFLOW}: manifest-published: the contract declares the channel "
+                f"{manifest!r} and no upload pattern of the release job matches it, "
+                f"so the file is composed and then left behind"
+            )
 
     # ── docs-block ────────────────────────────────────────────────────────
     version = conf.get("version", "")

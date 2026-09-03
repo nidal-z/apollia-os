@@ -1750,6 +1750,7 @@ jobs:
             artifacts/*.msi
             artifacts/*.exe
             artifacts/latest.json
+            artifacts/latest-cuda.json
             artifacts/SHA256SUMS*
             artifacts/*.cdx.json
             artifacts/*.spdx.json
