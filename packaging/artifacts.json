@@ -136,14 +136,10 @@
       "arch": "x86_64",
       "triple": "x86_64-unknown-linux-gnu",
       "installers": [
-        "Apollia OS_{version}_amd64-cuda.AppImage",
         "Apollia OS_{version}_amd64-cuda.deb"
       ],
       "manifest": "latest-cuda.json",
-      "updater": {
-        "artifact": "Apollia OS_{version}_amd64-cuda.AppImage",
-        "signature": "Apollia OS_{version}_amd64-cuda.AppImage.sig"
-      }
+      "updater": null
     },
     {
       "platform": "windows-x86_64-cuda",

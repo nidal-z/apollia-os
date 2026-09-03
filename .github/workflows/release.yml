@@ -1304,31 +1304,8 @@ jobs:
           # would drag nvcc into this build for the smaller half of the gain.
           # LLAMA_SERVER_DIR, set above, is what makes this reachable at all.
           APOLLIA_DESKTOP_LLAMA_BACKEND: "cuda"
-          # The one library the engine needs and must never carry.
-          # `libcuda.so.1` belongs to the NVIDIA driver: it arrives with the
-          # driver on the machine that has the GPU, and shipping it would pin
-          # every user to the driver version of a CI runner. This runner has a
-          # toolkit and no driver, so linuxdeploy walked the AppDir, failed to
-          # resolve it, and stopped the bundle with
-          # `ERROR: Could not find dependency: libcuda.so.1`.
-          #
-          # linuxdeploy reads this variable in `AppDir::PrivateData`, splits it
-          # on `;`, and passes the patterns into `traceDynamicDependencies`, so
-          # an excluded name is skipped before resolution rather than after:
-          # the very failure above. Read from its source at the version the
-          # bundler downloads, not assumed from a flag name.
-          LINUXDEPLOY_EXCLUDED_LIBRARIES: "libcuda.so.1"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # linuxdeploy and its appimage plugin are themselves AppImages, and
-          # an AppImage mounts itself through FUSE 2, which Ubuntu 24.04 does
-          # not ship and whose fallback it blocks by restricting unprivileged
-          # user namespaces. Both ran and died without a word: tauri reports
-          # `failed to run linuxdeploy` and swallows the child's stderr, so the
-          # bundle step spent fifteen seconds producing no diagnosis at all.
-          # This variable makes an AppImage unpack into a temporary directory
-          # and run from there, which needs neither FUSE nor a namespace.
-          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
           # This bundle asks a different file for its updates than the Vulkan
           # one. A Tauri manifest keys platforms by triple, so both variants
@@ -1340,55 +1317,25 @@ jobs:
           BASE="${TAURI_BUNDLE_CONFIG:-}"
           [ -n "$BASE" ] || BASE='{}'
           PATCH=$(jq -c -s '.[0] * .[1]' <<<"$BASE $CHANNEL")
-          cargo tauri build --verbose --target x86_64-unknown-linux-gnu --config "$PATCH"
+          # `--bundles deb`, and this is the whole reason the CUDA variant is a
+          # .deb. linuxdeploy refuses an AppDir holding an ELF whose NEEDED it
+          # cannot resolve, and a CUDA engine has one by construction:
+          # `libcuda.so.1` belongs to the NVIDIA driver, so it is absent from a
+          # runner and must never be shipped. Read at the commit the bundler
+          # downloads, its `ldd` parser throws on `=> not found` with no
+          # exception available; the exclusion that would help exists only on
+          # the project's master branch, published under a moving tag. A .deb
+          # needs no such tool, and a Linux user who has an NVIDIA driver
+          # installed can install a .deb. The Vulkan bundle keeps its AppImage
+          # for everyone else.
+          cargo tauri build --verbose --target x86_64-unknown-linux-gnu \
+            --bundles deb --config "$PATCH"
 
       # Flat staging: actions/upload-artifact roots the artifact at the
       # longest common ancestor of its paths, so uploading deb/*.deb and
       # appimage/*.AppImage as-is buries the installers in sub-folders the
       # release job's flat globs never see. An unmatched glob here fails the
       # copy, loudly.
-      # linuxdeploy runs as a child of `cargo tauri build`, which captures its
-      # output and reports only `failed to run linuxdeploy`. Two runs have now
-      # died on that sentence with no cause attached, so this step exists to
-      # take the cause out of the bundler's hands: it runs only on failure, and
-      # replays whatever the bundler left on disk with the output going to the
-      # log instead of into a pipe.
-      #
-      # `|| true` throughout, deliberately: this step reports, it does not
-      # judge. The build step above already failed the job.
-      - name: Say why linuxdeploy failed
-        if: failure()
-        run: |
-          BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle/appimage
-          echo "=== what the bundler left behind"
-          ls -la "$BUNDLE" 2>/dev/null || echo "  no appimage directory at all"
-          echo "=== the AppDir"
-          find "$BUNDLE" -maxdepth 2 -name '*.AppDir' -printf '%p\n' 2>/dev/null || true
-          echo "=== the script the bundler generated, replayed with tracing"
-          SCRIPT=$(find "$BUNDLE" -maxdepth 2 -name 'build_appimage.sh' 2>/dev/null | head -1)
-          if [ -n "$SCRIPT" ]; then
-            echo "  replaying $SCRIPT"
-            ( cd "$(dirname "$SCRIPT")" && bash -x "$(basename "$SCRIPT")" 2>&1 | tail -80 ) || true
-          else
-            echo "  no build_appimage.sh; running linuxdeploy directly"
-            LD=$(find "$BUNDLE" ~/.cache/tauri -maxdepth 2 -name 'linuxdeploy-x86_64.AppImage' 2>/dev/null | head -1)
-            APPDIR=$(find "$BUNDLE" -maxdepth 2 -name '*.AppDir' 2>/dev/null | head -1)
-            if [ -n "$LD" ] && [ -n "$APPDIR" ]; then
-              chmod +x "$LD" || true
-              "$LD" --appdir "$APPDIR" --plugin gtk --output appimage 2>&1 | tail -80 || true
-            else
-              echo "  found neither linuxdeploy ($LD) nor an AppDir ($APPDIR)"
-            fi
-          fi
-          echo "=== the tools the plugin looks for"
-          for t in patchelf gdk-pixbuf-query-loaders gtk-update-icon-cache desktop-file-validate; do
-            printf '  %-28s %s\n' "$t" "$(command -v "$t" || echo ABSENT)"
-          done
-          echo "=== the pkg-config modules it queries"
-          for m in gdk-pixbuf-2.0 librsvg-2.0 pango pangocairo pangoft2 gobject-2.0 gio-2.0; do
-            printf '  %-18s %s\n' "$m" "$(pkg-config --modversion "$m" 2>/dev/null || echo ABSENT)"
-          done
-
       - name: Collect installers (flat paths)
         run: |
           BUNDLE=target/x86_64-unknown-linux-gnu/release/bundle
@@ -1398,15 +1345,10 @@ jobs:
           # ones. The name is what a download page shows, so it says cuda
           # rather than a number.
           for f in "$BUNDLE"/deb/*.deb; do cp "$f" "$BUNDLE/dist/$(basename "${f%.deb}")-cuda.deb"; done
-          for f in "$BUNDLE"/appimage/*.AppImage; do cp "$f" "$BUNDLE/dist/$(basename "${f%.AppImage}")-cuda.AppImage"; done
-          # The updater signature of the AppImage exists only on a keyed build;
-          # its absence is said out loud, because latest.json is composed from
-          # the signatures the release job receives.
-          if compgen -G "$BUNDLE/appimage/*.AppImage.sig" > /dev/null; then
-            for f in "$BUNDLE"/appimage/*.AppImage.sig; do cp "$f" "$BUNDLE/dist/$(basename "${f%.AppImage.sig}")-cuda.AppImage.sig"; done
-          else
-            echo "::warning::no Linux CUDA updater signature (TAURI_SIGNING_PRIVATE_KEY absent)"
-          fi
+          # No updater signature is staged, and none is expected: the contract
+          # carries `updater: null` for this platform. Tauri's Linux updater
+          # replaces an AppImage in place and has no path for a .deb, so a
+          # signature here would sign a file nothing could ever install.
 
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -1434,7 +1376,6 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────
   # Desktop bundle Tauri - Windows x86_64 (.msi + .exe NSIS)
   # ────────────────────────────────────────────────────────────────────────────
-
   desktop-windows-cuda:
     name: Desktop Windows CUDA (x86_64)
     needs: setup
@@ -1689,6 +1630,14 @@ jobs:
           # belongs to, and each bundle was built pointing at that file.
           channels = {}
           for entry in contract["desktop"]:
+              # `updater: null` is a bundle that does not self-update. The
+              # Linux CUDA variant is a .deb, and Tauri's Linux updater
+              # replaces an AppImage in place with no path for one, so it
+              # contributes no platform to any channel. Its channel is still
+              # created below, because the Windows CUDA bundle fills it.
+              if entry.get("updater") is None:
+                  channels.setdefault(entry["manifest"], {})
+                  continue
               artifact = entry["updater"]["artifact"].replace("{version}", version)
               signature = entry["updater"]["signature"].replace("{version}", version)
               name = entry["manifest"]
