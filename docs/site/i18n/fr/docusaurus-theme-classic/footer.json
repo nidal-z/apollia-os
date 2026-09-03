@@ -73,6 +73,6 @@
   },
   "link.item.label.For integrators": {
     "message": "Pour les intégrateurs",
-    "description": "The label of footer link with label=For integrators linking to https://apollia.fr/entreprises"
+    "description": "The label of footer link with label=For integrators linking to https://apollia.fr/integrer"
   }
 }

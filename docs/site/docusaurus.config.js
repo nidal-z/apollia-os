@@ -283,7 +283,7 @@ const config = {
             items: [
               { label: 'The product', href: 'https://apollia.fr' },
               { label: 'Download', href: 'https://apollia.fr/telecharger' },
-              { label: 'For integrators', href: 'https://apollia.fr/entreprises' },
+              { label: 'For integrators', href: 'https://apollia.fr/integrer' },
             ],
           },
           {
