@@ -47,13 +47,12 @@ Every release asset is signed and carries build provenance. All signing is
 keyless (Sigstore OIDC): there is no long-lived private key, and the signing
 identity is the release workflow itself.
 
-Each artifact ships with a detached signature (`.sig`) and the signing
-certificate (`.pem`). Verify a download with cosign:
+Each artifact ships with a Sigstore bundle (`.cosign.bundle`) carrying its
+signature and the signing certificate together. Verify a download with cosign:
 
 ```sh
 cosign verify-blob \
-  --certificate apollia-os-<preset>.tar.gz.pem \
-  --signature apollia-os-<preset>.tar.gz.sig \
+  --bundle apollia-os-<preset>.tar.gz.cosign.bundle \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/Apollia-OS/apollia-os/' \
   apollia-os-<preset>.tar.gz

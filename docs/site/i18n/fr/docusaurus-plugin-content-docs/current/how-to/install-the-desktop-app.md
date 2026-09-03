@@ -70,14 +70,14 @@ shasum -a 256 <downloaded-file>
 Get-FileHash .\<downloaded-file> -Algorithm SHA256
 ```
 
-Chaque fichier publié porte aussi une signature Sigstore détachée (`.sig`) et
-son certificat de signature (`.pem`), produits par le pipeline de release avec
-`cosign` sans clé. Pour vérifier l'origine d'un téléchargement, et pas
-seulement son intégrité :
+Chaque fichier publié porte aussi un paquet Sigstore (`.cosign.bundle`), qui
+réunit sa signature et son certificat de signature, produit par le pipeline de
+release avec `cosign` sans clé. Pour vérifier l'origine d'un téléchargement, et
+pas seulement son intégrité :
 
 ```sh
 cosign verify-blob <file> \
-  --certificate <file>.pem --signature <file>.sig \
+  --bundle <file>.cosign.bundle \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/Apollia-OS/'
 ```

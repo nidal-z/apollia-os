@@ -231,7 +231,10 @@ carries:
   the bundle, not just the Cargo graph, captures the embedded CPython (and, for
   desktop, the npm frontend) that actually ships.
 - **Signatures** : `cosign sign-blob` (keyless, Sigstore OIDC) signs every
-  published file, emitting a detached `.sig` and the signing `.pem` certificate.
+  published file, emitting one Sigstore bundle (`.cosign.bundle`) that carries
+  the signature and the signing certificate together. The suffix is not
+  cosmetic: an output written as `.sig` lands on the updater signatures the
+  contract declares, and `check_release_artifacts.py` refuses that.
   No long-lived key: the signing identity is the release workflow.
 - **Provenance** : `actions/attest-build-provenance` produces a SLSA
   build-provenance attestation over the binaries and SBOMs.

@@ -36,6 +36,9 @@ Rules:
   manifest-published every channel the contract declares is matched by an upload
                     pattern of the release job, so a composed manifest reaches
                     the release rather than staying in the runner
+  signing-outputs   the artifact-signing step writes under a suffix that no
+                    updater signature of the contract already occupies, and
+                    that an upload pattern of the release job publishes
   updater-uploads   each desktop job stages the updater signature its contract
                     entry declares, in a run line that is not a comment
   flat-uploads      every upload-artifact path of the cli and desktop jobs
@@ -440,6 +443,52 @@ def check(root: Path) -> list[str] | int:
                 f"{WORKFLOW}: manifest-published: the contract declares the channel "
                 f"{manifest!r} and no upload pattern of the release job matches it, "
                 f"so the file is composed and then left behind"
+            )
+
+    # ── signing-outputs ───────────────────────────────────────────────────
+    # The signing step derives its output name from the file it signs. When
+    # that derivation lands on a name the contract already owns, signing stops
+    # being additive: `--output-signature "$f.sig"` overwrote the four updater
+    # signatures produced by the desktop jobs, after latest.json had read them
+    # and after SHA256SUMS had hashed them, so the release published an
+    # inventory that no longer matched its own files.
+    updater_suffixes = {}
+    for entry in contract.get("desktop", []):
+        updater = entry.get("updater")
+        if not updater:
+            continue
+        artifact, signature = updater["artifact"], updater["signature"]
+        if signature.startswith(artifact):
+            updater_suffixes[signature[len(artifact) :]] = signature
+
+    sign_run = ""
+    for step in jobs.get("release", {}).get("steps", []):
+        if "sign artifacts" in str(step.get("name", "")).lower():
+            sign_run = str(step.get("run", ""))
+    if not sign_run:
+        defects.append(
+            f"{WORKFLOW}: signing-outputs: no step of the release job is named "
+            f"'Sign artifacts', so nothing signs what the release publishes"
+        )
+    outputs = r'--(?:bundle|output-signature|output-certificate) "\$f([^"]*)"'
+    written = set(re.findall(outputs, sign_run))
+    if sign_run and not written:
+        defects.append(
+            f"{WORKFLOW}: signing-outputs: the signing step names no output derived "
+            f"from the file it signs, so what it writes cannot be checked"
+        )
+    for suffix in sorted(written):
+        if suffix in updater_suffixes:
+            defects.append(
+                f"{WORKFLOW}: signing-outputs: the signing step writes '$f{suffix}', which is "
+                f"the suffix of the updater signature {updater_suffixes[suffix]!r} the contract "
+                f"declares, so signing overwrites a file the release already produced"
+            )
+        if not any(fnmatch.fnmatch(f"any{suffix}", pattern) for pattern in release_files):
+            defects.append(
+                f"{WORKFLOW}: signing-outputs: the signing step writes '$f{suffix}' and no "
+                f"upload pattern of the release job matches it, so the signature is written "
+                f"and then left behind"
             )
 
     # ── docs-block ────────────────────────────────────────────────────────
