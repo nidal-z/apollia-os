@@ -1,0 +1,27 @@
+{
+  "operation": "gtasks.list_lists",
+  "origin": "example",
+  "note": "Hand-written from the Google Tasks API reference for tasklists.list. TaskList is a different resource from Task, which the gtasks.list_tasks fixture reads, so this is a shape of its own rather than the same parse again. The second list omits `updated`, which the client carries as an option. Not a recording.",
+  "response": {
+    "kind": "tasks#taskLists",
+    "etag": "\"replay-etag\"",
+    "items": [
+      {
+        "kind": "tasks#taskList",
+        "id": "MDU0NzcxOTU",
+        "title": "My Tasks",
+        "updated": "2026-09-04T08:00:00.000Z",
+        "selfLink": "https://www.googleapis.com/tasks/v1/users/@me/lists/MDU0NzcxOTU"
+      },
+      {
+        "kind": "tasks#taskList",
+        "id": "MDU0NzcxOTY",
+        "title": "Replay example list"
+      }
+    ]
+  },
+  "expect": [
+    { "id": "MDU0NzcxOTU", "title": "My Tasks", "updated": "2026-09-04T08:00:00.000Z" },
+    { "id": "MDU0NzcxOTY", "title": "Replay example list", "updated": null }
+  ]
+}

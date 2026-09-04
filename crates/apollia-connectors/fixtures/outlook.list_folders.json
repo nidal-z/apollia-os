@@ -1,0 +1,38 @@
+{
+  "operation": "outlook.list_folders",
+  "origin": "example",
+  "note": "Hand-written from the Microsoft Graph reference for GET /me/mailFolders, whose body carries a `value` array of mailFolder resources. MailFolder is a resource of its own, unrelated to the message the outlook.get fixture reads. The second folder omits both counts, which the client carries as options. Not a recording.",
+  "response": {
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/mailFolders",
+    "value": [
+      {
+        "id": "AQMkAGkAbm9ib3gA",
+        "displayName": "Inbox",
+        "parentFolderId": "AQMkAGkAcm9vdAA",
+        "childFolderCount": 2,
+        "unreadItemCount": 4,
+        "totalItemCount": 137
+      },
+      {
+        "id": "AQMkAGkAYXJjaGl2ZQA",
+        "displayName": "Replay archive",
+        "parentFolderId": "AQMkAGkAcm9vdAA",
+        "childFolderCount": 0
+      }
+    ]
+  },
+  "expect": [
+    {
+      "id": "AQMkAGkAbm9ib3gA",
+      "displayName": "Inbox",
+      "totalItemCount": 137,
+      "unreadItemCount": 4
+    },
+    {
+      "id": "AQMkAGkAYXJjaGl2ZQA",
+      "displayName": "Replay archive",
+      "totalItemCount": null,
+      "unreadItemCount": null
+    }
+  ]
+}

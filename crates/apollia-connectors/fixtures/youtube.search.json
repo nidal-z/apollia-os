@@ -1,0 +1,86 @@
+{
+  "operation": "youtube.search",
+  "origin": "example",
+  "note": "Hand-written from the YouTube Data API reference for search.list, whose body carries an `items` array whose `id` is a discriminated wrapper: a video result fills videoId, a channel result fills channelId, and the client reads both as options. The whole youtube family had no fixture, so this is the first reading of any of its shapes. Not a recording.",
+  "response": {
+    "kind": "youtube#searchListResponse",
+    "regionCode": "FR",
+    "pageInfo": {
+      "totalResults": 2,
+      "resultsPerPage": 2
+    },
+    "items": [
+      {
+        "kind": "youtube#searchResult",
+        "id": {
+          "kind": "youtube#video",
+          "videoId": "dQw4w9WgXcQ"
+        },
+        "snippet": {
+          "publishedAt": "2026-09-01T10:00:00Z",
+          "channelId": "UCreplaychannel",
+          "title": "Replay example, video",
+          "description": "Description the reference shows on a video result.",
+          "channelTitle": "Replay channel",
+          "thumbnails": {
+            "default": {
+              "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg"
+            }
+          }
+        }
+      },
+      {
+        "kind": "youtube#searchResult",
+        "id": {
+          "kind": "youtube#channel",
+          "channelId": "UCreplaychannel"
+        },
+        "snippet": {
+          "publishedAt": "2026-08-20T09:00:00Z",
+          "channelId": "UCreplaychannel",
+          "title": "Replay example, channel",
+          "description": "Description on a channel result.",
+          "channelTitle": "Replay channel"
+        }
+      }
+    ]
+  },
+  "expect": [
+    {
+      "id": {
+        "kind": "youtube#video",
+        "videoId": "dQw4w9WgXcQ",
+        "channelId": null,
+        "playlistId": null
+      },
+      "snippet": {
+        "title": "Replay example, video",
+        "description": "Description the reference shows on a video result.",
+        "channelId": "UCreplaychannel",
+        "channelTitle": "Replay channel",
+        "publishedAt": "2026-09-01T10:00:00Z",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg"
+          }
+        }
+      }
+    },
+    {
+      "id": {
+        "kind": "youtube#channel",
+        "videoId": null,
+        "channelId": "UCreplaychannel",
+        "playlistId": null
+      },
+      "snippet": {
+        "title": "Replay example, channel",
+        "description": "Description on a channel result.",
+        "channelId": "UCreplaychannel",
+        "channelTitle": "Replay channel",
+        "publishedAt": "2026-08-20T09:00:00Z",
+        "thumbnails": null
+      }
+    }
+  ]
+}

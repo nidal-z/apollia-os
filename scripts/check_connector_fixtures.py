@@ -123,12 +123,10 @@ UNCOVERED_BACKLOG = frozenset(
         "gtasks.complete",
         "gtasks.create",
         "gtasks.delete",
-        "gtasks.list_lists",
-            "onedrive.download",
+                "onedrive.download",
         "onedrive.get_metadata",
         "onedrive.list_recent",
-            "outlook.list_folders",
-        "outlook.move",
+                "outlook.move",
         "outlook.reply",
         "outlook.search",
         "outlook.send",
@@ -136,8 +134,7 @@ UNCOVERED_BACKLOG = frozenset(
         "outlook_cal.delete_event",
         "outlook_cal.get_event",
             "outlook_cal.update_event",
-        "youtube.search",
-        "youtube.video_details",
+            "youtube.video_details",
     }
 )
 
