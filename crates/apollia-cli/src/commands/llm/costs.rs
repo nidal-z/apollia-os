@@ -41,14 +41,14 @@ pub(super) async fn run_costs(
     }
 }
 
+/// Locates the `apollia.toml` the cost alert threshold lives in.
+///
+/// Delegates to the runtime's own search order (`./apollia.toml`, then
+/// `$XDG_CONFIG_HOME/apollia/apollia.toml`). `~/.apollia/` holds the data files,
+/// not the configuration: a threshold written there is a threshold the router
+/// never loads.
 pub(super) fn resolve_apollia_toml(override_path: Option<&std::path::Path>) -> PathBuf {
-    if let Some(p) = override_path {
-        return p.to_path_buf();
-    }
-    dirs::home_dir()
-        .map(apollia_core::paths::data_dir_under)
-        .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME))
-        .join("apollia.toml")
+    crate::commands::config::resolve_path(override_path)
 }
 
 pub(super) fn emit_llm_error(msg: String, json: bool) -> i32 {
@@ -381,5 +381,41 @@ pub(super) fn format_llm_costs(resp: &serde_json::Value) {
             "  {:<18} {:<22} {:>8} {:>12} {:>12.4}",
             "TOTAL", "", total_calls, total_tokens, total_cost
         );
+    }
+}
+
+// ─────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cost_threshold_file_is_the_one_the_runtime_reads() {
+        // GIVEN no explicit --config override on `llm costs`
+        // WHEN the threshold path is resolved
+        let costs_path = resolve_apollia_toml(None);
+
+        // THEN it is the very file the runtime walks to at startup, otherwise
+        // the threshold is written where nothing ever reads it
+        let runtime_path = crate::commands::config::resolve_path(None);
+        assert_eq!(
+            costs_path, runtime_path,
+            "llm costs writes to a file the runtime never loads"
+        );
+    }
+
+    #[test]
+    fn cost_threshold_override_is_honoured_verbatim() {
+        // GIVEN an explicit --config override
+        let explicit = std::path::Path::new("/tmp/apollia-costs-override.toml");
+
+        // WHEN the threshold path is resolved
+        let resolved = resolve_apollia_toml(Some(explicit));
+
+        // THEN the override is used as given, with no search of its own
+        assert_eq!(resolved, explicit.to_path_buf());
     }
 }

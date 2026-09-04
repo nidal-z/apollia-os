@@ -109,7 +109,12 @@ pub fn run(cmd: &ConfigCommand, json: bool) -> i32 {
 
 /// Resolve the apollia.toml location: explicit override wins, then `./apollia.toml`,
 /// then `$XDG_CONFIG_HOME/apollia/apollia.toml` (or `~/.config/apollia/apollia.toml`).
-fn resolve_path(override_path: Option<&Path>) -> PathBuf {
+///
+/// This is the order the runtime itself walks when it starts, so every command
+/// that reads or writes `apollia.toml` goes through here rather than guessing a
+/// location of its own. A command writing somewhere else writes a file the
+/// daemon never reads.
+pub(crate) fn resolve_path(override_path: Option<&Path>) -> PathBuf {
     if let Some(p) = override_path {
         return p.to_path_buf();
     }

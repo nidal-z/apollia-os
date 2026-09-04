@@ -237,18 +237,80 @@ async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
 /// Pretty-prints a hardware summary, falling back to the raw body if it does
 /// not parse as JSON.
 fn render_hardware_text(body: &str) {
+    for line in hardware_lines(body) {
+        println!("{line}");
+    }
+}
+
+/// Renders the `GET /api/v1/llm/hardware` payload as display lines.
+///
+/// Kept separate from the printing so the key names can be crossed with the
+/// response type in a test: the route serialises `HardwareResponse`, itself
+/// built from `apollia_llm::hardware::HardwareProfile`, and a renderer reading
+/// any other key prints nothing at all.
+fn hardware_lines(body: &str) -> Vec<String> {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(body) else {
-        println!("{body}");
-        return;
+        return vec![body.to_string()];
     };
-    if let Some(ram) = v.get("ram_gb").and_then(|x| x.as_f64()) {
-        println!("  RAM       {ram:.1} GB");
+    let mut out = Vec::new();
+    if let Some(total) = v.get("total_ram_gb").and_then(serde_json::Value::as_f64) {
+        match v
+            .get("available_ram_gb")
+            .and_then(serde_json::Value::as_f64)
+        {
+            Some(avail) => out.push(format!(
+                "  RAM         {total:.1} GB total, {avail:.1} GB available"
+            )),
+            None => out.push(format!("  RAM         {total:.1} GB total")),
+        }
     }
-    if let Some(cpu) = v.get("cpu_threads").and_then(|x| x.as_i64()) {
-        println!("  CPU       {cpu} threads");
+    let cpu_model = v.get("cpu_model").and_then(serde_json::Value::as_str);
+    let cpu_cores = v.get("cpu_cores").and_then(serde_json::Value::as_u64);
+    match (cpu_model, cpu_cores) {
+        (Some(model), Some(cores)) => out.push(format!("  CPU         {model} ({cores} cores)")),
+        (Some(model), None) => out.push(format!("  CPU         {model}")),
+        (None, Some(cores)) => out.push(format!("  CPU         {cores} cores")),
+        (None, None) => {}
     }
-    if let Some(acc) = v.get("accelerator").and_then(|x| x.as_str()) {
-        println!("  Accelerator {acc}");
+    if let Some(acc) = v.get("accelerator") {
+        out.push(format!("  Accelerator {}", format_accelerator(acc)));
+    }
+    if let Some(budget) = v
+        .get("memory_budget_gb")
+        .and_then(serde_json::Value::as_f64)
+    {
+        out.push(format!("  Budget      {budget:.1} GB usable for inference"));
+    }
+    out
+}
+
+/// Renders one `AcceleratorProfile` variant on a single line.
+///
+/// The profile is serialised as an internally tagged enum (`kind` plus the
+/// variant fields), so the name of the device lives under `chip` on Apple
+/// Silicon and under `device_name` everywhere else.
+fn format_accelerator(acc: &serde_json::Value) -> String {
+    let kind = acc
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown");
+    let name = acc
+        .get("chip")
+        .or_else(|| acc.get("device_name"))
+        .and_then(serde_json::Value::as_str);
+    let vram = acc.get("vram_gb").and_then(serde_json::Value::as_f64);
+    let label = match kind {
+        "none" => return "none (CPU only)".to_string(),
+        "apple_silicon" => "Apple Silicon",
+        "cuda" => "CUDA",
+        "generic" => "GPU",
+        other => other,
+    };
+    match (name, vram) {
+        (Some(n), Some(v)) => format!("{label} {n}, {v:.1} GB VRAM"),
+        (Some(n), None) => format!("{label} {n}"),
+        (None, Some(v)) => format!("{label}, {v:.1} GB VRAM"),
+        (None, None) => label.to_string(),
     }
 }
 
@@ -890,5 +952,66 @@ mod tests {
         assert_eq!(v["total"], 3);
         assert_eq!(v["incomplete"], true);
         assert_eq!(v["shards"].as_array().map(Vec::len), Some(2));
+    }
+
+    #[test]
+    fn hardware_text_reads_the_keys_the_route_serialises() {
+        // GIVEN the exact payload `GET /api/v1/llm/hardware` serves, built from
+        // the response type itself so a field rename breaks this test rather
+        // than the operator's screen
+        let profile = apollia_llm::hardware::HardwareProfile {
+            total_ram_gb: 64.0,
+            available_ram_gb: 32.0,
+            cpu_model: "Apple M4 Max".to_string(),
+            cpu_cores: 16,
+            accelerator: apollia_llm::hardware::AcceleratorProfile::AppleSilicon {
+                chip: "M4 Max".to_string(),
+                generation: 4,
+                vram_gb: 64.0,
+            },
+            memory_budget_gb: 48.0,
+        };
+        let body = serde_json::to_string(
+            &apollia_runtime::api::routes_model_hub::HardwareResponse::from(profile),
+        )
+        .unwrap();
+
+        // WHEN the text renderer formats it
+        let lines = hardware_lines(&body);
+
+        // THEN every fact the payload carries reaches the screen
+        let rendered = lines.join("\n");
+        assert!(
+            rendered.contains("64.0"),
+            "total RAM missing from: {rendered}"
+        );
+        assert!(
+            rendered.contains("16"),
+            "core count missing from: {rendered}"
+        );
+        assert!(
+            rendered.contains("Apple M4 Max"),
+            "CPU model missing from: {rendered}"
+        );
+        assert!(
+            rendered.contains("M4 Max") && rendered.to_lowercase().contains("apple"),
+            "accelerator missing from: {rendered}"
+        );
+        assert!(
+            rendered.contains("48.0"),
+            "memory budget missing from: {rendered}"
+        );
+    }
+
+    #[test]
+    fn hardware_text_falls_back_to_the_raw_body_when_it_is_not_json() {
+        // GIVEN a body the route never serves, so the renderer cannot parse it
+        let body = "not json at all";
+
+        // WHEN the text renderer formats it
+        let lines = hardware_lines(body);
+
+        // THEN the raw body is handed back untouched rather than swallowed
+        assert_eq!(lines, vec!["not json at all".to_string()]);
     }
 }

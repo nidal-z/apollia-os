@@ -1512,7 +1512,7 @@ Without flags, prints the cost table. Use `--get-threshold` to print `[llm] cost
 
 * `--get-threshold` - Read the cost alert threshold from `apollia.toml` instead of the cost table
 * `--threshold <USD>` - Set the cost alert threshold (USD). Writes `[llm] cost_alert_threshold_usd = N` to `apollia.toml`. Pass `0` or a negative value to clear the threshold
-* `--config <PATH>` - Optional config file path override (default: `~/.apollia/apollia.toml`)
+* `--config <PATH>` - Optional `apollia.toml` path override. Without it, the same file the runtime loads at startup: `./apollia.toml` when the working directory holds one, otherwise `$XDG_CONFIG_HOME/apollia/apollia.toml` (default `~/.config/apollia/apollia.toml`)
 
 
 
@@ -1574,7 +1574,9 @@ Create a new LLM backend.
 
    The runtime reads `std::env::var(NAME)` at boot. Recommended to keep the key out of system.db.
 * `--base-url <URL>` - Base URL (Ollama, self-hosted OpenAI-compatible gateway, ...)
-* `--device <DEVICE>` - Device for `llama-cpp` models: `metal` (Apple), `cuda`, `cpu`
+* `--device <DEVICE>` - Device recorded on the backend row: `metal`, `cuda`, `cpu`.
+
+   It selects nothing today. The local engine offloads according to the llama-server build it ships with and to `APOLLIA_LLAMA_N_GPU_LAYERS`, and reads no device field.
 
   Default value: `metal`
 * `--timeout-sec <SECS>` - How long the backend may stay silent before the call is abandoned.
@@ -1609,7 +1611,7 @@ Works in merge mode: flags that are not supplied keep their current value. The r
 * `--api-key <KEY>` - New API key (cloud providers)
 * `--api-key-env <VAR_NAME>` - New environment variable name for the API key
 * `--base-url <URL>` - New base URL
-* `--device <DEVICE>` - New device for `llama-cpp`
+* `--device <DEVICE>` - New device recorded on the backend row. It selects nothing today: the local engine offloads according to the llama-server build it ships with and to `APOLLIA_LLAMA_N_GPU_LAYERS`
 * `--timeout-sec <SECS>` - New inference timeout in seconds
 * `--enable` - Enable the backend
 * `--disable` - Disable the backend
@@ -1670,7 +1672,9 @@ First-run helper: configure a local LLM in one step.
 * `--name <NAME>` - Backend name (default: `local`). Overwrites the existing entry of the same name
 
   Default value: `local`
-* `--device <DEVICE>` - Device hint for llama-cpp: `metal` (macOS default), `cuda`, `cpu`. When omitted, picks `metal` on macOS and `cpu` elsewhere
+* `--device <DEVICE>` - Device hint recorded on the backend row: `metal`, `cuda`, `cpu`. When omitted, records `metal` on macOS and `cpu` elsewhere.
+
+   It selects nothing today. The local engine offloads according to the llama-server build it ships with and to `APOLLIA_LLAMA_N_GPU_LAYERS`, and reads no device field.
 * `--system-db <PATH>` - Override the system database path (default: `~/.apollia/system.db`)
 * `--models-dir <DIR>` - Override the models directory (default: `~/.apollia/models/`)
 

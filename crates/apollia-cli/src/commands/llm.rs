@@ -52,7 +52,11 @@ pub enum LlmCommand {
         /// or a negative value to clear the threshold.
         #[arg(long, value_name = "USD")]
         threshold: Option<f64>,
-        /// Optional config file path override (default: `~/.apollia/apollia.toml`).
+        /// Optional `apollia.toml` path override. Without it, the same file
+        /// the runtime loads at startup: `./apollia.toml` when the working
+        /// directory holds one, otherwise
+        /// `$XDG_CONFIG_HOME/apollia/apollia.toml` (default
+        /// `~/.config/apollia/apollia.toml`).
         #[arg(long, value_name = "PATH")]
         config: Option<PathBuf>,
     },
@@ -88,8 +92,12 @@ pub enum LlmCommand {
         /// the same name.
         #[arg(long, value_name = "NAME", default_value = "local")]
         name: String,
-        /// Device hint for llama-cpp: `metal` (macOS default), `cuda`, `cpu`.
-        /// When omitted, picks `metal` on macOS and `cpu` elsewhere.
+        /// Device hint recorded on the backend row: `metal`, `cuda`, `cpu`.
+        /// When omitted, records `metal` on macOS and `cpu` elsewhere.
+        ///
+        /// It selects nothing today. The local engine offloads according to the
+        /// llama-server build it ships with and to
+        /// `APOLLIA_LLAMA_N_GPU_LAYERS`, and reads no device field.
         #[arg(long, value_name = "DEVICE")]
         device: Option<String>,
         /// Override the system database path (default: `~/.apollia/system.db`).
@@ -142,7 +150,11 @@ pub enum LlmBackendsCommand {
         /// Base URL (Ollama, self-hosted OpenAI-compatible gateway, ...).
         #[arg(long, value_name = "URL")]
         base_url: Option<String>,
-        /// Device for `llama-cpp` models: `metal` (Apple), `cuda`, `cpu`.
+        /// Device recorded on the backend row: `metal`, `cuda`, `cpu`.
+        ///
+        /// It selects nothing today. The local engine offloads according to the
+        /// llama-server build it ships with and to
+        /// `APOLLIA_LLAMA_N_GPU_LAYERS`, and reads no device field.
         #[arg(long, value_name = "DEVICE", default_value = "metal")]
         device: String,
         /// How long the backend may stay silent before the call is abandoned.
@@ -195,7 +207,9 @@ pub enum LlmBackendsCommand {
         /// New base URL.
         #[arg(long, value_name = "URL")]
         base_url: Option<String>,
-        /// New device for `llama-cpp`.
+        /// New device recorded on the backend row. It selects nothing today:
+        /// the local engine offloads according to the llama-server build it
+        /// ships with and to `APOLLIA_LLAMA_N_GPU_LAYERS`.
         #[arg(long, value_name = "DEVICE")]
         device: Option<String>,
         /// New inference timeout in seconds.
@@ -303,6 +317,71 @@ mod tests {
     struct TestCli {
         #[command(subcommand)]
         command: LlmCommand,
+    }
+
+    /// Renders the help clap publishes for one argument, following the same
+    /// tree the CLI reference page is generated from.
+    fn published_help(path: &[&str], arg: &str) -> String {
+        use clap::CommandFactory;
+        let mut cmd = TestCli::command();
+        for name in path {
+            cmd = cmd
+                .find_subcommand(name)
+                .unwrap_or_else(|| panic!("no subcommand '{name}'"))
+                .clone();
+        }
+        let rendered = cmd
+            .get_arguments()
+            .find(|a| a.get_id() == arg)
+            .and_then(|a| a.get_long_help().or_else(|| a.get_help()))
+            .map(|h| h.to_string())
+            .unwrap_or_else(|| panic!("no argument '{arg}'"));
+        rendered
+    }
+
+    #[test]
+    fn costs_config_help_names_the_file_the_runtime_loads() {
+        // GIVEN the help clap publishes for `llm costs --config`
+        let help = published_help(&["costs"], "config");
+
+        // WHEN it is read as an operator reads the CLI reference page
+        // THEN it names the runtime's own search order, and no longer points at
+        // the data directory, which holds no configuration
+        assert!(
+            !help.contains(".apollia/apollia.toml"),
+            "help still points at the data directory: {help}"
+        );
+        assert!(
+            help.contains("./apollia.toml"),
+            "help omits the working-directory file: {help}"
+        );
+        assert!(
+            help.contains(".config/apollia/apollia.toml"),
+            "help omits the user config file: {help}"
+        );
+    }
+
+    #[test]
+    fn device_help_does_not_promise_an_accelerator_choice() {
+        // GIVEN the three places the CLI accepts --device
+        let places = [
+            (&["backends", "create"][..], "backends create"),
+            (&["backends", "update"][..], "backends update"),
+            (&["setup"][..], "setup"),
+        ];
+
+        // WHEN the published help of each is read
+        for (path, label) in places {
+            let help = published_help(path, "device");
+
+            // THEN it says the value selects nothing, because no consumer in
+            // the tree reads it: the local engine offloads from its build and
+            // from APOLLIA_LLAMA_N_GPU_LAYERS
+            assert!(
+                help.contains("selects nothing"),
+                "{label} --device still promises a device choice: {help}"
+            );
+        }
     }
 
     #[test]
