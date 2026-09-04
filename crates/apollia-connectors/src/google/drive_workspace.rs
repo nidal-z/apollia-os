@@ -152,12 +152,33 @@ pub struct FolderWrite<'a> {
 #[derive(Clone)]
 pub struct DriveWorkspaceClient {
     http: HttpClient,
+    base: String,
+    upload_base: String,
 }
 
 impl DriveWorkspaceClient {
     /// Build a new workspace client.
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: DRIVE_BASE.to_owned(),
+            upload_base: UPLOAD_BASE.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+            upload_base: base.to_owned(),
+        }
     }
 
     /// Resolve (or create) the agent's workspace folder id given the
@@ -258,7 +279,8 @@ impl DriveWorkspaceClient {
                 None => q.push_str(" and 'root' in parents"),
             }
             let url = format!(
-                "{DRIVE_BASE}/files?q={}&fields=files(id,name)",
+                "{}/files?q={}&fields=files(id,name)",
+                self.base,
                 urlencode(&q)
             );
             let resp: FileList = self.http.get_json(&url, bearer, || refresh()).await?;
@@ -287,7 +309,8 @@ impl DriveWorkspaceClient {
             .await?;
         let q = format!("'{folder}' in parents and trashed = false");
         let url = format!(
-            "{DRIVE_BASE}/files?q={}&fields=files(id,name,mimeType,modifiedTime,size)",
+            "{}/files?q={}&fields=files(id,name,mimeType,modifiedTime,size)",
+            self.base,
             urlencode(&q)
         );
         let resp: FileList = self.http.get_json(&url, bearer, || refresh()).await?;
@@ -318,12 +341,14 @@ impl DriveWorkspaceClient {
     {
         let page_size = page_size.clamp(1, 100);
         let mut url = format!(
-            "{DRIVE_BASE}/files?pageSize={page_size}&fields=files(id,name,mimeType,modifiedTime,size)&q=trashed%20%3D%20false"
+            "{}/files?pageSize={page_size}&fields=files(id,name,mimeType,modifiedTime,size)&q=trashed%20%3D%20false",
+            self.base
         );
         if let Some(id) = folder_id {
             let q = format!("trashed = false and '{id}' in parents");
             url = format!(
-                "{DRIVE_BASE}/files?pageSize={page_size}&fields=files(id,name,mimeType,modifiedTime,size)&q={}",
+                "{}/files?pageSize={page_size}&fields=files(id,name,mimeType,modifiedTime,size)&q={}",
+                self.base,
                 urlencode(&q)
             );
         }
@@ -372,7 +397,8 @@ impl DriveWorkspaceClient {
         }
         let q = clauses.join(" and ");
         let url = format!(
-            "{DRIVE_BASE}/files?pageSize=50&fields=files(id,name,mimeType,modifiedTime,size)&q={}",
+            "{}/files?pageSize=50&fields=files(id,name,mimeType,modifiedTime,size)&q={}",
+            self.base,
             urlencode(&q)
         );
         let resp: FileList = self.http.get_json(&url, bearer, refresh).await?;
@@ -393,7 +419,7 @@ impl DriveWorkspaceClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{DRIVE_BASE}/files/{file_id}?alt=media");
+        let url = format!("{}/files/{file_id}?alt=media", self.base);
         let response = self
             .http
             .send(
@@ -442,7 +468,7 @@ impl DriveWorkspaceClient {
             parents: vec![folder],
             mime_type: Some(mime),
         };
-        let metadata_url = format!("{DRIVE_BASE}/files");
+        let metadata_url = format!("{}/files", self.base);
         let file: DriveFile = self
             .http
             .json_request(
@@ -458,7 +484,8 @@ impl DriveWorkspaceClient {
 
         // Step 2: upload the content with PATCH on /upload endpoint.
         let upload_url = format!(
-            "{UPLOAD_BASE}/files/{file_id}?uploadType=media",
+            "{}/files/{file_id}?uploadType=media",
+            self.upload_base,
             file_id = file.id
         );
         let response = self
@@ -496,7 +523,7 @@ impl DriveWorkspaceClient {
     {
         // Send to trash via PATCH instead of permanent delete, matching the
         // user's expectation of "I can recover from the Trash".
-        let url = format!("{DRIVE_BASE}/files/{file_id}");
+        let url = format!("{}/files/{file_id}", self.base);
         let body = serde_json::json!({ "trashed": true });
         let _: serde_json::Value = self
             .http
@@ -530,7 +557,8 @@ impl DriveWorkspaceClient {
     {
         let q = format!("'{folder_id}' in parents and trashed = false");
         let url = format!(
-            "{DRIVE_BASE}/files?q={}&fields=files(id,name,mimeType,modifiedTime,size)",
+            "{}/files?q={}&fields=files(id,name,mimeType,modifiedTime,size)",
+            self.base,
             urlencode(&q)
         );
         let resp: FileList = self.http.get_json(&url, bearer, refresh).await?;
@@ -562,7 +590,7 @@ impl DriveWorkspaceClient {
             parents,
             mime_type: Some(mime),
         };
-        let metadata_url = format!("{DRIVE_BASE}/files");
+        let metadata_url = format!("{}/files", self.base);
         let file: DriveFile = self
             .http
             .json_request(
@@ -577,7 +605,8 @@ impl DriveWorkspaceClient {
             .await?;
 
         let upload_url = format!(
-            "{UPLOAD_BASE}/files/{file_id}?uploadType=media",
+            "{}/files/{file_id}?uploadType=media",
+            self.upload_base,
             file_id = file.id
         );
         let response = self
@@ -616,7 +645,7 @@ impl DriveWorkspaceClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{DRIVE_BASE}/files/{file_id}/permissions");
+        let url = format!("{}/files/{file_id}/permissions", self.base);
         let body = PermissionRequest {
             role: "reader",
             permission_type: "user",
@@ -662,7 +691,8 @@ impl DriveWorkspaceClient {
             q.push_str(" and 'root' in parents");
         }
         let url = format!(
-            "{DRIVE_BASE}/files?q={}&fields=files(id,name)",
+            "{}/files?q={}&fields=files(id,name)",
+            self.base,
             urlencode(&q)
         );
         let resp: FileList = self.http.get_json(&url, bearer, || refresh()).await?;
@@ -676,7 +706,7 @@ impl DriveWorkspaceClient {
             parents: parent_id.map(str::to_owned).into_iter().collect(),
             mime_type: Some(FOLDER_MIME),
         };
-        let create_url = format!("{DRIVE_BASE}/files");
+        let create_url = format!("{}/files", self.base);
         let created: DriveFile = self
             .http
             .json_request(

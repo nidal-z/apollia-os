@@ -73,11 +73,29 @@ pub struct ValueWrite<'a> {
 #[derive(Clone)]
 pub struct SheetsClient {
     http: HttpClient,
+    base: String,
 }
 
 impl SheetsClient {
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: BASE.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// Create a new spreadsheet with the given title.
@@ -98,7 +116,7 @@ impl SheetsClient {
             .json_request(
                 JsonRequest {
                     method: Method::POST,
-                    url: BASE,
+                    url: &self.base,
                     body: &body,
                 },
                 bearer,
@@ -129,7 +147,8 @@ impl SheetsClient {
         // marks as required (spreadsheetId, properties.title); otherwise the
         // deserializer chokes on missing keys.
         let url = format!(
-            "{BASE}/{spreadsheet_id}?fields=spreadsheetId,properties.title,sheets.properties"
+            "{}/{spreadsheet_id}?fields=spreadsheetId,properties.title,sheets.properties",
+            self.base
         );
         let resp: Spreadsheet = self.http.get_json(&url, bearer, refresh).await?;
         Ok(resp.sheets.into_iter().map(|s| s.properties).collect())
@@ -147,7 +166,7 @@ impl SheetsClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{BASE}/{spreadsheet_id}/values/{}", urlencode(range));
+        let url = format!("{}/{spreadsheet_id}/values/{}", self.base, urlencode(range));
         self.http.get_json(&url, bearer, refresh).await
     }
 
@@ -164,7 +183,8 @@ impl SheetsClient {
     {
         let spreadsheet_id = write.spreadsheet_id;
         let url = format!(
-            "{BASE}/{spreadsheet_id}/values/{}:append?valueInputOption=USER_ENTERED",
+            "{}/{spreadsheet_id}/values/{}:append?valueInputOption=USER_ENTERED",
+            self.base,
             urlencode(write.range)
         );
         let body = serde_json::json!({ "values": write.values });
@@ -194,7 +214,8 @@ impl SheetsClient {
     {
         let spreadsheet_id = write.spreadsheet_id;
         let url = format!(
-            "{BASE}/{spreadsheet_id}/values/{}?valueInputOption=USER_ENTERED",
+            "{}/{spreadsheet_id}/values/{}?valueInputOption=USER_ENTERED",
+            self.base,
             urlencode(write.range)
         );
         let body = serde_json::json!({ "values": write.values });

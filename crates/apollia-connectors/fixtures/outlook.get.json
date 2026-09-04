@@ -1,0 +1,37 @@
+{
+  "operation": "outlook.get",
+  "origin": "example",
+  "note": "Hand-written from the Microsoft Graph reference for GET /me/messages/{id}, which returns a message resource. Not a recording.",
+  "response": {
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/messages/$entity",
+    "@odata.etag": "W/\"CQAAABYAAAA=\"",
+    "id": "AAMkAGI2THVSAAA=",
+    "subject": "Replay example",
+    "bodyPreview": "This is the preview Graph generates.",
+    "isRead": true,
+    "receivedDateTime": "2026-09-04T08:12:33Z",
+    "parentFolderId": "AQMkAGI2AAAAA=",
+    "from": {
+      "emailAddress": { "name": "Alice Example", "address": "alice@example.com" }
+    },
+    "toRecipients": [
+      { "emailAddress": { "name": "Bob Example", "address": "bob@example.com" } }
+    ],
+    "ccRecipients": []
+  },
+  "expect": {
+    "id": "AAMkAGI2THVSAAA=",
+    "subject": "Replay example",
+    "bodyPreview": "This is the preview Graph generates.",
+    "isRead": true,
+    "receivedDateTime": "2026-09-04T08:12:33Z",
+    "parentFolderId": "AQMkAGI2AAAAA=",
+    "from": {
+      "emailAddress": { "name": "Alice Example", "address": "alice@example.com" }
+    },
+    "toRecipients": [
+      { "emailAddress": { "name": "Bob Example", "address": "bob@example.com" } }
+    ],
+    "ccRecipients": []
+  }
+}

@@ -123,12 +123,30 @@ struct DraftListResponse {
 #[derive(Clone)]
 pub struct GmailClient {
     http: HttpClient,
+    base: String,
 }
 
 impl GmailClient {
     /// Build a Gmail client.
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: BASE.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// Send a freshly composed email.
@@ -148,7 +166,7 @@ impl GmailClient {
     {
         let raw = encode_rfc5322(mail);
         let body = GmailMessageRawBody { raw };
-        let url = format!("{BASE}/messages/send");
+        let url = format!("{}/messages/send", self.base);
         let response: SendResponse = self
             .http
             .json_request(
@@ -184,7 +202,7 @@ impl GmailClient {
         let payload = DraftCreate {
             message: GmailMessageRawBody { raw },
         };
-        let url = format!("{BASE}/drafts");
+        let url = format!("{}/drafts", self.base);
         let response: DraftResponse = self
             .http
             .json_request(
@@ -214,7 +232,7 @@ impl GmailClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{BASE}/drafts?maxResults={max_results}");
+        let url = format!("{}/drafts?maxResults={max_results}", self.base);
         let response: DraftListResponse = self.http.get_json(&url, bearer, refresh).await?;
         Ok(response.drafts)
     }
@@ -230,7 +248,7 @@ impl GmailClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{BASE}/drafts/{draft_id}");
+        let url = format!("{}/drafts/{draft_id}", self.base);
         self.http
             .send(
                 RawRequest {
@@ -314,10 +332,10 @@ mod tests {
         assert!(text.contains("Bcc: bcc@example.com"));
     }
 
-    // The endpoint constants are fixed to gmail.googleapis.com; we cannot
-    // easily redirect them to a mock server without a builder. The tests
-    // below exercise the encode_rfc5322 path which is the integration-prone
-    // piece. The HTTP layer is already exhaustively tested in http.rs.
+    // The tests below exercise the request side: the encode_rfc5322 path and
+    // the wire shape of the send call. The response side, what the client reads
+    // back out of Gmail's answer, is exercised by the replay harness in
+    // `crate::replay`, which points `with_base_url` at a mock server.
 
     #[tokio::test]
     async fn test_gmail_client_constructs_from_http_client() {
@@ -328,9 +346,9 @@ mod tests {
         let _client = GmailClient::new(http);
     }
 
-    // Smoke test for the send wire format using a wiremock server proxied
-    // through a custom client. We construct the request manually because the
-    // GmailClient hard-codes the upstream URL.
+    // Smoke test for the send wire format. The request is built by hand here so
+    // the assertion stays on the wire shape; driving the client end to end is
+    // what the replay harness does.
     #[tokio::test]
     async fn test_send_request_uses_post_to_send_endpoint() {
         // GIVEN a mock server answering a POST on the send endpoint, bearer token included

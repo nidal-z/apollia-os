@@ -1,0 +1,14 @@
+{
+  "operation": "gsheets.read_values",
+  "origin": "example",
+  "note": "Hand-written from the Google Sheets error envelope for an unparsable range. Not a recording. Covers the failure reading, not the success one.",
+  "status": 400,
+  "response": {
+    "error": {
+      "code": 400,
+      "message": "Unable to parse range: Apollia Test!A1:C1",
+      "status": "INVALID_ARGUMENT"
+    }
+  },
+  "expect_error": "Unable to parse range: Apollia Test!A1:C1"
+}

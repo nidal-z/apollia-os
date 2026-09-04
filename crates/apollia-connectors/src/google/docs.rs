@@ -31,11 +31,29 @@ pub struct DocumentMeta {
 #[derive(Clone)]
 pub struct DocsClient {
     http: HttpClient,
+    base: String,
 }
 
 impl DocsClient {
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: BASE.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// Create a new empty document with the given title.
@@ -54,7 +72,7 @@ impl DocsClient {
             .json_request(
                 JsonRequest {
                     method: Method::POST,
-                    url: BASE,
+                    url: &self.base,
                     body: &body,
                 },
                 bearer,
@@ -74,7 +92,7 @@ impl DocsClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{BASE}/{document_id}");
+        let url = format!("{}/{document_id}", self.base);
         let meta: DocumentMeta = self.http.get_json(&url, bearer, refresh).await?;
         Ok(meta
             .body
@@ -97,7 +115,7 @@ impl DocsClient {
     {
         // `endOfSegmentLocation` inserts at the very end of the body,
         // simplest pattern, no need to compute the current length.
-        let url = format!("{BASE}/{document_id}:batchUpdate");
+        let url = format!("{}/{document_id}:batchUpdate", self.base);
         let body = serde_json::json!({
             "requests": [{
                 "insertText": {

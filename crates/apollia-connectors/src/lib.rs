@@ -43,6 +43,9 @@ pub mod operation;
 pub mod registry;
 pub mod trait_def;
 
+#[cfg(test)]
+mod replay;
+
 pub use error::ConnectorError;
 pub use google::GoogleConnector;
 pub use http::HttpClient;

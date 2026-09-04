@@ -1,0 +1,58 @@
+{
+  "operation": "gdocs.read_text",
+  "origin": "example",
+  "note": "Hand-written from the Google Docs API reference for documents.get, whose body.content carries structural elements. Not a recording.",
+  "response": {
+    "documentId": "1ABCdefGHIjklMNOpqrSTUvwxYZ",
+    "title": "Replay example",
+    "revisionId": "ALm37BW",
+    "body": {
+      "content": [
+        {
+          "endIndex": 1,
+          "sectionBreak": { "sectionStyle": { "columnSeparatorStyle": "NONE" } }
+        },
+        {
+          "startIndex": 1,
+          "endIndex": 21,
+          "paragraph": {
+            "elements": [
+              {
+                "startIndex": 1,
+                "endIndex": 21,
+                "textRun": {
+                  "content": "First paragraph.\n",
+                  "textStyle": {}
+                }
+              }
+            ],
+            "paragraphStyle": { "namedStyleType": "NORMAL_TEXT" }
+          }
+        },
+        {
+          "startIndex": 21,
+          "endIndex": 40,
+          "paragraph": {
+            "elements": [
+              {
+                "startIndex": 21,
+                "endIndex": 40,
+                "textRun": {
+                  "content": "Second paragraph.\n",
+                  "textStyle": {}
+                }
+              }
+            ],
+            "paragraphStyle": { "namedStyleType": "NORMAL_TEXT" }
+          }
+        },
+        {
+          "startIndex": 40,
+          "endIndex": 60,
+          "table": { "rows": 1, "columns": 1 }
+        }
+      ]
+    }
+  },
+  "expect": "First paragraph.\nSecond paragraph.\n"
+}

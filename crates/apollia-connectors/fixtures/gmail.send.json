@@ -1,0 +1,14 @@
+{
+  "operation": "gmail.send",
+  "origin": "example",
+  "note": "Hand-written from the Gmail API reference for users.messages.send, which returns a Message resource. Not a recording.",
+  "response": {
+    "id": "18f2a1b3c4d5e6f7",
+    "threadId": "18f2a1b3c4d5e6f7",
+    "labelIds": ["SENT"]
+  },
+  "expect": {
+    "id": "18f2a1b3c4d5e6f7",
+    "threadId": "18f2a1b3c4d5e6f7"
+  }
+}

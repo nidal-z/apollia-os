@@ -65,11 +65,29 @@ pub struct NewTask<'a> {
 #[derive(Clone)]
 pub struct TasksClient {
     http: HttpClient,
+    base: String,
 }
 
 impl TasksClient {
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: BASE.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// List the user's task lists.
@@ -82,7 +100,7 @@ impl TasksClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{BASE}/users/@me/lists");
+        let url = format!("{}/users/@me/lists", self.base);
         let resp: TaskListsResponse = self.http.get_json(&url, bearer, refresh).await?;
         Ok(resp.items)
     }
@@ -98,7 +116,10 @@ impl TasksClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{BASE}/lists/{task_list_id}/tasks?showCompleted=true");
+        let url = format!(
+            "{}/lists/{task_list_id}/tasks?showCompleted=true",
+            self.base
+        );
         let resp: TasksResponse = self.http.get_json(&url, bearer, refresh).await?;
         Ok(resp.items)
     }
@@ -122,7 +143,7 @@ impl TasksClient {
             body["due"] = serde_json::Value::String(d.to_string());
         }
         let task_list_id = task.task_list_id;
-        let url = format!("{BASE}/lists/{task_list_id}/tasks");
+        let url = format!("{}/lists/{task_list_id}/tasks", self.base);
         self.http
             .json_request(
                 JsonRequest {
@@ -149,7 +170,7 @@ impl TasksClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let body = serde_json::json!({ "status": "completed" });
-        let url = format!("{BASE}/lists/{task_list_id}/tasks/{task_id}");
+        let url = format!("{}/lists/{task_list_id}/tasks/{task_id}", self.base);
         self.http
             .json_request(
                 JsonRequest {
@@ -175,7 +196,7 @@ impl TasksClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{BASE}/lists/{task_list_id}/tasks/{task_id}");
+        let url = format!("{}/lists/{task_list_id}/tasks/{task_id}", self.base);
         self.http
             .send(
                 RawRequest {

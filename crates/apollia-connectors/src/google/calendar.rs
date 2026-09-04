@@ -148,12 +148,30 @@ struct EventList {
 #[derive(Clone)]
 pub struct CalendarClient {
     http: HttpClient,
+    base: String,
 }
 
 impl CalendarClient {
     /// Build a calendar client.
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: BASE.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// List events on a calendar, filtered by `filter`.
@@ -170,7 +188,7 @@ impl CalendarClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = build_list_url(calendar_id, filter);
+        let url = build_list_url(&self.base, calendar_id, filter);
         let resp: EventList = self.http.get_json(&url, bearer, refresh).await?;
         Ok(resp.items)
     }
@@ -188,7 +206,7 @@ impl CalendarClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let cal = urlencode(calendar_id);
-        let url = format!("{BASE}/{cal}/events/{event_id}");
+        let url = format!("{}/{cal}/events/{event_id}", self.base);
         self.http.get_json(&url, bearer, refresh).await
     }
 
@@ -205,7 +223,7 @@ impl CalendarClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let cal = urlencode(calendar_id);
-        let url = format!("{BASE}/{cal}/events");
+        let url = format!("{}/{cal}/events", self.base);
         self.http
             .json_request(
                 JsonRequest {
@@ -232,7 +250,7 @@ impl CalendarClient {
     {
         let cal = urlencode(update.calendar_id);
         let event_id = update.event_id;
-        let url = format!("{BASE}/{cal}/events/{event_id}");
+        let url = format!("{}/{cal}/events/{event_id}", self.base);
         self.http
             .json_request(
                 JsonRequest {
@@ -259,7 +277,7 @@ impl CalendarClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let cal = urlencode(calendar_id);
-        let url = format!("{BASE}/{cal}/events/{event_id}");
+        let url = format!("{}/{cal}/events/{event_id}", self.base);
         self.http
             .send(
                 RawRequest {
@@ -294,9 +312,9 @@ fn urlencode(s: &str) -> String {
     out
 }
 
-fn build_list_url(calendar_id: &str, filter: &ListEventsFilter) -> String {
+fn build_list_url(base: &str, calendar_id: &str, filter: &ListEventsFilter) -> String {
     let cal = urlencode(calendar_id);
-    let mut url = format!("{BASE}/{cal}/events?singleEvents=true&orderBy=startTime");
+    let mut url = format!("{base}/{cal}/events?singleEvents=true&orderBy=startTime");
     if let Some(tmin) = filter.time_min {
         url.push_str(&format!("&timeMin={}", urlencode(&tmin.to_rfc3339())));
     }
@@ -341,7 +359,7 @@ mod tests {
     fn test_build_list_url_default_includes_single_events_and_order_by() {
         // GIVEN the default event filter
         // WHEN the list URL is built for the primary calendar
-        let url = build_list_url("primary", &ListEventsFilter::default());
+        let url = build_list_url(BASE, "primary", &ListEventsFilter::default());
         // THEN recurring events are expanded and ordered, and no time bound appears
         assert!(url.contains("singleEvents=true"));
         assert!(url.contains("orderBy=startTime"));
@@ -356,6 +374,7 @@ mod tests {
         let tmax = Utc.with_ymd_and_hms(2026, 5, 31, 23, 59, 59).unwrap();
         // WHEN the list URL is built
         let url = build_list_url(
+            BASE,
             "primary",
             &ListEventsFilter {
                 time_min: Some(tmin),

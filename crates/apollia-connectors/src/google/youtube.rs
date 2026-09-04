@@ -66,11 +66,29 @@ struct VideosResponse {
 #[derive(Clone)]
 pub struct YouTubeClient {
     http: HttpClient,
+    base: String,
 }
 
 impl YouTubeClient {
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: BASE.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// Free-text search across YouTube videos.
@@ -87,7 +105,8 @@ impl YouTubeClient {
     {
         let n = max_results.clamp(1, 50);
         let url = format!(
-            "{BASE}/search?part=snippet&type=video&maxResults={n}&q={}",
+            "{}/search?part=snippet&type=video&maxResults={n}&q={}",
+            self.base,
             urlencode(query)
         );
         let resp: SearchResponse = self.http.get_json(&url, bearer, refresh).await?;
@@ -106,7 +125,8 @@ impl YouTubeClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let url = format!(
-            "{BASE}/videos?part=snippet,statistics,contentDetails&id={}",
+            "{}/videos?part=snippet,statistics,contentDetails&id={}",
+            self.base,
             urlencode(video_id)
         );
         let resp: VideosResponse = self.http.get_json(&url, bearer, refresh).await?;

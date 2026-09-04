@@ -74,12 +74,30 @@ struct ItemList {
 #[derive(Clone)]
 pub struct OneDriveClient {
     http: HttpClient,
+    base: String,
 }
 
 impl OneDriveClient {
     /// Build a new client.
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: GRAPH.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// Search the drive for items matching `query`.
@@ -95,7 +113,8 @@ impl OneDriveClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let url = format!(
-            "{GRAPH}/root/search(q='{}')?$top={top}",
+            "{}/root/search(q='{}')?$top={top}",
+            self.base,
             urlencode_singlequoted(query)
         );
         let resp: ItemList = self.http.get_json(&url, bearer, refresh).await?;
@@ -113,7 +132,7 @@ impl OneDriveClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/items/{item_id}");
+        let url = format!("{}/items/{item_id}", self.base);
         self.http.get_json(&url, bearer, refresh).await
     }
 
@@ -128,7 +147,7 @@ impl OneDriveClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/items/{item_id}/content");
+        let url = format!("{}/items/{item_id}/content", self.base);
         let response = self
             .http
             .send(
@@ -159,7 +178,7 @@ impl OneDriveClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/recent?$top={top}");
+        let url = format!("{}/recent?$top={top}", self.base);
         let resp: ItemList = self.http.get_json(&url, bearer, refresh).await?;
         Ok(resp.value)
     }

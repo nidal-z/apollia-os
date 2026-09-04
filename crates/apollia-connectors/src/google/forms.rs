@@ -33,11 +33,29 @@ pub struct FormInfo {
 #[derive(Clone)]
 pub struct FormsClient {
     http: HttpClient,
+    base: String,
 }
 
 impl FormsClient {
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: BASE.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// Create a new empty form with the given title. The form is owned
@@ -60,7 +78,7 @@ impl FormsClient {
             .json_request(
                 JsonRequest {
                     method: Method::POST,
-                    url: BASE,
+                    url: &self.base,
                     body: &body,
                 },
                 bearer,

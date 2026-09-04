@@ -143,12 +143,30 @@ pub struct ListEventsFilter {
 #[derive(Clone)]
 pub struct OutlookCalendarClient {
     http: HttpClient,
+    base: String,
 }
 
 impl OutlookCalendarClient {
     /// Build a new client.
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: GRAPH.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// List events filtered by `filter`. Uses the `/calendarview` endpoint
@@ -164,7 +182,7 @@ impl OutlookCalendarClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = build_list_url(filter);
+        let url = build_list_url(&self.base, filter);
         let resp: EventList = self.http.get_json(&url, bearer, refresh).await?;
         Ok(resp.value)
     }
@@ -180,7 +198,7 @@ impl OutlookCalendarClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/events/{event_id}");
+        let url = format!("{}/events/{event_id}", self.base);
         self.http.get_json(&url, bearer, refresh).await
     }
 
@@ -195,7 +213,7 @@ impl OutlookCalendarClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/events");
+        let url = format!("{}/events", self.base);
         self.http
             .json_request(
                 JsonRequest {
@@ -221,7 +239,7 @@ impl OutlookCalendarClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/events/{event_id}");
+        let url = format!("{}/events/{event_id}", self.base);
         self.http
             .json_request(
                 JsonRequest {
@@ -246,7 +264,7 @@ impl OutlookCalendarClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/events/{event_id}");
+        let url = format!("{}/events/{event_id}", self.base);
         self.http
             .send(
                 RawRequest {
@@ -279,10 +297,10 @@ fn urlencode(s: &str) -> String {
     out
 }
 
-fn build_list_url(filter: &ListEventsFilter) -> String {
+fn build_list_url(base: &str, filter: &ListEventsFilter) -> String {
     if let (Some(start), Some(end)) = (filter.start_after, filter.end_before) {
         let mut url = format!(
-            "{GRAPH}/calendarView?startDateTime={}&endDateTime={}",
+            "{base}/calendarView?startDateTime={}&endDateTime={}",
             urlencode(&start.to_rfc3339()),
             urlencode(&end.to_rfc3339()),
         );
@@ -291,7 +309,7 @@ fn build_list_url(filter: &ListEventsFilter) -> String {
         }
         url
     } else {
-        let mut url = format!("{GRAPH}/events");
+        let mut url = format!("{base}/events");
         if let Some(top) = filter.top {
             url.push_str(&format!("?$top={top}"));
         }
@@ -321,7 +339,7 @@ mod tests {
     fn test_build_list_url_without_filter_uses_events_endpoint() {
         // GIVEN a filter carrying no time bound
         // WHEN the list URL is built
-        let url = build_list_url(&ListEventsFilter::default());
+        let url = build_list_url(GRAPH, &ListEventsFilter::default());
         // THEN the plain events endpoint is used, not the calendar view
         assert!(url.ends_with("/me/events"));
         assert!(!url.contains("calendarView"));
@@ -331,11 +349,14 @@ mod tests {
     fn test_build_list_url_with_bounds_uses_calendarview() {
         // GIVEN a filter carrying both time bounds and a cap
         // WHEN the list URL is built
-        let url = build_list_url(&ListEventsFilter {
-            start_after: Some(Utc.with_ymd_and_hms(2026, 5, 1, 0, 0, 0).unwrap()),
-            end_before: Some(Utc.with_ymd_and_hms(2026, 5, 31, 23, 59, 59).unwrap()),
-            top: Some(50),
-        });
+        let url = build_list_url(
+            GRAPH,
+            &ListEventsFilter {
+                start_after: Some(Utc.with_ymd_and_hms(2026, 5, 1, 0, 0, 0).unwrap()),
+                end_before: Some(Utc.with_ymd_and_hms(2026, 5, 31, 23, 59, 59).unwrap()),
+                top: Some(50),
+            },
+        );
         // THEN the calendar view endpoint is used, and the three parameters are on it
         assert!(url.contains("calendarView"));
         assert!(url.contains("startDateTime="));

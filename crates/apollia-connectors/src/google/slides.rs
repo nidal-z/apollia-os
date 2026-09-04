@@ -22,11 +22,29 @@ pub struct PresentationMeta {
 #[derive(Clone)]
 pub struct SlidesClient {
     http: HttpClient,
+    base: String,
 }
 
 impl SlidesClient {
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: BASE.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// Create a new presentation. v0.1.x ships only this; agents can
@@ -46,7 +64,7 @@ impl SlidesClient {
             .json_request(
                 JsonRequest {
                     method: Method::POST,
-                    url: BASE,
+                    url: &self.base,
                     body: &body,
                 },
                 bearer,
@@ -70,7 +88,7 @@ impl SlidesClient {
     {
         let object_id = format!("slide-{}", uuid_short());
         let text_box_id = format!("txt-{}", uuid_short());
-        let url = format!("{BASE}/{presentation_id}:batchUpdate");
+        let url = format!("{}/{presentation_id}:batchUpdate", self.base);
         let body = serde_json::json!({
             "requests": [
                 {

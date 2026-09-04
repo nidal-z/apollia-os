@@ -169,12 +169,30 @@ struct FolderList {
 #[derive(Clone)]
 pub struct OutlookMailClient {
     http: HttpClient,
+    base: String,
 }
 
 impl OutlookMailClient {
     /// Build a new client.
     pub fn new(http: HttpClient) -> Self {
-        Self { http }
+        Self {
+            http,
+            base: GRAPH.to_owned(),
+        }
+    }
+
+    /// Build a client whose upstream base URL is `base`, used by the replay
+    /// harness in [`crate::replay`] to drive the real client methods against a
+    /// simulated server.
+    ///
+    /// Test-only. Production always goes through [`Self::new`], which pins the
+    /// real upstream host.
+    #[cfg(test)]
+    pub fn with_base_url(http: HttpClient, base: &str) -> Self {
+        Self {
+            http,
+            base: base.to_owned(),
+        }
     }
 
     /// Search the mailbox using Graph's `$search` query.
@@ -192,7 +210,8 @@ impl OutlookMailClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         let url = format!(
-            "{GRAPH}/messages?$search=\"{}\"&$top={top}",
+            "{}/messages?$search=\"{}\"&$top={top}",
+            self.base,
             urlencode(query)
         );
         let resp: MessageList = self.http.get_json(&url, bearer, refresh).await?;
@@ -210,7 +229,7 @@ impl OutlookMailClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/messages/{message_id}");
+        let url = format!("{}/messages/{message_id}", self.base);
         self.http.get_json(&url, bearer, refresh).await
     }
 
@@ -226,7 +245,7 @@ impl OutlookMailClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/sendMail");
+        let url = format!("{}/sendMail", self.base);
         let body = SendMailEnvelope {
             message,
             save_to_sent_items,
@@ -264,7 +283,7 @@ impl OutlookMailClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/messages/{message_id}/reply");
+        let url = format!("{}/messages/{message_id}/reply", self.base);
         let body = ReplyEnvelope {
             comment: comment.to_owned(),
         };
@@ -296,7 +315,7 @@ impl OutlookMailClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/mailFolders");
+        let url = format!("{}/mailFolders", self.base);
         let resp: FolderList = self.http.get_json(&url, bearer, refresh).await?;
         Ok(resp.value)
     }
@@ -313,7 +332,7 @@ impl OutlookMailClient {
         F: FnOnce() -> Fut + Send,
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
-        let url = format!("{GRAPH}/messages/{message_id}/move");
+        let url = format!("{}/messages/{message_id}/move", self.base);
         let body = MoveEnvelope {
             destination_id: destination_folder_id,
         };
