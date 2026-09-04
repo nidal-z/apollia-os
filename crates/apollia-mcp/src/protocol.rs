@@ -31,13 +31,16 @@ pub struct InitializeParams {
 /// Client capability advertisement sent during `initialize`.
 ///
 /// All fields are optional; an absent field means "Apollia does not implement
-/// this capability". Apollia v0.1.0 advertises `roots` and nothing else.
+/// this capability". Apollia v0.1.0 sets none of the three, so the handshake
+/// carries an empty capability object.
 ///
-/// `sampling` and `elicitation` are deliberately absent: no handler dispatches
-/// an incoming `sampling/createMessage` or `elicitation/create`, so advertising
-/// them would leave a compliant server waiting on an answer that never comes.
-/// Their request and result types are not declared either; add both the types
-/// and the handler in the same change that sets these fields.
+/// `roots`, `sampling` and `elicitation` are deliberately absent: no handler
+/// dispatches an incoming `roots/list`, `sampling/createMessage` or
+/// `elicitation/create`, so advertising one would leave a compliant server
+/// waiting on an answer that never comes. For `sampling` and `elicitation` the
+/// request and result types are not declared either; add both the types and
+/// the handler in the same change that sets those fields. The value actually
+/// sent is built by `session::build_initialize_params`.
 #[derive(Debug, Default, Serialize)]
 pub struct ClientCapabilities {
     /// Filesystem / resource roots exposed to the server.
@@ -472,8 +475,9 @@ mod tests {
     }
 
     #[test]
-    fn test_client_capabilities_advertise_roots_and_nothing_else() {
-        // GIVEN the capability set apollia sends during initialize
+    fn test_client_capabilities_serialize_only_the_fields_that_are_set() {
+        // GIVEN a capability set with roots filled in, the shape the day a
+        // `roots/list` handler exists
         let caps = ClientCapabilities {
             roots: Some(RootsCapability {
                 list_changed: Some(true),
@@ -483,11 +487,11 @@ mod tests {
         };
         // WHEN serialized
         let value = serde_json::to_value(&caps).unwrap();
-        // THEN roots is advertised
+        // THEN the field that is set carries its camelCase shape
         assert_eq!(value["roots"]["listChanged"], true);
-        // AND the two capabilities nothing dispatches stay off the wire, so a
-        // compliant server never sends a request that would go unanswered.
-        // Re-enable these assertions' inverse only alongside a real handler.
+        // AND the fields left unset stay off the wire entirely. What apollia
+        // actually sends is asserted on `session::build_initialize_params`,
+        // which sets none of the three.
         assert!(value.get("sampling").is_none());
         assert!(value.get("elicitation").is_none());
     }

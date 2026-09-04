@@ -570,11 +570,15 @@ const OPERATIONS: &[OperationSpec] = &[
         description: "Create an empty Google Form with the given title.\n\nInputs: title (string).\nApproval: required.\nSide effects: creates a new form in the user's Drive. Returns the responder URL the user can share.",
     },
     // ─── YouTube (read-only) ───────────────────────────────────────────
+    // The alias is `youtube`, the one the desktop scope resolver knows
+    // (`build_provider_with_scopes` in the integrations commands). An alias
+    // absent from that match is rejected as an unknown scope, so a name only
+    // this table uses can never be granted.
     OperationSpec {
         id: "youtube.search",
         service: "youtube",
         action: "search",
-        scopes_required: &["youtube.read"],
+        scopes_required: &["youtube"],
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
@@ -584,7 +588,7 @@ const OPERATIONS: &[OperationSpec] = &[
         id: "youtube.video_details",
         service: "youtube",
         action: "video_details",
-        scopes_required: &["youtube.read"],
+        scopes_required: &["youtube"],
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
@@ -660,6 +664,42 @@ mod tests {
         // WHEN its approval policy is read
         // THEN deletion asks for a typed confirmation, not a plain yes
         assert_eq!(op.approval, ApprovalPolicy::ConfirmPhrase);
+    }
+
+    #[test]
+    fn test_every_required_scope_is_a_grantable_alias() {
+        // GIVEN the scope aliases the desktop OAuth resolver accepts, the only
+        // vocabulary a scope can be requested in (`build_provider_with_scopes`
+        // in the integrations commands; anything else is UnknownScope)
+        let grantable = [
+            "mail.send",
+            "mail.drafts",
+            "mail.compose",
+            "calendar.read",
+            "calendar.write",
+            "drive.workspace",
+            "sheets",
+            "docs",
+            "slides",
+            "tasks",
+            "forms",
+            "youtube",
+            "openid",
+            "email",
+            "profile",
+        ];
+        // WHEN every scope the operation table requires is read
+        for op in OPERATIONS {
+            for scope in op.scopes_required {
+                // THEN it is one the user can actually be asked to grant
+                assert!(
+                    grantable.contains(scope),
+                    "operation {} requires scope alias {}, which no OAuth flow can request",
+                    op.id,
+                    scope
+                );
+            }
+        }
     }
 
     #[test]

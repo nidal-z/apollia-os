@@ -24,7 +24,7 @@ use crate::config::{McpServerConfig, SecretResolver};
 use crate::jsonrpc::JsonRpcResponse;
 use crate::protocol::{
     ClientCapabilities, ClientInfo, InitializeParams, InitializeResult, McpToolDefinition,
-    ServerCapabilities, ServerInfo,
+    ServerCapabilities, ServerInfo, APOLLIA_MCP_PROTOCOL_VERSION,
 };
 use crate::transport::{create_transport, McpTransport};
 
@@ -364,31 +364,7 @@ impl McpSession {
     /// stores the server's capabilities and identity, then sends the
     /// `notifications/initialized` notification to complete the handshake.
     async fn initialize(&mut self) -> Result<(), McpSessionError> {
-        use crate::protocol::{RootsCapability, APOLLIA_MCP_PROTOCOL_VERSION};
-        let params = InitializeParams {
-            protocol_version: APOLLIA_MCP_PROTOCOL_VERSION.to_string(),
-            capabilities: ClientCapabilities {
-                roots: Some(RootsCapability {
-                    list_changed: Some(true),
-                }),
-                // `sampling` and `elicitation` stay absent, and this is the
-                // whole point rather than an oversight. An advertised
-                // capability is a promise the server acts on: a compliant one
-                // will send `sampling/createMessage` or `elicitation/create`
-                // and wait for an answer. Nothing here dispatches either, so
-                // announcing them turns a working server into a stalled one.
-                //
-                // `protocol` declares no request or result type for either:
-                // the types and the handler land in the same change that sets
-                // these two fields, never before.
-                sampling: None,
-                elicitation: None,
-            },
-            client_info: ClientInfo {
-                name: "apollia-runtime".to_string(),
-                version: env!("CARGO_PKG_VERSION").to_string(),
-            },
-        };
+        let params = build_initialize_params();
 
         let params_value = serde_json::to_value(&params)
             .map_err(|e| McpSessionError::SerdeError(e.to_string()))?;
@@ -503,6 +479,41 @@ impl McpSession {
     }
 }
 
+// ─── handshake ───────────────────────────────────────────────────────────────
+
+/// Build the `initialize` parameters sent to every MCP server.
+///
+/// Lives outside [`McpSession`] so the advertised capability set can be
+/// asserted without a live transport.
+///
+/// The three client capabilities stay absent, and that is the point rather
+/// than an oversight. An advertised capability is a promise the server acts
+/// on: a compliant one sends `roots/list`, `sampling/createMessage` or
+/// `elicitation/create` and waits for an answer. The dispatch task routes
+/// responses onto pending requests and drops everything else, so no
+/// server-initiated request is answered here. Advertising one leaves a
+/// compliant server waiting, and in the case of `roots` it also reads as a
+/// filesystem boundary that does not exist.
+///
+/// `protocol` declares no request or result type for sampling or elicitation:
+/// the types and the handler land in the same change that sets those fields,
+/// never before. `roots` goes back on the wire the day a handler answers
+/// `roots/list` with declared directories.
+fn build_initialize_params() -> InitializeParams {
+    InitializeParams {
+        protocol_version: APOLLIA_MCP_PROTOCOL_VERSION.to_string(),
+        capabilities: ClientCapabilities {
+            roots: None,
+            sampling: None,
+            elicitation: None,
+        },
+        client_info: ClientInfo {
+            name: "apollia-runtime".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        },
+    }
+}
+
 // ─── background tasks ────────────────────────────────────────────────────────
 
 /// Spawn the dispatch task.
@@ -569,6 +580,22 @@ mod tests {
             max_tools: 256,
             tags: vec![],
         }
+    }
+
+    #[test]
+    fn test_handshake_advertises_no_unanswered_capability() {
+        // GIVEN the initialize parameters apollia sends to every MCP server
+        let params = build_initialize_params();
+        // WHEN they are serialized onto the wire
+        let value = serde_json::to_value(&params).unwrap();
+        // THEN no client capability is advertised, because nothing here
+        // answers a server-initiated request: `roots/list`,
+        // `sampling/createMessage` and `elicitation/create` would all wait
+        // forever. Flip one of these assertions only in the change that adds
+        // the handler for it.
+        assert!(value["capabilities"].get("roots").is_none());
+        assert!(value["capabilities"].get("sampling").is_none());
+        assert!(value["capabilities"].get("elicitation").is_none());
     }
 
     #[test]
