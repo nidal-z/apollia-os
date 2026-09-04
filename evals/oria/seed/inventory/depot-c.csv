@@ -1,0 +1,11 @@
+sku,status,count
+C-001,retired,0
+C-002,quarantined,9
+C-003,quarantined,3
+C-004,quarantine_pending,4
+C-005,quarantined,6
+C-006,active,7
+C-007,quarantined,2
+C-008,quarantined,5
+C-009,quarantined,1
+C-010,active,8

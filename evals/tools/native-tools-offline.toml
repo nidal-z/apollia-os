@@ -1,0 +1,250 @@
+# Native-tool coverage suite, offline half.
+#
+# One task per native tool that can be driven with no network. Every prompt
+# names the tool, the exact path it must touch, and the exact single line the
+# answer must contain, so the assertion is a literal match rather than a
+# judgement. The tokens below exist only inside the workspace built by
+# `seed_workspace.py`: a model that does not call the tool cannot produce them.
+#
+# Preconditions, all of them:
+#   1. `python3 evals/tools/seed_workspace.py` has run and exited 0.
+#   2. The daemon runs with HOME=/tmp/apollia-eval-tools/home.
+#   3. The `eval-tools-probe` fixture agent (evals/tools/agent/) is installed.
+# Read evals/tools/README.md before running: the workspace is single use.
+
+name = "native-tools-offline"
+
+# ── Read-only tools: three runs, so a flaky model is visible ───────────────
+
+[[tasks]]
+id = "file_read"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the file_read tool to read eval-tools/read/secret.txt in your workspace.
+Then reply with exactly one line, in this form and nothing else:
+TOKEN=<the token string that file contains>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "TOKEN=APOLLIA-READ-4F1C9A2E" },
+]
+
+[[tasks]]
+id = "file_list"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the file_list tool on the directory eval-tools/list in your workspace.
+Then reply with exactly one line, in this form and nothing else:
+ENTRIES=<every entry name, sorted alphabetically, comma separated, no spaces>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "ENTRIES=alpha-6D2F\\.txt,bravo-6D2F\\.txt,charlie-6D2F\\.txt" },
+]
+
+[[tasks]]
+id = "file_glob"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the file_glob tool with the pattern eval-tools/glob/**/*.log in your
+workspace. Then reply with exactly one line, in this form and nothing else:
+COUNT=<number of matches> PATHS=<the matching paths, comma separated>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "COUNT=2" },
+  { type = "regex", on = "result", pattern = "glob/a/needle-83F1\\.log" },
+  { type = "regex", on = "result", pattern = "glob/b/c/needle-83F1\\.log" },
+]
+
+[[tasks]]
+id = "file_grep"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the file_grep tool to search the contents of the directory
+eval-tools/grep in your workspace for the pattern MARKER-GREP-D91A0C55.
+There is exactly one match. Reply with exactly one line, in this form and
+nothing else:
+HIT=<file path>:<line number>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "HIT=[^\\n]*notes-3\\.md:4" },
+]
+
+[[tasks]]
+id = "notebook_read"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the notebook_read tool on eval-tools/nb/analysis.ipynb in your workspace.
+Its third cell contains a token. Reply with exactly one line, in this form and
+nothing else:
+NB=<that token>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "NB=NB-TOKEN-5A7E31" },
+]
+
+[[tasks]]
+id = "memory_search"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the memory_search tool to search your own memory for MEMTOKEN.
+Exactly one entry matches. Reply with exactly one line, in this form and
+nothing else:
+MEM=<the full token string that entry contains>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "MEM=MEMTOKEN-B4E90D7A" },
+]
+
+[[tasks]]
+id = "bash_executor"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the bash_executor tool to run exactly this command:
+wc -l < /tmp/apollia-eval-tools/home/eval-tools/bash/lines.txt
+Then reply with exactly one line, in this form and nothing else:
+LINES=<the number the command printed>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "LINES=\\s*137\\b" },
+]
+
+[[tasks]]
+id = "python_executor"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the python_executor tool to run exactly this code:
+print(3**17 % 1000003)
+Then reply with exactly one line, in this form and nothing else:
+PY=<the number the code printed>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "PY=139776\\b" },
+]
+
+[[tasks]]
+id = "permission_rule_list"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the permission_rule_list tool, filtered on tool_name eval-probe-list.
+Then reply with exactly one line, in this form and nothing else:
+RULES=<how many rules it returned>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "RULES=3\\b" },
+]
+
+[[tasks]]
+id = "http_fetch"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the http_fetch tool to GET http://127.0.0.1:9/apollia-eval .
+Whatever it answers, report it verbatim. Reply with exactly one line, in this
+form and nothing else:
+HTTP=<the error message the tool returned, or its HTTP status code>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "HTTP=[^\\n]*no network_allowlist configured" },
+]
+
+# ── State-changing tools: one run, the workspace is single use ─────────────
+
+[[tasks]]
+id = "file_write"
+agent = "eval-tools-probe"
+runs = 1
+prompt = """
+Use the file_write tool to create eval-tools/out/file-write.txt in your
+workspace, with exactly this content and nothing else:
+APOLLIA-WRITE-7B3D50C1
+Then reply with exactly one line, in this form and nothing else:
+WRITTEN=eval-tools/out/file-write.txt
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "file_exists", path = "/tmp/apollia-eval-tools/home/eval-tools/out/file-write.txt" },
+  { type = "regex", on = "result", pattern = "WRITTEN=eval-tools/out/file-write\\.txt" },
+]
+
+[[tasks]]
+id = "file_edit"
+agent = "eval-tools-probe"
+runs = 1
+prompt = """
+Use the file_edit tool on eval-tools/edit/config.txt in your workspace:
+replace the exact text PENDING-9C4A with the exact text APPROVED-2E7B.
+Change nothing else in that file. Then reply with exactly one line, in this
+form and nothing else:
+EDITED=<the number of replacements the tool reported>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "EDITED=1\\b" },
+]
+
+[[tasks]]
+id = "notebook_edit"
+agent = "eval-tools-probe"
+runs = 1
+prompt = """
+Use the notebook_edit tool on eval-tools/nb/edit.ipynb in your workspace:
+replace the source of the cell at index 1 with exactly this single line:
+# APOLLIA-NBEDIT-0C82
+Do not add, delete or reorder any cell. Then reply with exactly one line, in
+this form and nothing else:
+NBEDIT=done
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "file_exists", path = "/tmp/apollia-eval-tools/home/eval-tools/nb/edit.ipynb" },
+  { type = "regex", on = "result", pattern = "NBEDIT=done" },
+]
+
+[[tasks]]
+id = "permission_rule_add"
+agent = "eval-tools-probe"
+runs = 1
+prompt = """
+Use the permission_rule_add tool to persist one rule: tool_name
+eval-probe-add, action deny, scope global. Then reply with exactly one line,
+in this form and nothing else:
+ADDED=eval-probe-add
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "ADDED=eval-probe-add" },
+]
+
+[[tasks]]
+id = "permission_rule_remove"
+agent = "eval-tools-probe"
+runs = 1
+prompt = """
+The tool eval-probe-remove has exactly one permission rule. Use
+permission_rule_list to read its id, then permission_rule_remove to delete
+that id, then permission_rule_list once more to count what is left.
+Reply with exactly one line, in this form and nothing else:
+REMAINING=<how many rules remain for eval-probe-remove>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "REMAINING=0\\b" },
+]

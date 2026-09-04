@@ -1,0 +1,8 @@
+Alignment helpers.
+
+def align_windows(series, width):
+    return [series[i:i + width] for i in range(0, len(series), width)]
+
+def normalise(series):
+    span = max(series) - min(series)
+    return [v / span for v in series] if span else series

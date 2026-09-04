@@ -1,0 +1,8 @@
+Drift helpers.
+
+def compute_drift_index(observed, expected):
+    gap = sum(abs(a - b) for a, b in zip(observed, expected))
+    return gap / max(len(observed), 1)
+
+def drift_is_material(index):
+    return index > 0.62

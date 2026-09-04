@@ -1,0 +1,14 @@
+# Apollia OS package manifest for the eval-tools-probe fixture agent.
+# Installed into a throwaway HOME by evals/tools/seed_workspace.py. Not a
+# product agent: it has no purpose outside the native-tool eval suites.
+
+[package]
+name = "eval-tools-probe"
+version = "0.1.0-preview"
+description = "Measurement probe for the native-tool eval suites: calls one named tool per task."
+author = "Apollia OS"
+
+[[agents]]
+name = "eval-tools-probe"
+entry = "agent.py"
+role = "assistant"

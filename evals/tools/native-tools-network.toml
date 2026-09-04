@@ -1,0 +1,40 @@
+# Native-tool coverage suite, network half.
+#
+# These two tools reach a third-party service. They cannot run offline, and
+# their assertions are weaker than the offline half by nature: what a search
+# engine ranks, and what a public page says, are not under this repository's
+# control. Run this suite only when outbound HTTPS is acceptable, and read a
+# failure here as "the tool did not reach the network in the expected shape",
+# never as a defect in the tool itself before checking the network.
+#
+# Preconditions: same seeded workspace and fixture agent as the offline suite.
+
+name = "native-tools-network"
+
+[[tasks]]
+id = "web_search"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the web_search tool with the query: IANA reserved example domain
+Then reply with exactly one line, in this form and nothing else:
+URL=<the URL of the first result whose host is example.com>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "URL=https?://[^\\s]*example\\.com" },
+]
+
+[[tasks]]
+id = "web_read"
+agent = "eval-tools-probe"
+runs = 3
+prompt = """
+Use the web_read tool on https://example.com/ .
+Then reply with exactly one line, in this form and nothing else:
+TITLE=<the title the tool returned>
+"""
+assertions = [
+  { type = "exit_code", equals = 0 },
+  { type = "regex", on = "result", pattern = "TITLE=[^\\n]*Example Domain" },
+]

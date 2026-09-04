@@ -1,0 +1,13 @@
+sku,status,count
+A-001,active,12
+A-002,quarantined,3
+A-003,retired,0
+A-004,quarantined,7
+A-005,quarantine_pending,2
+A-006,quarantined,1
+A-007,active,5
+A-008,quarantined,4
+A-009,quarantine_pending,9
+A-010,quarantined,6
+A-011,retired,0
+A-012,quarantined,2

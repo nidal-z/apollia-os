@@ -1,0 +1,7 @@
+Purge helpers.
+
+def purge_stale(rows, cutoff):
+    return [row for row in rows if row["seen_at"] >= cutoff]
+
+def purge_report(rows):
+    return {"kept": len(rows)}
