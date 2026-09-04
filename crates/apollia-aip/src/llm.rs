@@ -900,4 +900,64 @@ mod tests {
             assert_eq!(spec.parameters, serde_json::json!({}));
         });
     }
+
+    /// A descriptor spelled the Anthropic way, which is what
+    /// `ctx.a2a.skill_as_tool` returns, carries its schema to the model.
+    #[test]
+    fn test_py_dict_to_tool_spec_reads_input_schema() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            // GIVEN the descriptor `ctx.a2a.skill_as_tool` emits, whose schema
+            // key is `input_schema` and not `parameters`
+            let props = pyo3::types::PyDict::new(py);
+            let path = pyo3::types::PyDict::new(py);
+            path.set_item("type", "string").unwrap();
+            props.set_item("path", path).unwrap();
+            let schema = pyo3::types::PyDict::new(py);
+            schema.set_item("type", "object").unwrap();
+            schema.set_item("properties", props).unwrap();
+            schema
+                .set_item("required", pyo3::types::PyList::new(py, ["path"]).unwrap())
+                .unwrap();
+            let dict = pyo3::types::PyDict::new(py);
+            dict.set_item("name", "a2a__pdf__read_text").unwrap();
+            dict.set_item("description", "reads a PDF").unwrap();
+            dict.set_item("input_schema", schema).unwrap();
+
+            // WHEN it is converted to a tool spec
+            let spec = py_dict_to_tool_spec(py, &dict.into()).unwrap();
+
+            // THEN the model is told about the argument instead of receiving an
+            // empty schema
+            assert_eq!(spec.parameters["type"], "object");
+            assert_eq!(spec.parameters["properties"]["path"]["type"], "string");
+            assert_eq!(spec.parameters["required"][0], "path");
+        });
+    }
+
+    /// When both spellings are present, `parameters` wins.
+    #[test]
+    fn test_py_dict_to_tool_spec_parameters_wins_over_input_schema() {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            // GIVEN a descriptor carrying both keys with different schemas
+            let params = pyo3::types::PyDict::new(py);
+            params.set_item("type", "object").unwrap();
+            params.set_item("title", "from-parameters").unwrap();
+            let schema = pyo3::types::PyDict::new(py);
+            schema.set_item("type", "object").unwrap();
+            schema.set_item("title", "from-input-schema").unwrap();
+            let dict = pyo3::types::PyDict::new(py);
+            dict.set_item("name", "echo").unwrap();
+            dict.set_item("description", "echo input").unwrap();
+            dict.set_item("parameters", params).unwrap();
+            dict.set_item("input_schema", schema).unwrap();
+
+            // WHEN it is converted to a tool spec
+            let spec = py_dict_to_tool_spec(py, &dict.into()).unwrap();
+
+            // THEN the OpenAI spelling is the one that reaches the model
+            assert_eq!(spec.parameters["title"], "from-parameters");
+        });
+    }
 }

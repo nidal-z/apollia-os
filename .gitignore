@@ -13,12 +13,16 @@
 # Apollia runtime data (local uniquement)
 .apollia/
 apollia.toml.local
-models/
-# The CLI end-to-end seed ships three stub GGUF/GGML files of 4 to 8 KiB, read
-# by tests/cli/seed/build-seed.sh. The generic rule above aims at real models of
-# several hundred megabytes and caught them by accident, which left the case
-# `model list shows 2 seeded gguf` failing in any tree but this one.
-!tests/cli/seed/files/models/
+# GGUF models dropped into the working copy during local work. The runtime
+# reads its models from ~/.apollia/models/, outside this tree, so the only case
+# left to cover here is a directory placed at the repository root, and the rule
+# is anchored to it. Written bare, `models/` matched every directory named
+# `models` at any depth: it kept the 148 generated files of
+# clients/python/apollia_runtime_client/models untracked while the rest of that
+# client was committed, which broke the import the host-driving tutorial spells
+# out, and it needed a negation for the three stub GGUF/GGML files of 4 to 8 KiB
+# that tests/cli/seed/build-seed.sh reads under tests/cli/seed/files/models/.
+/models/
 
 # Python virtualenvs and tooling caches
 .venv/

@@ -85,8 +85,8 @@ pub(super) fn inject_temporal_context_into_messages(
 ///   Text blocks are concatenated (joined with `\n\n`). Image blocks are
 ///   annotated as `[image: <media_type|url>]` because no LLM backend reachable
 ///   via `LlmProxy` supports vision today (the local engine is text-only).
-///   The JSON shape is preserved as received so a future cloud vision backend
-///   can be wired in without breaking the API.
+///   The image payload itself is dropped at this point, so a vision backend
+///   would need a richer `MessageContent` before it could receive anything.
 ///
 /// Returns `PyValueError` if `role` is missing or matches no known role
 /// (`system` / `user` / `assistant` / `tool`).
@@ -108,7 +108,7 @@ pub(super) fn py_dict_to_chat_message(py: Python<'_>, obj: &PyObject) -> PyResul
         Ok(s) => s,
         Err(_) => {
             // Slow path: list[MessageContent], flatten to text representation.
-            flatten_multimodal_content(py, &content_obj)?
+            flatten_multimodal_content(&content_obj)?
         }
     };
 
@@ -140,10 +140,7 @@ pub(super) fn py_dict_to_chat_message(py: Python<'_>, obj: &PyObject) -> PyResul
 ///
 /// Returns `PyValueError` if a block is malformed (missing `type`, unknown
 /// kind, or non-iterable input).
-pub(super) fn flatten_multimodal_content(
-    py: Python<'_>,
-    content: &Bound<'_, PyAny>,
-) -> PyResult<String> {
+pub(super) fn flatten_multimodal_content(content: &Bound<'_, PyAny>) -> PyResult<String> {
     use pyo3::types::PyList;
 
     if !content.is_instance_of::<PyList>() {
@@ -154,10 +151,6 @@ pub(super) fn flatten_multimodal_content(
     let list = content
         .downcast::<PyList>()
         .map_err(|e| PyValueError::new_err(format!("'content' is not a valid list: {e}")))?;
-
-    let json_mod = py
-        .import("json")
-        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
 
     let mut fragments: Vec<String> = Vec::with_capacity(list.len());
     for item in list.iter() {
@@ -178,10 +171,10 @@ pub(super) fn flatten_multimodal_content(
                 fragments.push(text);
             }
             "image" => {
-                // Pull a short descriptor from `source` for the placeholder. The
-                // full JSON is also captured (truncated) so a future vision-capable
-                // backend can reconstruct the payload if we expose a richer
-                // MessageContent variant later.
+                // Pull a short descriptor from `source` for the placeholder.
+                // Nothing else of the block survives this conversion: the bytes
+                // and the source dict are dropped, because `MessageContent` has
+                // no variant that could carry them.
                 let source = item
                     .get_item("source")
                     .map_err(|_| PyValueError::new_err("image block missing 'source' key"))?;
@@ -205,8 +198,6 @@ pub(super) fn flatten_multimodal_content(
                     detail = "image flattened to a placeholder, the current backends are text-only",
                     "llm.proxy.vision.unsupported"
                 );
-                // Drop the dumped JSON if we ever need it for debugging.
-                let _ = json_mod;
             }
             other => {
                 return Err(PyValueError::new_err(format!(
@@ -230,7 +221,9 @@ pub(super) fn truncate(s: &str, max_chars: usize) -> String {
 /// Converts a Python dict `{"name": "...", "description": "...", "parameters": {...}}`
 /// into a `ToolSpec`.
 ///
-/// `parameters` is optional; defaults to `{}` when absent.
+/// The argument schema is read under both spellings, `parameters` first, then
+/// `input_schema`. Both are optional; the schema defaults to `{}` when neither
+/// key is present.
 /// Returns `PyValueError` if `name` or `description` is missing.
 pub(super) fn py_dict_to_tool_spec(py: Python<'_>, obj: &PyObject) -> PyResult<ToolSpec> {
     let bound = obj.bind(py);
@@ -247,9 +240,17 @@ pub(super) fn py_dict_to_tool_spec(py: Python<'_>, obj: &PyObject) -> PyResult<T
         .extract()
         .map_err(|e| PyValueError::new_err(format!("'description' must be a str: {e}")))?;
 
-    // `parameters` is optional; serialize via json.dumps to handle any
-    // Python type (dict, list, etc.)
-    let parameters: serde_json::Value = match bound.get_item("parameters") {
+    // The argument schema travels under two names. `parameters` is the OpenAI
+    // spelling the SDK writes by hand; `input_schema` is the Anthropic spelling
+    // that `ctx.a2a.skill_as_tool` emits. Reading only the first handed the
+    // model a tool name with an empty schema, so the agent could name the skill
+    // and never pass it an argument, and a local backend built its GBNF grammar
+    // from that empty object. Serialization goes through json.dumps to accept
+    // any Python type (dict, list, etc.)
+    let schema_obj = bound
+        .get_item("parameters")
+        .or_else(|_| bound.get_item("input_schema"));
+    let parameters: serde_json::Value = match schema_obj {
         Ok(params_obj) => {
             let json_mod = py
                 .import("json")
