@@ -1079,4 +1079,60 @@ mod tests {
         assert_eq!(json["status"], "processing");
         assert!(json["message_id"].is_string());
     }
+
+    // `GET /api/v1/sessions/:id/todo` is one of the eleven operations no CLI
+    // leaf addresses, so nothing but these two tests exercises it. The
+    // companion census lives in `crate::api::unreached_by_cli`.
+
+    #[tokio::test]
+    async fn test_get_session_todo_returns_404_for_an_unknown_session() {
+        // GIVEN a router with chat enabled and no session created
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+
+        // WHEN the todo list of a session the runtime never opened is read
+        let req = Request::builder()
+            .method("GET")
+            .uri("/api/v1/sessions/no-such-session/todo")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN the caller is told the session is unknown, not handed an empty
+        // list that would read as "this session has nothing to do"
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_get_session_todo_returns_an_empty_list_for_a_fresh_session() {
+        // GIVEN a session just created, which has no todo yet
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+        let body = serde_json::json!({ "mode": "libre" });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/sessions")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let resp = router.clone().oneshot(req).await.unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let created: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let session_id = created["id"].as_str().unwrap().to_string();
+
+        // WHEN its todo list is read
+        let req = Request::builder()
+            .method("GET")
+            .uri(format!("/api/v1/sessions/{session_id}/todo"))
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN the route answers 200 with the session echoed back and no items
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(json["session_id"], session_id);
+        assert_eq!(json["items"], serde_json::json!([]));
+    }
 }

@@ -28,6 +28,12 @@ pub mod routes_triggers;
 pub mod routes_webhooks;
 pub mod server;
 
+// The eleven API operations no CLI leaf addresses, probed against the real
+// router. Test-only, and kept apart from the route modules because it is one
+// instrument over eleven of them rather than a test of any single one.
+#[cfg(test)]
+mod unreached_by_cli;
+
 // The TLS pair the handshake test writes to disk. Held apart from
 // `server.rs` so that the private-key hook can be excused on one path
 // instead of being bypassed on every commit that touched that module.

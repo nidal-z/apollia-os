@@ -155,7 +155,7 @@ DEAD_RATCHET: dict[str, str] = {
 # is a `TEST-ONLY:` line above the definition saying why it exists.
 TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "always_accept_default@apollia-runtime", "backend_names@apollia-llm",
-    "build_a2a_context@apollia-runtime", "build_router_for_test@apollia-runtime", "complete_with_fallback@apollia-llm",
+    "build_a2a_context@apollia-runtime", "complete_with_fallback@apollia-llm",
     "context_window_pct@apollia-core", "create_project_async@apollia-tools", "data_dir_or_err@apollia-core",
     "estimate_tokens@apollia-oria", "filter_kinds@apollia-runtime", "from_config_with_bus@apollia-llm",
     "from_profile@apollia-prompts", "from_repository@apollia-llm", "from_risk_score@apollia-tools",
