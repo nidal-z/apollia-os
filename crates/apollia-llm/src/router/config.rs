@@ -16,11 +16,14 @@ use crate::backends::openai::ApiBackendConfig;
 
 /// LLM configuration deserialized from the `[llm]` section of `apollia.toml`.
 ///
-/// Passed to [`LlmRouter::from_config`] at Supervisor startup. The `default`
-/// field names the backend used when `get(None)` is called.
+/// Read by [`LlmRouter::from_config`], which no production path calls: the
+/// daemon builds its router from the backends stored in `system.db`
+/// (`from_repository_with_override`). Of this struct, only `routing` (grafted
+/// after construction by the supervisor) and `runner` (read by the runner
+/// supervisor) reach a running daemon; the other fields are read on the
+/// `from_config` path alone.
 ///
-/// The `[llm.routing]` section is mandatory: its absence triggers
-/// [`LlmError::RoutingConfigMissing`] at startup (fail fast).
+/// The `default` field names the backend used when `get(None)` is called.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct LlmConfig {
     /// Default backend name (must exist in `backends`).
@@ -32,14 +35,25 @@ pub struct LlmConfig {
     pub observability: ObservabilityConfig,
     /// LLM routing by precision level (`[llm.routing]` section).
     ///
-    /// Mandatory: triggers [`LlmError::RoutingConfigMissing`] if absent.
+    /// Optional. The daemon boots without it; the supervisor grafts the section
+    /// onto the router after construction with
+    /// [`LlmRouter::with_routing`](crate::LlmRouter::with_routing), which applies
+    /// it as given. A missing section surfaces later, as
+    /// [`LlmError::RoutingConfigMissing`] from `route_precise` / `route_fast`
+    /// when no default backend can stand in, and a section naming an absent
+    /// backend surfaces there as `BackendNotFound`. Only the
+    /// [`LlmRouter::from_config`] path checks the names up front.
+    ///
     /// See [`LlmRoutingConfig`] for the `precise` and `fast` fields.
     pub routing: Option<LlmRoutingConfig>,
-    /// Operator pricing overrides (`[llm.pricing_overrides]` section).
+    /// Operator pricing overrides (`[llm.pricing_overrides]` section), not
+    /// applied by a running daemon: only [`LlmRouter::from_config`] passes them
+    /// to a client, and the daemon instead builds its backends from `system.db`
+    /// through `instantiate_cloud_backend`, which hands over an empty table.
     ///
-    /// Entries here take priority over the internal table in
-    /// [`crate::pricing::default_pricing`]. Lets operators add custom models
-    /// or correct prices without a code update.
+    /// On the path that does read them, entries take priority over the internal
+    /// table in [`crate::pricing::default_pricing`], and only the Anthropic
+    /// client consults either.
     ///
     /// `apollia.toml` example:
     /// ```toml
@@ -61,9 +75,14 @@ pub struct LlmConfig {
     /// ```
     #[serde(default)]
     pub cost_alert_threshold_usd: Option<f64>,
-    /// Optional Google Vertex AI backend configuration (`[llm.vertex]`).
+    /// Optional Google Vertex AI backend configuration (`[llm.vertex]`), not
+    /// instantiated by a running daemon: the backend is only built on the
+    /// [`LlmRouter::from_config`] path, and [`to_db_configs`](Self::to_db_configs) copies
+    /// `backends` alone into `system.db`, so this section never reaches the
+    /// router the daemon runs.
     ///
-    /// If absent or `enabled = false`, the backend is not instantiated.
+    /// On the path that does read it, an absent section or `enabled = false`
+    /// skips the backend.
     ///
     /// `apollia.toml` example:
     /// ```toml
@@ -75,12 +94,14 @@ pub struct LlmConfig {
     /// ```
     #[serde(default)]
     pub vertex: Option<VertexConfig>,
-    /// Local LLM sidecar runner configuration (`[llm.runner]` section).
+    /// Speech-to-text sidecar runner configuration (`[llm.runner]` section).
     ///
     /// Determines which runner binary (`apollia-runner-cuda`,
-    /// `apollia-runner-metal`, etc.) the daemon spawns at boot. The default
-    /// `"auto"` lets `apollia_runtime::runner_supervisor::gpu_detection`
-    /// choose based on the hardware.
+    /// `apollia-runner-metal`, etc.) the daemon spawns at boot to serve
+    /// transcription. Local text inference does not go through it: it runs on
+    /// the bundled llama-server. The default `"auto"` lets
+    /// `apollia_runtime::runner_supervisor::gpu_detection` choose based on the
+    /// hardware.
     #[serde(default)]
     pub runner: LlmRunnerConfig,
 }

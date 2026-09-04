@@ -884,3 +884,72 @@ fn test_brave_max_results_out_of_bounds_fails() {
         "got: {err:?}"
     );
 }
+
+// ── The type says what a loader actually consults ──────────────────────
+
+#[test]
+fn test_api_port_doc_states_no_loader_reads_it() {
+    // GIVEN the `port` field of ApiConfig, whose doc-comment is the only place
+    // a reader of the type learns what decides the TCP port of the daemon
+    let source = include_str!("api.rs");
+    let start = source
+        .find("/// TCP port of the REST server.")
+        .expect("the port doc block is in api.rs");
+    let end = start
+        + source[start..]
+            .find("pub port:")
+            .expect("the port field follows its doc block");
+    let doc = &source[start..end];
+
+    // WHEN that doc block is read
+    // THEN it states that nothing reads the key, and names what does decide
+    assert!(
+        doc.contains("Nothing reads this key"),
+        "the port doc block does not say the key is unread: {doc}"
+    );
+    assert!(
+        doc.contains("apollia-os start --port"),
+        "the port doc block does not name what decides the port: {doc}"
+    );
+}
+
+#[test]
+fn test_config_module_doc_lists_only_sections_a_loader_reads() {
+    // GIVEN the module doc of config/mod.rs, whose bullet list is where a
+    // reader learns which of these types is an `apollia.toml` section
+    let source = include_str!("mod.rs");
+    let doc_lines: Vec<&str> = source
+        .lines()
+        .take_while(|l| l.starts_with("//!"))
+        .collect();
+
+    // WHEN the sections named by that bullet list are collected
+    let mut listed: Vec<&str> = doc_lines
+        .iter()
+        .filter(|l| l.starts_with("//! - "))
+        .filter_map(|l| {
+            l.split_once("`[")
+                .and_then(|(_, rest)| rest.split_once("]`"))
+        })
+        .map(|(name, _)| name)
+        .collect();
+    listed.sort_unstable();
+
+    // THEN it is exactly the eight sections this crate defines that a loader
+    // deserializes, and it names neither `[a2a]` nor `[oria]`, which no loader
+    // ever reads from a file
+    assert_eq!(
+        listed,
+        vec![
+            "api",
+            "chat",
+            "filesystem",
+            "hitl",
+            "hooks",
+            "mcp",
+            "runtime",
+            "tools",
+        ],
+        "the module doc bullet list does not match the sections a loader reads"
+    );
+}

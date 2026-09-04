@@ -1,8 +1,8 @@
 //! `LlmRouter`, dispatches requests to the right backend by name.
 //!
-//! Built at Supervisor startup (before `TaskRouter`) via
-//! [`LlmRouter::from_config`]. Shareable as `Arc<LlmRouter>` thanks to
-//! `Clone + Send + Sync`.
+//! Built at Supervisor startup (before `TaskRouter`) from the backends stored
+//! in `system.db`, via [`LlmRouter::from_repository_with_override`]. Shareable
+//! as `Arc<LlmRouter>` thanks to `Clone + Send + Sync`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -44,7 +44,8 @@ pub struct FallbackPlan<'a> {
 
 /// Single entry point for the entire Apollia OS LLM layer.
 ///
-/// Instantiated by the Supervisor at startup via [`LlmRouter::from_config`].
+/// Instantiated by the Supervisor at startup via
+/// [`LlmRouter::from_repository_with_override`], which reads `system.db`.
 /// Dispatches requests to the right backend by name via [`get`](Self::get),
 /// with fallback to the `default` backend.
 ///

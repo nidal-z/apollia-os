@@ -1,12 +1,27 @@
 //! Apollia OS runtime configuration.
 //!
-//! Defines the configuration sections read from `apollia.toml`:
-//! - [`RuntimeConfig`]: `[runtime]` section for EventBus and mailbox capacity.
-//! - [`A2AConfig`]: `[a2a]` section for inter-agent routing.
-//! - [`HitlConfig`]: `[hitl]` section for the Human-in-the-Loop watcher.
-//! - [`ORIAConfig`]: `[oria]` section for the Observer-Reasoner-Actor engine.
-//! - [`ApiConfig`]: `[api]` section for the TCP listener and the Unix socket.
-//! - [`HooksConfig`]: `[hooks]` section for lifecycle hook handlers.
+//! Nine `apollia.toml` sections are consulted by a loader, the list held by
+//! `apollia_cli::config::KNOWN_SECTIONS` and mirrored by the embedded loader.
+//! Eight of them are defined here:
+//! - [`RuntimeConfig`]: `[runtime]`, EventBus and mailbox capacity.
+//! - [`ApiConfig`]: `[api]`, the TCP listener, authentication, TLS, and the
+//!   Unix socket.
+//! - [`HitlConfig`]: `[hitl]`, the Human-in-the-Loop watcher.
+//! - [`ToolsConfig`]: `[tools]`, native tools and their per-tool settings.
+//! - [`McpConfig`]: `[mcp]`, the MCP client.
+//! - [`HooksConfig`]: `[hooks]`, lifecycle hook handlers.
+//! - [`ChatConfig`]: `[chat]`, chat session defaults.
+//! - [`FilesystemConfig`]: `[filesystem]`, the reversible journal and the
+//!   trusted paths.
+//!
+//! The ninth is `[llm]`, whose type lives in `apollia-llm`.
+//!
+//! The other types in this module are runtime parameters, not `apollia.toml`
+//! sections. No loader deserializes an `[a2a]` or an `[oria]` table, and both
+//! are rejected by `apollia-os config set` as unknown: [`A2AConfig`] reaches
+//! the runtime from its [`Default`] alone, and [`ORIAConfig`] from its
+//! [`Default`] plus whatever the caller overrides in code, which today is the
+//! autonomy tier passed on the command line.
 //!
 //! Every field has a sane default via [`Default`].
 

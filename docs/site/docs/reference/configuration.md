@@ -79,10 +79,10 @@ LLM backends and routing.
 | `backends` | `Vec<BackendConfig>` | **required** | Backends to instantiate from `[[llm.backends]]`. |
 | `observability` | `ObservabilityConfig` | type default | Observability settings (tokens, latency, cost, prompt debug). |
 | `routing` | `Option<LlmRoutingConfig>` | `None` | LLM routing by precision level (`[llm.routing]` section). |
-| `pricing_overrides` | `HashMap<String, PricingTier>` | empty | Operator pricing overrides (`[llm.pricing_overrides]` section). |
+| `pricing_overrides` | `HashMap<String, PricingTier>` | empty | Operator pricing overrides (`[llm.pricing_overrides]` section), not applied by a running daemon: only `LlmRouter::from_config` passes them to a client, and the daemon instead builds its backends from `system.db` through `instantiate_cloud_backend`, which hands over an empty table. |
 | `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which `RuntimeEvent::TokenBudgetUpdated` is emitted with `threshold_exceeded = true`. |
-| `vertex` | `Option<VertexConfig>` | `None` | Optional Google Vertex AI backend configuration (`[llm.vertex]`). |
-| `runner` | `LlmRunnerConfig` | type default | Local LLM sidecar runner configuration (`[llm.runner]` section). |
+| `vertex` | `Option<VertexConfig>` | `None` | Optional Google Vertex AI backend configuration (`[llm.vertex]`), not instantiated by a running daemon: the backend is only built on the `LlmRouter::from_config` path, and `to_db_configs` copies `backends` alone into `system.db`, so this section never reaches the router the daemon runs. |
+| `runner` | `LlmRunnerConfig` | type default | Speech-to-text sidecar runner configuration (`[llm.runner]` section). |
 
 ### `[runtime]`
 

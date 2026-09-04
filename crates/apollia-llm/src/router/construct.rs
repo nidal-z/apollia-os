@@ -22,7 +22,13 @@ use crate::token_budget::SessionBudgetTracker;
 use crate::types::{CompletionModel, LlmError};
 
 impl LlmRouter {
-    /// Build the router from configuration, called by the Supervisor at startup.
+    /// Build the router from an `apollia.toml` [`LlmConfig`].
+    ///
+    /// No production path calls this: the daemon builds its router from
+    /// `system.db` through
+    /// [`from_repository_with_override`](Self::from_repository_with_override).
+    /// Everything this constructor reads and that one does not, `[llm.vertex]`
+    /// and `[llm.pricing_overrides]`, is therefore inert on a running daemon.
     ///
     /// Iterates over `config.backends` and tries to instantiate each backend.
     /// For `Api`: resolves the API key; if missing, logs `tracing::warn!` and
@@ -87,7 +93,11 @@ impl LlmRouter {
     }
     /// Build the router from configuration with EventBus observability.
     ///
-    /// Variant of [`from_config`](Self::from_config) for the Supervisor to use.
+    /// Variant of [`from_config`](Self::from_config) with event emission. Like
+    /// `from_config`, no production path calls it, so `cost_alert_threshold_usd`
+    /// (the one field it reads that `from_config` does not) never reaches a
+    /// running daemon's [`SessionBudgetTracker`].
+    ///
     /// Emits on the bus for each backend:
     /// - [`RuntimeEvent::LlmModelLoading`]: before loading
     /// - [`RuntimeEvent::LlmModelReady`]: when loading succeeds

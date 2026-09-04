@@ -24,6 +24,15 @@ pub struct ApiConfig {
     /// TCP port of the REST server.
     ///
     /// Default: `7771`.
+    ///
+    /// Nothing reads this key. Measured across the tree, the only readers of
+    /// an [`ApiConfig`] are the daemon start path and the embedded loader, and
+    /// neither touches this field. The daemon takes its port from
+    /// `apollia-os start --port` and falls back to `7771` when the flag is
+    /// absent, so a file that sets `port = 8080` still gets `7771`. The field
+    /// is kept because an existing `apollia.toml` carrying the key must parse;
+    /// wiring it would change the port a deployed file already resolves to,
+    /// and removing it is a change to the public surface of `apollia-core`.
     #[serde(default = "default_api_port")]
     pub port: u16,
 
