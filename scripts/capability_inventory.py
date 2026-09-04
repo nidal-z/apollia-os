@@ -351,6 +351,25 @@ def automation_actions(scripts_dir: Path) -> set[str]:
     return acted
 
 
+
+def renders_components(ui_root: Path) -> bool:
+    """Whether this tree's test style can reach a rendered component at all.
+
+    Read from the manifest rather than from the test bodies: a grep for
+    `render(` matches a locally defined helper, and one does exist here,
+    rendering a schedule label rather than a component. A component-rendering
+    library is a declared dependency or it is nothing.
+    """
+    manifest = ui_root / "package.json"
+    if not manifest.is_file():
+        return False
+    try:
+        declared = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    names = set(declared.get("dependencies") or {}) | set(declared.get("devDependencies") or {})
+    return any(n.startswith("@testing-library/") for n in names)
+
 def extract_desktop(ui_root: Path, scripts_dir: Path) -> dict:
     if not ui_root.is_dir():
         return unmeasured("desktop", f"{ui_root} is absent, so no anchor was resolved")
@@ -360,9 +379,21 @@ def extract_desktop(ui_root: Path, scripts_dir: Path) -> dict:
     scripts = sorted(scripts_dir.glob("*.json")) if scripts_dir.is_dir() else []
     acted = automation_actions(scripts_dir) if scripts else set()
 
+    # A gesture is a DOM anchor, so a unit test can only reach it by rendering
+    # the component and querying that anchor. This tree's vitest corpus does not
+    # render: measured on it, `@testing-library` appears in no dependency of
+    # package.json and one file of 125 calls `render(`. The 1100 tests it runs
+    # cover logic and catalogues, which is a legitimate style and simply not one
+    # a gesture can appear in.
+    #
+    # So the column is declared not applicable rather than answered with a small
+    # number. Six of 804 reads as a failure and invites someone to write 798
+    # tests that would assert a testid string against itself, which is the exact
+    # shape of the mention-counting this axis exists to refuse.
     unit_pool: dict[str, str] = {}
     for path in glob.glob(f"{ui_root}/**/*.test.ts", recursive=True):
         unit_pool[path] = read(path)
+    renders = renders_components(ui_root)
 
     caps = []
     for anchor in sorted(gestures):
@@ -384,7 +415,18 @@ def extract_desktop(ui_root: Path, scripts_dir: Path) -> dict:
         "surface": "desktop",
         "measured": True,
         "capabilities": caps,
-        "unit_measured": bool(unit_pool),
+        # See the comment above unit_pool: without a rendering test style there
+        # is nothing here for a unit column to measure.
+        "unit_measured": bool(unit_pool) and renders > 0,
+        "unit_reason": (
+            None
+            if renders
+            else (
+                f"{len(unit_pool)} vitest file(s), and the manifest declares no "
+                f"component-rendering library, so no test can query a gesture by its "
+                f"anchor. The column is not applicable rather than nearly empty"
+            )
+        ),
         "e2e_measured": bool(scripts),
         "e2e_instrument": f"{len(scripts)} automation script(s)",
         "notes": {
