@@ -4,7 +4,8 @@
     "Derived from screenshots-fr.json: same steps, same label set, only the language switch changes.",
     "The two image sets are SEPARATE per locale, under /img/operator-help/{en,fr}/. The English pages reference en/, the French ones fr/, checked: 85 references on each side.",
     "So this script publishes into en/ ONLY. An earlier note claimed there was a single shared set: that was true before the move to per-locale directories, and false since. The symptom it produced: the English pages showed French captures, because a single set had been copied into both directories.",
-    "The prelude switches the interface to English (settings > appearance > language-en) before the first capture. Do not remove it: without it the run photographs whatever language the previous run left."
+    "The prelude switches the interface to English (settings > appearance > language-en) before the first capture. Do not remove it: without it the run photographs whatever language the previous run left.",
+    "The click on session-auth-row before its screenshot is not there to activate anything: the row is a plain <li> with no handler. The runner scrolls an element into view before clicking it, and that scroll is what frames the row for the shot. Kept as an idiom rather than replaced, and named here because the coverage cross-check reports it as an anchor acted on but classified a marker, which it is."
   ],
   "stopOnError": false,
   "dynamicTestids": [

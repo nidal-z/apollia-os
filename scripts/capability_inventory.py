@@ -129,6 +129,19 @@ SURFACES = ("cli", "desktop", "api", "tools", "connectors")
 # gesture, and counting them was how an observed anchor became an exercised one.
 ACTION_KINDS = frozenset({"click", "fill", "setChecked", "selectOption", "press"})
 
+# Of those, the kinds that reach ONLY the element the anchor names. The runner
+# descends into a wrapper for the others, deliberately and by documented
+# design: `fillEl` says so in a comment before doing it, and `setChecked` names
+# the case in its own error message, "not a checkbox, switch, or wrapper of
+# one". `click` calls `el.click()` and stops there.
+#
+# The distinction is what makes the cross-check below mean anything. Without it
+# an anchor on a wrapper reached by `fill` reads exactly like an anchor on a
+# wrapper that a `click` never activates, and the second is a step that passes
+# while doing nothing. Reported together, three legitimate sites hid one real
+# defect, and the report was believed before the runner was read to the end.
+NON_DESCENDING_KINDS = frozenset({"click", "press"})
+
 # HTML elements a user acts on directly.
 INTERACTIVE_TAGS = frozenset({"button", "input", "select", "textarea", "a", "summary", "option"})
 HANDLER = re.compile(
@@ -337,8 +350,8 @@ def classify_anchors(ui_root: Path):
         if meta.get("file"):
             owner.setdefault(anchor, set()).add(meta["file"])
     return corpus, gestures, owner, families
-def automation_actions(scripts_dir: Path) -> set[str]:
-    """Anchors an automation step actually acts on, by exact id."""
+def automation_actions(scripts_dir: Path, kinds: frozenset[str] = ACTION_KINDS) -> set[str]:
+    """Anchors an automation step acts on, by exact id, for the given kinds."""
     acted: set[str] = set()
     for path in sorted(scripts_dir.glob("*.json")):
         try:
@@ -346,7 +359,7 @@ def automation_actions(scripts_dir: Path) -> set[str]:
         except json.JSONDecodeError:
             continue
         for step in doc.get("steps", []):
-            if step.get("kind") in ACTION_KINDS and step.get("testid"):
+            if step.get("kind") in kinds and step.get("testid"):
                 acted.add(step["testid"])
     return acted
 
@@ -378,6 +391,7 @@ def extract_desktop(ui_root: Path, scripts_dir: Path) -> dict:
         return unmeasured("desktop", "the anchor corpus is empty")
     scripts = sorted(scripts_dir.glob("*.json")) if scripts_dir.is_dir() else []
     acted = automation_actions(scripts_dir) if scripts else set()
+    clicked = automation_actions(scripts_dir, NON_DESCENDING_KINDS) if scripts else set()
 
     # A gesture is a DOM anchor, so a unit test can only reach it by rendering
     # the component and querying that anchor. This tree's vitest corpus does not
@@ -433,7 +447,10 @@ def extract_desktop(ui_root: Path, scripts_dir: Path) -> dict:
             "addressable_anchors": len(corpus),
             "state_markers": len(corpus) - len(gestures),
             "acted_in_corpus": len(acted & corpus),
-            "acted_but_classified_marker": sorted((acted & corpus) - gestures),
+            # Only the non-descending kinds: a marker reached by `fill` or
+            # `setChecked` is the runner doing what it says it does.
+            "acted_but_classified_marker": sorted((clicked & corpus) - gestures),
+            "reached_through_a_wrapper": sorted(((acted - clicked) & corpus) - gestures),
         },
     }
 
@@ -843,11 +860,20 @@ def render(inventory: dict, dead: dict[str, str], orphans: list[str]) -> None:
     if desktop and desktop["measured"]:
         notes = desktop["notes"]
         residual = notes["acted_but_classified_marker"]
+        wrapped = notes.get("reached_through_a_wrapper", [])
         print(
             f"\ndesktop cross-check: of {notes['acted_in_corpus']} anchors an automation step acts"
             f" on,\n  {notes['acted_in_corpus'] - len(residual)} are classified as gestures."
             f" {len(residual)} residual(s): {', '.join(residual) or 'none'}"
         )
+        if wrapped:
+            # Not residuals: the runner descends into a wrapper for `fill` and
+            # `setChecked`. Named anyway, because an anchor that only works
+            # through that descent is one refactor away from silence.
+            print(
+                f"  {len(wrapped)} more sit on a wrapper the runner descends into,"
+                f" which is by design: {', '.join(wrapped)}"
+            )
 
 
 # ─── Selftest ────────────────────────────────────────────────────────────────
