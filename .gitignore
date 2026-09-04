@@ -85,8 +85,14 @@ docs/backlog/
 # to build or use it.
 .claude/
 CLAUDE.md
-# Demonstration directory - local files, not versioned
-demo/
+# Demonstration directory dropped at the repository root during local work,
+# not versioned, and anchored to that root on purpose. Written bare, `demo/`
+# matched every directory named `demo` at any depth: that is the exact shape
+# that kept the 148 generated files of the Python client untracked while
+# `models/` was bare, above. Measured when the anchor was added, no path in
+# the tree was decided by this rule, so anchoring it changes nothing today
+# and stops the trap from firing later.
+/demo/
 
 # Python bundle cache (packaging)
 /target/python-bundle/

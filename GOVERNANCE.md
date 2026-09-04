@@ -29,7 +29,8 @@ Direction, scope, and release timing are the maintainer's call.
 3. Implementation happens on the maintainer's side, with credit in the
    [changelog](CHANGELOG.md) where applicable.
 
-The eight non-negotiable principles in [AGENTS.md](AGENTS.md) bound every
+The eight non-negotiable principles in
+[The 8 principles](docs/site/docs/explanation/the-8-principles.md) bound every
 decision. A deviation is documented on the same page as the decision it bends,
 with its scope and the condition under which it ends.
 

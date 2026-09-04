@@ -267,10 +267,9 @@ llama-server model=llama_model port=llama_port:
     LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
     if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
       echo "llama-server not found on PATH." >&2
-      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
-      echo "  If you masked it for a packaging test, restore it:" >&2
-      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
-      echo "       /opt/homebrew/bin/llama-server" >&2
+      echo "  Install it (llama.cpp), or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If a copy is already on disk under another name, point" >&2
+      echo "  LLAMA_BIN at it, or restore its name." >&2
       exit 1
     fi
     echo "→ llama-server (--jinja) on :{{port}} : $(basename "{{model}}") [ctx=${CTX:-32768} np=${NP:-1}]"
@@ -300,10 +299,9 @@ desktop-dev-llama model=llama_model: runners-dev-macos
     LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
     if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
       echo "llama-server not found on PATH." >&2
-      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
-      echo "  If you masked it for a packaging test, restore it:" >&2
-      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
-      echo "       /opt/homebrew/bin/llama-server" >&2
+      echo "  Install it (llama.cpp), or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If a copy is already on disk under another name, point" >&2
+      echo "  LLAMA_BIN at it, or restore its name." >&2
       exit 1
     fi
     SLOG="/tmp/apollia-dev-llama-server.log"
@@ -358,10 +356,9 @@ llama-qwen:
     LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
     if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
       echo "llama-server not found on PATH." >&2
-      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
-      echo "  If you masked it for a packaging test, restore it:" >&2
-      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
-      echo "       /opt/homebrew/bin/llama-server" >&2
+      echo "  Install it (llama.cpp), or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If a copy is already on disk under another name, point" >&2
+      echo "  LLAMA_BIN at it, or restore its name." >&2
       exit 1
     fi
     PORT="${PORT:-8899}"
@@ -408,10 +405,9 @@ desktop-dev-qwen: runners-dev-macos
     LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
     if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
       echo "llama-server not found on PATH." >&2
-      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
-      echo "  If you masked it for a packaging test, restore it:" >&2
-      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
-      echo "       /opt/homebrew/bin/llama-server" >&2
+      echo "  Install it (llama.cpp), or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If a copy is already on disk under another name, point" >&2
+      echo "  LLAMA_BIN at it, or restore its name." >&2
       exit 1
     fi
     PORT="${PORT:-{{llama_port}}}"
@@ -757,10 +753,9 @@ desktop-dev-automation-llama script model=llama_model: runners-dev-macos
     LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
     if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
       echo "llama-server not found on PATH." >&2
-      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
-      echo "  If you masked it for a packaging test, restore it:" >&2
-      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
-      echo "       /opt/homebrew/bin/llama-server" >&2
+      echo "  Install it (llama.cpp), or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If a copy is already on disk under another name, point" >&2
+      echo "  LLAMA_BIN at it, or restore its name." >&2
       exit 1
     fi
     SLOG="/tmp/apollia-dev-llama-server.log"
@@ -973,10 +968,9 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
     LLAMA_BIN="${LLAMA_BIN:-$(command -v llama-server || true)}"
     if [ -z "$LLAMA_BIN" ] || [ ! -x "$LLAMA_BIN" ]; then
       echo "llama-server not found on PATH." >&2
-      echo "  Install it, or set LLAMA_BIN=/path/to/llama-server." >&2
-      echo "  If you masked it for a packaging test, restore it:" >&2
-      echo "    mv /opt/homebrew/bin/llama-server.masked-for-dmg-test \\" >&2
-      echo "       /opt/homebrew/bin/llama-server" >&2
+      echo "  Install it (llama.cpp), or set LLAMA_BIN=/path/to/llama-server." >&2
+      echo "  If a copy is already on disk under another name, point" >&2
+      echo "  LLAMA_BIN at it, or restore its name." >&2
       exit 1
     fi
     SLOG="/tmp/apollia-dev-llama-server.log"
