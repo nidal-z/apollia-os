@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import importlib
+import sys
+import textwrap
+import types
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from apollia import react
 from apollia.errors import DomainError
+from apollia.testing import mock
 from apollia.testing.mocks import MockLlmProxy
 
 # ──────────────────────────────────────────────────────────────────────
@@ -254,3 +259,51 @@ async def test_react_events_failure_does_not_break_run() -> None:
 
     # THEN the run still returns its answer, so observability cannot break it
     assert answer == "ok"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# The example shipped in the module docstring
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _docstring_example() -> str:
+    """Return the indented code block of the ``apollia.react`` module docstring."""
+    module = importlib.import_module("apollia.react")
+    lines = (module.__doc__ or "").splitlines()
+    start = next(i for i, line in enumerate(lines) if line.rstrip().endswith("::")) + 1
+    block: list[str] = []
+    for line in lines[start:]:
+        if line and not line.startswith("    "):
+            break
+        block.append(line)
+    return textwrap.dedent("\n".join(block))
+
+
+@pytest.mark.asyncio
+async def test_module_docstring_example_runs_against_the_sdk() -> None:
+    """The documented director must import, decorate, and answer for real.
+
+    The example is the SDK's own answer to "how do I call react", so a
+    signature it no longer matches is a defect, not an approximation.
+    """
+    # GIVEN the code block copied out of the apollia.react module docstring,
+    # executed in a throwaway module so @agent binds its instance there
+    source = _docstring_example()
+    assert "@agent(" in source, source
+    name = "test_react_docstring_example_mod"
+    module = types.ModuleType(name)
+    sys.modules[name] = module
+
+    # WHEN the block is executed and its handler is driven through a mock context
+    try:
+        exec(compile(source, "<apollia.react docstring>", "exec"), module.__dict__)  # noqa: S102
+        agent_ref, ctx = mock(module.Director)  # type: ignore[attr-defined]
+        ctx.llm.run_tools_responses = ["The PDF has three pages."]
+        result = await agent_ref.invoke_message("how many pages?")
+    finally:
+        sys.modules.pop(name, None)
+
+    # THEN the example runs end to end, and @agent bound the instance itself
+    assert result["status"] == "completed", result
+    assert result["output"][0]["text"] == "The PDF has three pages."
+    assert isinstance(module.agent, module.Director)  # type: ignore[attr-defined]

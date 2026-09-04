@@ -3,20 +3,25 @@
 The ReAct pattern is exposed as a free utility (not a base class).
 Agents opt in by importing :func:`react` and calling it from any handler::
 
-    from apollia import react
+    from apollia import agent, on_message, react
+    from apollia.types import Ctx, Message
 
 
-    @agent(name="director", supports_a2a=True)
+    @agent(
+        name="director",
+        version="0.1.0",
+        description="Answers questions about local PDF files.",
+    )
     class Director:
         @on_message
-        async def chat(self, msg, history, ctx):
+        async def chat(self, message: str, history: list[Message], ctx: Ctx) -> str:
             return await react(
                 ctx,
                 system="You are a director agent...",
-                user=msg,
+                user=message,
                 tools=[
                     await ctx.a2a.skill_as_tool("pdf.read_text"),
-                    await ctx.a2a.skill_as_tool("web.search"),
+                    await ctx.a2a.skill_as_tool("pdf.count_pages"),
                 ],
                 max_steps=10,
             )
