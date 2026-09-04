@@ -94,6 +94,35 @@ EXTRA_READINGS = {
 # Drive picker. Kept out of the denominator rather than parked on the ratchet.
 NO_UPSTREAM_CALL = frozenset({"gdrive.list_picked_folders"})
 
+# Operations whose client reads nothing back, so a fixture can measure nothing
+# about a reading. Five discard the response and answer `()`; four hand the body
+# straight through as `serde_json::Value`, where an expectation would compare a
+# document to itself. Both were measured from the return type of the client
+# method each dispatch arm calls, and two were then read by hand.
+#
+# They sat on the ratchet, which described nine of the thirty-five remaining as
+# work a recording session could close. It cannot: recording an answer nobody
+# parses proves nothing. Out of the denominator, like the operation that makes
+# no HTTP call at all, so the number left says what is actually left.
+#
+# A client that starts reading one of these stops being in this list, and the
+# guard says so rather than letting the exemption outlive its reason.
+READS_NOTHING = frozenset(
+    {
+        # Discard the response entirely.
+        "gcal.delete_event",
+        "gdrive.workspace_delete",
+        "gtasks.delete",
+        "outlook.reply",
+        "outlook_cal.delete_event",
+        # Return the body unparsed.
+        "gdocs.append_text",
+        "gsheets.append_values",
+        "gsheets.update_values",
+        "gslides.append_slide",
+    }
+)
+
 # The operations with no fixture, measured on 2026-09-04. This list is a
 # ratchet: it may shrink, never grow. Closing an entry means recording an answer
 # from a throwaway account, dropping the fixture in, and deleting the line here
@@ -101,37 +130,28 @@ NO_UPSTREAM_CALL = frozenset({"gdrive.list_picked_folders"})
 UNCOVERED_BACKLOG = frozenset(
     {
         "gcal.create_event",
-        "gcal.delete_event",
                 "gcal.update_event",
-        "gdocs.append_text",
         "gdocs.create",
         "gdrive.find_by_name",
         "gdrive.list_files_in",
             "gdrive.read_file",
-        "gdrive.workspace_delete",
         "gdrive.workspace_list",
             "gdrive.workspace_share",
         "gdrive.workspace_write",
         "gdrive.write_to_folder",
         "gforms.create",
         "gmail.compose_draft",
-        "gsheets.append_values",
         "gsheets.create",
-            "gsheets.update_values",
-        "gslides.append_slide",
-        "gslides.create",
+            "gslides.create",
         "gtasks.complete",
         "gtasks.create",
-        "gtasks.delete",
                 "onedrive.download",
         "onedrive.get_metadata",
         "onedrive.list_recent",
                 "outlook.move",
-        "outlook.reply",
         "outlook.search",
         "outlook.send",
         "outlook_cal.create_event",
-        "outlook_cal.delete_event",
         "outlook_cal.get_event",
             "outlook_cal.update_event",
             "youtube.video_details",
@@ -224,8 +244,18 @@ def judge(
                 "'capture' nor 'example'"
             )
 
-    replayable = declared - NO_UPSTREAM_CALL
+    replayable = declared - NO_UPSTREAM_CALL - READS_NOTHING
     uncovered = replayable - covered
+
+    # An exemption that outlives its reason is worse than no exemption. A client
+    # that starts reading one of these would leave it silently out of the count.
+    for name in sorted(READS_NOTHING & covered):
+        defects.append(
+            f"reads-nothing: {name!r} is exempt as an operation whose client reads "
+            f"nothing back, and a fixture now claims a reading for it. Either the "
+            f"client changed and the line belongs in the ratchet, or the fixture "
+            f"asserts something the client never parses"
+        )
 
     grown = sorted(uncovered - UNCOVERED_BACKLOG)
     if grown:
@@ -412,9 +442,11 @@ def main() -> int:
     print(
         "check_connector_fixtures: "
         f"{counts['declared']} operations declared, "
-        f"{counts['replayable']} replayable over HTTP, "
+        f"{counts['replayable']} whose client reads a response, "
         f"{counts['covered']} carrying a fixture, "
-        f"{counts['backlog']} on the ratchet, 0 orphan, 0 unarmed, 0 hardwired"
+        f"{counts['backlog']} on the ratchet, "
+        f"{len(NO_UPSTREAM_CALL)} making no HTTP call, "
+        f"{len(READS_NOTHING)} reading nothing back, 0 orphan, 0 unarmed, 0 hardwired"
     )
     print(
         f"  provenance: {counts['files']} fixture file(s), "
