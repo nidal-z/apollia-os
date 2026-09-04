@@ -46,6 +46,9 @@ Rules:
   signing-key       when the release GPG-signs SHA256SUMS, the public half is
                     committed and named in SECURITY.md, so a verifier has the
                     key the signature needs
+  publication-list  the step that decides what the release publishes names the
+                    same patterns as the release step, so the inventory and the
+                    signatures cover exactly what a user can download
   updater-uploads   each desktop job stages the updater signature its contract
                     entry declares, in a run line that is not a comment
   flat-uploads      every upload-artifact path of the cli and desktop jobs
@@ -525,6 +528,48 @@ def check(root: Path) -> list[str] | int:
                 f"{WORKFLOW}: signing-outputs: the signing step writes '$f{suffix}' and no "
                 f"upload pattern of the release job matches it, so the signature is written "
                 f"and then left behind"
+            )
+
+    # ── publication-list ──────────────────────────────────────────────────
+    # `artifacts/` holds more than the release ships: the CUDA engine job
+    # uploads its whole engine/ directory, consumed by the desktop bundle and
+    # published by nothing. Steps that walked the directory rather than the
+    # publication list signed twelve files nobody could download and listed
+    # them in SHA256SUMS, so the verification command SECURITY.md documents
+    # failed twelve times on a correctly built release. One list now decides,
+    # and this rule keeps it equal to the one the release step uploads.
+    # `SHA256SUMS*` and `*.cosign.bundle` are the declared exception: they are
+    # produced after the selection, from it.
+    produced_after = {"SHA256SUMS*", "*.cosign.bundle"}
+    selection: list[str] = []
+    for step in jobs.get("release", {}).get("steps", []):
+        if "select what the release publishes" in str(step.get("name", "")).lower():
+            run = str(step.get("run", ""))
+            # Only the patterns of the `for pattern in ... ; do` block: the
+            # rest of the step carries quoted shell of its own, and a loose
+            # read of every quoted token made the rule fire on a printf format.
+            block = re.search(r"for pattern in\s*\\?\n(.*?);\s*do", run, re.S)
+            if block:
+                selection = re.findall(r"'([^']+)'", block.group(1))
+    if not selection:
+        defects.append(
+            f"{WORKFLOW}: publication-list: no step of the release job decides what is "
+            f"published, so the inventory and the signatures are free to cover files the "
+            f"release does not carry"
+        )
+    else:
+        uploaded = set(release_files)
+        for pattern in sorted(set(selection) - uploaded):
+            defects.append(
+                f"{WORKFLOW}: publication-list: the selection step names {pattern!r} and "
+                f"the release step uploads no such pattern, so the inventory covers a file "
+                f"nobody receives"
+            )
+        for pattern in sorted(uploaded - set(selection) - produced_after):
+            defects.append(
+                f"{WORKFLOW}: publication-list: the release step uploads {pattern!r} and "
+                f"the selection step does not name it, so the file ships without an entry "
+                f"in SHA256SUMS and without a signature"
             )
 
     # ── signing-key ───────────────────────────────────────────────────────

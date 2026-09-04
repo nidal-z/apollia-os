@@ -1722,14 +1722,53 @@ jobs:
       # One SHA256SUMS covering every artifact. The three per-job files of the
       # previous shape were homonyms: merged into one directory, two of the
       # three were silently overwritten.
+      # ── What the release publishes, decided once ───────────────────────────
+      # `artifacts/` holds more than the release ships. The llama-server CUDA
+      # job uploads its whole engine/ directory, which the desktop CUDA bundle
+      # consumes and which no upload pattern publishes; merged flat, its twelve
+      # shared objects sat beside the installers. Steps that walked the
+      # directory rather than the publication list therefore signed twelve
+      # files nobody could download, and listed them in SHA256SUMS, so the
+      # `shasum -a 256 -c SHA256SUMS` that SECURITY.md documents failed twelve
+      # times on a correctly built release.
+      #
+      # The patterns below are the publication list, and the release step at the
+      # bottom of this job repeats them; check_release_artifacts.py holds the
+      # two identical, because a drift between them brings the defect straight
+      # back.
+      - name: Select what the release publishes
+        working-directory: artifacts
+        run: |
+          shopt -s nullglob
+          published=()
+          for pattern in \
+            '*.tar.gz' '*.tar.gz.sha256' '*.zip' '*.zip.sha256' \
+            '*.dmg' '*.deb' '*.AppImage' '*.msi' '*.exe' \
+            'latest.json' 'latest-cuda.json' \
+            '*.cdx.json' '*.spdx.json' '*.sig'; do
+            for f in $pattern; do
+              [ -f "$f" ] && published+=("$f")
+            done
+          done
+          if [ "${#published[@]}" -eq 0 ]; then
+            echo "::error::the publication list is empty; refusing to sign and hash nothing"
+            exit 1
+          fi
+          printf '%s\n' "${published[@]}" | sort -u > "$RUNNER_TEMP/published.txt"
+          echo "published $(wc -l < "$RUNNER_TEMP/published.txt") file(s):"
+          cat "$RUNNER_TEMP/published.txt"
+
       - name: SHA256SUMS
         working-directory: artifacts
         run: |
+          # Reads the publication list rather than the directory: an inventory
+          # that names a file the release does not carry fails on a user's
+          # machine through no fault of theirs.
           # NUL-separated on principle rather than on need: the desktop jobs
           # rename their bundles out of the space tauri-bundler puts there, but
           # a separator that cannot appear in a name costs nothing and does not
           # depend on that staying true.
-          find . -maxdepth 1 -type f -printf '%f\0' | sort -z | \
+          tr '\n' '\0' < "$RUNNER_TEMP/published.txt" | \
             xargs -0 shasum -a 256 > SHA256SUMS
           cat SHA256SUMS
 
@@ -1767,11 +1806,18 @@ jobs:
           COSIGN_YES: "true"
         run: |
           shopt -s nullglob
-          for f in artifacts/*; do
+          # The publication list, plus the inventory and its detached
+          # signature, which are written after it and are published too.
+          # Walking artifacts/ instead signed twelve build inputs the release
+          # does not carry, and published a bundle for each: a verifier found a
+          # signature for a file they could not download.
+          while IFS= read -r name; do
+            f="artifacts/$name"
             [ -f "$f" ] || continue
-            case "$f" in
-              *.cosign.bundle) continue ;;
-            esac
+            cosign sign-blob --yes --bundle "$f.cosign.bundle" "$f"
+          done < "$RUNNER_TEMP/published.txt"
+          for f in artifacts/SHA256SUMS artifacts/SHA256SUMS.asc; do
+            [ -f "$f" ] || continue
             cosign sign-blob --yes --bundle "$f.cosign.bundle" "$f"
           done
 
