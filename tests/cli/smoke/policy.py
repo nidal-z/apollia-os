@@ -272,6 +272,14 @@ TIMEOUTS: dict[str, int] = {
     "trigger fire": 60,
     "mcp test": 60,
     "mcp restart": 60,
+    # The daemon gives an MCP `initialize` handshake 30 seconds, which is also
+    # DEFAULT_TIMEOUT, so this leaf raced its own bound: the probe command
+    # `/bin/echo` exits at once, the handshake waits out the full 30s, and
+    # whichever deadline fired first decided whether the sweep saw a clean
+    # `exit 1, initialize timed out after 30s` or reported a defect that was
+    # its own impatience. Measured against a live daemon: exit 1 at 30.0s.
+    "mcp add": 60,
+    "mcp update": 60,
     "a2a invoke": 60,
     "llm ping": 60,
     "llm setup": 90,
