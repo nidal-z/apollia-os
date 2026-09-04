@@ -17,6 +17,16 @@ import { describe, it, expect } from "vitest";
 
 const DOCS_HOST = "docs.apollia.fr";
 
+/**
+ * Every host a documentation link could plausibly be written against. The
+ * guard was first written against the real host alone, and a fallback built on
+ * `docs.apollia.ai` sat in ConnectionErrorModal underneath it: a domain that
+ * answers NXDOMAIN, on a route the site does not publish. A guard that only
+ * knows the correct spelling cannot catch the incorrect one, so the pattern
+ * matches the whole family.
+ */
+const DOCS_HOST_PATTERN = /docs\.apollia\.[a-z]{2,}/;
+
 /** The module that owns the URLs is the one place the host is expected. */
 const DOCS_MODULE = "lib/utils/docsUrl.ts";
 
@@ -80,7 +90,7 @@ describe("documentation links all go through the locale-aware builder", () => {
 
     // WHEN each is checked for the host of the documentation site
     const offenders = candidates
-      .filter(([, source]) => source.includes(DOCS_HOST))
+      .filter(([, source]) => DOCS_HOST_PATTERN.test(source))
       .map(([file]) => file);
 
     // THEN none is left: a literal there is a link with no locale
@@ -92,14 +102,14 @@ describe("documentation links all go through the locale-aware builder", () => {
     const reintroduced: [string, string][] = [
       [
         "components/demo/Reintroduced.svelte",
-        'const HELP = "https://docs.apollia.fr/operator-help";',
+        'const HELP = "https://docs.apollia.ai/connectors/foo";',
       ],
     ];
 
     // WHEN the same rule is applied to it
     const offenders = reintroduced
       .filter(([file]) => !isExempt(file))
-      .filter(([, source]) => source.includes(DOCS_HOST))
+      .filter(([, source]) => DOCS_HOST_PATTERN.test(source))
       .map(([file]) => file);
 
     // THEN the rule flags it, so a clean run above is a measurement and not a blind spot

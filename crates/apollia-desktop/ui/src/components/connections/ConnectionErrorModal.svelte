@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { AlertCircle, ExternalLink, RotateCw, ScrollText } from "lucide-svelte";
   import { Dialog } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import type { McpServerStatusView, ConnectorEnrichmentView } from "$lib/types";
   import { handleExternalLinkClick } from "$lib/utils/externalLink";
+  import { docsUrlFor } from "$lib/utils/docsUrl";
 
   interface Props {
     open: boolean;
@@ -17,9 +18,14 @@
 
   let { open, server, enrichment, onclose, onretry, onviewLogs }: Props = $props();
 
+  // The fallback used to build its own URL on a host that answers NXDOMAIN,
+  // under a route the site does not publish. It now lands on the page that does
+  // exist and covers exactly this moment, resolved under the interface locale.
+  // The host itself is named nowhere here: docsUrlSites.test.ts refuses it
+  // outside the builder, and prose reads the same as a literal to a scan.
   const docsUrl = $derived(
     enrichment?.auth_help_url ??
-      (server ? `https://docs.apollia.ai/connectors/${server.name}` : null),
+      docsUrlFor($locale, "/operator-help/integrations/connect-an-mcp-server"),
   );
 
   const title = $derived(enrichment?.operator_label ?? server?.name ?? "");
