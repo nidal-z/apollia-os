@@ -26,6 +26,14 @@ nothing special is the path that keeps everything on your hardware. Sovereignty
 that you have to configure your way into is not sovereignty; here it is the
 default, and leaving it is the deliberate act.
 
+Windows has no Unix socket, so the local transport there is a named pipe,
+`\\.\pipe\apollia-runtime-<user>`. It plays the socket's role but not with the
+socket's guarantee: a pipe is created with a default security descriptor, weaker
+than the `0600` the runtime sets on the socket file, so what gates access on
+Windows is the Bearer token the pipe carries, not the transport's own
+permissions. The TCP listener is bound on Windows exactly as it is elsewhere:
+`apollia-os start` always passes a port.
+
 ## Inference runs local
 
 Apollia carries its own local inference. A model in GGUF format runs through a

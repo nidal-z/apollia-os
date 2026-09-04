@@ -132,7 +132,7 @@ Windows artifact published today carries a GPU-accelerated speech-to-text runner
 
 ## What is different on Windows
 
-Windows is a supported platform, but two points set it apart from the other
+Windows is a supported platform, but three points set it apart from the other
 two and are worth knowing before you hand a task to an agent.
 
 **No tool confinement.** On Linux, a command started by an agent runs in
@@ -145,6 +145,17 @@ manual approval enabled in the chat.
 **The shell tool requires a POSIX shell.** `bash_executor` looks for an `sh` in
 your `PATH`. Without Git Bash, WSL or MSYS2 installed, any agent that uses that
 tool fails. The other tools, files, web and Python, work normally.
+
+**A named pipe instead of a Unix socket.** Elsewhere the command line reaches
+the runtime through a Unix socket that the filesystem protects at `0600`. There
+is no such socket on Windows, so the runtime serves a named pipe,
+`\\.\pipe\apollia-runtime-<user>`, and the command line opens it. Two
+consequences for you. The global `--socket` option is accepted and ignored: the
+pipe name is derived from your `USERNAME`, not from a path you choose. And the
+pipe is created with a default security descriptor, weaker than the socket's
+`0600`, so what protects the runtime here is the bearer token in
+`%USERPROFILE%\.apollia\api-token`. Treat that file as a password: any account
+that can read it can drive your runtime.
 
 ## Update
 

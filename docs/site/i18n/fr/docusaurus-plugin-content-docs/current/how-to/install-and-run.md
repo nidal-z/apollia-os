@@ -265,6 +265,13 @@ présenter comme identifiant porteur, tandis que le socket Unix repose sur une
 confiance locale et n'en a besoin d'aucun. Laissez ce terminal en cours
 d'exécution et ouvrez-en un second pour les étapes suivantes.
 
+Sous Windows il n'y a pas de socket Unix. Le runtime y sert un tube nommé,
+`\\.\pipe\apollia-runtime-<utilisateur>`, que la ligne de commande ouvre sans
+que vous ayez à le nommer. Le TCP y est lié également, et le tube ne repose pas
+sur une confiance locale : il porte le même jeton bearer que le TCP, parce qu'un
+tube est créé avec un descripteur de sécurité par défaut et non avec le `0600`
+du socket.
+
 ## Étape 5 : exécuter un agent
 
 Le dépôt fournit un agent `echo` sans LLM qui fonctionne sur n'importe quelle

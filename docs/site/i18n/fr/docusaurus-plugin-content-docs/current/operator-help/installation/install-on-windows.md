@@ -138,7 +138,7 @@ reconnaissance vocale accéléré par le GPU.
 
 ## Ce qui change sur Windows
 
-Windows est une plateforme supportée, mais deux points la distinguent des deux
+Windows est une plateforme supportée, mais trois points la distinguent des deux
 autres et méritent d'être connus avant de confier une tâche à un agent.
 
 **Aucun confinement des outils.** Sur Linux, une commande lancée par un agent
@@ -153,6 +153,17 @@ l'approbation manuelle active dans le chat.
 votre `PATH`. Sans Git Bash, WSL ou MSYS2 installé, tout agent qui utilise cet
 outil échoue. Les autres outils, fichiers, web et Python, fonctionnent
 normalement.
+
+**Un tube nommé à la place du socket Unix.** Ailleurs, la ligne de commande
+joint le runtime par un socket Unix que le système de fichiers protège en
+`0600`. Ce socket n'existe pas sous Windows : le runtime y sert un tube nommé,
+`\\.\pipe\apollia-runtime-<utilisateur>`, et la ligne de commande l'ouvre.
+Deux conséquences pour vous. L'option globale `--socket` est acceptée et
+ignorée : le nom du tube est dérivé de votre `USERNAME`, pas d'un chemin que
+vous choisissez. Et le tube est créé avec un descripteur de sécurité par défaut,
+plus faible que le `0600` du socket : ce qui protège le runtime ici est le jeton
+bearer de `%USERPROFILE%\.apollia\api-token`. Traitez ce fichier comme un mot
+de passe, tout compte capable de le lire peut piloter votre runtime.
 
 ## Mettre à jour
 

@@ -239,6 +239,12 @@ TCP callers must present it as a bearer credential, while the Unix socket is
 local-trust and needs none. Leave this terminal running and open a second one for
 the next steps.
 
+On Windows there is no Unix socket. The runtime serves a named pipe instead,
+`\\.\pipe\apollia-runtime-<user>`, and the command line opens it without you
+naming anything. TCP is bound there too, and the pipe is not local-trust: it
+carries the same bearer token as TCP, because a pipe takes a default security
+descriptor rather than the socket's `0600`.
+
 ## Step 5: run an agent
 
 The repository ships a no-LLM `echo` agent that runs on any machine. Install it,

@@ -56,8 +56,9 @@ apollia-os agent install clients/examples/echo_agent.py --skip-tests
 ## Step 3: start the daemon
 
 <!-- claim:daemon-binds-tcp-by-default -->
-Start the runtime. It listens on a Unix socket and on `127.0.0.1:7771`. The TCP
-port is always bound; `--port` chooses the number:
+Start the runtime. It listens on a Unix socket (a named pipe on Windows, which
+has none) and on `127.0.0.1:7771`. The TCP port is always bound; `--port`
+chooses the number:
 
 ```sh
 apollia-os start --port 7771

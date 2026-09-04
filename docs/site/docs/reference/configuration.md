@@ -48,14 +48,33 @@ of them. They cover the **top level of each section**. A nested table, such as a
 entry of `[[llm.backends]]` or `[[mcp.servers]]`, has its own fields: the MCP one
 is documented in full below, the others are read from the types they name.
 
-### Three rows the tables cannot qualify
+### Rows the tables cannot qualify
 
 The tables are derived from the Rust types, and a type states what a key means,
-not whether anything reads it. Three rows need a caveat the derivation cannot
+not whether anything reads it. Four things need a caveat the derivation cannot
 carry.
 
-`[api] port` is not read. The daemon takes its TCP port from `apollia-os start
---port` and falls back to 7771; a file that sets `port = 8080` still gets 7771.
+**`[api]` is split between two loaders, and neither reads all of it.** The
+daemon started by `apollia-os start` and the runtime embedded in the desktop
+application build their listener from different fields of the same section. No
+key is read by both, and one key is read by neither.
+
+| Key | `apollia-os start` | The desktop application |
+| --- | --- | --- |
+| `bind` | read | ignored, the embedded listener is always `127.0.0.1` |
+| `port` | ignored, see below | ignored, the embedded listener is always 7771 |
+| `require_token` | read | ignored, the embedded TCP listener always requires the token |
+| `unix_socket` | ignored, the daemon takes its socket from the `--socket` flag of `apollia-os start` and falls back to the same default | read |
+| `tls_cert` | read | ignored, the embedded listener never terminates TLS |
+| `tls_key` | read | ignored, the embedded listener never terminates TLS |
+
+A key a loader ignores is still parsed and validated, then dropped: setting it
+is silent, not an error. So `require_token = false` does not disarm the desktop
+application, and `tls_cert` there is inert.
+
+`[api] port` is read by neither. The daemon takes its TCP port from the
+`--port` flag of `apollia-os start` and falls back to 7771; a file that sets `port = 8080`
+still gets 7771.
 
 `[llm] pricing_overrides` is not applied. A running daemon builds its backends
 from the backends stored in its database, and that path hands the client an
@@ -194,6 +213,15 @@ type falls back to, since the table is derived from the source. It resolves to
 directory when no home directory can be resolved. The server sets the file to
 mode `0600` right after binding, so only the account that started the runtime
 can reach it.
+
+On Windows there is no Unix socket, and this key is inert: neither the server
+nor the client reads the path. The local transport there is a named pipe,
+`\\.\pipe\apollia-runtime-<user>`, whose name the runtime derives from
+`USERNAME` so two accounts on one machine do not contend for it. The pipe is
+created with a default security descriptor rather than the `0600` of the socket
+file, so it carries the same Bearer token the TCP listener carries, and the
+token is what gates access. The global `--socket` flag is accepted on Windows
+and ignored.
 
 ### Trusted paths, and what happens outside them
 

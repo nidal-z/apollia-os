@@ -52,15 +52,34 @@ Une table imbriquée, comme une entrée de `[[llm.backends]]` ou
 intégralement plus bas, les autres se lisent depuis les types qu'elles
 nomment.
 
-### Trois lignes que les tableaux ne peuvent pas nuancer
+### Des lignes que les tableaux ne peuvent pas nuancer
 
 Les tableaux sont dérivés des types Rust, et un type dit ce qu'une clé signifie,
-pas si quelque chose la lit. Trois lignes demandent une réserve que la
+pas si quelque chose la lit. Quatre points demandent une réserve que la
 dérivation ne peut pas porter.
 
-`[api] port` n'est pas lu. Le démon prend son port TCP de `apollia-os start
---port` et retombe sur 7771 ; un fichier qui pose `port = 8080` obtient quand
-même 7771.
+**`[api]` est partagée entre deux chargeurs, et aucun ne la lit en entier.** Le
+démon lancé par `apollia-os start` et le runtime embarqué dans l'application de
+bureau construisent leur écouteur à partir de champs différents de la même
+section. Aucune clé n'est lue par les deux, et une clé n'est lue par aucun.
+
+| Clé | `apollia-os start` | L'application de bureau |
+| --- | --- | --- |
+| `bind` | lue | ignorée, l'écouteur embarqué est toujours sur `127.0.0.1` |
+| `port` | ignorée, voir plus bas | ignorée, l'écouteur embarqué est toujours sur 7771 |
+| `require_token` | lue | ignorée, l'écouteur TCP embarqué exige toujours le jeton |
+| `unix_socket` | ignorée, le démon prend sa socket de l'option `--socket` d'`apollia-os start` et retombe sur la même valeur par défaut | lue |
+| `tls_cert` | lue | ignorée, l'écouteur embarqué ne termine jamais TLS |
+| `tls_key` | lue | ignorée, l'écouteur embarqué ne termine jamais TLS |
+
+Une clé qu'un chargeur ignore est tout de même analysée et validée, puis
+abandonnée : la poser est silencieux, ce n'est pas une erreur. Donc
+`require_token = false` ne désarme pas l'application de bureau, et `tls_cert` y
+est inerte.
+
+`[api] port` n'est lu par aucun des deux. Le démon prend son port TCP de
+l'option `--port` d'`apollia-os start` et retombe sur 7771 ; un fichier qui pose `port =
+8080` obtient quand même 7771.
 
 `[llm] pricing_overrides` n'est pas appliqué. Un démon en marche construit ses
 backends depuis ceux stockés dans sa base, et ce chemin passe au client une
@@ -201,6 +220,15 @@ socket sous le répertoire temporaire de la plateforme lorsque aucun répertoire
 personnel ne peut être résolu. Le serveur passe le fichier en `0600` juste
 après le bind, si bien que seul le compte qui a démarré le runtime peut
 l'atteindre.
+
+Sous Windows il n'y a pas de socket Unix, et cette clé est inerte : ni le
+serveur ni le client ne lisent le chemin. Le transport local y est un tube
+nommé, `\\.\pipe\apollia-runtime-<user>`, dont le runtime dérive le nom de
+`USERNAME` afin que deux comptes d'une même machine ne se disputent pas le même
+tube. Le tube est créé avec un descripteur de sécurité par défaut plutôt
+qu'avec le `0600` du fichier de socket : il porte donc le même jeton Bearer que
+l'écouteur TCP, et c'est ce jeton qui contrôle l'accès. L'option globale
+`--socket` est acceptée sous Windows et ignorée.
 
 ### Chemins de confiance, et ce qui se passe en dehors
 

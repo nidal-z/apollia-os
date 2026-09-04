@@ -32,13 +32,19 @@ Mettre à jour manuellement (éditer `fetch-python-standalone.sh`) - pas d'auto-
 | `x86_64-unknown-linux-gnu` | Linux x86_64 | ✅ Actif (desktop + CLI) |
 | `x86_64-pc-windows-msvc` | Windows x86_64 | ✅ Actif (desktop + CLI) |
 | `aarch64-unknown-linux-gnu` | Linux ARM64 | ✅ Actif (CLI seulement, non bloquant en release) |
-| `aarch64-pc-windows-msvc` | Windows ARM64 | ✅ Actif (CLI seulement, non bloquant en release) |
+| `aarch64-pc-windows-msvc` | Windows ARM64 | ❌ Retiré de la 0.1.0 par `fc950bc0` (pandas ne publie pas de roue `win_arm64`) |
 | `x86_64-apple-darwin` | macOS Intel | 🔜 Prévu v0.2.0 |
 | `universal-apple-darwin` | macOS universal2 (lipo ARM + Intel) | 🔜 Prévu v0.2.0 |
 
 **Note :** la release v0.1.0 livre les installeurs desktop macOS ARM, Linux
-x86_64 et Windows x86_64, plus les 13 bundles CLI de `release.yml`. Les noms
-publiés sont ceux de `artifacts.json`.
+x86_64 et Windows x86_64, variantes CUDA Linux et Windows comprises, plus les
+**six** bundles CLI de `release.yml`. Six des deux côtés, et pas par
+convention : `artifacts.json` déclare six entrées `cli`, la matrice `FULL` du
+job `setup` de `release.yml` en énumère les six mêmes, et
+`scripts/check_release_artifacts.py` refuse toute divergence entre les deux
+listes (contrôle `matrix-bijection`). Les noms publiés sont ceux de
+`artifacts.json`, extension comprise : `.tar.gz` sur macOS et Linux, `.zip`
+sur Windows.
 
 ## Build de release local (macOS)
 

@@ -307,7 +307,9 @@ Apollia OS CLI binary (apollia-os)
 
 ###### **Options:**
 
-* `--socket <PATH>` - Unix socket path (default: the runtime socket under the data directory)
+* `--socket <PATH>` - Unix socket path (default: the runtime socket under the data directory).
+
+   Accepted but ignored on Windows, which has no Unix socket: the CLI opens the runtime's named pipe, whose name comes from `USERNAME`.
 * `--json` - Output machine-readable JSON instead of human-readable text.
 
    Accepted at any position: before or after the subcommand and its arguments.

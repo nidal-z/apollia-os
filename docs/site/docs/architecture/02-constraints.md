@@ -56,7 +56,10 @@ Unix-socket-only.
 - **Transport.** The HTTP API is served on a Unix socket and on TCP with a
   bearer token. `apollia-os start` binds both, taking port 7771 when `--port` is
   omitted. Unix-socket-only is the default of the embedded runtime, not of the
-  daemon.
+  daemon. Windows has no Unix socket: the local transport there is the named
+  pipe `\\.\pipe\apollia-runtime-<user>`, which carries the bearer token
+  because a pipe takes a default security descriptor rather than the socket's
+  `0600`.
 - **No unjustified dependency.** Every third-party dependency, Rust or Python, is
   a sovereignty surface and is added only with an architecture decision behind
   it. Agents and workers are standard-library-only by default.

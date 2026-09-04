@@ -47,22 +47,38 @@ Every release asset is signed and carries build provenance. All signing is
 keyless (Sigstore OIDC): there is no long-lived private key, and the signing
 identity is the release workflow itself.
 
+The CLI archive is named after its preset, and its extension follows the
+platform: `apollia-os-<preset>.tar.gz` on macOS and Linux,
+`apollia-os-<preset>.zip` on Windows, which packages its archive with
+`Compress-Archive`. The authoritative list of published names is
+`packaging/artifacts.json`; the commands below use one real name of each shape.
+
 Each artifact ships with a Sigstore bundle (`.cosign.bundle`) carrying its
 signature and the signing certificate together. Verify a download with cosign:
 
 ```sh
 cosign verify-blob \
-  --bundle apollia-os-<preset>.tar.gz.cosign.bundle \
+  --bundle apollia-os-linux-x86-cpu.tar.gz.cosign.bundle \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github.com/Apollia-OS/apollia-os/' \
-  apollia-os-<preset>.tar.gz
+  apollia-os-linux-x86-cpu.tar.gz
+```
+
+```powershell
+cosign verify-blob `
+  --bundle apollia-os-windows-x86-cpu.zip.cosign.bundle `
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com `
+  --certificate-identity-regexp '^https://github.com/Apollia-OS/apollia-os/' `
+  apollia-os-windows-x86-cpu.zip
 ```
 
 Each release also carries a SLSA build-provenance attestation. Verify that an
-artifact was built by this repository's release workflow with the GitHub CLI:
+artifact was built by this repository's release workflow with the GitHub CLI,
+naming the file you downloaded:
 
 ```sh
-gh attestation verify apollia-os-<preset>.tar.gz --repo Apollia-OS/apollia-os
+gh attestation verify apollia-os-linux-x86-cpu.tar.gz --repo Apollia-OS/apollia-os
+gh attestation verify apollia-os-windows-x86-cpu.zip --repo Apollia-OS/apollia-os
 ```
 
 A CycloneDX and an SPDX SBOM (`.cdx.json`, `.spdx.json`) are published next to

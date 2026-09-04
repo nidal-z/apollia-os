@@ -50,6 +50,9 @@ use commands::workspace::WorkspaceCommand;
 #[command(name = "apollia-os", version, about)]
 struct Cli {
     /// Unix socket path (default: the runtime socket under the data directory).
+    ///
+    /// Accepted but ignored on Windows, which has no Unix socket: the CLI
+    /// opens the runtime's named pipe, whose name comes from `USERNAME`.
     #[arg(long, global = true, value_name = "PATH")]
     socket: Option<PathBuf>,
 

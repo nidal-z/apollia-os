@@ -31,7 +31,7 @@ se limite par défaut au socket Unix.
 - **Pont Python.** Les agents sont écrits en Python (3.12+), exécutés via un pont PyO3 avec `pyo3-async-runtimes`. Le côté Rust possède le processus ; Python est l'invité.
 - **Inférence.** L'inférence locale repose sur `llama-server` embarqué (issu de llama.cpp en amont), sur des modèles GGUF, via son API HTTP compatible OpenAI. Le backend n'est pas figé, il est choisi par artefact publié : Metal sur macOS, et CPU, Vulkan ou CUDA sur Linux et Windows. La reconnaissance vocale locale s'appuie sur `whisper`.
 - **Persistance.** SQLite avec FTS5, en mode WAL. Pas de base de données externe.
-- **Transport.** L'API HTTP est servie sur un socket Unix et sur TCP avec un jeton bearer. `apollia-os start` lie les deux, en prenant le port 7771 quand `--port` est omis. Le socket Unix seul est le comportement par défaut du runtime embarqué, pas du daemon.
+- **Transport.** L'API HTTP est servie sur un socket Unix et sur TCP avec un jeton bearer. `apollia-os start` lie les deux, en prenant le port 7771 quand `--port` est omis. Le socket Unix seul est le comportement par défaut du runtime embarqué, pas du daemon. Windows n'a pas de socket Unix : le transport local y est le tube nommé `\\.\pipe\apollia-runtime-<user>`, qui porte le jeton bearer parce qu'un tube est créé avec un descripteur de sécurité par défaut et non avec le `0600` de la socket.
 - **Aucune dépendance injustifiée.** Chaque dépendance tierce, Rust ou Python, constitue une surface de souveraineté et n'est ajoutée qu'avec une décision d'architecture qui la justifie. Les agents et les workers se limitent à la bibliothèque standard par défaut.
 
 ## Contraintes organisationnelles

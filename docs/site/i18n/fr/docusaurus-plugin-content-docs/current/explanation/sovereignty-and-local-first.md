@@ -29,6 +29,14 @@ tout sur votre matériel. Une souveraineté qu'il faudrait configurer pour
 l'obtenir n'en serait pas une ; ici, elle est le défaut, et c'est en sortir
 qui constitue l'acte délibéré.
 
+Windows n'a pas de socket Unix : le transport local y est un tube nommé,
+`\\.\pipe\apollia-runtime-<user>`. Il joue le rôle de la socket, mais pas avec
+la garantie de la socket : un tube est créé avec un descripteur de sécurité par
+défaut, plus faible que le `0600` que le runtime pose sur le fichier de socket.
+Ce qui contrôle l'accès sous Windows est donc le jeton Bearer que le tube porte,
+et non les permissions du transport lui-même. L'écouteur TCP est lié sous
+Windows exactement comme ailleurs : `apollia-os start` passe toujours un port.
+
 ## L'inférence s'exécute en local
 
 Apollia embarque sa propre inférence locale. Un modèle au format GGUF
