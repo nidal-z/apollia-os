@@ -10,7 +10,7 @@ pull requests no**.
 ## Reporting a bug
 
 If something does not work as documented, please open an issue using the
-[bug report template](.github/ISSUE_TEMPLATE/bug_report.md).
+[bug report template](.github/ISSUE_TEMPLATE/bug_report.yml).
 
 Include:
 
@@ -25,7 +25,7 @@ Good reproduction steps are the single most valuable thing you can give.
 ## Requesting a feature
 
 Open an issue using the
-[feature request template](.github/ISSUE_TEMPLATE/feature_request.md).
+[feature request template](.github/ISSUE_TEMPLATE/feature_request.yml).
 Describe the problem you are trying to solve, not just the solution you have
 in mind. The maintainer may refine the shape before any work happens.
 

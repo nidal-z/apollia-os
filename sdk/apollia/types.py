@@ -59,7 +59,15 @@ class ImageSourceUrl(TypedDict):
 
 
 class ImageContent(TypedDict):
-    """An image content block inside an LLM message."""
+    """An image content block inside an LLM message.
+
+    No backend reachable through ``ctx.llm`` reads the image itself today. The
+    bridge flattens every image block to the literal placeholder
+    ``[image: <media_type or url>]`` before the message leaves the process and
+    logs ``llm.proxy.vision.unsupported``; a model asked about the image is
+    therefore answering about that placeholder. The typing is kept so a vision
+    backend can be wired without changing the API.
+    """
 
     type: Literal["image"]
     source: ImageSourceBase64 | ImageSourceUrl
@@ -116,7 +124,8 @@ def image_from_path(path: str) -> ImageContent:
     """Load an image file from disk and encode it as base64.
 
     Raises :class:`ValueError` if the file's MIME type cannot be inferred
-    or is not an ``image/*`` type.
+    or is not an ``image/*`` type. The block it returns is flattened to a text
+    placeholder before it reaches a model, see :class:`ImageContent`.
     """
     mime, _ = mimetypes.guess_type(path)
     if mime is None or not mime.startswith("image/"):
@@ -132,7 +141,9 @@ def image_from_path(path: str) -> ImageContent:
 def image_from_bytes(data: bytes, mime: str) -> ImageContent:
     """Wrap raw bytes as a base64 image content block.
 
-    Raises :class:`ValueError` if ``mime`` does not start with ``image/``.
+    Raises :class:`ValueError` if ``mime`` does not start with ``image/``. The
+    block it returns is flattened to a text placeholder before it reaches a
+    model, see :class:`ImageContent`.
     """
     if not mime.startswith("image/"):
         raise ValueError(f"Invalid image MIME type: {mime}")
@@ -147,7 +158,11 @@ def image_from_bytes(data: bytes, mime: str) -> ImageContent:
 
 
 def image_from_url(url: str) -> ImageContent:
-    """Reference a remote image by URL."""
+    """Reference a remote image by URL.
+
+    The block it returns is flattened to a text placeholder before it reaches a
+    model, see :class:`ImageContent`.
+    """
     return {"type": "image", "source": {"type": "url", "url": url}}
 
 
@@ -160,7 +175,10 @@ def image_from_url(url: str) -> ImageContent:
 class Ctx(Protocol):
     """Runtime context passed to every agent handler.
 
-    Exposes 100% of the Apollia backend through 15 typed services.
+    The attributes below are the whole surface an agent sees, and their reach
+    is not uniform: ``ctx.workspace``, ``ctx.notify`` and ``ctx.stt`` are
+    ``None`` on every binary this project ships, and ``ctx.mail`` raises
+    outside the desktop application. Each service page states its own reach.
     Use type hints to get IDE autocomplete::
 
         @skill("foo.bar")

@@ -25,7 +25,15 @@ class MailMessage(TypedDict):
 
 @runtime_checkable
 class MailInterface(Protocol):
-    """Durable, at-least-once inter-agent messaging surface."""
+    """Durable, at-least-once inter-agent messaging surface.
+
+    Reachable from the desktop application only. Both command-line runners
+    build the agent context with no mailbox handle (``apollia-os start`` in
+    task mode, and the chat runner), so every call there raises
+    ``RuntimeError("mailbox not available in this runtime context")``. The
+    agent must also declare the capability with ``@agent(mailbox=True)``, or
+    the call is refused before the handle is even looked up.
+    """
 
     async def send(self, to: str, payload: dict[str, Any]) -> str:
         """Post a message to ``to``'s inbox, returning its message id."""
