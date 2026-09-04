@@ -94,7 +94,16 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   boot and is the release gate (2431 steps); `just desktop-automation-verdict` reads its report. `tour-det` covers the Getting
   started band and the guided tour (entry points, step navigation, the
   anchorless fallback, the exit confirmation, finishing).
-- **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`.
+- **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
+  and three books written against the coverage report below, none of them in
+  `regen_master.py`'s `ORDER` yet because none has been through a runtime round:
+  `danger-guard-det` (the cancel half of the four destructive guards: step-1
+  cancel, mismatch, match, lock hint, step-2 cancel, and no `-confirm` ever
+  clicked), `profile-facts-det` (the off-schema memory facts of the profile
+  page, added, edited, deleted by the script itself), `llm-advanced-det` (the
+  advanced panel of the backend dialog, sampling parameters through extra JSON,
+  cancelled without saving). Fold one into `master-det` by adding it to `ORDER`
+  and re-running `regen_master.py --write`, after its first green solo run.
 - **LLM** (need `-seeded-llama`): `chat-llm` (the flagship: tools, HITL, memory,
   config, plan mode, ask_user, step budget), `hitl-critical`, `coach-llm`,
   `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, `tour-llm` (act 1 of
@@ -156,6 +165,28 @@ and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`)
   python3 scripts/automation/tools/regen_master.py           # dry-run (checks it still matches)
   python3 scripts/automation/tools/regen_master.py --write   # rewrite the file
   ```
+- **What is NOT covered**: the mirror of `validate.py`. It reads the same
+  corpus (it imports `build_corpus`), sorts the anchors into gestures and
+  markers, and reports, per page, the gestures no step ever acts on:
+  ```sh
+  python3 scripts/automation/tools/uncovered.py            # table by page
+  python3 scripts/automation/tools/uncovered.py --list --page chat
+  python3 scripts/automation/tools/uncovered.py --families # the id-built-from-data anchors
+  python3 scripts/automation/tools/uncovered.py --max-uncovered 197   # guard mode
+  ```
+  A gesture is covered only by an acting step (`click`, `fill`, `setChecked`,
+  `selectOption`, `press`, plus the implicit `chat-input` / `chat-send-button`
+  of `sendChat`); a `waitFor` on a button proves the button exists, not that
+  anyone can press it. Exit codes: 0 measured and within budget, 1 a defect
+  (over `--max-uncovered`, or an anchor it resolves that the validation corpus
+  does not), 2 nothing measured.
+  Read the `--origin` flag before quoting a number. The default counts only
+  ids written literally in the source. `--origin all` adds the ids
+  reconstructed from a file's string literals, and that bucket is noisy by
+  construction: the danger zone appears to hold a hundred anchors, of which
+  about ninety are the confirm-dialog suffixes applied to class names caught in
+  the same literal pool (`rounded-xl-confirm-input`). The page really holds
+  four actions.
 - **Analyse a run**: group the failed steps of a report by section:
   ```sh
   python3 scripts/automation/tools/analyze_report.py [report.json] [script.json]

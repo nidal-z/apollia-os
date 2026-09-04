@@ -1,0 +1,255 @@
+{
+  "name": "llm-advanced-det (the advanced panel of the LLM backend dialog: sampling parameters, HuggingFace autofill field, timeout, extra JSON, the two switches, cancelled without saving)",
+  "stopOnError": false,
+  "notes": [
+    "Code-verified against components/settings/LlmBackendDialog.svelte + components/settings/llmBackendForm.ts + components/settings/SettingsToggle.svelte.",
+    "llm-det opens this dialog and cancels it without ever expanding the advanced collapsible, so eleven controls behind llm-dialog-advanced-toggle had never been played.",
+    "seedFrom(null) opens a new backend on provider llama-cpp, which is the branch that renders the HuggingFace autofill block; no provider change is needed to reach llm-dialog-hf-repo.",
+    "Two controls are deliberately asserted present and never clicked, both because they leave the machine: llm-dialog-hf-fetch calls the HuggingFace API, and llm-dialog-test opens a connection to the backend endpoint. A deterministic run has neither, so clicking them would assert a network failure rather than a gesture. Same discipline as llm-det, which reduces the network actions to their boundary.",
+    "llm-dialog-save is never clicked: the dialog is opened on the ADD path and cancelled, so the seeded three backends are left untouched and the script is re-runnable.",
+    "The sampling fields are number inputs whose oninput reads valueAsNumber; the runner's fill dispatches a real input event, so the handler runs. llm-dialog-extra is a Textarea and is given valid JSON, because invalid JSON sets errors.extraJson and would only be visible on a save this script never performs.",
+    "llm-dialog-enabled and llm-dialog-default are SettingsToggle wrappers, not inputs: the switch is the <button role=switch> the wrapper contains, which is what the runner's setChecked descends to. Both are driven AWAY from their seeded value first (enabled true, isDefault false), because setChecked only clicks on a mismatch and setting a field to the value it already holds is not a gesture.",
+    "The advanced panel is collapsed again at the end and the collapse asserted by waitGone, so the toggle is exercised in both directions.",
+    "The settings LLM panel is walked in builder mode, like llm-det and destructive.json: add-backend-btn and the per-card controls live in builder surfaces."
+  ],
+  "dynamicTestids": [
+    "settings-nav-llm",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backends-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-backend-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "add-backend-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-add-dialog-advanced-collapsed"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-advanced-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-temperature",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-advanced-expanded"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-temperature",
+      "text": "0.35"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-top-k",
+      "text": "40"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-top-p",
+      "text": "0.92"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-repeat-penalty",
+      "text": "1.08"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-context-size",
+      "text": "8192"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-sampling-parameters-set"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-hf-repo",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-hf-repo",
+      "text": "Qwen/Qwen3-30B-A3B-GGUF"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-hf-fetch",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-hf-autofill-armed-not-fetched"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-timeout",
+      "text": "120"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-extra",
+      "text": "{ \"device\": \"metal\" }"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-timeout-and-extra-json"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "llm-dialog-enabled",
+      "checked": false
+    },
+    {
+      "kind": "setChecked",
+      "testid": "llm-dialog-default",
+      "checked": true
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-switches-flipped"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "llm-dialog-enabled",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "llm-dialog-default",
+      "checked": false
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-save",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-footer-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-advanced-toggle"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "llm-dialog-temperature",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-advanced-collapsed-again"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "llm-backend-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backends-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-dialog-cancelled-nothing-saved"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-back-operator"
+    }
+  ]
+}
