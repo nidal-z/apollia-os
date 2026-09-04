@@ -1,0 +1,12 @@
+{
+  "operation": "youtube.video_details",
+  "origin": "example",
+  "note": "Hand-written from the YouTube Data API reference for videos.list, which answers 200 with an empty `items` array when the id names no video the caller can see, rather than 404. The client turns that into None, and this is the only Option in the connector corpus. The empty-collection path is chosen over the populated one because the populated one parses a VideoSnippet the youtube.search fixture already reads, while this one is where a client that mishandles an empty collection would error instead of answering nothing. Not a recording.",
+  "response": {
+    "kind": "youtube#videoListResponse",
+    "etag": "\"replay-etag\"",
+    "items": [],
+    "pageInfo": { "totalResults": 0, "resultsPerPage": 0 }
+  },
+  "expect": null
+}

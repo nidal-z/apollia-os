@@ -151,6 +151,10 @@ fn judge(fixture: &Fixture, played: &Replayed) -> Vec<String> {
     match (&fixture.expect, &fixture.expect_error) {
         (Some(expected), None) => match &played.outcome {
             Ok(actual) => {
+                // A fixture writing `"expect": null` asserts that the client
+                // read nothing, which is what an `Option<T>` method answers on
+                // an empty collection. serde_json renders that as `Value::Null`.
+                let expected = expected.as_ref().unwrap_or(&serde_json::Value::Null);
                 if actual != expected {
                     defects.push(format!(
                         "read\n      {}\n    but the fixture expects\n      {}",

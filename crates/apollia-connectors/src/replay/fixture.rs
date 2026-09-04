@@ -28,6 +28,14 @@ pub(crate) enum Origin {
 
 /// One recorded (or hand-written) upstream answer and the reading it must
 /// produce.
+/// Deserialise a field so a present `null` differs from an absent key.
+fn present_even_when_null<'de, D>(deser: D) -> Result<Option<Option<serde_json::Value>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde::Deserialize::deserialize(deser).map(Some)
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Fixture {
@@ -50,8 +58,14 @@ pub(crate) struct Fixture {
     pub responses: Option<Vec<serde_json::Value>>,
     /// What the connector must read out of that answer: the value the client
     /// method returns, serialised.
-    #[serde(default)]
-    pub expect: Option<serde_json::Value>,
+    ///
+    /// Doubly optional on purpose. `Option<Value>` alone cannot tell a missing
+    /// key from an explicit `null`, serde mapping both to `None`, so a client
+    /// method returning `Option<T>` had no way to assert its `None` path: the
+    /// fixture that tried read as one asserting nothing at all. The outer layer
+    /// is presence, the inner one is the value.
+    #[serde(default, deserialize_with = "present_even_when_null")]
+    pub expect: Option<Option<serde_json::Value>>,
     /// Substring the surfaced error must contain, for a fixture that records a
     /// failure answer rather than a success one.
     #[serde(default)]

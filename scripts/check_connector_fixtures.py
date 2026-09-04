@@ -154,8 +154,7 @@ UNCOVERED_BACKLOG = frozenset(
         "outlook_cal.create_event",
         "outlook_cal.get_event",
             "outlook_cal.update_event",
-            "youtube.video_details",
-    }
+        }
 )
 
 OPERATION_ID = re.compile(r'^\s*id:\s*"([a-z_]+\.[a-z_]+)",\s*$', re.M)
