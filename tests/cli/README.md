@@ -140,6 +140,21 @@ Track 2 runs on the nightly schedule (`cli-e2e-runtime` job in
 and locally through `just cli-e2e-runtime`. Track 3 needs a real GGUF and stays
 local: `just cli-e2e-model <model.gguf>`, run before releases.
 
+## The smoke sweep beside it
+
+`tests/cli/smoke/` is the other half of the coverage question. This suite proves
+what a few dozen commands SAY; the sweep proves that every leaf RUNS: it
+enumerates the whole clap tree from the built binary and plays each leaf once
+against a throwaway seeded HOME, checking the documented exit taxonomy, that
+`--json` output parses, and that nothing panics or hangs. It asserts no content,
+and it counts what it PLAYED rather than what it enumerated, with every refusal
+named and reasoned in `tests/cli/smoke/policy.py`.
+
+Run `python3 tests/cli/smoke/sweep.py` (offline, seconds),
+`--daemon` (boots its own daemon and measures the API routes the CLI reaches),
+or `--selftest` (the sweep played against a stub built to break, which is its
+proof that it can still fail). Read `tests/cli/smoke/README.md` first.
+
 ## Extending the suite
 
 Add assertions with the `lib/assert.sh` helpers so PASS/FAIL/SKIP and the report
