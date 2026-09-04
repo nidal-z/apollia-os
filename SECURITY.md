@@ -43,9 +43,11 @@ Out of scope:
 
 ## Verifying release artifacts
 
-Every release asset is signed and carries build provenance. All signing is
+Every release asset is signed and carries build provenance. Artifact signing is
 keyless (Sigstore OIDC): there is no long-lived private key, and the signing
-identity is the release workflow itself.
+identity is the release workflow itself. One signature is not keyless, and is
+described at the end of this section: the OpenPGP signature over `SHA256SUMS`,
+whose public key is `apollia-release-key.asc` at the root of this repository.
 
 The CLI archive is named after its preset, and its extension follows the
 platform: `apollia-os-<preset>.tar.gz` on macOS and Linux,
@@ -71,6 +73,29 @@ cosign verify-blob `
   --certificate-identity-regexp '^https://github.com/Apollia-OS/apollia-os/' `
   apollia-os-windows-x86-cpu.zip
 ```
+
+### The checksum signature
+
+`SHA256SUMS` covers every published file, and the release signs it with an
+OpenPGP key. The public half is committed at the root of this repository as
+`apollia-release-key.asc`, so it travels with the source rather than with the
+download it authenticates.
+
+```sh
+gpg --import apollia-release-key.asc
+gpg --verify SHA256SUMS.asc SHA256SUMS
+shasum -a 256 -c SHA256SUMS
+```
+
+The fingerprint to expect:
+
+```
+578236310A23A3DE368737CD8F38159B9DA5C452   Apollia OS <admin@apollia.fr>
+```
+
+`gpg` reports the key as untrusted until you certify it, which is expected and
+says only that no chain of trust reaches it from your keyring. What matters is
+`Good signature` and the fingerprint above.
 
 Each release also carries a SLSA build-provenance attestation. Verify that an
 artifact was built by this repository's release workflow with the GitHub CLI,

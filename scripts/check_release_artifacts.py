@@ -43,6 +43,9 @@ Rules:
   signing-outputs   the artifact-signing step writes under a suffix that no
                     updater signature of the contract already occupies, and
                     that an upload pattern of the release job publishes
+  signing-key       when the release GPG-signs SHA256SUMS, the public half is
+                    committed and named in SECURITY.md, so a verifier has the
+                    key the signature needs
   updater-uploads   each desktop job stages the updater signature its contract
                     entry declares, in a run line that is not a comment
   flat-uploads      every upload-artifact path of the cli and desktop jobs
@@ -88,6 +91,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 CONTRACT = Path("packaging/artifacts.json")
 WORKFLOW = Path(".github/workflows/release.yml")
+SECURITY = Path("SECURITY.md")
+RELEASE_KEY = Path("apollia-release-key.asc")
 UPDATE_RS = Path("crates/apollia-cli/src/commands/update.rs")
 TAURI_CONF = Path("crates/apollia-desktop/tauri.conf.json")
 DOCS_EN = Path("docs/site/docs/how-to/install-the-desktop-app.md")
@@ -96,7 +101,7 @@ DOCS_FR = Path(
     "install-the-desktop-app.md"
 )
 
-FILES = (CONTRACT, WORKFLOW, UPDATE_RS, TAURI_CONF, DOCS_EN, DOCS_FR)
+FILES = (CONTRACT, WORKFLOW, UPDATE_RS, TAURI_CONF, DOCS_EN, DOCS_FR, SECURITY, RELEASE_KEY)
 
 BLOCK_BEGIN = "<!-- release-artifacts:begin"
 BLOCK_END = "<!-- release-artifacts:end -->"
@@ -522,6 +527,33 @@ def check(root: Path) -> list[str] | int:
                 f"and then left behind"
             )
 
+    # ── signing-key ───────────────────────────────────────────────────────
+    # A public key committed and cited nowhere reads as leftover clutter, and
+    # on a repository about to open, leftover clutter invites deletion. This
+    # one is not clutter: the release GPG-signs SHA256SUMS with its private
+    # half, and `gpg --verify` against the committed file returns a good
+    # signature. What was missing was the sentence that says so, without which
+    # a verifier has a signature and no key, and a maintainer has a file with
+    # no reason to exist.
+    signs_checksums = any(
+        "--detach-sign" in str(step.get("run", ""))
+        for step in jobs.get("release", {}).get("steps", [])
+    )
+    if signs_checksums:
+        key = root / RELEASE_KEY
+        if not key.is_file():
+            defects.append(
+                f"{WORKFLOW}: signing-key: the release job detach-signs SHA256SUMS and "
+                f"apollia-release-key.asc is absent, so the signature it publishes cannot "
+                f"be checked by anyone"
+            )
+        elif key.name not in (root / SECURITY).read_text(encoding="utf-8"):
+            defects.append(
+                f"{SECURITY}: signing-key: {key.name} is committed and named nowhere in "
+                f"this file, so a verifier holding SHA256SUMS.asc has no key to verify it "
+                f"with, and the file itself reads as clutter"
+            )
+
     # ── docs-block ────────────────────────────────────────────────────────
     version = conf.get("version", "")
     for page, lang in ((DOCS_EN, "en"), (DOCS_FR, "fr")):
@@ -579,6 +611,12 @@ def selftest() -> int:
             print(f"  {status} {name}")
             if not fired:
                 failures.append(name)
+
+    def unname_release_key(root: Path) -> None:
+        text = (root / SECURITY).read_text(encoding="utf-8")
+        (root / SECURITY).write_text(
+            text.replace(RELEASE_KEY.name, "the release key"), encoding="utf-8"
+        )
 
     def drop_manifest_step(root: Path) -> None:
         text = (root / WORKFLOW).read_text(encoding="utf-8")
@@ -640,6 +678,7 @@ def selftest() -> int:
     case("a hardcoded asset name in update.rs is reported", hardcode_a_name, "update-consumer")
     case("a nested upload path is reported", nest_an_upload, "flat-uploads")
     case("a drifted docs block is reported", drift_docs_block, "docs-block")
+    case("a release key named nowhere is reported", unname_release_key, "signing-key")
 
     # Positive control: the pristine tree is green, so the cases above fired
     # because of their mutation, not because the check reds everything.
