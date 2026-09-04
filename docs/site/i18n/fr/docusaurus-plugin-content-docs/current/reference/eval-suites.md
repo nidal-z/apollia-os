@@ -96,5 +96,12 @@ chercher ailleurs.
 
 `llm_judge` prend un `rubric` et rien d'autre. Il n'y a aucune valeur attendue
 à fournir : le `rubric` est le critère entier, et le juge répond en fonction
-de lui. Il utilise le même backend LLM que l'agent évalué, donc un backend
-inaccessible fait échouer toutes les assertions `llm_judge` de la suite.
+de lui.
+
+`apollia-os eval run` construit son exécuteur sans juge, si bien que toute
+assertion `llm_judge` échoue aujourd'hui, avec la raison « llm judge not
+evaluated: this runner has no judge router ». C'est délibéré du côté du harnais,
+une assertion que rien n'a vérifiée n'est jamais comptée comme réussie, et ce
+n'est pas un problème de backend : en configurer un n'y change rien. Tant que la
+commande ne câble pas de juge, écrivez vos suites sur `exit_code`, `file_exists`
+et `regex`.

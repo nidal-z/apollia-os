@@ -10,9 +10,12 @@ build, a service manager, a hardened network posture, and the checks you run aft
 each deploy. It assumes you can already build and run the daemon locally; if not,
 start with [Install and run the runtime](/how-to/install-and-run).
 
-The `packaging/` directory in the repository builds desktop bundles (DMG and
-AppImage) for end users, not a server daemon. For a server you build the binary
-from source and wrap it in your init system, which is what this guide does.
+The `packaging/` directory in the repository stages what a desktop bundle needs,
+the embedded Python bundle and the `llama-server` binary, and the desktop bundle
+itself is assembled by Tauri through
+`crates/apollia-desktop/scripts/bundle-cli.sh`. Neither produces a server daemon.
+For a server you build the binary from source and wrap it in your init system,
+which is what this guide does.
 
 ## Build an optimized binary
 
@@ -146,8 +149,10 @@ response.
 ## Verify after deploy
 
 ```sh
-# Liveness
-curl http://127.0.0.1:7771/api/v1/health          # {"status":"ok"}
+# Liveness. The TCP listener requires the bearer token on every path but the
+# webhook one, so the health check carries it too.
+curl -H "Authorization: Bearer $(cat ~/.apollia/api-token)" \
+  http://127.0.0.1:7771/api/v1/health             # {"status":"ok"}
 
 # Runtime and agent status
 apollia-os status

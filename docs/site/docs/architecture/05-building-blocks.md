@@ -80,7 +80,7 @@ makes concrete.
 |---|---|
 | **apollia-runtime** | The daemon. Hosts the Tokio actor supervisor, the EventBus, the axum HTTP API, chat and plan management, and the signed audit journal with verification. |
 | **apollia-runner** | The speech-to-text sidecar: `whisper` (via `whisper-rs`) out of process, one GPU backend per build. Local LLM inference no longer runs here; it goes through the embedded `llama-server` (upstream llama.cpp) that the daemon supervises, over an OpenAI-compatible HTTP API with `--jinja` native tool calling and continuous batching. |
-| **apollia-llm** | The multi-backend LLM router: local plus cloud (Anthropic, OpenAI, Vertex), daily cost tracking, a Hugging Face GGUF registry, and hardware detection. |
+| **apollia-llm** | The multi-backend LLM router: local plus remote (Anthropic, OpenAI, Mistral, and any OpenAI-compatible endpoint, Ollama included), daily cost tracking, a Hugging Face GGUF registry, and hardware detection. |
 | **apollia-core** | Shared types: the unified plan model, configuration, lifecycle hooks, and the hybrid routing configuration that lets a run escalate to a frontier model on a user key. |
 | **apollia-aip** | The PyO3 bridge and the A2A path that lets agents call one another by skill. |
 | **apollia-prompts** | The English prompt corpus with a language footer, shared across the engine. |

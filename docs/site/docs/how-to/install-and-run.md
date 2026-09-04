@@ -312,7 +312,10 @@ The `runners` value controls two things:
    bundle.
 2. Which prebuilt `llama-server` asset is downloaded. The script picks the
    first GPU backend in the list (`metal`, `cuda`, `rocm`, or `vulkan`); if
-   none is present it falls back to CPU.
+   none is present it falls back to CPU. Setting
+   `APOLLIA_DESKTOP_LLAMA_BACKEND` overrides that choice and the list is not
+   consulted, which is how the release pipeline builds a CUDA engine next to
+   CPU speech-to-text runners.
 
 `cpu` is always included as a universal fallback. Add one GPU backend that
 matches your hardware:
@@ -320,7 +323,7 @@ matches your hardware:
 | Hardware | Typical `runners` value | Notes |
 |---|---|---|
 | Apple Silicon | `cpu metal` | Default macOS preset |
-| NVIDIA (CUDA 12+) | `cpu cuda` | On Windows, LLM and STT both use CUDA. On Linux, STT uses CUDA while the bundled LLM engine stays on CPU: the pinned upstream release ships no Linux CUDA `llama-server` (build one and pass `LLAMA_SERVER_DIR` to bundle it) |
+| NVIDIA (CUDA 12+) | `cpu cuda` | On Windows, LLM and STT both use CUDA. On Linux this value fails the bundle: the pinned upstream release ships no Linux CUDA `llama-server`, the fetch exits and the script stops on `could not bundle llama-server (cuda)`. Build one and pass `LLAMA_SERVER_DIR`, which is what the release pipeline does for the Linux `-cuda` bundle |
 | AMD Radeon / Intel Arc | `cpu vulkan` | LLM on GPU; STT stays CPU (`whisper-rs` has no Vulkan backend) |
 | AMD Pro / Instinct + HIP SDK | `cpu rocm` | LLM and STT on ROCm where supported |
 

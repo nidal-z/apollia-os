@@ -8,7 +8,7 @@ title: ctx.stt
 
 Service type: `SttInterface` (from `apollia.context.stt`).
 
-The bridge may leave this service unattached; `ctx.stt` is then `None`.
+The bridge never attaches this service. `ctx.stt` is `None` on every binary this project ships, so any attribute access on it raises `AttributeError`; no builder that could fill it (`with_stt`) has a caller outside tests. `scripts/check_optional_builders.py` holds that measurement.
 
 ### `SttInterface`
 

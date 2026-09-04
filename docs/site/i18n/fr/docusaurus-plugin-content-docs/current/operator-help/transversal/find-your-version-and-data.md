@@ -16,7 +16,7 @@ sidebar_position: 5
 
 1. Dans la barre latérale, cliquez sur **Réglages**, puis sur **À propos** (en bas de la navigation, dans le groupe **Aide**).
 
-2. L'en-tête affiche la **version**, le **canal de diffusion** et la **plateforme**. Le canal est lu depuis la chaîne de version : une version portant un suffixe après le tiret, comme `0.1.0-preview`, est une préversion ; une version nue est une version stable.
+2. L'en-tête affiche la **version**, le **canal de diffusion** et la **plateforme**. Le canal est lu depuis la chaîne de version : une version portant un suffixe après le tiret, comme `0.1.0-preview`, est une préversion ; une version nue est une version stable. Ce numéro est celui du produit, et ce n'est pas celui gravé sur les fichiers d'installation : ceux-ci portent `0.1.0-1`, parce que le format d'installeur Windows refuse un identifiant de préversion non numérique. Les deux désignent le même build, et le numéro à citer est celui de cet écran.
 
 3. La section **Version et build** liste les valeurs qui identifient cette installation : version, plateforme, interpréteur Python, moteur d'inférence et moteur de transcription. Un clic sur une valeur la copie.
 

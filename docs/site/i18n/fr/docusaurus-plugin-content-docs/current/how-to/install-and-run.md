@@ -348,6 +348,9 @@ La valeur `runners` contrôle deux choses :
 2. Quel artefact `llama-server` préconstruit est téléchargé. Le script
    choisit le premier backend GPU présent dans la liste (`metal`, `cuda`,
    `rocm`, ou `vulkan`) ; si aucun n'est présent, il retombe sur le CPU.
+   Définir `APOLLIA_DESKTOP_LLAMA_BACKEND` remplace ce choix et la liste n'est
+   plus consultée, ce qui est la façon dont la chaîne de publication construit
+   un moteur CUDA à côté d'exécuteurs de reconnaissance vocale CPU.
 
 `cpu` est toujours inclus comme repli universel. Ajoutez un backend GPU
 correspondant à votre matériel :
@@ -355,7 +358,7 @@ correspondant à votre matériel :
 | Matériel | Valeur `runners` typique | Remarques |
 |---|---|---|
 | Apple Silicon | `cpu metal` | Préréglage par défaut pour macOS |
-| NVIDIA (CUDA 12+) | `cpu cuda` | Sur Windows, LLM et STT utilisent tous deux CUDA. Sur Linux, la STT utilise CUDA tandis que le moteur LLM embarqué reste sur CPU : la release amont épinglée ne publie pas de `llama-server` CUDA Linux (compilez-en un et passez `LLAMA_SERVER_DIR` pour l'embarquer) |
+| NVIDIA (CUDA 12+) | `cpu cuda` | Sur Windows, LLM et STT utilisent tous deux CUDA. Sur Linux, cette valeur fait échouer le bundle : la release amont épinglée ne publie pas de `llama-server` CUDA Linux, la récupération sort en erreur et le script s'arrête sur `could not bundle llama-server (cuda)`. Compilez-en un et passez `LLAMA_SERVER_DIR`, ce que fait la chaîne de publication pour le paquet `-cuda` Linux |
 | AMD Radeon / Intel Arc | `cpu vulkan` | LLM sur GPU ; STT reste sur CPU (`whisper-rs` n'a pas de backend Vulkan) |
 | AMD Pro / Instinct + HIP SDK | `cpu rocm` | LLM et STT sur ROCm là où c'est pris en charge |
 

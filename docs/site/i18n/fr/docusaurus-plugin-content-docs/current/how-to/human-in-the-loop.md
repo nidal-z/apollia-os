@@ -103,18 +103,21 @@ Concevez en conséquence :
   par le runtime pour le chat et les exécutions orchestrées ; un skill de
   worker autonome n'observe pas lui-même la reprise.
 
-## `NeedHumanInput` face à `requires_approval`
+## Il n'existe pas de forme déclarative sur `@skill`
 
-Pour le cas courant où l'on verrouille une action sensible précise,
-préférez la forme déclarative : marquez le skill avec
-`@skill(..., requires_approval=True)`. Le runtime insère la pause
-d'approbation avant l'exécution du skill, sans que votre code n'ait
-besoin de lever quoi que ce soit. Réservez `NeedHumanInput` au cas où la
-décision de mettre en pause est dynamique et prise en cours de skill.
+Lever `NeedHumanInput` est la seule barrière qu'un agent ouvre depuis son
+propre code. Le décorateur ne prend aucun argument d'approbation : ses
+paramètres sont `skill_id`, `description`, `dangerous` et `examples`, et passer
+`requires_approval=True` lève `TypeError: skill() got an unexpected keyword
+argument 'requires_approval'` à l'import, l'agent ne se charge donc jamais.
+`dangerous=True` est une métadonnée de manifeste : elle marque le skill pour
+l'outillage d'inspection et n'insère aucune pause.
 
-Un troisième mécanisme, distinct, verrouille les outils MCP externes par
-serveur ou par outil ; il se configure via les commandes `apollia-os mcp`,
-pas via le SDK agent.
+Un mécanisme distinct marque les serveurs MCP externes comme exigeant une
+approbation, via les commandes `apollia-os mcp`. Il est enregistré et affiché,
+et il n'est pas appliqué aujourd'hui : le runtime démarre le gestionnaire MCP
+sans magasin d'approbations, et sans magasin la vérification est sautée et
+l'appel est transmis. Ne comptez pas dessus pour retenir un appel d'outil MCP.
 
 ## Voir aussi
 

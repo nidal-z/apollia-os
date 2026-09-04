@@ -16,7 +16,7 @@ sidebar_position: 5
 
 1. In the sidebar, click **Settings**, then **About** (bottom of the navigation, in the **Help** cluster).
 
-2. The header shows the **version**, the **release channel** and the **platform**. The channel is read from the version string: a version carrying a suffix after the hyphen, such as `0.1.0-preview`, is a preview build; a bare version is a stable one.
+2. The header shows the **version**, the **release channel** and the **platform**. The channel is read from the version string: a version carrying a suffix after the hyphen, such as `0.1.0-preview`, is a preview build; a bare version is a stable one. That number is the product version, and it is not the one stamped on the installer files: those carry `0.1.0-1`, because the Windows installer format refuses a non-numeric pre-release identifier. Both name the same build, and the number to quote is the one on this screen.
 
 3. The **Version and build** section lists the values that identify this installation: version, platform, Python interpreter, inference engine and transcription engine. Click any value to copy it.
 

@@ -12,7 +12,7 @@ sidebar_position: 4
 
 - Apollia lancé.
 - Un compte Microsoft, personnel ou professionnel.
-- Votre profil de souveraineté n'est pas réglé sur `local_only`.
+- Votre réglage **Souveraineté des données**, dans **Réglages, Profil**, n'est pas sur *Local strict*, et a reçu une réponse au moins une fois.
 - Si votre tenant Entra ID exige une approbation administrative, l'administrateur doit pré-approuver l'application.
 - Connexion internet active.
 
@@ -71,7 +71,7 @@ Microsoft Teams n'est pas couvert en v0.1.0.
 
 ## Multi-comptes
 
-Comme pour Google, vous pouvez connecter plusieurs comptes Microsoft. Chaque compte garde son token séparé dans le trousseau. Au moment où un agent appelle un outil Microsoft, il peut choisir le compte cible si plusieurs sont connectés.
+Comme pour Google, vous pouvez connecter plusieurs comptes Microsoft, et chacun garde son token séparé dans le trousseau. Comme pour Google aussi, un agent ne peut pas choisir entre eux : aucun schéma d'outil ne porte de paramètre de compte, et tout appel se résout sur le premier compte connecté. Si un agent doit agir sous un compte donné, ne connectez que celui-là.
 
 ## Différences perso vs pro
 
@@ -115,13 +115,13 @@ Vider à nouveau le champ rétablit l'identifiant fourni avec Apollia. Les compt
 
 ## Si ça ne marche pas
 
-- **La carte Microsoft 365 affiche « Configuration requise »** : c'est impossible sur une version qui embarque l'identifiant, et ni une variable d'environnement vide ni une entrée vidée à la main dans `~/.apollia/oauth-clients.toml` ne le produisent : les deux sont ignorées lorsqu'elles sont vides et l'identifiant fourni reprend la main. Si vous le voyez malgré tout, c'est que la version installée a été compilée sans l'identifiant. Vérifiez avec `apollia-os connector list`, qui nomme la source du client résolu.
+- **La carte Microsoft 365 affiche « Configuration requise »** : c'est impossible sur une version qui embarque l'identifiant, et ni une variable d'environnement vide ni une entrée vidée à la main dans `~/.apollia/oauth-clients.toml` ne le produisent : les deux sont ignorées lorsqu'elles sont vides et l'identifiant fourni reprend la main. Si vous le voyez malgré tout, c'est que la version installée a été compilée sans l'identifiant. Vérifiez avec `apollia-os connector client-id list`, qui nomme la source du client résolu, `env`, `file`, `builtin` ou `none`. Le simple `connector list` affiche les connecteurs enregistrés, leurs services et leur nombre d'opérations, et ne dit rien de l'identifiant client.
 - **Microsoft rejette l'URI de redirection** : atteignable uniquement avec votre propre inscription. Elle n'a pas sa plateforme **Applications mobiles et de bureau**, ou celle-ci ne liste pas `http://127.0.0.1`. Une inscription créée en « Web » ne fonctionnera pas. Videz le champ identifiant client pour retomber sur l'inscription d'Apollia.
 - **Microsoft répond que le compte n'existe pas dans l'annuaire** : également propre à votre inscription, cela signifie que les types de comptes pris en charge ont été réglés sur un tenant unique. Recréez-la avec **Comptes dans un annuaire organisationnel quelconque et comptes Microsoft personnels**, ou videz le champ pour utiliser celle d'Apollia.
 - **Consentement refusé à l'écran Microsoft** : un tenant Entra ID géré exige souvent une approbation au niveau organisation avant qu'une application externe puisse être utilisée. Le texte d'erreur vient de Microsoft et non d'Apollia, et il nomme la politique de tenant en cause. Demandez à votre administrateur de pré-approuver l'application, ou utilisez un compte Microsoft personnel.
 - **`outlook.send` échoue sur un destinataire** : Microsoft Graph valide les destinataires plus strictement que Google. Apollia remonte l'erreur de Graph telle quelle, préfixée du statut HTTP. Vérifiez l'adresse cible et l'absence d'alias mort.
 - **OneDrive en écriture refusé** : c'est attendu en v0.1.0, OneDrive est en lecture seule.
-- **Le bouton Connecter est grisé** : votre profil de souveraineté est `local_only`.
+- **La connexion renvoie une erreur de souveraineté** : le message dit *Profil souveraineté « local-only » : connecteurs cloud désactivés*. Le bouton n'est pas grisé, le refus arrive au clic. Changez **Souveraineté des données** dans **Réglages, Profil**.
 
 ## Déconnecter un compte
 

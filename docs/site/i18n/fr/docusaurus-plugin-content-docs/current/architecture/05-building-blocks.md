@@ -81,7 +81,7 @@ rend concret.
 |---|---|
 | **apollia-runtime** | Le démon. Héberge le superviseur d'acteurs Tokio, l'EventBus, l'API HTTP axum, la gestion du chat et des plans, ainsi que le journal d'audit signé avec vérification. |
 | **apollia-runner** | Le sidecar de reconnaissance vocale : `whisper` (via `whisper-rs`) hors processus, un backend GPU par build. L'inférence LLM locale ne s'exécute plus ici : elle passe par le `llama-server` embarqué (upstream llama.cpp) que le démon supervise, via une API HTTP compatible OpenAI avec appel d'outils natif `--jinja` et traitement par lots en continu. |
-| **apollia-llm** | Le routeur LLM multi-backend : local et cloud (Anthropic, OpenAI, Vertex), suivi quotidien des coûts, un registre GGUF Hugging Face, et la détection matérielle. |
+| **apollia-llm** | Le routeur LLM multi-backend : local et distant (Anthropic, OpenAI, Mistral, et tout point d'entrée compatible OpenAI, Ollama compris), suivi quotidien des coûts, un registre GGUF Hugging Face, et la détection matérielle. |
 | **apollia-core** | Types partagés : le modèle de plan unifié, la configuration, les hooks de cycle de vie, et la configuration de routage hybride qui permet à une exécution d'escalader vers un modèle de pointe sur une clé utilisateur. |
 | **apollia-aip** | Le pont PyO3 et le chemin A2A qui permet aux agents de s'appeler mutuellement par skill. |
 | **apollia-prompts** | Le corpus de prompts anglais avec un pied de page de langue, partagé dans tout le moteur. |

@@ -33,19 +33,22 @@ nothing to select at install time. What ships:
 | Artifact | Engine | Covers |
 |---|---|---|
 | Desktop app, macOS | Metal | Apple Silicon |
-| Desktop app, Windows and Linux | Vulkan | NVIDIA, AMD and Intel |
+| Desktop app, Windows and Linux, default bundle | Vulkan | NVIDIA, AMD and Intel |
+| Desktop app, Windows and Linux, `-cuda` bundle | CUDA | NVIDIA |
 | CLI, `*-cpu` presets | CPU | any machine, no GPU offload |
 | CLI, `*-vulkan` presets | Vulkan | NVIDIA, AMD and Intel |
-| CLI, `*-cuda` presets | CUDA | NVIDIA |
 
-Vulkan rather than CUDA in the desktop app is a deliberate trade. One 32 MB
-binary reaches all three vendors, where the CUDA engine covers NVIDIA alone,
-weighs 238 MB plus a 373 MB runtime, and falls back to the processor on every
-other card. On Linux the question does not arise: upstream llama.cpp publishes
-no CUDA build for it, so Vulkan is the only prebuilt GPU engine available there.
+Vulkan in the default desktop bundle is a deliberate trade. One 32 MB binary
+reaches all three vendors, where the CUDA engine covers NVIDIA alone, weighs
+238 MB plus a 373 MB runtime, and falls back to the processor on every other
+card. So NVIDIA owners get a second bundle rather than a heavier default one:
+the release pipeline compiles a CUDA `llama-server` itself, for Windows and for
+Linux, and hands it to the `-cuda` bundles. They are on the download page
+alongside the default ones.
 
-If your card is NVIDIA and you want CUDA rather than Vulkan, point the daemon at
-a build of your own, below.
+The command-line archives have no CUDA preset, on any platform. If you run the
+daemon from the CLI on an NVIDIA card and want CUDA rather than Vulkan, point it
+at a build of your own, below.
 
 ## Configure a local backend
 

@@ -46,6 +46,8 @@ Run via ``docs/site/regen.sh`` (or ``python3 docs/site/scripts/gen_sdk_ref.py``)
 
 import ast
 import copy
+import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -62,6 +64,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import check_ctx_contract  # noqa: E402
+import check_optional_builders  # noqa: E402
 import declared_sources  # noqa: E402
 from declared_sources import Source  # noqa: E402
 
@@ -75,6 +78,11 @@ SOURCES = [
     Source("sdk/apollia/context", why="one page per service protocol"),
     Source("crates/apollia-aip/src", why="the bridge half of the contract"),
     Source("scripts/check_ctx_contract.py", "def cross(", why="the crossing engine"),
+    Source(
+        "scripts/check_optional_builders.py",
+        "def production_callers(",
+        why="whether the builder that would attach a service has a production caller",
+    ),
 ]
 
 # Published on the services the bridge declares `ctx-attachment: optional`, and
@@ -85,6 +93,106 @@ SOURCES = [
 MAY_BE_ABSENT = (
     "The bridge may leave this service unattached; `ctx.{attr}` is then `None`."
 )
+
+# The sentence above says "may", which reads as a runtime condition an agent
+# branches on. For three of the seven services it is not a condition: the only
+# builder that would attach them has no caller outside tests, so `ctx.workspace`,
+# `ctx.notify` and `ctx.stt` are `None` on every binary, always. Publishing "may"
+# there told an author to guard against an absence that is in fact the whole
+# story. The distinction is measured, not listed: a detached service whose filler
+# builders all come back with zero production callers gets this sentence instead.
+NEVER_ATTACHED = (
+    "The bridge never attaches this service. `ctx.{attr}` is `None` on every"
+    " binary this project ships, so any attribute access on it raises"
+    " `AttributeError`; no builder that could fill it ({builders}) has a caller"
+    " outside tests. `scripts/check_optional_builders.py` holds that"
+    " measurement."
+)
+
+# `pub fn with_x(...)` in the bridge context, and the field its body installs.
+_BUILDER_DEF = re.compile(r"^\s*pub (?:const )?fn (with_\w+)\s*(?:<[^>]*>)?\s*\(", re.M)
+_SETS_FIELD = re.compile(r"^\s*self\.(\w+)\s*=", re.M)
+
+# Sphinx cross-reference roles. The SDK docstrings are written for `help()` and
+# for Sphinx; this generator publishes them as Markdown, where `:class:`X``
+# renders literally. A leading `~` is Sphinx for "show the last component only".
+_RST_ROLE = re.compile(r":(?:class|func|meth|mod|attr|exc|data|obj|term):`(~?)([^`]+)`")
+
+
+def derole(text: str) -> str:
+    """Render Sphinx cross-reference roles as plain inline code."""
+
+    def one(match: re.Match[str]) -> str:
+        tilde, target = match.groups()
+        if tilde:
+            target = target.rsplit(".", 1)[-1]
+        return f"`{target}`"
+
+    return _RST_ROLE.sub(one, text)
+
+
+def attachment_sentence(attr: str, always_absent: dict[str, list[str]]) -> str:
+    """What the page says about a service the bridge declares `optional`."""
+    builders = always_absent.get(attr)
+    if builders:
+        named = ", ".join(f"`{b}`" for b in builders)
+        return NEVER_ATTACHED.format(attr=attr, builders=named)
+    return MAY_BE_ABSENT.format(attr=attr)
+
+
+def _rust_sources() -> dict[Path, str]:
+    """Every tracked `.rs` file of the workspace, the corpus a caller lives in."""
+    listed = subprocess.run(
+        ["git", "ls-files", "crates/**/*.rs"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    paths = [REPO_ROOT / rel for rel in listed]
+    return {
+        path: path.read_text(encoding="utf-8", errors="ignore")
+        for path in paths
+        if path.is_file()
+    }
+
+
+def _filler_builders(attr: str) -> list[str]:
+    """`with_*` builders of the bridge context whose body assigns `self.<attr>`."""
+    found: list[str] = []
+    files = [BRIDGE_ROOT / "context.rs"] + sorted((BRIDGE_ROOT / "context").glob("*.rs"))
+    for path in files:
+        if not path.is_file():
+            continue
+        text = check_optional_builders.strip_tests(
+            path.read_text(encoding="utf-8", errors="ignore")
+        )
+        for match in _BUILDER_DEF.finditer(text):
+            body = check_optional_builders.body_after(text, match.start())
+            if any(field == attr for field in _SETS_FIELD.findall(body)):
+                found.append(match.group(1))
+    return sorted(set(found))
+
+
+def never_attached(detached: list[str]) -> dict[str, list[str]]:
+    """Detached services whose filler builders have no production caller.
+
+    A service the constructor leaves `None` and that no builder can fill from
+    production code is not "sometimes absent", it is absent. Returns the filler
+    builder names per service so the published sentence can name them.
+    """
+    if not detached:
+        return {}
+    sources = _rust_sources()
+    verdicts: dict[str, list[str]] = {}
+    for attr in detached:
+        builders = _filler_builders(attr)
+        if not builders:
+            continue
+        if any(check_optional_builders.production_callers(b, sources) for b in builders):
+            continue
+        verdicts[attr] = builders
+    return verdicts
 
 
 def cell(text: str) -> str:
@@ -295,7 +403,7 @@ def write_page(rel_name: str, frontmatter: dict, body: str) -> Path:
     for key, value in frontmatter.items():
         fm_lines.append(f"{key}: {value}")
     fm_lines.append("---")
-    content = "\n".join(fm_lines) + "\n" + HEADER + "\n\n" + body.rstrip() + "\n"
+    content = "\n".join(fm_lines) + "\n" + HEADER + "\n\n" + derole(body).rstrip() + "\n"
     out = OUT_DIR / rel_name
     out.write_text(content, encoding="utf-8")
     return out
@@ -329,6 +437,10 @@ def main() -> int:
             print(f"  {line}")
         print("Run python3 scripts/check_ctx_contract.py for the full crossing.")
         return 1
+
+    always_absent = never_attached(
+        [name for name, flag in crossing.detached.items() if flag]
+    )
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     types_mod = parse_module(TYPES_PY)
@@ -364,7 +476,7 @@ def main() -> int:
             body_parts.append(f"Service type: `{annotation}` (from `apollia.context.{stem}`).")
             if crossing.detached.get(attr):
                 body_parts.append("")
-                body_parts.append(MAY_BE_ABSENT.format(attr=attr))
+                body_parts.append(attachment_sentence(attr, always_absent))
             body_parts.append("")
             body_parts.append(render_class(primary))
             # Companion public classes in the same module (e.g. LlmResponse).
@@ -381,7 +493,7 @@ def main() -> int:
                 )
                 if crossing.detached.get(attr):
                     body_parts.append("")
-                    body_parts.append(MAY_BE_ABSENT.format(attr=attr))
+                    body_parts.append(attachment_sentence(attr, always_absent))
                 body_parts.append("")
                 doc_summary[attr] = first_line(mod_doc)
                 if mod_doc:

@@ -16,9 +16,9 @@ _Bases: Protocol_
 
 ``ctx.llm`` - LLM backend access.
 
-Five methods: :meth:`complete` for single-shot, :meth:`chat` for the
-system-plus-user case, :meth:`map` for a batch sharing one prefix,
-:meth:`stream` for token iteration, :meth:`run_tools` for the built-in
+Five methods: `complete` for single-shot, `chat` for the
+system-plus-user case, `map` for a batch sharing one prefix,
+`stream` for token iteration, `run_tools` for the built-in
 tool loop.  Stream cleanup propagates cancellation to the Rust backend.
 
 | Field | Type | Default |
@@ -35,7 +35,7 @@ Run a single-shot completion over a message list.
 
 Args:
     messages: Chat messages in OpenAI shape, oldest first.
-    backend: Backend to use, or None for :attr:`default_backend`.
+    backend: Backend to use, or None for `default_backend`.
     temperature: Sampling temperature, or None for the backend default.
     max_tokens: Cap on generated tokens, or None for the backend default.
     seed: Sampling seed, for reproducible output where the backend
@@ -52,13 +52,13 @@ async def chat(self, system: str, user: str, *, backend: str | None=None, temper
 
 Run a completion over a system and a user message.
 
-Convenience wrapper over :meth:`complete` for the common two-message
+Convenience wrapper over `complete` for the common two-message
 case.
 
 Args:
     system: System message.
     user: User message.
-    backend: Backend to use, or None for :attr:`default_backend`.
+    backend: Backend to use, or None for `default_backend`.
     temperature: Sampling temperature, or None for the backend default.
     max_tokens: Cap on generated tokens, or None for the backend default.
     seed: Sampling seed, for reproducible output where the backend
@@ -81,7 +81,7 @@ and prefix sharing: on a batching backend (a local ``llama-server``) this
 maximizes prefix-cache reuse and continuous batching; elsewhere it
 degrades to bounded-concurrent calls. You never touch slots or batching.
 
-Results are order-preserving, one :class:`~apollia.types.MapItemResult`
+Results are order-preserving, one `MapItemResult`
 per item. A single failing item never aborts the batch. Typical usage::
 
     results = await ctx.llm.map(prefix=instructions, items=paragraphs)
@@ -98,7 +98,7 @@ async def stream(self, messages: list[dict[str, Any]], *, backend: str | None=No
 Open a streaming completion.
 
 The method itself is ``async`` (it must be ``await``-ed) and
-returns an :class:`~collections.abc.AsyncIterator` over token
+returns an `AsyncIterator` over token
 deltas. Typical usage::
 
     stream = await ctx.llm.stream(messages=[...])
@@ -121,7 +121,7 @@ without asking for a tool.
 Args:
     messages: Chat messages, ``{"role", "content"}`` each.
     tools: Tool descriptors, ``{"name", "description", "parameters"}``
-        each. :meth:`A2AInterface.skill_as_tool` builds one.
+        each. `A2AInterface.skill_as_tool` builds one.
     max_iterations: Guard rail on the number of model calls.
 
 Returns:

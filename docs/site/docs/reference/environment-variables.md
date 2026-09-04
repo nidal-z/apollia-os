@@ -5,8 +5,13 @@ title: Environment variables
 
 # Environment variables
 
-What the runtime reads from its environment, and what it does with it. Anything
-not listed here is either build-time or test-only.
+What the runtime reads from its environment, and what it does with it. The
+tables below cover the `APOLLIA_*` names Apollia defines. Apollia also reads
+standard variables it does not own, where their usual meaning applies:
+`XDG_CONFIG_HOME` and `EDITOR` when the CLI resolves or edits `apollia.toml`,
+`NO_COLOR` for terminal output, `PATH` when it looks for a binary, `TZ`, and
+`USERNAME` on Windows to derive the named pipe. A cloud backend reads whatever
+variable its `api_key_env` names.
 
 Most configuration belongs in `apollia.toml`, see
 [Configuration](/reference/configuration). Environment variables cover three
@@ -22,8 +27,7 @@ tune and why.
 | Variable | Default | Effect |
 |---|---|---|
 | `APOLLIA_LLAMA_SERVER_BIN` | the engine bundled with the artifact | Absolute path to a `llama-server` binary, which takes precedence over the bundled one. The way to run a build of your own, a CUDA build on Linux among them. |
-| `APOLLIA_LLAMA_MODEL_PATH` | from the configured backend | Overrides the GGUF the engine loads. |
-| `APOLLIA_LLAMA_MAX_LOADED` | see the source default | How many models may stay resident at once. |
+| `APOLLIA_LLAMA_MAX_LOADED` | `1` | How many models may stay resident at once. Each extra resident model holds its weights in memory until it is unloaded, so raising the ceiling is an explicit act. A zero or unparseable value keeps the default. |
 | `APOLLIA_LLAMA_N_CTX` | `32768` | Context window in tokens. The default is a fixed value, not read from the model. |
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Layers offloaded to the GPU; `0` forces CPU. |
 | `APOLLIA_LLAMA_N_BATCH` | engine default | Logical batch size. |
@@ -37,11 +41,15 @@ tune and why.
 | `APOLLIA_LLAMA_METRICS` | `false` | Exposes the engine's metrics endpoint. |
 | `APOLLIA_LLAMA_EXTRA_ARGS` | empty | Extra flags passed through verbatim. |
 
+The GGUF the engine loads has no environment override, deliberately. It is
+state owned by the model switch in the interface, and an ambient variable
+pinning it would defeat every switch made there.
+
 ## Secret storage
 
 | Variable | Default | Effect |
 |---|---|---|
-| `APOLLIA_TOKEN_STORAGE` | `keyring` | `keyring` uses the OS keychain. `file` stores secrets as `age`-encrypted files under `~/.apollia/secrets/`, for a headless Linux host where no keyring daemon is reachable. |
+| `APOLLIA_TOKEN_STORAGE` | `keyring` | `keyring` uses the OS keychain. `file` stores secrets as `age`-encrypted files under `~/.apollia/secrets/`, for a headless Linux host where no keyring daemon is reachable. Connector OAuth tokens are outside this switch: they are written to the OS keyring whatever the value here, so a host with no reachable keyring cannot hold them. |
 | `APOLLIA_TOKEN_PASSPHRASE` | none | Passphrase for the `file` backend. **Mandatory when `APOLLIA_TOKEN_STORAGE=file`**: startup fails fast without it, rather than falling back to something weaker. |
 
 ## Connector OAuth clients
@@ -85,17 +93,7 @@ Resolution order for each credential: environment variable, then
 | Variable | Default | Effect |
 |---|---|---|
 | `APOLLIA_PERF_TRACE` | unset | Path to a file receiving a per-turn performance record. Unset means no file is written and no provenance is gathered; the summary is emitted at `INFO` either way. |
-| `APOLLIA_MCP_PROTOCOL_VERSION` | pinned in the code | Overrides the MCP protocol revision announced to a server. For probing a server that pins a different revision, not for normal use. |
 | `RUST_LOG` | `apollia=info` | Standard `tracing` filter. `apollia=trace` is what makes `[llm.observability] debug_log_prompt` visible; see [Configuration](/reference/configuration). |
-
-## Bundled companion agent
-
-Overrides used when developing the companion agent shipped with the desktop
-application. They point the runtime at a working copy instead of the embedded
-copy.
-
-`APOLLIA_GUIDE_PY`, `APOLLIA_GUIDE_TOML`, `APOLLIA_GUIDE_CAPABILITIES_MD`,
-`APOLLIA_GUIDE_TUTORIALS_MD`, `APOLLIA_GUIDE_VERSION`.
 
 ## Desktop automation
 

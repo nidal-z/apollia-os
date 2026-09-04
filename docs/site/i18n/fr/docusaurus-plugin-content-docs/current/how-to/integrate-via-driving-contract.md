@@ -76,6 +76,19 @@ fichier généré à la main : changez le runtime, puis régénérez.
 | TypeScript | `clients/ts` | types `openapi-typescript` plus `openapi-fetch` |
 | Python | `clients/python` | `openapi-python-client` |
 
+Aucun des deux n'est publié sur un registre, il n'existe donc pas de commande
+d'installation pour l'un ou pour l'autre. Les deux se consomment depuis une
+copie du dépôt. `@apollia/runtime-client` déclare comme point d'entrée ses
+propres sources TypeScript : dépendez de `clients/ts` par chemin (une dépendance
+`file:`, ou une entrée d'espace de travail) et laissez votre bundler le
+compiler ; il tire `openapi-fetch`. `clients/python` est généré avec `--meta none` : il ne porte donc pas de
+`pyproject.toml` et `pip install` n'a rien à lire. Placez son répertoire parent
+sur `PYTHONPATH` ou copiez `clients/python/apollia_runtime_client` dans votre
+projet, et installez `httpx` et `attrs` vous-même. Une étape vient avant, car un
+clone frais ne porte pas tout le paquet : une règle `models/` du `.gitignore`
+exclut le répertoire `models/` du client, exécutez donc `bash clients/regen.sh`
+pour le générer avant le premier import.
+
 ### TypeScript
 
 ```ts

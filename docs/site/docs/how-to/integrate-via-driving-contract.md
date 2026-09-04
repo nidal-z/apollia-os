@@ -71,6 +71,18 @@ regenerate.
 | TypeScript | `clients/ts` | `openapi-typescript` types plus `openapi-fetch` |
 | Python | `clients/python` | `openapi-python-client` |
 
+Neither is published to a registry, so there is no install command for either.
+Both are consumed from a checkout of the repository. `@apollia/runtime-client`
+declares its entry point as its own TypeScript sources, so depend on
+`clients/ts` by path (a `file:` dependency, or a workspace entry) and let your
+bundler compile it; it pulls `openapi-fetch`. `clients/python` is generated with `--meta none`, so it carries
+no `pyproject.toml` and `pip install` has nothing to read: put its parent
+directory on `PYTHONPATH` or copy `clients/python/apollia_runtime_client` into
+your project, and install `httpx` and `attrs` yourself. One step comes first,
+because a fresh clone does not carry the whole package: a `models/` rule in
+`.gitignore` excludes the client's own `models/` directory, so run
+`bash clients/regen.sh` to generate it before the first import.
+
 ### TypeScript
 
 ```ts

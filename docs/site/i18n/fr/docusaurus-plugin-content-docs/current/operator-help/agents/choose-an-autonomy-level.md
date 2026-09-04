@@ -55,16 +55,19 @@ apollia-os run mon-agent "ma tâche" --autonomy supervised
 
 Remplacez `supervised` par l'une des quatre valeurs : `assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`.
 
-## Étapes - Modifier le palier par défaut global
+## Étapes - Modifier le palier de chaque exécution
 
-Pour que toutes les exécutions utilisent un palier donné sans le préciser à chaque fois, éditez `apollia.toml` :
+Il n'y a pas de palier par défaut global à régler. `[autonomy]` ne fait pas
+partie des neuf sections que le daemon lit, donc un `default_level` écrit dans
+`apollia.toml` ne change rien, et la commande qui l'écrirait est refusée :
 
-```toml
-[autonomy]
-default_level = "supervised"
+```
+$ apollia-os config set autonomy.default_level supervised
+Error: unknown config key: 'autonomy.default_level'
 ```
 
-Redémarrez le daemon après modification pour que le nouveau défaut prenne effet.
+Une exécution lancée sans `--autonomy` tourne au palier `assisted`. Pour
+travailler à un autre palier, passez le drapeau à chaque exécution.
 
 ## Vérification
 
@@ -80,6 +83,6 @@ Ouvrez les logs depuis le panneau de détail de l'agent ou via `apollia-os agent
 
 - **Valeur inconnue au lancement :** si vous passez une valeur incorrecte à `--autonomy`, la CLI rejette la commande et liste les quatre valeurs valides (`assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`). Vérifiez l'orthographe, les valeurs sont en `snake_case`.
 - **Le palier `--autonomy` est ignoré :** vérifiez que vous utilisez bien `apollia-os run`, pas `apollia-os start`. La commande `start` démarre le daemon sans exécuter de tâche ; `--autonomy` n'y a pas de sens.
-- **Le défaut global ne change pas :** redémarrez le daemon après avoir modifié `apollia.toml`. Un daemon déjà en cours de fonctionnement lit la config au démarrage uniquement.
+- **Un bloc `[autonomy]` n'a aucun effet :** le daemon ne lit pas cette section d'`apollia.toml`, qu'il soit redémarré ou non. Réglez le palier exécution par exécution avec `--autonomy`.
 
 > **Référence technique :** [Référence Apollia](/reference) - StepBudget, ResilienceLayer, comportement de chaque palier d'autonomie.

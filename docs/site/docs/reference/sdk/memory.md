@@ -150,7 +150,7 @@ Return the whole memory as a serialisable snapshot.
 async def import_data(self, data: dict[str, Any], *, replace: bool=False) -> int
 ```
 
-Merge a snapshot produced by :meth:`export` into this memory.
+Merge a snapshot produced by `export` into this memory.
 
 ``data`` follows the ``format_version = 1`` schema. The default mode is
 a merge: an entry whose ``id`` already exists is left alone. Pass

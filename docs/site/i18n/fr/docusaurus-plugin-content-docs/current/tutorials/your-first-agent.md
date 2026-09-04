@@ -132,8 +132,9 @@ runtime :
 apollia-os inspect coach.py
 ```
 
-Si vous avez mal saisi un argument de décorateur ou oublié le `agent = ...`
-au niveau du module, c'est ici que vous le découvrez.
+Si vous avez mal saisi un argument de décorateur, ou omis `@agent` sur la classe
+si bien qu'aucun symbole `agent` n'a été lié au niveau du module, c'est ici que
+vous le découvrez.
 
 ## Étape 3 : installer et activer
 
@@ -180,6 +181,10 @@ exécute.
   [`ctx.llm`](/reference/sdk/llm) `stream` et
   [`ctx.events`](/reference/sdk/events) `emit_token`, pour que
   l'utilisateur voie le texte au fur et à mesure qu'il est produit.
+  `emit_token` n'atteint un écran que dans l'application de bureau, le seul
+  appelant qui marque une exécution d'un identifiant de session et de message de
+  chat ; partout ailleurs, `apollia-os chat` compris, il rend la main sans rien
+  émettre.
 - Donner de la mémoire à l'agent en ajoutant `memory_namespace="coach"` à
   `@agent` et en enregistrant les tours d'échange avec
   [`ctx.memory`](/reference/sdk/memory). La mémoire est optionnelle par

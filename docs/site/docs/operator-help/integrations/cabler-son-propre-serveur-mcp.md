@@ -28,7 +28,7 @@ sidebar_position: 9
 
 ### stdio case (local command)
 
-- **Name**: unique identifier, lowercase letters, digits and hyphens only (example: `test-fs`).
+- **Name**: unique identifier. The field never refuses what you type, it rewrites it: lowercased, and every run of characters outside `a-z`, `0-9`, `_` and `-` replaced by a single hyphen, leading and trailing hyphens dropped. Underscores are kept. A name left with nothing becomes `custom-mcp`. So `My Server!` is installed as `my-server`, silently; check the name the sidebar shows afterwards.
 - **Transport**: `stdio`.
 - **Command**: executable to launch (for example `npx`, `uvx`, or an absolute path).
 - **Arguments**: separated by spaces (for example `-y @modelcontextprotocol/server-filesystem ~/Documents`).
@@ -68,13 +68,13 @@ Apollia can discover MCP servers on your local network through mDNS (service typ
 
 - Green dot next to the server in the sidebar.
 - The detail view shows the `tools`, `resources` and `prompts` sections filled in with what the server advertises.
-- A ping test confirms the latency (see [Test an MCP connection](test-an-mcp-connection.md)).
+- A test reports the server as working or reachable, with its tool count (see [Test an MCP connection](test-an-mcp-connection.md)). No latency is measured on the MCP path.
 
 ## Security, what Apollia applies by default
 
-- **Trust level**: any manually added server is marked `custom`. No automatic `verified_official` level.
+- **Trust level**: a manually added server carries none. The level is an overlay that only the eighteen enriched catalogue entries hold, and no code assigns a `custom` level to anything, so your server shows no badge at all. That is consistent with the last section of this page: it appears in the list without the logo, the description or the trust badge.
 - **HITL approval**: by default the tool is in *requires_approval* mode, every call asks for your validation. You can loosen this per tool on the [Understand MCP permissions](understand-mcp-permissions.md) page.
-- **Roots**: Apollia declares the accessible directories to the server (the agent workspace + the current project). The server sees nothing else.
+- **Roots**: Apollia advertises the capability during the handshake, and answers no `roots/list` request. No directory is declared, so roots bounds nothing today. What bounds a stdio server is the command and the arguments you gave it, which is why the filesystem path you pass in **Arguments** is the real perimeter.
 - **Sampling and elicitation**: not implemented. Apollia does not advertise these two capabilities during the handshake, so a server that supports them will not try to call back through them.
 
 ## Deferred loading mode

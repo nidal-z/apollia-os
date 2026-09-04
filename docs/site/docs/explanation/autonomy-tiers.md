@@ -29,20 +29,28 @@ context and loosely on an isolated test machine, without rewriting it.
 
 Apollia defines four tiers, from most supervised to most autonomous:
 
-- **Assisted.** The default. The gate is active: a proposed plan and
-  consequential actions wait for a human decision before they proceed. This is
-  the tier for unfamiliar agents, sensitive data, or any run where you want to
-  see the plan before it executes.
-- **Supervised.** The gate is still active, so a human stays in the loop on
-  consequential steps, but this is the tier from which the runtime's own
-  verification pass turns on (see below). Use it when you want oversight plus the
-  engine's self-checking.
+- **Assisted.** The default. The gate is active: a proposed plan waits for a
+  human decision before it executes. This is the tier for unfamiliar agents,
+  sensitive data, or any run where you want to see the plan before it executes.
+  The gate is a plan gate and nothing else; it adds no checkpoint to an
+  individual tool call.
+- **Supervised.** The gate is still active, and this is the tier from which the
+  runtime's own verification pass turns on (see below). Use it when you want the
+  plan gate plus the engine's self-checking.
 - **Bounded autonomous.** The gate is bypassed: the agent acts without pausing
   for plan approval, within the runtime's non-bypassable budget. Use it for
   trusted, well-scoped work where interruption would cost more than it protects.
 - **Long autonomous.** Also gate-bypassed, intended for longer unattended runs.
   This is the widest tier, appropriate only when the task is well understood and
   the budget and permissions already constrain the blast radius.
+
+Both effects live on one execution path, and that narrows who ever sees them. The
+plan gate and the verification pass are reached only when the agent's manifest
+declares `execution_mode = "orchestrated"`, which the SDK sets for a class carrying
+`@orchestrated`. An agent built from `@skill` or `@on_message` runs the direct
+dispatch path, where neither the gate nor the verification pass exists, whatever
+tier the run is in. None of the three agents shipped with the product is
+orchestrated: two declare `auto` and one declares `direct`.
 
 The gate is active in Assisted and Supervised, and bypassed in Bounded autonomous
 and Long autonomous, but only for a run that carries no decision of its own.

@@ -96,9 +96,15 @@ Pour un modèle GGUF géré directement par Apollia via son moteur embarqué (sa
 
 Le routage hybride permet à Apollia d'utiliser un modèle local par défaut et de basculer automatiquement vers un modèle frontier (cloud) pour les étapes qui dépassent les capacités locales, dans la limite d'un plafond de coût.
 
-Configurez-le dans votre fichier de configuration Apollia :
+Configurez-le dans votre fichier de configuration Apollia. `[llm.routing.hybrid]`
+est une sous-section de `[llm.routing]`, dont les deux clés sont requises dès que
+la table existe : le bloc entier se pose donc d'un seul tenant.
 
 ```toml
+[llm.routing]
+precise = "local-qwen3-8b"      # backend pour le raisonnement profond
+fast    = "local-qwen3-4b"      # backend pour l'extraction légère
+
 [llm.routing.hybrid]
 frontier = "claude-anthropic"   # nom du backend distant à utiliser en escalade
 cost_ceiling_usd = 2.00         # plafond en dollars par session de routing
@@ -123,4 +129,4 @@ Le backend désigné dans `frontier` doit être configuré et actif dans **Param
 - **Pas de réponse dans le chat malgré pastille verte** : voir [Le fournisseur d'IA ne répond pas](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **Plafond atteint et l'agent ne termine pas** : le plafond compte le coût cumulé d'une session de routing, pas d'une seule exécution. Quand il est atteint, le runtime dégrade automatiquement en local pour la suite de la session, sauf si `ceiling_action = "hard_stop"` est posé, auquel cas l'exécution se termine sur une erreur. Si la tâche nécessite absolument le modèle frontier jusqu'au bout, augmentez le plafond ou désactivez le routage hybride en retirant la section `[llm.routing.hybrid]`.
 
-> **Référence technique :** [Référence Apollia](/reference) , tous les fournisseurs supportés, paramètres avancés (temperature, top_k, context_size, fallback policy), routing multi-backend.
+> **Référence technique :** [Configuration](/reference/configuration) pour la section `[llm]`, ses backends et ses clés de routage, et [Valeurs par défaut d'échantillonnage](/reference/sampling-defaults) pour le seul paramètre d'échantillonnage qu'une requête porte réellement jusqu'au modèle.

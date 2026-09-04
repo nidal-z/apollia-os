@@ -8,7 +8,7 @@ title: ctx.workspace
 
 Service type: `WorkspaceContext` (from `apollia.context.workspace`).
 
-The bridge may leave this service unattached; `ctx.workspace` is then `None`.
+The bridge never attaches this service. `ctx.workspace` is `None` on every binary this project ships, so any attribute access on it raises `AttributeError`; no builder that could fill it (`with_empty_workspace`, `with_workspace_snapshot`) has a caller outside tests. `scripts/check_optional_builders.py` holds that measurement.
 
 ### `WorkspaceContext`
 

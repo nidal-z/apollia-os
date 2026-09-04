@@ -68,7 +68,7 @@ principales :
 | `apollia-workspace` | Collecte du contexte de l'espace de travail : état Git, règles `APOLLIA.md`, arborescence de fichiers, conventions, avec un cache à durée de vie limitée (TTL). Pas de sandboxing : le confinement de chemins vit dans `apollia-tools`. |
 | `apollia-prompts` | Templates de prompts centralisés. |
 | `apollia-eval` | Harnais d'évaluation des agents. |
-| `apollia-cli` | Le binaire en ligne de commande `apollia` (clap, schéma nom-verbe, codes de sortie 0-5). La seule crate où `anyhow` et une sortie stdout destinée à l'utilisateur sont autorisés. |
+| `apollia-cli` | Le binaire en ligne de commande `apollia-os` (clap, schéma nom-verbe, codes de sortie 0-5). `apollia`, sans le suffixe, est une autre commande : le point d'entrée Python du SDK. La seule crate où `anyhow` et une sortie stdout destinée à l'utilisateur sont autorisés. |
 | `apollia-desktop` | L'application desktop Tauri v2 + Svelte 5 (son interface vit dans `crates/apollia-desktop/ui/`). |
 
 ## Fichiers de gouvernance et communautaires

@@ -28,7 +28,7 @@ sidebar_position: 9
 
 ### Cas stdio (commande locale)
 
-- **Nom** : identifiant unique, lettres minuscules, chiffres et tirets uniquement (exemple : `test-fs`).
+- **Nom** : identifiant unique. Le champ ne refuse jamais ce que vous tapez, il le réécrit : passage en minuscules, et toute suite de caractères hors `a-z`, `0-9`, `_` et `-` remplacée par un tiret unique, tirets de tête et de queue supprimés. Les tirets bas sont conservés. Un nom vidé de tout devient `custom-mcp`. Ainsi `Mon Serveur !` est installé sous `mon-serveur`, en silence ; vérifiez ensuite le nom affiché dans la sidebar.
 - **Transport** : `stdio`.
 - **Commande** : exécutable à lancer (par exemple `npx`, `uvx`, ou un chemin absolu).
 - **Arguments** : séparés par des espaces (par exemple `-y @modelcontextprotocol/server-filesystem ~/Documents`).
@@ -68,13 +68,13 @@ Apollia peut découvrir des serveurs MCP sur votre réseau local via mDNS (servi
 
 - Pastille verte à côté du serveur dans la sidebar.
 - La vue détail affiche les sections `tools`, `resources`, `prompts` renseignées avec ce que le serveur annonce.
-- Un test ping confirme la latence (voir [Tester une connexion MCP](test-an-mcp-connection.md)).
+- Un test annonce le serveur opérationnel ou joignable, avec son nombre d'outils (voir [Tester une connexion MCP](test-an-mcp-connection.md)). Aucune latence n'est mesurée sur le chemin MCP.
 
 ## Sécurité, ce qu'Apollia applique par défaut
 
-- **Trust level** : tout serveur ajouté manuellement est marqué `custom`. Pas de niveau `verified_official` automatique.
+- **Trust level** : un serveur ajouté à la main n'en porte aucun. Le niveau est une surcouche que seules les dix-huit entrées enrichies du catalogue portent, et aucun code n'attribue de niveau `custom` à quoi que ce soit : votre serveur n'affiche donc aucun badge. C'est cohérent avec la dernière section de cette page, où il apparaît dans la liste sans logo, sans description et sans badge de confiance.
 - **Approbation HITL** : par défaut, l'outil est en mode *requires_approval*, chaque appel demande votre validation. Vous pouvez assouplir par outil dans la page [Comprendre les permissions MCP](understand-mcp-permissions.md).
-- **Roots** : Apollia déclare au serveur les répertoires accessibles (workspace de l'agent + projet courant). Le serveur ne voit rien d'autre.
+- **Roots** : Apollia annonce la capacité pendant la poignée de main, et ne répond à aucune requête `roots/list`. Aucun répertoire n'est déclaré : roots ne borne donc rien aujourd'hui. Ce qui borne un serveur stdio, c'est la commande et les arguments que vous lui avez donnés, et c'est pourquoi le chemin passé dans **Arguments** est le vrai périmètre.
 - **Sampling et elicitation** : non implémentés. Apollia n'annonce pas ces deux capacités pendant la poignée de main, si bien qu'un serveur qui les supporte n'essaiera pas de rappeler par ce biais.
 
 ## Mode de chargement deferred

@@ -31,15 +31,15 @@ sensible et avec souplesse sur une machine de test isolée, sans le réécrire.
 
 Apollia définit quatre paliers, du plus supervisé au plus autonome :
 
-- **Assisté.** Le palier par défaut. La porte est active : un plan proposé et
-  les actions à conséquence attendent une décision humaine avant de se
-  poursuivre. C'est le palier pour les agents que l'on connaît mal, les
-  données sensibles, ou toute exécution où l'on veut voir le plan avant qu'il
-  ne s'exécute.
-- **Supervisé.** La porte reste active, un humain reste donc dans la boucle
-  sur les étapes à conséquence, mais c'est le palier à partir duquel la passe
-  de vérification propre au runtime s'active (voir plus bas). À utiliser
-  quand on veut la supervision en plus de l'auto-vérification du moteur.
+- **Assisté.** Le palier par défaut. La porte est active : un plan proposé
+  attend une décision humaine avant de s'exécuter. C'est le palier pour les
+  agents que l'on connaît mal, les données sensibles, ou toute exécution où
+  l'on veut voir le plan avant qu'il ne s'exécute. La porte est une porte de
+  plan et rien d'autre ; elle n'ajoute aucun point de contrôle sur un appel
+  d'outil pris isolément.
+- **Supervisé.** La porte reste active, et c'est le palier à partir duquel la
+  passe de vérification propre au runtime s'active (voir plus bas). À utiliser
+  quand on veut la porte de plan en plus de l'auto-vérification du moteur.
 - **Autonome borné.** La porte est contournée : l'agent agit sans marquer de
   pause pour l'approbation du plan, dans les limites du budget non
   contournable imposé par le runtime. À utiliser pour un travail de
@@ -49,6 +49,15 @@ Apollia définit quatre paliers, du plus supervisé au plus autonome :
   destiné aux exécutions non surveillées plus longues. C'est le palier le
   plus large, adapté uniquement quand la tâche est bien comprise et que le
   budget et les permissions bornent déjà le rayon d'impact possible.
+
+Les deux effets vivent sur un seul chemin d'exécution, ce qui restreint qui les
+voit un jour. La porte de plan et la passe de vérification ne sont atteintes que
+si le manifeste de l'agent déclare `execution_mode = "orchestrated"`, ce que le
+SDK pose pour une classe portant `@orchestrated`. Un agent bâti sur `@skill` ou
+`@on_message` emprunte le chemin de dispatch direct, où ni la porte ni la passe
+de vérification n'existent, quel que soit le palier de l'exécution. Aucun des
+trois agents livrés avec le produit n'est orchestré : deux déclarent `auto` et
+un déclare `direct`.
 
 La porte est active en Assisté et Supervisé, et contournée en Autonome borné et
 Autonome long, mais seulement pour une exécution qui ne porte aucune décision

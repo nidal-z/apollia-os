@@ -31,8 +31,9 @@ n'importe quelle machine, sans téléchargement de modèle requis.
 ## Avant de commencer
 
 Il vous faut un clone du dépôt Apollia, une chaîne d'outils Rust pour
-compiler le daemon, et Python 3.12 ou plus récent. Chaque commande
-ci-dessous s'exécute depuis la racine du dépôt.
+compiler le daemon, et Python 3.13, la version que le clone épingle dans
+`.python-version` et celle qu'utilise chaque travail qui compile le runtime.
+Chaque commande ci-dessous s'exécute depuis la racine du dépôt.
 
 ## Étape 1 : compiler le daemon
 

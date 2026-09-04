@@ -17,14 +17,19 @@ code ne sont jamais autorisés en bloc), et le budget de pas du palier
 d'autonomie.
 
 <!-- claim:audit-list-reads-the-tool-invocation-trail -->
-Un appel d'outil du chat n'atteint aucun des deux registres d'audit. La piste
+Les deux registres d'audit ne voient pas les mêmes appels. La piste
 d'invocations d'outils, la table plate que `audit list` lit, n'est écrite que
-depuis `ctx.tools` sur le chemin agent ; le journal chaîné par hachage est
-alimenté par des événements d'appel d'outil rattachés à une exécution, que le
-chemin du chat n'émet pas. Ce qu'une session de chat conserve est
+depuis `ctx.tools` sur le chemin agent : un appel d'outil du chat n'y figure
+donc jamais. Le journal chaîné par hachage, lui, enregistre bien le chat : la
+boucle ReAct de conversation émet `ToolOutputCaptured` pour chaque résultat
+d'outil et `LlmResponseCaptured` pour chaque complétion, et le souscripteur du
+journal transforme les deux en entrées signées et chaînées. Les sorties d'outils
+et les complétions du modèle d'une session de chat sont donc persistées
+verbatim dans un registre en ajout seul, lisible avec `audit show <run>` et
+vérifiable avec `audit verify`. Une session de chat conserve en outre
 l'enregistrement d'appel d'outil porté par son message d'assistant, sérialisé
-dans la colonne `tool_calls_json` de `chat_messages`, pas un enregistrement
-audité.
+dans la colonne `tool_calls_json` de `chat_messages`, qui n'est pas un
+enregistrement audité.
 
 Un agent accède à ces outils via `ctx.tools`, ou se les voit transmis dans
 une boucle ReAct via `ctx.tools.describe(<name>)`. Chaque appel est distribué
@@ -40,8 +45,20 @@ apollia-os tools list
 ```
 
 Désactivez ou réactivez un outil avec `apollia-os tools disable <name>` et
-`apollia-os tools enable <name>`. Un outil désactivé est entièrement exclu du
-dispatcher : tout agent qui l'invoque reçoit une erreur `UnknownTool`.
+`apollia-os tools enable <name>`. Le réglage est écrit dans la base de
+gouvernance, et il gouverne le chemin agent seulement : les runners d'agent
+fusionnent cet instantané dans la liste des outils désactivés du dispatcher, si
+bien qu'un agent qui invoque un outil désactivé reçoit une erreur `UnknownTool`.
+
+Le chemin de conversation du bureau ne lit pas la base de gouvernance. Il
+construit son dispatcher depuis la liste `disabled` de `[tools]` dans
+`apollia.toml`, où `tools disable` n'écrit jamais. Six natifs échappent même à
+cette liste : `file_write`, `file_edit`, `notebook_edit`, `bash_executor`,
+`python_executor` et `http_fetch` sont retirés du dispatcher puis réinjectés
+derrière leur enrobage d'approbation, sans condition, donc une conversation peut
+toujours les appeler quoi que dise la configuration. Restreindre ce qu'une
+conversation atteint passe par la porte d'approbation et le sélecteur d'outils
+du chat, pas par `apollia-os tools disable`.
 
 ## Disponibilité et identifiants
 
@@ -135,18 +152,20 @@ dont la cible réelle sort de la racine sont rejetés.
 
 <!-- claim:chat-file-root-is-home-without-project -->
 Le répertoire qui fait office de racine dépend de la session. Avec un projet
-ouvert, c'est le répertoire du projet. Dans un chat sans projet, c'est votre
-répertoire personnel : l'assistant est censé atteindre les fichiers que vous
-possédez réellement, et la barrière sur ce chemin est l'approbation qui vous
-est demandée avant une écriture, pas une racine plus étroite. Le répertoire
-temporaire système n'est utilisé que lorsque le répertoire personnel ne peut
-être résolu du tout.
+ouvert, c'est le répertoire du projet. Dans un chat sans projet, c'est le
+`default_workspace` de `[chat]` quand l'opérateur en a configuré un qui existe,
+et `~/.apollia` sinon ; la barrière sur ce chemin est l'approbation qui vous est
+demandée avant une écriture, pas une racine plus étroite. Votre répertoire
+personnel est le repli quand aucun des deux ne se résout, et le répertoire
+temporaire système seulement lorsque le répertoire personnel ne peut être résolu
+du tout. En pratique `~/.apollia` existe après le premier démarrage, donc un
+chat libre est enraciné là et non dans votre répertoire personnel.
 
 | Outil | Objectif | Paramètres clés |
 |---|---|---|
 | `file_read` | Lit un fichier, avec un offset et une limite optionnels pour les fichiers volumineux. Renvoie du texte UTF-8 avec numéros de ligne. | `path`, `offset`, `limit` |
 | `file_write` | Écrit du contenu dans un fichier, en créant les répertoires intermédiaires et en écrasant le fichier s'il existe déjà. | `path`, `content` |
-| `file_list` | Liste les fichiers et répertoires avec leur type et leur taille, de façon récursive en option. | `path`, `recursive` |
+| `file_list` | Liste les fichiers et répertoires avec leur type et leur taille, de façon récursive en option. | `dir`, `recursive` |
 | `file_edit` | Remplace un texte exact dans un fichier. Échoue si `old_text` est introuvable ou n'est pas unique (sauf avec `replace_all`). | `path`, `old_text`, `new_text`, `replace_all` |
 | `file_glob` | Trouve les fichiers correspondant à un motif glob (`**` pour la récursivité), triés par date de modification. | `pattern`, `path` |
 | `file_grep` | Recherche un motif regex dans le contenu des fichiers ; renvoie les lignes correspondantes avec le chemin, le numéro de ligne, et un contexte optionnel. Les fichiers binaires sont ignorés. | `pattern`, `path`, `glob`, `context_lines`, `case_insensitive`, `max_results` |
@@ -166,7 +185,7 @@ uniquement.
 
 | Outil | Objectif | Paramètres clés |
 |---|---|---|
-| `http_fetch` | Effectue des requêtes HTTP GET/POST/PUT/PATCH/DELETE. Renvoie le statut, les en-têtes et le corps (plafonné à 1 Mo). Refuse par défaut : aucun chemin de code ne fournit aujourd'hui la liste d'autorisation d'hôtes, donc chaque appel est refusé avec `no_allowlist`. | `url`, `method`, `headers`, `body`, `timeout_secs` |
+| `http_fetch` | Effectue des requêtes HTTP GET/POST/PUT/PATCH/DELETE. Renvoie le statut, les en-têtes et le corps (plafonné à 1 Mo). Sur le chemin agent il refuse par défaut : aucun chemin de code ne fournit la liste d'autorisation d'hôtes, donc chaque appel est refusé avec `no_allowlist`. Sur le chemin de conversation, un enrobage autorise l'hôte de l'URL demandée pour ce seul appel, donc n'importe quel hôte public est joignable une fois l'appel approuvé ; la garde SSRF refuse toujours les adresses privées, de boucle locale et de lien local. | `url`, `method`, `headers`, `body`, `timeout_secs` |
 | `web_search` | Recherche sur le web et renvoie des résultats classés (titre, URL, extrait). Utilise DuckDuckGo par défaut ; passe sur Brave quand une clé est configurée. | `query`, `max_results` |
 | `web_read` | Récupère une URL publique et renvoie le texte de l'article extrait, lisible. Rejette les adresses privées, loopback et link-local (garde SSRF). HTML et texte brut uniquement. | `url`, `max_chars`, `include_metadata` |
 

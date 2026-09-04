@@ -17,8 +17,8 @@ _Bases: Protocol_
 User profile surface.
 
 Read-only by default; write methods require the agent manifest to
-declare ``@agent(user_memory_write=True)``.  Calling :meth:`set` or
-:meth:`update` from a non-writable context raises a runtime error.
+declare ``@agent(user_memory_write=True)``.  Calling `set` or
+`update` from a non-writable context raises a runtime error.
 
 | Field | Type | Default |
 | --- | --- | --- |

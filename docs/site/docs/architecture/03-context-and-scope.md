@@ -21,7 +21,7 @@ flowchart TB
     subgraph external_systems [External systems]
         host["Host product<br/>drives Apollia over its API"]
         mcp["External MCP servers<br/>expose host data and tools"]
-        cloud["Cloud LLM providers<br/>Anthropic / OpenAI / Vertex"]
+        cloud["Remote LLM providers<br/>Anthropic / OpenAI / Mistral / Ollama"]
         saas["Google / Microsoft SaaS<br/>Gmail, Calendar, Drive, Outlook"]
     end
 
@@ -51,7 +51,7 @@ flowchart TB
 | **Agent author** | Writes typed Python agents against the [SDK contract](/reference/sdk), then packages and installs them. | Builds for Apollia |
 | **Host product** | Embeds and drives the runtime through the stable [HTTP API](/reference/api/apollia-os-runtime-api) and generated host SDKs. In the federation pattern the host is often Apollia's client and the other way around at once. | Bidirectional |
 | **External MCP servers** | Apollia is an MCP client: it discovers and calls their tools over stdio, streamable HTTP, or SSE. It can also expose a limited inbound MCP server. | Apollia calls out (mostly) |
-| **Cloud LLM providers** | Optional. A run can escalate to a frontier model on the user's own key, while local stays the default. | Apollia calls out |
+| **Remote LLM providers** | Optional. A run can escalate to a frontier model on the user's own key, while local stays the default. | Apollia calls out |
 | **Google / Microsoft** | Native connectors act on mail, calendar, and files through OAuth, on scoped permissions. | Apollia calls out |
 | **Local model and database** | The GGUF model and the SQLite store both live on the same machine. Nothing here is remote. | In-boundary |
 

@@ -11,12 +11,12 @@ sidebar_position: 5
 ## Prérequis
 
 - Apollia lancé, page **Connexions** accessible.
-- Vous savez quel service vous voulez brancher. Le catalogue v0.1.0 propose 18 entrées soigneusement sélectionnées (voir la liste complète dans [Vue d'ensemble des intégrations](vue-d-ensemble-integrations.md)).
+- Vous savez quel service vous voulez brancher. Le catalogue est le registre MCP public ; dix-huit de ses entrées portent une couche de présentation Apollia, et ce sont celles que liste la [Vue d'ensemble des intégrations](vue-d-ensemble-integrations.md).
 - Pour les services authentifiés, vos identifiants (clé API ou compte OAuth chez le fournisseur).
 
 ## Étapes
 
-1. Dans la sidebar, ouvrez **Connexions**, puis cliquez sur **+ Découvrir** en haut. Le catalogue s'ouvre en panneau dédié.
+1. Dans la sidebar, ouvrez **Connexions**, puis cliquez sur **Ajouter un connecteur** en bas de la barre latérale des connecteurs. Une feuille s'ouvre sur son onglet **Catalogue MCP**.
 
    ![Page Connexions : le catalogue ouvert sur l'onglet Découvrir, avec sa grille d'entrées](/img/operator-help/integration-connecter-un-serveur-mcp-1.png)
 
@@ -61,7 +61,7 @@ A l'ecran : l'étape 4 de l'assistant, avec 3 cartes d'exemples portant chacune 
 - Le panneau de détail affiche les outils déclarés par le serveur, avec leur description.
 - Dans le chat libre, lancez un prompt suggéré par l'étape Coaching. L'outil correspondant est appelé.
 
-> **Note - chargement différé :** par défaut, `[mcp] tool_loading = "deferred"`. Les outils du serveur ne sont pas tous chargés en contexte au démarrage : l'agent invoque `tool_search` à la demande pour récupérer l'outil pertinent. Le nombre d'outils affiché dans l'UI reste complet. Ce comportement est intentionnel et permet de gérer des serveurs avec de nombreux outils sans saturer le contexte.
+> **Note - chargement différé :** par défaut, `[mcp] tool_loading = "deferred"`. Les schémas d'outils du serveur ne sont pas tous placés devant le modèle au démarrage : sous `tool_search_limit` l'index entier est déclaré, au-dessus l'assistant appelle `tool_search` pour trouver ce qu'il lui faut. Le nombre d'outils affiché dans l'UI reste complet dans les deux cas. Voir [Configurer le chargement différé des outils MCP](configure-deferred-mcp-loading.md).
 
 ## Si ça ne marche pas
 
@@ -69,7 +69,7 @@ A l'ecran : l'étape 4 de l'assistant, avec 3 cartes d'exemples portant chacune 
 - **Le test échoue avec "Service introuvable"** : le serveur n'est pas joignable. Vérifiez votre connexion ou le statut du fournisseur.
 - **Le serveur installé n'expose aucun outil** : le serveur démarre mais ne déclare rien. Voir [Tester une connexion MCP](test-an-mcp-connection.md) pour relancer le test, puis vérifier les logs côté fournisseur.
 - **Vous voulez brancher un serveur qui n'est pas dans le catalogue** : voir [Câbler son propre serveur MCP](cabler-son-propre-serveur-mcp.md).
-- **L'agent dit qu'il n'a pas accès à l'outil en mode deferred** : en mode `deferred`, l'agent doit appeler `tool_search` pour charger l'outil à la demande. Si l'agent ne le fait pas, vérifiez que son manifest liste bien ce serveur MCP parmi ses connexions autorisées. Sinon, mettez le manifest à jour.
+- **L'agent dit qu'il n'a pas accès à l'outil en mode deferred** : `tool_search` est injecté par le runtime dans le seul assistant conversationnel intégré, et aucune clé de manifest ne le déclare. Un agent installé atteint un outil MCP en le nommant dans `tools_required` ou `tools_optional`, sous la forme `mcp:<serveur>/<outil>`. Mettez le manifest à jour, ou augmentez `tool_search_limit` pour que l'index entier soit déclaré d'emblée.
 - **L'agent dit qu'il n'a pas accès à l'outil** : ouvrez la fiche de l'agent, l'onglet Outils liste ce que son manifest déclare. Si l'outil n'y figure pas, c'est l'agent qu'il faut mettre à jour. Voir [Comprendre la portée d'une intégration](understand-integration-scope.md).
 
 > **Référence technique :** [Référence Apollia](/reference) , protocole MCP, transports, trust levels, gouvernance.

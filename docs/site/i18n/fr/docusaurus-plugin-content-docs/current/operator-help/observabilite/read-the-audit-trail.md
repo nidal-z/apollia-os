@@ -10,14 +10,14 @@ sidebar_position: 2
 
 ## Prérequis
 
-- Au moins une action sensible (écriture de fichier, commande, appel d'outil) a été exécutée.
+- Au moins une action sensible (écriture de fichier, commande, appel d'outil) a été exécutée par un agent installé.
 - Vous savez approximativement la période ou l'agent à investiguer.
 
 ## Étapes
 
 1. Dans la sidebar, cliquez sur **Observabilité**, puis sur l'onglet **Piste d'audit**.
 
-2. En haut de l'onglet, un **encart violet** rappelle l'utilité de la piste d'audit : contrôle interne, enquête après incident, conformité. L'onglet enregistre les **invocations d'outils** ; un fichier que le code Python d'un agent lit directement n'y figure pas.
+2. En haut de l'onglet, un **encart violet** rappelle l'utilité de la piste d'audit : contrôle interne, enquête après incident, conformité. L'onglet enregistre les **invocations d'outils d'un agent installé**. Un outil appelé depuis une conversation n'y est pas écrit : le chemin conversationnel n'écrit pas dans la piste, et ses appels s'affichent dans la conversation elle-même.
 
 3. Sous l'encart, une carte **Journal complet** donne trois totaux comptés sur tout le journal : **Invocations enregistrées**, **Outils distincts**, **Agents distincts**. Ils ne bougent pas avec les filtres, et ils ne s'arrêtent pas aux lignes chargées plus bas : ils répondent à « que contient le journal », là où les indicateurs de l'étape suivante répondent à « qu'est-ce que je regarde en ce moment ». Si ces totaux ne peuvent pas être lus, la carte affiche une ligne qui le dit et le tableau en dessous n'est pas affecté.
 
@@ -87,6 +87,6 @@ Vous retrouvez dans le tableau les actions que vous savez avoir validées récem
 
 - **Une action attendue ne figure pas** : vérifiez les filtres **Outil** et **Agent** - un filtre actif peut masquer la ligne. Cliquez sur **Charger plus** si la fenêtre par défaut (50 entrées) ne remonte pas assez loin.
 - **Le détail d'une ligne ne montre rien** : l'invocation provient probablement d'un outil sans capture stdout/stderr (outil MCP, appel API interne). La ligne reste tracée mais ses entrées-sorties ne le sont pas.
-- **Le tableau est vide** : aucune action outillée n'a encore été exécutée. Lancez un agent sur une tâche utilisant des outils (bash, file_write, etc.).
+- **Le tableau est vide** : aucun agent installé n'a encore exécuté d'outil. Une conversation n'alimente pas ce tableau, quel que soit le nombre d'outils qu'elle appelle. Lancez un agent sur une tâche utilisant des outils (bash, file_write, etc.).
 
 > **Référence technique :** [Référence Apollia](/reference)

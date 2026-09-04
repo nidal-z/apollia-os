@@ -21,6 +21,14 @@ lit un seul :
 Pour comprendre la logique de ce modèle et son lien avec les exigences
 réglementaires, voir [Le modèle de responsabilisation](/explanation/accountability-model).
 
+Une commande de cette seconde liste fait moins que son nom ne le laisse croire.
+`audit replay` redérive une exécution depuis sa propre trace capturée, en
+consommant les réponses du modèle et les sorties d'outils enregistrées dans
+l'ordre de `step_ordinal` ; elle ne rejoue pas l'agent réel, parce que le journal
+n'a jamais capturé la question d'origine. Elle répond à la question de savoir si
+une trace est complète et cohérente avec elle-même, pas si le code d'aujourd'hui
+se comporterait pareil.
+
 ## Lire le journal d'audit
 
 `audit list` et `audit stats` lisent la piste d'invocations d'outils : ce
@@ -31,6 +39,12 @@ chaîné. Lister les événements récents :
 apollia-os audit list --limit 20
 apollia-os audit stats
 ```
+
+Le point de terminaison derrière `audit list` ne sert au maximum que 500
+événements par requête, et cette commande ne parcourt pas les pages au-delà :
+`--limit 2000` rend les 500 événements les plus récents, présentés comme la
+réponse entière et sans aucun avertissement. Utilisez `audit export`, qui
+parcourt les pages, quand il vous en faut plus de 500.
 
 Pour lire les entrées d'une exécution donnée dans le journal chaîné par
 hachage, y compris les complétions du modèle capturées, résolvez-la par un
@@ -74,12 +88,18 @@ Les mêmes enregistrements sont disponibles via l'API HTTP pour une
 intégration hôte ; voir les opérations d'audit dans la
 [référence de l'API HTTP](/reference/api/apollia-os-runtime-api).
 
-Deux limites méritent d'être connues avant de s'appuyer sur l'un ou l'autre
-registre. Un appel d'outil effectué dans une session de **chat** n'atteint aucun
-des deux : la piste est écrite depuis le `ctx.tools` d'un agent, et le journal
-est alimenté par des événements rattachés à une exécution que le chemin du chat
-n'émet pas. Et la piste est écrite en pose-et-oublie : un enregistrement est
-jeté, avec un avertissement dans les logs, lorsque son canal est saturé.
+Deux choses méritent d'être connues avant de s'appuyer sur l'un ou l'autre
+registre. Un appel d'outil effectué dans une session de **chat** n'atteint pas la
+piste d'invocations d'outils : cette piste est écrite depuis le `ctx.tools` d'un
+agent, et le chemin du chat n'y passe pas, donc `audit list` et `audit export` ne
+montreront pas cet appel. Il atteint en revanche le journal chaîné par hachage :
+la boucle de chat émet chaque sortie d'outil et chaque complétion du modèle comme
+un événement rattaché à une exécution, et le souscripteur du journal en fait des
+entrées chaînées. Lisez-les avec `audit show` sur l'exécution, ou avec `audit
+journal`. Les deux sont stockées telles quelles, ce qui rend un chat auditable et
+met aussi son contenu sur le disque. Et la piste est écrite en pose-et-oublie :
+un enregistrement est jeté, avec un avertissement dans les logs, lorsque son
+canal est saturé.
 
 ## Vérifier l'intégrité d'une exécution
 
@@ -95,9 +115,19 @@ apollia-os audit verify <run-id>
 ```
 
 Une vérification réussie de cette forme indique que les entrées de cette
-exécution n'ont pas été modifiées et qu'elles ont été signées par la clef
-attendue. Elle ne dit pas que l'exécution est complète : une troncature qui
-retire les dernières entrées laisse une chaîne plus courte qui se vérifie
+exécution n'ont pas été modifiées, et qu'elles portent une signature valide
+**lorsque le journal en est un signé**. La signature n'est pas garantie :
+lorsque la clef HMAC ne peut être ni lue ni écrite, le runtime ouvre le journal
+non signé et journalise `audit.journal.unsigned_fallback`. La vérification
+n'exige alors aucune signature, et une chaîne non signée rend quand même un
+résultat correct. Cherchez cet événement dans les logs du runtime, ou la colonne
+de signature d'`audit journal`, avant de lire une vérification verte comme une
+preuve d'origine. La signature est un HMAC-SHA256, symétrique : elle montre que
+la chaîne a été écrite par un détenteur de la clef sur cette machine, et ce n'est
+pas quelque chose qu'un tiers peut contrôler de son côté.
+
+La vérification ne dit pas non plus que l'exécution est complète : une troncature
+qui retire les dernières entrées laisse une chaîne plus courte qui se vérifie
 toujours.
 
 Sans argument, elle parcourt la chaîne globale de toutes les exécutions et
@@ -116,7 +146,9 @@ conservée hors machine qui couvre ce cas, et `audit anchor` l'affiche.
 
 Ajoutez `--json` à `audit list`, `audit show`, `audit stats` et `audit
 verify` pour obtenir une sortie exploitable par une machine. `audit export`
-écrit toujours du JSON et n'accepte pas `--json`.
+écrit toujours du JSON. `--json` est une option globale, donc `audit export
+--json` est accepté aussi, mais cela ne change rien à l'export lui-même ; cela
+ne modifie que la forme d'un message d'erreur.
 
 ## En pratique
 

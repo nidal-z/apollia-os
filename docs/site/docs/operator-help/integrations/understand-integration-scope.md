@@ -46,12 +46,12 @@ Every installed MCP and every native connector is visible to every agent that de
 
 - **Tools** tab of the agent, full list.
 - In the chat, ask the agent *"List the tools you can use"*. It answers with its toolbelt if its system prompt allows it.
-- Test a concrete call. If the tool is refused, the agent returns a clear message (`tool not allowed`, `SovereigntyBlocked`, and so on).
+- Test a concrete call. If the tool is refused, the agent returns a clear message, `tool not allowed` for instance. No sovereignty error can appear here: the profile is checked when a cloud connection is opened, never on a tool call.
 
 ## If it does not work
 
 - **The agent says "tool not allowed"**: the tool is not in its manifest. Update the agent (reinstall with an extended manifest) or use another agent that declares it.
-- **The agent sees the tool but the call fails**: this is most likely a permission issue (expired token, missing scope) or a sovereignty issue. See [Understand MCP permissions](understand-mcp-permissions.md) and [Manage OAuth tokens](manage-oauth-tokens.md).
+- **The agent sees the tool but the call fails**: this is most likely a permission issue, an expired token or a missing scope. See [Understand MCP permissions](understand-mcp-permissions.md) and [Manage OAuth tokens](manage-oauth-tokens.md).
 - **Two agents should see the same tool and only one does**: check both manifests, the tool has to be declared in each of them.
 
 > **Technical reference:** [Apollia reference](/reference) , per-agent tool resolution, project scoping, ContextProvider.

@@ -125,8 +125,8 @@ manifest and reports what the agent declares, without starting a runtime:
 apollia-os inspect coach.py
 ```
 
-If you mistyped a decorator argument or forgot the module-level `agent = ...`,
-this is where you find out.
+If you mistyped a decorator argument, or left `@agent` off the class entirely so
+no module-level `agent` symbol was ever bound, this is where you find out.
 
 ## Step 3: install and enable
 
@@ -171,7 +171,9 @@ smallest complete agent Apollia runs.
 - Stream the answer token by token with
   [`ctx.llm`](/reference/sdk/llm) `stream` and
   [`ctx.events`](/reference/sdk/events) `emit_token`, so the user sees text as
-  it is produced.
+  it is produced. `emit_token` only reaches a screen inside the desktop
+  application, the one caller that tags a run with a chat session and message
+  id; everywhere else, `apollia-os chat` included, it returns without emitting.
 - Give the agent memory by adding `memory_namespace="coach"` to `@agent` and
   recording turns with [`ctx.memory`](/reference/sdk/memory). Memory is opt in
   per agent: without a namespace, `ctx.memory` is unavailable by design.

@@ -93,9 +93,15 @@ For a GGUF model managed directly by Apollia through its embedded engine (withou
 
 Hybrid routing lets Apollia use a local model by default and switch automatically to a frontier (cloud) model for steps that exceed local capabilities, within a cost ceiling.
 
-Configure it in your Apollia configuration file:
+Configure it in your Apollia configuration file. `[llm.routing.hybrid]` is a
+subsection of `[llm.routing]`, whose two keys are required as soon as the table
+exists, so the whole block goes in together:
 
 ```toml
+[llm.routing]
+precise = "local-qwen3-8b"      # backend for deep reasoning
+fast    = "local-qwen3-4b"      # backend for lightweight extraction
+
 [llm.routing.hybrid]
 frontier = "claude-anthropic"   # name of the remote backend to use on escalation
 cost_ceiling_usd = 2.00         # ceiling in dollars per routing session
@@ -120,4 +126,4 @@ The backend named in `frontier` must be configured and active in **Settings - LL
 - **No answer in the chat despite a green dot**: see [The AI provider is not responding](../troubleshooting/the-ai-provider-does-not-answer.md).
 - **Ceiling reached and the agent does not finish**: the ceiling counts the cumulative cost of a routing session, not of a single run. When it is reached, the runtime degrades to local automatically for the rest of the session, unless `ceiling_action = "hard_stop"` is set, in which case the run ends with an error instead. If the task absolutely needs the frontier model all the way, raise the ceiling or disable hybrid routing by removing the `[llm.routing.hybrid]` section.
 
-> **Technical reference:** [Apollia reference](/reference) , every supported provider, advanced parameters (temperature, top_k, context_size, fallback policy), multi-backend routing.
+> **Technical reference:** [Configuration](/reference/configuration) for the `[llm]` section, its backends and its routing keys, and [LLM sampling defaults](/reference/sampling-defaults) for the one sampling parameter a request actually carries to a model.

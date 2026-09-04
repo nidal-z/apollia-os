@@ -74,10 +74,17 @@ async def test_summarize_writes_file():
     )
 
     # THEN il se termine, et il a utilisé le LLM puis l'outil fichier
-    assert_result_completed(result, contains="summary")
+    assert_result_completed(result)
+    assert result["output"][0]["data"]["summary"] == "A short summary."
     assert_llm_called(ctx, times=1)
     assert_tool_called(ctx, "file_write", times=1)
 ```
+
+L'argument `contains=` d'`assert_result_completed` ne lit que les parties de
+texte. Un skill qui retourne un `dict` est converti en une unique partie `data`,
+son texte est donc vide et `contains=` échouerait toujours. Faites porter
+l'assertion sur `result["output"]` pour un skill qui retourne un dict, et gardez
+`contains=` pour un skill qui retourne une chaîne.
 
 Points clés du harnais :
 
@@ -122,7 +129,6 @@ agent = "writer"
 assertions = [
   { type = "file_exists", path = "/tmp/report.txt" },
   { type = "regex", on = "result", pattern = "done" },
-  { type = "llm_judge", rubric = "The report is a single clear sentence." },
 ]
 ```
 
@@ -131,10 +137,12 @@ assertions = [
 - Le `type` d'assertion est l'un de `exit_code` (`equals`), `file_exists`
   (`path`), `regex` (`on = "stdout"` ou `"result"`, plus `pattern`), et
   `llm_judge` (`rubric`).
-- `llm_judge` note la sortie par rapport à la grille d'évaluation en utilisant
-  la route rapide de votre routeur LLM configuré, à température 0. Si aucun
-  backend n'est disponible, le juge est ignoré plutôt que de faire échouer
-  l'exécution.
+- `llm_judge` est analysé mais jamais évalué. La commande construit
+  le lanceur d'évaluation sans routeur de juge, et une assertion qui ne peut pas
+  être vérifiée échoue au lieu de compter comme réussie : toute assertion
+  `llm_judge` rend donc `llm judge not evaluated: this runner has no judge
+  router` et fait rougir sa tâche. Configurer un backend LLM n'y change rien.
+  Laissez `llm_judge` hors de toute suite qui sert de critère de blocage.
 
 Exécutez une suite contre un daemon actif, puis relisez un résultat antérieur :
 

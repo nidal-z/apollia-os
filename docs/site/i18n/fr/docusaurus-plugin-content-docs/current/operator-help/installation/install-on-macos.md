@@ -6,10 +6,13 @@ sidebar_position: 1
 
 # Installer Apollia sur macOS
 
-Apollia est distribué pour macOS en deux formats :
+Apollia est distribué pour macOS depuis la page de publication,
+`https://github.com/Apollia-OS/apollia-os/releases`, qui attache trois fichiers
+pour cette plateforme :
 
-- **`.dmg`** (recommandé) : application desktop complète, à glisser dans `Applications`.
+- **`Apollia-OS_<version>_aarch64.dmg`** (recommandé) : application desktop complète, à glisser dans `Applications`.
 - **`apollia-os-macos-silicon.tar.gz`** : bundle CLI seul (power users).
+- **`Apollia-OS.app.tar.gz`** : la charge que le mécanisme de mise à jour intégré télécharge, avec sa signature `.sig`. Ce n'est pas un format d'installation ; ignorez-le pour une première installation.
 
 ## Pré-requis
 
@@ -20,9 +23,14 @@ Apollia est distribué pour macOS en deux formats :
 
 ## Installation (DMG)
 
-1. Téléchargez `Apollia-OS_<version>_aarch64.dmg` depuis la page Releases.
+1. Téléchargez `Apollia-OS_<version>_aarch64.dmg` depuis la page de publication ci-dessus.
 2. Double-cliquez sur le fichier, glissez `Apollia OS.app` dans votre dossier `Applications` **personnel**, celui qui est sous votre répertoire d'accueil. Les commandes de vérification ci-dessous utilisent ce chemin ; l'installation dans le `/Applications` système fonctionne aussi, il faut alors les adapter.
-3. Premier lancement : `Cmd+clic` sur l'icône puis `Ouvrir` (Gatekeeper bloque les apps non-signées).
+3. Premier lancement : la publication est signée et notariée avec un Apple Developer ID quand la chaîne dispose des secrets de signature, et signée en ad hoc sinon. Une compilation ad hoc est refusée au premier double-clic. Faites un clic droit (ou Contrôle-clic) sur l'icône, choisissez **Ouvrir**, puis confirmez **Ouvrir** dans la boîte de dialogue ; macOS retient le choix. Si elle reste bloquée, retirez une fois l'attribut de quarantaine depuis un terminal :
+
+   ```sh
+   xattr -dr com.apple.quarantine ~/Applications/Apollia\ OS.app
+   ```
+
 4. L'app démarre le daemon `apollia-os` automatiquement. Le daemon sert l'inférence LLM locale via le moteur embarqué `llama-server` et lance le runner de reconnaissance vocale (STT).
 
 ## Vérification
@@ -36,8 +44,16 @@ Depuis un terminal :
 
 `doctor` vérifie le répertoire de données, le fichier de configuration, les deux
 bases, le répertoire des modèles, Python, la posture de bac à sable et la socket
-du runtime. Il ne détecte **pas** votre GPU, et aucune commande ne le rapporte.
-Sous macOS le périphérique d'inférence vaut Metal par défaut, sans être sondé.
+du runtime. Il ne détecte **pas** votre GPU. La commande qui rapporte le matériel
+détecté est une autre, et elle a besoin du daemon démarré :
+
+```sh
+~/Applications/Apollia\ OS.app/Contents/Resources/apollia-os model hardware --json
+```
+
+Elle répond la RAM totale, le processeur et l'accélérateur détecté, sondé sur la
+machine. Demandez `--json` : le rendu texte de cette commande n'affiche rien
+aujourd'hui.
 
 ## Fermer l'application
 
@@ -45,7 +61,7 @@ Fermer la fenêtre par le bouton rouge la masque et laisse Apollia active
 derrière l'icône de la barre de menus, ce qui est la convention macOS : le
 daemon, le moteur `llama-server` et le runner restent en place, et l'icône de la
 barre de menus rouvre la fenêtre. Quitter réellement passe par `Cmd+Q`, le menu
-de l'application ou « Quitter » dans l'icône de la barre de menus, ce qui arrête
+de l'application ou **Quitter** dans l'icône de la barre de menus, ce qui arrête
 tous les processus d'arrière-plan.
 
 Windows et Linux diffèrent ici : la croix y quitte directement.

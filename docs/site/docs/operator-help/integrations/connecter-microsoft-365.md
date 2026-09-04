@@ -12,7 +12,7 @@ sidebar_position: 4
 
 - Apollia running.
 - A Microsoft account, personal or professional.
-- Your sovereignty profile is not set to `local_only`.
+- Your **Data sovereignty** setting, in **Settings, Profile**, is not on *Strictly local*, and has been answered at least once.
 - If your Entra ID tenant requires administrative approval, the administrator has to pre-approve the application.
 - An active internet connection.
 
@@ -71,7 +71,7 @@ Microsoft Teams is not covered in v0.1.0.
 
 ## Multiple accounts
 
-As with Google, you can connect several Microsoft accounts. Each account keeps its own token in the keychain. When an agent calls a Microsoft tool, it can pick the target account if several are connected.
+As with Google, you can connect several Microsoft accounts, and each keeps its own token in the keychain. As with Google too, an agent cannot pick between them: no tool schema carries an account parameter, and every call resolves to the first account connected. If an agent must act as a given account, connect that one alone.
 
 ## Personal vs professional differences
 
@@ -115,13 +115,13 @@ Clearing the field again restores the identifier shipped with Apollia. Existing 
 
 ## If it does not work
 
-- **The Microsoft 365 card reads "Setup required"**: it cannot, on a build that carries the identifier, and neither an empty environment variable nor a blanked entry in `~/.apollia/oauth-clients.toml` produces it: both are skipped when empty and the shipped identifier stands. If you do see it, the build itself was compiled without the identifier. Check `apollia-os connector list`, which names the source of the client it resolved.
+- **The Microsoft 365 card reads "Setup required"**: it cannot, on a build that carries the identifier, and neither an empty environment variable nor a blanked entry in `~/.apollia/oauth-clients.toml` produces it: both are skipped when empty and the shipped identifier stands. If you do see it, the build itself was compiled without the identifier. Check `apollia-os connector client-id list`, which names the source of the client it resolved, `env`, `file`, `builtin` or `none`. Plain `connector list` shows the registered connectors, their services and their operation counts, and says nothing about the client identifier.
 - **Microsoft rejects the redirect URI**: only reachable with your own registration. It is missing its **Mobile and desktop applications** platform, or that platform does not list `http://127.0.0.1`. A registration created as "Web" will not work. Clear the client ID field to fall back on Apollia's own registration.
 - **Microsoft answers that the account does not exist in the directory**: also specific to your own registration, and it means the supported account types were set to a single tenant. Recreate it with **Accounts in any organizational directory and personal Microsoft accounts**, or clear the field to use Apollia's.
 - **Consent refused at the Microsoft screen**: a managed Entra ID tenant often requires an organization-level approval before an external application may be used at all. The error text comes from Microsoft, not from Apollia, and it names the tenant policy at fault. Ask your administrator to pre-approve the application, or use a personal Microsoft account.
 - **`outlook.send` fails on a recipient**: Microsoft Graph validates recipients more strictly than Google does. Apollia surfaces Graph's own error verbatim, prefixed with the HTTP status. Check the target address and make sure there is no dead alias.
 - **OneDrive write refused**: that is expected in v0.1.0, OneDrive is read-only.
-- **The Connect button is greyed out**: your sovereignty profile is `local_only`.
+- **Connecting reports a sovereignty error**: the message reads *Sovereignty profile "local-only": cloud connectors disabled*. The button is not greyed out, the refusal comes on the click. Change **Data sovereignty** in **Settings, Profile**.
 
 ## Disconnecting an account
 

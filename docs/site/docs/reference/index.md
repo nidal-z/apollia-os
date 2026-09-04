@@ -16,7 +16,8 @@ Information-oriented, precise, generated where possible.
 - **[SDK / ctx contract](/reference/sdk)** generated from `sdk/apollia/types.py` and the
   per-service `Ctx` protocols.
 
-Refresh all three with `bash regen.sh`.
+The three are rebuilt from the tree they document, so a page here cannot drift
+from it. Edit the source, never the page.
 
 ## Additional references
 

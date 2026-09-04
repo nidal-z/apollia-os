@@ -46,12 +46,12 @@ Tous les MCPs installés et tous les connecteurs natifs sont visibles par tous l
 
 - Onglet **Outils** de l'agent, liste complète.
 - Dans le chat, demander à l'agent *"Liste les outils que tu peux utiliser"*. Il répond avec sa toolbelt si son prompt système l'autorise.
-- Tester un appel concret. Si l'outil est refusé, l'agent retourne un message clair (`outil non autorisé`, `SovereigntyBlocked`, etc.).
+- Tester un appel concret. Si l'outil est refusé, l'agent retourne un message clair, `outil non autorisé` par exemple. Aucune erreur de souveraineté ne peut apparaître ici : le profil est vérifié à l'ouverture d'une connexion cloud, jamais à l'appel d'un outil.
 
 ## Si ça ne marche pas
 
 - **L'agent dit "outil non autorisé"** : l'outil n'est pas dans son manifest. Mettez à jour l'agent (réinstallation avec un manifest étendu) ou utilisez un autre agent qui le déclare.
-- **L'agent voit l'outil mais l'appel échoue** : c'est probablement une question de permission (token expiré, scope manquant) ou de souveraineté. Voir [Comprendre les permissions MCP](understand-mcp-permissions.md) et [Gérer les tokens OAuth](manage-oauth-tokens.md).
+- **L'agent voit l'outil mais l'appel échoue** : c'est probablement une question de permission, un token expiré ou un scope manquant. Voir [Comprendre les permissions MCP](understand-mcp-permissions.md) et [Gérer les tokens OAuth](manage-oauth-tokens.md).
 - **Deux agents devraient voir le même outil et un seul le voit** : vérifiez les deux manifests, l'outil doit être déclaré dans chacun.
 
 > **Référence technique :** [Référence Apollia](/reference) , résolution des outils par agent, scoping projet, ContextProvider.

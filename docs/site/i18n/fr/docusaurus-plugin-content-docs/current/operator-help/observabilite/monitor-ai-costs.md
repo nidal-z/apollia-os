@@ -11,7 +11,7 @@ sidebar_position: 3
 ## Prérequis
 
 - Au moins une conversation ou un agent a déjà appelé votre fournisseur d'IA.
-- Vous utilisez un fournisseur facturé (Anthropic, OpenAI, Bedrock, Vertex…). Les modèles locaux n'apparaissent pas dans les coûts.
+- Vous utilisez un backend facturé (Anthropic, OpenAI, Mistral). Les modèles locaux n'apparaissent pas dans les coûts.
 
 ## Étapes
 
@@ -26,7 +26,7 @@ sidebar_position: 3
    - **Backend principal** - nom du backend qui pèse le plus, avec son total cumulé.
    ![Onglet Couts LLM, selecteur de periode, quatre KPI, graphique en barres empilees et legende des backends](/img/operator-help/observabilite-surveiller-les-couts-llm-1.png)
 
-4. Au centre, un **histogramme empilé** présente la période sélectionnée. Une barre par jour, chaque barre découpée en segments colorés par **backend** (Anthropic, OpenAI, etc.). L'axe vertical est en dollars avec des ticks arrondis ; l'axe horizontal indique la date (jour de la semaine + date courte pour les courtes fenêtres, date seule pour 30 j et plus).
+4. Au centre, un **histogramme empilé** présente la période sélectionnée. Une barre par jour, chaque barre découpée en segments colorés par **backend** (Anthropic, OpenAI, etc.). L'axe vertical est en dollars avec des ticks arrondis ; l'axe horizontal indique la date (jour de la semaine + date courte pour les courtes fenêtres, date seule pour 30 j et plus). Un backend n'apparaît que pour les appels qu'Apollia a su tarifer, ce qui n'est pas tous ceux qu'il a passés.
 
 5. Survolez une colonne : les autres jours s'estompent légèrement et le **total du jour** s'affiche au-dessus de la barre. Un tooltip apparaît aussi sur chaque segment avec le **nom du backend** et son **coût exact** (ex. `anthropic: $0.42 - May 11`).
 
@@ -53,7 +53,7 @@ Les chiffres en bas correspondent à votre intuition de la consommation. Les don
 
 ## Si ça ne marche pas
 
-- **Le graphique est vide** : aucun appel facturé n'a été enregistré sur 7 jours. Vérifiez que votre fournisseur n'est pas un modèle 100 % local.
+- **Le graphique est vide** : aucun appel tarifé n'a été enregistré sur la fenêtre, et il y a deux causes. Votre backend est peut-être un modèle 100 % local, qui ne coûte rien. Ou le modèle que vous appelez n'a pas de prix dans Apollia : le client Anthropic tarife les familles `claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-sonnet-4-6`, `claude-opus-4-5` et `claude-opus-4-6` (correspondance par préfixe, donc un identifiant daté correspond), et le client compatible OpenAI, qui sert OpenAI, Mistral, Ollama et toute passerelle personnalisée, ne tarife que `gpt-4o-mini`, `gpt-4o` et `gpt-3.5-turbo`. Tout autre identifiant est enregistré sans aucun coût, et le runtime journalise `llm.pricing.model.unknown`.
 - **Les coûts paraissent trop élevés** : ouvrez les **Logs** de l'assistant le plus actif (page **Mes assistants**) et regardez les tâches les plus longues - un contexte injecté volumineux gonfle rapidement les jetons d'entrée.
 - **Coûts en hausse après activation du routage hybride** : le frontier est appelé plus souvent que prévu. Abaissez `cost_ceiling_usd` dans `[llm.routing.hybrid]` pour limiter l'escalade, ou désactivez temporairement le routage hybride. Voir [Connecter un modèle distant](../installation/connecter-un-modele-distant.md).
 

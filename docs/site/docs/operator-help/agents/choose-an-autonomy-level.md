@@ -54,16 +54,19 @@ apollia-os run my-agent "my task" --autonomy supervised
 
 Replace `supervised` with one of the four values: `assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`.
 
-## Steps - Change the global default level
+## Steps - Change the level for every run
 
-So that every run uses a given level without specifying it each time, edit `apollia.toml`:
+There is no global default level to set. `[autonomy]` is not one of the nine
+sections the daemon reads, so a `default_level` written in `apollia.toml`
+changes nothing, and the command that would write it is refused:
 
-```toml
-[autonomy]
-default_level = "supervised"
+```
+$ apollia-os config set autonomy.default_level supervised
+Error: unknown config key: 'autonomy.default_level'
 ```
 
-Restart the daemon after the change so the new default takes effect.
+A run launched without `--autonomy` runs at `assisted`. To work at another
+level, pass the flag on each run.
 
 ## Verification
 
@@ -79,6 +82,6 @@ Open the logs from the agent detail panel or with `apollia-os agent logs my-agen
 
 - **Unknown value at launch:** if you pass an incorrect value to `--autonomy`, the CLI rejects the command and lists the four valid values (`assisted`, `supervised`, `bounded_autonomous`, `long_autonomous`). Check the spelling, the values are in `snake_case`.
 - **The `--autonomy` level is ignored:** check that you are using `apollia-os run`, not `apollia-os start`. The `start` command starts the daemon without running a task; `--autonomy` has no meaning there.
-- **The global default does not change:** restart the daemon after modifying `apollia.toml`. A daemon that is already running reads the config at startup only.
+- **A `[autonomy]` block has no effect:** the daemon does not read that section of `apollia.toml`, restarted or not. Set the level run by run with `--autonomy`.
 
 > **Technical reference:** [Apollia reference](/reference) - StepBudget, ResilienceLayer, behavior of each autonomy level.

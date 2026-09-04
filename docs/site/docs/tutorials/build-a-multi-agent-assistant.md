@@ -250,11 +250,27 @@ input shapes.
 
 This worker reads a credential with [`ctx.secrets`](/reference/sdk/secrets). The
 secret is declared in `@agent(secrets=(...))` and read, never written, at run
-time. Create `crm_lookup.py`:
+time.
+
+The HTTP call goes through the standard library rather than through a native
+tool, on purpose. `web_read` is an article text extractor: its input is `url`,
+`max_chars`, `include_metadata` and `strip_images`, so it carries no request
+header, and its output has no status code. `http_fetch` does take headers, but
+every runtime that ships builds it with no host allowlist, and with no allowlist
+it denies every request. An authenticated call to a third-party API is therefore
+made from the agent's own process, which is exactly the level of trust an
+installed agent already holds (see the
+[agent trust model](/explanation/agent-trust-model)).
+
+Create `crm_lookup.py`:
 
 ```python
 """Read-only CRM lookup (HubSpot)."""
 
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
 from typing import Annotated, TypedDict
 
 from apollia import DomainError, agent, skill
@@ -283,7 +299,6 @@ HUBSPOT_API = "https://api.hubapi.com/crm/v3/objects"
     description="Read-only CRM lookup (HubSpot).",
     agent_type="worker",
     secrets=("hubspot_api_token",),
-    tools_required=("web_read",),
 )
 class CrmLookup:
     @skill(
@@ -300,14 +315,19 @@ class CrmLookup:
         if not token:
             raise DomainError("CONFIG", "hubspot_api_token is not configured")
 
-        url = f"{HUBSPOT_API}/companies/search?q={company_name}"
-        response = await ctx.tools.call(
-            "web_read",
-            input={"url": url, "headers": {"Authorization": f"Bearer {token}"}},
+        query = urllib.parse.urlencode({"q": company_name})
+        request = urllib.request.Request(
+            f"{HUBSPOT_API}/companies/search?{query}",
+            headers={"Authorization": f"Bearer {token}"},
         )
-        if response.get("status_code", 0) >= 400:
-            raise DomainError("CRM_ERROR", f"HubSpot lookup failed: {response.get('status_code')}")
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                payload = json.load(response)
+        except urllib.error.HTTPError as exc:
+            raise DomainError("CRM_ERROR", f"HubSpot lookup failed: {exc.code}") from exc
 
+        # Mapping HubSpot's payload onto ContactRecord is CRM-specific work and
+        # is left out of this tutorial; `payload` holds the decoded response.
         contacts: list[ContactRecord] = []
         return {"company_name": company_name, "contacts": contacts}
 

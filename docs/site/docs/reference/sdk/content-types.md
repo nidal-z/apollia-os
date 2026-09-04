@@ -48,6 +48,13 @@ _Bases: TypedDict_
 
 An image content block inside an LLM message.
 
+No backend reachable through ``ctx.llm`` reads the image itself today. The
+bridge flattens every image block to the literal placeholder
+``[image: <media_type or url>]`` before the message leaves the process and
+logs ``llm.proxy.vision.unsupported``; a model asked about the image is
+therefore answering about that placeholder. The typing is kept so a vision
+backend can be wired without changing the API.
+
 | Field | Type | Default |
 | --- | --- | --- |
 | `type` | `Literal['image']` |  |
@@ -60,7 +67,7 @@ _Bases: TypedDict_
 A single message in an LLM conversation.
 
 ``content`` may be either a plain string (text-only fast path) or a
-list of :data:`MessageContent` blocks (multi-modal path).
+list of `MessageContent` blocks (multi-modal path).
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -71,7 +78,7 @@ list of :data:`MessageContent` blocks (multi-modal path).
 
 _Bases: TypedDict_
 
-One result of :meth:`ctx.llm.map`, order-preserving with the input items.
+One result of `ctx.llm.map`, order-preserving with the input items.
 
 ``index`` and ``ok`` are always present. On success ``text`` and ``usage``
 are set; on failure ``error`` is set. A single failing item never aborts the
@@ -102,13 +109,13 @@ _Bases: object_
 
 Result returned by an agent's ``run()`` method to the Apollia runtime.
 
-The runtime deserializes this via :meth:`to_dict` to determine the
+The runtime deserializes this via `to_dict` to determine the
 outcome of a task execution.  Three factory methods cover the common
 cases:
 
-* :meth:`completed` - successful execution
-* :meth:`failed` - error with structured info
-* :meth:`input_required` - HITL pause awaiting user input
+* `completed` - successful execution
+* `failed` - error with structured info
+* `input_required` - HITL pause awaiting user input
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -173,8 +180,9 @@ def image_from_path(path: str) -> ImageContent
 
 Load an image file from disk and encode it as base64.
 
-Raises :class:`ValueError` if the file's MIME type cannot be inferred
-or is not an ``image/*`` type.
+Raises `ValueError` if the file's MIME type cannot be inferred
+or is not an ``image/*`` type. The block it returns is flattened to a text
+placeholder before it reaches a model, see `ImageContent`.
 
 ### `image_from_bytes`
 
@@ -184,7 +192,9 @@ def image_from_bytes(data: bytes, mime: str) -> ImageContent
 
 Wrap raw bytes as a base64 image content block.
 
-Raises :class:`ValueError` if ``mime`` does not start with ``image/``.
+Raises `ValueError` if ``mime`` does not start with ``image/``. The
+block it returns is flattened to a text placeholder before it reaches a
+model, see `ImageContent`.
 
 ### `image_from_url`
 
@@ -193,3 +203,6 @@ def image_from_url(url: str) -> ImageContent
 ```
 
 Reference a remote image by URL.
+
+The block it returns is flattened to a text placeholder before it reaches a
+model, see `ImageContent`.

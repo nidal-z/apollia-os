@@ -91,15 +91,27 @@ apollia-os agent install ./sales-suite/
 L'installation exécute ces vérifications, dans l'ordre :
 
 1. La source existe.
-2. L'agent se charge et satisfait le contrat (un `manifest()` et un `run()`
-   asynchrone), validé via le pont Python.
-3. Si un manifeste déclare `dangerous_tools_allowed`, l'installeur émet un
-   avertissement et poursuit ; il ne bloque pas et ne demande pas de
-   confirmation.
-4. Les packages Python déclarés sont installés.
-5. Si l'agent embarque un répertoire `tests/`, ses tests s'exécutent sous
+2. L'agent se charge et satisfait le contrat, validé via le pont Python : le
+   décorateur `@agent` doit avoir posé `__apollia_manifest__` et un
+   `__apollia_dispatch__` asynchrone. Un objet qui ne les porte pas est refusé
+   avec `agent is missing __apollia_dispatch__ - apply the @agent decorator`.
+   L'ancien couple d'une méthode `manifest()` et d'un `run()` asynchrone n'est
+   plus accepté, et aucun `manifest()` dynamique n'est jamais appelé.
+3. Si l'agent embarque un répertoire `tests/`, ses tests s'exécutent sous
    `pytest`. Un échec bloque l'installation. Cette étape peut être sautée avec
    `--skip-tests` (non recommandé).
+4. Si un manifeste déclare `dangerous_tools_allowed`, l'installeur émet un
+   avertissement et poursuit ; il ne bloque pas et ne demande pas de
+   confirmation.
+5. Les fichiers sont copiés dans `~/.apollia/agents/<nom>/` et les packages
+   Python déclarés sont installés dans un environnement virtuel propre à
+   l'agent.
+
+Les tests s'exécutent à l'étape 3, avant l'installation des packages de
+l'étape 5. Un test qui importe un package déclaré par l'agent fait donc échouer
+l'installation sur un `ImportError`, à la première installation. Gardez les
+tests livrés sur la bibliothèque standard et le SDK, ou installez une première
+fois avec `--skip-tests` puis exécutez la suite complète ensuite.
 
 ## Distribuer via Git
 

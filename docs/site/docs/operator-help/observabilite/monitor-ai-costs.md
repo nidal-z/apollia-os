@@ -11,7 +11,7 @@ sidebar_position: 3
 ## Prerequisites
 
 - At least one conversation or agent has already called your AI provider.
-- You use a billed provider (Anthropic, OpenAI, Bedrock, Vertex…). Local models do not appear in the costs.
+- You use a billed backend (Anthropic, OpenAI, Mistral). Local models do not appear in the costs.
 
 ## Steps
 
@@ -26,7 +26,7 @@ sidebar_position: 3
    - **Top backend** - name of the backend that weighs the most, with its cumulative total.
    ![LLM Costs tab, with the period selector, the four KPIs, the stacked bar chart and the backend legend](/img/operator-help/observabilite-surveiller-les-couts-llm-1.png)
 
-4. In the centre, a **stacked bar chart** shows the selected period. One bar per day, each bar split into coloured segments by **backend** (Anthropic, OpenAI, and so on). The vertical axis is in dollars with rounded ticks; the horizontal axis shows the date (day of the week + short date for short windows, date only for 30 d and above).
+4. In the centre, a **stacked bar chart** shows the selected period. One bar per day, each bar split into coloured segments by **backend** (Anthropic, OpenAI, and so on). The vertical axis is in dollars with rounded ticks; the horizontal axis shows the date (day of the week + short date for short windows, date only for 30 d and above). A backend only shows up for the calls Apollia was able to price, which is not every call it made.
 
 5. Hover a column: the other days fade slightly and the **day total** appears above the bar. A tooltip also appears on each segment with the **backend name** and its **exact cost** (for example `anthropic: $0.42 - May 11`).
 
@@ -53,7 +53,7 @@ The figures at the bottom match your intuition about consumption. The data refre
 
 ## If it does not work
 
-- **The chart is empty**: no billed call was recorded over 7 days. Check that your provider is not a 100 % local model.
+- **The chart is empty**: no priced call was recorded over the window, which has two causes. Your backend may be a fully local model, which costs nothing. Or the model you call carries no price in Apollia: the Anthropic client prices the `claude-haiku-4-5`, `claude-sonnet-4-5`, `claude-sonnet-4-6`, `claude-opus-4-5` and `claude-opus-4-6` families (prefix match, so a dated identifier matches), and the OpenAI-compatible client, which serves OpenAI, Mistral, Ollama and any custom gateway, prices only `gpt-4o-mini`, `gpt-4o` and `gpt-3.5-turbo`. Any other identifier is recorded with no cost at all, and the runtime logs `llm.pricing.model.unknown`.
 - **The costs look too high**: open the **Logs** of the busiest assistant (**My Assistants** page) and look at the longest tasks - a bulky injected context inflates input tokens fast.
 - **Costs went up after enabling hybrid routing**: the frontier is being called more often than expected. Lower `cost_ceiling_usd` in `[llm.routing.hybrid]` to limit escalation, or disable hybrid routing temporarily. See [Connect a remote model](../installation/connecter-un-modele-distant.md).
 

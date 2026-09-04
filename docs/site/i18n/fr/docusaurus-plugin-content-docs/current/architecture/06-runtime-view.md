@@ -61,6 +61,13 @@ ne déclare rien exécute chaque étape sans surveillance. Les règles de préfi
 les invites d'approbation décrites dans le scénario suivant appartiennent au
 chemin du chat et ne sont pas consultées ici.
 
+Et dans `v0.1.0-preview`, aucun agent n'y déclare quoi que ce soit.
+`tools_requiring_approval` est un champ du schéma de manifeste, mais le
+décorateur `@agent` du SDK ne prend aucun paramètre qui le remplisse, et partout
+où le runtime construit lui-même un manifeste il laisse la liste vide. La
+branche est écrite, atteignable par construction, et jamais empruntée par un
+agent livré.
+
 La suspension est un simple await, si bien que le budget d'étape n'avance pas
 pendant qu'un humain réfléchit. Si le runtime a été compilé sans registre
 d'approbations, l'étape s'exécute quand même et journalise un avertissement :

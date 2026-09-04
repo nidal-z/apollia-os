@@ -33,20 +33,20 @@ If `apollia-runner-cpu` is missing: reinstall Apollia (the bundle has been alter
 
 ## 2. The GPU driver is missing or too old
 
-The daemon detected your GPU and tried to spawn the matching STT runner (for example `apollia-runner-cuda`), but the runtime libraries are missing.
+The daemon detected your GPU and tried to spawn the matching STT runner (for example `apollia-runner-vulkan`), but the runtime libraries are missing.
+
+The published bundles carry three STT runners and no others: `apollia-runner-cpu` everywhere, `apollia-runner-metal` on macOS, and `apollia-runner-vulkan` on the Linux and Windows GPU builds. There is no CUDA or ROCm STT runner to install, so a CUDA or ROCm driver changes nothing for dictation.
 
 **Symptoms:**
 
 - macOS: rarely blocking (Metal ships with the system).
-- Linux/Windows CUDA: `libcuda.so.1 not found` or `nvcuda.dll not found`.
-- Linux ROCm: `libhip.so not found`.
-- Vulkan: `libvulkan.so.1 not found`.
+- Linux and Windows: `libvulkan.so.1 not found`, or the equivalent loader error, when the GPU driver provides no Vulkan.
 
 **Fix:** update the GPU driver, or fall back to the CPU runner by copying `apollia-runner-cpu` next to the `apollia-os` binary (see the installation page for your system). Then restart: `apollia-os stop && apollia-os start`.
 
 ## 3. Firewall blocks the loopback connection (Windows)
 
-The runner listens on `127.0.0.1:<auto-port>`. If Windows Defender Firewall blocked `apollia-runner-cuda.exe` on first launch, the daemon cannot connect to it.
+The runner listens on `127.0.0.1:<auto-port>`. If Windows Defender Firewall blocked `apollia-runner-vulkan.exe` on first launch, the daemon cannot connect to it.
 
 **Fix:** `Settings > Privacy & security > Windows Security > Firewall & network protection > Allow an app`, then tick Apollia OS for private networks.
 

@@ -37,20 +37,24 @@ n'y a rien à sélectionner à l'installation. Ce qui est livré :
 | Artefact | Moteur | Couvre |
 |---|---|---|
 | Application de bureau, macOS | Metal | Apple Silicon |
-| Application de bureau, Windows et Linux | Vulkan | NVIDIA, AMD et Intel |
+| Application de bureau, Windows et Linux, paquet par défaut | Vulkan | NVIDIA, AMD et Intel |
+| Application de bureau, Windows et Linux, paquet `-cuda` | CUDA | NVIDIA |
 | CLI, presets `*-cpu` | processeur | toute machine, sans offload GPU |
 | CLI, presets `*-vulkan` | Vulkan | NVIDIA, AMD et Intel |
-| CLI, presets `*-cuda` | CUDA | NVIDIA |
 
-Vulkan plutôt que CUDA dans l'application de bureau est un arbitrage assumé. Un
-binaire de 32 Mo atteint les trois fabricants, là où le moteur CUDA ne couvre
-que NVIDIA, pèse 238 Mo plus 373 Mo de runtime, et retombe sur le processeur
-avec toute autre carte. Sous Linux la question ne se pose pas : llama.cpp ne
-publie aucune construction CUDA pour cet OS, donc Vulkan y est le seul moteur
-GPU préconstruit disponible.
+Vulkan dans le paquet de bureau par défaut est un arbitrage assumé. Un binaire
+de 32 Mo atteint les trois fabricants, là où le moteur CUDA ne couvre que
+NVIDIA, pèse 238 Mo plus 373 Mo de runtime, et retombe sur le processeur avec
+toute autre carte. Les possesseurs de cartes NVIDIA reçoivent donc un second
+paquet plutôt qu'un paquet par défaut plus lourd : la chaîne de publication
+compile elle-même un `llama-server` CUDA, pour Windows et pour Linux, et le
+confie aux paquets `-cuda`. Ils figurent sur la page de téléchargement à côté
+des paquets par défaut.
 
-Si votre carte est NVIDIA et que vous voulez CUDA plutôt que Vulkan, désignez
-une compilation à vous, plus bas.
+Les archives de ligne de commande n'ont aucun preset CUDA, sur aucune
+plateforme. Si vous exécutez le daemon depuis la ligne de commande sur une carte
+NVIDIA et que vous voulez CUDA plutôt que Vulkan, désignez une compilation à
+vous, plus bas.
 
 ## Configurer un backend local
 

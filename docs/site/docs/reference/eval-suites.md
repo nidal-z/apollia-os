@@ -92,6 +92,11 @@ run` reports an invalid suite, compare your assertion keys against the tables
 above before looking anywhere else.
 
 `llm_judge` takes a rubric and nothing else. There is no expected value to
-supply: the rubric is the whole criterion, and the judge answers against it. It
-uses the same LLM backend as the evaluated agent, so an unreachable backend fails
-every `llm_judge` assertion in the suite.
+supply: the rubric is the whole criterion, and the judge answers against it.
+
+`apollia-os eval run` builds its runner without a judge, so every `llm_judge`
+assertion fails today, with the reason "llm judge not evaluated: this runner has
+no judge router". That is deliberate on the harness side, an assertion nothing
+checked is never counted as passing, and it is not a backend problem:
+configuring one changes nothing here. Until the command wires a judge, write
+your suites on `exit_code`, `file_exists` and `regex`.

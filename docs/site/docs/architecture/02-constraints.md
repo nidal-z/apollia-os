@@ -49,8 +49,9 @@ Unix-socket-only.
   with `pyo3-async-runtimes`. The Rust side owns the process; Python is the
   guest.
 - **Inference.** Local inference is the embedded `llama-server` (upstream
-  llama.cpp), on GGUF models, over its OpenAI-compatible HTTP API, with Metal and
-  CUDA backends. Local speech-to-text is `whisper`.
+  llama.cpp), on GGUF models, over its OpenAI-compatible HTTP API. The backend is
+  not fixed, it is chosen per published artifact: Metal on macOS, and CPU, Vulkan
+  or CUDA on Linux and Windows. Local speech-to-text is `whisper`.
 - **Persistence.** SQLite with FTS5, in WAL mode. No external database.
 - **Transport.** The HTTP API is served on a Unix socket and on TCP with a
   bearer token. `apollia-os start` binds both, taking port 7771 when `--port` is

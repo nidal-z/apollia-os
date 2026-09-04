@@ -11,12 +11,12 @@ sidebar_position: 5
 ## Prerequisites
 
 - Apollia running, the **Connections** page reachable.
-- You know which service you want to plug in. The v0.1.0 catalogue offers 18 carefully selected entries (see the full list in [Integrations overview](vue-d-ensemble-integrations.md)).
+- You know which service you want to plug in. The catalogue is the public MCP registry; eighteen of its entries carry an Apollia presentation layer, and those are the ones listed in [Integrations overview](vue-d-ensemble-integrations.md).
 - For authenticated services, your credentials (API key or OAuth account with the provider).
 
 ## Steps
 
-1. In the sidebar, open **Connections**, then click **+ Discover** at the top. The catalogue opens in a dedicated panel.
+1. In the sidebar, open **Connections**, then click **Add a connector** at the bottom of the connector sidebar. A sheet opens on its **MCP catalogue** tab.
 
    ![Connections page: the catalogue open on the Discover tab, with its grid of entries](/img/operator-help/integration-connecter-un-serveur-mcp-1.png)
 
@@ -61,7 +61,7 @@ On screen: step 4 of the wizard, with 3 example cards each carrying a Try button
 - The detail panel shows the tools declared by the server, with their description.
 - In free chat, run a prompt suggested by the Coaching step. The matching tool is called.
 
-> **Note - deferred loading:** by default, `[mcp] tool_loading = "deferred"`. The server's tools are not all loaded into context at startup: the agent invokes `tool_search` on demand to fetch the relevant tool. The tool count shown in the UI stays complete. This behaviour is intentional and makes it possible to handle servers with many tools without saturating the context.
+> **Note - deferred loading:** by default, `[mcp] tool_loading = "deferred"`. The server's tool schemas are not all put in front of the model at startup: below `tool_search_limit` the whole index is declared, above it the assistant calls `tool_search` to find what it needs. The tool count shown in the UI stays complete either way. See [Configure deferred loading of MCP tools](configure-deferred-mcp-loading.md).
 
 ## If it does not work
 
@@ -69,7 +69,7 @@ On screen: step 4 of the wizard, with 3 example cards each carrying a Try button
 - **The test fails with "Service not found"**: the server is not reachable. Check your connection or the provider's status.
 - **The installed server exposes no tool**: the server starts but declares nothing. See [Test an MCP connection](test-an-mcp-connection.md) to run the test again, then check the logs on the provider side.
 - **You want to plug in a server that is not in the catalogue**: see [Wire your own MCP server](cabler-son-propre-serveur-mcp.md).
-- **The agent says it has no access to the tool in deferred mode**: in `deferred` mode, the agent has to call `tool_search` to load the tool on demand. If the agent does not do it, check that its manifest does list this MCP server among its allowed connections. Otherwise, update the manifest.
+- **The agent says it has no access to the tool in deferred mode**: `tool_search` is injected by the runtime into the built-in conversational assistant only, and no manifest key declares it. An installed agent reaches an MCP tool by naming it in `tools_required` or `tools_optional`, in the `mcp:<server>/<tool>` form. Update the manifest, or raise `tool_search_limit` so the whole index is declared up front.
 - **The agent says it has no access to the tool**: open the agent's page, the Tools tab lists what its manifest declares. If the tool is not there, the agent is what needs updating. See [Understand the scope of an integration](understand-integration-scope.md).
 
 > **Technical reference:** [Apollia reference](/reference) , MCP protocol, transports, trust levels, governance.

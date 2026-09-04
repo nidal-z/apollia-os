@@ -45,8 +45,8 @@ payload directly::
     }
 
 The skill's returned dict lives at ``result.output[0].data``. Use
-:func:`apollia.utils.formatting.a2a_result_data` to unwrap it, or
-:func:`apollia.utils.formatting.aip_result_text` on ``result`` for the
+`apollia.utils.formatting.a2a_result_data` to unwrap it, or
+`apollia.utils.formatting.aip_result_text` on ``result`` for the
 text parts. ``timeout_secs=None`` uses the backend default.
 
 On error the return value is a failed ``AIPResult`` dict
@@ -76,24 +76,34 @@ async def skill_as_tool(self, skill_id: str) -> dict[str, Any]
 
 Return an LLM tool descriptor for an A2A skill.
 
-The descriptor follows the Anthropic / OpenAI ``tool-use``
-convention (``{"name", "description", "input_schema"}``) and is
-intended to be passed to :func:`apollia.react` or directly to
-``ctx.llm.run_tools``.
+The descriptor the bridge emits is
+``{"name", "description", "input_schema"}``, plus ``"examples"`` when
+the skill ships sample payloads. ``name`` is the encoded form
+``a2a__<skill_id>`` with every dot replaced by a double underscore,
+which is what the bridge decodes back on dispatch.
+
+The schema key is ``input_schema``, and ``ctx.llm.run_tools`` reads
+``parameters``. Passing this descriptor straight to ``run_tools``, or
+to ``apollia.react``, therefore announces the tool's name and
+description and nothing about its arguments: the missing key falls back
+to the empty schema ``{}``, so on a local backend the generated grammar
+constrains nothing. Rename the key before handing it on::
+
+    card = await ctx.a2a.skill_as_tool("pdf.read_text")
+    tool = {
+        "name": card["name"],
+        "description": card["description"],
+        "parameters": card["input_schema"],
+    }
 
 The method is ``async``: the bridge resolves the skill against
-the in-process A2A registry. Always call with ``await``::
-
-    tools = [
-        await ctx.a2a.skill_as_tool("pdf.read_text"),
-        await ctx.a2a.skill_as_tool("web.search"),
-    ]
+the in-process A2A registry. Always call with ``await``.
 
 ### `SkillCard`
 
 _Bases: Protocol_
 
-Discovered skill metadata returned by :meth:`A2AInterface.discover`.
+Discovered skill metadata returned by `A2AInterface.discover`.
 
 | Field | Type | Default |
 | --- | --- | --- |

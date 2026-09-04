@@ -71,10 +71,16 @@ async def test_summarize_writes_file():
     )
 
     # THEN it completes, and it used the LLM then the file tool
-    assert_result_completed(result, contains="summary")
+    assert_result_completed(result)
+    assert result["output"][0]["data"]["summary"] == "A short summary."
     assert_llm_called(ctx, times=1)
     assert_tool_called(ctx, "file_write", times=1)
 ```
+
+The `contains=` argument of `assert_result_completed` reads text parts only. A
+skill that returns a `dict` is coerced into a single `data` part, so its text is
+empty and `contains=` would always fail. Assert on `result["output"]` for a skill
+that returns a dict, and keep `contains=` for a skill that returns a string.
 
 Key points of the harness:
 
@@ -115,7 +121,6 @@ agent = "writer"
 assertions = [
   { type = "file_exists", path = "/tmp/report.txt" },
   { type = "regex", on = "result", pattern = "done" },
-  { type = "llm_judge", rubric = "The report is a single clear sentence." },
 ]
 ```
 
@@ -124,9 +129,12 @@ assertions = [
 - Assertion `type` is one of `exit_code` (`equals`), `file_exists` (`path`),
   `regex` (`on = "stdout"` or `"result"`, plus `pattern`), and `llm_judge`
   (`rubric`).
-- `llm_judge` grades the output against the rubric using your configured LLM
-  router's fast route at temperature 0. If no backend is available the judge is
-  skipped rather than failing the run.
+- `llm_judge` is parsed but never evaluated. The command builds the
+  eval runner without a judge router, and an assertion that cannot be checked
+  fails rather than counting as passed, so every `llm_judge` assertion returns
+  `llm judge not evaluated: this runner has no judge router` and reddens its
+  task. Configuring an LLM backend does not change this. Leave `llm_judge` out
+  of any suite you gate on.
 
 Run a suite against a running daemon and re-read a prior result:
 

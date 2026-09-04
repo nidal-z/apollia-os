@@ -57,6 +57,12 @@ an agent that declares nothing runs every step unattended. The prefix rules and
 the approval prompts described in the next scenario belong to the chat path and
 are not consulted here.
 
+And in `v0.1.0-preview` no agent declares anything there.
+`tools_requiring_approval` is a field of the manifest schema, but the SDK
+`@agent` decorator takes no parameter that fills it, and every place the runtime
+builds a manifest itself leaves the list empty. The branch is written, reachable
+by construction, and never taken by a shipped agent.
+
 The suspension is a plain await, so the step budget does not advance while a
 human thinks. If the runtime was built without an approvals registry, the step
 runs anyway and logs a warning: the gate degrades open, not closed.

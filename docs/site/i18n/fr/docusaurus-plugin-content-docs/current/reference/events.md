@@ -64,6 +64,14 @@ surface prise en charge de `v0.1.0-preview`. Sa décision est appliquée au mieu
 un gestionnaire qui expire, dont la livraison échoue, ou qui répond quelque chose
 d'illisible retombe sur `allow`, et l'appel d'outil passe.
 
+Une seconde, sur `PermissionRequired`. Sa description anglaise annonce
+l'approbation humaine d'un appel d'outil, première ligne d'un commentaire de
+documentation dont le tableau ne peut pas porter la suite. L'unique émetteur de
+production est la garde de la boîte aux lettres des agents : il se déclenche
+quand un envoi d'agent à agent sous garde est refusé, avec `tool_name` valant
+`mailbox:send`. L'envoi n'attend aucune réponse, il lève immédiatement, si bien
+que le `request_id` porté par l'événement annonce une demande déjà tranchée.
+
 <!-- BEGIN GENERATED: eventbus-catalogue -->
 
 ### `a2a`

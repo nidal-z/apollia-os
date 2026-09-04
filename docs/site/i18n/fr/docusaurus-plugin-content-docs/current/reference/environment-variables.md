@@ -5,9 +5,13 @@ title: Variables d'environnement
 
 # Variables d'environnement
 
-Ce que le runtime lit dans son environnement, et ce qu'il en fait. Tout ce qui
-n'est pas répertorié ici est soit résolu au moment de la compilation, soit
-réservé aux tests.
+Ce que le runtime lit dans son environnement, et ce qu'il en fait. Les tableaux
+ci-dessous couvrent les noms `APOLLIA_*` définis par Apollia. Apollia lit aussi
+des variables standard qui ne lui appartiennent pas, là où leur sens habituel
+s'applique : `XDG_CONFIG_HOME` et `EDITOR` quand la ligne de commande résout ou
+édite `apollia.toml`, `NO_COLOR` pour la sortie terminal, `PATH` quand elle
+cherche un binaire, `TZ`, et `USERNAME` sous Windows pour dériver le nom du
+tuyau nommé. Un backend distant lit la variable que nomme son `api_key_env`.
 
 L'essentiel de la configuration a sa place dans `apollia.toml`, voir
 [Configuration](/reference/configuration). Les variables d'environnement
@@ -24,8 +28,7 @@ quoi régler et pourquoi.
 | Variable | Valeur par défaut | Effet |
 |---|---|---|
 | `APOLLIA_LLAMA_SERVER_BIN` | le moteur livré avec l'artefact | Chemin absolu vers un binaire `llama-server`, prioritaire sur celui embarqué. C'est la façon d'utiliser une compilation à vous, une compilation CUDA sous Linux par exemple. |
-| `APOLLIA_LLAMA_MODEL_PATH` | depuis le backend configuré | Remplace le GGUF chargé par le moteur. |
-| `APOLLIA_LLAMA_MAX_LOADED` | voir la valeur par défaut du code source | Nombre de modèles pouvant rester résidents en mémoire simultanément. |
+| `APOLLIA_LLAMA_MAX_LOADED` | `1` | Nombre de modèles pouvant rester résidents en mémoire simultanément. Chaque modèle résident supplémentaire garde ses poids en mémoire jusqu'à son déchargement, donc relever ce plafond est un acte explicite. Une valeur nulle ou illisible conserve la valeur par défaut. |
 | `APOLLIA_LLAMA_N_CTX` | `32768` | Fenêtre de contexte en tokens. La valeur par défaut est fixe, elle n'est pas lue dans le modèle. |
 | `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Nombre de couches déchargées sur le GPU ; `0` force l'exécution sur CPU. |
 | `APOLLIA_LLAMA_N_BATCH` | valeur par défaut du moteur | Taille de batch logique. |
@@ -39,11 +42,16 @@ quoi régler et pourquoi.
 | `APOLLIA_LLAMA_METRICS` | `false` | Expose le point de terminaison de métriques du moteur. |
 | `APOLLIA_LLAMA_EXTRA_ARGS` | vide | Options supplémentaires transmises telles quelles. |
 
+Le GGUF chargé par le moteur n'a délibérément aucune surcharge par
+l'environnement. C'est un état que possède le changement de modèle dans
+l'interface, et une variable ambiante qui le figerait annulerait chaque
+changement fait depuis celle-ci.
+
 ## Stockage des secrets
 
 | Variable | Valeur par défaut | Effet |
 |---|---|---|
-| `APOLLIA_TOKEN_STORAGE` | `keyring` | `keyring` utilise le trousseau du système d'exploitation. `file` stocke les secrets sous forme de fichiers chiffrés avec `age` dans `~/.apollia/secrets/`, pour un hôte Linux sans interface où aucun démon de trousseau n'est accessible. |
+| `APOLLIA_TOKEN_STORAGE` | `keyring` | `keyring` utilise le trousseau du système d'exploitation. `file` stocke les secrets sous forme de fichiers chiffrés avec `age` dans `~/.apollia/secrets/`, pour un hôte Linux sans interface où aucun démon de trousseau n'est accessible. Les jetons OAuth des connecteurs échappent à ce commutateur : ils sont écrits dans le trousseau du système quelle que soit la valeur posée ici, si bien qu'un hôte sans trousseau accessible ne peut pas les détenir. |
 | `APOLLIA_TOKEN_PASSPHRASE` | aucune | Phrase secrète pour le backend `file`. **Obligatoire quand `APOLLIA_TOKEN_STORAGE=file`** : le démarrage échoue immédiatement en son absence, plutôt que de se replier sur une solution moins sûre. |
 
 ## Clients OAuth des connecteurs
@@ -90,17 +98,7 @@ résolution pour chaque identifiant : variable d'environnement, puis
 | Variable | Valeur par défaut | Effet |
 |---|---|---|
 | `APOLLIA_PERF_TRACE` | non définie | Chemin d'un fichier recevant un enregistrement de performance par tour. Non définie signifie qu'aucun fichier n'est écrit et qu'aucune provenance n'est collectée ; le résumé est de toute façon émis au niveau `INFO`. |
-| `APOLLIA_MCP_PROTOCOL_VERSION` | figée dans le code | Remplace la révision du protocole MCP annoncée à un serveur. Sert à sonder un serveur qui fige une révision différente, pas pour un usage normal. |
 | `RUST_LOG` | `apollia=info` | Filtre `tracing` standard. C'est `apollia=trace` qui rend visible `[llm.observability] debug_log_prompt` ; voir [Configuration](/reference/configuration). |
-
-## Agent compagnon embarqué
-
-Surcharges utilisées lors du développement de l'agent compagnon livré avec
-l'application desktop. Elles pointent le runtime vers une copie de travail
-plutôt que vers la copie embarquée.
-
-`APOLLIA_GUIDE_PY`, `APOLLIA_GUIDE_TOML`, `APOLLIA_GUIDE_CAPABILITIES_MD`,
-`APOLLIA_GUIDE_TUTORIALS_MD`, `APOLLIA_GUIDE_VERSION`.
 
 ## Automatisation desktop
 

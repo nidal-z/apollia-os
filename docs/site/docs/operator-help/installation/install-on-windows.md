@@ -6,17 +6,19 @@ sidebar_position: 2
 
 # Install Apollia on Windows
 
-Apollia ships for Windows x86_64 in three formats:
+Every file below is attached to each release on the publication page,
+`https://github.com/Apollia-OS/apollia-os/releases`.
 
-- **`.msi`** (recommended): standard Windows installer with Start menu entries + uninstaller.
-- **`.exe` (NSIS)**: portable single-file installer.
-- **`apollia-os-windows-x86-*.zip`**: CLI bundles per accelerator (CPU, CUDA, Vulkan).
+- **`Apollia-OS_<version>_x64_en-US.msi`** (recommended): standard Windows installer with Start menu entries + uninstaller.
+- **`Apollia-OS_<version>_x64-setup.exe`**: the NSIS installer. A single file, and it installs rather than runs in place: it registers an uninstaller in **Settings > Apps** exactly as the `.msi` does.
+- **`Apollia-OS_<version>_x64_en-US-cuda.msi`** and **`Apollia-OS_<version>_x64-setup-cuda.exe`**: the same two installers with a CUDA build of the inference engine, for an NVIDIA card.
+- **`apollia-os-windows-x86-cpu.zip`** and **`apollia-os-windows-x86-vulkan.zip`**: the two command-line bundles, one per engine, CPU or Vulkan.
 
 ## Requirements
 
 - Windows 10 22H2 / Windows 11.
 - 4 GB of free RAM minimum.
-- For GPU: NVIDIA 550+ driver (CUDA) or a Vulkan-capable driver.
+- For GPU inference: a Vulkan-capable driver, or the NVIDIA 550+ driver if you take the CUDA bundle.
 - **No need** to install the Visual C++ Redistributable: the CRT is statically embedded.
 
 ## Installation (MSI)
@@ -34,6 +36,14 @@ The Windows firewall will ask you to allow `apollia-os.exe`, the `llama-server.e
 The installer downloads the WebView2 runtime if your machine does not already
 have it, so the install step needs a network connection on a machine that has
 never run a WebView2 application. Current Windows 11 ships it preinstalled.
+
+## Installation (.exe)
+
+The NSIS installer asks who the installation is for. **Install for all users**
+puts it in `C:\Program Files\Apollia OS\`, the same place as the `.msi`.
+**Install for me only** needs no administrator right and puts it under your user
+profile instead. Note the destination the wizard shows you: the verification
+below reads from it.
 
 ## Closing the app
 
@@ -66,7 +76,8 @@ close by hand.
 
 ## Verification
 
-From PowerShell:
+From PowerShell. The path below is the all-users one; on a per-user `.exe`
+install, replace it with the destination the wizard showed you.
 
 ```powershell
 & "C:\Program Files\Apollia OS\apollia-os.exe" --version
@@ -75,9 +86,15 @@ From PowerShell:
 
 `doctor` runs eight checks: the data directory, the configuration file, the two
 databases, the models directory, Python, the sandbox posture and the runtime
-socket. It does **not** detect your GPU, and there is no command that reports
-one: the inference device is chosen by configuration rather than probed. See the
-section below.
+socket. It does **not** detect your GPU. The command that reports the detected
+hardware is a separate one, and it needs the daemon running:
+
+```powershell
+& "C:\Program Files\Apollia OS\apollia-os.exe" model hardware --json
+```
+
+It answers with the total RAM, the CPU and the detected accelerator. Ask for
+`--json`: the plain-text rendering of that command prints nothing today.
 
 ## What Windows does not confine
 
@@ -98,11 +115,20 @@ Git Bash, WSL or MSYS2, and fails without one.
 
 ## GPU acceleration
 
-Local LLM inference goes through the embedded `llama-server` engine, shipped with the bundle. Speech-to-text (STT) uses the `apollia-runner` runner, and the MSI installer embeds its CPU variant. To accelerate dictation on a CUDA / Vulkan GPU:
+Two accelerations, and Windows answers them differently.
 
-1. Download `apollia-os-windows-x86-vulkan.zip`. Vulkan drives NVIDIA, AMD and Intel cards alike; the `-cpu` bundle is the one to take on a machine with no graphics driver.
-2. Extract it and copy `apollia-runner-vulkan.exe` into `C:\Program Files\Apollia OS\`.
-3. Restart the app.
+**Local LLM inference already runs on the GPU.** The installers embed a Vulkan
+build of the `llama-server` engine, and the `-cuda` installers a CUDA build for
+NVIDIA cards; the `apollia-os-windows-x86-vulkan.zip` command-line bundle carries
+the Vulkan one. Vulkan drives NVIDIA, AMD and Intel cards alike. Nothing to
+install and nothing to set: with a working driver the engine uses the card. The
+`-cpu` bundle is the one to take on a machine with no graphics driver.
+
+**Dictation stays on the CPU.** Speech to text runs in the `apollia-runner`
+sidecar, which is built on whisper, and whisper has no Vulkan backend: the
+`apollia-runner-vulkan.exe` binary shipped in the Vulkan archive is byte for byte
+the CPU one. Copying it into the installation directory changes nothing. No
+Windows artifact published today carries a GPU-accelerated speech-to-text runner.
 
 ## What is different on Windows
 
@@ -126,7 +152,8 @@ See [Update Apollia](./mettre-a-jour-apollia.md).
 
 ## Uninstall
 
-`Settings > Apps > Apollia OS > Uninstall`. User data:
+`Settings > Apps > Apollia OS > Uninstall`, for the `.msi` and the `.exe` alike.
+User data:
 
 ```powershell
 Remove-Item -Recurse "$env:USERPROFILE\.apollia"

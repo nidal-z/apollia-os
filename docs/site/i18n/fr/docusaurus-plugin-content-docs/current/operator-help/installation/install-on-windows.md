@@ -6,17 +6,19 @@ sidebar_position: 2
 
 # Installer Apollia sur Windows
 
-Apollia est distribué pour Windows x86_64 sous trois formats :
+Chacun des fichiers ci-dessous est attaché à chaque publication sur la page de
+publication, `https://github.com/Apollia-OS/apollia-os/releases`.
 
-- **`.msi`** (recommandé) : installeur Windows standard avec entrées Démarrer + désinstallateur.
-- **`.exe` (NSIS)** : installeur portable single-file.
-- **`apollia-os-windows-x86-*.zip`** : bundles CLI par accélérateur (CPU, CUDA, Vulkan).
+- **`Apollia-OS_<version>_x64_en-US.msi`** (recommandé) : installeur Windows standard avec entrées Démarrer + désinstallateur.
+- **`Apollia-OS_<version>_x64-setup.exe`** : l'installeur NSIS. Un seul fichier, et il installe au lieu de s'exécuter sur place : il enregistre un désinstallateur dans **Paramètres > Applications**, exactement comme le `.msi`.
+- **`Apollia-OS_<version>_x64_en-US-cuda.msi`** et **`Apollia-OS_<version>_x64-setup-cuda.exe`** : les deux mêmes installeurs avec une compilation CUDA du moteur d'inférence, pour une carte NVIDIA.
+- **`apollia-os-windows-x86-cpu.zip`** et **`apollia-os-windows-x86-vulkan.zip`** : les deux bundles en ligne de commande, un par moteur, CPU ou Vulkan.
 
 ## Pré-requis
 
 - Windows 10 22H2 / Windows 11.
 - 4 Go de RAM libres minimum.
-- Pour GPU : driver NVIDIA 550+ (CUDA) ou driver Vulkan-capable.
+- Pour l'inférence sur GPU : un pilote compatible Vulkan, ou le pilote NVIDIA 550+ si vous prenez le bundle CUDA.
 - **Pas besoin** d'installer Visual C++ Redistributable : le CRT est statiquement embarqué.
 
 ## Installation (MSI)
@@ -35,6 +37,14 @@ Le pare-feu Windows demandera à autoriser `apollia-os.exe`, le moteur d'infére
 L'installeur télécharge le runtime WebView2 si votre machine ne l'a pas déjà :
 l'installation demande donc une connexion réseau sur une machine qui n'a jamais
 fait tourner d'application WebView2. Windows 11 à jour le fournit d'origine.
+
+## Installation (.exe)
+
+L'installeur NSIS demande pour qui se fait l'installation. **Installer pour tous
+les utilisateurs** la place dans `C:\Program Files\Apollia OS\`, au même endroit
+que le `.msi`. **Installer pour moi uniquement** ne demande aucun droit
+d'administrateur et la place sous votre profil utilisateur. Notez la destination
+que l'assistant vous montre : la vérification ci-dessous la lit.
 
 ## Fermer l'application
 
@@ -68,7 +78,9 @@ qu'une fenêtre à refermer à la main.
 
 ## Vérification
 
-Depuis PowerShell :
+Depuis PowerShell. Le chemin ci-dessous est celui d'une installation pour tous
+les utilisateurs ; sur une installation `.exe` pour vous seul, remplacez-le par
+la destination que l'assistant vous a montrée.
 
 ```powershell
 & "C:\Program Files\Apollia OS\apollia-os.exe" --version
@@ -77,9 +89,16 @@ Depuis PowerShell :
 
 `doctor` passe huit vérifications : le répertoire de données, le fichier de
 configuration, les deux bases, le répertoire des modèles, Python, la posture de
-bac à sable et la socket du runtime. Il ne détecte **pas** votre GPU, et aucune
-commande ne le rapporte : le périphérique d'inférence se configure au lieu de se
-sonder. Voir la section ci-dessous.
+bac à sable et la socket du runtime. Il ne détecte **pas** votre GPU. La commande
+qui rapporte le matériel détecté est une autre, et elle a besoin du daemon
+démarré :
+
+```powershell
+& "C:\Program Files\Apollia OS\apollia-os.exe" model hardware --json
+```
+
+Elle répond la RAM totale, le processeur et l'accélérateur détecté. Demandez
+`--json` : le rendu texte de cette commande n'affiche rien aujourd'hui.
 
 ## Ce que Windows ne confine pas
 
@@ -100,11 +119,22 @@ via Git Bash, WSL ou MSYS2, et échoue sans lui.
 
 ## Accélération GPU
 
-L'inférence LLM locale passe par le moteur embarqué `llama-server`, livré avec le bundle. La reconnaissance vocale (STT) utilise le runner `apollia-runner`, dont l'installeur MSI embarque la variante CPU. Pour accélérer la dictée sur GPU CUDA / Vulkan :
+Deux accélérations, et Windows y répond différemment.
 
-1. Téléchargez `apollia-os-windows-x86-vulkan.zip`. Vulkan pilote indifféremment les cartes NVIDIA, AMD et Intel ; le bundle `-cpu` est celui à prendre sur une machine sans pilote graphique.
-2. Décompressez et copiez `apollia-runner-vulkan.exe` dans `C:\Program Files\Apollia OS\`.
-3. Relancez l'app.
+**L'inférence LLM locale tourne déjà sur le GPU.** Les installeurs embarquent une
+compilation Vulkan du moteur `llama-server`, et les installeurs `-cuda` une
+compilation CUDA pour les cartes NVIDIA ; le bundle en ligne de commande
+`apollia-os-windows-x86-vulkan.zip` porte la version Vulkan. Vulkan pilote
+indifféremment les cartes NVIDIA, AMD et Intel. Rien à installer et rien à
+régler : avec un pilote qui fonctionne, le moteur utilise la carte. Le bundle
+`-cpu` est celui à prendre sur une machine sans pilote graphique.
+
+**La dictée reste sur le processeur.** La reconnaissance vocale tourne dans le
+sidecar `apollia-runner`, bâti sur whisper, et whisper n'a pas de backend
+Vulkan : le binaire `apollia-runner-vulkan.exe` livré dans l'archive Vulkan est
+octet pour octet celui du CPU. Le copier dans le répertoire d'installation ne
+change rien. Aucun artefact Windows publié aujourd'hui ne porte de runner de
+reconnaissance vocale accéléré par le GPU.
 
 ## Ce qui change sur Windows
 
@@ -130,7 +160,8 @@ Voir [Mettre à jour Apollia](./mettre-a-jour-apollia.md).
 
 ## Désinstallation
 
-`Paramètres > Applications > Apollia OS > Désinstaller`. Données utilisateur :
+`Paramètres > Applications > Apollia OS > Désinstaller`, pour le `.msi` comme
+pour le `.exe`. Données utilisateur :
 
 ```powershell
 Remove-Item -Recurse "$env:USERPROFILE\.apollia"

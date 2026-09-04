@@ -87,14 +87,24 @@ apollia-os agent install ./sales-suite/
 Install runs these checks, in order:
 
 1. The source exists.
-2. The agent loads and satisfies the contract (a `manifest()` and an async
-   `run()`), validated through the Python bridge.
-3. If a manifest declares `dangerous_tools_allowed`, the installer emits a
-   warning and continues; it does not block or prompt for confirmation.
-4. Declared Python packages are provisioned.
-5. If the agent ships a `tests/` directory, its tests run under `pytest`. A
+2. The agent loads and satisfies the contract, validated through the Python
+   bridge: the `@agent` decorator must have installed `__apollia_manifest__` and
+   an async `__apollia_dispatch__`. An object without them is refused with
+   `agent is missing __apollia_dispatch__ - apply the @agent decorator`. The
+   legacy pair of a `manifest()` method and an async `run()` is not accepted, and
+   no dynamic `manifest()` is ever called.
+3. If the agent ships a `tests/` directory, its tests run under `pytest`. A
    failure blocks the install. Skip this step with `--skip-tests` (not
    recommended).
+4. If a manifest declares `dangerous_tools_allowed`, the installer emits a
+   warning and continues; it does not block or prompt for confirmation.
+5. The files are copied into `~/.apollia/agents/<name>/` and the declared Python
+   packages are provisioned into a per-agent virtual environment.
+
+The tests run at step 3, before the provisioning at step 5. A test that imports a
+package the agent declares therefore fails the install with an `ImportError`, on
+the first install. Keep the shipped tests on the standard library and the SDK, or
+install once with `--skip-tests` and run the full suite afterwards.
 
 ## Distribute over Git
 

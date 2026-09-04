@@ -58,7 +58,7 @@ Cette opération invalide aussi le refresh token. Recommandé pour une révocati
 
 ## Multi-comptes
 
-Chaque compte vit dans une entrée trousseau distincte avec l'email comme user. Quand un agent appelle un outil natif (`gmail.send`, `outlook.search`, etc.), il peut passer un paramètre `account` pour choisir le compte. Sans paramètre, le compte primaire (premier connecté) est utilisé.
+Chaque compte vit dans une entrée trousseau distincte avec l'email comme user. Choisir le compte à l'appel n'est pas implémenté en `v0.1.0-preview` : aucun schéma d'outil natif ne déclare de paramètre `account`, donc un appel qui en nomme un le voit jeté en silence, et tout appel part sur le premier compte connecté. Avec plusieurs comptes stockés, le runtime journalise un avertissement d'ambiguïté et prend quand même le premier.
 
 ## Refresh automatique
 
@@ -69,10 +69,7 @@ Apollia rafraîchit les tokens proactivement :
 
 ## Changer les scopes d'un compte
 
-La v0.1.0 ne supporte pas le step-up auth automatique (demander seulement les nouveaux scopes). Procédure :
-
-1. Déconnecter le compte dans **Connexions**.
-2. Reconnecter en ajustant les cases à cocher avant de cliquer **Connecter**.
+Vous ne pouvez pas. L'ensemble de scopes d'un connecteur natif est figé dans l'application : la fenêtre Google demande toujours les mêmes dix alias de scope et la fenêtre Microsoft les mêmes cinq, et il n'y a aucune case à ajuster avant de connecter. Déconnecter puis reconnecter rejoue exactement la même demande. Restreindre ce qu'Apollia peut faire se joue côté fournisseur, en bridant le client OAuth, ou en ne connectant pas le compte.
 
 ## Vérification
 
@@ -100,16 +97,16 @@ Les approbations MCP (acceptations HITL durables) sont stockées séparément da
 
 ### Erreurs courantes mode fichier
 
-- **`keyring: no entry`** : le daemon Secret Service n'est pas disponible. Voir la section Linux headless ci-dessus : il n'y a pas de contournement en `v0.1.0-preview`.
-- **`NoRefreshToken`** au refresh : le compte a été connecté sans `offline_access` (Microsoft) ou sans `access_type=offline` (Google). Reconnectez.
+- **Le compte ne peut pas être enregistré sous Linux** : le daemon Secret Service n'est pas disponible. Voir la section Linux headless ci-dessus : il n'y a pas de contournement en `v0.1.0-preview`.
+- **Un rafraîchissement annonce qu'aucun refresh token n'est disponible** : le fournisseur n'en a pas rendu. Ce n'est pas un scope oublié : Apollia ajoute toujours `access_type=offline` pour Google et inclut toujours `offline_access` pour Microsoft, cette cause n'est donc pas atteignable depuis l'interface. L'explication habituelle est une autorisation déjà révoquée côté fournisseur. Déconnectez puis reconnectez.
 - **Refresh en boucle 401** : le refresh token a été révoqué côté provider. Déconnectez puis reconnectez.
 
 </details>
 
 ## Si ça ne marche pas
 
-- **Linux, "keyring: no entry"** : voir la section Linux headless.
-- **`NoRefreshToken`** : reconnectez le compte, le scope `offline_access` a été oublié.
+- **Linux, le compte ne peut pas être enregistré** : voir la section Linux headless.
+- **Un rafraîchissement annonce qu'aucun refresh token n'est disponible** : reconnectez le compte. Les scopes ne sont pas en cause, Apollia demande toujours l'accès hors ligne.
 - **Refresh boucle 401** : déconnectez puis reconnectez le compte, le refresh token a été révoqué côté provider.
 
 > **Référence technique :** [Référence Apollia](/reference) , stockage trousseau, refresh proactif, audit governance.db.

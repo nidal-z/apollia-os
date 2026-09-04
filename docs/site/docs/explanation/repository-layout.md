@@ -65,7 +65,7 @@ built in isolation under special flags (`apollia-loom-models` and the top-level
 | `apollia-workspace` | Workspace context collection: Git state, `APOLLIA.md` rules, file tree, conventions, with a TTL cache. No sandboxing: path confinement lives in `apollia-tools`. |
 | `apollia-prompts` | Centralized prompt templates. |
 | `apollia-eval` | Agent evaluation harness. |
-| `apollia-cli` | The `apollia` command-line binary (clap, noun-verb, exit codes 0-5). The only crate where `anyhow` and user-facing stdout are allowed. |
+| `apollia-cli` | The `apollia-os` command-line binary (clap, noun-verb, exit codes 0-5). `apollia`, without the suffix, is a different command: the SDK's own Python entry point. The only crate where `anyhow` and user-facing stdout are allowed. |
 | `apollia-desktop` | The Tauri v2 + Svelte 5 desktop app (its UI lives in `crates/apollia-desktop/ui/`). |
 
 ## Governance and community files

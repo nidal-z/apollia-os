@@ -22,7 +22,7 @@ Hover the dot to see the exact state (native tooltip). This dot is the central r
 
 ### 1. Your internet connection dropped
 
-Cloud providers (Anthropic, OpenAI, Vertex…) are online services. A Wi-Fi or VPN outage cuts the chat off.
+Cloud providers (Anthropic, OpenAI, Mistral) are online services. A Wi-Fi or VPN outage cuts the chat off.
 
 **Solution:**
 1. Open a browser tab to confirm that you are online.
@@ -54,7 +54,7 @@ Anthropic, OpenAI and the other cloud providers publish incidents on their publi
 
 **Solution:**
 1. Check the status page of the provider concerned.
-2. If an incident is ongoing, add a fallback backend (another provider or a local model) in **Settings → LLM backends** so you are not stuck. Routing will automatically pick a backend that is ready.
+2. If an incident is ongoing, add another backend (another provider or a local model) in **Settings → LLM backends**, then click **Set as default** on its card. Routing never switches on its own: every call goes to the default backend, and a failure comes back as an error instead of being retried elsewhere.
 
 ### 5. The local service is no longer running
 

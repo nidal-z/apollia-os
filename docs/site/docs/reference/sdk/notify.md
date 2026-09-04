@@ -8,7 +8,7 @@ title: ctx.notify
 
 Service type: `NotifyInterface` (from `apollia.context.notify`).
 
-The bridge may leave this service unattached; `ctx.notify` is then `None`.
+The bridge never attaches this service. `ctx.notify` is `None` on every binary this project ships, so any attribute access on it raises `AttributeError`; no builder that could fill it (`with_notify`) has a caller outside tests. `scripts/check_optional_builders.py` holds that measurement.
 
 ### `NotifyInterface`
 

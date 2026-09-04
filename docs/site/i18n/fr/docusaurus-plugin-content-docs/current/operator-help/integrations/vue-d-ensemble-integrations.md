@@ -19,12 +19,12 @@ Apollia distingue deux mécanismes complémentaires.
 
 ### Connecteurs natifs OAuth
 
-Maintenus directement par Apollia pour les services qui n'exposent pas (encore) de serveur MCP officiel : **Google Workspace** (Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks, YouTube) et **Microsoft 365** (Outlook, Calendar, OneDrive).
+Maintenus directement par Apollia pour les services qui n'exposent pas (encore) de serveur MCP officiel : **Google Workspace** (Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks) et **Microsoft 365** (Outlook, Calendar, OneDrive).
 
 - Tokens stockés dans le trousseau du système (Keychain macOS, Credential Manager Windows, Secret Service Linux).
 - Appels directs depuis votre machine vers `gmail.googleapis.com` ou `graph.microsoft.com`, aucun relai cloud Apollia.
 - Approbation HITL automatique sur toutes les écritures.
-- Multi-comptes supporté.
+- Plusieurs comptes peuvent être connectés, et un appel d'outil utilise toujours le premier connecté.
 
 **Les deux ne coûtent pas la même chose à démarrer.** Bon à savoir avant de cliquer, car la différence n'apparaît qu'une fois sur la page du connecteur :
 
@@ -37,11 +37,11 @@ Ce n'est pas un oubli côté Google. Google exige un écran de consentement vér
 
 ### Serveurs MCP
 
-Le standard ouvert Model Context Protocol. Processus tiers, locaux (stdio via `npx` ou `uvx`) ou distants (HTTP/SSE), qui exposent des outils consommables par n'importe quel client MCP. Apollia inclut un catalogue de **18 entrées** curées :
+Le standard ouvert Model Context Protocol. Processus tiers, locaux (stdio via `npx` ou `uvx`) ou distants (HTTP/SSE), qui exposent des outils consommables par n'importe quel client MCP. Ce que vous parcourez sous **Catalogue MCP** est le registre MCP public, paginé au fil du défilement : sa taille est donc celle du registre le jour où vous le consultez. Apollia ajoute sa propre couche de présentation (libellé operator, description, catégorie, niveau de confiance, aide à la connexion) à **18** de ces entrées :
 
-Notion, Slack, GitHub, Linear, Atlassian, Stripe, Figma, Sentry, Cloudflare, PostgreSQL, SQLite, Git, Time, Fetch, Filesystem, Memory, Puppeteer, Brave Search.
+Notion, Slack, GitHub, Linear, Atlassian (Jira + Confluence), Stripe, Figma (Dev Mode), Sentry, Cloudflare, PostgreSQL, SQLite, Git, Time, Fetch, Fichiers locaux, Mémoire (graphe de connaissances), Navigateur web, Recherche Brave.
 
-Vous pouvez aussi ajouter vos propres serveurs ou modifier le catalogue.
+Vous pouvez aussi ajouter votre propre serveur, sur l'onglet **MCP personnalisé** de la même feuille. Modifier le catalogue lui-même n'est pas possible en `v0.1.0-preview` : le fichier de surcharge n'est lu par rien.
 
 ![page Connexions, sidebar gauche listant les connecteurs natifs (Google Workspace, Microsoft 365) et les serveurs MCP, panneau de droite avec l'onglet Aperçu du connecteur sélectionné et le bouton Ajouter un connecteur en bas](/img/operator-help/integration-overview-1.png)
 
@@ -67,17 +67,16 @@ Vous pouvez aussi ajouter vos propres serveurs ou modifier le catalogue.
 
 - **Approbation HITL** : toutes les écritures (envoi mail, création événement, écriture fichier) demandent votre confirmation avant exécution. Voir [Comprendre les permissions MCP](understand-mcp-permissions.md).
 - **Tokens locaux** : aucun secret ne quitte votre machine. Voir [Gérer les tokens OAuth](manage-oauth-tokens.md).
-- **Profil de souveraineté** : Apollia accepte par défaut les connecteurs cloud (`cloud_allowed`). En profil `local_only`, les boutons de connexion cloud sont désactivés et seuls les MCPs stdio purement locaux restent disponibles. En v0.1.0, le profil se règle côté configuration backend (pas encore de bascule dans l'interface).
+- **Profil de souveraineté** : le réglage est dans **Réglages, Profil**, sous **Souveraineté des données**, avec trois valeurs, *Local strict*, *Local préféré* et *Cloud autorisé*. Sur *Local strict*, et aussi tant que la question n'a jamais reçu de réponse, Apollia refuse d'ouvrir un flux OAuth cloud et l'annonce sur la page du connecteur. C'est tout ce que le profil verrouille en `v0.1.0-preview` : il ne filtre pas les serveurs MCP, donc un serveur HTTP ou SSE distant déjà installé continue de répondre sous ce profil.
 
 ## Vérification
 
 - La page **Connexions** s'ouvre et affiche la sidebar des connecteurs (vide si rien n'est encore branché).
-- Les boutons **+ Découvrir** et **+ Ajouter personnalisé** sont visibles en haut.
+- Le bouton **Ajouter un connecteur** est visible en bas de cette sidebar, et ouvre une feuille avec un onglet **Catalogue MCP** et un onglet **MCP personnalisé**.
 
 ## Si ça ne marche pas
 
 - **La page Connexions est vide ou ne charge pas** : redémarrez Apollia, le runtime n'a peut-être pas fini d'initialiser le client MCP.
-- **Le bouton Connecter d'un connecteur natif est grisé** : votre profil de souveraineté est `local_only`, voir la section précédente.
-- **Vous voyez "Section en cours de refonte"** : votre application est antérieure à la v0.1.0, mettez à jour.
+- **Connecter un connecteur natif renvoie une erreur de souveraineté** : le message dit *Profil souveraineté « local-only » : connecteurs cloud désactivés*. Le bouton n'est pas grisé, le refus arrive au clic. Ouvrez **Réglages, Profil** et mettez **Souveraineté des données** sur *Local préféré* ou *Cloud autorisé*.
 
 > **Référence technique :** [Référence Apollia](/reference) , architecture du Tool Registry, scoping, gouvernance des outils.

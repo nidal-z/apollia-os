@@ -7,14 +7,24 @@ title: Configuration (apollia.toml)
 
 Reference for the `apollia.toml` configuration surface.
 
-The runtime looks for `apollia.toml` in the working directory first, then in
-`~/.config/apollia/apollia.toml`. Every section is optional: an absent section
-falls back to its defaults. Runtime data (databases, the API token, models) lives
-separately under `~/.apollia/`.
+The file has three locations, and the two runtimes do not search the same ones.
+
+| Reader | Search order, first match wins |
+| --- | --- |
+| The daemon, started by `apollia-os start` | `./apollia.toml`, then `$XDG_CONFIG_HOME/apollia/apollia.toml`, falling back to `~/.config/apollia/apollia.toml` |
+| The desktop application | `~/.apollia/apollia.toml`, then `./apollia.toml`. The `~/.config` location is never read, deliberately: a copy forgotten there would resurrect backends on a fresh profile |
+
+The command line writes to both, depending on the subcommand. `apollia-os config
+set` writes the daemon's file; `apollia-os llm costs --threshold 25` writes
+`~/.apollia/apollia.toml`, which only the desktop application reads. Check which
+file you edited before concluding that a key had no effect.
+
+Every section is optional: an absent section falls back to its defaults. Runtime
+data (databases, the API token, models) lives separately under `~/.apollia/`.
 
 ## Sections
 
-Eight sections are read. A section outside this list is ignored, and
+Nine sections are read. A section outside this list is ignored, and
 `apollia-os config set` rejects it rather than accepting a value nothing will
 ever consult.
 
@@ -28,6 +38,7 @@ ever consult.
 | `[mcp]` | MCP module configuration, including `[[mcp.servers]]` (see below). |
 | `[hooks]` | Lifecycle hook handlers (command or HTTP). |
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
+| `[filesystem]` | The reversible journal, and the paths an agent works in without being asked (`trusted_paths`, see below). |
 
 The desktop application reads one more section, `[observability]`, documented
 below. It is not settable from the CLI.
@@ -36,6 +47,25 @@ The tables below are generated from the Rust types, so a field cannot drift out
 of them. They cover the **top level of each section**. A nested table, such as an
 entry of `[[llm.backends]]` or `[[mcp.servers]]`, has its own fields: the MCP one
 is documented in full below, the others are read from the types they name.
+
+### Three rows the tables cannot qualify
+
+The tables are derived from the Rust types, and a type states what a key means,
+not whether anything reads it. Three rows need a caveat the derivation cannot
+carry.
+
+`[api] port` is not read. The daemon takes its TCP port from `apollia-os start
+--port` and falls back to 7771; a file that sets `port = 8080` still gets 7771.
+
+`[llm] pricing_overrides` is not applied. A running daemon builds its backends
+from the backends stored in its database, and that path hands the client an
+empty override table, so a price written here never reaches a cost calculation.
+
+`[llm.runner]` selects the speech-to-text sidecar, not the LLM engine. Its
+`backend` key decides which `apollia-runner-*` binary the daemon spawns for
+transcription. Local text inference runs through the bundled llama-server,
+which is tuned from
+[Environment variables](/reference/environment-variables) instead.
 
 <!-- BEGIN GENERATED: config-fields -->
 
@@ -50,7 +80,7 @@ LLM backends and routing.
 | `observability` | `ObservabilityConfig` | type default | Observability settings (tokens, latency, cost, prompt debug). |
 | `routing` | `Option<LlmRoutingConfig>` | `None` | LLM routing by precision level (`[llm.routing]` section). |
 | `pricing_overrides` | `HashMap<String, PricingTier>` | empty | Operator pricing overrides (`[llm.pricing_overrides]` section). |
-| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which [`RuntimeEvent::TokenBudgetUpdated`] is emitted with `threshold_exceeded = true`. |
+| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which `RuntimeEvent::TokenBudgetUpdated` is emitted with `threshold_exceeded = true`. |
 | `vertex` | `Option<VertexConfig>` | `None` | Optional Google Vertex AI backend configuration (`[llm.vertex]`). |
 | `runner` | `LlmRunnerConfig` | type default | Local LLM sidecar runner configuration (`[llm.runner]` section). |
 
@@ -80,7 +110,7 @@ TCP listener, authentication, TLS, Unix socket.
 | `require_token` | `bool` | `true` | Require a Bearer token on every inbound TCP connection. |
 | `unix_socket` | `PathBuf` | `crate::paths::socket_path_or_temp()` | Local Unix socket path. |
 | `tls_cert` | `Option<PathBuf>` | `None` | PEM certificate chain for native TLS on the TCP listener. |
-| `tls_key` | `Option<PathBuf>` | `None` | PEM private key matching [`tls_cert`](Self::tls_cert). |
+| `tls_key` | `Option<PathBuf>` | `None` | PEM private key matching `tls_cert`. |
 
 ### `[hitl]`
 

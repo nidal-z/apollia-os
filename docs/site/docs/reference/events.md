@@ -52,6 +52,13 @@ surface of `v0.1.0-preview`. Its decision is applied best effort: a handler that
 times out, fails to deliver, or answers with something unparseable falls back to
 `allow`, and the tool call proceeds.
 
+A second one, on `PermissionRequired`. Its row reads "A tool invocation requires
+a human approval", the first line of a doc-comment whose rest the table cannot
+carry. The one production emitter is the agent mailbox guard: it fires when a
+gated agent-to-agent send is refused, with `tool_name` set to `mailbox:send`.
+The send does not wait for an answer, it raises on the spot, so the `request_id`
+the event carries announces a request that is already settled.
+
 <!-- BEGIN GENERATED: eventbus-catalogue -->
 
 ### `a2a`

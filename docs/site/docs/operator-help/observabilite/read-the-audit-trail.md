@@ -10,14 +10,14 @@ sidebar_position: 2
 
 ## Prerequisites
 
-- At least one sensitive action (file write, command, tool call) has been executed.
+- At least one sensitive action (file write, command, tool call) has been executed by an installed agent.
 - You roughly know the period or the agent to investigate.
 
 ## Steps
 
 1. In the sidebar, click **Observability**, then the **Audit Trail** tab.
 
-2. At the top of the tab, a **purple callout** recalls what the audit trail is for: internal control, post-incident investigation, compliance, checking an agent's scope of action. It is the immutable trace of every tool invoked by an agent.
+2. At the top of the tab, a **purple callout** recalls what the audit trail is for: internal control, post-incident investigation, compliance, checking an agent's scope of action. The tab records the **tool invocations of an installed agent**. A tool called from a conversation is not written here: the chat path does not write to the trail, and its calls show in the conversation itself.
 
 3. Under the callout, a **Full journal** card gives three totals counted over the whole trail: **Recorded invocations**, **Distinct tools**, **Distinct agents**. These do not move with the filters, and they do not stop at the rows loaded below: they answer "what does the journal hold", where the indicators of the next step answer "what am I looking at right now". If those totals cannot be read, the card shows one line saying so and the table below is unaffected.
 
@@ -87,6 +87,6 @@ You find in the table the actions you know you approved recently, with the corre
 
 - **An expected action is missing**: check the **Tool** and **Agent** filters - an active filter can hide the row. Click **Load more** if the default window (50 entries) does not reach far enough back.
 - **A row detail shows nothing**: the invocation probably comes from a tool with no stdout/stderr capture (MCP tool, internal API call). The row stays traced but its inputs and outputs do not.
-- **The table is empty**: no tooled action has run yet. Start an agent on a task that uses tools (bash, file_write, and so on).
+- **The table is empty**: no installed agent has run a tool yet. A conversation does not feed this table, however many tools it calls. Start an agent on a task that uses tools (bash, file_write, and so on).
 
 > **Technical reference:** [Apollia reference](/reference)

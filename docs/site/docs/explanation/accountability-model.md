@@ -70,9 +70,25 @@ as final, and give it a sandbox root you are willing to lose.
 <!-- claim:hitl-wired-in-chat-path-only -->
 Before a tool call runs in a chat session, persisted permission rules classify
 it, a guard refuses a shell command that chains or redirects, and anything left
-raises an approval request that an operator resolves. That decision is itself
-recorded. Permissions are scoped, so authority can be granted at the level of the
-whole install, a project, or a single session.
+raises an approval request that an operator resolves. Permissions are scoped, so
+authority can be granted at the level of the whole install, a project, or a
+single session.
+
+The decision itself is not written down. The permission decision log exists as a
+table, append-only and enforced by triggers, but nothing in the shipped runtime
+inserts a row into it: `apollia-os permissions audit` and the desktop **Recent
+audit** panel read an empty table. What the record does keep is the call the
+decision let through, since the chat loop captures the tool call and its output
+into the signed journal.
+
+Which surface can answer a request depends on the kind. An approval keyed by tool
+name is answerable over the HTTP API, with `POST /api/v1/sessions/:id/authorize`,
+as well as from the desktop. The other two are desktop-only: a filesystem
+approval is resolved through a Tauri command and so is an `ask_user` question,
+and the API exposes read routes for pending and resolved approvals but no route
+that answers either. On a headless `apollia-os start`, a risky write therefore
+waits out its five-minute timeout and is refused, and an `ask_user` waits with no
+timeout at all.
 
 One boundary worth stating plainly. The approval wrapper is placed on the
 **chat** dispatcher only: the tool calls an
@@ -116,7 +132,9 @@ the filter blocks no command in the shipped runtime. When a standing prefix
 rule is consulted for a code executor, a stricter guard refuses any command
 that chains, pipes, redirects or substitutes, so an authorisation granted for
 one command cannot smuggle a second; outside a matching rule, every code
-executor invocation requires its own approval. The screening is recorded.
+executor invocation requires its own approval. The screening is not recorded
+either, and for the same reason as the approval decision above: nothing writes to
+the permission decision log.
 
 This screens **shell** injection. Apollia ships no defence against prompt
 injection, and nothing here should be read as one.

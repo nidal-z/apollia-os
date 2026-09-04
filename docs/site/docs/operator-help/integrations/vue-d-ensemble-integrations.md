@@ -19,12 +19,12 @@ Apollia distinguishes two complementary mechanisms.
 
 ### Native OAuth connectors
 
-Maintained directly by Apollia for services that do not (yet) expose an official MCP server: **Google Workspace** (Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks, YouTube) and **Microsoft 365** (Outlook, Calendar, OneDrive).
+Maintained directly by Apollia for services that do not (yet) expose an official MCP server: **Google Workspace** (Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks) and **Microsoft 365** (Outlook, Calendar, OneDrive).
 
 - Tokens stored in the system keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service).
 - Direct calls from your machine to `gmail.googleapis.com` or `graph.microsoft.com`, no Apollia cloud relay.
 - Automatic HITL approval on every write.
-- Multi-account supported.
+- Several accounts can be connected, and a tool call always uses the first one connected.
 
 **The two do not cost the same to start.** Worth knowing before you click, because the difference shows up only once you are on the connector page:
 
@@ -37,11 +37,11 @@ This is not an oversight on the Google side. Google requires a verified consent 
 
 ### MCP servers
 
-The open Model Context Protocol standard. Third-party processes, local (stdio via `npx` or `uvx`) or remote (HTTP/SSE), which expose tools consumable by any MCP client. Apollia ships a curated catalogue of **18 entries**:
+The open Model Context Protocol standard. Third-party processes, local (stdio via `npx` or `uvx`) or remote (HTTP/SSE), which expose tools consumable by any MCP client. What you browse under **MCP catalogue** is the public MCP registry, paginated as you scroll, so its size is whatever the registry holds on the day you look. Apollia adds its own presentation layer (operator label, description, category, trust level, connection help) to **18** of those entries:
 
-Notion, Slack, GitHub, Linear, Atlassian, Stripe, Figma, Sentry, Cloudflare, PostgreSQL, SQLite, Git, Time, Fetch, Filesystem, Memory, Puppeteer, Brave Search.
+Notion, Slack, GitHub, Linear, Atlassian (Jira + Confluence), Stripe, Figma (Dev Mode), Sentry, Cloudflare, PostgreSQL, SQLite, Git, Time, Fetch, Local Files, Memory (Knowledge Graph), Web Browser, Brave Search.
 
-You can also add your own servers or modify the catalogue.
+You can also add your own server, on the **Custom MCP** tab of the same sheet. Changing the catalogue itself is not possible in `v0.1.0-preview`: the override file is read by nothing.
 
 ![Connections page, left sidebar listing the native connectors (Google Workspace, Microsoft 365) and the MCP servers, right panel with the Overview tab of the selected connector and the Add a connector button at the bottom](/img/operator-help/integration-overview-1.png)
 
@@ -67,17 +67,16 @@ You can also add your own servers or modify the catalogue.
 
 - **HITL approval**: every write (sending mail, creating an event, writing a file) asks for your confirmation before execution. See [Understand MCP permissions](understand-mcp-permissions.md).
 - **Local tokens**: no secret leaves your machine. See [Manage OAuth tokens](manage-oauth-tokens.md).
-- **Sovereignty profile**: Apollia accepts cloud connectors by default (`cloud_allowed`). Under the `local_only` profile, the cloud connection buttons are disabled and only purely local stdio MCPs remain available. In v0.1.0, the profile is set on the backend configuration side (no toggle in the interface yet).
+- **Sovereignty profile**: the switch is in **Settings, Profile**, under **Data sovereignty**, with three values, *Strictly local*, *Local preferred* and *Cloud allowed*. On *Strictly local*, and also when the question has never been answered, Apollia refuses to open a cloud OAuth flow and says so on the connector page. That is the whole of what the profile gates in `v0.1.0-preview`: it does not filter MCP servers, so a remote HTTP or SSE server already installed keeps answering under it.
 
 ## Verification
 
 - The **Connections** page opens and shows the connector sidebar (empty if nothing is plugged in yet).
-- The **+ Discover** and **+ Add custom** buttons are visible at the top.
+- The **Add a connector** button is visible at the bottom of that sidebar, and opens a sheet with an **MCP catalogue** tab and a **Custom MCP** tab.
 
 ## If it does not work
 
 - **The Connections page is empty or does not load**: restart Apollia, the runtime may not have finished initializing the MCP client.
-- **The Connect button of a native connector is greyed out**: your sovereignty profile is `local_only`, see the previous section.
-- **You see "Section being redesigned"**: your application predates v0.1.0, update it.
+- **Connecting a native connector reports a sovereignty error**: the message reads *Sovereignty profile "local-only": cloud connectors disabled*. The button is not greyed out, the refusal comes on the click. Open **Settings, Profile** and set **Data sovereignty** to *Local preferred* or *Cloud allowed*.
 
 > **Technical reference:** [Apollia reference](/reference) , Tool Registry architecture, scoping, tool governance.

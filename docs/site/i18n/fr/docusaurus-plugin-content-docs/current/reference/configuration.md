@@ -7,14 +7,26 @@ title: Configuration (apollia.toml)
 
 Référence de la surface de configuration `apollia.toml`.
 
-Le runtime recherche `apollia.toml` d'abord dans le répertoire de travail, puis
-dans `~/.config/apollia/apollia.toml`. Chaque section est optionnelle : une
-section absente retombe sur ses valeurs par défaut. Les données d'exécution
-(bases de données, jeton API, modèles) vivent séparément sous `~/.apollia/`.
+Le fichier a trois emplacements, et les deux runtimes ne cherchent pas aux
+mêmes.
+
+| Lecteur | Ordre de recherche, le premier trouvé gagne |
+| --- | --- |
+| Le démon, lancé par `apollia-os start` | `./apollia.toml`, puis `$XDG_CONFIG_HOME/apollia/apollia.toml`, à défaut `~/.config/apollia/apollia.toml` |
+| L'application desktop | `~/.apollia/apollia.toml`, puis `./apollia.toml`. L'emplacement `~/.config` n'est jamais lu, délibérément : une copie oubliée là ressusciterait des backends sur un profil neuf |
+
+La ligne de commande écrit dans les deux, selon la sous-commande. `apollia-os config set` écrit le fichier du démon ;
+`apollia-os llm costs --threshold 25` écrit `~/.apollia/apollia.toml`, que seule
+l'application desktop lit. Vérifiez quel fichier vous avez modifié avant de
+conclure qu'une clé n'a eu aucun effet.
+
+Chaque section est optionnelle : une section absente retombe sur ses valeurs par
+défaut. Les données d'exécution (bases de données, jeton API, modèles) vivent
+séparément sous `~/.apollia/`.
 
 ## Sections
 
-Huit sections sont lues. Une section en dehors de cette liste est ignorée, et
+Neuf sections sont lues. Une section en dehors de cette liste est ignorée, et
 `apollia-os config set` la rejette plutôt que d'accepter une valeur que rien ne
 consultera jamais.
 
@@ -28,6 +40,7 @@ consultera jamais.
 | `[mcp]` | Configuration du module MCP, y compris `[[mcp.servers]]` (voir plus bas). |
 | `[hooks]` | Gestionnaires de hooks de cycle de vie (commande ou HTTP). |
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
+| `[filesystem]` | Le journal réversible, et les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
 
 L'application desktop lit une section supplémentaire, `[observability]`,
 documentée plus bas. Elle n'est pas modifiable depuis la CLI.
@@ -38,6 +51,27 @@ Une table imbriquée, comme une entrée de `[[llm.backends]]` ou
 `[[mcp.servers]]`, a ses propres champs : celle de MCP est documentée
 intégralement plus bas, les autres se lisent depuis les types qu'elles
 nomment.
+
+### Trois lignes que les tableaux ne peuvent pas nuancer
+
+Les tableaux sont dérivés des types Rust, et un type dit ce qu'une clé signifie,
+pas si quelque chose la lit. Trois lignes demandent une réserve que la
+dérivation ne peut pas porter.
+
+`[api] port` n'est pas lu. Le démon prend son port TCP de `apollia-os start
+--port` et retombe sur 7771 ; un fichier qui pose `port = 8080` obtient quand
+même 7771.
+
+`[llm] pricing_overrides` n'est pas appliqué. Un démon en marche construit ses
+backends depuis ceux stockés dans sa base, et ce chemin passe au client une
+table de surcharges vide : un tarif écrit ici n'atteint jamais un calcul de
+coût.
+
+`[llm.runner]` sélectionne le sidecar de transcription vocale, pas le moteur
+LLM. Sa clé `backend` décide quel binaire `apollia-runner-*` le démon lance pour
+la transcription. L'inférence texte locale passe par le llama-server embarqué,
+qui se règle depuis les
+[variables d'environnement](/reference/environment-variables).
 
 <!-- BEGIN GENERATED: config-fields -->
 
@@ -52,7 +86,7 @@ Backends LLM et routage.
 | `observability` | `ObservabilityConfig` | défaut du type | Réglages d'observabilité (tokens, latence, coût, debug des prompts). |
 | `routing` | `Option<LlmRoutingConfig>` | `None` | Routage LLM par niveau de précision (section `[llm.routing]`). |
 | `pricing_overrides` | `HashMap<String, PricingTier>` | vide | Surcharges de tarification par l'opérateur (section `[llm.pricing_overrides]`). |
-| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Seuil de coût en USD au-delà duquel [`RuntimeEvent::TokenBudgetUpdated`] est émis avec `threshold_exceeded = true`. |
+| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Seuil de coût en USD au-delà duquel `RuntimeEvent::TokenBudgetUpdated` est émis avec `threshold_exceeded = true`. |
 | `vertex` | `Option<VertexConfig>` | `None` | Configuration optionnelle du backend Google Vertex AI (`[llm.vertex]`). |
 | `runner` | `LlmRunnerConfig` | défaut du type | Configuration du sidecar LLM local (section `[llm.runner]`). |
 
@@ -82,7 +116,7 @@ Capacités de l'EventBus et des mailbox.
 | `require_token` | `bool` | `true` | Exige un jeton Bearer sur chaque connexion TCP entrante. |
 | `unix_socket` | `PathBuf` | `crate::paths::socket_path_or_temp()` | Chemin du socket Unix local. |
 | `tls_cert` | `Option<PathBuf>` | `None` | Chaîne de certificats PEM pour le TLS natif sur l'écouteur TCP. |
-| `tls_key` | `Option<PathBuf>` | `None` | Clé privée PEM correspondant à [`tls_cert`](Self::tls_cert). |
+| `tls_key` | `Option<PathBuf>` | `None` | Clé privée PEM correspondant à `tls_cert`. |
 
 ### `[hitl]`
 

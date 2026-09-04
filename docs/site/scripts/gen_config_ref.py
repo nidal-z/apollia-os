@@ -119,6 +119,15 @@ def struct_body(source: str, name: str) -> str | None:
     return None
 
 
+# Rustdoc intra-doc links, which resolve in `cargo doc` and nowhere else. On the
+# published page `[`tls_cert`](Self::tls_cert)` is a dead link and
+# `[`RuntimeEvent::TokenBudgetUpdated`]` renders as literal brackets, so the code
+# span is kept and the link dropped. A target with no `::` is a real URL and is
+# left alone.
+INTRA_DOC_TARGET = re.compile(r"\[(`[^`]+`)\]\([A-Za-z_][A-Za-z0-9_]*::[^)\s]*\)")
+INTRA_DOC_SHORTCUT = re.compile(r"\[(`[^`]+`)\](?!\()")
+
+
 def summarize(doc_block: str) -> str:
     """First paragraph of a doc-comment, as one line."""
     lines = []
@@ -128,6 +137,8 @@ def summarize(doc_block: str) -> str:
             break  # first blank line ends the summary paragraph
         lines.append(line)
     text = " ".join(lines)
+    text = INTRA_DOC_TARGET.sub(r"\1", text)
+    text = INTRA_DOC_SHORTCUT.sub(r"\1", text)
     # A pipe would break the markdown table.
     return text.replace("|", "\\|")
 

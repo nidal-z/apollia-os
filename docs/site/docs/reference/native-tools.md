@@ -16,12 +16,17 @@ code executors are never blanket-authorized), and the autonomy tier's step
 budget.
 
 <!-- claim:audit-list-reads-the-tool-invocation-trail -->
-A chat tool call reaches neither audit register. The tool-invocation trail, the
-flat table `audit list` reads, is written from `ctx.tools` on the agent path
-only; the hash-chained journal is fed from run-scoped tool-call events, which the
-chat path does not emit. What a chat session leaves behind is the tool-call
-record its assistant message carries, serialized into the `tool_calls_json`
-column of `chat_messages`, not an audited record.
+The two audit registers do not see the same calls. The tool-invocation trail,
+the flat table `audit list` reads, is written from `ctx.tools` on the agent path
+only, so a chat tool call never appears there. The hash-chained journal does
+record the chat: the chat ReAct loop emits `ToolOutputCaptured` for every tool
+result and `LlmResponseCaptured` for every completion, and the journal
+subscriber turns both into signed, chained entries. Tool outputs and model
+completions from a chat session are therefore persisted verbatim in an
+append-only register, readable with `audit show <run>` and checkable with
+`audit verify`. A chat session additionally keeps the tool-call record its
+assistant message carries, serialized into the `tool_calls_json` column of
+`chat_messages`, which is not an audited record.
 
 An agent reaches these tools through `ctx.tools`, or has them handed to a ReAct
 loop via `ctx.tools.describe(<name>)`. Each call is dispatched by the canonical
@@ -37,8 +42,20 @@ apollia-os tools list
 ```
 
 Disable or re-enable a tool with `apollia-os tools disable <name>` and
-`apollia-os tools enable <name>`. A disabled tool is excluded from the dispatcher
-entirely, so any agent that invokes it receives an `UnknownTool` error.
+`apollia-os tools enable <name>`. The setting is written to the governance
+database, and it governs the agent path only: the agent runners merge that
+snapshot into the dispatcher's disabled list, so an agent that invokes a
+disabled tool receives an `UnknownTool` error.
+
+The desktop chat path does not read the governance database at all. It builds
+its dispatcher from the `disabled` list of `[tools]` in `apollia.toml`, and
+`tools disable` never writes there. Six natives escape even that list:
+`file_write`, `file_edit`, `notebook_edit`, `bash_executor`, `python_executor`
+and `http_fetch` are removed from the dispatcher and re-added afterwards as
+approval-guarded wrappers, unconditionally, so a chat can still call them
+whatever the configuration says. Restricting what a chat can reach is done
+through the approval gate and the chat tool picker, not through
+`apollia-os tools disable`.
 
 ## Availability and credentials
 
@@ -125,17 +142,19 @@ whose real target leaves the root are rejected.
 
 <!-- claim:chat-file-root-is-home-without-project -->
 Which directory is the root depends on the session. With a project open, it is
-the project directory. In a chat with no project, it is your home directory: the
-assistant is meant to reach the files you actually own, and the barrier on that
-path is the approval you are asked for before a write, not a narrower root. The
-system temporary directory is used only when the home directory cannot be
-resolved at all.
+the project directory. In a chat with no project, it is the `default_workspace`
+of `[chat]` when the operator configured one that exists, and `~/.apollia`
+otherwise; the barrier on that path is the approval you are asked for before a
+write, not a narrower root. Your home directory is the fallback when neither of
+those resolves, and the system temporary directory only when the home directory
+cannot be resolved at all. In practice `~/.apollia` exists after the first
+start, so a free chat is rooted there and not at your home directory.
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
 | `file_read` | Read a file, with optional offset and limit for large files. Returns UTF-8 text with line numbers. | `path`, `offset`, `limit` |
 | `file_write` | Write content to a file, creating intermediate directories and overwriting if it exists. | `path`, `content` |
-| `file_list` | List files and directories with type and size, optionally recursive. | `path`, `recursive` |
+| `file_list` | List files and directories with type and size, optionally recursive. | `dir`, `recursive` |
 | `file_edit` | Replace exact text in a file. Fails if `old_text` is not found or is not unique (unless `replace_all`). | `path`, `old_text`, `new_text`, `replace_all` |
 | `file_glob` | Find files matching a glob pattern (`**` for recursive), sorted by modification time. | `pattern`, `path` |
 | `file_grep` | Search file contents for a regex pattern; returns matching lines with path, line number, and optional context. Binary files are skipped. | `pattern`, `path`, `glob`, `context_lines`, `case_insensitive`, `max_results` |
@@ -154,7 +173,7 @@ tools, nbformat v4 only.
 
 | Tool | Purpose | Key parameters |
 |---|---|---|
-| `http_fetch` | Perform HTTP GET/POST/PUT/PATCH/DELETE requests. Returns status, headers, and body (capped at 1 MB). Fails closed: no code path supplies the host allowlist today, so every call is refused with `no_allowlist`. | `url`, `method`, `headers`, `body`, `timeout_secs` |
+| `http_fetch` | Perform HTTP GET/POST/PUT/PATCH/DELETE requests. Returns status, headers, and body (capped at 1 MB). On the agent path it fails closed: no code path supplies the host allowlist, so every call is refused with `no_allowlist`. On the chat path a wrapper allowlists the host of the requested URL for that one call, so any public host is reachable once the call is approved; the SSRF guard still refuses private, loopback and link-local addresses. | `url`, `method`, `headers`, `body`, `timeout_secs` |
 | `web_search` | Search the web and return ranked results (title, URL, snippet). Defaults to DuckDuckGo; uses Brave when a key is configured. | `query`, `max_results` |
 | `web_read` | Fetch a public URL and return its extracted readable article text. Rejects private, loopback, and link-local addresses (SSRF guard). HTML and plain text only. | `url`, `max_chars`, `include_metadata` |
 

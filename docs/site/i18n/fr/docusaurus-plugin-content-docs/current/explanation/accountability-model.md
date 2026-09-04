@@ -83,9 +83,26 @@ donnez-lui une racine de bac à sable que vous acceptez de perdre.
 Avant qu'un appel d'outil ne s'exécute dans une session de chat, des règles de
 permission persistées le classent, un garde-fou refuse une commande shell qui
 enchaîne ou redirige, et tout ce qui reste soulève une demande d'approbation
-qu'un opérateur résout. Cette décision est elle-même enregistrée. Les
-permissions sont scopées, si bien que l'autorité peut être accordée au niveau
-de l'installation entière, d'un projet, ou d'une seule session.
+qu'un opérateur résout. Les permissions sont scopées, si bien que l'autorité
+peut être accordée au niveau de l'installation entière, d'un projet, ou d'une
+seule session.
+
+La décision elle-même n'est pas consignée. Le journal des décisions de
+permission existe comme table, en ajout seul et tenu par des déclencheurs, mais
+rien dans le runtime livré n'y insère de ligne : `apollia-os permissions audit`
+et le panneau **Recent audit** du bureau lisent une table vide. Ce que la trace
+garde, c'est l'appel que la décision a laissé passer, la boucle de chat
+capturant l'appel d'outil et sa sortie dans le journal signé.
+
+La surface qui peut répondre à une demande dépend de sa nature. Une approbation
+portant sur un nom d'outil se répond par l'API HTTP, avec
+`POST /api/v1/sessions/:id/authorize`, aussi bien que depuis le bureau. Les deux
+autres ne se répondent que depuis le bureau : une approbation de système de
+fichiers passe par une commande Tauri, une question `ask_user` aussi, et l'API
+expose des routes de lecture pour les approbations en attente et résolues, mais
+aucune route qui réponde à l'une ou l'autre. Sur un `apollia-os start` sans
+interface, une écriture risquée attend donc l'expiration de ses cinq minutes
+puis est refusée, et un `ask_user` attend sans délai d'expiration du tout.
 
 Une limite, à énoncer clairement. L'enveloppe d'approbation n'est
 posée que sur le dispatcher du **chat** : les appels d'outil qu'un agent Python
@@ -137,7 +154,9 @@ de code, un garde-fou plus strict refuse toute commande qui enchaîne, met en
 pipe, redirige ou substitue, si bien qu'une autorisation accordée pour une
 commande ne peut pas en faire passer une seconde en contrebande ; en dehors
 d'une règle correspondante, chaque invocation d'exécuteur de code exige sa
-propre approbation. Le filtrage est enregistré.
+propre approbation. Le filtrage n'est pas enregistré non plus, et pour la même
+raison que la décision d'approbation ci-dessus : rien n'écrit dans le journal
+des décisions de permission.
 
 Ce mécanisme filtre l'injection **shell**. Apollia n'embarque aucune défense
 contre l'injection de prompt, et rien ici ne doit être lu comme tel.

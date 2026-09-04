@@ -8,7 +8,10 @@ title: SDK / ctx contract
 
 Runtime context passed to every agent handler.
 
-Exposes 100% of the Apollia backend through 15 typed services.
+The attributes below are the whole surface an agent sees, and their reach
+is not uniform: ``ctx.workspace``, ``ctx.notify`` and ``ctx.stt`` are
+``None`` on every binary this project ships, and ``ctx.mail`` raises
+outside the desktop application. Each service page states its own reach.
 Use type hints to get IDE autocomplete::
 
     @skill("foo.bar")

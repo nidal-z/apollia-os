@@ -22,7 +22,7 @@ Survolez le point pour voir l'état exact (tooltip natif). Ce point est le repè
 
 ### 1. Votre connexion internet est tombée
 
-Les fournisseurs cloud (Anthropic, OpenAI, Vertex…) sont en ligne. Une coupure Wi-Fi ou VPN coupe le chat.
+Les fournisseurs cloud (Anthropic, OpenAI, Mistral) sont en ligne. Une coupure Wi-Fi ou VPN coupe le chat.
 
 **Solution :**
 1. Ouvrez un onglet de navigateur pour confirmer que vous êtes en ligne.
@@ -54,7 +54,7 @@ Anthropic, OpenAI et les autres fournisseurs cloud publient des incidents sur le
 
 **Solution :**
 1. Consultez la page de statut du fournisseur concerné.
-2. Si un incident est en cours, ajoutez un backend de secours (un autre fournisseur ou un modèle local) dans **Paramètres → Backends LLM** pour ne pas rester bloqué. Le routage choisira automatiquement un backend prêt.
+2. Si un incident est en cours, ajoutez un autre backend (un autre fournisseur ou un modèle local) dans **Paramètres → Backends LLM**, puis cliquez **Définir par défaut** sur sa carte. Le routage ne bascule jamais tout seul : chaque appel part vers le backend par défaut, et un échec revient en erreur au lieu d'être rejoué ailleurs.
 
 ### 5. Le service local n'est plus actif
 

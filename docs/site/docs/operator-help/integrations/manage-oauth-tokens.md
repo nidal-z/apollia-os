@@ -58,7 +58,7 @@ This operation also invalidates the refresh token. Recommended for a clean revoc
 
 ## Multi-account
 
-Each account lives in its own keyring entry with the email as user. When an agent calls a native tool (`gmail.send`, `outlook.search`, etc.), it can pass an `account` parameter to pick the account. Without that parameter, the primary account (the first one connected) is used.
+Each account lives in its own keyring entry with the email as user. Picking one at call time is not implemented in `v0.1.0-preview`: no native tool schema declares an `account` parameter, so a call naming one has it dropped in silence, and every call goes to the first account connected. With more than one account stored, the runtime logs an ambiguity warning and takes the first anyway.
 
 ## Automatic refresh
 
@@ -69,10 +69,7 @@ Apollia refreshes tokens proactively:
 
 ## Change the scopes of an account
 
-v0.1.0 does not support automatic step-up auth (requesting only the new scopes). Procedure:
-
-1. Disconnect the account in **Connections**.
-2. Reconnect, adjusting the checkboxes before clicking **Connect**.
+You cannot. The scope set of a native connector is fixed in the application: the Google dialog always asks for the same ten scope aliases and the Microsoft one for the same five, and there is no checkbox to adjust before connecting. Disconnecting and reconnecting replays exactly the same request. Narrowing what Apollia may do is done on the provider side, by restricting the OAuth client, or by not connecting the account at all.
 
 ## Verification
 
@@ -100,16 +97,16 @@ MCP approvals (durable HITL acceptances) are stored separately in `~/.apollia/mc
 
 ### Common errors in file mode
 
-- **`keyring: no entry`**: the Secret Service daemon is not available. See the headless Linux section above: there is no workaround in `v0.1.0-preview`.
-- **`NoRefreshToken`** on refresh: the account was connected without `offline_access` (Microsoft) or without `access_type=offline` (Google). Reconnect it.
+- **The account cannot be saved on Linux**: the Secret Service daemon is not available. See the headless Linux section above: there is no workaround in `v0.1.0-preview`.
+- **A refresh reports no refresh token available**: the provider returned none. It is not a scope you forgot: Apollia always adds `access_type=offline` for Google and always includes `offline_access` for Microsoft, so that cause is not reachable from the interface. The usual explanation is a grant already revoked on the provider side. Disconnect then reconnect.
 - **Refresh looping on 401**: the refresh token was revoked on the provider side. Disconnect then reconnect.
 
 </details>
 
 ## If it does not work
 
-- **Linux, "keyring: no entry"**: see the headless Linux section.
-- **`NoRefreshToken`**: reconnect the account, the `offline_access` scope was forgotten.
+- **Linux, the account cannot be saved**: see the headless Linux section.
+- **A refresh reports no refresh token available**: reconnect the account. The scopes are not the cause, Apollia always asks for offline access.
 - **Refresh looping on 401**: disconnect then reconnect the account, the refresh token was revoked on the provider side.
 
 > **Technical reference:** [Apollia reference](/reference) , keyring storage, proactive refresh, governance.db audit.

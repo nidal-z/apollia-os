@@ -96,16 +96,21 @@ Design accordingly:
 - Resume-aware branching across a suspension is managed by the runtime for chat and
   orchestrated runs; a standalone worker skill does not observe the resume itself.
 
-## `NeedHumanInput` versus `requires_approval`
+## There is no declarative form on `@skill`
 
-For the common case of gating a specific sensitive action, prefer the declarative
-form: mark the skill with `@skill(..., requires_approval=True)`. The runtime
-inserts the approval pause before the skill runs, without your code raising
-anything. Reach for `NeedHumanInput` when the decision to pause is dynamic and made
-mid-skill.
+Raising `NeedHumanInput` is the only gate an agent opens from its own code. The
+decorator takes no approval argument: its parameters are `skill_id`,
+`description`, `dangerous` and `examples`, and passing `requires_approval=True`
+raises `TypeError: skill() got an unexpected keyword argument
+'requires_approval'` at import time, so the agent never loads. `dangerous=True`
+is manifest metadata: it marks the skill for inspection tooling and inserts no
+pause.
 
-A third, separate mechanism gates external MCP tools per server or per tool; that
-is configured through the `apollia-os mcp` commands, not the agent SDK.
+A separate mechanism marks external MCP servers as requiring approval, through
+the `apollia-os mcp` commands. It is stored and displayed, and it is not enforced
+today: the runtime starts the MCP manager without an approval store, and with no
+store the check is skipped and the call is forwarded. Do not rely on it to hold
+an MCP tool call.
 
 ## Related
 

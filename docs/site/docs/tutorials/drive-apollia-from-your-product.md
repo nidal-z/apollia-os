@@ -30,8 +30,9 @@ model download required.
 ## Before you start
 
 You need a checkout of the Apollia repository, a Rust toolchain to build the
-daemon, and Python 3.12 or newer. Every command below is run from the
-repository root.
+daemon, and Python 3.13, the version the checkout pins in `.python-version` and
+the one every job that builds the runtime uses. Every command below is run from
+the repository root.
 
 ## Step 1: build the daemon
 

@@ -6,7 +6,7 @@ sidebar_position: 3
 
 # Connect Google Workspace
 
-> For any operator who wants to plug Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms, Tasks or YouTube into Apollia.
+> For any operator who wants to plug Gmail, Calendar, Drive, Sheets, Docs, Slides, Forms or Tasks into Apollia.
 
 A personal `@gmail.com` account works. Nothing here needs a Workspace subscription, a company domain, or an administrator.
 
@@ -15,7 +15,7 @@ A personal `@gmail.com` account works. Nothing here needs a Workspace subscripti
 - Apollia running.
 - A Google account, personal or Workspace.
 - **Your own OAuth client**, set up once, see the section right below.
-- Your sovereignty profile is not set to `local_only` (otherwise the cloud buttons are greyed out).
+- Your **Data sovereignty** setting, in **Settings, Profile**, is not on *Strictly local*, and has been answered at least once. Otherwise the connection is refused when you click.
 - An active internet connection.
 
 :::info Google asks more of you than Microsoft does
@@ -35,7 +35,7 @@ If you want each console screen named click by click, follow [Set up a Google OA
 
 **In the Google Cloud console.**
 
-1. Create a project, then enable the Gmail, Calendar and Drive APIs.
+1. Create a project, then enable the APIs the consent step will ask for: Gmail, Calendar, Drive, Sheets, Docs, Slides, Tasks and Forms. Each lives behind its own API in the console, and a service whose API is off fails at call time even though the scope was granted.
 2. Configure the OAuth consent screen in **External** mode, leave it in **Testing** status, and add your own address as a test user.
 3. Create an OAuth client of type **Desktop app**.
 4. **Download the JSON file** the console offers. Keep it, you need it in the next step.
@@ -78,7 +78,9 @@ If either half is missing, Apollia refuses the connection before opening your br
 
 ## What you can do
 
-**Reads (without approval)**: list your Calendar events, browse the `Apollia/` folder on Drive, read Sheets cells, read Docs text, list your tasks, search YouTube videos.
+**Reads (without approval)**: list your Calendar events, browse the `Apollia/` folder on Drive, read Sheets cells, read Docs text, list your tasks.
+
+Two YouTube operations exist in the catalogue and cannot be used: the consent step never asks for the YouTube scope, so neither of them can authenticate. Treat YouTube as absent from `v0.1.0-preview`.
 
 **Writes (with HITL approval)**: send a mail, create a draft, create or change a Calendar event, write a Drive Workspace file, add or change values in Sheets, append text to a Doc, create a Slide, create a form, create or complete a task.
 
@@ -88,7 +90,7 @@ If either half is missing, Apollia refuses the connection before opening your br
 
 With the `drive.file` scope, the application only sees the files it created or the ones you explicitly open for it. Apollia builds on that behaviour:
 
-- On the first connection, an `Apollia` root folder is created at the root of your Drive.
+- The `Apollia` root folder is created on the first write, not at connection time. The step where you name it only records the path.
 - Every time an agent creates a file, an `Apollia/<agent-name>/` subfolder is created on demand.
 - Drive operations are scoped to that folder. The agent does not see the rest of your Drive.
 
@@ -96,7 +98,7 @@ So the agent can save a `meeting-notes.md` note in its workspace, read it back l
 
 ## Multiple accounts
 
-You can connect several Google accounts. Each account appears in the sidebar with its email address. When an agent calls a Google tool, it can pick the target account through an `account` parameter if several accounts are connected.
+You can connect several Google accounts, and each appears in the sidebar with its email address. Choosing between them from a prompt is not possible in `v0.1.0-preview`: no tool schema carries an `account` parameter, and every call resolves to the first account connected, with a `connector.google.account.ambiguous` warning in the logs when there is more than one. If an agent must act as a given account, connect that one alone.
 
 ## Verification
 
@@ -110,14 +112,14 @@ You can connect several Google accounts. Each account appears in the sidebar wit
 - **The Google Workspace card reads "Setup required"**: no OAuth client is configured yet. Click **Set up credentials** and follow the section at the top of this page.
 - **Apollia says the client secret is missing**: the client ID was saved but not its secret. Re-import the JSON file from the Google Cloud console, which carries both, or paste the secret into the Google card in **Settings → OAuth integrations**.
 - **The Google consent screen shows "This app is not verified"**: expected, since the application is yours and sits in Testing status. Click **Advanced** then **Go to Apollia** to continue.
-- **The Connect button is greyed out**: your sovereignty profile is `local_only`. Cloud connectors are disabled in that mode.
+- **Connecting reports a sovereignty error**: the message reads *Sovereignty profile "local-only": cloud connectors disabled*. The button is not greyed out, the refusal comes on the click. Set **Data sovereignty** to *Local preferred* or *Cloud allowed* in **Settings, Profile**.
 - **You want full Gmail or Drive read access**: those scopes are restricted (Google CASA audit) and out of scope for v0.1.0. No Apollia tool uses them yet, see "About the restricted scopes" below.
 - **The agent does not see a specific file on Drive**: it only has access to the `Apollia/<agent>/` folder. Drop the file into that folder or pass it the explicit identifier in your prompt.
 - **An agent asks for a full-read Gmail tool**: there is none. The Google operation catalogue only contains non-restricted scopes, and a test locks that down. The agent will get an unknown tool error, not a scope error.
 
 ## About the restricted scopes
 
-Your OAuth consent screen can offer the *restricted* scopes (`gmail.readonly`, `gmail.modify`, `drive.readonly`, `drive`), but **no Apollia tool uses them yet**: the Google operation catalogue contains none of them, and a test locks that down. Granting one unlocks no capability for now. The default perimeter already covers sending, composing, the full calendar and the scoped Drive.
+Your OAuth consent screen can offer the *restricted* scopes (`gmail.readonly`, `gmail.modify`, `gmail.compose`, `drive.readonly`, `drive`), but **no Apollia tool uses them yet**: the Google operation catalogue contains none of them, and a test locks that down. Granting one unlocks no capability for now. The default perimeter already covers sending, composing, the full calendar and the scoped Drive.
 
 **Responsibility.** The OAuth application is yours and Apollia does not audit that configuration. If you distribute a build with your client ID embedded beyond 100 users, Google will require the CASA Tier 2 audit.
 

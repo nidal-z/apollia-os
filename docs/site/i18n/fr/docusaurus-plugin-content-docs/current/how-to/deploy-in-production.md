@@ -11,10 +11,12 @@ durcie, et les vérifications à effectuer après chaque déploiement. Il suppos
 que vous savez déjà compiler et exécuter le daemon en local ; si ce n'est pas
 le cas, commencez par [Installer et exécuter le runtime](/how-to/install-and-run).
 
-Le répertoire `packaging/` du dépôt produit des paquets de bureau (DMG et
-AppImage) destinés aux utilisateurs finaux, pas un daemon serveur. Pour un
-serveur, vous compilez le binaire depuis les sources et l'encapsulez dans
-votre système d'init, ce que fait ce guide.
+Le répertoire `packaging/` du dépôt prépare ce dont un paquet de bureau a
+besoin, le bundle Python embarqué et le binaire `llama-server` ; le paquet de
+bureau lui-même est assemblé par Tauri via
+`crates/apollia-desktop/scripts/bundle-cli.sh`. Ni l'un ni l'autre ne produit
+un daemon serveur. Pour un serveur, vous compilez le binaire depuis les sources
+et l'encapsulez dans votre système d'init, ce que fait ce guide.
 
 ## Compiler un binaire optimisé
 
@@ -158,8 +160,10 @@ s'applique côté client sous TLS natif : ne mettez pas la réponse en tampon.
 ## Vérifier après déploiement
 
 ```sh
-# Disponibilité
-curl http://127.0.0.1:7771/api/v1/health          # {"status":"ok"}
+# Disponibilité. L'écouteur TCP exige le jeton porteur sur tous les chemins sauf
+# celui des webhooks, le contrôle de santé le porte donc aussi.
+curl -H "Authorization: Bearer $(cat ~/.apollia/api-token)" \
+  http://127.0.0.1:7771/api/v1/health             # {"status":"ok"}
 
 # État du runtime et des agents
 apollia-os status
