@@ -9,7 +9,7 @@ use apollia_aip::context::{
     effective_memory_namespace, DispatcherExecutor, RuntimeContext, ToolProxy, ToolProxyConfig,
 };
 use apollia_aip::memory::MemoryInterface;
-use apollia_core::{AIPResult, AIPTask, TaskStatus};
+use apollia_core::{AIPResult, AIPTask, AgentManifest, TaskStatus};
 use apollia_llm::{LlmRouter, ObservabilityConfig, StepBudgetView, ToolCallHelper};
 use apollia_memory::manager::MemoryManager;
 use apollia_runtime::coordinator::ExecutionBackend;
@@ -21,6 +21,7 @@ use apollia_tools::{
 };
 use pyo3::prelude::*;
 
+use super::engine::direct_path_budget;
 use super::llm_glue::{merge_disabled, sandbox_roots_for_agent, NoopToolInvoker, RouterModel};
 use super::open_secret_store;
 
@@ -194,6 +195,12 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             }
         }
 
+        // Direct-path budget (principle #7): a Chat Agent turn on the CLI daemon
+        // runs under the same runtime ceiling the desktop already applies to its
+        // own chat-agent turns. The view is shared into ctx.tools and ctx.llm, so
+        // the agent's tool and LLM calls are counted against a real budget.
+        let budget_view = Arc::new(chat_agent_budget_view(&manifest));
+
         let tool_proxy: Option<ToolProxy> = match (tool_registry.as_ref(), audit_trail.as_ref()) {
             (Some(registry), Some(audit)) => {
                 let proxy = ToolProxy::new(ToolProxyConfig {
@@ -206,7 +213,9 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                     run_id: task.run_id.clone(),
                 })
                 // tool_call_* instrumentation.
-                .with_event_bus(event_bus.clone());
+                .with_event_bus(event_bus.clone())
+                // Direct-path budget: count and cap the agent's tool calls.
+                .with_budget(Arc::clone(&budget_view));
                 let proxy = if let Some(ref invoker) = a2a_invoker {
                     proxy.with_a2a(Arc::clone(invoker), 0, None)
                 } else {
@@ -266,7 +275,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         let built = Python::with_gil(|py| {
             let ctx = RuntimeContext::new_with_llm(
                 llm_router,
-                Arc::new(StepBudgetView::unlimited()),
+                Arc::clone(&budget_view),
                 tool_helper,
                 Arc::new(ObservabilityConfig::default()),
                 event_bus,
@@ -309,6 +318,21 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
 
         bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
     }
+}
+
+/// The live budget view a Chat Agent turn runs under on the CLI daemon.
+///
+/// [`direct_path_budget`] clamps what the manifest asks for against the runtime
+/// ceiling, the same clamp the desktop applies to its own chat-agent turns and
+/// the one task mode already applies through the engine. The returned view
+/// shares the budget's counters, so the tool proxy and `ctx.llm` charge the very
+/// budget they are checked against (principle #7, non-bypassable).
+///
+/// Only the two counted dimensions bite here: steps and tool calls. The
+/// wall-clock dimension is supervised by the engine, which the chat path does
+/// not go through.
+pub(super) fn chat_agent_budget_view(manifest: &AgentManifest) -> StepBudgetView {
+    direct_path_budget(&manifest.step_budget.clone().unwrap_or_default()).to_live_budget_view()
 }
 
 /// Builds the `user_context` dict from a [`UserMemoryRepository`].
@@ -372,5 +396,115 @@ impl ExecutionBackend for NoopBackend {
                 input_required_data: None,
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_core::StepBudgetConfig;
+
+    /// Minimal manifest, budget dimension aside, matching the shape the chat
+    /// runner reads out of a validated agent.
+    fn manifest_with_budget(step_budget: Option<StepBudgetConfig>) -> AgentManifest {
+        AgentManifest {
+            format_version: 1,
+            name: "budget-fixture".to_string(),
+            version: "0.1.0".to_string(),
+            description: "chat-agent budget fixture".to_string(),
+            tools_required: vec![],
+            tools_optional: vec![],
+            supports_streaming: false,
+            supports_a2a: false,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
+            max_concurrent_tasks: 1,
+            step_budget,
+            network_allowlist: None,
+            dangerous_tools_allowed: false,
+            tags: vec![],
+            skills: vec![],
+            execution_mode: "direct".to_string(),
+            supports_mailbox: false,
+            mailbox_allowlist: None,
+            system_prompt: None,
+            tools_requiring_approval: vec![],
+            llm_backend: None,
+            packages: vec![],
+            memory_config: None,
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
+            agent_class: None,
+            user_memory_write: false,
+            datasources: vec![],
+            templates: vec![],
+            secrets: vec![],
+            check_commands: vec![],
+        }
+    }
+
+    #[test]
+    fn test_chat_agent_budget_view_is_capped_when_the_manifest_is_silent() {
+        // GIVEN a chat agent whose manifest declares no step budget
+        let manifest = manifest_with_budget(None);
+
+        // WHEN the chat runner builds the view it shares into ctx.tools and ctx.llm
+        let view = chat_agent_budget_view(&manifest);
+
+        // THEN the view carries the runtime ceiling, not the unlimited one
+        let ceiling = StepBudgetConfig::default();
+        assert_eq!(
+            view.steps_remaining(),
+            i64::from(ceiling.max_steps),
+            "an unlimited view would leave u32::MAX steps on the table"
+        );
+        assert_eq!(
+            view.tool_calls_remaining(),
+            i64::from(ceiling.max_tool_calls),
+            "an unlimited view would leave u32::MAX tool calls on the table"
+        );
+    }
+
+    #[test]
+    fn test_chat_agent_budget_view_caps_an_oversized_manifest() {
+        // GIVEN a chat agent asking for far more than the runtime ceiling
+        let manifest = manifest_with_budget(Some(StepBudgetConfig {
+            max_steps: 100_000,
+            max_tool_calls: 100_000,
+            wall_clock_secs: 999_999,
+        }));
+
+        // WHEN the chat runner builds its budget view
+        let view = chat_agent_budget_view(&manifest);
+
+        // THEN the runtime ceiling wins on both counted dimensions
+        let ceiling = StepBudgetConfig::default();
+        assert_eq!(view.steps_remaining(), i64::from(ceiling.max_steps));
+        assert_eq!(
+            view.tool_calls_remaining(),
+            i64::from(ceiling.max_tool_calls)
+        );
+    }
+
+    #[test]
+    fn test_chat_agent_budget_view_charges_the_same_counters_it_checks() {
+        // GIVEN the view a chat turn hands to both the tool proxy and ctx.llm
+        let view = chat_agent_budget_view(&manifest_with_budget(Some(StepBudgetConfig {
+            max_steps: 2,
+            max_tool_calls: 2,
+            wall_clock_secs: 60,
+        })));
+
+        // WHEN the two chokepoints spend their allowance
+        view.increment_steps();
+        view.increment_steps();
+        view.increment_tool_calls();
+        view.increment_tool_calls();
+
+        // THEN the budget reads as exhausted, which is what the proxies check
+        assert!(view.is_exhausted(), "steps must run out");
+        assert_eq!(view.tool_calls_remaining(), 0, "tool calls must run out");
     }
 }

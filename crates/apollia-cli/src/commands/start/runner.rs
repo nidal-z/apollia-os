@@ -381,6 +381,11 @@ impl apollia_oria::engine::AIPAgent for BridgeRunner {
         // bridge. Here we build a minimal ctx: the orchestrated plan step
         // outputs are formatted by the agent on its own, no `ctx.tools`
         // need to be wired for the post-processing hook.
+        //
+        // The unlimited view below is not a budget hole: the LLM router and the
+        // tool proxy are both passed as `None` just after it, so this ctx has no
+        // `ctx.llm` and no `ctx.tools`, the only two chokepoints that charge a
+        // view. It backs `ctx.budget` reporting inside the hook and nothing else.
         let bridge = Arc::clone(&self.bridge);
         let agent_id = self.agent_id.clone();
         let event_bus = self.event_bus.clone();

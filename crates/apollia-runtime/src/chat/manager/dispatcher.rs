@@ -213,7 +213,13 @@ fn build_full_chat_dispatcher(
         "notebook_edit",
         "http_fetch",
     ];
-    let mut disabled = cfg.tools_config.disabled.clone();
+    // `[tools] disabled` in `apollia.toml` is only half the contract: a tool
+    // switched off at runtime (`apollia-os tools disable`, the desktop tool
+    // page) lands in `governance.db`, and the agent-mode runners already read
+    // the union of the two. Reading only the static list here left a
+    // governance-disabled tool live on the conversation path.
+    let effective_disabled = effective_disabled_tools(cfg);
+    let mut disabled = effective_disabled.clone();
     for name in WRAPPED_NATIVES {
         if !disabled.iter().any(|d| d == name) {
             disabled.push((*name).to_string());
@@ -241,24 +247,61 @@ fn build_full_chat_dispatcher(
         governance_db_path: Some(cfg.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
     };
 
-    // Wrap the HITL-sensitive natives with the approval-flow guard.
+    // Wrap the HITL-sensitive natives with the approval-flow guard. The
+    // disabled set is handed down because these executors are re-added after
+    // `build_dispatcher_with` was told to drop them: without the filter, a
+    // disabled `bash_executor` came straight back through this door.
     if let Some(p) = hitl {
         push_hitl_natives(
             &mut extra_executors,
-            p,
-            workspace_path,
-            sandbox_root,
-            &native_cfg,
+            HitlNativesParams {
+                hitl: p,
+                workspace_path,
+                sandbox_root,
+                venv_base_dir: &native_cfg.venv_base_dir,
+                disabled: &effective_disabled,
+            },
         );
     }
 
     // Dynamic-allowlist http_fetch (preserves the per-call host
-    // injection that the legacy fast path did).
-    extra_executors.push(Box::new(
-        crate::chat::native_wrappers::DynamicAllowlistHttpFetch::new(),
-    ));
+    // injection that the legacy fast path did). Same re-add caveat as above.
+    if !effective_disabled.iter().any(|d| d == "http_fetch") {
+        extra_executors.push(Box::new(
+            crate::chat::native_wrappers::DynamicAllowlistHttpFetch::new(),
+        ));
+    }
 
     apollia_tools::build_dispatcher_with(&native_cfg, extra_executors)
+}
+
+/// Union of the operator's static `[tools] disabled` list with the tools
+/// carrying `enabled = FALSE` in `governance.db`.
+///
+/// Either source deactivates the tool, which is the contract
+/// `ToolsConfig::disabled` states and the contract the agent-mode runners
+/// already honour. The snapshot is read here rather than at boot so a tool
+/// disabled mid-session takes effect on the next message, without a restart.
+/// An unreadable governance database leaves every tool enabled, the same
+/// tolerance the other runners apply.
+fn effective_disabled_tools(cfg: &ChatToolsConfig) -> Vec<String> {
+    let mut disabled = match apollia_tools::load_governance_snapshot(&cfg.data_dir) {
+        Ok(snapshot) => snapshot.disabled_tools,
+        Err(e) => {
+            warn!(
+                error = %e,
+                detail = "every tool stays enabled",
+                "tools.governance.unavailable"
+            );
+            Vec::new()
+        }
+    };
+    for name in &cfg.tools_config.disabled {
+        if !disabled.iter().any(|d| d == name) {
+            disabled.push(name.clone());
+        }
+    }
+    disabled
 }
 
 /// Virtualenv shared by every chat session's `python_executor`.
@@ -269,15 +312,32 @@ fn build_full_chat_dispatcher(
 /// other, and the interpreter is created once on the first execution.
 const CHAT_VENV_ID: &str = "apollia-chat";
 
+/// Inputs of [`push_hitl_natives`], grouped so the function stays inside the
+/// workspace's argument budget.
+struct HitlNativesParams<'a> {
+    hitl: &'a HitlInvokerParams,
+    workspace_path: &'a Option<std::path::PathBuf>,
+    sandbox_root: &'a std::path::Path,
+    venv_base_dir: &'a std::path::Path,
+    /// Effective disabled set (operator plus governance): a native named here
+    /// is not re-added at all.
+    disabled: &'a [String],
+}
+
 /// Wrap and append the HITL-sensitive native executors (file write/edit,
 /// notebook edit, bash, python) behind the filesystem approval guard.
 fn push_hitl_natives(
     extra_executors: &mut Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
-    p: &HitlInvokerParams,
-    workspace_path: &Option<std::path::PathBuf>,
-    sandbox_root: &std::path::Path,
-    native_cfg: &apollia_tools::NativeDispatcherConfig,
+    params: HitlNativesParams<'_>,
 ) {
+    let HitlNativesParams {
+        hitl: p,
+        workspace_path,
+        sandbox_root,
+        venv_base_dir,
+        disabled,
+    } = params;
+    let is_active = |name: &str| !disabled.iter().any(|d| d == name);
     let hitl_ctx = crate::chat::native_wrappers::HitlFilesystemContext {
         event_bus: p.event_bus.clone(),
         pending_fs: p.pending_fs.clone(),
@@ -297,51 +357,62 @@ fn push_hitl_natives(
         ));
     };
 
-    if let Ok(t) = apollia_tools::tools::file_write::FileWrite::new(sandbox_root.to_path_buf()) {
+    if is_active("file_write") {
+        if let Ok(t) = apollia_tools::tools::file_write::FileWrite::new(sandbox_root.to_path_buf())
+        {
+            push_hitl(
+                extra_executors,
+                Box::new(t),
+                apollia_tools::FilesystemOp::Write,
+            );
+        }
+    }
+    if is_active("file_edit") {
+        if let Ok(t) = apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.to_path_buf()) {
+            push_hitl(
+                extra_executors,
+                Box::new(t),
+                apollia_tools::FilesystemOp::Write,
+            );
+        }
+    }
+    if is_active("notebook_edit") {
+        if let Ok(t) =
+            apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.to_path_buf())
+        {
+            push_hitl(
+                extra_executors,
+                Box::new(t),
+                apollia_tools::FilesystemOp::Write,
+            );
+        }
+    }
+    if is_active("bash_executor") {
         push_hitl(
             extra_executors,
-            Box::new(t),
+            Box::new(apollia_tools::tools::bash_executor::BashExecutor::new()),
             apollia_tools::FilesystemOp::Write,
         );
     }
-    if let Ok(t) = apollia_tools::tools::file_edit::FileEdit::new(sandbox_root.to_path_buf()) {
-        push_hitl(
-            extra_executors,
-            Box::new(t),
-            apollia_tools::FilesystemOp::Write,
-        );
-    }
-    if let Ok(t) =
-        apollia_tools::tools::notebook_edit::NotebookEdit::new(sandbox_root.to_path_buf())
-    {
-        push_hitl(
-            extra_executors,
-            Box::new(t),
-            apollia_tools::FilesystemOp::Write,
-        );
-    }
-    push_hitl(
-        extra_executors,
-        Box::new(apollia_tools::tools::bash_executor::BashExecutor::new()),
-        apollia_tools::FilesystemOp::Write,
-    );
-    match apollia_tools::tools::python_executor::PythonExecutor::new(
-        CHAT_VENV_ID,
-        &native_cfg.venv_base_dir,
-    ) {
-        Ok(t) => push_hitl(
-            extra_executors,
-            Box::new(t),
-            apollia_tools::FilesystemOp::Write,
-        ),
-        // A host with no Python 3 must hear why. Dropping the executor here
-        // left the descriptor advertised to the model and the call answered
-        // with UnknownTool, which reads as a wiring bug rather than a missing
-        // interpreter. Same stub the dispatcher itself installs.
-        Err(e) => extra_executors.push(Box::new(apollia_tools::UnavailableTool::new(
-            "python_executor",
-            e.to_string(),
-        ))),
+    if is_active("python_executor") {
+        match apollia_tools::tools::python_executor::PythonExecutor::new(
+            CHAT_VENV_ID,
+            venv_base_dir,
+        ) {
+            Ok(t) => push_hitl(
+                extra_executors,
+                Box::new(t),
+                apollia_tools::FilesystemOp::Write,
+            ),
+            // A host with no Python 3 must hear why. Dropping the executor here
+            // left the descriptor advertised to the model and the call answered
+            // with UnknownTool, which reads as a wiring bug rather than a missing
+            // interpreter. Same stub the dispatcher itself installs.
+            Err(e) => extra_executors.push(Box::new(apollia_tools::UnavailableTool::new(
+                "python_executor",
+                e.to_string(),
+            ))),
+        }
     }
 }
 
@@ -496,6 +567,99 @@ mod tests {
                 .join("venv")
                 .is_dir(),
             "the chat virtualenv should have been created on first use"
+        );
+    }
+
+    /// Switch `tools` off in the governance database of `data_dir`, the way
+    /// `apollia-os tools disable` and the desktop tool page write them.
+    fn disable_in_governance(data_dir: &std::path::Path, tools: &[&str]) {
+        apollia_tools::governance_db::GovernanceDb::open(data_dir).expect("init governance.db");
+        let db_path = data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME);
+        let mut registry =
+            apollia_tools::NativeToolRegistry::new(&db_path).expect("open the tool registry");
+        for tool in tools {
+            registry.set_enabled(tool, false).expect("disable the tool");
+        }
+    }
+
+    // GIVEN a data directory whose governance database carries a plain native,
+    //       a HITL-wrapped native and the http_fetch wrapper switched off
+    // WHEN the dispatcher a chat session really gets is built over it
+    // THEN none of the three is registered, while an untouched native still is
+    #[tokio::test]
+    async fn test_chat_dispatcher_drops_the_tools_governance_disabled() {
+        // GIVEN
+        let data_dir = tempfile::tempdir().expect("tempdir");
+        let sandbox = tempfile::tempdir().expect("tempdir");
+        disable_in_governance(
+            data_dir.path(),
+            &["file_read", "bash_executor", "http_fetch"],
+        );
+        let cfg = chat_tools_config(data_dir.path());
+        let hitl = preapproved_hitl("session-under-test");
+
+        // WHEN
+        let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
+            cfg: &cfg,
+            session_id: "session-under-test",
+            sandbox_root: sandbox.path(),
+            workspace_path: &None,
+            pending_user_inputs: &None,
+            hitl: Some(&hitl),
+            extra_executors: Vec::new(),
+        });
+
+        // THEN
+        let names = dispatcher.tool_names();
+        for disabled in ["file_read", "bash_executor", "http_fetch"] {
+            assert!(
+                !names.contains(&disabled),
+                "{disabled} was disabled in governance.db, yet the chat dispatcher registered it: {names:?}"
+            );
+        }
+        assert!(
+            names.contains(&"file_list"),
+            "an untouched native should stay registered: {names:?}"
+        );
+    }
+
+    // GIVEN a governance database with `bash_executor` switched off, and HITL
+    //       parameters that would have approved the call
+    // WHEN bash_executor is dispatched on the conversation path
+    // THEN the call is refused as an unknown tool instead of running
+    #[tokio::test]
+    async fn test_chat_dispatcher_refuses_a_governance_disabled_bash() {
+        // GIVEN
+        let data_dir = tempfile::tempdir().expect("tempdir");
+        let sandbox = tempfile::tempdir().expect("tempdir");
+        disable_in_governance(data_dir.path(), &["bash_executor"]);
+        let cfg = chat_tools_config(data_dir.path());
+        let hitl = preapproved_hitl("session-under-test");
+        let dispatcher = build_full_chat_dispatcher(FullDispatcherParams {
+            cfg: &cfg,
+            session_id: "session-under-test",
+            sandbox_root: sandbox.path(),
+            workspace_path: &None,
+            pending_user_inputs: &None,
+            hitl: Some(&hitl),
+            extra_executors: Vec::new(),
+        });
+
+        // WHEN
+        let result = dispatcher
+            .dispatch(
+                "bash_executor",
+                serde_json::json!({ "command": "echo governance-bypassed", "timeout_secs": 30 }),
+            )
+            .await;
+
+        // THEN
+        assert!(
+            matches!(
+                result,
+                Err(apollia_tools::executor::ToolExecutionError::UnknownTool { .. })
+            ),
+            "a governance-disabled bash_executor must not run: {result:?}"
         );
     }
 }
