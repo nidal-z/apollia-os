@@ -6,20 +6,27 @@
    * Factored out of `QuickPicker.svelte` so the same surface can be
    * reused elsewhere (context drawer, command palette).
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { Bot, BookOpen } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
   import { navigateTo } from "$lib/stores/navigation";
   import { handleExternalLinkClick } from "$lib/utils/externalLink";
+  import { docsUrlFor } from "$lib/utils/docsUrl";
 
   interface Props {
-    /** Deep-link target for the documentation link (defaults to the help center). */
+    /**
+     * Deep-link target for the documentation link. Left unset, it resolves to
+     * the "install an agent" guide under the locale the interface is running
+     * in, so a French operator lands on the French page.
+     */
     docsHref?: string;
   }
 
-  let {
-    docsHref = "https://docs.apollia.fr/operator-help/agents/install-an-agent",
-  }: Props = $props();
+  let { docsHref }: Props = $props();
+
+  const href = $derived(
+    docsHref ?? docsUrlFor($locale, "/operator-help/agents/install-an-agent"),
+  );
 </script>
 
 <div
@@ -37,7 +44,7 @@
       {$t("chat.quickpicker.install_agent")}
     </Button>
     <a
-      href={docsHref}
+      href={href}
       target="_blank"
       rel="noreferrer"
       onclick={handleExternalLinkClick}

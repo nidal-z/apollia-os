@@ -8,9 +8,10 @@
 </script>
 
 <script lang="ts">
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { BookOpen } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
+  import { docsUrlFor } from "$lib/utils/docsUrl";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import HelpHero from "../../components/settings/help/HelpHero.svelte";
   import HelpTopics from "../../components/settings/help/HelpTopics.svelte";
@@ -21,7 +22,7 @@
   // CI. This page is a map, not a copy: it points at the published guides
   // rather than duplicating them, so the two never drift apart. No count here
   // on purpose, the corpus grows and a number in a comment goes stale silently.
-  const HELP_CENTER_URL = "https://docs.apollia.fr/operator-help";
+  const HELP_CENTER_URL = $derived(docsUrlFor($locale, "/operator-help"));
 
   const faqIds = ["offline", "model", "data", "shortcuts"] as const;
   const faqItems = $derived(

@@ -15,10 +15,11 @@
    * When offline the external cards are disabled (not hidden) and a banner
    * explains why; the in-app card stays usable.
    */
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import { BookOpen, Keyboard, Globe, Bug, ExternalLink, WifiOff } from "lucide-svelte";
   import { navigateToSettings } from "$lib/router";
   import { handleExternalLinkClick } from "$lib/utils/externalLink";
+  import { docsUrlFor } from "$lib/utils/docsUrl";
 
   interface Props {
     online: boolean;
@@ -28,8 +29,9 @@
 
   // The operator help center, published from docs/site by CI. Deep-linked to
   // its own section rather than the site root: this card answers "how do I do
-  // this in the app", not "what is Apollia".
-  const DOCS_URL = "https://docs.apollia.fr/operator-help";
+  // this in the app", not "what is Apollia". Resolved against the interface
+  // locale, which the site serves on the same route under its own prefix.
+  const DOCS_URL = $derived(docsUrlFor($locale, "/operator-help"));
   const COMMUNITY_URL = "https://github.com/Apollia-OS/apollia-os/discussions";
   const REPORT_URL = "https://github.com/Apollia-OS/apollia-os/issues/new";
 
@@ -39,7 +41,7 @@
     | { id: string; kind: "external"; icon: Icon; titleKey: string; descKey: string; href: string; warn?: boolean }
     | { id: string; kind: "in-app"; icon: Icon; titleKey: string; descKey: string; run: () => void };
 
-  const resources: Resource[] = [
+  const resources: Resource[] = $derived([
     {
       id: "docs",
       kind: "external",
@@ -73,7 +75,7 @@
       href: REPORT_URL,
       warn: true,
     },
-  ];
+  ]);
 </script>
 
 {#snippet resourceInner(res: Resource, external: boolean)}

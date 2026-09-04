@@ -3,12 +3,14 @@
    * EmptySessionsState - canonical "no chats yet" surface.
    *
    * Wraps the shared `<EmptyState>` with chat-specific copy and a
-   * secondary "Premiers pas" link pointing at the getting-started wiki.
+   * secondary "first steps" link pointing at the published chat guide, in the
+   * locale the interface is running in.
    */
   import { t } from "svelte-i18n";
   import { MessageSquare } from "lucide-svelte";
   import { EmptyState } from "$lib/components/layout";
   import { openExternalUrl } from "$lib/utils/externalLink";
+  import { docsUrl } from "$lib/utils/docsUrl";
 
   interface Props {
     /** Opens the QuickPicker. */
@@ -18,9 +20,7 @@
   let { onnewChat }: Props = $props();
 
   function openGettingStarted(): void {
-    void openExternalUrl(
-      "https://docs.apollia.fr/operator-help/chat/chat-with-your-ai",
-    );
+    void openExternalUrl(docsUrl("/operator-help/chat/chat-with-your-ai"));
   }
 </script>
 

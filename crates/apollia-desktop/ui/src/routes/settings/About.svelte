@@ -9,7 +9,7 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
-  import { t } from "svelte-i18n";
+  import { t, locale } from "svelte-i18n";
   import {
     Info,
     RefreshCw,
@@ -27,6 +27,7 @@
     Check,
   } from "lucide-svelte";
   import { systemInfoStore, settingsLoaders } from "$lib/stores/settings";
+  import { docsUrlFor } from "$lib/utils/docsUrl";
   import { handleExternalLinkClick } from "$lib/utils/externalLink";
   import { Button } from "$lib/components/ui/button";
   import { addToast } from "$lib/components/ui/toast";
@@ -43,8 +44,9 @@
   const GITHUB_URL = "https://github.com/Apollia-OS/apollia-os";
   // The documentation site, built and published from docs/site by CI. The
   // previous target was the repository wiki, which the corpus consolidation
-  // retired: the link shipped dead in the binary.
-  const DOCS_URL = "https://docs.apollia.fr";
+  // retired: the link shipped dead in the binary. The home page exists in both
+  // locales, so the card follows the interface language.
+  const DOCS_URL = $derived(docsUrlFor($locale, "/"));
   const ISSUES_URL = "https://github.com/Apollia-OS/apollia-os/issues/new";
   const CONTACT_EMAIL = "contact@apollia.fr";
   const LICENSE_SPDX = "MIT OR Apache-2.0";

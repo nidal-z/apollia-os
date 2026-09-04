@@ -9,10 +9,14 @@
  *
  * The raw text is preserved on `detail` for a "Details" disclosure.
  *
- * This module is i18n-agnostic: the caller passes a translator, so the mapper
- * stays pure and unit-testable. `reportError` wires the real `svelte-i18n`
- * formatter.
+ * The display strings stay caller-supplied: the mapper takes a translator, so
+ * it remains pure on that axis and unit-testable. `reportError` wires the real
+ * `svelte-i18n` formatter. The one thing the mapper reads for itself is the
+ * locale of the documentation deep link, because the matcher table is built
+ * once at module load and the operator can change language after that.
  */
+
+import { docsUrl } from "$lib/utils/docsUrl";
 
 /** Coarse error family - drives icon/tone in the catalog and the i18n stem. */
 export type ErrorCategory =
@@ -44,7 +48,7 @@ export interface HumanizedError {
   category: ErrorCategory;
   /** Matched pattern key for telemetry. Undefined on the generic fallback. */
   code?: string;
-  /** Optional deep link to docs. */
+  /** Optional deep link to docs, resolved under the locale in force. */
   learn_more_url?: string;
   /** Raw error text, kept for a "Details" disclosure. */
   detail?: string;
@@ -54,7 +58,12 @@ interface ErrorMatcher {
   code: string;
   category: ErrorCategory;
   regex: RegExp;
-  learn_more_url?: string;
+  /**
+   * Route of the documentation page for this error, as the site publishes it.
+   * Stored as a path rather than a URL because the locale segment is only
+   * known when the error is humanized, not when this table is built.
+   */
+  learn_more_path?: string;
   /** Legacy resolved English strings, permission patterns only (backward compat). */
   legacy?: {
     title: string;
@@ -63,14 +72,6 @@ interface ErrorMatcher {
   };
 }
 
-/**
- * Root of the published documentation site, built from `docs/site` by CI.
- *
- * Every `learn_more_url` below is a page that exists in that build. The base
- * used to point at the repository wiki, retired when the three corpora were
- * consolidated onto this site, so all five deep links shipped dead.
- */
-const DOCS_BASE = "https://docs.apollia.fr";
 
 /** i18n segment per category (dot-path safe). */
 const CATEGORY_KEY: Record<ErrorCategory, string> = {
@@ -97,7 +98,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "POLICY_DENIED",
     category: "permission",
     regex: /permission denied by policy|policy denied|policy violation/i,
-    learn_more_url: `${DOCS_BASE}/operator-help/control/approve-or-reject-an-action`,
+    learn_more_path: "/operator-help/control/approve-or-reject-an-action",
     legacy: {
       title: "Blocked by policy",
       friendly_message:
@@ -110,7 +111,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "EACCES",
     category: "permission",
     regex: /\bEACCES\b|permission denied/i,
-    learn_more_url: `${DOCS_BASE}/operator-help/control/manage-tool-permissions`,
+    learn_more_path: "/operator-help/control/manage-tool-permissions",
     legacy: {
       title: "Permission denied",
       friendly_message:
@@ -123,7 +124,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "EPERM",
     category: "permission",
     regex: /\bEPERM\b|operation not permitted/i,
-    learn_more_url: `${DOCS_BASE}/operator-help/control/manage-tool-permissions`,
+    learn_more_path: "/operator-help/control/manage-tool-permissions",
     legacy: {
       title: "Operation not permitted",
       friendly_message:
@@ -192,7 +193,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "BUDGET_EXCEEDED",
     category: "permission",
     regex: /budget exceeded|stepbudget|step budget/i,
-    learn_more_url: `${DOCS_BASE}/reference/sdk/budget`,
+    learn_more_path: "/reference/sdk/budget",
     legacy: {
       title: "Agent budget exhausted",
       friendly_message:
@@ -205,7 +206,7 @@ const MATCHERS: ErrorMatcher[] = [
     code: "SANDBOX_VIOLATION",
     category: "permission",
     regex: /sandbox (violation|denied|blocked)/i,
-    learn_more_url: `${DOCS_BASE}/explanation/agent-trust-model`,
+    learn_more_path: "/explanation/agent-trust-model",
     legacy: {
       title: "Blocked by sandbox",
       friendly_message:
@@ -269,7 +270,7 @@ export function humanize(raw: unknown, translate: ErrorTranslate): HumanizedErro
     suggested_action: translate(`${stem}.suggested_action`),
     category,
     code: match?.code,
-    learn_more_url: match?.learn_more_url,
+    learn_more_url: match?.learn_more_path ? docsUrl(match.learn_more_path) : undefined,
     detail: detail || undefined,
   };
 }
@@ -293,7 +294,7 @@ export function permissionErrorHumanize(
         title: m.legacy.title,
         friendly_message: m.legacy.friendly_message,
         suggested_action: m.legacy.suggested_action,
-        learn_more_url: m.learn_more_url,
+        learn_more_url: m.learn_more_path ? docsUrl(m.learn_more_path) : undefined,
       };
     }
   }
