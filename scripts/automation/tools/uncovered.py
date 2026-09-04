@@ -70,7 +70,11 @@ ROLE_CONTAINER = re.compile(
 )
 # A modal shell forwards its caller's role and traps the keyboard: the handlers
 # on it dismiss the surface, they are not the gesture the anchor names.
-CONTAINER_HINT = re.compile(r'aria-modal|\{\s*role\s*\}|role\s*=\s*\{\s*role\s*\}')
+# `{role}` is Svelte shorthand for `role={role}`, a forwarded ARIA role, and
+# marks a container. Written without the lookbehind it also matched
+# `value={role}`, so a profile field whose data is named `role` was read as a
+# container and its anchor classified a marker while a recipe fills it.
+CONTAINER_HINT = re.compile(r'aria-modal|(?<![=\w])\{\s*role\s*\}|role\s*=\s*\{\s*role\s*\}')
 HANDLER = re.compile(r'\bon(click|change|input|keydown|keyup|submit|pointerdown|mousedown)\s*=')
 # `onclick={onclick}` / `role={onclick ? "button" : undefined}`: the element is
 # a control only when its caller hands it a handler, so the call site decides.

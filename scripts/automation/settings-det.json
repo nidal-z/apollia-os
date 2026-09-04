@@ -505,7 +505,7 @@
     },
     {
       "kind": "click",
-      "testid": "auto-install-python-deps-toggle"
+      "testid": "auto-install-python-deps-toggle-switch"
     },
     {
       "kind": "sleep",
@@ -517,7 +517,7 @@
     },
     {
       "kind": "click",
-      "testid": "auto-install-python-deps-toggle"
+      "testid": "auto-install-python-deps-toggle-switch"
     },
     {
       "kind": "sleep",

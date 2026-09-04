@@ -7633,7 +7633,7 @@
     },
     {
       "kind": "click",
-      "testid": "auto-install-python-deps-toggle",
+      "testid": "auto-install-python-deps-toggle-switch",
       "timeoutMs": 3000
     },
     {
@@ -7646,7 +7646,7 @@
     },
     {
       "kind": "click",
-      "testid": "auto-install-python-deps-toggle",
+      "testid": "auto-install-python-deps-toggle-switch",
       "timeoutMs": 3000
     },
     {
