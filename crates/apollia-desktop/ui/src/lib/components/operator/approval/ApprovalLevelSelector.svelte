@@ -3,7 +3,7 @@
   import { cn } from "$lib/utils";
   import { RadioGroup, RadioItem } from "$lib/components/ui/radio";
 
-  type ApprovalLevel = "auto" | "ask" | "readonly";
+  type ApprovalLevel = "auto" | "ask";
 
   interface ApprovalOption {
     value: ApprovalLevel;

@@ -93,7 +93,7 @@ export interface ConnectorConfigInputs {
   oauthResolved: boolean;
   envValues: Record<string, string>;
   argValues: Record<number, string>;
-  approvalLevel: "auto" | "ask" | "readonly";
+  approvalLevel: "auto" | "ask";
 }
 
 /**

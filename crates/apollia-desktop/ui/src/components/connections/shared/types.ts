@@ -43,7 +43,7 @@ export type TestState =
   | "error";
 
 /** Tool-approval level for an MCP server. */
-export type ApprovalLevel = "auto" | "ask" | "readonly";
+export type ApprovalLevel = "auto" | "ask";
 
 /** Custom MCP transport kinds. */
 export type CustomTransport = "stdio" | "streamable-http" | "sse";

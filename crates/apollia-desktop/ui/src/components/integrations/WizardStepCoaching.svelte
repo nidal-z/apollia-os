@@ -10,7 +10,7 @@
     type CoachingExample,
   } from "$lib/ipc/connections";
 
-  type ApprovalLevel = "auto" | "ask" | "readonly";
+  type ApprovalLevel = "auto" | "ask";
 
   interface Props {
     serverName: string;

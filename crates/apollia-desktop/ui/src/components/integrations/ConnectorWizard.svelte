@@ -79,7 +79,7 @@
    *  position in `pkg.package_arguments`. Only consulted for args whose
    *  `value` is null (i.e. the user must supply it at install time). */
   let argValues = $state<Record<number, string>>({});
-  let approvalLevel = $state<"auto" | "ask" | "readonly">("ask");
+  let approvalLevel = $state<"auto" | "ask">("ask");
   let testSucceeded = $state(false);
   let testBypassed = $state(false);
   let finalizing = $state(false);
