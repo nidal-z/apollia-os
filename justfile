@@ -552,6 +552,7 @@ guards:
       "scripts/check_python_rules.py"
       "scripts/check_swizzled_theme.py"
       "scripts/check_release_artifacts.py"
+      "scripts/check_generated_clients.py"
       "scripts/check_rust_rules.py"
       "scripts/check_rust_tests.py"
       "scripts/check_selftest.py"

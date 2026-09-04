@@ -428,6 +428,18 @@ repos:
         files: '^(packaging/artifacts\.json|packaging/fetch-llama-server\.sh|\.github/workflows/release\.yml|crates/apollia-cli/src/commands/update\.rs|crates/apollia-desktop/tauri\.conf\.json|docs/site/docs/how-to/install-the-desktop-app\.md|docs/site/i18n/fr/docusaurus-plugin-content-docs/current/how-to/install-the-desktop-app\.md|scripts/check_release_artifacts\.py)$'
         pass_filenames: false
 
+      # The generated API clients against the specification they come from. A
+      # generated artefact looks authoritative and ages silently: the Python
+      # client was committed once and seven operations the specification
+      # declares have no module a caller can reach. The uncovered set is on a
+      # descending ratchet, an orphan module is held at zero.
+      - id: check-generated-clients
+        name: the generated clients cover the specification they come from
+        entry: python3 scripts/check_generated_clients.py
+        language: system
+        files: '^(clients/openapi\.json|clients/python/apollia_runtime_client/api/.*\.py|scripts/check_generated_clients\.py)$'
+        pass_filenames: false
+
       # The four roots the guard declares: the packaging scripts and their
       # sums files, the desktop bundling scripts, and the workflow run blocks.
       # A download without a pinned sum is born in a commit touching one of
