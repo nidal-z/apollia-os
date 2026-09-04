@@ -1,0 +1,7 @@
+{
+  "operation": "gdrive.workspace_read",
+  "origin": "example",
+  "note": "Hand-written for the Google Drive files.get call with alt=media, which returns the file bytes rather than a JSON resource. Chosen because every other Drive read on the ratchet parses into the same Vec<DriveFile> already exercised, while this one takes the raw-body path: the harness serves a JSON string with set_body_string, and the client hands back bytes the dispatcher turns into text. The content carries an accented line and a trailing newline, so a byte-level truncation would show. Not a recording.",
+  "response": "Ligne une, avec un accent é et un caractère non ASCII ø.\nLigne deux.\n",
+  "expect": "Ligne une, avec un accent é et un caractère non ASCII ø.\nLigne deux.\n"
+}

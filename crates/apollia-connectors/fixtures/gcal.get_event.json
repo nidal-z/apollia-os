@@ -1,0 +1,45 @@
+{
+  "operation": "gcal.get_event",
+  "origin": "example",
+  "note": "Hand-written from the Google Calendar API reference for events.get, which returns a single event resource rather than a collection. Chosen over the three Drive listings still on the ratchet because they parse into the same Vec<DriveFile> already exercised: this one reads a bare object, and a recurring event whose attendee declined, so responseStatus is read at a value other than accepted. Not a recording.",
+  "response": {
+    "kind": "calendar#event",
+    "etag": "\"replay-etag\"",
+    "id": "evt-recurring-1",
+    "status": "confirmed",
+    "htmlLink": "https://www.google.com/calendar/event?eid=ZXZ0LXJlY3VycmluZy0x",
+    "created": "2026-08-30T10:00:00.000Z",
+    "updated": "2026-09-03T17:41:00.000Z",
+    "summary": "Replay example, recurring",
+    "description": "Body the reference shows on a recurring event.",
+    "location": "Salle 2",
+    "recurrence": ["RRULE:FREQ=WEEKLY;BYDAY=TU"],
+    "start": { "dateTime": "2026-09-08T09:00:00Z", "timeZone": "Europe/Paris" },
+    "end": { "dateTime": "2026-09-08T09:30:00Z", "timeZone": "Europe/Paris" },
+    "attendees": [
+      {
+        "email": "alice@example.com",
+        "displayName": "Alice Example",
+        "responseStatus": "declined"
+      },
+      { "email": "bob@example.com", "responseStatus": "needsAction" }
+    ]
+  },
+  "expect": {
+    "id": "evt-recurring-1",
+    "summary": "Replay example, recurring",
+    "description": "Body the reference shows on a recurring event.",
+    "location": "Salle 2",
+    "start": { "dateTime": "2026-09-08T09:00:00Z", "timeZone": "Europe/Paris" },
+    "end": { "dateTime": "2026-09-08T09:30:00Z", "timeZone": "Europe/Paris" },
+    "attendees": [
+      {
+        "email": "alice@example.com",
+        "displayName": "Alice Example",
+        "responseStatus": "declined"
+      },
+      { "email": "bob@example.com", "responseStatus": "needsAction" }
+    ],
+    "htmlLink": "https://www.google.com/calendar/event?eid=ZXZ0LXJlY3VycmluZy0x"
+  }
+}
