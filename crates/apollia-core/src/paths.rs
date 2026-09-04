@@ -198,8 +198,11 @@ pub fn socket_path() -> Option<PathBuf> {
 ///
 /// Windows has no Unix domain socket the runtime can serve, so the local
 /// transport there is a named pipe. It plays the same role the socket plays
-/// elsewhere, and replaces a listening TCP port: nothing appears in a port
-/// scan, which is what a workstation policy asks of a background service.
+/// elsewhere. It does not remove the TCP listener: `apollia-os start` passes a
+/// port on every platform, with no `cfg(windows)` guard, and the API server
+/// binds it unconditionally, so a workstation does show an open port for the
+/// runtime. What guards that port is the token, and a non-loopback bind
+/// without one is refused at startup.
 ///
 /// The user name is part of the name so two accounts on one machine, a
 /// terminal server among them, do not contend for a single pipe. The name is

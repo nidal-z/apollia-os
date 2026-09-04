@@ -202,8 +202,8 @@ pub(super) async fn serve_unix(
 /// Serve HTTP requests over a Windows named pipe using hyper-util.
 ///
 /// The local transport on Windows, where there is no Unix socket to serve. It
-/// replaces a listening TCP port, so a workstation shows no open port for the
-/// runtime, and it carries the token-authenticated router: a pipe takes a
+/// stands in for the socket, not for the TCP listener, which is bound on every
+/// platform. It carries the token-authenticated router: a pipe takes a
 /// default security descriptor, which is a weaker guarantee than the `0o600`
 /// that guards the socket elsewhere, so the token is what gates access rather
 /// than the pipe's own permissions.
