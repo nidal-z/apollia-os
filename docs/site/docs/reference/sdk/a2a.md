@@ -82,19 +82,13 @@ the skill ships sample payloads. ``name`` is the encoded form
 ``a2a__<skill_id>`` with every dot replaced by a double underscore,
 which is what the bridge decodes back on dispatch.
 
-The schema key is ``input_schema``, and ``ctx.llm.run_tools`` reads
-``parameters``. Passing this descriptor straight to ``run_tools``, or
-to ``apollia.react``, therefore announces the tool's name and
-description and nothing about its arguments: the missing key falls back
-to the empty schema ``{}``, so on a local backend the generated grammar
-constrains nothing. Rename the key before handing it on::
-
-    card = await ctx.a2a.skill_as_tool("pdf.read_text")
-    tool = {
-        "name": card["name"],
-        "description": card["description"],
-        "parameters": card["input_schema"],
-    }
+The schema key is ``input_schema``, which is the Anthropic spelling.
+``ctx.llm.run_tools`` and ``apollia.react`` read ``parameters`` first
+and fall back to ``input_schema``, so this descriptor can be handed to
+either as it stands and the tool reaches the model with its arguments.
+The bridge read only ``parameters`` until it was fixed: a descriptor
+built by hand for an older runtime should spell the key ``parameters``,
+which still takes precedence.
 
 The method is ``async``: the bridge resolves the skill against
 the in-process A2A registry. Always call with ``await``.
