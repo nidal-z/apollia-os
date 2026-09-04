@@ -1,0 +1,69 @@
+{
+  "operation": "outlook_cal.list_events",
+  "origin": "example",
+  "note": "Hand-written from the Microsoft Graph reference for GET /me/events, whose body carries a `value` array of event resources. One timed event with a body, a location and an attendee, and one all-day event, so isAllDay and the optional wrappers are both read. Not a recording.",
+  "response": {
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/events",
+    "value": [
+      {
+        "id": "AAMkAGV2ZW50LXRpbWVkLTE=",
+        "subject": "Replay example, timed",
+        "bodyPreview": "Preview Graph generates.",
+        "body": {
+          "contentType": "html",
+          "content": "<p>Body the reference shows on an event.</p>"
+        },
+        "start": { "dateTime": "2026-09-08T09:00:00.0000000", "timeZone": "Europe/Paris" },
+        "end": { "dateTime": "2026-09-08T09:30:00.0000000", "timeZone": "Europe/Paris" },
+        "location": { "displayName": "Paris" },
+        "attendees": [
+          {
+            "type": "required",
+            "emailAddress": { "name": "Alice Example", "address": "alice@example.com" }
+          }
+        ],
+        "webLink": "https://outlook.office365.com/owa/?itemid=AAMkAGV2ZW50LXRpbWVkLTE",
+        "isAllDay": false
+      },
+      {
+        "id": "AAMkAGV2ZW50LWFsbGRheS0y",
+        "subject": "Replay example, all day",
+        "start": { "dateTime": "2026-09-09T00:00:00.0000000", "timeZone": "UTC" },
+        "end": { "dateTime": "2026-09-10T00:00:00.0000000", "timeZone": "UTC" },
+        "isAllDay": true
+      }
+    ]
+  },
+  "expect": [
+    {
+      "id": "AAMkAGV2ZW50LXRpbWVkLTE=",
+      "subject": "Replay example, timed",
+      "body": {
+        "contentType": "html",
+        "content": "<p>Body the reference shows on an event.</p>"
+      },
+      "start": { "dateTime": "2026-09-08T09:00:00.0000000", "timeZone": "Europe/Paris" },
+      "end": { "dateTime": "2026-09-08T09:30:00.0000000", "timeZone": "Europe/Paris" },
+      "location": { "displayName": "Paris" },
+      "attendees": [
+        {
+          "emailAddress": { "name": "Alice Example", "address": "alice@example.com" },
+          "type": "required"
+        }
+      ],
+      "webLink": "https://outlook.office365.com/owa/?itemid=AAMkAGV2ZW50LXRpbWVkLTE",
+      "isAllDay": false
+    },
+    {
+      "id": "AAMkAGV2ZW50LWFsbGRheS0y",
+      "subject": "Replay example, all day",
+      "body": null,
+      "start": { "dateTime": "2026-09-09T00:00:00.0000000", "timeZone": "UTC" },
+      "end": { "dateTime": "2026-09-10T00:00:00.0000000", "timeZone": "UTC" },
+      "location": null,
+      "attendees": [],
+      "webLink": null,
+      "isAllDay": true
+    }
+  ]
+}

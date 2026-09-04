@@ -1,0 +1,42 @@
+{
+  "operation": "gdrive.list_my_files",
+  "origin": "example",
+  "note": "Hand-written from the Google Drive API reference for files.list, whose body carries a `files` array. One document with every optional field and one folder, which Drive returns without a size, so the optional handling is read rather than assumed. Not a recording.",
+  "response": {
+    "kind": "drive#fileList",
+    "incompleteSearch": false,
+    "files": [
+      {
+        "kind": "drive#file",
+        "id": "1REPLAYDOC",
+        "name": "Replay example.docx",
+        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "modifiedTime": "2026-09-04T08:12:33.123Z",
+        "size": "20481"
+      },
+      {
+        "kind": "drive#file",
+        "id": "1REPLAYFOLDER",
+        "name": "Replay folder",
+        "mimeType": "application/vnd.google-apps.folder",
+        "modifiedTime": "2026-09-03T17:41:00.000Z"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "id": "1REPLAYDOC",
+      "name": "Replay example.docx",
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "modifiedTime": "2026-09-04T08:12:33.123Z",
+      "size": "20481"
+    },
+    {
+      "id": "1REPLAYFOLDER",
+      "name": "Replay folder",
+      "mimeType": "application/vnd.google-apps.folder",
+      "modifiedTime": "2026-09-03T17:41:00.000Z",
+      "size": null
+    }
+  ]
+}

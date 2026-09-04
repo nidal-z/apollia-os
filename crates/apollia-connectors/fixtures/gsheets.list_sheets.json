@@ -1,0 +1,30 @@
+{
+  "operation": "gsheets.list_sheets",
+  "origin": "example",
+  "note": "Hand-written from the Google Sheets API reference for spreadsheets.get restricted to the sheets.properties field mask the client sends. Two tabs, the second without an explicit index, which the API omits for the first position and the client defaults. Not a recording.",
+  "response": {
+    "spreadsheetId": "1REPLAYSHEET",
+    "properties": { "title": "Replay example" },
+    "sheets": [
+      {
+        "properties": {
+          "sheetId": 0,
+          "title": "Sheet1",
+          "index": 0,
+          "sheetType": "GRID"
+        }
+      },
+      {
+        "properties": {
+          "sheetId": 1806904321,
+          "title": "Second tab",
+          "sheetType": "GRID"
+        }
+      }
+    ]
+  },
+  "expect": [
+    { "sheetId": 0, "title": "Sheet1", "index": 0 },
+    { "sheetId": 1806904321, "title": "Second tab", "index": 0 }
+  ]
+}

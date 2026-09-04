@@ -1,0 +1,48 @@
+{
+  "operation": "gtasks.list_tasks",
+  "origin": "example",
+  "note": "Hand-written from the Google Tasks API reference for tasks.list, whose body carries an `items` array. One open task with a due date and one completed task, so both status values and the optional completion timestamp are read. Not a recording.",
+  "response": {
+    "kind": "tasks#tasks",
+    "etag": "\"replay-etag\"",
+    "items": [
+      {
+        "kind": "tasks#task",
+        "id": "task-open-1",
+        "title": "Replay example, open",
+        "notes": "Notes the reference shows on a task.",
+        "status": "needsAction",
+        "due": "2026-09-08T00:00:00.000Z",
+        "position": "00000000000000000000",
+        "updated": "2026-09-04T08:00:00.000Z"
+      },
+      {
+        "kind": "tasks#task",
+        "id": "task-done-2",
+        "title": "Replay example, completed",
+        "status": "completed",
+        "completed": "2026-09-03T17:41:00.000Z",
+        "position": "00000000000000000001",
+        "updated": "2026-09-03T17:41:00.000Z"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "id": "task-open-1",
+      "title": "Replay example, open",
+      "notes": "Notes the reference shows on a task.",
+      "status": "needsAction",
+      "due": "2026-09-08T00:00:00.000Z",
+      "completed": null
+    },
+    {
+      "id": "task-done-2",
+      "title": "Replay example, completed",
+      "notes": null,
+      "status": "completed",
+      "due": null,
+      "completed": "2026-09-03T17:41:00.000Z"
+    }
+  ]
+}

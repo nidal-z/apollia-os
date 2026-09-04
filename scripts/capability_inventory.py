@@ -418,6 +418,28 @@ def cli_called_paths(cli_root: Path) -> set[str]:
     return paths
 
 
+
+# The operations no CLI leaf addresses carry their own integration probes, in
+# `crates/apollia-runtime/src/api/unreached_by_cli.rs`. Its table declares an
+# `id` per entry and its own doc-comment calls it "the name the coverage table
+# counts": the intent was always that this axis read it. Until it did, eleven
+# probes written against the real router counted for nothing here, and a table
+# that ignores the work done against it teaches people to stop doing the work.
+#
+# The criterion stays execution: each id in that table is backed by a routing
+# probe that sends a method the route refuses and expects the 405 axum only
+# answers once the path has matched, and ten of the eleven by a live probe that
+# enters the handler. A name in a comment would not appear in this table.
+PROBE_TABLE = REPO_ROOT / "crates/apollia-runtime/src/api/unreached_by_cli.rs"
+
+
+def router_probed_ops() -> set[str]:
+    """Operation ids an integration probe exercises against the real router."""
+    if not PROBE_TABLE.is_file():
+        return set()
+    body = PROBE_TABLE.read_text(encoding="utf-8", errors="ignore")
+    return set(re.findall(r'\bid:\s*"([a-z0-9_]+)"', body))
+
 def extract_api(openapi: Path, api_dir: Path, cli_root: Path) -> dict:
     if not openapi.exists():
         return unmeasured("api", f"{openapi} is absent, so no operation was enumerated")
@@ -435,6 +457,7 @@ def extract_api(openapi: Path, api_dir: Path, cli_root: Path) -> dict:
 
     sources = rust_sources(api_dir)
     reachable = cli_called_paths(cli_root)
+    probed = router_probed_ops()
     caps = []
     for op, (method, path) in sorted(ops.items()):
         homes = [f for f, (prod, _) in sources.items() if re.search(r"\bfn\s+" + re.escape(op) + r"\b", prod)]
@@ -444,7 +467,8 @@ def extract_api(openapi: Path, api_dir: Path, cli_root: Path) -> dict:
                 "id": op,
                 "implemented_in": sorted(homes),
                 "unit": unit,
-                "e2e": path in reachable,
+                "e2e": path in reachable or op in probed,
+                "e2e_by": "cli" if path in reachable else ("probe" if op in probed else None),
                 "http": f"{method.upper()} {path}",
             }
         )
@@ -514,6 +538,33 @@ def extract_tools(dispatcher: Path, tools_dir: Path, tracks_dir: Path, eval_suit
 # ─── Surface: connectors ─────────────────────────────────────────────────────
 
 
+
+# The replay harness of `crates/apollia-connectors` serves a recorded or
+# hand-written response to the real client method and compares what the client
+# reads back against the `expect` the fixture declares. A fixture on disk is
+# therefore an execution of that operation, not a mention of it: the crate's 66
+# older tests all check the shape of the REQUEST, which is why this surface read
+# zero for so long.
+#
+# Wired here for the same reason the router probes were: an axis that ignores an
+# instrument written against it teaches people to stop writing instruments.
+FIXTURES_DIR = REPO_ROOT / "crates/apollia-connectors/fixtures"
+
+
+def replay_fixture_ops() -> set[str]:
+    """Connector operations a replay fixture exercises end to end."""
+    if not FIXTURES_DIR.is_dir():
+        return set()
+    ops: set[str] = set()
+    for path in FIXTURES_DIR.glob("*.json"):
+        try:
+            declared = json.loads(path.read_text(encoding="utf-8")).get("operation")
+        except (OSError, ValueError):
+            continue
+        if isinstance(declared, str):
+            ops.add(declared)
+    return ops
+
 def extract_connectors(specs, bridge: Path, tracks_dir: Path, scripts_dir: Path) -> dict:
     ids: list[str] = []
     for spec in specs:
@@ -529,6 +580,7 @@ def extract_connectors(specs, bridge: Path, tracks_dir: Path, scripts_dir: Path)
         for tokens in cli_cov.track_invocations(read(track)):
             invoked.update(tokens)
     acted = automation_actions(scripts_dir) if scripts_dir.is_dir() else set()
+    replayed = replay_fixture_ops()
 
     caps = []
     for op in ids:
@@ -543,7 +595,9 @@ def extract_connectors(specs, bridge: Path, tracks_dir: Path, scripts_dir: Path)
                 "family": op.split(".")[0],
                 "implemented_in": sorted(homes),
                 "unit": unit,
-                "e2e": op in invoked or op in acted,
+                "e2e": op in invoked or op in acted or op in replayed,
+                "e2e_by": ("cli" if op in invoked else "desktop" if op in acted
+                           else "replay" if op in replayed else None),
             }
         )
     return {
@@ -551,8 +605,11 @@ def extract_connectors(specs, bridge: Path, tracks_dir: Path, scripts_dir: Path)
         "measured": True,
         "capabilities": caps,
         "unit_measured": bool(sources),
-        "e2e_measured": bool(tracks or acted),
-        "e2e_instrument": f"{len(tracks)} CLI track(s) and the automation corpus",
+        "e2e_measured": bool(tracks or acted or replayed),
+        "e2e_instrument": (
+            f"{len(tracks)} CLI track(s), the automation corpus, "
+            f"and {len(replayed)} replay fixture(s)"
+        ),
         "notes": {
             "families": sorted({c["family"] for c in caps}),
             "unresolved_dispatch": [c["id"] for c in caps if not c["implemented_in"]],

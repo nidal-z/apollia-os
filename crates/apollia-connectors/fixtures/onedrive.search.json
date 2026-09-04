@@ -1,0 +1,45 @@
+{
+  "operation": "onedrive.search",
+  "origin": "example",
+  "note": "Hand-written from the Microsoft Graph reference for the driveItem search action, whose body carries a `value` array of driveItem resources. One file and one folder, so both facets are read and the discriminator each carries is exercised. Not a recording.",
+  "response": {
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(driveItem)",
+    "value": [
+      {
+        "id": "01REPLAYFILE",
+        "name": "replay-example.pdf",
+        "size": 20481,
+        "webUrl": "https://example-my.sharepoint.com/personal/alice/Documents/replay-example.pdf",
+        "lastModifiedDateTime": "2026-09-04T08:12:33Z",
+        "file": { "mimeType": "application/pdf" }
+      },
+      {
+        "id": "01REPLAYFOLDER",
+        "name": "Replay folder",
+        "webUrl": "https://example-my.sharepoint.com/personal/alice/Documents/Replay%20folder",
+        "lastModifiedDateTime": "2026-09-03T17:41:00Z",
+        "folder": { "childCount": 3 }
+      }
+    ]
+  },
+  "expect": [
+    {
+      "id": "01REPLAYFILE",
+      "name": "replay-example.pdf",
+      "size": 20481,
+      "file": { "mimeType": "application/pdf" },
+      "folder": null,
+      "webUrl": "https://example-my.sharepoint.com/personal/alice/Documents/replay-example.pdf",
+      "lastModifiedDateTime": "2026-09-04T08:12:33Z"
+    },
+    {
+      "id": "01REPLAYFOLDER",
+      "name": "Replay folder",
+      "size": null,
+      "file": null,
+      "folder": { "childCount": 3 },
+      "webUrl": "https://example-my.sharepoint.com/personal/alice/Documents/Replay%20folder",
+      "lastModifiedDateTime": "2026-09-03T17:41:00Z"
+    }
+  ]
+}

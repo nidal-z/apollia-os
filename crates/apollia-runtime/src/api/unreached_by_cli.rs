@@ -80,6 +80,27 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             live_probed: true,
         },
         UnreachedOp {
+            id: "list_a2a_agents",
+            method: Method::GET,
+            path: "/api/v1/a2a/agents",
+            absent_method: Method::DELETE,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "list_tools",
+            method: Method::GET,
+            path: "/api/v1/tools",
+            absent_method: Method::DELETE,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "set_server_approval",
+            method: Method::PATCH,
+            path: "/api/v1/mcp/servers/probe/approval",
+            absent_method: Method::GET,
+            live_probed: false,
+        },
+        UnreachedOp {
             id: "stream_mailbox",
             method: Method::GET,
             path: "/api/v1/mailbox/stream",
@@ -271,8 +292,8 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
     let ops = unreached_ops();
     assert_eq!(
         ops.len(),
-        11,
-        "the census must carry the eleven operations the coverage table lists"
+        14,
+        "the census must carry the fourteen operations the coverage table lists"
     );
 
     // WHEN each is probed with a method its route does not declare
@@ -321,13 +342,13 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
         bound += 1;
     }
     assert_eq!(
-        bound, 10,
-        "the method binding of ten operations must be probed"
+        bound, 12,
+        "the method binding of twelve operations must be probed"
     );
 }
 
 #[tokio::test]
-async fn test_ten_of_the_eleven_operations_carry_a_live_probe() {
+async fn test_twelve_of_the_fourteen_operations_carry_a_live_probe() {
     // GIVEN the census table, which records which operations a live probe
     // invokes the handler of
     let ops = unreached_ops();
@@ -344,14 +365,63 @@ async fn test_ten_of_the_eleven_operations_carry_a_live_probe() {
     // is the one whose handler reads the process home rather than the state's
     // data directory
     assert_eq!(
-        live, 10,
+        live, 12,
         "live probe count changed without the table saying so"
     );
-    assert_eq!(excluded, vec!["get_task_timeline"]);
+    // Two exclusions, and they are not the same kind. `get_task_timeline`
+    // cannot be live-probed here at all, for the reason the constant states.
+    // `set_server_approval` mutates a server the census does not create, so it
+    // carries a routing probe only until a probe builds that server: debt, and
+    // named as such rather than counted as coverage.
+    let mut excluded = excluded;
+    excluded.sort_unstable();
+    assert_eq!(excluded, vec!["get_task_timeline", "set_server_approval"]);
     assert!(LIVE_PROBE_EXCLUSION.contains("state.data_dir"));
 }
 
 // ── Live probes ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_the_two_listing_routes_the_cli_never_calls_answer_from_an_empty_state() {
+    // GIVEN the router the daemon serves, over a state with no agent registered
+    // and the mock tool backend
+    let dir = tempfile::tempdir().expect("temp dir");
+    let router = APIServer::build_router_for_test(base_state(dir.path()));
+
+    // WHEN the two collection routes are read, the ones the CLI addresses only
+    // in their single-item form
+    let (agents_status, agents_body) = call(
+        router.clone(),
+        Method::GET,
+        "/api/v1/a2a/agents",
+        Body::empty(),
+    )
+    .await;
+    let (tools_status, tools_body) =
+        call(router, Method::GET, "/api/v1/tools", Body::empty()).await;
+
+    // THEN each handler runs and answers its own contract, which a routing probe
+    // cannot tell apart: the agent listing serves an empty collection, and the
+    // tool listing refuses with 503 because this state carries no registry.
+    // Pinning the refusal is the point: a handler that panicked on the missing
+    // registry would answer 500 and the path would still have matched.
+    let agents_text = String::from_utf8_lossy(&agents_body).to_string();
+    let tools_text = String::from_utf8_lossy(&tools_body).to_string();
+    assert_eq!(agents_status, StatusCode::OK, "body was: {agents_text}");
+    assert_eq!(
+        tools_status,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "body was: {tools_text}"
+    );
+    serde_json::from_str::<serde_json::Value>(&agents_text).expect("agents body is json");
+    let refusal: serde_json::Value = serde_json::from_str(&tools_text).expect("tools body is json");
+    assert!(
+        refusal["error"]
+            .as_str()
+            .is_some_and(|m| m.contains("tool registry")),
+        "the refusal names what is missing: {tools_text}"
+    );
+}
 
 #[tokio::test]
 async fn test_plan_cache_routes_report_the_repository_they_are_given() {
