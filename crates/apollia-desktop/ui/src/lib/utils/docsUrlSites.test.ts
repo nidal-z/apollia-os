@@ -15,7 +15,6 @@ import { describe, it, expect } from "vitest";
  * is how the mapping above is measured at all.
  */
 
-const DOCS_HOST = "docs.apollia.fr";
 
 /**
  * Every host a documentation link could plausibly be written against. The

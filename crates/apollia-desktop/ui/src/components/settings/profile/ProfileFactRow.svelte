@@ -203,7 +203,7 @@
             size="icon-sm"
             onclick={cancelEdit}
             aria-label={$t("common.cancel")}
-            data-testid="profile-fact-edit-cancel"
+            data-testid="profile-fact-edit-discard"
           >
             <X size={14} strokeWidth={2} />
           </Button>
@@ -253,5 +253,5 @@
   confirmLabel={$t("settings.profile.memory.delete_dialog.confirm")}
   cancelLabel={$t("common.cancel")}
   loading={busy}
-  data-testid="profile-fact-delete-confirm"
+  data-testid="profile-fact-delete-dialog"
 />

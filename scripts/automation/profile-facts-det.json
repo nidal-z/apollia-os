@@ -8,7 +8,7 @@
     "Facts persist immediately through setProfileEntry: they are agent-owned memory, NOT part of the sub-page's explicit save, so no step here marks the route dirty and the settings nav guard cannot fire on the way out.",
     "profile-fact-add-confirm is disabled while either field is blank, so both are filled before it is clicked; on success addOpen goes false, which is what the waitGone on the form asserts.",
     "The row's edit and delete buttons live in a group-hover container at opacity 0. They are in the DOM and carry no pointer-events:none, and the runner clicks the element directly, so the hover is not needed. The opacity is why they are asserted by click rather than by screenshot.",
-    "ProfileFactRow renders a ConfirmDialog with data-testid=profile-fact-delete-confirm, so its two buttons are the composed profile-fact-delete-confirm-cancel and profile-fact-delete-confirm-confirm.",
+    "ProfileFactRow renders a ConfirmDialog with data-testid=profile-fact-delete-dialog, so its two buttons are the composed profile-fact-delete-dialog-cancel and profile-fact-delete-dialog-confirm.",
     "The edit input is a controlled Input bound to editValue; cancelEdit restores the stored value, which is why the cancel pass asserts the row still shows the first value."
   ],
   "dynamicTestids": [
@@ -48,7 +48,7 @@
     { "kind": "waitFor", "testid": "profile-fact-edit-input", "timeoutMs": 4000 },
     { "kind": "fill", "testid": "profile-fact-edit-input", "text": "discarded by the cancel path" },
     { "kind": "screenshot", "label": "05-edit-open" },
-    { "kind": "click", "testid": "profile-fact-edit-cancel" },
+    { "kind": "click", "testid": "profile-fact-edit-discard" },
     { "kind": "waitGone", "testid": "profile-fact-edit-input", "timeoutMs": 4000 },
     { "kind": "expect", "testid": "profile-fact", "contains": "created by the gestural automaton" },
     { "kind": "screenshot", "label": "06-edit-cancelled" },
@@ -62,17 +62,17 @@
     { "kind": "screenshot", "label": "07-edit-saved" },
 
     { "kind": "click", "testid": "profile-fact-delete" },
-    { "kind": "waitFor", "testid": "profile-fact-delete-confirm", "timeoutMs": 4000 },
+    { "kind": "waitFor", "testid": "profile-fact-delete-dialog-confirm", "timeoutMs": 4000 },
     { "kind": "screenshot", "label": "08-delete-dialog" },
-    { "kind": "click", "testid": "profile-fact-delete-confirm-cancel" },
-    { "kind": "waitGone", "testid": "profile-fact-delete-confirm", "timeoutMs": 4000 },
+    { "kind": "click", "testid": "profile-fact-delete-dialog-cancel" },
+    { "kind": "waitGone", "testid": "profile-fact-delete-dialog-confirm", "timeoutMs": 4000 },
     { "kind": "expect", "testid": "profile-fact", "contains": "automation_probe" },
     { "kind": "screenshot", "label": "09-delete-cancelled" },
 
     { "kind": "click", "testid": "profile-fact-delete" },
-    { "kind": "waitFor", "testid": "profile-fact-delete-confirm", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "profile-fact-delete-confirm-confirm" },
-    { "kind": "waitGone", "testid": "profile-fact-delete-confirm", "timeoutMs": 8000 },
+    { "kind": "waitFor", "testid": "profile-fact-delete-dialog-confirm", "timeoutMs": 4000 },
+    { "kind": "click", "testid": "profile-fact-delete-dialog-confirm" },
+    { "kind": "waitGone", "testid": "profile-fact-delete-dialog-confirm", "timeoutMs": 8000 },
     { "kind": "sleep", "ms": 600 },
     { "kind": "screenshot", "label": "10-fact-deleted" },
 

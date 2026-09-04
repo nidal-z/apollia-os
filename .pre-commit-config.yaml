@@ -428,6 +428,18 @@ repos:
         files: '^(packaging/artifacts\.json|packaging/fetch-llama-server\.sh|\.github/workflows/release\.yml|crates/apollia-cli/src/commands/update\.rs|crates/apollia-desktop/tauri\.conf\.json|docs/site/docs/how-to/install-the-desktop-app\.md|docs/site/i18n/fr/docusaurus-plugin-content-docs/current/how-to/install-the-desktop-app\.md|scripts/check_release_artifacts\.py)$'
         pass_filenames: false
 
+      # The connector replay fixtures against the operations the crate declares.
+      # The 66 tests the crate carried all checked the shape of the request and
+      # none read a response back, which is the half that breaks when an upstream
+      # API renames a field. Operations without a fixture sit on a descending
+      # ratchet: the list may shrink, never grow.
+      - id: check-connector-fixtures
+        name: every connector operation is on the fixture ratchet or below it
+        entry: python3 scripts/check_connector_fixtures.py
+        language: system
+        files: '^(crates/apollia-connectors/.*|scripts/check_connector_fixtures\.py)$'
+        pass_filenames: false
+
       # The generated API clients against the specification they come from. A
       # generated artefact looks authoritative and ages silently: the Python
       # client was committed once and seven operations the specification
