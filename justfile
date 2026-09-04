@@ -458,6 +458,37 @@ cli-e2e-runtime:
 cli-e2e-model gguf:
     APOLLIA_REQUIRE_RUNTIME=1 APOLLIA_TEST_MODEL_GGUF="{{gguf}}" bash tests/cli/cli-e2e.sh
 
+# Recalculated from the code on every run, never read from a document, and it
+# answers 2 rather than 0 when the binary it walks is missing or stale.
+
+# The capability axis: what the product does, and what executes each capability
+coverage:
+    python3 scripts/capability_inventory.py
+
+coverage-holes:
+    python3 scripts/capability_inventory.py --list-holes
+
+# Answers the three codes the guards do, and names the leaves it refuses to
+# play rather than skipping them in silence. `--daemon` also records which API
+# routes the sweep crosses, which is how the CLI-to-API transitivity is measured
+# rather than reasoned about.
+
+# One real invocation of every clap leaf, on a throwaway HOME per leaf
+cli-sweep: cli-build
+    python3 tests/cli/smoke/sweep.py
+
+cli-sweep-daemon: cli-build
+    python3 tests/cli/smoke/sweep.py --daemon
+
+# Neither suite has ever run: both need a loaded model and an outfitted agent,
+# which this recipe does not provide. What it runs is their loading, which is
+# what stops a suite from dying on a format error at the first `eval run`.
+
+# Load the two agent evaluation suites and hold their invariants
+evals-load:
+    bash evals/oria/check-suite.sh
+    python3 evals/tools/check_suite.py
+
 cli-release target="":
     if [ -n "{{target}}" ]; then cargo build -p apollia-cli --release --target "{{target}}"; else cargo build -p apollia-cli --release; fi
 

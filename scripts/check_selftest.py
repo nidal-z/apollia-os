@@ -1712,6 +1712,50 @@ def launched_externals(patterns: dict[str, str], text: str) -> dict[str, bool]:
     }
 
 
+
+def tracked_entry_points() -> list[str]:
+    """Tracked scripts under `scripts/` that are meant to be run, by basename.
+
+    An entry point carries a `__main__` guard; a library does not. The
+    distinction matters because `scripts/automation/tools/` holds both, and
+    demanding a boundary for a helper another script imports would report an
+    orphan that is not one.
+    """
+    listed = subprocess.run(
+        ["git", "ls-files", "scripts/*.py", "scripts/**/*.py"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if listed.returncode != 0:
+        return []
+    names = []
+    for line in listed.stdout.split():
+        path = REPO_ROOT / line
+        try:
+            body = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if '__name__ == "__main__"' in body or "__name__ == '__main__'" in body:
+            names.append(Path(line).name)
+    return sorted(set(names))
+
+
+
+def named_elsewhere(basename: str) -> bool:
+    """Whether any tracked file other than the script itself names it."""
+    found = subprocess.run(
+        ["git", "grep", "-l", "--fixed-strings", basename],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    hits = [line for line in found.stdout.split() if Path(line).name != basename]
+    return bool(hits)
+
+
 def check_guards_are_launched() -> None:
     print("guard corpus: every tracked guard is launched by a boundary file")
 
@@ -1749,6 +1793,30 @@ def check_guards_are_launched() -> None:
         len(read) >= 4 and ".pre-commit-config.yaml" in read and "justfile" in read,
         f"read {read!r}. A crossing over an empty text would report every guard "
         f"as an orphan, and one over a partial text would invent orphans",
+    )
+
+    # Instruments, not only guards. The corpus above is `scripts/check_*.py`,
+    # so it saw nothing when the capability inventory, the CLI smoke sweep and
+    # the two evaluation suites were written and launched by no boundary at
+    # all. An instrument nothing runs measures nothing, exactly like a guard
+    # nothing runs, and it is likelier to go unnoticed because no red ever
+    # appears. A file enters this crossing by carrying a `__main__` entry
+    # point, which is what tells an instrument from a library.
+    instruments = tracked_entry_points()
+    # A boundary is not the only legitimate caller. An on-demand tool is named
+    # by the guard that tells a reader to run it: `make_scan.py` appears in the
+    # message `check_automation_derived.py` prints when it finds a drift, which
+    # is a launcher of a different kind. The orphan is the instrument no file of
+    # the tree names at all.
+    orphan_instruments = [
+        name for name in orphan_guards(instruments, text) if not named_elsewhere(name)
+    ]
+    case(
+        "no tracked instrument is orphaned of a boundary",
+        not orphan_instruments,
+        f"{len(orphan_instruments)} instrument(s) launched by no boundary file: "
+        f"{orphan_instruments!r}. Each is work the tree carries and nobody runs. "
+        f"Give it a recipe in the justfile, or a job",
     )
 
     orphans = orphan_guards(tracked, text)

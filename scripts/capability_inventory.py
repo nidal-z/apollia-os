@@ -624,11 +624,36 @@ def replay_fixture_ops() -> set[str]:
             ops.add(declared)
     return ops
 
+def connector_exemptions() -> tuple[frozenset[str], frozenset[str]]:
+    """The operations the fixture guard already holds outside its denominator.
+
+    Read from `scripts/check_connector_fixtures.py` rather than restated here.
+    It carried them first, having measured them, and two files answering the
+    same question with two numbers is the defect this inventory exists to
+    surface: it said 51 declared and 35 uncovered while the guard said 41 and
+    25, for the same tree at the same second.
+
+    One set makes no HTTP call at all, the other has a client that reads nothing
+    back, so no fixture can measure a reading for either.
+    """
+    guard = REPO_ROOT / "scripts/check_connector_fixtures.py"
+    if not guard.is_file():
+        return frozenset(), frozenset()
+    spec = importlib.util.spec_from_file_location("connector_fixtures_guard", guard)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return (
+        frozenset(getattr(module, "NO_UPSTREAM_CALL", ())),
+        frozenset(getattr(module, "READS_NOTHING", ())),
+    )
+
+
 def extract_connectors(specs, bridge: Path, tracks_dir: Path, scripts_dir: Path) -> dict:
     ids: list[str] = []
     for spec in specs:
         ids += re.findall(r'id:\s*"([a-z_]+\.[a-z_]+)"', read(spec))
-    ids = sorted(set(ids))
+    no_call, reads_nothing = connector_exemptions()
+    ids = sorted(set(ids) - no_call - reads_nothing)
     if not ids:
         return unmeasured("connectors", "no operation id was found in the connector families")
 
