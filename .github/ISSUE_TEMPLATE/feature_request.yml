@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest a new capability or an improvement
+labels: [feature]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem you are trying to solve
+      description: >-
+        The situation that motivates the request. What are you trying to do,
+        and where do you get stuck today? A concrete example carries further
+        than an abstract requirement.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: >-
+        A rough shape is enough; the maintainer refines the design before any
+        implementation. Pseudo-code, a mock-up, or an example invocation all
+        help.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: >-
+        Which workarounds did you try with what exists today (MCP servers,
+        native tools, another LLM backend), and why were they not enough?
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: >-
+        Anything else that helps: a similar feature in another runtime, a
+        related issue, a screenshot of the interaction you want.
+    validations:
+      required: false

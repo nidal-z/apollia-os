@@ -107,8 +107,9 @@ cycle, before anything was published.
 - `--json` and `--quiet` global flags on every command.
 - POSIX exit codes: 0 success, 1 usage, 2 runtime, 3 task failed, 4 timeout,
   5 canceled.
-- End-to-end smoke suite (`tests/cli/cli-e2e.sh`): 271 assertions across a
-  daemon-off phase and a daemon-on phase.
+- End-to-end smoke suite (`tests/cli/cli-e2e.sh`): 296 assertions across the
+  OFFLINE and RUNTIME tracks (167 and 129), plus 7 structural captures in the
+  LLM CAPTURE track, which is gated on a real model.
 
 **SDK**
 
@@ -123,7 +124,8 @@ cycle, before anything was published.
 - Workspace MSRV: Rust 1.89.
 - Cross-compilation hints in `Cross.toml`.
 - `deny.toml` for license, banned crates, and advisory checks.
-- Cargo audit and Cargo deny green at release time.
+- `cargo deny` green at release time (advisories, bans, licenses, sources),
+  on every pull request and again in the weekly deep audit.
 
 **Documentation**
 
@@ -160,9 +162,15 @@ cycle, before anything was published.
 
 ### Security
 
-- No known vulnerabilities at release time (`cargo audit` clean).
-- Documented advisory exceptions in `deny.toml` for transitive dependencies
-  awaiting upstream patches.
+- `cargo deny check advisories` green at release time. There is no
+  `cargo audit` job: `cargo deny` is the single advisory gate.
+- Twenty-two advisories are suspended in `deny.toml`, each with its lift
+  condition. Twenty are unmaintained-crate notices on transitive dependencies;
+  two are pyo3 0.24 soundness advisories, RUSTSEC-2026-0176 (out-of-bounds
+  read) and RUSTSEC-2026-0177 (missing `Sync` bound), whose fix lands in
+  pyo3 0.29. Their exploit paths (`new_closure`, the `nth` iterator adapter)
+  are on no Apollia code path. Lift condition: the pyo3 0.29 migration.
 - Private vulnerability reporting via GitHub Security Advisories.
 
 [Unreleased]: https://github.com/Apollia-OS/apollia-os/commits/main
+[0.1.0-preview]: https://github.com/Apollia-OS/apollia-os/releases/tag/v0.1.0-preview

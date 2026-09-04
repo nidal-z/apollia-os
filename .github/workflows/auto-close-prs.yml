@@ -17,9 +17,9 @@ permissions:
 jobs:
   close:
     # The policy targets external human contributors only. Dependabot and the
-    # github-actions bot are repository tooling, not external contributors: in
-    # July this filter closed 32 Dependabot security PRs because neither bot
-    # login equals the repository owner.
+    # github-actions bot are repository tooling, not external contributors, and
+    # neither bot login equals the repository owner: without the two exclusions
+    # below, the filter closes their pull requests as well.
     if: >
       github.event.pull_request.user.login != github.repository_owner &&
       github.event.pull_request.user.login != 'dependabot[bot]' &&
@@ -42,8 +42,9 @@ jobs:
               "get stuck waiting for a review that will not come.",
               "",
               "If you have a concrete bug or feature idea, please open an issue instead:",
-              "  - Bug: https://github.com/" + owner + "/" + repo + "/issues/new?template=bug_report.md",
-              "  - Feature: https://github.com/" + owner + "/" + repo + "/issues/new?template=feature_request.md",
+              "  - Bug: https://github.com/" + owner + "/" + repo + "/issues/new?template=bug_report.yml",
+              "  - Build failure: https://github.com/" + owner + "/" + repo + "/issues/new?template=build_failure.yml",
+              "  - Feature: https://github.com/" + owner + "/" + repo + "/issues/new?template=feature_request.yml",
               "",
               "For usage questions, please use Discussions Q&A.",
               "",

@@ -1,0 +1,66 @@
+name: Build failure
+description: The build from source does not complete
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Building from source crosses a Rust toolchain, a Python interpreter and
+        the PyO3 bridge between them. Almost every failure is decided by the
+        four versions below, so they come first.
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: Ubuntu 24.04, macOS 15.3, Windows 11 24H2
+    validations:
+      required: true
+
+  - type: input
+    id: rustc
+    attributes:
+      label: Output of `rustc --version` and `cargo --version`
+      description: The workspace declares a minimum supported Rust version of 1.89.
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Output of `python3 --version` and the path it resolves to
+      description: >-
+        The interpreter PyO3 links against. The tree pins 3.13.7 in
+        `.python-version`.
+      placeholder: Python 3.13.7, /usr/local/bin/python3
+    validations:
+      required: true
+
+  - type: input
+    id: command
+    attributes:
+      label: The command you ran
+      placeholder: cargo build --release -p apollia-cli
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: The error, verbatim
+      description: >-
+        The failing crate and the whole error block, not a summary. Re-run the
+        failing command alone if the output is buried in a parallel build.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else about the machine
+      description: >-
+        A non-default C toolchain, a Python from a package manager or a virtual
+        environment, an offline or proxied network, a container.
+    validations:
+      required: false

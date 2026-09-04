@@ -1,0 +1,149 @@
+name: Bug report
+description: Something is not working as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every field marked required is one the maintainer would otherwise have
+        to ask for. Filling them turns three round trips into one.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is broken, in one or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The exact commands or clicks, in order.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Error messages, panics, or unexpected output, verbatim.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `apollia-os doctor --json`
+      description: >-
+        Eight checks in one command: home directory, configuration, governance
+        database, agents database, models directory, Python, sandbox posture,
+        and runtime socket. Paste it whole.
+      render: json
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: Ubuntu 24.04, macOS 15.3, Windows 11 24H2
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Apollia version
+      description: The version string, or the commit hash for a build from source.
+      placeholder: 0.1.0-preview
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      description: >-
+        For a downloaded archive, the preset name is part of the file name.
+      options:
+        - CLI archive, macos-silicon
+        - CLI archive, linux-x86-cpu
+        - CLI archive, linux-x86-vulkan
+        - CLI archive, linux-arm-cpu
+        - CLI archive, windows-x86-cpu
+        - CLI archive, windows-x86-vulkan
+        - Desktop installer, macOS .dmg
+        - Desktop installer, Linux .deb or .AppImage
+        - Desktop installer, Windows .msi or .exe
+        - Built from source
+    validations:
+      required: true
+
+  - type: dropdown
+    id: backend
+    attributes:
+      label: LLM backend in use
+      options:
+        - Embedded llama-server, local GGUF
+        - External OpenAI-compatible server
+        - Anthropic
+        - OpenAI
+        - Google
+        - Mistral
+        - Other, described below
+    validations:
+      required: true
+
+  - type: input
+    id: gguf
+    attributes:
+      label: Model file and quantisation
+      description: >-
+        For a local model, the GGUF file name. Tool calling depends on the chat
+        template the file carries, so a defect is not reproducible without it.
+      placeholder: Qwen3-30B-A3B-Instruct-Q4_K_M.gguf
+    validations:
+      required: false
+
+  - type: input
+    id: hardware
+    attributes:
+      label: GPU, VRAM and RAM
+      description: Required for any report about speed, memory, or a crash under load.
+      placeholder: RTX 4090, 24 GB VRAM, 64 GB RAM
+    validations:
+      required: false
+
+  - type: input
+    id: context
+    attributes:
+      label: Context size configured
+      description: >-
+        The total context and the number of parallel slots, if you changed
+        either one. The usable context per conversation is the total divided by
+        the slots.
+      placeholder: CTX=65536, NP=1
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Run again with `RUST_LOG=debug` for more detail.
+      render: text
+    validations:
+      required: false

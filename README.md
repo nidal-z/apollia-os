@@ -8,7 +8,6 @@ Local-first. No cloud dependency. Sovereign by design.
 
 [![CI](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml/badge.svg)](https://github.com/Apollia-OS/apollia-os/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Apollia-OS/apollia-os/badge)](https://scorecard.dev/viewer/?uri=github.com/Apollia-OS/apollia-os)
 
 ---
 
@@ -20,6 +19,11 @@ The best model alone does not make a reliable agent. What decides the result is 
 - **Auditable** - every action is recorded, so you can prove what an agent did.
 - **Cost-bounded** - a step budget enforced by the runtime, never bypassable.
 - **As powerful as you want** - a local model by default, any model you choose on demand.
+
+![The audit trail of the desktop application: every tool call an agent made, with its agent, duration and status](docs/site/static/img/operator-help/observabilite-consulter-l-audit-trail-1.png)
+
+*The audit trail. Every tool an agent invoked, immutable, with the agent that
+invoked it and what it cost.*
 
 Learn more at [apollia.fr](https://apollia.fr).
 
@@ -33,7 +37,7 @@ Sovereign means self-contained, not feature-poor. The runtime is a single binary
 
 **Key capabilities:**
 
-- **Local-first LLM inference** - run GGUF models on CPU or Apple Silicon Metal GPU, or connect to Anthropic / OpenAI-compatible / Vertex APIs
+- **Local-first LLM inference** - run GGUF models locally through the embedded `llama-server` (CPU, Metal, Vulkan, CUDA depending on the platform), or connect to Anthropic / OpenAI-compatible APIs
 - **Persistent memory** - three-tier SQLite store (episodic, semantic, procedural) with FTS5 full-text search per agent
 - **Native tools** - bash (Linux PID/mount namespaces), path-confined file I/O, Python execution with per-agent venv isolation, HTTP fetch, web search, and more
 - **Step budget** - `max_steps` / `max_tool_calls` / wall-clock timeout enforced at the runtime level, not bypassable by agent code
@@ -41,19 +45,41 @@ Sovereign means self-contained, not feature-poor. The runtime is a single binary
 - **Triggers** - cron, interval, oneshot, file watch, and authenticated webhooks (HMAC-SHA256)
 - **Multi-agent orchestration** - directors coordinate specialized workers over the A2A skill protocol, with human-in-the-loop suspension and resume
 - **Human-in-the-Loop (HITL)** - any tool can require human approval before execution; the runtime suspends and resumes transparently
-- **Desktop app** - native Tauri v2 + Svelte 5 UI with live SSE dashboards for all subsystems
+- **Desktop app** - native Tauri v2 + Svelte 5 UI, kept live for every subsystem by the Tauri event bus
 - **REST API + CLI** - full management via the `apollia-os` CLI or HTTP on `127.0.0.1:7771`
 
 ---
 
-## Quickstart
+## Install
 
-Apollia publishes no package on crates.io or PyPI yet, so you build it from a
-checkout. This sequence takes you from a clean clone to a running agent.
-The demo `echo` agent needs no model, so it runs on any machine. Run every command
-from the repository root.
+Three ways in, and most people want the first.
 
-**Prerequisites:** a Rust toolchain (stable), Python 3.12+ available as `python3`, and `git`.
+**Install the desktop application.** Installers are attached to each GitHub
+release: a `.dmg` for macOS Apple Silicon, an `.msi` or `.exe` for Windows
+x86-64, an `.AppImage` or `.deb` for Linux x86-64, plus CUDA-engine variants for
+Linux and Windows. No compiler, no checkout, no command line. The step by step,
+including the checksum verification and the first-launch warnings, is in
+[Install the desktop app](docs/site/docs/how-to/install-the-desktop-app.md).
+
+**Install the command-line runtime.** The same releases attach a self-contained
+archive per platform preset (`apollia-os-macos-silicon.tar.gz`,
+`apollia-os-linux-x86-cpu.tar.gz`, `apollia-os-windows-x86-cpu.zip`, and their
+Vulkan and Linux ARM counterparts). Unpack it, put `apollia-os` on your `PATH`,
+and `apollia-os update` handles later versions from the same feed.
+
+Apollia publishes no package on crates.io or PyPI, so the third way in is a
+source build, described below.
+
+---
+
+## Quickstart from source
+
+This sequence takes you from a clean clone to a running agent. The demo `echo`
+agent needs no model, so it runs on any machine. Run every command from the
+repository root.
+
+**Prerequisites:** a Rust toolchain (stable), Python 3.13 available as `python3`
+(the checkout pins the exact version in `.python-version`), and `git`.
 
 ```bash
 # 1. Clone and build the daemon.
@@ -67,7 +93,10 @@ cargo build -p apollia-cli --release
 #    The crate is `apollia-cli` but the binary it produces is `apollia-os`.
 export PATH="$PWD/target/release:$PATH"
 
-# 3. Install the Python SDK into the same interpreter the runtime embeds.
+# 3. Install the Python SDK for your own shell: editors, tests, and the
+#    `apollia` command. From this checkout the runtime does NOT read this venv:
+#    it walks up from the binary until it finds `sdk/apollia/__init__.py` and
+#    prepends that directory to the agent's `sys.path`.
 #    Use a virtual environment. Homebrew, Debian and Fedora ship Python as an
 #    externally managed environment (PEP 668), where a bare `pip install` stops
 #    with `error: externally-managed-environment`.
@@ -80,6 +109,10 @@ pip install -e ./sdk
 apollia-os start --port 7771
 
 # --- in a second terminal, from the same directory ---
+
+# A fresh shell inherits neither the PATH of step 2 nor the venv of step 3.
+export PATH="$PWD/target/release:$PATH"
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
 # 5. Install, enable, and run the no-LLM demo agent.
 apollia-os agent install clients/examples/echo_agent.py --skip-tests
@@ -153,16 +186,23 @@ Full architecture documentation: [the arc42 architecture section](docs/site/docs
 
 ## Platform Support
 
-Apollia supports three platforms. The local inference engine is the upstream
-`llama-server` binary, pinned and checksum-verified, so each platform gets the
-GPU backends upstream publishes for it.
+Apollia runs on three operating systems, over the four platform couples the
+release pipeline actually builds (`packaging/artifacts.json` is the contract).
+The local inference engine is the upstream `llama-server` binary, pinned and
+checksum-verified; the release stages the backend upstream publishes for each
+couple, and builds the CUDA engine itself for the two desktop bundles that carry
+one.
 
 | Platform | Local inference | Tool sandbox | Notes |
 |----------|-----------------|--------------|-------|
-| macOS Apple Silicon | Metal, CPU | `setrlimit` | No Xcode required |
-| Linux x86_64 | Vulkan, ROCm, CPU | PID + mount namespaces, `setrlimit` | Strongest isolation of the three |
-| Windows x86_64 | CUDA, Vulkan, CPU | none | `bash_executor` needs a POSIX shell on `PATH` (Git Bash, WSL or MSYS2) |
-| macOS Intel | CPU | `setrlimit` | Builds, not explicitly tested |
+| macOS Apple Silicon | Metal | `setrlimit` | Desktop `.dmg` and CLI archive |
+| Linux x86_64 | Vulkan, CPU, plus CUDA in a separate desktop bundle | PID + mount namespaces, `setrlimit` | Strongest isolation of the four |
+| Windows x86_64 | Vulkan, CPU, plus CUDA in a separate desktop bundle | none | `bash_executor` needs a POSIX shell on `PATH` (Git Bash, WSL or MSYS2) |
+| Linux aarch64 | CPU | PID + mount namespaces, `setrlimit` | CLI archive only, no desktop bundle |
+
+Not built for 0.1.0: macOS Intel (`x86_64-apple-darwin`), Windows ARM64, and the
+AMD ROCm engine. `apollia-os update` says so for the first: it has no artifact to
+offer a macOS x86-64 host.
 
 Two asymmetries are worth stating rather than discovering. Tool subprocesses get
 OS-level confinement only where the OS provides it: namespaces and resource
@@ -170,8 +210,10 @@ limits on Linux, resource limits on macOS, neither on Windows. And the shell too
 assumes POSIX semantics, because the command validator that guards it was written
 for them; on Windows it uses a POSIX shell from `PATH` and refuses clearly if
 there is none, instead of silently switching to a shell with different quoting
-and a different injection surface. `apollia-os doctor` reports what your host
-actually provides.
+and a different injection surface. `apollia-os doctor` reports the sandbox
+posture it detects and whether per-process rlimits are active; it does not probe
+for the POSIX shell, so on Windows the first `bash_executor` call is what tells
+you whether one is there.
 
 ---
 
@@ -181,6 +223,11 @@ The `apollia-os` binary talks to Anthropic, OpenAI, Mistral, Ollama and any
 other OpenAI-compatible endpoint (LM Studio, vLLM, a self-hosted gateway), and
 serves local GGUF models through an embedded `llama-server` (upstream
 llama.cpp) that the daemon spawns and supervises.
+
+Google Vertex AI is the exception to that list. Its backend exists and the
+router loads it, but `--provider` has no `vertex` value, so it is configured from
+`apollia.toml` alone, in a `[llm.vertex]` section authenticated by Application
+Default Credentials. It does not stream.
 
 Ollama needs no API key and runs anywhere you can reach over HTTP, including
 another machine on your network:
@@ -212,7 +259,7 @@ default = "anthropic"
 name        = "anthropic"
 type        = "api"
 provider    = "anthropic"
-model       = "claude-haiku-4-5-20251001"
+model       = "claude-haiku-4-5"
 api_url     = "https://api.anthropic.com"
 api_key_env = "ANTHROPIC_API_KEY"
 ```
@@ -359,7 +406,7 @@ status. The current set:
 | Shell / code | `bash_executor`, `python_executor` |
 | Files | `file_read`, `file_write`, `file_list`, `file_edit`, `file_glob`, `file_grep` |
 | Notebooks | `notebook_read`, `notebook_edit` |
-| Web | `http_fetch`, `web_search` |
+| Web | `http_fetch`, `web_search`, `web_read` |
 | Memory | `memory_search` |
 | Permissions | `permission_rule_add`, `permission_rule_list`, `permission_rule_remove` |
 | Human input | `ask_user` |
@@ -376,13 +423,14 @@ downloaded models) lives separately under `~/.apollia/`. Paths in the file suppo
 `~` expansion.
 
 The recognized top-level sections are `[llm]`, `[runtime]`, `[tools]`, `[api]`,
-`[hitl]`, `[mcp]`, `[hooks]`, and `[chat]`. Any other section is rejected by
-`config set`, and a file that still carries one logs a warning at startup rather
-than dropping it silently.
+`[hitl]`, `[mcp]`, `[hooks]`, `[chat]`, and `[filesystem]`. Any other section is
+rejected by `config set`, and a file that still carries one logs a warning at
+startup rather than dropping it silently.
 
-`[memory]`, `[budget]`, `[a2a]`, `[oria]`, `[registry]`, `[permissions]`, and
-`[filesystem]` used to be accepted and are not. Each deserialized into a
-structure nothing consulted, so a value written there never had an effect.
+`[memory]`, `[budget]`, `[a2a]`, `[oria]`, `[registry]` and `[permissions]` used
+to be accepted and are not. `[memory]` and `[budget]` never had a field to
+deserialize into at all; the other four did, and that structure was then never
+consulted, so a value written in any of the six never had an effect.
 `[permissions]` is the one worth naming, since it reads as though it governs
 something: the governance path that does run is the prefix-rule engine, and it
 takes nothing from this file.
@@ -410,7 +458,7 @@ Triggers fire tasks automatically on a schedule or an external event. They are
 managed through the CLI (and the desktop app), which persists them:
 
 ```bash
-apollia-os trigger create daily-report --agent reporter --kind schedule --detail '0 9 * * *'
+apollia-os trigger create daily-report --agent reporter --kind cron --detail '0 9 * * *'
 apollia-os trigger list
 apollia-os trigger fire daily-report
 apollia-os trigger enable daily-report
@@ -422,19 +470,31 @@ apollia-os trigger reload
 
 A webhook trigger authenticates with an HMAC-SHA256 signature. Call
 `POST http://127.0.0.1:7771/webhooks/<trigger-id>` with header
-`X-Apollia-Signature: <hmac-sha256>`.
+`X-Apollia-Signature: sha256=<hex-digest>`. The `sha256=` prefix is part of the
+value: without it the runtime answers 401.
 
 ---
 
 ## Human-in-the-Loop (HITL)
 
-Declare sensitive tools in `tools_requiring_approval`. The runtime suspends the task before execution and waits for a human decision:
+A tool named in the agent manifest's `tools_requiring_approval` suspends the task
+before that tool runs and waits for a human decision. The gate is enforced on the
+orchestrated path, step by step, before ORIA executes a step whose tool is in the
+list, plus on `mailbox:send` wherever it is called.
 
-```python
-@agent(name="reviewer", version="0.1.0", description="Reviews and edits code.")
-class Reviewer:
-    # ... tools_requiring_approval declared in the @agent manifest ...
-    ...
+Set it in the manifest, not in Python: the `@agent` decorator has no
+`tools_requiring_approval` parameter today, so the field is written in the
+`manifest.json` of an agent package and read from there by the runtime.
+`apollia-os agent validate` echoes back what it found, which is the way to check
+that the declaration took.
+
+```json
+{
+  "name": "reviewer",
+  "version": "0.1.0",
+  "description": "Reviews and edits code.",
+  "tools_requiring_approval": ["bash_executor", "file_write"]
+}
 ```
 
 Approve or reject from the CLI:
@@ -480,17 +540,24 @@ For the threat model, scope, and private reporting, see [SECURITY.md](SECURITY.m
 
 ## Desktop App
 
-The Tauri v2 + Svelte 5 desktop application provides a native UI for all runtime subsystems. Build the UI once, then launch it (requires the `cargo tauri` CLI):
+The Tauri v2 + Svelte 5 desktop application provides a native UI for all runtime subsystems. Build the UI once, then launch it through the repository recipe (requires the `cargo tauri` CLI):
 
 ```bash
 just desktop-ui-install          # npm ci in crates/apollia-desktop/ui
-cd crates/apollia-desktop
-cargo tauri dev
+just desktop-dev                 # links PyO3 against the bundled interpreter, then `cargo tauri dev`
 ```
 
-**Main routes:** Dashboard · Agents · Tasks · Chat · Approvals · LLM · Automations · Memory · Notifications · Observability · Settings
+Use the recipe rather than `cargo tauri dev` on its own. `just desktop-dev`
+first points `PYO3_PYTHON` and `RUSTFLAGS` at the interpreter bundle under
+`target/`, which is the one the application sets `PYTHONHOME` to at run time.
+Without that step the two interpreters differ, every agent dies at boot on
+`ModuleNotFoundError`, and the failure surfaces only as a warning nobody reads.
+The recipe needs that bundle to exist: build it once with
+`bash packaging/build-python-bundle.sh <target-triple> target/python-bundle/<target-triple>`.
 
-All views update in real time via SSE streams. The system tray shows the pending approval count and supports graceful quit.
+**Main routes:** Dashboard · Agents · Projects · Tasks · Chat · Inbox · Connections · LLM · Automations · Memory · Transcriptions · Notifications · Observability · Settings
+
+Views update in real time over the Tauri event bus, not over SSE; the HTTP API is where SSE lives, on `GET /api/v1/tasks/{id}/stream`. The system tray shows the pending approval count and supports graceful quit.
 
 **Updates.** Releases are published on [GitHub Releases](https://github.com/Apollia-OS/apollia-os/releases). The desktop app checks that feed only when you ask it to, from Settings, and never in the background. Until a release is published the check reports that there is nothing newer, rather than failing.
 
@@ -527,7 +594,7 @@ All views update in real time via SSE streams. The system tray shows the pending
 
 **Global flags:** `--json` (machine output) · `-q/--quiet` · `-v/--verbose` · `--debug` · `--socket <path>`
 
-**Exit codes:** `0` success · `1` usage error · `2` runtime error · `3` task failed · `4` timeout · `5` canceled
+**Exit codes:** `0` success · `1` usage error · `2` runtime error · `3` task failed · `4` timeout · `5` interrupted (`start` stopped by Ctrl+C)
 
 Every flag on every command is in the [CLI reference](docs/site/docs/reference/cli/).
 
@@ -552,7 +619,7 @@ crates/
   apollia-permissions/   # Permissions engine (safelist, injection detection)
   apollia-workspace/     # Workspace inspection and initialization
   apollia-auth/          # OAuth2 PKCE authentication
-  apollia-connectors/    # Google / Microsoft / Notion / Slack connectors
+  apollia-connectors/    # Native SaaS connectors (Google Workspace, Microsoft 365)
   apollia-prompts/       # Unified prompt corpus
   apollia-eval/          # Evaluation harness
   apollia-cli/           # CLI binary (clap v4, produces the `apollia-os` binary)
@@ -574,8 +641,8 @@ welcome, pull requests are auto-closed by policy.** See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the full rationale and the right
 channel for each kind of feedback.
 
-- Found a bug? [Open an issue](https://github.com/Apollia-OS/apollia-os/issues/new?template=bug_report.md).
-- Have a feature idea? [Open an issue](https://github.com/Apollia-OS/apollia-os/issues/new?template=feature_request.md).
+- Found a bug? [Open an issue](https://github.com/Apollia-OS/apollia-os/issues/new?template=bug_report.yml).
+- Have a feature idea? [Open an issue](https://github.com/Apollia-OS/apollia-os/issues/new?template=feature_request.yml).
 - Usage question? [Discussions Q&A](https://github.com/Apollia-OS/apollia-os/discussions/categories/q-a).
 - Security vulnerability? [Private advisory](https://github.com/Apollia-OS/apollia-os/security/advisories/new).
 
@@ -590,10 +657,12 @@ work going.
 
 - **[Patreon](https://patreon.com/apollia)** - recurring support, with patron-only
   development updates and a vote on what ships next.
-- **[GitHub Sponsors](https://github.com/sponsors/Apollia-OS)** - the same idea
-  with zero platform fees, billed through GitHub.
 - **[Ko-fi](https://ko-fi.com/apollia)** - a one-time tip, no account or
   subscription required.
+
+GitHub Sponsors is not open yet: the organisation has no Sponsors profile, so
+the button GitHub renders from `.github/FUNDING.yml` leads nowhere. This list
+gains the rail when the profile goes live.
 
 Funding goes straight into the work: cross-platform CI, vision support, and the
 foundations for distributing community agents. Supporters are listed in

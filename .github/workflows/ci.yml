@@ -1,11 +1,11 @@
-# CI - validation continue.
+# CI, continuous validation.
 #
 # Runs on every push to main and every PR. Goal: keep main green, and catch
 # the regressions within 15 min of feedback.
 #
 # What is NOT here:
 #   - Build and release artifacts -> release.yml (on a v* tag)
-#   - E2E desktop, compile-cuda sanity, coverage profonde → nightly.yml
+#   - E2E desktop, compile-cuda sanity, deep coverage -> nightly.yml
 
 name: CI
 
@@ -25,7 +25,8 @@ env:
   # coverage harness: the Tauri crate needs bundled frontend resources, the e2e
   # crate does not compile standalone) and with tests/ + benches/ ignored. The
   # floor sits just below the baseline so the gate is green today, then ratchets
-  # up. Restoring the two excluded crates is a tracked backlog item.
+  # up. The floor is read against that reduced scope for as long as the two
+  # excluded crates do not build under the harness.
   COVERAGE_FLOOR: "70"
 
 # Cancels the runs in flight on the same ref when a newer push arrives.
@@ -33,8 +34,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Least-privilege default. Only the docs deploy job escalates (pages,
-# id-token) to publish; every other job runs read-only.
+# Least-privilege default, and no job departs from it: nothing here deploys.
+# The documentation site is built by the docs-build job and published by the
+# hosting provider, so no `pages` or `id-token` escalation is needed.
 permissions:
   contents: read
 
@@ -752,9 +754,10 @@ jobs:
       - run: python3 scripts/check_claims.py
 
   # ── Link check : catches broken local doc links (offline, no external flake) ─
-  # Scope: the four root files only. Links under docs/site are routes the
-  # Docusaurus build resolves at render time, so their judge is the docs-build
-  # job below (onBrokenLinks: throw), not a file-level checker.
+  # Scope: every public file a visitor reads before the code, root files and
+  # `.github/` alike. Links under docs/site are routes the Docusaurus build
+  # resolves at render time, so their judge is the docs-build job below
+  # (onBrokenLinks: throw), not a file-level checker.
   links:
     name: Doc Link Check
     runs-on: ubuntu-latest
@@ -762,7 +765,25 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
-          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md"
+          args: "--offline --no-progress README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md CHANGELOG.md SPONSORS.md .github/CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/SUPPORT.md .github/FUNDING.yml .github/ISSUE_TEMPLATE"
+          fail: true
+
+  # ── Link check, online : the half `--offline` cannot see ──────────────────
+  # The offline job above resolves relative paths and skips every URL, so an
+  # external target that answers 404 passes it unseen. This job contacts them.
+  # Advisory on purpose: a third-party host that is down for five minutes must
+  # not turn main red, so the verdict is read, not blocked on.
+  links-online:
+    name: Doc Link Check, online (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: "--no-progress --max-retries 2 README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md CHANGELOG.md SPONSORS.md .github/CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/SUPPORT.md .github/FUNDING.yml .github/ISSUE_TEMPLATE"
           fail: true
 
   # ── Docs build : Docusaurus build on every PR (onBrokenLinks: throw) ───────

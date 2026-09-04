@@ -1,3 +1,11 @@
+# Dependency updates for a single maintainer.
+#
+# The lever that matters here is not the schedule, it is the grouping. Ungrouped,
+# the four ecosystems below can open thirty pull requests in one Monday morning
+# (10 + 5 + 10 and the default 5 on github-actions), which is a week of review
+# for one person. Grouped, each ecosystem opens one pull request per week for its
+# minor and patch bumps; a major version still arrives on its own, because that
+# is the one that needs reading.
 version: 2
 
 updates:
@@ -6,7 +14,14 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
+    groups:
+      cargo-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     labels:
       - dependencies
       - rust
@@ -16,7 +31,14 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    groups:
+      pip-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     labels:
       - dependencies
       - python
@@ -26,7 +48,14 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
+    groups:
+      npm-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     labels:
       - dependencies
       - frontend
@@ -35,6 +64,11 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     labels:
       - dependencies
       - ci

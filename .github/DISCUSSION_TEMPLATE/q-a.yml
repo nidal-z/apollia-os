@@ -1,0 +1,41 @@
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a defect, open a bug report instead: an issue can be tracked and
+        closed, a discussion cannot.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do
+      description: The goal, not only the command that failed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you have tried
+      description: >-
+        The commands or settings you went through, and what each one did.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Apollia version and platform
+      placeholder: 0.1.0-preview, macOS 15.3
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `apollia-os doctor --json`
+      description: Optional, but it answers half the questions on its own.
+      render: json
+    validations:
+      required: false

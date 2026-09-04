@@ -4,12 +4,15 @@
 # dispatch to test without bumping the version.
 #
 # Produces, in parallel:
-#   1. 13 self-contained CLI binaries (Python plus static CRT bundled)
+#   1. Six self-contained CLI archives (Python plus static CRT bundled), one
+#      per preset of the FULL matrix in the `setup` job below
 #      -> one tarball/zip per OS x arch x accelerator preset
-#   2. Desktop installers (Tauri 2), one job per OS:
-#        macOS ARM64  : .dmg
-#        Linux x86_64 : .deb + .AppImage
-#        Windows x86_64 : .msi + .exe (NSIS)
+#   2. Desktop installers (Tauri 2), five jobs:
+#        macOS ARM64         : .dmg
+#        Linux x86_64        : .deb + .AppImage
+#        Windows x86_64      : .msi + .exe (NSIS)
+#        Linux x86_64 CUDA   : .deb + .AppImage
+#        Windows x86_64 CUDA : .msi + .exe (NSIS)
 #      Every desktop job embeds the same Python bundle (PyO3) as the CLI job.
 #
 # The final `release` job aggregates everything into a draft GitHub Release
@@ -1788,9 +1791,28 @@ jobs:
             artifacts/*.cdx.json
             artifacts/*.spdx.json
 
+      # The draft body is the CHANGELOG.md section that matches the tag, so the
+      # release says what changed rather than dumping a commit list.
+      # `generate_release_notes` still appends GitHub's own summary underneath.
+      - name: Build the release body from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { inside = 1; next }
+            inside && /^## \[/ { exit }
+            inside { print }
+          ' CHANGELOG.md > RELEASE_BODY.md
+          if [ ! -s RELEASE_BODY.md ]; then
+            echo "::warning::CHANGELOG.md carries no section for ${version}; \
+                  the whole file becomes the body"
+            cp CHANGELOG.md RELEASE_BODY.md
+          fi
+          echo "release body: $(wc -l < RELEASE_BODY.md) line(s)"
+
       - name: Create release draft
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
+          body_path: RELEASE_BODY.md
           files: |
             artifacts/*.tar.gz
             artifacts/*.tar.gz.sha256

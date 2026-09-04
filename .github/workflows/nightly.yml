@@ -1,6 +1,10 @@
-# Nightly - the heavy checks that do not fit in the PR loop (under 15 min).
+# The heavy checks that do not fit in the PR loop (under 15 min).
 #
-# Tourne :
+# The cadence is weekly, not nightly: the file keeps its historical name
+# because GOVERNANCE.md and the agents corpus link it by path, and the schedule
+# below is the authority on when it runs.
+#
+# Runs:
 #   - cron: every Monday at 06:00 UTC (once a week, which is enough)
 #   - workflow_dispatch: manual trigger, to validate on demand
 #
@@ -10,7 +14,7 @@
 #   - cli-e2e-runtime     : CLI suite Tracks 1 and 2, daemon on a seeded throwaway HOME
 #   - multirunner-cpu-e2e : daemon plus CPU sidecar runner on the 3 OSes
 #   - feature-matrix      : sanity check of the GPU features on apollia-llm/stt
-#   - coverage            : rapport coverage HTML/LCOV (heavy)
+#   - coverage            : HTML/LCOV coverage report (heavy)
 #   - mutants             : cargo-mutants on permissions plus core (advisory)
 #   - deep-audit          : cargo-deny check all, with the advisory DB reloaded
 #   - geiger              : cargo-geiger report of the unsafe surface (advisory)
@@ -21,7 +25,7 @@
 #
 # When a job fails: a GH mail alert, but main stays green (no PR is blocked).
 
-name: Nightly
+name: Weekly deep checks
 
 on:
   schedule:
