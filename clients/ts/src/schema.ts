@@ -2873,7 +2873,14 @@ export interface components {
          *     the event type and additional data fields depending on the variant.
          */
         SseTaskEvent: Record<string, never> & {
-            /** @description Event type: "step", "tool_call", "completed", "failed", "canceled", "started". */
+            /**
+             * @description Event type. The seventeen values this stream emits, and no others:
+             *     "started", "completed", "failed", "canceled",
+             *     "plan_generated", "plan_approval_required", "plan_approved",
+             *     "plan_rejected", "plan_abandoned", "step_started", "step_completed",
+             *     "step_failed", "replanning", "plan_completed", "plan_failed",
+             *     "input_required", "resumed".
+             */
             event: string;
         };
         /** @description Request body for `POST /api/v1/agents`. */

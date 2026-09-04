@@ -11,10 +11,58 @@
 //!
 //! Stability: `/api/v1` is a versioned, stable contract. A breaking change ships
 //! as `/api/v2`; `v1` is never mutated in an incompatible way.
+//!
+//! `info.version` is deliberately not written here. `utoipa` fills it from
+//! `CARGO_PKG_VERSION`, so the document carries the version of the runtime that
+//! serves it. It used to be pinned to the literal `1.0.0` while every other
+//! surface of the product read `0.1.0-preview`, and an integrator reading the
+//! reference took a stability guarantee nobody had given. The path prefix, not
+//! this field, is what carries the contract's compatibility promise.
 
 use axum::Json;
 use serde::Serialize;
-use utoipa::{OpenApi, ToSchema};
+use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
+use utoipa::{Modify, OpenApi, ToSchema};
+
+/// Name of the single security scheme the contract declares.
+///
+/// Generated clients derive an identifier from this string, so it is part of
+/// the published surface and is not renamed without regenerating them.
+const BEARER_SCHEME: &str = "bearerAuth";
+
+/// Declares the Bearer token the TCP listener enforces.
+///
+/// `utoipa` builds the document from the handler annotations, which say nothing
+/// about authentication; this modifier is where the transport-level rule of
+/// `crates/apollia-runtime/src/api/middleware.rs` enters the spec. Without it
+/// the document describes an API that needs no credential, which is what every
+/// generated client and the published reference then say.
+struct BearerToken;
+
+impl Modify for BearerToken {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            BEARER_SCHEME,
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .description(Some(
+                        "Token read from `<data_dir>/api-token`, generated on first start \
+                         and sent as `Authorization: Bearer <token>`. Enforced on the TCP \
+                         listener by `TokenAuthLayer`, on every route except \
+                         `POST /webhooks/{id}`, which authenticates its caller with an \
+                         HMAC-SHA256 signature instead. Requests arriving on the Unix \
+                         socket bypass the check: the socket file is mode 0600, so its \
+                         permissions carry the same rule. Setting `[api] require_token = \
+                         false` in `apollia.toml` removes the layer from the TCP listener \
+                         altogether.",
+                    ))
+                    .build(),
+            ),
+        );
+    }
+}
 
 /// Canonical error body for every non-2xx response in the spec.
 ///
@@ -27,13 +75,18 @@ pub struct ApiErrorBody {
 }
 
 /// The generated OpenAPI document for the `/api/v1` driving contract.
+///
+/// The document-level `security` applies [`BearerToken`] to every operation.
+/// One operation opts out, `POST /webhooks/{id}`, and does so at its own
+/// annotation.
 #[derive(OpenApi)]
 #[openapi(
     info(
         title = "Apollia OS Runtime API",
-        version = "1.0.0",
         description = "Host driving contract for the Apollia OS sovereign agent runtime. Stable under /api/v1; breaking changes ship under /api/v2."
     ),
+    modifiers(&BearerToken),
+    security(("bearerAuth" = [])),
     tags(
         (name = "health", description = "Liveness and lifecycle"),
         (name = "tasks", description = "Submit and drive autonomous agent tasks"),
@@ -304,5 +357,60 @@ mod tests {
             "spec is missing InjectMessageBody"
         );
         assert!(json.contains("Apollia OS Runtime API"));
+    }
+
+    #[test]
+    fn openapi_doc_declares_the_bearer_token_the_tcp_listener_enforces() {
+        // GIVEN the generated OpenAPI document, read as the JSON a client sees
+        let json = ApiDoc::openapi()
+            .to_json()
+            .expect("openapi document must serialize");
+        let doc: serde_json::Value =
+            serde_json::from_str(&json).expect("the serialized document must parse");
+
+        // WHEN its security surface is read
+        let scheme = &doc["components"]["securitySchemes"][BEARER_SCHEME];
+        let global = doc["security"]
+            .as_array()
+            .expect("the document must carry a global security requirement");
+        let mut opted_out: Vec<String> = doc["paths"]
+            .as_object()
+            .expect("the document must carry a path map")
+            .iter()
+            .flat_map(|(path, item)| {
+                item.as_object()
+                    .expect("a path item is a map of operations")
+                    .iter()
+                    .filter(|(_, op)| op.get("security").is_some())
+                    .map(move |(verb, _)| format!("{} {path}", verb.to_uppercase()))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        opted_out.sort();
+
+        // THEN the scheme is HTTP bearer and every operation requires it
+        assert_eq!(scheme["type"], "http", "the scheme must be HTTP auth");
+        assert_eq!(scheme["scheme"], "bearer", "the scheme must be bearer");
+        assert_eq!(global.len(), 1, "one document-level requirement, no more");
+        assert!(
+            global[0].get(BEARER_SCHEME).is_some(),
+            "the document-level requirement must name the bearer scheme"
+        );
+
+        // THEN the HMAC-authenticated webhook route, and it alone, opts out
+        assert_eq!(opted_out, vec!["POST /webhooks/{id}".to_owned()]);
+    }
+
+    #[test]
+    fn openapi_doc_carries_the_runtime_version_not_a_pinned_one() {
+        // GIVEN the generated OpenAPI document
+        let doc = ApiDoc::openapi();
+
+        // WHEN its declared version is read
+        let version = doc.info.version.as_str();
+
+        // THEN it is the version of the crate that serves it
+        assert_eq!(version, env!("CARGO_PKG_VERSION"));
+        assert_ne!(version, "1.0.0", "the spec must not promise a 1.0 contract");
     }
 }

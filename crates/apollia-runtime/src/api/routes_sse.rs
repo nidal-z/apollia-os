@@ -26,8 +26,12 @@ use crate::coordinator::ExecutionBackend;
 /// the event type and additional data fields depending on the variant.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SseTaskEvent {
-    /// Event type: "tool_call", "completed", "failed", "canceled", "started",
-    /// "plan", "step_started", "step_completed", "step_failed".
+    /// Event type. The seventeen values this stream emits, and no others:
+    /// "started", "completed", "failed", "canceled",
+    /// "plan_generated", "plan_approval_required", "plan_approved",
+    /// "plan_rejected", "plan_abandoned", "step_started", "step_completed",
+    /// "step_failed", "replanning", "plan_completed", "plan_failed",
+    /// "input_required", "resumed".
     pub event: String,
     /// Additional event data (flattened into the top-level JSON object).
     #[serde(flatten)]

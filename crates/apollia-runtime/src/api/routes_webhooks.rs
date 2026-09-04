@@ -33,6 +33,11 @@ use crate::coordinator::ExecutionBackend;
     path = "/webhooks/{id}",
     tag = "webhooks",
     params(("id" = String, Path, description = "Webhook trigger id")),
+    // The one operation outside the document-level Bearer requirement. An
+    // outside sender has no API token, so `TokenAuthLayer` lets this path
+    // through and the handler below authenticates the caller itself, with an
+    // HMAC-SHA256 of the raw body under the per-trigger secret.
+    security(()),
     request_body(content_type = "application/octet-stream", description = "Raw webhook payload, verified against the `X-Apollia-Signature` HMAC-SHA256 header"),
     responses(
         (status = 200, description = "Webhook accepted and forwarded"),

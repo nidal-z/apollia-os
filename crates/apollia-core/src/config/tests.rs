@@ -904,7 +904,7 @@ fn test_api_port_doc_states_no_loader_reads_it() {
     // WHEN that doc block is read
     // THEN it states that nothing reads the key, and names what does decide
     assert!(
-        doc.contains("Nothing reads this key"),
+        doc.contains("Read by neither loader"),
         "the port doc block does not say the key is unread: {doc}"
     );
     assert!(
