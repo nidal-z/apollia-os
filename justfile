@@ -509,6 +509,22 @@ audit-deps:
 guards:
     #!/usr/bin/env bash
     set -uo pipefail
+    # Five guards below interrogate the real binary rather than the source:
+    # check_cli_e2e_coverage, check_cli_json_contract and its taxonomy,
+    # check_entry_doc_commands, and check_instrument_verdicts. Nothing else in
+    # this recipe rebuilds it, so on a tree where crates/apollia-cli moved and
+    # nobody ran cargo, they judge an executable that is no longer the one the
+    # repository describes. Measured on 2026-09-04: a binary forty minutes
+    # behind its sources turned check_instrument_verdicts red and left four
+    # others with nothing to measure, which reads as a broken tree rather than
+    # a stale artefact. Building first costs a fraction of a second when the
+    # binary is current, and is the only way the five below judge this tree.
+    printf '== build target/debug/apollia-os\n'
+    if ! cargo build -p apollia-cli --bin apollia-os; then
+      printf '== FAIL the binary five guards judge could not be built;\n'
+      printf '        their verdicts below say nothing about this tree\n'
+      exit 1
+    fi
     # Named one by one rather than globbed: the crossing carried by
     # scripts/check_selftest.py looks for each guard's basename inside the
     # files that declare a boundary, and a glob would name none of them.
