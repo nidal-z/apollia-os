@@ -20,6 +20,10 @@ description = "Python SDK for Apollia OS agent development"
 # "Python 3.12+" prerequisite refers to.
 requires-python = ">=3.10"
 license = "MIT OR Apache-2.0"
+# The wheel declared the expression and carried the text of neither: a
+# `license-files` glob cannot climb out of the package root, so the two
+# files are copied here rather than referenced at ../.
+license-files = ["LICENSE-APACHE", "LICENSE-MIT"]
 authors = [{name = "Nidal Zoumita", email = "admin@apollia.fr"}]
 dependencies = []
 

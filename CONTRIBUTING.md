@@ -26,6 +26,10 @@ Good reproduction steps are the single most valuable thing you can give.
 
 Open an issue using the
 [feature request template](https://github.com/Apollia-OS/apollia-os/issues/new?template=feature_request.yml).
+
+A build that fails on your machine goes through the
+[build failure template](https://github.com/Apollia-OS/apollia-os/issues/new?template=build_failure.yml),
+which asks for the preset, the toolchain and the output the build stopped on.
 Describe the problem you are trying to solve, not just the solution you have
 in mind. The maintainer may refine the shape before any work happens.
 
