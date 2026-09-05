@@ -8,6 +8,7 @@ use apollia_core::{McpHealth, SandboxProfile};
 use apollia_tools::descriptor::{McpTransport, ToolDescriptor, ToolKind};
 use apollia_tools::registry::ToolRegistryHandle;
 
+use crate::config::McpServerConfig;
 use crate::manager::{
     McpClientManager, McpServerConfigView, McpServerDetail, McpServerStatus, McpToolSummary,
 };
@@ -88,6 +89,7 @@ pub(super) async fn register_session_tools_in_registry(
         let mut tool_tags = vec!["mcp".to_string(), server_name.to_string()];
         tool_tags.extend(tags.iter().cloned());
 
+        let (server_url, transport) = descriptor_endpoint(session.config(), server_name);
         let descriptor = ToolDescriptor {
             name: format!("mcp:{}/{}", server_name, tool_def.name),
             version: "1.0.0".to_string(),
@@ -96,8 +98,8 @@ pub(super) async fn register_session_tools_in_registry(
                 .clone()
                 .unwrap_or_else(|| format!("MCP tool from {}", server_name)),
             kind: ToolKind::McpServer {
-                server_url: format!("stdio://{}", server_name),
-                transport: McpTransport::Stdio,
+                server_url,
+                transport,
                 tool_name: tool_def.name.clone(),
             },
             input_schema: tool_def.input_schema.clone(),
@@ -133,6 +135,31 @@ pub(super) async fn register_session_tools_in_registry(
                 );
             }
         }
+    }
+}
+/// The endpoint a registered descriptor reports for a session: where the server
+/// is reached, and over which wire protocol.
+///
+/// Both are read from the configuration the session was started with. A
+/// remote server registered as a local subprocess is a descriptor that
+/// contradicts the configuration it came from, which is why neither value is
+/// written as a constant here.
+///
+/// `sse` maps to [`McpTransport::Http`]: server-sent events run over HTTP, and
+/// the descriptor enum draws its line at the wire protocol, not the framing.
+pub(super) fn descriptor_endpoint(
+    config: &McpServerConfig,
+    server_name: &str,
+) -> (String, McpTransport) {
+    match config.transport.as_str() {
+        "streamable-http" | "sse" => (
+            config
+                .url
+                .clone()
+                .unwrap_or_else(|| format!("{}://{}", config.transport, server_name)),
+            McpTransport::Http,
+        ),
+        _ => (format!("stdio://{server_name}"), McpTransport::Stdio),
     }
 }
 /// Log a session start failure, distinguishing the expected OAuth-not-yet-stored
@@ -197,6 +224,22 @@ pub(super) fn session_tool_count(session: &McpSession) -> usize {
         session.tools().len()
     }
 }
+/// Name the tools a session exposes, regardless of loading mode.
+///
+/// A deferred session holds no loaded schemas, so reading `tools()` alone
+/// answers "no tools" for a server that published forty. Anything that asks
+/// what a session exposes goes through here.
+pub(super) fn session_tool_names(session: &McpSession) -> Vec<String> {
+    if session.tools().is_empty() {
+        session
+            .tool_index()
+            .iter()
+            .map(|t| t.name.clone())
+            .collect()
+    } else {
+        session.tools().iter().map(|t| t.name.clone()).collect()
+    }
+}
 /// Build a [`McpServerDetail`] from a live session, redacting secret env values.
 pub(super) fn build_detail(
     name: &str,
@@ -245,5 +288,85 @@ pub(super) fn build_detail(
         status: build_status(name, session, last_call_at),
         tools,
         config: config_view,
+    }
+}
+
+// ─── tests ───────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config_with(transport: &str, url: Option<&str>) -> McpServerConfig {
+        McpServerConfig {
+            format_version: 1,
+            name: "notion".to_string(),
+            command: String::new(),
+            args: vec![],
+            env: std::collections::HashMap::new(),
+            transport: transport.to_string(),
+            url: url.map(str::to_string),
+            requires_approval: false,
+            init_timeout_secs: 30,
+            call_timeout_secs: 60,
+            max_response_bytes: 8 * 1024 * 1024,
+            max_tools: 256,
+            tags: vec![],
+        }
+    }
+
+    #[test]
+    fn test_descriptor_endpoint_follows_a_remote_transport() {
+        // GIVEN a server configured over streamable HTTP at a remote URL
+        let config = config_with("streamable-http", Some("https://mcp.notion.com/mcp"));
+
+        // WHEN the endpoint of its registered descriptor is built
+        let (url, transport) = descriptor_endpoint(&config, "notion");
+
+        // THEN it reports the URL and the wire protocol the configuration
+        // declared, not a local subprocess
+        assert_eq!(url, "https://mcp.notion.com/mcp");
+        assert!(matches!(transport, McpTransport::Http));
+    }
+
+    #[test]
+    fn test_descriptor_endpoint_follows_an_sse_transport() {
+        // GIVEN a server configured over SSE
+        let config = config_with("sse", Some("https://example.test/sse"));
+
+        // WHEN its descriptor endpoint is built
+        let (url, transport) = descriptor_endpoint(&config, "notion");
+
+        // THEN SSE is reported as the HTTP wire protocol it runs on
+        assert_eq!(url, "https://example.test/sse");
+        assert!(matches!(transport, McpTransport::Http));
+    }
+
+    #[test]
+    fn test_descriptor_endpoint_keeps_stdio_local() {
+        // GIVEN a server configured as a local subprocess
+        let config = config_with("stdio", None);
+
+        // WHEN its descriptor endpoint is built
+        let (url, transport) = descriptor_endpoint(&config, "notion");
+
+        // THEN the local form is kept: reporting every server as remote would
+        // be the same defect as reporting every server as local
+        assert_eq!(url, "stdio://notion");
+        assert!(matches!(transport, McpTransport::Stdio));
+    }
+
+    #[test]
+    fn test_descriptor_endpoint_without_url_names_the_transport() {
+        // GIVEN a remote transport whose URL is absent from the configuration
+        let config = config_with("sse", None);
+
+        // WHEN its descriptor endpoint is built
+        let (url, transport) = descriptor_endpoint(&config, "notion");
+
+        // THEN the placeholder names the declared transport rather than
+        // claiming a subprocess that was never spawned
+        assert_eq!(url, "sse://notion");
+        assert!(matches!(transport, McpTransport::Http));
     }
 }

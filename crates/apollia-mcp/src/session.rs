@@ -231,6 +231,12 @@ pub struct McpSession {
     next_id: AtomicU64,
     /// Server capabilities received during the initialize handshake.
     capabilities: ServerCapabilities,
+    /// Protocol revision the server answered with in `initialize`.
+    ///
+    /// The server picks it, not the client: a server is free to answer a
+    /// revision other than the one [`APOLLIA_MCP_PROTOCOL_VERSION`] offered.
+    /// Empty only before the handshake has landed.
+    protocol_version: String,
     /// Server identity received during the initialize handshake.
     server_info: ServerInfo,
     /// Free-text operator guidance returned by the server in `initialize`,
@@ -335,6 +341,7 @@ impl McpSession {
             pending,
             next_id: AtomicU64::new(1),
             capabilities: ServerCapabilities::default(),
+            protocol_version: String::new(),
             server_info: ServerInfo {
                 name: String::new(),
                 version: None,
@@ -387,6 +394,7 @@ impl McpSession {
         );
 
         self.capabilities = init_result.capabilities;
+        self.protocol_version = init_result.protocol_version;
         self.server_info = init_result.server_info;
         self.instructions = crate::sanitize::sanitize_free_text(
             init_result.instructions,
@@ -412,6 +420,16 @@ impl McpSession {
     /// Returns the server identity received during the initialize handshake.
     pub fn server_info(&self) -> &ServerInfo {
         &self.server_info
+    }
+
+    /// Returns the protocol revision the server answered with during the
+    /// `initialize` handshake.
+    ///
+    /// This is what the server said, not what the client offered: report it
+    /// rather than [`APOLLIA_MCP_PROTOCOL_VERSION`] wherever a negotiated
+    /// version is promised.
+    pub fn protocol_version(&self) -> &str {
+        &self.protocol_version
     }
 
     /// Returns the server-level `instructions` from the `initialize` handshake,
@@ -521,32 +539,52 @@ fn build_initialize_params() -> InitializeParams {
 /// Calls [`McpTransport::recv`] in a loop, deserialises each line as a
 /// [`JsonRpcResponse`], and routes it to the caller waiting on the matching
 /// entry in `pending`. Exits when the transport closes (recv returns an error).
+///
+/// On exit it drains `pending`, dropping every reply sender. That drop is the
+/// only signal a caller gets that the server died: without it a request in
+/// flight waits out its whole timeout, and a child that exits during the
+/// handshake is reported as a slow server rather than a dead one.
 fn spawn_dispatch_task(
     transport: Arc<dyn McpTransport>,
     pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        while let Ok(line) = transport.recv().await {
-            if line.trim().is_empty() {
-                continue;
-            }
-            match serde_json::from_str::<JsonRpcResponse>(&line) {
-                Ok(response) => {
-                    if let Some(id) = response.id {
-                        let mut map = pending.lock().await;
-                        if let Some(sender) = map.remove(&id) {
-                            // The receiver may have been dropped on timeout, which is expected.
-                            let _ = sender.send(response);
-                        }
-                    }
-                    // Notifications (no id) are intentionally ignored in V1.
-                }
-                Err(e) => {
-                    warn!(error = %e, "mcp.jsonrpc.line.parse.failed");
-                }
-            }
+        dispatch_loop(transport.as_ref(), &pending).await;
+        let dropped = pending.lock().await.drain().count();
+        if dropped > 0 {
+            warn!(
+                pending = dropped,
+                "mcp.dispatch.closed_with_pending_requests"
+            );
         }
     })
+}
+
+/// Route responses until the transport closes.
+async fn dispatch_loop(
+    transport: &dyn McpTransport,
+    pending: &Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>,
+) {
+    while let Ok(line) = transport.recv().await {
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<JsonRpcResponse>(&line) {
+            Ok(response) => {
+                if let Some(id) = response.id {
+                    let mut map = pending.lock().await;
+                    if let Some(sender) = map.remove(&id) {
+                        // The receiver may have been dropped on timeout, which is expected.
+                        let _ = sender.send(response);
+                    }
+                }
+                // Notifications (no id) are intentionally ignored in V1.
+            }
+            Err(e) => {
+                warn!(error = %e, "mcp.jsonrpc.line.parse.failed");
+            }
+        }
+    }
 }
 
 // ─── tests ───────────────────────────────────────────────────────────────────

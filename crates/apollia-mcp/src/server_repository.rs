@@ -260,6 +260,18 @@ fn validate_name(name: &str) -> Result<(), McpRepoError> {
     Ok(())
 }
 
+/// Deserialise one JSON column, failing the row rather than defaulting.
+///
+/// A column that does not parse is a corrupt row, not an empty value. Reading
+/// it as `[]` or `{}` starts a server stripped of the arguments and the
+/// environment it was saved with, and the operator sees a handshake failure
+/// instead of the corruption that caused it.
+fn json_column<T: serde::de::DeserializeOwned>(index: usize, raw: &str) -> rusqlite::Result<T> {
+    serde_json::from_str(raw).map_err(|e| {
+        rusqlite::Error::FromSqlConversionFailure(index, rusqlite::types::Type::Text, Box::new(e))
+    })
+}
+
 /// Deserialises a single database row into a [`McpServerConfig`].
 fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
     let args_json: String = row.get(2)?;
@@ -271,9 +283,9 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
     let max_response_bytes: i64 = row.get(10)?;
     let max_tools: i64 = row.get(11)?;
 
-    let args: Vec<String> = serde_json::from_str(&args_json).unwrap_or_default();
-    let env: HashMap<String, String> = serde_json::from_str(&env_json).unwrap_or_default();
-    let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+    let args: Vec<String> = json_column(2, &args_json)?;
+    let env: HashMap<String, String> = json_column(3, &env_json)?;
+    let tags: Vec<String> = json_column(9, &tags_json)?;
 
     Ok(McpServerConfig {
         format_version: 1,
@@ -333,6 +345,53 @@ mod tests {
         // THEN the server is gone
         assert!(repo.find_by_name("notion").unwrap().is_none());
         assert_eq!(repo.list().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_corrupt_env_column_fails_the_read() {
+        // GIVEN a saved server whose env column is then corrupted in place
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("mcp.db");
+        let repo = McpServerRepository::open(&path).unwrap();
+        let mut config = stdio_config("notion");
+        config.env.insert("TOKEN".to_string(), "secret".to_string());
+        repo.save(&config).unwrap();
+        repo.conn
+            .execute(
+                "UPDATE mcp_servers SET env_json = 'not json' WHERE name = 'notion'",
+                [],
+            )
+            .unwrap();
+
+        // WHEN the row is read back
+        let read = repo.find_by_name("notion");
+
+        // THEN the read fails instead of handing back a server stripped of
+        // its environment, which would be started without its credentials
+        assert!(
+            read.is_err(),
+            "a corrupt env column must not be read as an empty environment"
+        );
+    }
+
+    #[test]
+    fn test_intact_columns_still_round_trip() {
+        // GIVEN a saved server with arguments, environment and tags
+        let dir = TempDir::new().unwrap();
+        let repo = McpServerRepository::open(&dir.path().join("mcp.db")).unwrap();
+        let mut config = stdio_config("notion");
+        config.env.insert("TOKEN".to_string(), "secret".to_string());
+        config.tags = vec!["work".to_string()];
+        repo.save(&config).unwrap();
+
+        // WHEN the row is read back
+        let read = repo.find_by_name("notion").unwrap().unwrap();
+
+        // THEN every column survives: refusing a corrupt row must not become
+        // refusing a sound one
+        assert_eq!(read.args, config.args);
+        assert_eq!(read.env.get("TOKEN"), Some(&"secret".to_string()));
+        assert_eq!(read.tags, vec!["work".to_string()]);
     }
 
     #[test]

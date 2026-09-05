@@ -9,7 +9,7 @@ use apollia_core::{McpHealth, RuntimeEvent};
 use crate::approvals::{McpApprovalError, PendingApprovalEntry};
 use crate::config::{DefaultMcpSecretResolver, McpServerConfig};
 use crate::health::OpOutcome;
-use crate::manager::views::{build_status, register_session_tools_in_registry};
+use crate::manager::views::{build_status, register_session_tools_in_registry, session_tool_names};
 use crate::manager::{
     McpClientManager, McpConnectionTestResult, McpResourcePayload, McpResourceSummary,
     McpServerStatus, McpToolSummary, ProbeSpec,
@@ -108,7 +108,7 @@ impl McpClientManager {
             }
         };
 
-        let old_tools: Vec<String> = old_session.tools().iter().map(|t| t.name.clone()).collect();
+        let old_tools: Vec<String> = session_tool_names(&old_session);
         let config = old_session.config().clone();
 
         self.reloading.insert(name.to_string());
@@ -135,7 +135,7 @@ impl McpClientManager {
             }
         };
 
-        let new_tools: Vec<String> = new_session.tools().iter().map(|t| t.name.clone()).collect();
+        let new_tools: Vec<String> = session_tool_names(&new_session);
 
         tracing::info!(
             server = %name,
@@ -192,7 +192,7 @@ impl McpClientManager {
             .collect();
         let result = McpConnectionTestResult {
             server_info: session.server_info().name.clone(),
-            protocol_version: "2024-11-05".to_string(),
+            protocol_version: session.protocol_version().to_string(),
             tools,
             test_duration_ms: start.elapsed().as_millis() as u64,
             live_health: None,
@@ -228,7 +228,7 @@ impl McpClientManager {
             let probe_available = self
                 .sessions
                 .get(&server_name)
-                .map(|s| s.tools().iter().any(|t| t.name == probe.tool))
+                .map(|s| session_tool_names(s).contains(&probe.tool))
                 .unwrap_or(false);
             if probe_available {
                 let call = {

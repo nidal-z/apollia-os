@@ -213,8 +213,14 @@ async fn test_server_crash_returns_error_on_tool_call() {
         .call_tool("echo", Some(serde_json::json!({"message": "crash?"})))
         .await;
 
-    // THEN an error is returned (the server has exited or the call timed out)
-    assert!(result.is_err());
+    // THEN the failure names the dead transport rather than a timeout: a call
+    // to a server that has exited must not be reported as a slow one, which is
+    // what a bare `is_err` accepted
+    match result {
+        Err(McpSessionError::ServerExited { .. } | McpSessionError::StdinClosed { .. }) => {}
+        Err(other) => panic!("expected the transport's death to be named, got {other:?}"),
+        Ok(_) => panic!("a tool call on an exited server must not succeed"),
+    }
 
     session.shutdown().await;
 }
@@ -356,6 +362,77 @@ async fn test_eager_fetch_schema_uses_loaded_tools() {
         missing,
         Err(McpSessionError::SchemaFetchFailed { .. })
     ));
+
+    session.shutdown().await;
+}
+
+// ─── a child that dies ─────────────────────────────────────────────────────
+
+/// Config for a stdio server that consumes the `initialize` line then exits
+/// without answering it, with a handshake bound far above the test deadline.
+fn dies_during_handshake_config() -> McpServerConfig {
+    McpServerConfig {
+        format_version: 1,
+        name: "dies-during-handshake".to_string(),
+        command: "sh".to_string(),
+        args: vec!["-c".to_string(), "read line; exit 0".to_string()],
+        env: HashMap::new(),
+        transport: "stdio".to_string(),
+        url: None,
+        requires_approval: false,
+        init_timeout_secs: 30,
+        call_timeout_secs: 30,
+        max_response_bytes: 8 * 1024 * 1024,
+        max_tools: 256,
+        tags: vec![],
+    }
+}
+
+/// A child that exits during the handshake must be observed, not waited out.
+#[tokio::test]
+async fn test_handshake_reports_child_death_without_waiting_the_bound() {
+    // GIVEN a server that reads the initialize request and exits without
+    // answering, configured with a 30s handshake bound
+    let config = dies_during_handshake_config();
+
+    // WHEN a session is started under a deadline far below that bound
+    let started = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        McpSession::start(config, None),
+    )
+    .await;
+
+    // THEN the start returned on the child's death rather than on the bound,
+    // and it names that death instead of a handshake timeout
+    let Ok(outcome) = started else {
+        panic!("the start waited past 5s: the child's exit was never observed");
+    };
+    match outcome {
+        Err(McpSessionError::ServerExited { .. }) => {}
+        Err(other) => panic!("expected ServerExited, got {other:?}"),
+        Ok(_) => panic!("the handshake must not succeed when nothing answered it"),
+    }
+}
+
+/// The negative control: a live server must not be reported as exited.
+#[tokio::test]
+async fn test_live_server_is_not_reported_as_exited() {
+    // GIVEN the mock server, which answers the handshake and stays up
+    let config = mock_server_config();
+
+    // WHEN a session is started under the same deadline
+    let started = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        McpSession::start(config, None),
+    )
+    .await;
+
+    // THEN the handshake completed: failing fast on a dead child must not
+    // become failing fast on a live one
+    let Ok(Ok(session)) = started else {
+        panic!("the live mock server must complete its handshake");
+    };
+    assert_eq!(session.tools().len(), 2);
 
     session.shutdown().await;
 }

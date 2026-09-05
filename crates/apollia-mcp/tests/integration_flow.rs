@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use apollia_mcp::config::McpServerConfig;
-use apollia_mcp::manager::McpClientManagerHandle;
+use apollia_mcp::manager::{McpClientManagerHandle, ProbeSpec};
 use apollia_mcp::session::{LoadingMode, McpSessionError};
 use apollia_tools::ToolRegistryHandle;
 
@@ -213,6 +213,192 @@ async fn test_deferred_manager_tool_call_succeeds() {
 
     // THEN the call resolves normally
     assert!(result.is_ok(), "deferred tool call failed: {result:?}");
+
+    manager.shutdown().await;
+}
+
+// ─── negotiated protocol version ───────────────────────────────────────────
+
+/// Config for the mock that answers a protocol version of its own.
+fn version_server_config(name: &str) -> McpServerConfig {
+    McpServerConfig {
+        command: "python3".to_string(),
+        args: vec![format!(
+            "{}/tests/mock_mcp_server_version.py",
+            env!("CARGO_MANIFEST_DIR")
+        )],
+        ..mock_server_config(name)
+    }
+}
+
+/// A connection test must report the version the server answered.
+#[tokio::test]
+async fn test_connection_reports_the_server_protocol_version() {
+    // GIVEN a manager and a server whose initialize answers "2025-06-18",
+    // which is neither the version Apollia sends nor the one the other mocks
+    // answer
+    let registry = ToolRegistryHandle::start();
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+        .await
+        .unwrap();
+
+    // WHEN the configuration is tested without being persisted
+    let result = manager
+        .test_connection(version_server_config("version-probe"))
+        .await
+        .unwrap();
+
+    // THEN the reported version is the one that came back from the server,
+    // not a constant compiled into the client
+    assert_eq!(result.protocol_version, "2025-06-18");
+    assert_eq!(result.server_info, "version-mcp-server");
+
+    manager.shutdown().await;
+}
+
+/// The negative control: a server on another revision is reported as such.
+#[tokio::test]
+async fn test_connection_version_follows_the_server_not_a_constant() {
+    // GIVEN a manager and the default mock, which answers "2024-11-05"
+    let registry = ToolRegistryHandle::start();
+    let manager = McpClientManagerHandle::start(vec![], &registry, None, None, LoadingMode::Eager)
+        .await
+        .unwrap();
+
+    // WHEN two servers on different revisions are tested through the same path
+    let old = manager
+        .test_connection(mock_server_config("version-old"))
+        .await
+        .unwrap();
+    let new = manager
+        .test_connection(version_server_config("version-new"))
+        .await
+        .unwrap();
+
+    // THEN the two verdicts differ: reporting one constant for every server
+    // would be the same defect as reporting the other
+    assert_eq!(old.protocol_version, "2024-11-05");
+    assert_ne!(old.protocol_version, new.protocol_version);
+
+    manager.shutdown().await;
+}
+
+// ─── the health probe in deferred mode ─────────────────────────────────────
+
+/// A live-server test must run its probe whatever the loading mode.
+#[tokio::test]
+async fn test_live_server_probe_runs_in_deferred_mode() {
+    // GIVEN a manager holding the mock server in deferred mode, where the
+    // session carries a tool index rather than loaded schemas
+    let registry = ToolRegistryHandle::start();
+    let manager = McpClientManagerHandle::start(
+        vec![mock_server_config("probe-deferred")],
+        &registry,
+        None,
+        None,
+        LoadingMode::Deferred,
+    )
+    .await
+    .unwrap();
+
+    // WHEN the server is tested with a read-only probe on a tool it exposes
+    let result = manager
+        .test_live_server(
+            "probe-deferred",
+            Some(ProbeSpec {
+                tool: "echo".to_string(),
+                args: Some(serde_json::json!({"message": "probe"})),
+            }),
+        )
+        .await
+        .unwrap();
+
+    // THEN the probe ran and its success is what the health reports: a
+    // verdict of `verified: false` means the probe was skipped, and a probe
+    // silently skipped is a health check that never happened
+    assert_eq!(
+        result.live_health,
+        Some(apollia_core::McpHealth::Healthy { verified: true }),
+        "the probe must run in deferred mode, not be skipped as an unknown tool"
+    );
+
+    manager.shutdown().await;
+}
+
+/// The negative control: a probe on a tool the server does not expose is skipped.
+#[tokio::test]
+async fn test_live_server_probe_skips_an_unknown_tool() {
+    // GIVEN the same deferred manager
+    let registry = ToolRegistryHandle::start();
+    let manager = McpClientManagerHandle::start(
+        vec![mock_server_config("probe-unknown")],
+        &registry,
+        None,
+        None,
+        LoadingMode::Deferred,
+    )
+    .await
+    .unwrap();
+
+    // WHEN the probe names a tool the server never published
+    let result = manager
+        .test_live_server(
+            "probe-unknown",
+            Some(ProbeSpec {
+                tool: "not-a-tool".to_string(),
+                args: None,
+            }),
+        )
+        .await
+        .unwrap();
+
+    // THEN it is skipped rather than counted as a failure: running every
+    // probe would be the same defect as running none
+    assert_eq!(
+        result.live_health,
+        Some(apollia_core::McpHealth::Healthy { verified: false }),
+        "an absent probe tool must leave the verdict at reachability only"
+    );
+
+    manager.shutdown().await;
+}
+
+// ─── what a reload reports ─────────────────────────────────────────────────
+
+/// A reload event must name the tools it moved, whatever the loading mode.
+#[tokio::test]
+async fn test_reload_event_names_tools_in_deferred_mode() {
+    // GIVEN a manager in deferred mode with an event bus subscribed
+    let (bus, mut rx) = tokio::sync::broadcast::channel(16);
+    let registry = ToolRegistryHandle::start();
+    let manager = McpClientManagerHandle::start(
+        vec![mock_server_config("reload-deferred")],
+        &registry,
+        Some(bus),
+        None,
+        LoadingMode::Deferred,
+    )
+    .await
+    .unwrap();
+
+    // WHEN the server is hot-reloaded
+    manager.reload_server("reload-deferred").await.unwrap();
+
+    // THEN the published event names the two tools on both sides: an empty
+    // pair would report that a server exposing two tools moved nothing
+    let event = rx.try_recv().unwrap();
+    match event {
+        apollia_core::RuntimeEvent::McpServerReloaded {
+            name,
+            old_tools,
+            new_tools,
+        } => {
+            assert_eq!(name, "reload-deferred");
+            assert_eq!(old_tools, vec!["echo".to_string(), "add".to_string()]);
+            assert_eq!(new_tools, old_tools);
+        }
+        other => panic!("expected McpServerReloaded, got {other:?}"),
+    }
 
     manager.shutdown().await;
 }
