@@ -77,6 +77,7 @@
       "initializing": "INITIALIZING",
       "stopping": "STOPPING",
       "ready": "READY",
+      "untested": "NOT TESTED",
       "error": "ERROR"
     },
     "back": "Back",
@@ -1207,6 +1208,7 @@
     "ping_failed": "Ping failed",
     "local_ai": "Local AI",
     "running": "Running",
+    "status_untested": "Not tested",
     "status_error": "Error",
     "free_local": "Free (runs on your machine)",
     "pay_per_use": "Pay per use",

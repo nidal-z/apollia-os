@@ -51,7 +51,13 @@ import type {
 /** Watchdog timeout - triggers a single IPC refresh if no event received. */
 const WATCHDOG_TIMEOUT_MS = 10_000;
 
-/** Current connection status (reflects event bridge health). */
+/**
+ * Current connection status (reflects event bridge health).
+ *
+ * `connected` is only ever set from something the bridge actually returned: a
+ * runtime event, or a refresh sweep where at least one IPC round-trip
+ * answered. See `statusFromRefresh`.
+ */
 export const connectionStatus = writable<ConnectionStatus>("connecting");
 
 /** List of all agents (installed + runtime). */
@@ -106,33 +112,45 @@ export interface SessionBudgetState {
 }
 
 // ─── IPC refresh helpers ──────────────────────────────────────────────────────
+//
+// Each helper swallows its own failure so one dead command never aborts the
+// others, and returns whether the round-trip actually answered. Without that
+// return the swallow is total: `Promise.allSettled` fulfils on a rejected
+// promise too, so a caller cannot tell a runtime that answered from one that
+// never did.
 
-async function refreshAgentsViaIpc(): Promise<void> {
+async function refreshAgentsViaIpc(): Promise<boolean> {
   try {
     const result: AgentListItem[] = await invoke("list_agents");
     agents.set(result);
     emitTrayUpdate();
+    return true;
   } catch {
     // runtime not ready yet - keep current state
+    return false;
   }
 }
 
-async function refreshTasksViaIpc(): Promise<void> {
+async function refreshTasksViaIpc(): Promise<boolean> {
   try {
     const result: TaskSummary[] = await invoke("list_tasks", { filter: null });
     tasks.set(result);
+    return true;
   } catch {
     // runtime not ready yet - keep current state
+    return false;
   }
 }
 
-async function refreshLlmBackendsViaIpc(): Promise<void> {
+async function refreshLlmBackendsViaIpc(): Promise<boolean> {
   try {
     const result: LlmBackendConfig[] = await invoke("list_llm_backends");
     llmBackends.set(result);
     llmBackendsHydrated.set(true);
+    return true;
   } catch {
     // runtime not ready yet - keep current state, stay un-hydrated
+    return false;
   }
 }
 
@@ -142,12 +160,14 @@ export async function refreshLlmBackends(): Promise<void> {
   await refreshLlmBackendsViaIpc();
 }
 
-async function refreshTriggersViaIpc(): Promise<void> {
+async function refreshTriggersViaIpc(): Promise<boolean> {
   try {
     const result: TriggerStatus[] = await invoke("list_triggers");
     triggers.set(result);
+    return true;
   } catch {
     // runtime not ready yet - keep current state
+    return false;
   }
 }
 
@@ -157,7 +177,7 @@ export async function refreshTriggers(): Promise<void> {
   await refreshTriggersViaIpc();
 }
 
-async function refreshPendingApprovalsViaIpc(): Promise<void> {
+async function refreshPendingApprovalsViaIpc(): Promise<boolean> {
   try {
     const result: PendingApproval[] = await invoke("list_pending_approvals");
     const previous = get(pendingApprovals);
@@ -171,17 +191,21 @@ async function refreshPendingApprovalsViaIpc(): Promise<void> {
 
     pendingApprovals.set(result);
     emitTrayUpdate();
+    return true;
   } catch {
     // runtime not ready yet - keep current state
+    return false;
   }
 }
 
-async function refreshChatSessionsViaIpc(): Promise<void> {
+async function refreshChatSessionsViaIpc(): Promise<boolean> {
   try {
     const result: ChatSessionSummary[] = await invoke("list_chat_sessions");
     chatSessions.set(result);
+    return true;
   } catch {
     // runtime not ready yet - keep current state
+    return false;
   }
 }
 
@@ -626,8 +650,8 @@ function dispatchEvent(event: TauriRuntimeEvent): void {
  * Refresh all stores once via IPC.  Call this after any user action that
  * changes runtime state (start agent, submit task, resume approval, etc.).
  */
-export async function refreshAll(): Promise<void> {
-  await Promise.allSettled([
+export async function refreshAll(): Promise<RefreshOutcome> {
+  const results = await Promise.allSettled([
     refreshAgentsViaIpc(),
     refreshTasksViaIpc(),
     refreshLlmBackendsViaIpc(),
@@ -635,6 +659,32 @@ export async function refreshAll(): Promise<void> {
     refreshPendingApprovalsViaIpc(),
     refreshChatSessionsViaIpc(),
   ]);
+  return {
+    attempted: results.length,
+    succeeded: results.filter((r) => r.status === "fulfilled" && r.value).length,
+  };
+}
+
+/** What one `refreshAll` sweep measured: how many round-trips answered. */
+export interface RefreshOutcome {
+  /** Number of IPC commands the sweep issued. */
+  attempted: number;
+  /** Number of them that answered without an error. */
+  succeeded: number;
+}
+
+/**
+ * Connection status a completed sweep justifies.
+ *
+ * The sweep resolves whether the runtime answered or not, so the end of the
+ * attempt is not evidence of a connection. Only a round-trip that came back
+ * is, which is why the status is derived from the fulfilled count rather than
+ * set on fulfilment of the sweep itself. Zero successes keeps the store on
+ * `connecting`: the watchdog retries, and the surfaces that read it keep
+ * showing their loading state instead of an empty list that was never read.
+ */
+export function statusFromRefresh(outcome: RefreshOutcome): ConnectionStatus {
+  return outcome.succeeded > 0 ? "connected" : "connecting";
 }
 
 /**
@@ -658,9 +708,9 @@ export function createSSEConnection(): () => void {
     if (destroyed) return;
     watchdogTimer = setTimeout(() => {
       if (destroyed) return;
-      void refreshAll().then(() => {
+      void refreshAll().then((outcome) => {
         if (!destroyed) {
-          connectionStatus.set("connected");
+          connectionStatus.set(statusFromRefresh(outcome));
           resetWatchdog();
         }
       });
@@ -669,9 +719,9 @@ export function createSSEConnection(): () => void {
 
   // 1. Initial hydration
   connectionStatus.set("connecting");
-  void refreshAll().then(() => {
+  void refreshAll().then((outcome) => {
     if (!destroyed) {
-      connectionStatus.set("connected");
+      connectionStatus.set(statusFromRefresh(outcome));
     }
   });
 

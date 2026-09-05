@@ -3,7 +3,9 @@
    * LlmBackendCard - one backend on the top-level "LLM models" surface.
    *
    * Operator mode shows a humanized title, a single cost badge, a plain-language
-   * status line, and (on failure) a humanized reason. Builder mode shows the raw
+   * status line, and (on failure) a humanized reason. The status line reads
+   * from `backendStatus`, so a backend nothing has pinged in this app run says
+   * so instead of borrowing the running state. Builder mode shows the raw
    * `backend.name`, type/status/default badges, the model, the ping result, and
    * an inline action cluster. Both modes share a right-click ContextMenu
    * mirroring the settings CRUD actions. The default backend is the focal card
@@ -15,6 +17,13 @@
   import { uiMode } from "$lib/stores/mode";
   import { humanize } from "$lib/errors/humanize";
   import { pingLlmBackend } from "$lib/ipc/llm";
+  import {
+    backendStatus,
+    backendStatusBadgeKey,
+    backendStatusBadgeVariant,
+    backendStatusDotColor,
+    backendStatusLabelKey,
+  } from "./backendStatus";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { EntityCard, StatusDot } from "$lib/components/operator";
@@ -37,7 +46,8 @@
 
   const isBuilder = $derived($uiMode === "builder");
   const isLocal = $derived(backend.provider === "llama-cpp");
-  const inError = $derived(!backend.enabled || !!backend.last_ping_error);
+  const status = $derived(backendStatus(backend));
+  const inError = $derived(status === "error");
   const focal = $derived(backend.is_default);
 
   type Tone = "primary" | "info" | "destructive";
@@ -50,10 +60,10 @@
 
   const humanizedTitle = $derived.by(() => {
     const model = prettify(backend.model || backend.name);
-    const status = inError ? $t("llm.status_error") : $t("llm.running");
+    const label = $t(backendStatusLabelKey(status));
     return isLocal
-      ? `${$t("llm.local_ai")} (${model}) · ${status}`
-      : `${model} · ${status}`;
+      ? `${$t("llm.local_ai")} (${model}) · ${label}`
+      : `${model} · ${label}`;
   });
 
   const operatorReason = $derived.by(() => {
@@ -131,8 +141,8 @@
   <Badge variant={isLocal ? "info" : "neutral"} size="sm" data-testid="llm-backend-type-badge">
     {isLocal ? "EMBEDDED" : "API"}
   </Badge>
-  <Badge variant={inError ? "danger" : "success"} size="sm" data-testid="llm-backend-badge">
-    {inError ? $t("common.status.error") : $t("common.status.ready")}
+  <Badge variant={backendStatusBadgeVariant(status)} size="sm" data-testid="llm-backend-badge">
+    {$t(backendStatusBadgeKey(status))}
   </Badge>
 {/snippet}
 
@@ -159,8 +169,8 @@
 
 {#snippet operatorBody()}
   <div class="flex items-center gap-2 text-body-xs text-muted-foreground">
-    <StatusDot color={inError ? "hsl(var(--destructive))" : "hsl(var(--success))"} size={8} />
-    <span>{inError ? $t("llm.status_error") : $t("llm.running")}</span>
+    <StatusDot color={backendStatusDotColor(status)} size={8} />
+    <span>{$t(backendStatusLabelKey(status))}</span>
   </div>
   {#if operatorReason}
     <p class="text-body-xs text-destructive">{operatorReason}</p>
