@@ -194,6 +194,15 @@ pub(super) fn resolve_live_config<B: ExecutionBackend + Clone>(
     state.notification_config.clone()
 }
 /// Build a test [`Notification`] for the `"test.ping"` event.
+///
+/// The severity sits at the top of the scale on purpose. Every channel applies
+/// its own `min_severity` floor inside `send`, and a notification below that
+/// floor returns `Ok(())` without emitting anything: the desktop channel
+/// defaults to [`Severity::Error`] and the terminal one to
+/// [`Severity::Warning`], so an `Info` ping was silently dropped by both while
+/// this endpoint reported `"ok"` for a channel that had sent nothing.
+/// [`Severity::Critical`] is the maximum of the scale, so no configured floor
+/// can filter the probe out and `"ok"` means a send was actually attempted.
 pub(super) fn make_test_notification() -> Notification {
     Notification {
         event: "test.ping".to_string(),
@@ -202,6 +211,60 @@ pub(super) fn make_test_notification() -> Notification {
         agent: None,
         message: "Notification de test Apollia OS".to_string(),
         metadata: HashMap::new(),
-        severity: Severity::Info,
+        severity: Severity::Critical,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::make_test_notification;
+    use apollia_notifications::{ChannelConfig, ChannelKind, Severity};
+
+    #[test]
+    fn test_ping_clears_the_default_floor_of_every_channel_kind() {
+        // GIVEN the three channel kinds and the severity floor each one applies
+        // when `min_severity` is absent from the configuration
+        let kinds = [
+            ChannelKind::Desktop,
+            ChannelKind::Webhook,
+            ChannelKind::Terminal,
+        ];
+
+        // WHEN the probe builds the notification it sends to every channel
+        let notif = make_test_notification();
+
+        // THEN no default floor filters it out: a filtered notification returns
+        // `Ok(())` from `send`, which this endpoint reports as `"ok"`
+        for kind in kinds {
+            let floor = ChannelConfig::default_min_severity(&kind);
+            assert!(
+                notif.severity >= floor,
+                "the test ping is dropped by the {kind:?} floor {floor:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ping_sits_at_the_ceiling_of_the_severity_scale() {
+        // GIVEN every severity an operator can configure as a channel floor
+        let all = [
+            Severity::Debug,
+            Severity::Info,
+            Severity::Warning,
+            Severity::Error,
+            Severity::Critical,
+        ];
+
+        // WHEN the probe builds the notification it sends to every channel
+        let notif = make_test_notification();
+
+        // THEN none of them can filter it out, so `"ok"` never reports a
+        // channel that sent nothing
+        for floor in all {
+            assert!(
+                notif.severity >= floor,
+                "an explicit {floor:?} floor would drop the test ping"
+            );
+        }
     }
 }

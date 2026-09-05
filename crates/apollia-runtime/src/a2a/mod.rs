@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use apollia_core::events::{subscribe_resilient, Received};
-use apollia_core::{AIPInput, AIPPart, AgentId, DataPart, ProcessState, RuntimeEvent};
+use apollia_core::{AIPInput, AIPPart, AgentId, DataPart, ProcessState, RuntimeEvent, TaskStatus};
 
 use crate::coordinator::ExecutionBackend;
 use crate::eventbus::EventBusSender;
@@ -420,8 +420,10 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
                 // may have carried away, so it asks the router directly rather
                 // than waiting out its timeout.
                 Some(Received::Lagged { .. }) => {
-                    if let Ok(Some(out)) = router.get_output(&task_id_str).await {
-                        return Ok(out);
+                    let status = router.get_status(&task_id_str).await.ok().flatten();
+                    let output = router.get_output(&task_id_str).await.ok().flatten();
+                    if let Some(outcome) = recovered_outcome(status, output) {
+                        return outcome;
                     }
                 }
                 None => {
@@ -448,6 +450,36 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
         agent_name,
         output,
     })
+}
+
+/// Decide what a lag recovery yields from the router's terminal snapshot.
+///
+/// `None` means the task has not reached a terminal state yet, so the caller
+/// keeps waiting on the bus until its own timeout.
+///
+/// The status is what decides, not the presence of an output. The router keeps
+/// one output map for every task it has seen, and a failed task's error text is
+/// stored there exactly like a successful task's answer. Recovering the output
+/// on its own therefore turned a worker failure into a successful delegation:
+/// the caller received the error text as the skill's result, and the invoker
+/// went on to emit `A2AInvocationCompleted { status: "completed" }` and
+/// `A2ASkillCompleted { success: true }` over it.
+fn recovered_outcome(
+    status: Option<TaskStatus>,
+    output: Option<String>,
+) -> Option<Result<String, A2aError>> {
+    match status? {
+        TaskStatus::Completed => Some(Ok(output.unwrap_or_default())),
+        TaskStatus::Failed => Some(Err(A2aError::WorkerFailed {
+            reason: output
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "worker agent reported failure".to_string()),
+        })),
+        TaskStatus::Canceled => Some(Err(A2aError::WorkerFailed {
+            reason: "worker agent task was canceled".to_string(),
+        })),
+        TaskStatus::Submitted | TaskStatus::Working | TaskStatus::InputRequired => None,
+    }
 }
 
 #[cfg(test)]
@@ -516,6 +548,70 @@ mod tests {
             process_state: state,
             registered_at: Instant::now(),
         }
+    }
+
+    #[test]
+    fn lag_recovery_on_a_failed_task_is_a_worker_failure() {
+        // GIVEN the router snapshot of a task it recorded as Failed, whose
+        // stored output is the worker's error text
+        let status = Some(TaskStatus::Failed);
+        let output = Some("[E_TOOL] the worker blew up".to_string());
+
+        // WHEN the delegation recovers from a bus lag with that snapshot
+        let outcome = recovered_outcome(status, output);
+
+        // THEN the delegation fails and carries the worker's own reason
+        match outcome {
+            Some(Err(A2aError::WorkerFailed { reason })) => {
+                assert_eq!(reason, "[E_TOOL] the worker blew up");
+            }
+            other => panic!("expected WorkerFailed, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn lag_recovery_on_a_canceled_task_is_a_worker_failure() {
+        // GIVEN the router snapshot of a task it recorded as Canceled
+        let status = Some(TaskStatus::Canceled);
+        let output = Some("partial".to_string());
+
+        // WHEN the delegation recovers from a bus lag with that snapshot
+        let outcome = recovered_outcome(status, output);
+
+        // THEN the delegation fails rather than returning the partial output
+        assert!(
+            matches!(outcome, Some(Err(A2aError::WorkerFailed { .. }))),
+            "a canceled task must not be recovered as a success"
+        );
+    }
+
+    #[test]
+    fn lag_recovery_on_a_completed_task_returns_its_output() {
+        // GIVEN the router snapshot of a task it recorded as Completed
+        let status = Some(TaskStatus::Completed);
+        let output = Some("the answer".to_string());
+
+        // WHEN the delegation recovers from a bus lag with that snapshot
+        let outcome = recovered_outcome(status, output);
+
+        // THEN the stored output is returned as the delegation result
+        assert!(matches!(outcome, Some(Ok(ref out)) if out == "the answer"));
+    }
+
+    #[test]
+    fn lag_recovery_on_a_running_task_keeps_waiting() {
+        // GIVEN the router snapshot of a task still Working, with no output yet
+        let status = Some(TaskStatus::Working);
+        let output = None;
+
+        // WHEN the delegation recovers from a bus lag with that snapshot
+        let outcome = recovered_outcome(status, output);
+
+        // THEN nothing is concluded: the caller keeps waiting on the bus
+        assert!(
+            outcome.is_none(),
+            "a non-terminal task must not resolve the delegation"
+        );
     }
 
     #[test]

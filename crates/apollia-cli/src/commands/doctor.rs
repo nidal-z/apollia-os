@@ -246,29 +246,49 @@ fn check_agents_db(data_dir: &Path) -> CheckResult {
 }
 
 /// Report the local model directory state (informational).
+///
+/// Counts `.gguf` models through the same scan `apollia-os model list` uses,
+/// rather than directory entries: a directory holding only a `.DS_Store` or a
+/// half-downloaded `.part` file carries no model, and reporting it as populated
+/// sends the operator looking for a different fault. A directory that cannot be
+/// enumerated is reported as such, never as empty, because the two states call
+/// for opposite next steps.
 fn check_models_dir(data_dir: &Path) -> CheckResult {
+    const MODELS_HINT: &str = "Place a .gguf file in ~/.apollia/models/, or run `apollia-os llm setup --local --model <path.gguf>`";
+
     let dir = data_dir.join("models");
     if !dir.exists() {
         return CheckResult::warn(
             "models_dir",
             "Local models",
             "~/.apollia/models/ does not exist",
-            "Place a .gguf file in ~/.apollia/models/, or run `apollia-os llm setup --local --model <path.gguf>`",
+            MODELS_HINT,
         );
     }
-    let entries = std::fs::read_dir(&dir).ok().map(|d| d.count()).unwrap_or(0);
-    if entries == 0 {
+    let models = match crate::commands::model::list_gguf_files(&dir) {
+        Ok(m) => m,
+        Err(e) => {
+            return CheckResult::warn(
+                "models_dir",
+                "Local models",
+                format!("{} cannot be read: {e}", dir.display()),
+                "Check the ownership and permissions of the directory, and that it is a directory",
+            );
+        }
+    };
+    let count = models.len();
+    if count == 0 {
         CheckResult::warn(
             "models_dir",
             "Local models",
-            "directory is empty",
-            "Place a .gguf file in ~/.apollia/models/, or run `apollia-os llm setup --local --model <path.gguf>`",
+            format!("no .gguf model in {}", dir.display()),
+            MODELS_HINT,
         )
     } else {
         CheckResult::ok(
             "models_dir",
             "Local models",
-            format!("{entries} file(s) in {}", dir.display()),
+            format!("{count} model(s) in {}", dir.display()),
         )
     }
 }
@@ -464,5 +484,58 @@ mod tests {
         // THEN it has a stable id and never fails doctor (dev-no-sandbox is a warn)
         assert_eq!(check.id, "sandbox_posture");
         assert_ne!(check.status, CheckStatus::Error);
+    }
+
+    #[test]
+    fn models_dir_holding_no_gguf_is_not_reported_as_populated() {
+        // GIVEN a models directory that holds files, none of them a .gguf model
+        let tmp = tempfile::tempdir().unwrap();
+        let models = tmp.path().join("models");
+        std::fs::create_dir_all(&models).unwrap();
+        std::fs::write(models.join(".DS_Store"), b"x").unwrap();
+        std::fs::write(models.join("qwen3.gguf.part"), b"half a download").unwrap();
+        // WHEN the local-model check runs
+        let check = check_models_dir(tmp.path());
+        // THEN it reports the absence of a model, not a populated directory
+        assert_eq!(
+            check.status,
+            CheckStatus::Warn,
+            "two non-model files must not read as a local model: {}",
+            check.message
+        );
+    }
+
+    #[test]
+    fn models_dir_holding_a_gguf_is_reported_ok() {
+        // GIVEN a models directory holding one .gguf model
+        let tmp = tempfile::tempdir().unwrap();
+        let models = tmp.path().join("models");
+        std::fs::create_dir_all(&models).unwrap();
+        std::fs::write(models.join("qwen3-0.6b-q8_0.gguf"), b"GGUF").unwrap();
+        // WHEN the local-model check runs
+        let check = check_models_dir(tmp.path());
+        // THEN it passes and counts one model, so a constant Warn would fail here
+        assert_eq!(check.status, CheckStatus::Ok, "{}", check.message);
+        assert!(
+            check.message.contains("1 model"),
+            "the message must name what was counted: {}",
+            check.message
+        );
+    }
+
+    #[test]
+    fn unreadable_models_dir_is_not_reported_as_empty() {
+        // GIVEN a `models` entry that exists but cannot be enumerated
+        // (a regular file where the directory is expected)
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("models"), b"not a directory").unwrap();
+        // WHEN the local-model check runs
+        let check = check_models_dir(tmp.path());
+        // THEN it says the directory could not be read rather than that it is empty
+        assert!(
+            check.message.contains("cannot be read"),
+            "an unreadable directory must not be reported as empty: {}",
+            check.message
+        );
     }
 }

@@ -112,8 +112,24 @@ pub async fn handle_webhook<B: ExecutionBackend + Clone>(
 /// The signature must be in the `"sha256=<hex>"` format.
 /// Uses [`constant_time_eq::constant_time_eq`] to avoid timing attacks.
 ///
-/// Returns `true` only if the signature is correct.
+/// Returns `true` only if the signature is correct and the secret is one only
+/// the sender and this runtime know. An empty secret is refused: the HMAC of
+/// any body under an empty key is computable by anyone, so accepting it would
+/// authenticate every caller on the single route `TokenAuthLayer` lets through
+/// without a bearer token. The trigger repository refuses a webhook secret
+/// shorter than 32 bytes on insert and on update, which is where that
+/// guarantee is produced today; this refuses the same at the point of use,
+/// where a definition written by something else (an older schema, a
+/// hand-edited `triggers_def.db`) would otherwise arrive unchecked.
 pub fn verify_hmac(secret: &str, body: &[u8], signature: &str) -> bool {
+    if secret.is_empty() {
+        tracing::warn!(
+            reason = "empty webhook secret",
+            "webhook.signature.rejected"
+        );
+        return false;
+    }
+
     let expected = match signature.strip_prefix("sha256=") {
         Some(s) => s,
         None => return false,
@@ -167,6 +183,21 @@ mod tests {
         let sig = "deadbeef";
         // WHEN / THEN
         assert!(!verify_hmac("secret", b"body", sig));
+    }
+
+    #[test]
+    fn test_verify_hmac_refuses_an_empty_secret() {
+        // GIVEN a webhook definition carrying an empty secret, and a signature
+        // computed correctly under that empty key, which any caller can do
+        let body = b"payload";
+        let sig = compute_hmac("", body);
+
+        // WHEN the route verifies that signature
+        let accepted = verify_hmac("", body, &sig);
+
+        // THEN it is refused: an empty key authenticates nobody, and this is
+        // the one route that carries no bearer token
+        assert!(!accepted);
     }
 
     #[test]

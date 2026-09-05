@@ -101,7 +101,7 @@ own, and the runtime matches on the one it received.
 | `PackageLoaderError` | `src/package_loader.rs` | agent packages |
 | `ToolProxyError` | `src/context/tool_proxy.rs` | `ctx.tools` invocations |
 | `MemoryInterfaceError` | `src/memory.rs` | `ctx.memory` calls |
-| `PythonProviderError` | `src/python_provider.rs` | interpreter discovery and the venv |
+| `PythonProviderError` | `src/python_provider.rs` | loading a workspace context provider written in Python |
 
 A new boundary gets its own enum rather than a variant on someone else's, and
 a `PyErr` is captured into a `String` message at the point of failure so no
@@ -168,8 +168,13 @@ Agent lifecycle steps that pass through this crate :
 
 1. **Load** : `load_agent_module` (`src/loader.rs`) imports the module and
    returns the agent object. Fail fast into `AIPLoaderError`.
-2. **Validate** : `src/validator.rs` checks the manifest, the declared tools
-   and the secrets, into `AIPValidationError`.
+2. **Validate** : `src/validator.rs` checks that `__apollia_manifest__` and an
+   async `__apollia_dispatch__` are present, that the manifest deserialises,
+   that `version` is semver, and that no `tools_required` entry looks like a
+   typo of a native tool, into `AIPValidationError`. It does **not** check the
+   declared secrets: `grep -in secret src/validator.rs` returns nothing, and
+   `ctx.secrets` gates on the manifest at read time instead. Do not write a
+   rule against a check this step does not perform.
 3. **Dispatch** : `AIPBridge::call_run` (`src/bridge.rs`) invokes the skill,
    `call_on_plan_complete` the orchestrated post-processing.
 

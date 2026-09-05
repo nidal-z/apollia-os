@@ -161,10 +161,39 @@ pub(super) fn read_configured_servers() -> Vec<apollia_mcp::config::McpServerCon
     }
 }
 
+/// Status column of one live server, read from the health the runtime measured.
+///
+/// `state` is the serde tag of `apollia_core::McpHealth`. An unknown state is
+/// rendered verbatim rather than folded into `connected`: a state this build
+/// does not know is not evidence that the server is usable.
+fn status_from_health(server: &serde_json::Value, connected: bool) -> String {
+    let state = server
+        .get("health")
+        .and_then(|h| h.get("state"))
+        .and_then(|v| v.as_str());
+    match state {
+        Some("healthy") => "connected".to_string(),
+        Some("degraded") => "degraded".to_string(),
+        Some("needs_reauth") => "needs reauth".to_string(),
+        Some("unavailable") => "unavailable".to_string(),
+        Some(other) => other.to_string(),
+        None if connected => "connected".to_string(),
+        None => "disconnected".to_string(),
+    }
+}
+
 /// Build the final table rows from the live status list and the persisted
-/// configuration. Connected servers report `connected` + tools count; missing
-/// servers report `not connected` (or `disabled` when explicitly disabled in
-/// the config).
+/// configuration. A live server reports the operational health the runtime
+/// measured plus its tool count; missing servers report `not connected` (or
+/// `disabled` when explicitly disabled in the config).
+///
+/// The `connected` flag is deliberately not the source of the status column:
+/// `McpServerStatus::connected` is `true` for every session the manager tracks
+/// (`crates/apollia-mcp/src/manager/views.rs`), so rendering it would print
+/// `connected` for a session that is degraded, needs re-authorisation, or whose
+/// process has exited. `health.state` is the field the runtime actually
+/// measures, and it is what a build that carries it is read from; `connected`
+/// remains the fallback for a runtime whose answer has no `health` field.
 pub(super) fn merge_runtime_and_configured(
     live: &[serde_json::Value],
     configured: &[apollia_mcp::config::McpServerConfig],
@@ -218,17 +247,13 @@ pub(super) fn merge_runtime_and_configured(
                     .map(|a| a.len().to_string())
             })
             .unwrap_or_else(|| "-".to_string());
-        let status = if connected {
-            "connected"
-        } else {
-            "disconnected"
-        };
+        let status = status_from_health(s, connected);
         by_name.insert(
             name.clone(),
             McpListRow {
                 name,
                 transport,
-                status: status.to_string(),
+                status,
                 tools,
             },
         );
@@ -346,4 +371,97 @@ pub(super) async fn format_list_human(
     push_discovered_servers(&mut out, &discovered, tty);
 
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{merge_runtime_and_configured, status_from_health};
+
+    /// One live-server entry as `GET /api/v1/mcp/servers` serialises it.
+    fn live_server(name: &str, health: Option<serde_json::Value>) -> serde_json::Value {
+        let mut v = serde_json::json!({
+            "name": name,
+            "transport": "stdio",
+            "tools_count": 3,
+            "connected": true,
+        });
+        if let Some(h) = health {
+            v["health"] = h;
+        }
+        v
+    }
+
+    #[test]
+    fn degraded_server_is_not_listed_as_connected() {
+        // GIVEN a live server the manager reports as connected, whose measured
+        // health says its operations are failing
+        let live = vec![live_server(
+            "notion",
+            Some(serde_json::json!({
+                "state": "degraded",
+                "category": "tool_failure",
+                "last_error": "object_not_found",
+                "consecutive_failures": 3,
+                "since": "2026-08-27T00:00:00Z",
+            })),
+        )];
+        // WHEN the listing rows are built
+        let rows = merge_runtime_and_configured(&live, &[]);
+        // THEN the status column names the degradation instead of claiming a
+        // healthy connection
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].status, "degraded");
+    }
+
+    #[test]
+    fn server_needing_reauth_is_not_listed_as_connected() {
+        // GIVEN a live server whose token expired
+        let live = vec![live_server(
+            "github",
+            Some(serde_json::json!({ "state": "needs_reauth", "reason": "invalid_grant" })),
+        )];
+        // WHEN the listing rows are built
+        let rows = merge_runtime_and_configured(&live, &[]);
+        // THEN the operator is told to re-authorise rather than told all is well
+        assert_eq!(rows[0].status, "needs reauth");
+    }
+
+    #[test]
+    fn unreachable_server_is_not_listed_as_connected() {
+        // GIVEN a live entry whose process exited
+        let live = vec![live_server(
+            "filesystem",
+            Some(serde_json::json!({ "state": "unavailable", "reason": "process_exited" })),
+        )];
+        // WHEN the listing rows are built
+        let rows = merge_runtime_and_configured(&live, &[]);
+        // THEN the row says so
+        assert_eq!(rows[0].status, "unavailable");
+    }
+
+    #[test]
+    fn healthy_server_is_listed_as_connected() {
+        // GIVEN a live server whose measured health is healthy
+        let live = vec![live_server(
+            "notion",
+            Some(serde_json::json!({ "state": "healthy", "verified": true })),
+        )];
+        // WHEN the listing rows are built
+        let rows = merge_runtime_and_configured(&live, &[]);
+        // THEN it still reads as connected, so a constant pessimism would fail here
+        assert_eq!(rows[0].status, "connected");
+    }
+
+    #[test]
+    fn runtime_without_health_falls_back_to_the_liveness_flag() {
+        // GIVEN a runtime answer that carries no health field at all
+        let mut alive = live_server("legacy", None);
+        let mut dead = live_server("legacy-dead", None);
+        dead["connected"] = serde_json::Value::Bool(false);
+        // WHEN each row is built
+        // THEN the liveness flag is all there is to read, and it is read
+        assert_eq!(status_from_health(&alive, true), "connected");
+        alive["connected"] = serde_json::Value::Bool(false);
+        assert_eq!(status_from_health(&dead, false), "disconnected");
+    }
 }
