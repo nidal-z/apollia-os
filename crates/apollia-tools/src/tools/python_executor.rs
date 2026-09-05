@@ -43,6 +43,21 @@ use crate::descriptor::{ToolDescriptor, ToolKind};
 #[cfg(unix)]
 use crate::tools::rlimits::{apply_rlimits, ResourceLimits};
 
+/// Lower bound of the `timeout_secs` input, in seconds.
+///
+/// The descriptor advertises the same bound, and a JSON Schema is a description
+/// rather than a validator: a Python agent reaching the tool through the AIP
+/// proxy hands it whatever it wrote. The bound is therefore applied here too.
+const MIN_TIMEOUT_SECS: u64 = 1;
+
+/// Upper bound of the `timeout_secs` input, in seconds. See [`MIN_TIMEOUT_SECS`].
+const MAX_TIMEOUT_SECS: u64 = 300;
+
+/// The timeout actually applied for a requested value.
+fn effective_timeout(requested: u64) -> u64 {
+    requested.clamp(MIN_TIMEOUT_SECS, MAX_TIMEOUT_SECS)
+}
+
 /// Executor that runs Python code in a per-agent isolated virtualenv.
 ///
 /// The virtualenv lives at `<venv_base_dir>/<agent_id>/venv/`. Packages declared
@@ -521,7 +536,8 @@ impl PythonExecutor {
     /// - [`PythonExecutorError::EmptyCode`]: `code` is empty (checked before any I/O)
     /// - [`PythonExecutorError::VenvCreationFailed`]: the virtualenv did not exist
     ///   and `python -m venv` failed to create it
-    /// - [`PythonExecutorError::Timeout`]: process exceeded `timeout_secs`; killed, no zombie
+    /// - [`PythonExecutorError::Timeout`]: process exceeded `timeout_secs`, clamped to
+    ///   [`MIN_TIMEOUT_SECS`]..=[`MAX_TIMEOUT_SECS`]; killed, no zombie
     /// - [`PythonExecutorError::SpawnFailed`]: OS refused to spawn the process
     /// - [`PythonExecutorError::OutputCaptureFailed`]: I/O error reading stdout/stderr
     /// - [`PythonExecutorError::TempFileFailed`]: could not write the temporary script file
@@ -540,7 +556,9 @@ impl PythonExecutor {
             .await
             .map_err(|e| PythonExecutorError::TempFileFailed(e.to_string()))?;
 
-        let result = self.execute_script(&script_path, input.timeout_secs).await;
+        let result = self
+            .execute_script(&script_path, effective_timeout(input.timeout_secs))
+            .await;
 
         // Always remove the temp file, success or error (no file leak).
         let _ = tokio::fs::remove_file(&script_path).await;
@@ -584,8 +602,8 @@ impl PythonExecutor {
                     },
                     "timeout_secs": {
                         "type": "integer",
-                        "minimum": 1,
-                        "maximum": 300,
+                        "minimum": MIN_TIMEOUT_SECS,
+                        "maximum": MAX_TIMEOUT_SECS,
                         "description": "Hard timeout in seconds before SIGKILL"
                     }
                 }
@@ -725,6 +743,29 @@ mod tests {
 
     fn test_venv_dir() -> PathBuf {
         std::env::temp_dir().join("apollia_test_venv")
+    }
+
+    #[test]
+    fn a_timeout_outside_the_advertised_bounds_is_clamped_to_them() {
+        // GIVEN a requested timeout above the descriptor's ceiling and one below
+        // its floor
+        // WHEN the effective timeout is computed
+        // THEN both land on the advertised bounds: the schema states them, and
+        // nothing between the agent and this tool enforces a schema
+        assert_eq!(effective_timeout(100_000), MAX_TIMEOUT_SECS);
+        assert_eq!(effective_timeout(0), MIN_TIMEOUT_SECS);
+        assert_eq!(effective_timeout(42), 42);
+    }
+
+    #[test]
+    fn the_descriptor_advertises_the_bounds_the_tool_applies() {
+        // GIVEN the published descriptor
+        let d = PythonExecutor::descriptor();
+        // WHEN its timeout bounds are read
+        let bounds = &d.input_schema["properties"]["timeout_secs"];
+        // THEN they are the constants run() clamps with, so the two cannot drift
+        assert_eq!(bounds["minimum"].as_u64(), Some(MIN_TIMEOUT_SECS));
+        assert_eq!(bounds["maximum"].as_u64(), Some(MAX_TIMEOUT_SECS));
     }
 
     /// Returns `true` if the platform can actually execute scripts through our

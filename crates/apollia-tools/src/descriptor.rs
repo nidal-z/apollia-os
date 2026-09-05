@@ -85,6 +85,13 @@ impl ApprovalRiskLevel {
     }
 }
 
+/// Upper bound of the [`ToolDescriptor::risk_score`] scale.
+///
+/// The scale is 0 to 10 and [`ApprovalRiskLevel::from_risk_score`] reads it that
+/// way. A descriptor written on some other scale keeps its own meaning and loses
+/// the one every reader assumes, so the bound is checked rather than described.
+pub const MAX_RISK_SCORE: u8 = 10;
+
 impl ToolDescriptor {
     /// Validates the internal consistency of this descriptor.
     ///
@@ -96,6 +103,8 @@ impl ToolDescriptor {
     /// Returns `ToolDescriptorError::InvalidInputSchema` if `input_schema` is `Null`.
     /// Returns `ToolDescriptorError::FullProfileRequiresDangerous` if `sandbox_profile`
     /// is `Full` but `dangerous` is `false`.
+    /// Returns `ToolDescriptorError::RiskScoreOutOfRange` if `risk_score` is above
+    /// [`MAX_RISK_SCORE`].
     pub fn validate(&self) -> Result<(), ToolDescriptorError> {
         if self.name.is_empty() {
             return Err(ToolDescriptorError::EmptyName);
@@ -107,6 +116,12 @@ impl ToolDescriptor {
 
         if self.sandbox_profile.requires_dangerous_flag() && !self.dangerous {
             return Err(ToolDescriptorError::FullProfileRequiresDangerous);
+        }
+
+        if self.risk_score > MAX_RISK_SCORE {
+            return Err(ToolDescriptorError::RiskScoreOutOfRange {
+                score: self.risk_score,
+            });
         }
 
         Ok(())
@@ -165,6 +180,12 @@ pub enum ToolDescriptorError {
     /// `input_schema` is `serde_json::Value::Null`.
     #[error("input_schema must not be null")]
     InvalidInputSchema,
+    /// `risk_score` is above [`MAX_RISK_SCORE`].
+    #[error("risk_score {score} is outside the 0-{MAX_RISK_SCORE} scale")]
+    RiskScoreOutOfRange {
+        /// The declared score, as written in the descriptor.
+        score: u8,
+    },
 }
 
 #[cfg(test)]
@@ -280,6 +301,36 @@ mod tests {
         descriptor.dangerous = true;
         // WHEN / THEN
         assert!(descriptor.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_refuses_a_risk_score_off_the_scale() {
+        // GIVEN a descriptor whose risk_score was written on a 0-100 scale
+        let mut d = make_valid_descriptor();
+        d.risk_score = 60;
+
+        // WHEN it is validated
+        let result = d.validate();
+
+        // THEN it is refused, carrying the offending value
+        assert!(
+            matches!(
+                result,
+                Err(ToolDescriptorError::RiskScoreOutOfRange { score: 60 })
+            ),
+            "expected RiskScoreOutOfRange, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn validate_accepts_the_top_of_the_scale() {
+        // GIVEN a descriptor at the maximum of the declared scale
+        let mut d = make_valid_descriptor();
+        d.risk_score = MAX_RISK_SCORE;
+
+        // WHEN it is validated
+        // THEN it passes: the bound refuses what is above it, not what reaches it
+        assert!(d.validate().is_ok());
     }
 
     #[test]

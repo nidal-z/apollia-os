@@ -297,11 +297,14 @@ impl PermissionRuleAdd {
                 "properties": {"rule_id": {"type": "integer"}},
                 "required": ["rule_id"]
             })),
-            sandbox_profile: SandboxProfile::ReadOnly,
+            // Writes a row in governance.db. The profile is what the audit
+            // trail records for the invocation, so declaring ReadOnly here
+            // would file a mutation under a read.
+            sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["governance".to_string(), "permissions".to_string()],
             dangerous: false,
             is_read_only: false,
-            risk_score: 60,
+            risk_score: 9,
             approval_risk_level: None,
             impact_description: Some(
                 "Modifies persistent permission policy in governance.db.".to_string(),
@@ -396,11 +399,13 @@ impl PermissionRuleRemove {
                 "properties": {"removed": {"type": "boolean"}},
                 "required": ["removed"]
             })),
-            sandbox_profile: SandboxProfile::ReadOnly,
+            // Deletes a row in governance.db: the same reason as
+            // permission_rule_add for not declaring a read-only intent.
+            sandbox_profile: SandboxProfile::FileSystem,
             tags: vec!["governance".to_string(), "permissions".to_string()],
             dangerous: false,
             is_read_only: false,
-            risk_score: 70,
+            risk_score: 10,
             approval_risk_level: None,
             impact_description: Some(
                 "Deletes a persistent permission rule from governance.db.".to_string(),
@@ -586,6 +591,28 @@ mod tests {
 
     fn tmp_db() -> NamedTempFile {
         NamedTempFile::new().expect("tempfile")
+    }
+
+    #[test]
+    fn the_three_governance_descriptors_pass_registration_validation() {
+        // GIVEN the three descriptors the dispatcher registers
+        let descriptors = [
+            PermissionRuleAdd::descriptor(),
+            PermissionRuleRemove::descriptor(),
+            PermissionRuleList::descriptor(),
+        ];
+
+        // WHEN each is validated the way ToolRegistry validates it
+        // THEN none is refused: a descriptor the registry would reject is a tool
+        // the agent never gets
+        for d in descriptors {
+            assert!(
+                d.validate().is_ok(),
+                "{} must validate, got {:?}",
+                d.name,
+                d.validate()
+            );
+        }
     }
 
     #[test]

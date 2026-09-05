@@ -31,6 +31,21 @@ use crate::tools::risk_classifier::RiskCategory;
 #[cfg(unix)]
 use crate::tools::rlimits::ResourceLimits;
 
+/// Lower bound of the `timeout_secs` input, in seconds.
+///
+/// The descriptor advertises the same bound, and a JSON Schema is a description
+/// rather than a validator: a Python agent reaching the tool through the AIP
+/// proxy hands it whatever it wrote. The bound is therefore applied here too.
+const MIN_TIMEOUT_SECS: u64 = 1;
+
+/// Upper bound of the `timeout_secs` input, in seconds. See [`MIN_TIMEOUT_SECS`].
+const MAX_TIMEOUT_SECS: u64 = 300;
+
+/// The timeout actually applied for a requested value.
+fn effective_timeout(requested: u64) -> u64 {
+    requested.clamp(MIN_TIMEOUT_SECS, MAX_TIMEOUT_SECS)
+}
+
 /// Native shell executor. Namespace isolation (PID + mount) is Linux-only.
 ///
 /// On Linux: wraps commands with `unshare --pid --mount --fork <shell> -c` for
@@ -189,8 +204,8 @@ impl BashExecutor {
                     },
                     "timeout_secs": {
                         "type": "integer",
-                        "minimum": 1,
-                        "maximum": 300,
+                        "minimum": MIN_TIMEOUT_SECS,
+                        "maximum": MAX_TIMEOUT_SECS,
                         "description": "Timeout in seconds. Match to expected command duration \
                                         (e.g. simple lookups: 5-10s, builds: 60-120s)."
                     },
@@ -241,7 +256,8 @@ impl BashExecutor {
     ///   message names what to install (Git Bash, MSYS2 or WSL).
     /// - [`BashExecutorError::SyntaxError`]: `<shell> -n` reported a parse error.
     /// - [`BashExecutorError::SyntaxValidationTimeout`]: syntax check exceeded its timeout.
-    /// - [`BashExecutorError::Timeout`]: command exceeded `timeout_secs`; child is killed.
+    /// - [`BashExecutorError::Timeout`]: command exceeded `timeout_secs`, clamped to
+    ///   [`MIN_TIMEOUT_SECS`]..=[`MAX_TIMEOUT_SECS`]; child is killed.
     /// - [`BashExecutorError::SpawnFailed`]: OS refused to spawn the child.
     /// - [`BashExecutorError::OutputCaptureFailed`]: I/O error reading stdout/stderr.
     pub async fn run(&self, input: BashInput) -> Result<BashOutput, BashExecutorError> {
@@ -329,7 +345,7 @@ impl BashExecutor {
         });
 
         let start = Instant::now();
-        let timeout_secs = input.timeout_secs;
+        let timeout_secs = effective_timeout(input.timeout_secs);
 
         // Wait for process exit with a hard timeout.
         // On timeout: abort reader tasks, kill child, wait for reap (no zombie).
@@ -549,6 +565,51 @@ mod tests {
         let result = executor.run(input).await;
         // THEN
         assert!(matches!(result, Err(BashExecutorError::Timeout { .. })));
+    }
+
+    #[test]
+    fn a_timeout_above_the_advertised_ceiling_is_clamped_to_it() {
+        // GIVEN a requested timeout far above the descriptor's ceiling, and one
+        // below its floor
+        // WHEN the effective timeout is computed
+        // THEN both land on the advertised bounds: the schema states them, and
+        // nothing between the agent and this tool enforces a schema
+        assert_eq!(effective_timeout(100_000), MAX_TIMEOUT_SECS);
+        assert_eq!(effective_timeout(0), MIN_TIMEOUT_SECS);
+        assert_eq!(effective_timeout(42), 42);
+    }
+
+    #[test]
+    fn the_descriptor_advertises_the_bounds_the_tool_applies() {
+        // GIVEN the published descriptor
+        let d = BashExecutor::descriptor();
+        // WHEN its timeout bounds are read
+        let bounds = &d.input_schema["properties"]["timeout_secs"];
+        // THEN they are the constants run() clamps with, so the two cannot drift
+        assert_eq!(bounds["minimum"].as_u64(), Some(MIN_TIMEOUT_SECS));
+        assert_eq!(bounds["maximum"].as_u64(), Some(MAX_TIMEOUT_SECS));
+    }
+
+    #[tokio::test]
+    async fn a_zero_timeout_does_not_kill_the_command_on_the_spot() {
+        if !can_run_shell() {
+            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
+            return;
+        }
+        // GIVEN a trivial command asked for with a timeout of zero, which the
+        // descriptor forbids and no schema check refuses
+        let executor = BashExecutor::new();
+        let input = BashInput {
+            command: "echo ok".to_string(),
+            timeout_secs: 0,
+            working_dir: None,
+        };
+        // WHEN it runs
+        let result = executor.run(input).await;
+        // THEN it completes: the floor is applied rather than a zero-second
+        // deadline that fires before the child is even reaped
+        let output = result.expect("a zero timeout must be raised to the floor, not honoured");
+        assert_eq!(output.stdout.trim(), "ok");
     }
 
     #[tokio::test]

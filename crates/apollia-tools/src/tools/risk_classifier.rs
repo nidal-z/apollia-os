@@ -186,8 +186,10 @@ impl RiskClassifier {
     /// approval, and an empty list means every write is asked about rather
     /// than that nothing can be written.
     ///
-    /// If `canonicalize()` fails (path does not exist yet), classification is
-    /// performed on the path as-is.
+    /// If `canonicalize()` fails (path does not exist yet, which is the ordinary
+    /// case for a fresh write), the path is resolved lexically instead. Without
+    /// that step a target reached by hopping out of a root with `..` still
+    /// compares as inside it, and the operation is classified one level too low.
     pub fn classify_filesystem(
         op: FilesystemOp,
         path: &std::path::Path,
@@ -199,9 +201,13 @@ impl RiskClassifier {
             return RiskLevel::High;
         }
 
-        // Try to canonicalize the path for reliable comparisons.
-        // On failure (non-existent path), work on the raw path.
-        let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        // Try to canonicalize the path for reliable comparisons. On failure
+        // (the target does not exist yet), resolve `.` and `..` lexically: the
+        // comparisons below are by component, and a surviving `..` would let
+        // `<root>/../elsewhere` read as still under `<root>`.
+        let canonical = path
+            .canonicalize()
+            .unwrap_or_else(|_| crate::sandbox_path::normalize_path(path));
         let p = canonical.as_path();
 
         // 2. System paths: write = High.
@@ -603,6 +609,65 @@ mod tests_filesystem {
         // THEN the working directory leads, the configured path follows, and the
         // empty entry is gone
         assert_eq!(roots, vec![ws, PathBuf::from("/mnt/data")]);
+    }
+
+    #[test]
+    fn a_parent_hop_out_of_a_trusted_root_is_not_trusted() {
+        // GIVEN a trusted root and a not-yet-existing target reached by hopping
+        // out of it, which is what a fresh file_write hands to the classifier
+        let trusted = vec![PathBuf::from("/home/alice/proj")];
+        let path = Path::new("/home/alice/proj/../secrets/key.txt");
+
+        // WHEN the write is classified
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            &trusted,
+            &default_fs_config(),
+        );
+
+        // THEN it is Medium, the same answer the resolved spelling gets. A
+        // component comparison alone reads the hop as still inside the root.
+        assert_eq!(level, RiskLevel::Medium, "{level:?}");
+    }
+
+    #[test]
+    fn a_parent_hop_into_a_system_path_is_high() {
+        // GIVEN a trusted root and a not-yet-existing target under /etc reached
+        // by hopping out of that root
+        let trusted = vec![PathBuf::from("/home/alice/proj")];
+        let path = Path::new("/home/alice/proj/../../../etc/cron.d/apollia-job");
+
+        // WHEN the write is classified
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            &trusted,
+            &default_fs_config(),
+        );
+
+        // THEN the system-path rule fires, as it does for the spelling without
+        // the hops
+        assert_eq!(level, RiskLevel::High, "{level:?}");
+    }
+
+    #[test]
+    fn a_parent_hop_that_stays_inside_the_root_stays_trusted() {
+        // GIVEN a trusted root and a target that walks up and back down inside it
+        let trusted = vec![PathBuf::from("/home/alice/proj")];
+        let path = Path::new("/home/alice/proj/src/../notes.md");
+
+        // WHEN the write is classified
+        let level = RiskClassifier::classify_filesystem(
+            FilesystemOp::Write,
+            path,
+            &trusted,
+            &default_fs_config(),
+        );
+
+        // THEN it stays under Medium: refusing every path holding a `..` would
+        // be the same defect with the answer inverted
+        assert!(level < RiskLevel::Medium, "{level:?}");
     }
 
     #[test]

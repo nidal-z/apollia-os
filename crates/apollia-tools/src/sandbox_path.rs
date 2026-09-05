@@ -270,7 +270,12 @@ impl SandboxRoot {
 ///
 /// The normalized path may still contain `..` components at the start if there are more
 /// parent directory references than can be resolved against normal components.
-fn normalize_path(path: &Path) -> PathBuf {
+///
+/// Crate-visible because [`crate::RiskClassifier::classify_filesystem`] needs the
+/// same lexical resolution when the target does not exist yet: comparing a path
+/// that still holds a `..` against a root by components reads the hop as if it
+/// were inside.
+pub(crate) fn normalize_path(path: &Path) -> PathBuf {
     let mut components: Vec<Component> = Vec::new();
 
     for component in path.components() {
