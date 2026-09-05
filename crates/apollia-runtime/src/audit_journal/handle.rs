@@ -215,8 +215,10 @@ impl AuditJournalHandle {
     /// The actor recomputes every hash, checks the `prev_hash` linkage, and
     /// verifies signatures with its own configured key, so the secret never
     /// leaves the actor. Returns [`AuditJournalError::ActorUnavailable`] if the
-    /// actor is gone. A report with `entries_checked == 0` means the run has no
-    /// entries (unknown run).
+    /// actor is gone, and the underlying read error when the entries could not
+    /// be read at all. A report with `entries_checked == 0` means the run has
+    /// no entries (unknown run), which is why the read error may not collapse
+    /// into it.
     pub async fn verify_chain(&self, run_id: &str) -> Result<VerifyChainReport, AuditJournalError> {
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         self.sender
@@ -228,7 +230,7 @@ impl AuditJournalHandle {
             .map_err(|_| AuditJournalError::ActorUnavailable)?;
         reply_rx
             .await
-            .map_err(|_| AuditJournalError::ActorUnavailable)
+            .map_err(|_| AuditJournalError::ActorUnavailable)?
     }
 
     /// Verify the whole journal: the global chain, every per-run chain, and the
@@ -237,7 +239,9 @@ impl AuditJournalHandle {
     /// Detects interior deletion and whole-run deletion (a `global_seq` gap or a
     /// broken global link) and, against the persisted head anchor, truncation of
     /// the global tail. Returns [`AuditJournalError::ActorUnavailable`] if the
-    /// actor is gone.
+    /// actor is gone, and the underlying read error when the journal could not
+    /// be read: an empty journal is itself a valid `ok: true`, so a failed read
+    /// may not be reported as one.
     pub async fn verify_journal(&self) -> Result<VerifyJournalReport, AuditJournalError> {
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         self.sender
@@ -246,7 +250,7 @@ impl AuditJournalHandle {
             .map_err(|_| AuditJournalError::ActorUnavailable)?;
         reply_rx
             .await
-            .map_err(|_| AuditJournalError::ActorUnavailable)
+            .map_err(|_| AuditJournalError::ActorUnavailable)?
     }
 
     /// Return the exportable head anchor of the global chain, if any entry has

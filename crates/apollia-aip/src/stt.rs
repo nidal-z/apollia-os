@@ -223,14 +223,54 @@ mod tests {
         }
     }
 
-    // PySttInterface::new with no backend: backend is None
+    /// Reads `status()` and returns the value of its `enabled` key.
+    ///
+    /// Goes through the Python dict the agent actually sees, so a constant
+    /// written into `status()` cannot hide behind the private field.
+    fn status_enabled(iface: &PySttInterface) -> bool {
+        pyo3::prepare_freethreaded_python();
+        Python::with_gil(|py| {
+            let status = iface.status(py).expect("status() must build its dict");
+            status
+                .bind(py)
+                .get_item("enabled")
+                .expect("status() must carry an 'enabled' key")
+                .extract::<bool>()
+                .expect("'enabled' must be a bool")
+        })
+    }
+
+    // status() reports disabled when no backend is attached
     #[test]
-    fn test_status_disabled_when_no_backend() {
+    fn test_status_reports_disabled_when_no_backend() {
         // GIVEN an STT interface built without a backend
         let iface = PySttInterface::new(None, None, "auto".to_string());
-        // WHEN its backend is read
-        // THEN there is none, so dictation stays disabled
-        assert!(iface.backend.is_none());
+        // WHEN the agent reads ctx.stt.status()
+        // THEN the dict says the engine is not enabled
+        assert!(
+            !status_enabled(&iface),
+            "status() must not announce an engine that has no backend"
+        );
+    }
+
+    // status() reports enabled when a backend is attached
+    #[test]
+    fn test_status_reports_enabled_when_backend_present() {
+        // GIVEN an STT interface built with a backend
+        let backend: Arc<dyn SttBackend> = Arc::new(MockSttBackend {
+            response: "hello".to_string(),
+        });
+        let iface = PySttInterface::new(
+            Some(backend),
+            Some("mock-model".to_string()),
+            "auto".to_string(),
+        );
+        // WHEN the agent reads ctx.stt.status()
+        // THEN the dict says the engine is enabled
+        assert!(
+            status_enabled(&iface),
+            "status() must announce the engine it was handed"
+        );
     }
 
     // PySttInterface::new with backend: fields are set correctly

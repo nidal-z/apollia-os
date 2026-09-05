@@ -261,6 +261,55 @@ mod tests {
         tokio::fs::remove_file(&path).await.ok();
     }
 
+    #[tokio::test]
+    async fn test_verify_journal_reports_a_failed_read_instead_of_a_green() {
+        // GIVEN an open journal whose entries table is then dropped underneath
+        // it, so every read of the global chain fails
+        let (handle, path) = open_temp().await;
+        {
+            let conn = rusqlite::Connection::open(&path).expect("reopen raw");
+            conn.execute_batch("DROP TABLE audit_journal_entries;")
+                .expect("drop entries table");
+        }
+
+        // WHEN the whole journal is verified
+        let result = handle.verify_journal().await;
+
+        // THEN the read failure surfaces as an error, never as an intact
+        // verdict: a verifier that could not read anything must not report the
+        // journal as verified.
+        assert!(
+            matches!(result, Err(AuditJournalError::Sqlite(_))),
+            "a failed read must not be reported as a verified journal, got: {result:?}"
+        );
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
+    #[tokio::test]
+    async fn test_verify_chain_reports_a_failed_read_instead_of_an_empty_run() {
+        // GIVEN an open journal whose entries table is then dropped underneath
+        // it, so reading a run's entries fails
+        let (handle, path) = open_temp().await;
+        {
+            let conn = rusqlite::Connection::open(&path).expect("reopen raw");
+            conn.execute_batch("DROP TABLE audit_journal_entries;")
+                .expect("drop entries table");
+        }
+
+        // WHEN a run's chain is verified
+        let result = handle.verify_chain("run-1").await;
+
+        // THEN the read failure surfaces as an error rather than as the
+        // zero-entry report callers map to "unknown run"
+        assert!(
+            matches!(result, Err(AuditJournalError::Sqlite(_))),
+            "a failed read must not be reported as an unknown run, got: {result:?}"
+        );
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
     async fn open_temp() -> (AuditJournalHandle, std::path::PathBuf) {
         let db_path =
             std::env::temp_dir().join(format!("apollia_journal_test_{}.db", uuid::Uuid::new_v4()));

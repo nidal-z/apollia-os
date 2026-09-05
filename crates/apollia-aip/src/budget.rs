@@ -20,14 +20,18 @@ use pyo3::prelude::*;
 
 /// Snapshot view of the execution budget exposed to Python via `ctx.budget`.
 ///
-/// All counters are `i64` to allow the `-1` = unlimited convention.
+/// The two counters are `i64` because they are widened from the `u32` the
+/// runtime counts in; both are always `>= 0`. There is no negative sentinel:
+/// the `StepBudgetView` they are read from clamps its two remaining counts at
+/// zero, so an unbudgeted run surfaces the distance to `u32::MAX`, not `-1`.
 /// `wall_clock_remaining` is `Option<f64>` because some profiles (CLI without
-/// a deadline) impose no wall-clock limit.
+/// a deadline) impose no wall-clock limit, and that absence really is
+/// signalled, as `None`.
 #[pyclass(frozen, name = "BudgetView", module = "apollia._native")]
 pub struct BudgetView {
-    /// Steps left before `max_steps`, or `-1` if unlimited.
+    /// Steps left before `max_steps`; never negative.
     steps_remaining: i64,
-    /// Tool calls left before `max_tool_calls`, or `-1` if unlimited.
+    /// Tool calls left before `max_tool_calls`; never negative.
     tool_calls_remaining: i64,
     /// Seconds elapsed since the task started.
     elapsed_seconds: f64,
@@ -39,8 +43,8 @@ pub struct BudgetView {
 impl BudgetView {
     /// Steps left before reaching `max_steps` (ReAct).
     ///
-    /// Convention: `-1` = unlimited, otherwise `>= 0` (clamped to 0 on a
-    /// transient overshoot during concurrent increment).
+    /// Always `>= 0`, clamped to 0 on exhaustion and on a transient overshoot
+    /// during concurrent increment.
     #[getter]
     fn steps_remaining(&self) -> i64 {
         self.steps_remaining
@@ -48,7 +52,7 @@ impl BudgetView {
 
     /// Tool calls left before `max_tool_calls`.
     ///
-    /// Convention: `-1` = unlimited, otherwise `>= 0`.
+    /// Always `>= 0`.
     #[getter]
     fn tool_calls_remaining(&self) -> i64 {
         self.tool_calls_remaining

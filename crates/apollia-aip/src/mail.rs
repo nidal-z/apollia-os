@@ -96,16 +96,25 @@ impl MailInterface {
         request_id
     }
 
-    /// Returns the handle after checking the mailbox capability was declared.
+    /// Returns the handle after checking that this runtime started a mailbox
+    /// and that the agent declared the capability.
+    ///
+    /// The missing handle is reported first, because it is the only one of the
+    /// two conditions the agent author cannot act on. `apollia-os start` in
+    /// task mode builds the context with `mailbox: None` and never calls
+    /// `with_mailbox_capability`, so testing the flag first answered an agent
+    /// that had already declared `@agent(mailbox=True)` by telling it to
+    /// declare it, and the runtime absence never surfaced there at all.
     fn require_handle(&self) -> PyResult<AgentMailboxHandle> {
+        let handle = self.mailbox.clone().ok_or_else(|| {
+            PyRuntimeError::new_err("mailbox not available in this runtime context")
+        })?;
         if !self.supports_mailbox {
             return Err(PyRuntimeError::new_err(
                 "ctx.mail requires the mailbox capability; declare it with @agent(mailbox=True)",
             ));
         }
-        self.mailbox
-            .clone()
-            .ok_or_else(|| PyRuntimeError::new_err("mailbox not available in this runtime context"))
+        Ok(handle)
     }
 
     /// Rejects a recipient that is outside a declared allowlist.
@@ -300,6 +309,7 @@ fn message_to_json(msg: &apollia_runtime::mailbox::AgentMessage) -> serde_json::
 #[cfg(test)]
 mod tests {
     use super::*;
+    use apollia_runtime::mailbox::MailboxConfig;
     use apollia_runtime::EventBus;
 
     /// A gated interface emits a PermissionRequired event for `mailbox:send`.
@@ -333,6 +343,71 @@ mod tests {
                     && input["from"] == serde_json::json!("director")
             ),
             "unexpected event: {event:?}"
+        );
+    }
+
+    /// Reads the message of the error `require_handle` produces.
+    fn require_handle_error(mail: &MailInterface) -> String {
+        pyo3::prepare_freethreaded_python();
+        mail.require_handle()
+            .err()
+            .map(|e| e.to_string())
+            .expect("require_handle must refuse without a usable mailbox")
+    }
+
+    /// The runtime that started no mailbox says so, instead of blaming the manifest.
+    #[test]
+    fn test_no_runtime_mailbox_names_the_runtime_not_the_manifest() {
+        // GIVEN a context built the way `apollia-os start` builds it in task
+        // mode: no mailbox handle, and `with_mailbox_capability` never called
+        let mail = MailInterface::new(None, "a".to_string(), None, false, None, false, None, None);
+
+        // WHEN a mail method asks for the handle
+        let message = require_handle_error(&mail);
+
+        // THEN the error names the missing runtime mailbox, and does not send
+        // the agent author back to a manifest flag that would change nothing
+        assert!(
+            message.contains("mailbox not available in this runtime context"),
+            "unexpected message: {message}"
+        );
+        assert!(
+            !message.contains("@agent(mailbox=True)"),
+            "the runtime absence must not be reported as a manifest omission: {message}"
+        );
+    }
+
+    /// A runtime that did start a mailbox still refuses an undeclared agent,
+    /// and names the manifest when it does.
+    #[tokio::test]
+    async fn test_undeclared_capability_still_names_the_manifest() {
+        // GIVEN a live mailbox handle and an agent that declared nothing
+        let (event_tx, _event_rx) = EventBus::new();
+        let handle = apollia_runtime::mailbox::AgentMailboxHandle::spawn(
+            None,
+            event_tx,
+            MailboxConfig::default(),
+        )
+        .await;
+        let mail = MailInterface::new(
+            Some(handle),
+            "a".to_string(),
+            None,
+            false,
+            None,
+            false,
+            None,
+            None,
+        );
+
+        // WHEN a mail method asks for the handle
+        let message = require_handle_error(&mail);
+
+        // THEN the error names the manifest declaration, which is the one the
+        // agent author can actually add
+        assert!(
+            message.contains("@agent(mailbox=True)"),
+            "unexpected message: {message}"
         );
     }
 

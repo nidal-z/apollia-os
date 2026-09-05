@@ -46,8 +46,17 @@ impl TemplatesInterface {
     /// # Python errors
     /// - `FileNotFoundError` if `name` is not declared in the manifest or
     ///   not loaded in memory.
-    /// - `RuntimeError` on a Jinja render error (missing variable, syntax
-    ///   error, etc.).
+    /// - `RuntimeError` if the kwargs cannot be serialized, or on a minijinja
+    ///   runtime error such as a failing filter or an unsupported operation.
+    ///
+    /// A variable the context does not provide is **not** an error. The
+    /// environment keeps minijinja's default lenient undefined behaviour, so
+    /// `{{ missing }}` renders as an empty string and the agent gets a
+    /// silently shortened prompt rather than an exception;
+    /// `test_render_missing_variable_renders_empty` pins that. A syntax error
+    /// never reaches `render` either: `load_from_dir` compiles the template
+    /// and drops it on a compile failure, so `render` reports it as
+    /// `FileNotFoundError`.
     #[pyo3(signature = (name, **context))]
     fn render(
         &self,
@@ -209,6 +218,23 @@ mod tests {
                 .expect("render should succeed");
             // THEN the variable is substituted in the output
             assert_eq!(out, "Hello, World!");
+        });
+    }
+
+    /// The lenient-undefined behaviour the `render` doc-comment now states.
+    #[test]
+    fn test_render_missing_variable_renders_empty() {
+        // GIVEN a loaded template that reads a variable
+        let mut t = TemplatesInterface::new(vec![]);
+        t.inject("greeting", "Hello, {{ name }}!");
+
+        // WHEN it is rendered with no context at all
+        Python::with_gil(|py| {
+            let out = t
+                .render(py, "greeting", None)
+                .expect("an undefined variable must not raise under lenient undefined");
+            // THEN the hole is filled with nothing, and the agent is told nothing
+            assert_eq!(out, "Hello, !");
         });
     }
 

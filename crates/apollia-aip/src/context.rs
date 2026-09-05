@@ -786,6 +786,50 @@ mod runtime_context_tests {
         });
     }
 
+    // ctx.budget never hands the agent a negative sentinel
+    #[tokio::test]
+    async fn test_budget_reports_no_negative_sentinel_when_unbudgeted() {
+        // GIVEN a context built with an unlimited step budget
+        let (tx, _rx) = broadcast::channel::<RuntimeEvent>(16);
+        let ctx = RuntimeContext::new_with_llm(
+            None,
+            Arc::new(StepBudgetView::unlimited()),
+            make_tool_helper(),
+            Arc::new(ObservabilityConfig::default()),
+            tx,
+            AgentId::new_v4(),
+            None,          // tool_proxy
+            None,          // memory_interface
+            None,          // mailbox
+            String::new(), // agent_name
+            None,          // user_context
+            None,          // a2a_invoker
+            false,         // user_memory_writable
+        );
+
+        // WHEN the agent reads ctx.budget
+        let (steps, tool_calls) = pyo3::Python::with_gil(|py| {
+            let view = ctx.budget(py).expect("budget getter");
+            let bound = view.bind(py);
+            let steps: i64 = bound
+                .getattr("steps_remaining")
+                .expect("steps_remaining")
+                .extract()
+                .expect("i64");
+            let tool_calls: i64 = bound
+                .getattr("tool_calls_remaining")
+                .expect("tool_calls_remaining")
+                .extract()
+                .expect("i64");
+            (steps, tool_calls)
+        });
+
+        // THEN both dimensions report the distance to u32::MAX, never -1: an
+        // agent branching on a negative sentinel would never take that branch.
+        assert_eq!(steps, u32::MAX as i64);
+        assert_eq!(tool_calls, u32::MAX as i64);
+    }
+
     // steps_remaining reflects step_count atomically
     #[test]
     fn test_steps_remaining_reflects_count() {

@@ -130,14 +130,22 @@ pub(crate) enum JournalMessage {
         reply: tokio::sync::oneshot::Sender<Option<String>>,
     },
     /// Recompute and verify the chain and signatures of a run.
+    ///
+    /// The reply carries the read failure rather than swallowing it: an
+    /// unreadable table used to arrive as an empty entry list, which verifies
+    /// as `ok` over zero entries and is indistinguishable from an unknown run.
     VerifyChain {
         run_id: String,
-        reply: tokio::sync::oneshot::Sender<VerifyChainReport>,
+        reply: tokio::sync::oneshot::Sender<Result<VerifyChainReport, AuditJournalError>>,
     },
     /// Verify the whole journal: the global chain, every per-run chain, and the
     /// head anchor.
+    ///
+    /// The reply carries the read failure for the same reason, and the stakes
+    /// are higher here: an empty global chain with no anchor verifies as
+    /// `ok: true`, so a failed read was answering "the journal is intact".
     VerifyJournal {
-        reply: tokio::sync::oneshot::Sender<VerifyJournalReport>,
+        reply: tokio::sync::oneshot::Sender<Result<VerifyJournalReport, AuditJournalError>>,
     },
     /// Return the exportable head anchor of the global chain, if any.
     Anchor {
@@ -238,13 +246,14 @@ impl JournalActor {
                     let _ = reply.send(self.last_hash(&run_id));
                 }
                 JournalMessage::VerifyChain { run_id, reply } => {
-                    let entries = self.query_run(&run_id).unwrap_or_default();
-                    let report = verify_entries(
-                        &run_id,
-                        &entries,
-                        self.signer.as_deref(),
-                        self.signer.is_some(),
-                    );
+                    let report = self.query_run(&run_id).map(|entries| {
+                        verify_entries(
+                            &run_id,
+                            &entries,
+                            self.signer.as_deref(),
+                            self.signer.is_some(),
+                        )
+                    });
                     let _ = reply.send(report);
                 }
                 JournalMessage::VerifyJournal { reply } => {
@@ -408,15 +417,20 @@ impl JournalActor {
     /// A configured signer means every entry is expected to be signed, so
     /// verification requires signatures: stripping them off a recomputed chain
     /// fails instead of silently passing.
-    fn verify_journal_now(&self) -> VerifyJournalReport {
-        let rows = anchor::query_global_chain(&self.conn).unwrap_or_default();
-        let anchor_row = anchor::load_anchor(&self.conn).ok().flatten();
-        verify_journal(
+    ///
+    /// Both reads propagate. Swallowing them into an empty chain and a missing
+    /// anchor produced `ok: true` over zero entries, which is the verdict of an
+    /// intact empty journal: a verifier that could read nothing was answering
+    /// that there was nothing to fault.
+    fn verify_journal_now(&self) -> Result<VerifyJournalReport, AuditJournalError> {
+        let rows = anchor::query_global_chain(&self.conn)?;
+        let anchor_row = anchor::load_anchor(&self.conn)?;
+        Ok(verify_journal(
             &rows,
             anchor_row.as_ref(),
             self.signer.as_deref(),
             self.signer.is_some(),
-        )
+        ))
     }
 
     /// Build the exportable head anchor from the persisted state row plus the
