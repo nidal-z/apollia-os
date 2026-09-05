@@ -1,0 +1,60 @@
+{
+  "operation": "onedrive.list_recent",
+  "origin": "example",
+  "note": "Hand-written from the Microsoft Graph reference for List recent files (GET /me/drive/recent), whose body carries a value array of driveItem resources. The reference's items carry a remoteItem facet when the file lives in another drive, and a fileSystemInfo facet; both are read past. One shared file with those facets, and one folder the reference shows with a size and a zero childCount, so the folder facet is read at a count of zero rather than at the three the search fixture uses. Not a recording.",
+  "response": {
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#Collection(driveItem)",
+    "value": [
+      {
+        "id": "01REPLAYRECENTSHARED",
+        "name": "shared-notes.md",
+        "size": 612,
+        "webUrl": "https://example-my.sharepoint.com/personal/bob/Documents/shared-notes.md",
+        "lastModifiedDateTime": "2026-09-06T07:15:44Z",
+        "file": { "mimeType": "text/markdown" },
+        "fileSystemInfo": {
+          "createdDateTime": "2026-09-02T10:00:00Z",
+          "lastModifiedDateTime": "2026-09-06T07:15:44Z",
+          "lastAccessedDateTime": "2026-09-06T07:20:00Z"
+        },
+        "remoteItem": {
+          "id": "01REMOTEREPLAY",
+          "parentReference": { "driveId": "b!replayRemoteDrive", "driveType": "business" },
+          "webUrl": "https://example-my.sharepoint.com/personal/bob/Documents/shared-notes.md"
+        }
+      },
+      {
+        "id": "01REPLAYRECENTEMPTYFOLDER",
+        "name": "Archive",
+        "size": 0,
+        "webUrl": "https://example-my.sharepoint.com/personal/alice/Documents/Archive",
+        "lastModifiedDateTime": "2026-09-05T18:00:00Z",
+        "folder": { "childCount": 0 },
+        "fileSystemInfo": {
+          "createdDateTime": "2026-09-05T18:00:00Z",
+          "lastModifiedDateTime": "2026-09-05T18:00:00Z"
+        }
+      }
+    ]
+  },
+  "expect": [
+    {
+      "id": "01REPLAYRECENTSHARED",
+      "name": "shared-notes.md",
+      "size": 612,
+      "file": { "mimeType": "text/markdown" },
+      "folder": null,
+      "webUrl": "https://example-my.sharepoint.com/personal/bob/Documents/shared-notes.md",
+      "lastModifiedDateTime": "2026-09-06T07:15:44Z"
+    },
+    {
+      "id": "01REPLAYRECENTEMPTYFOLDER",
+      "name": "Archive",
+      "size": 0,
+      "file": null,
+      "folder": { "childCount": 0 },
+      "webUrl": "https://example-my.sharepoint.com/personal/alice/Documents/Archive",
+      "lastModifiedDateTime": "2026-09-05T18:00:00Z"
+    }
+  ]
+}

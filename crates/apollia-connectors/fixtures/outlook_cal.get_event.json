@@ -1,0 +1,71 @@
+{
+  "operation": "outlook_cal.get_event",
+  "origin": "example",
+  "note": "Hand-written from the Microsoft Graph reference for Get event (GET /me/events/{id}), which returns one event resource rather than a value collection. A timed event with a plain-text body, a location carrying the locationType and address the reference shows, an organizer, a responseStatus, and two attendees, one required and one optional, each with the status object the reference documents. The list_events fixture reads a single required attendee and an html body, so the optional type and the text content type are read here for the first time. Not a recording.",
+  "response": {
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/events/$entity",
+    "@odata.etag": "W/\"replay-event-etag\"",
+    "id": "AAMkAGV2ZW50LWdldC0x",
+    "createdDateTime": "2026-09-01T08:00:00.0000000Z",
+    "lastModifiedDateTime": "2026-09-05T16:30:00.0000000Z",
+    "subject": "Replay example, fetched by id",
+    "bodyPreview": "Agenda in plain text.",
+    "importance": "normal",
+    "sensitivity": "normal",
+    "isAllDay": false,
+    "isCancelled": false,
+    "isOrganizer": true,
+    "responseRequested": true,
+    "showAs": "busy",
+    "type": "singleInstance",
+    "webLink": "https://outlook.office365.com/owa/?itemid=AAMkAGV2ZW50LWdldC0x&exvsurl=1&path=/calendar/item",
+    "body": {
+      "contentType": "text",
+      "content": "Agenda in plain text."
+    },
+    "start": { "dateTime": "2026-09-08T14:00:00.0000000", "timeZone": "Europe/Paris" },
+    "end": { "dateTime": "2026-09-08T15:00:00.0000000", "timeZone": "Europe/Paris" },
+    "location": {
+      "displayName": "Salle 2",
+      "locationType": "conferenceRoom",
+      "uniqueIdType": "unknown",
+      "address": { "street": "", "city": "Paris", "countryOrRegion": "France" }
+    },
+    "responseStatus": { "response": "organizer", "time": "0001-01-01T00:00:00Z" },
+    "organizer": {
+      "emailAddress": { "name": "Alice Example", "address": "alice@example.com" }
+    },
+    "attendees": [
+      {
+        "type": "required",
+        "status": { "response": "accepted", "time": "2026-09-02T09:12:00Z" },
+        "emailAddress": { "name": "Bob Example", "address": "bob@example.com" }
+      },
+      {
+        "type": "optional",
+        "status": { "response": "none", "time": "0001-01-01T00:00:00Z" },
+        "emailAddress": { "address": "carol@example.com" }
+      }
+    ]
+  },
+  "expect": {
+    "id": "AAMkAGV2ZW50LWdldC0x",
+    "subject": "Replay example, fetched by id",
+    "body": { "contentType": "text", "content": "Agenda in plain text." },
+    "start": { "dateTime": "2026-09-08T14:00:00.0000000", "timeZone": "Europe/Paris" },
+    "end": { "dateTime": "2026-09-08T15:00:00.0000000", "timeZone": "Europe/Paris" },
+    "location": { "displayName": "Salle 2" },
+    "attendees": [
+      {
+        "emailAddress": { "name": "Bob Example", "address": "bob@example.com" },
+        "type": "required"
+      },
+      {
+        "emailAddress": { "address": "carol@example.com" },
+        "type": "optional"
+      }
+    ],
+    "webLink": "https://outlook.office365.com/owa/?itemid=AAMkAGV2ZW50LWdldC0x&exvsurl=1&path=/calendar/item",
+    "isAllDay": false
+  }
+}

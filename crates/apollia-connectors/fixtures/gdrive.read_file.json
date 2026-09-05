@@ -1,0 +1,7 @@
+{
+  "operation": "gdrive.read_file",
+  "origin": "example",
+  "note": "Hand-written for the Google Drive API v3 files.get call with alt=media, which returns the file content rather than a File resource. The runtime bridge maps gdrive.read_file onto the same workspace_read client method as gdrive.workspace_read, so this replays the same request with a different body: a file whose content is itself a JSON document, as an agent reading a .json file from a picked folder gets. It has to come back verbatim, not be decoded as a Drive resource, and the trailing newline has to survive. Not a recording.",
+  "response": "{\"kind\": \"not a drive resource\", \"rows\": [1, 2, 3], \"note\": \"contenu brut, accent é\"}\n",
+  "expect": "{\"kind\": \"not a drive resource\", \"rows\": [1, 2, 3], \"note\": \"contenu brut, accent é\"}\n"
+}

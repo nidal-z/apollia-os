@@ -1,0 +1,11 @@
+{
+  "operation": "gdrive.list_files_in",
+  "origin": "example",
+  "note": "Hand-written from the Google Drive API v3 reference for files.list with a parents clause in q, the call list_files_in_folder makes on a folder the user granted through the picker. The folder is empty: the reference body carries an empty files array, not an absent key, and the reading has to be an empty list rather than an error. No other Drive fixture reads the empty collection. Not a recording.",
+  "response": {
+    "kind": "drive#fileList",
+    "incompleteSearch": false,
+    "files": []
+  },
+  "expect": []
+}

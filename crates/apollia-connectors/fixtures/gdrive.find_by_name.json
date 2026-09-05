@@ -1,0 +1,43 @@
+{
+  "operation": "gdrive.find_by_name",
+  "origin": "example",
+  "note": "Hand-written from the Google Drive API v3 reference for files.list (GET /drive/v3/files with a q parameter), whose body carries a files array of File resources plus a nextPageToken when more pages exist. Two matches for a name search: a Google Sheets file, and a shortcut, which the File resource reference documents as carrying no size. The pagination token and the top-level kind are what the client ignores, so an accidental strict decoder would fail here. Not a recording.",
+  "response": {
+    "kind": "drive#fileList",
+    "nextPageToken": "~!!~AI9FV7Q_replay_next_page",
+    "incompleteSearch": false,
+    "files": [
+      {
+        "kind": "drive#file",
+        "id": "1REPLAYSHEETbyNAME",
+        "name": "Alice's budget",
+        "mimeType": "application/vnd.google-apps.spreadsheet",
+        "modifiedTime": "2026-09-05T14:02:10.417Z",
+        "size": "1024"
+      },
+      {
+        "kind": "drive#file",
+        "id": "1REPLAYSHORTCUTbyNAME",
+        "name": "Alice's budget (shortcut)",
+        "mimeType": "application/vnd.google-apps.shortcut",
+        "modifiedTime": "2026-09-05T14:03:00.000Z"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "id": "1REPLAYSHEETbyNAME",
+      "name": "Alice's budget",
+      "mimeType": "application/vnd.google-apps.spreadsheet",
+      "modifiedTime": "2026-09-05T14:02:10.417Z",
+      "size": "1024"
+    },
+    {
+      "id": "1REPLAYSHORTCUTbyNAME",
+      "name": "Alice's budget (shortcut)",
+      "mimeType": "application/vnd.google-apps.shortcut",
+      "modifiedTime": "2026-09-05T14:03:00.000Z",
+      "size": null
+    }
+  ]
+}

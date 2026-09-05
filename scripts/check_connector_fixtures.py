@@ -134,33 +134,29 @@ READS_NOTHING = frozenset(
 # grow. Closing an entry means recording an answer from a throwaway account,
 # dropping the fixture in, and deleting the line here in the same commit.
 #
-# Every one of the sixteen left reads a shape another fixture already exercises:
-# two an `Event`, two a `Vec<DriveFile>`, one a `DriveFile`, two a `Task`, two a
-# `DriveItem`, two an `OutlookMessage`, three an `OutlookEvent`, two raw bytes.
-# So closing one measures the same decode again on a real body rather than a new
-# one, which is why they are the ones left rather than the ones done first.
+# Every one of the eight left is a write, and each answers with the resource
+# the server created or changed: an id, an etag, a revision, a timestamp the
+# server chose. A public reference page shows the shape of that answer but not
+# what a given account gets back, so a hand-written example here would occupy a
+# line of this ratchet while proving nothing a read fixture does not already
+# prove about the same decode: two an `Event`, one a `DriveFile`, two a `Task`,
+# one an `OutlookMessage`, two an `OutlookEvent`. They wait for a recording
+# session, in the order the safety of the account imposes: the writes into a
+# dedicated sandbox, then the destructive ones on the objects thus created.
 #
-# `gdrive.read_file` is the extreme case: its dispatch arm calls
-# `workspace_read`, the very method the `gdrive.workspace_read` fixture already
-# drives, because the runtime bridge maps those two operations onto that one
-# method as well. A fixture for it would replay a byte-identical call.
+# The eight reads that used to sit beside them were closed from the vendors'
+# public reference pages, the way the first twenty-four fixtures were: a read
+# answers with a documented resource, and its example fixture measures the
+# decode of that resource on the code path the runtime bridge actually takes.
 UNCOVERED_BACKLOG = frozenset(
     {
         "gcal.create_event",
         "gcal.update_event",
-        "gdrive.find_by_name",
-        "gdrive.list_files_in",
-        "gdrive.read_file",
         "gdrive.workspace_write",
         "gtasks.complete",
         "gtasks.create",
-        "onedrive.download",
-        "onedrive.get_metadata",
-        "onedrive.list_recent",
         "outlook.move",
-        "outlook.search",
         "outlook_cal.create_event",
-        "outlook_cal.get_event",
         "outlook_cal.update_event",
     }
 )

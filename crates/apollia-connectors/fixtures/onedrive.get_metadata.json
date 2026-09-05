@@ -1,0 +1,51 @@
+{
+  "operation": "onedrive.get_metadata",
+  "origin": "example",
+  "note": "Hand-written from the Microsoft Graph reference for Get a DriveItem resource (GET /me/drive/items/{item-id}), which returns one driveItem rather than a value collection. A file item with the facets the reference shows on a file: file with mimeType and hashes, fileSystemInfo, parentReference, createdBy and lastModifiedBy identity sets. Everything but id, name, size, file, webUrl and lastModifiedDateTime is what the client ignores, and folder reads as absent. Not a recording.",
+  "response": {
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/drive/items/$entity",
+    "@microsoft.graph.downloadUrl": "https://example-my.sharepoint.com/personal/alice/_layouts/15/download.aspx?UniqueId=replay",
+    "createdDateTime": "2026-09-01T09:30:00Z",
+    "cTag": "\"c:{REPLAY-CTAG},1\"",
+    "eTag": "\"{REPLAY-ETAG},1\"",
+    "id": "01REPLAYMETAITEM",
+    "lastModifiedDateTime": "2026-09-05T14:02:10Z",
+    "name": "replay-report.docx",
+    "size": 48213,
+    "webUrl": "https://example-my.sharepoint.com/personal/alice/Documents/replay-report.docx",
+    "createdBy": {
+      "user": { "displayName": "Alice Example", "id": "replay-user-id" }
+    },
+    "lastModifiedBy": {
+      "user": { "displayName": "Alice Example", "id": "replay-user-id" }
+    },
+    "parentReference": {
+      "driveId": "b!replayDriveId",
+      "driveType": "personal",
+      "id": "01REPLAYPARENT",
+      "path": "/drive/root:/Documents"
+    },
+    "file": {
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "hashes": {
+        "quickXorHash": "cmVwbGF5LXF1aWNreG9y",
+        "sha1Hash": "REPLAYSHA1"
+      }
+    },
+    "fileSystemInfo": {
+      "createdDateTime": "2026-09-01T09:30:00Z",
+      "lastModifiedDateTime": "2026-09-05T14:02:10Z"
+    }
+  },
+  "expect": {
+    "id": "01REPLAYMETAITEM",
+    "name": "replay-report.docx",
+    "size": 48213,
+    "file": {
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    },
+    "folder": null,
+    "webUrl": "https://example-my.sharepoint.com/personal/alice/Documents/replay-report.docx",
+    "lastModifiedDateTime": "2026-09-05T14:02:10Z"
+  }
+}

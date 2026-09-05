@@ -1,0 +1,7 @@
+{
+  "operation": "onedrive.download",
+  "origin": "example",
+  "note": "Hand-written for the Microsoft Graph reference Download the contents of a DriveItem (GET /me/drive/items/{item-id}/content). The reference answers that call with a 302 to a pre-authenticated URL, which the client follows through the redirect policy of apollia_core::net; what it reads at the end is the file body, and that body is what this fixture serves directly. A CSV with CRLF line endings, so a line-ending normalisation or a truncation at the carriage return would show. Not a recording.",
+  "response": "name;size\r\nreplay-example.pdf;20481\r\nReplay folder;\r\n",
+  "expect": "name;size\r\nreplay-example.pdf;20481\r\nReplay folder;\r\n"
+}

@@ -1,0 +1,82 @@
+{
+  "operation": "outlook.search",
+  "origin": "example",
+  "note": "Hand-written from the Microsoft Graph reference for List messages with the $search query parameter (GET /me/messages?$search=...), whose body carries a value array of message resources and an @odata.nextLink when the search has more pages. Two hits: an unread message from a sender, and a draft, which the reference shows with isDraft true and no sender, so from is read as null and isRead as false. The outlook.get fixture reads a single read message, so this is the first reading of the unread and senderless values. Not a recording.",
+  "response": {
+    "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('me')/messages",
+    "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/messages?$search=%22replay%22&$top=10&$skip=10",
+    "value": [
+      {
+        "@odata.etag": "W/\"CQAAABYAAAAreplay1\"",
+        "id": "AAMkAGI2VU5SRUFELTE=",
+        "subject": "Replay search hit, unread",
+        "bodyPreview": "First lines of the unread message.",
+        "importance": "normal",
+        "hasAttachments": true,
+        "isDraft": false,
+        "isRead": false,
+        "receivedDateTime": "2026-09-06T06:41:12Z",
+        "sentDateTime": "2026-09-06T06:41:05Z",
+        "parentFolderId": "AQMkAGI2SU5CT1g=",
+        "from": {
+          "emailAddress": { "name": "Alice Example", "address": "alice@example.com" }
+        },
+        "sender": {
+          "emailAddress": { "name": "Alice Example", "address": "alice@example.com" }
+        },
+        "toRecipients": [
+          { "emailAddress": { "name": "Bob Example", "address": "bob@example.com" } }
+        ],
+        "ccRecipients": [
+          { "emailAddress": { "address": "carol@example.com" } }
+        ]
+      },
+      {
+        "@odata.etag": "W/\"CQAAABYAAAAreplay2\"",
+        "id": "AAMkAGI2RFJBRlQtMg==",
+        "subject": "Replay search hit, draft",
+        "bodyPreview": "",
+        "importance": "normal",
+        "hasAttachments": false,
+        "isDraft": true,
+        "isRead": true,
+        "receivedDateTime": "2026-09-05T21:03:00Z",
+        "parentFolderId": "AQMkAGI2RFJBRlRT",
+        "from": null,
+        "sender": null,
+        "toRecipients": [],
+        "ccRecipients": []
+      }
+    ]
+  },
+  "expect": [
+    {
+      "id": "AAMkAGI2VU5SRUFELTE=",
+      "subject": "Replay search hit, unread",
+      "bodyPreview": "First lines of the unread message.",
+      "from": {
+        "emailAddress": { "name": "Alice Example", "address": "alice@example.com" }
+      },
+      "toRecipients": [
+        { "emailAddress": { "name": "Bob Example", "address": "bob@example.com" } }
+      ],
+      "ccRecipients": [
+        { "emailAddress": { "address": "carol@example.com" } }
+      ],
+      "parentFolderId": "AQMkAGI2SU5CT1g=",
+      "receivedDateTime": "2026-09-06T06:41:12Z",
+      "isRead": false
+    },
+    {
+      "id": "AAMkAGI2RFJBRlQtMg==",
+      "subject": "Replay search hit, draft",
+      "bodyPreview": "",
+      "from": null,
+      "toRecipients": [],
+      "ccRecipients": [],
+      "parentFolderId": "AQMkAGI2RFJBRlRT",
+      "receivedDateTime": "2026-09-05T21:03:00Z",
+      "isRead": true
+    }
+  ]
+}
