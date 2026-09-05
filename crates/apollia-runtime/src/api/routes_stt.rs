@@ -35,7 +35,13 @@ pub struct SttErrorResponse {
 pub struct SttStatusResponse {
     /// Whether STT is enabled in configuration.
     pub enabled: bool,
-    /// Whether the model is loaded and ready for inference.
+    /// Whether a transcription has come back from the engine since it started.
+    ///
+    /// The runner sidecar loads the model on its first transcription, and the
+    /// daemon only checks that the model file exists before starting: a reading
+    /// that came back is the only proof it holds that the file is a model the
+    /// engine can read. `false` therefore means "configured, not yet exercised"
+    /// rather than "broken".
     pub model_loaded: bool,
     /// Filesystem path of the loaded model.
     pub model_path: String,

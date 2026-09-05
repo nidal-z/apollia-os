@@ -135,6 +135,11 @@ impl SttEngineHandle {
             event_bus: event_bus.clone(),
             config,
             model_name: model_name.clone(),
+            // Nothing has been loaded yet: `builder.rs` checks that the model file
+            // exists and hands over a backend that posts to the runner sidecar,
+            // which loads on its first transcription. Starting therefore proves the
+            // file is present, never that it is a model the engine can read.
+            model_loaded: false,
         };
         tokio::spawn(engine.run(rx));
 
@@ -238,11 +243,21 @@ struct SttEngine {
     event_bus: EventBusSender,
     config: SttConfigRow,
     model_name: String,
+    /// Whether a transcription has ever come back from the backend.
+    ///
+    /// The API contract calls this "the model is loaded and ready for
+    /// inference", and it was a literal `true` in the status reply: every
+    /// caller was told the engine was ready the moment the actor answered.
+    /// `builder.rs` only checks that the model file exists, and the runner
+    /// sidecar loads it on the first transcription, so a started actor proved
+    /// the presence of a file and nothing about its contents. A seeded tree
+    /// carrying a 4 KiB placeholder reported `STT Engine: ready`.
+    model_loaded: bool,
 }
 
 impl SttEngine {
     /// Main actor loop, processes commands until `Shutdown` or channel close.
-    async fn run(self, mut rx: mpsc::Receiver<SttCommand>) {
+    async fn run(mut self, mut rx: mpsc::Receiver<SttCommand>) {
         info!("stt.engine.started");
         while let Some(cmd) = rx.recv().await {
             match cmd {
@@ -256,12 +271,18 @@ impl SttEngine {
                     let result = self
                         .handle_transcribe(audio, sample_rate, &source, language)
                         .await;
+                    // The sidecar loads the model on its first transcription, so a
+                    // reading that came back is the only proof this daemon has that
+                    // the model on disk is one the engine can load.
+                    if result.is_ok() {
+                        self.model_loaded = true;
+                    }
                     let _ = reply.send(result);
                 }
                 SttCommand::GetStatus { reply } => {
                     let _ = reply.send(SttStatus {
                         enabled: self.config.enabled,
-                        model_loaded: true,
+                        model_loaded: self.model_loaded,
                         model_path: self.config.model_path.clone(),
                         model_name: self.model_name.clone(),
                         backend_name: self.backend.name().to_owned(),
@@ -527,18 +548,73 @@ mod tests {
 
     #[tokio::test]
     async fn status_returns_engine_info() {
-        // GIVEN
+        // GIVEN an engine that has answered nothing yet
         let (handle, _rx) = start_test_engine(false);
 
-        // WHEN
+        // WHEN its status is read
         let status = handle.status().await.expect("status should succeed");
 
-        // THEN
+        // THEN it describes its configuration, and reports the model as not
+        // loaded: the sidecar loads on the first transcription, so nothing has
+        // proved the file on disk is a model this engine can read
         assert!(status.enabled);
-        assert!(status.model_loaded);
+        assert!(!status.model_loaded);
         assert_eq!(status.backend_name, "fake");
         assert!(status.model_path.contains("test-model"));
         assert_eq!(status.model_name, "test-model");
+    }
+
+    #[tokio::test]
+    async fn status_reports_the_model_loaded_only_after_a_reading_came_back() {
+        // GIVEN an engine whose backend answers
+        let (handle, _rx) = start_test_engine(false);
+        assert!(
+            !handle
+                .status()
+                .await
+                .expect("status should succeed")
+                .model_loaded,
+            "nothing has been transcribed yet"
+        );
+
+        // WHEN one transcription comes back
+        handle
+            .transcribe(vec![0.0; 16000], 16000, TranscriptSource::Hotkey)
+            .await
+            .expect("transcription should succeed");
+
+        // THEN the status says so, which is the only proof this daemon has that
+        // the model is one the engine can load
+        assert!(
+            handle
+                .status()
+                .await
+                .expect("status should succeed")
+                .model_loaded
+        );
+    }
+
+    #[tokio::test]
+    async fn status_keeps_the_model_unloaded_when_the_backend_fails() {
+        // GIVEN an engine whose backend refuses every reading
+        let (handle, _rx) = start_test_engine(true);
+
+        // WHEN a transcription is attempted and fails
+        let attempt = handle
+            .transcribe(vec![0.0; 16000], 16000, TranscriptSource::Hotkey)
+            .await;
+        assert!(attempt.is_err(), "the fake backend must refuse");
+
+        // THEN the status still reports the model as not loaded: a failed
+        // reading proves nothing was loaded, and the flag that used to be a
+        // literal `true` would have said otherwise
+        assert!(
+            !handle
+                .status()
+                .await
+                .expect("status should succeed")
+                .model_loaded
+        );
     }
 
     #[tokio::test]

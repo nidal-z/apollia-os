@@ -145,12 +145,19 @@ check         "llm reload"                          "${Q[@]}" llm reload
 
 # ── stt / resilience / plan cache / chat --list ─────────────────────────
 section "stt / resilience / plan cache"
-# The seed writes a configured stt_config row (fragments/system.sql:82-93),
-# but its ggml-base.bin is a placeholder no whisper backend can load, so the
-# daemon holds no STT engine and `GET /stt/status` answers 503 by contract
-# (routes_stt.rs, stt_unavailable). The deterministic path on this fixture is
-# therefore the refusal; Track 1 already asserts the daemon-off exit 2.
-check_exit    "stt status (placeholder model, engine unavailable) → 1" 1 "${Q[@]}" stt status
+# The seed writes a configured stt_config row (fragments/system.sql:82-93) and a
+# ggml-base.bin placeholder no whisper backend could load. This assertion used to
+# expect a refusal, on the premise that such a file leaves the daemon without an
+# STT engine. It does not: `stt/builder.rs` checks that the model file EXISTS and
+# hands the runner sidecar its path, and the sidecar loads on the first
+# transcription. The engine starts, the status answers, and the exit is 0.
+#
+# What the status must not do is claim the model is loaded, which it did until
+# `model_loaded` stopped being a literal `true` in the actor's reply. On this
+# fixture nothing has been transcribed, so the honest answer is false, and the
+# text rendering says `loading` rather than `ready`.
+check_json_field "stt status reports the placeholder as not loaded" \
+                 "d['model_loaded']" "False" "${Q[@]}" --json stt status
 check         "stt model list"                      "${Q[@]}" stt model list
 check         "stt config get"                      "${Q[@]}" stt config get
 check         "stt config update --language en"    "${Q[@]}" stt config update --language en
