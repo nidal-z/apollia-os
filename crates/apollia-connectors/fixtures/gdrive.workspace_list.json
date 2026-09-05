@@ -1,0 +1,54 @@
+{
+  "operation": "gdrive.workspace_list",
+  "origin": "example",
+  "note": "Hand-written from the Google Drive API reference for files.list. The operation resolves its folder before it lists it, so this is the first fixture in the directory to describe a call chain: three lookups, one per path segment of Documents/Apollia plus the agent slug, each answered with the id-and-name field mask the client asks for, then the listing itself. A resolution that gained or lost a call would fail on the call count rather than on the reading, which is what no single-answer fixture can see. Not a recording.",
+  "responses": [
+    {
+      "files": [
+        {
+          "id": "1FolderDocuments",
+          "name": "Documents"
+        }
+      ]
+    },
+    {
+      "files": [
+        {
+          "id": "1FolderApollia",
+          "name": "Apollia"
+        }
+      ]
+    },
+    {
+      "files": [
+        {
+          "id": "1FolderReplayAgent",
+          "name": "replay-agent"
+        }
+      ]
+    },
+    {
+      "kind": "drive#fileList",
+      "incompleteSearch": false,
+      "files": [
+        {
+          "kind": "drive#file",
+          "id": "1ReplAyNoteIdFromTheReference",
+          "name": "note.txt",
+          "mimeType": "text/plain",
+          "modifiedTime": "2026-09-04T08:12:33.123Z",
+          "size": "6"
+        }
+      ]
+    }
+  ],
+  "expect": [
+    {
+      "id": "1ReplAyNoteIdFromTheReference",
+      "name": "note.txt",
+      "mimeType": "text/plain",
+      "modifiedTime": "2026-09-04T08:12:33.123Z",
+      "size": "6"
+    }
+  ]
+}

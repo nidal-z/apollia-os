@@ -1,0 +1,26 @@
+{
+  "operation": "gdrive.write_to_folder",
+  "origin": "example",
+  "note": "Hand-written from the Google Drive API reference for files.create and for the uploadType=media upload, which the client chains: it POSTs the metadata, then PATCHes the bytes to the upload host. Both answers carry the default field set Drive returns when no `fields` mask is sent (kind, id, name, mimeType), and both are written here identically because that is what Drive answers; what this fixture measures is that the operation makes exactly those two calls and that the second answer is parsed through serde_json::from_slice on the capped bytes rather than through the JSON helper, a path no other fixture reaches. Not a recording.",
+  "responses": [
+    {
+      "kind": "drive#file",
+      "id": "1ReplAyNoteIdFromTheReference",
+      "name": "note.txt",
+      "mimeType": "text/plain"
+    },
+    {
+      "kind": "drive#file",
+      "id": "1ReplAyNoteIdFromTheReference",
+      "name": "note.txt",
+      "mimeType": "text/plain"
+    }
+  ],
+  "expect": {
+    "id": "1ReplAyNoteIdFromTheReference",
+    "name": "note.txt",
+    "mimeType": "text/plain",
+    "modifiedTime": null,
+    "size": null
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "operation": "gsheets.create",
+  "origin": "example",
+  "note": "Hand-written from the Google Sheets API reference for spreadsheets.create, which answers with the created Spreadsheet resource. gsheets.list_sheets reads the same endpoint shape but the client hands back only the tab views; this is the first reading of the Spreadsheet type itself, whose spreadsheetUrl and properties.title nothing else exercises. The properties.defaultFormat block a real answer also carries is omitted rather than guessed. Not a recording.",
+  "response": {
+    "spreadsheetId": "1ReplAySheetIdFromTheReference",
+    "properties": {
+      "title": "Replay",
+      "locale": "en_US",
+      "autoRecalc": "ON_CHANGE",
+      "timeZone": "Etc/GMT"
+    },
+    "sheets": [
+      {
+        "properties": {
+          "sheetId": 0,
+          "title": "Sheet1",
+          "index": 0,
+          "sheetType": "GRID",
+          "gridProperties": {
+            "rowCount": 1000,
+            "columnCount": 26
+          }
+        }
+      }
+    ],
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1ReplAySheetIdFromTheReference/edit"
+  },
+  "expect": {
+    "spreadsheetId": "1ReplAySheetIdFromTheReference",
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/1ReplAySheetIdFromTheReference/edit",
+    "properties": {
+      "title": "Replay"
+    },
+    "sheets": [
+      {
+        "properties": {
+          "sheetId": 0,
+          "title": "Sheet1",
+          "index": 0
+        }
+      }
+    ]
+  }
+}

@@ -77,6 +77,88 @@ impl OperationSpec {
 mod tests {
     use super::*;
 
+    /// Every operation both connectors declare.
+    ///
+    /// The two catalogues used to check their approval policies against a
+    /// hand-picked handful each, under a `GIVEN` that named the whole
+    /// population: "the three operations that write to a Google service" read
+    /// three of the twenty, and "the five operations that only read" five of
+    /// the nine. A sample cannot catch the operation a later commit adds, which
+    /// is the only thing such a check is for, so the crossings below read the
+    /// catalogues whole.
+    fn catalogue() -> impl Iterator<Item = &'static OperationSpec> {
+        crate::google::operations()
+            .iter()
+            .chain(crate::microsoft::operations().iter())
+    }
+
+    #[test]
+    fn test_every_description_states_the_approval_the_policy_enforces() {
+        // GIVEN every declared operation, each carrying two independent
+        // statements of its approval: the policy the runtime enforces, and the
+        // `Approval:` line handed to the model inside the description
+        let mut crossed = 0usize;
+        for op in catalogue() {
+            let Some(line) = op.description.lines().find(|l| l.starts_with("Approval:")) else {
+                panic!("operation {} states no approval to the model", op.id);
+            };
+
+            // WHEN the sentence the model reads is crossed with the policy
+            let expected = match op.approval {
+                ApprovalPolicy::AutoApprove => "Approval: not required.",
+                ApprovalPolicy::AlwaysRequireApproval => "Approval: required.",
+                ApprovalPolicy::ConfirmPhrase => "Approval: required + confirmation phrase.",
+            };
+
+            // THEN the two agree, so no operation promises the model a free call
+            // the runtime will stop, nor announces a prompt that never comes
+            assert_eq!(line, expected, "operation {}", op.id);
+            crossed += 1;
+        }
+        assert!(
+            crossed > 0,
+            "no operation was crossed, so nothing was measured"
+        );
+    }
+
+    #[test]
+    fn test_no_description_sends_the_reader_to_a_menu_it_cannot_see() {
+        // GIVEN every description the two catalogues hand the model, two of
+        // which walk the reader through the settings menu
+        for op in catalogue() {
+            // WHEN each is read for a letter no English word carries, and for
+            // the settings path the interface shows under the English locale
+            let accented: Vec<char> = op
+                .description
+                .chars()
+                .filter(|c| c.is_alphabetic() && !c.is_ascii())
+                .collect();
+
+            // THEN no description is written in a language other than the one
+            // the operator reads, and one that walks the menu walks the English
+            // one. Two Google descriptions used to name the French entries, one
+            // of them a field label no locale carries any more. The
+            // repository-wide language guard grades a line on its ratio of
+            // French words to the rest, and a description is a single very long
+            // line, so a French fragment inside one stays under the threshold
+            // and the file reads as clean.
+            assert!(
+                accented.is_empty(),
+                "operation {} carries {accented:?} in its description, so what \
+                 the model and the operator read is not the English text",
+                op.id
+            );
+            if op.description.contains("Settings") {
+                assert!(
+                    op.description.contains("Settings → Integrations"),
+                    "operation {} walks the settings menu by a name the English \
+                     interface does not show",
+                    op.id
+                );
+            }
+        }
+    }
+
     fn fixture(approval: ApprovalPolicy) -> OperationSpec {
         OperationSpec {
             id: "gmail.send",

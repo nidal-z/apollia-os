@@ -264,7 +264,13 @@ impl CalendarClient {
             .await
     }
 
-    /// Delete an event by id. Returns success even if the event was already gone.
+    /// Delete an event by id.
+    ///
+    /// Deleting an event the calendar no longer holds is not a success: Google
+    /// answers 410 Gone once an event has been deleted, and 404 when the id
+    /// names none, and both surface as [`ConnectorError::Upstream`] carrying
+    /// that status. A caller that wants an idempotent delete folds those two
+    /// statuses into a success itself; this method does not.
     pub async fn delete_event<F, Fut>(
         &self,
         calendar_id: &str,
@@ -336,6 +342,41 @@ fn build_list_url(base: &str, calendar_id: &str, filter: &ListEventsFilter) -> S
 mod tests {
     use super::*;
     use chrono::TimeZone;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn test_delete_event_on_a_gone_event_surfaces_the_upstream_status() {
+        // GIVEN a calendar answering 410 Gone, which is what Google returns when
+        // the event id names an event that has already been deleted
+        let server = MockServer::start().await;
+        Mock::given(method("DELETE"))
+            .and(path("/primary/events/evt-already-gone"))
+            .respond_with(ResponseTemplate::new(410).set_body_json(serde_json::json!({
+                "error": {
+                    "errors": [{"domain": "global", "reason": "deleted", "message": "Resource has been deleted"}],
+                    "code": 410,
+                    "message": "Resource has been deleted"
+                }
+            })))
+            .mount(&server)
+            .await;
+        let client = CalendarClient::with_base_url(HttpClient::new("test").unwrap(), &server.uri());
+
+        // WHEN the event is deleted a second time
+        let outcome = client
+            .delete_event("primary", "evt-already-gone", "token", || async {
+                Ok::<_, ConnectorError>("token".to_owned())
+            })
+            .await;
+
+        // THEN the status is surfaced rather than folded into a success, which
+        // is what the method's contract used to promise and never did
+        match outcome {
+            Err(ConnectorError::Upstream { status, .. }) => assert_eq!(status, 410),
+            other => panic!("expected the 410 to surface, got: {other:?}"),
+        }
+    }
 
     #[test]
     fn test_urlencode_keeps_safe_chars() {

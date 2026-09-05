@@ -1,0 +1,12 @@
+{
+  "operation": "gdrive.workspace_share",
+  "origin": "example",
+  "note": "Hand-written from the Google Drive API reference for permissions.create, which answers with the created Permission resource. Every other fixture in this directory asserts an object or a list; this is the only operation whose client pulls one field out of the answer and hands back a bare string, so the reading it exercises is the extraction rather than a decode. Not a recording.",
+  "response": {
+    "kind": "drive#permission",
+    "id": "09876543210987654321",
+    "type": "user",
+    "role": "reader"
+  },
+  "expect": "09876543210987654321"
+}

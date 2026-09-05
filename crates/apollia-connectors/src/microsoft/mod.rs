@@ -337,36 +337,6 @@ mod tests {
     }
 
     #[test]
-    fn test_write_operations_require_approval() {
-        // GIVEN the three operations that write to a Microsoft service
-        let writes = ["outlook.send", "outlook.reply", "outlook_cal.create_event"];
-        // WHEN each is looked up in the operation table
-        for id in writes {
-            let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
-            // THEN every one of them is gated behind an approval
-            assert!(op.requires_approval(), "expected {id} to require approval");
-        }
-    }
-
-    #[test]
-    fn test_read_operations_auto_approve() {
-        // GIVEN the five operations that only read
-        let reads = [
-            "outlook.search",
-            "outlook.get",
-            "outlook_cal.list_events",
-            "onedrive.search",
-            "onedrive.download",
-        ];
-        // WHEN each is looked up in the operation table
-        for id in reads {
-            let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
-            // THEN all of them are read-only, so no approval is asked for
-            assert!(op.is_read_only(), "expected {id} to auto-approve");
-        }
-    }
-
-    #[test]
     fn test_delete_event_uses_confirm_phrase() {
         // GIVEN the calendar event deletion operation
         let op = OPERATIONS

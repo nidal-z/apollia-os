@@ -347,7 +347,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AutoApprove,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "List the contents of the Apollia workspace inside the user's Drive - the workspace anchor is set in Settings → Intégrations → \"Dossier racine\".\n\n**Default behaviour (no args)**: lists files in the configured workspace folder. If the folder doesn't exist yet on Drive, returns `[]` with a hint. When the user set the root to \"\" (literal Drive root), lists everything at My Drive root.\n\n**Overrides**: `folder_id` lists a specific Drive folder by id; `all: true` ignores the workspace and returns every file Apollia has access to (own + Picker grants). Use `all: true` when the user explicitly asks to see everything across Drive.\n\nUnder `drive.file` OAuth scope, Apollia never sees files it didn't create or wasn't granted via Picker.\n\nInputs: folder_id (optional string), all (optional bool, default false), page_size (optional integer, default 50, max 100).\nApproval: not required.\nSide effects: none.",
+        description: "List the contents of the Apollia workspace inside the user's Drive - the workspace anchor is set in Settings → Integrations → \"Drive folder path\".\n\n**Default behaviour (no args)**: lists files in the configured workspace folder. If the folder doesn't exist yet on Drive, returns `[]` with a hint. When the user set the root to \"\" (literal Drive root), lists everything at My Drive root.\n\n**Overrides**: `folder_id` lists a specific Drive folder by id; `all: true` ignores the workspace and returns every file Apollia has access to (own + Picker grants). Use `all: true` when the user explicitly asks to see everything across Drive.\n\nUnder `drive.file` OAuth scope, Apollia never sees files it didn't create or wasn't granted via Picker.\n\nInputs: folder_id (optional string), all (optional bool, default false), page_size (optional integer, default 50, max 100).\nApproval: not required.\nSide effects: none.",
     },
     OperationSpec {
         id: "gdrive.find_by_name",
@@ -402,7 +402,7 @@ const OPERATIONS: &[OperationSpec] = &[
         approval: ApprovalPolicy::AlwaysRequireApproval,
         input_schema: serde_json::Value::Null,
         output_schema: serde_json::Value::Null,
-        description: "Create or replace a text file in Drive.\n\n**Default behaviour (no folder_id, no at_drive_root)**: writes inside the Apollia workspace folder configured in Settings → Intégrations. Missing path segments are created on the fly.\n\n**Overrides**: pass `folder_id` to write inside a specific Drive folder; pass `at_drive_root: true` to bypass the workspace and write directly at My Drive root.\n\nInputs: name (string), content (string), folder_id (optional string), at_drive_root (optional bool, default false), mime_type (optional string, default text/plain).\nApproval: required.\nSide effects: writes a new file (and possibly creates folders to materialise the workspace path).",
+        description: "Create or replace a text file in Drive.\n\n**Default behaviour (no folder_id, no at_drive_root)**: writes inside the Apollia workspace folder configured in Settings → Integrations. Missing path segments are created on the fly.\n\n**Overrides**: pass `folder_id` to write inside a specific Drive folder; pass `at_drive_root: true` to bypass the workspace and write directly at My Drive root.\n\nInputs: name (string), content (string), folder_id (optional string), at_drive_root (optional bool, default false), mime_type (optional string, default text/plain).\nApproval: required.\nSide effects: writes a new file (and possibly creates folders to materialise the workspace path).",
     },
     // ─── Sheets ────────────────────────────────────────────────────────
     OperationSpec {
@@ -628,30 +628,6 @@ mod tests {
         assert!(services.contains("gmail"));
         assert!(services.contains("gcal"));
         assert!(services.contains("gdrive"));
-    }
-
-    #[test]
-    fn test_write_operations_require_approval() {
-        // GIVEN the three operations that write to a Google service
-        let writes = ["gmail.send", "gcal.create_event", "gdrive.workspace_write"];
-        // WHEN each is looked up in the operation table
-        for id in writes {
-            let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
-            // THEN every one of them is gated behind an approval
-            assert!(op.requires_approval(), "expected {id} to require approval");
-        }
-    }
-
-    #[test]
-    fn test_read_operations_auto_approve() {
-        // GIVEN two operations that only read
-        let reads = ["gcal.list_events", "gdrive.workspace_read"];
-        // WHEN each is looked up in the operation table
-        for id in reads {
-            let op = OPERATIONS.iter().find(|o| o.id == id).expect(id);
-            // THEN both are read-only, so no approval is asked for
-            assert!(op.is_read_only(), "expected {id} to auto-approve");
-        }
     }
 
     #[test]

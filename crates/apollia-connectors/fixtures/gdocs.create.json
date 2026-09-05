@@ -1,0 +1,84 @@
+{
+  "operation": "gdocs.create",
+  "origin": "example",
+  "note": "Hand-written from the Google Docs API reference for documents.create, which answers with the created Document resource. This is the first reading of DocumentMeta itself: gdocs.read_text asserts the flattened string the body walker produces, never the camelCase field names of the metadata. The body of a freshly created document carries the section break and the single empty paragraph the reference describes. The documentStyle and namedStyles blocks a real answer also carries are omitted rather than guessed, because their contents cannot be written with certainty from the reference. Not a recording.",
+  "response": {
+    "documentId": "1ReplAyDocIdFromTheReference",
+    "title": "Replay",
+    "revisionId": "ALm37BXk2Replay",
+    "suggestionsViewMode": "SUGGESTIONS_INLINE",
+    "body": {
+      "content": [
+        {
+          "endIndex": 1,
+          "sectionBreak": {
+            "sectionStyle": {
+              "columnSeparatorStyle": "NONE",
+              "contentDirection": "LEFT_TO_RIGHT",
+              "sectionType": "CONTINUOUS"
+            }
+          }
+        },
+        {
+          "startIndex": 1,
+          "endIndex": 2,
+          "paragraph": {
+            "elements": [
+              {
+                "startIndex": 1,
+                "endIndex": 2,
+                "textRun": {
+                  "content": "\n",
+                  "textStyle": {}
+                }
+              }
+            ],
+            "paragraphStyle": {
+              "namedStyleType": "NORMAL_TEXT",
+              "direction": "LEFT_TO_RIGHT"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "expect": {
+    "documentId": "1ReplAyDocIdFromTheReference",
+    "title": "Replay",
+    "body": {
+      "content": [
+        {
+          "endIndex": 1,
+          "sectionBreak": {
+            "sectionStyle": {
+              "columnSeparatorStyle": "NONE",
+              "contentDirection": "LEFT_TO_RIGHT",
+              "sectionType": "CONTINUOUS"
+            }
+          }
+        },
+        {
+          "startIndex": 1,
+          "endIndex": 2,
+          "paragraph": {
+            "elements": [
+              {
+                "startIndex": 1,
+                "endIndex": 2,
+                "textRun": {
+                  "content": "\n",
+                  "textStyle": {}
+                }
+              }
+            ],
+            "paragraphStyle": {
+              "namedStyleType": "NORMAL_TEXT",
+              "direction": "LEFT_TO_RIGHT"
+            }
+          }
+        }
+      ]
+    },
+    "revisionId": "ALm37BXk2Replay"
+  }
+}

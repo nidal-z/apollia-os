@@ -1,0 +1,22 @@
+{
+  "operation": "gforms.create",
+  "origin": "example",
+  "note": "Hand-written from the Google Forms API reference for forms.create, which answers with the created Form resource. The whole forms family had no fixture, so this is the first reading of any of its shapes, and FormMeta is the only response type in the crate whose nested object is required rather than optional: an answer without `info` fails to decode instead of reading a form with no title. Not a recording.",
+  "response": {
+    "formId": "1ReplAyFormIdFromTheReference",
+    "info": {
+      "title": "Replay",
+      "documentTitle": "Replay"
+    },
+    "revisionId": "00000001",
+    "responderUri": "https://docs.google.com/forms/d/e/1ReplAyFormIdFromTheReference/viewform"
+  },
+  "expect": {
+    "formId": "1ReplAyFormIdFromTheReference",
+    "responderUri": "https://docs.google.com/forms/d/e/1ReplAyFormIdFromTheReference/viewform",
+    "info": {
+      "title": "Replay",
+      "documentTitle": "Replay"
+    }
+  }
+}

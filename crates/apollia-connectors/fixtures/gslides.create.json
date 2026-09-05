@@ -1,0 +1,26 @@
+{
+  "operation": "gslides.create",
+  "origin": "example",
+  "note": "Hand-written from the Google Slides API reference for presentations.create, which answers with the created Presentation resource. The whole slides family had no fixture, so this is the first reading of any of its shapes. The slides, masters and layouts arrays a real answer also carries are omitted rather than guessed, because their contents cannot be written with certainty from the reference; the fields the client reads are all present. Not a recording.",
+  "response": {
+    "presentationId": "1ReplAyDeckIdFromTheReference",
+    "title": "Replay",
+    "locale": "en",
+    "revisionId": "ALm37BXk2Replay",
+    "pageSize": {
+      "width": {
+        "magnitude": 9144000,
+        "unit": "EMU"
+      },
+      "height": {
+        "magnitude": 6858000,
+        "unit": "EMU"
+      }
+    }
+  },
+  "expect": {
+    "presentationId": "1ReplAyDeckIdFromTheReference",
+    "title": "Replay",
+    "revisionId": "ALm37BXk2Replay"
+  }
+}

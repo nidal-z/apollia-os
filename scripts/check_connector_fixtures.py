@@ -95,15 +95,21 @@ EXTRA_READINGS = {
 NO_UPSTREAM_CALL = frozenset({"gdrive.list_picked_folders"})
 
 # Operations whose client reads nothing back, so a fixture can measure nothing
-# about a reading. Five discard the response and answer `()`; four hand the body
+# about a reading. Six discard the response and answer `()`; four hand the body
 # straight through as `serde_json::Value`, where an expectation would compare a
 # document to itself. Both were measured from the return type of the client
 # method each dispatch arm calls, and two were then read by hand.
 #
-# They sat on the ratchet, which described nine of the thirty-five remaining as
-# work a recording session could close. It cannot: recording an answer nobody
-# parses proves nothing. Out of the denominator, like the operation that makes
-# no HTTP call at all, so the number left says what is actually left.
+# They sat on the ratchet, which described them as work a recording session
+# could close. It cannot: recording an answer nobody parses proves nothing. Out
+# of the denominator, like the operation that makes no HTTP call at all, so the
+# number left says what is actually left.
+#
+# `outlook.send` is the sixth of the six and it was missed when this list was
+# first written, which is the reason the list names its own measurement: the
+# client answers `()` exactly like `outlook.reply` declared beside it, both
+# routing through `HttpClient::send` and dropping the response, and it stayed on
+# the ratchet as a recording nobody could ever make count.
 #
 # A client that starts reading one of these stops being in this list, and the
 # guard says so rather than letting the exemption outlive its reason.
@@ -114,6 +120,7 @@ READS_NOTHING = frozenset(
         "gdrive.workspace_delete",
         "gtasks.delete",
         "outlook.reply",
+        "outlook.send",
         "outlook_cal.delete_event",
         # Return the body unparsed.
         "gdocs.append_text",
@@ -123,38 +130,39 @@ READS_NOTHING = frozenset(
     }
 )
 
-# The operations with no fixture, measured on 2026-09-04. This list is a
-# ratchet: it may shrink, never grow. Closing an entry means recording an answer
-# from a throwaway account, dropping the fixture in, and deleting the line here
-# in the same commit.
+# The operations with no fixture. This list is a ratchet: it may shrink, never
+# grow. Closing an entry means recording an answer from a throwaway account,
+# dropping the fixture in, and deleting the line here in the same commit.
+#
+# Every one of the sixteen left reads a shape another fixture already exercises:
+# two an `Event`, two a `Vec<DriveFile>`, one a `DriveFile`, two a `Task`, two a
+# `DriveItem`, two an `OutlookMessage`, three an `OutlookEvent`, two raw bytes.
+# So closing one measures the same decode again on a real body rather than a new
+# one, which is why they are the ones left rather than the ones done first.
+#
+# `gdrive.read_file` is the extreme case: its dispatch arm calls
+# `workspace_read`, the very method the `gdrive.workspace_read` fixture already
+# drives, because the runtime bridge maps those two operations onto that one
+# method as well. A fixture for it would replay a byte-identical call.
 UNCOVERED_BACKLOG = frozenset(
     {
         "gcal.create_event",
-                "gcal.update_event",
-        "gdocs.create",
+        "gcal.update_event",
         "gdrive.find_by_name",
         "gdrive.list_files_in",
-            "gdrive.read_file",
-        "gdrive.workspace_list",
-            "gdrive.workspace_share",
+        "gdrive.read_file",
         "gdrive.workspace_write",
-        "gdrive.write_to_folder",
-        "gforms.create",
-        "gmail.compose_draft",
-        "gsheets.create",
-            "gslides.create",
         "gtasks.complete",
         "gtasks.create",
-                "onedrive.download",
+        "onedrive.download",
         "onedrive.get_metadata",
         "onedrive.list_recent",
-                "outlook.move",
+        "outlook.move",
         "outlook.search",
-        "outlook.send",
         "outlook_cal.create_event",
         "outlook_cal.get_event",
-            "outlook_cal.update_event",
-        }
+        "outlook_cal.update_event",
+    }
 )
 
 OPERATION_ID = re.compile(r'^\s*id:\s*"([a-z_]+\.[a-z_]+)",\s*$', re.M)

@@ -1,0 +1,19 @@
+{
+  "operation": "gmail.compose_draft",
+  "origin": "example",
+  "note": "Hand-written from the Gmail API reference for users.drafts.create, whose body is a Draft resource: an outer draft id wrapping a Message. The client reads the draft id from the outer object and the thread id from the nested message, so the two ids are deliberately different here and a client that read both from the same level would produce a different pair. Not a recording.",
+  "response": {
+    "id": "r-5825324459183838881",
+    "message": {
+      "id": "18f2a1b3c4d5e6f8",
+      "threadId": "18f2a1b3c4d5e6f8",
+      "labelIds": [
+        "DRAFT"
+      ]
+    }
+  },
+  "expect": {
+    "id": "r-5825324459183838881",
+    "threadId": "18f2a1b3c4d5e6f8"
+  }
+}
