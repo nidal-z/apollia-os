@@ -48,7 +48,7 @@ pub struct OutlookMessage {
     /// RFC 3339 received time.
     #[serde(default)]
     pub received_date_time: Option<String>,
-    /// True when the message is unread.
+    /// True once the message has been read, which is how Graph's `isRead` reads.
     #[serde(default)]
     pub is_read: bool,
 }

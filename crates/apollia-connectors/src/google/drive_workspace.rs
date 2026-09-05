@@ -377,7 +377,7 @@ impl DriveWorkspaceClient {
         Fut: std::future::Future<Output = Result<String, ConnectorError>> + Send,
     {
         // Drive's `q` parameter requires escaping single quotes in name
-        // values: we double them per the Drive search syntax.
+        // values with a backslash, per the Drive search syntax.
         let escaped = search.name.replace('\'', "\\'");
         let name_clause = if search.exact {
             format!("name = '{escaped}'")
