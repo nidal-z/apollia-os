@@ -780,7 +780,7 @@
     "auto_start_disabled": "Will not auto-start on boot",
     "update": "Update",
     "uninstall": "Uninstall",
-    "uninstall_confirm_warning": "Permanently delete '{name}'?",
+    "uninstall_confirm_warning": "Permanently delete ''{name}''?",
     "uninstall_delete_memory": "Also delete agent memory and data",
     "uninstall_confirm_action": "Delete",
     "start": "Start",
@@ -1221,7 +1221,7 @@
       "cost_usd": "Cost USD",
       "total": "Total"
     },
-    "default_set_toast": "'{name}' set as the default model",
+    "default_set_toast": "''{name}'' set as the default model",
     "details": "Details",
     "cost_threshold": {
       "title": "Cost alert threshold",
@@ -2643,16 +2643,16 @@
       "edit": "Edit",
       "test": "Test connection",
       "delete_title": "Delete backend",
-      "delete_message": "Delete backend '{name}'? Active sessions using this backend will fail.",
+      "delete_message": "Delete backend ''{name}''? Active sessions using this backend will fail.",
       "delete_type_prompt": "Type DELETE to confirm removing the default backend.",
-      "delete_toast": "Backend '{name}' deleted",
+      "delete_toast": "Backend ''{name}'' deleted",
       "reload_btn": "Reload",
       "reload_toast": "LLM engine reloaded",
       "subtitle": "Language-model backends used by Apollia and your agents."
     },
     "llm_dialog": {
       "title_add": "Add LLM backend",
-      "title_edit": "Edit '{name}'",
+      "title_edit": "Edit ''{name}''",
       "field_name": "Name",
       "field_provider": "Provider",
       "field_endpoint": "Endpoint",
@@ -2705,8 +2705,8 @@
         "in_use": "In use",
         "delete": "Delete",
         "delete_title": "Delete model?",
-        "delete_message": "Permanently delete '{name}' from disk? This cannot be undone.",
-        "deleted_toast": "Model '{name}' deleted",
+        "delete_message": "Permanently delete ''{name}'' from disk? This cannot be undone.",
+        "deleted_toast": "Model ''{name}'' deleted",
         "help": "Files present in your local models directory."
       },
       "hardware": {

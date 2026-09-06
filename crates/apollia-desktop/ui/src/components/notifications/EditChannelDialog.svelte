@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { t } from "svelte-i18n";
   import type { NotificationChannelView, UpdateChannelRequest } from "$lib/types";
   import { updateNotificationChannel } from "$lib/ipc/notifications";
@@ -169,9 +170,13 @@
     touched = false;
   }
 
+  // Tracked on `open` and `channel` only. `populateForm` reads the fields it
+  // has just written (`channelType`, `originalThrottle`), and an effect that
+  // tracked those re-ran on every edit of the type select, putting the form
+  // back to the saved channel before the operator could reach the URL field.
   $effect(() => {
     if (open && channel) {
-      populateForm();
+      untrack(populateForm);
     }
   });
 </script>

@@ -1221,7 +1221,7 @@
       "cost_usd": "Coût USD",
       "total": "Total"
     },
-    "default_set_toast": "'{name}' défini comme modèle par défaut",
+    "default_set_toast": "''{name}'' défini comme modèle par défaut",
     "details": "Détails",
     "cost_threshold": {
       "title": "Seuil d'alerte de coût",

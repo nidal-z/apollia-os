@@ -441,11 +441,32 @@ async function runStep(
 
 // Best-effort `KeyboardEvent.code` from a `key`. Handlers usually read `.key`;
 // `.code` is provided for the few that gate on physical-key identity.
+// Punctuation keys carry a named `code`, which is what a chord listener
+// compares (`chord.code === "Slash"`); a bare "/" never matched one, so the
+// shortcuts-help dialog could not be opened by a recipe.
+const PUNCTUATION_CODES: Record<string, string> = {
+  "/": "Slash",
+  "?": "Slash",
+  ",": "Comma",
+  ".": "Period",
+  ";": "Semicolon",
+  "'": "Quote",
+  "[": "BracketLeft",
+  "]": "BracketRight",
+  "\\": "Backslash",
+  "-": "Minus",
+  "=": "Equal",
+  "`": "Backquote",
+  " ": "Space",
+};
+
 function keyToCode(key: string): string {
   if (key.length === 1) {
     const c = key.toUpperCase();
     if (c >= "A" && c <= "Z") return `Key${c}`;
     if (c >= "0" && c <= "9") return `Digit${c}`;
+    const named = PUNCTUATION_CODES[key];
+    if (named) return named;
   }
   return key;
 }
