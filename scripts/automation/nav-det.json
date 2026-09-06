@@ -7,8 +7,9 @@
     "Command palette items carry interpolated ids `command-item-{action-id}` (CommandItem.svelte); the old exact `command-item` no longer exists, so a generic item is matched via testidPrefix.",
     "topbar-search click dispatches Cmd+K, which globalShortcuts.ts TOGGLES; a second click closes the palette.",
     "user-menu-about navigates to the About settings sub-page (UserMenu.goAbout -> navigateToSettings('about')); there is no About dialog, so the landing is asserted on about-section and there is nothing to close.",
-    "topbar-agents-at-work renders only when running tasks > 0 (data-dependent) and topbar-sidebar-toggle only when sidebarState === 'drawer' (mobile viewport). Both are observed by screenshot only, never hard-asserted.",
-    "topbar-sidebar-toggle and sidebar-drawer-backdrop are never played: the toggle renders only on the narrow layout, and the automaton runs the window at 1280 px (measured on the b2-nav run)."
+    "topbar-agents-at-work renders only when running tasks > 0 (data-dependent) and is observed by screenshot only, never hard-asserted. topbar-sidebar-toggle renders only when sidebarState === 'drawer' (Topbar.svelte:33), i.e. under 768 px (layout.ts:28-36, 116-123), and is reached by the narrow block below.",
+    "Narrow block: resizeWindow 700x800 (the runner lifts the 900x600 minimum of tauri.conf.json, then restores it) puts the viewport under the 768 px md query, so sidebarState becomes 'drawer' and topbar-sidebar-toggle renders; its click is layoutActions.openDrawer (Topbar.svelte:37, layout.ts:169-171), which mounts sidebar-drawer-backdrop (Sidebar.svelte:122-133), whose click is closeDrawer (:130). The block contains no picker and no window.confirm, closes the drawer before resizing back, and ends on resizeWindow 1280x800 plus a waitGone of the toggle, so every later section sees the wide chrome. The drawer state persisted under apollia.ui.sidebarState_sm (layout.ts:105-110) is in the runner's boot reset list.",
+    "runtime-disconnected-retry is reached by the fault step heartbeat-lost: the runtime heartbeat is an event the backend emits every five seconds and no IPC can silence, so the dev-only hook mutes the liveness listeners and fires the watchdog. The retry unmutes them, and the next real heartbeat closes the banner, which the waitGone asserts."
   ],
   "dynamicTestids": [
     "nav-agents",
@@ -335,6 +336,39 @@
       "testid": "user-menu-quit"
     },
     {
+      "kind": "click",
+      "testid": "user-menu-reset-onboarding",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reset-onboarding-btn",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "user-menu-reset-onboarding lands on the danger settings card"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-user-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "topbar-user-menu-content",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
       "label": "09-user-menu-open"
     },
@@ -535,6 +569,68 @@
       "label": "40-user-menu-help"
     },
     {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 700,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "topbar-sidebar-toggle",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41-narrow-topbar-sidebar-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-sidebar-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-drawer-backdrop",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41b-narrow-sidebar-drawer-open"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-drawer-backdrop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-drawer-backdrop",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "topbar-sidebar-toggle",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "waitGone",
       "testid": "sidebar-drawer-backdrop",
       "timeoutMs": 3000
@@ -571,6 +667,38 @@
     {
       "kind": "screenshot",
       "label": "42-user-menu-settings"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fault",
+      "name": "heartbeat-lost"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "runtime-disconnected-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "43-runtime-disconnected-banner (heartbeat loss injected by the recipe)"
+    },
+    {
+      "kind": "click",
+      "testid": "runtime-disconnected-retry",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "runtime-disconnected-banner",
+      "timeoutMs": 10000
     }
   ]
 }

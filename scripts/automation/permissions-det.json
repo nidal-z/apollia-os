@@ -3,7 +3,8 @@
   "stopOnError": false,
   "notes": [
     "permission-rule-add-action is a segmented <button role=group>, not a <select>: the branch is picked by clicking permission-rule-add-action-allow / -deny.",
-    "permission-rule-add-toggle only OPENS the form (RulesSection.openAddForm re-seeds it and sets addOpen = true); clicking it twice re-mounts the form instead of closing it. The form is dismissed with its own permission-rule-add-cancel."
+    "permission-rule-add-toggle only OPENS the form (RulesSection.openAddForm re-seeds it and sets addOpen = true); clicking it twice re-mounts the form instead of closing it. The form is dismissed with its own permission-rule-add-cancel.",
+    "permissions-error-details-toggle is produced by four sections on the same id, so only the rules section is put in error: a once-stub rejects governance_list_permission_rules around the reload button, the banner renders with the raw text behind its Disclosure, and the next reload reaches the backend. The audit, chat and session-auth loaders run unstubbed in the same reload."
   ],
   "dynamicTestids": [
     "settings-nav-permissions",
@@ -640,6 +641,59 @@
     {
       "kind": "screenshot",
       "label": "11-session-auth-revoked"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "governance_list_permission_rules",
+      "reject": "seeded governance failure",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-permissions-rules-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-permissions-rules-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "permissions-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rules-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-permissions-rules-reloaded"
     }
   ]
 }

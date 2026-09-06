@@ -5,10 +5,10 @@
     "Code-verified against components/settings/LlmBackendDialog.svelte + components/settings/llmBackendForm.ts + components/settings/SettingsToggle.svelte.",
     "llm-det opens this dialog and cancels it without ever expanding the advanced collapsible, so eleven controls behind llm-dialog-advanced-toggle had never been played.",
     "seedFrom(null) opens a new backend on provider llama-cpp, which is the branch that renders the HuggingFace autofill block; no provider change is needed to reach llm-dialog-hf-repo.",
-    "Two controls are deliberately asserted present and never clicked, both because they leave the machine: llm-dialog-hf-fetch calls the HuggingFace API, and llm-dialog-test opens a connection to the backend endpoint. A deterministic run has neither, so clicking them would assert a network failure rather than a gesture. Same discipline as llm-det, which reduces the network actions to their boundary.",
+    "llm-dialog-hf-fetch is played through a stubbed IPC: fetchHfParams -> getHfModelParams -> get_hf_model (LlmBackendDialog.svelte:229-255, llmBackendIpc.ts:51-53) hits the Hugging Face API, so the block stubs the command three times, once each: a reject with a raw string is rendered verbatim as hfFillResult.message (:248-251); a resolve whose generation_config is null renders hf_no_config (:236-239), asserted by 'generation_config.json', a fragment both locales carry; a resolve shaped like the generation_config half of apollia_llm's HfModelCard (commands/model_hub.rs:137-157; the dialog reads card.generation_config only) fills temperature/top_k/top_p/repeat_penalty/context_size and renders hf_filled (:241-246), asserted by 'HuggingFace.' with its final period, which only that message carries inside the dialog (the block title and gen_params_hint have no period after the word). The result line has no testid of its own, so the three expects read the dialog root llm-backend-dialog, whose data-testid the Dialog spreads on the overlay wrapping the body (Dialog.svelte:133-143); a sleep of 400 ms separates each click from its expect because a stub answers on a microtask and expect does not poll. The command is cleared afterwards; the dialog is still cancelled, nothing persisted. llm-dialog-test is asserted here and played in llm-det on the ADD path, where handleTest (:156-169) is a local validation with no network call.",
     "llm-dialog-save is never clicked: the dialog is opened on the ADD path and cancelled, so the seeded three backends are left untouched and the script is re-runnable.",
     "The sampling fields are number inputs whose oninput reads valueAsNumber; the runner's fill dispatches a real input event, so the handler runs. llm-dialog-extra is a Textarea and is given valid JSON, because invalid JSON sets errors.extraJson and would only be visible on a save this script never performs.",
-    "llm-dialog-enabled and llm-dialog-default are SettingsToggle wrappers, not inputs: the switch is the <button role=switch> the wrapper contains, which is what the runner's setChecked descends to. Both are driven AWAY from their seeded value first (enabled true, isDefault false), because setChecked only clicks on a mismatch and setting a field to the value it already holds is not a gesture.",
+    "llm-dialog-enabled and llm-dialog-default are SettingsToggle wrappers; the switch is the <button role=switch> Toggle.svelte renders (:47-63) under the composed id `${dataTestId}-switch` (SettingsToggle.svelte:53), so the script targets llm-dialog-enabled-switch and llm-dialog-default-switch exactly. Both are driven AWAY from their seeded value first (seedFrom(null): enabled true, isDefault false, llmBackendForm.ts:186-203), because setChecked only clicks on a mismatch and setting a field to the value it already holds is not a gesture.",
     "The advanced panel is collapsed again at the end and the collapse asserted by waitGone, so the toggle is exercised in both directions.",
     "The settings LLM panel is walked in builder mode, like llm-det and destructive.json: add-backend-btn and the per-card controls live in builder surfaces."
   ],
@@ -145,7 +145,93 @@
     },
     {
       "kind": "screenshot",
-      "label": "04-hf-autofill-armed-not-fetched"
+      "label": "04-hf-autofill-armed"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "reject": "automation: hf fetch refused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-hf-fetch",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "llm-backend-dialog",
+      "contains": "automation: hf fetch refused"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-hf-autofill-refused (stubbed reject rendered under the repo field)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "resolve": {
+        "generation_config": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-hf-fetch",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "llm-backend-dialog",
+      "contains": "generation_config.json"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-hf-autofill-no-config (stubbed card without generation_config)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_hf_model",
+      "resolve": {
+        "generation_config": {
+          "temperature": 0.6,
+          "top_k": 20,
+          "top_p": 0.95,
+          "repetition_penalty": 1.05,
+          "max_new_tokens": 4096
+        }
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-hf-fetch",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "llm-backend-dialog",
+      "contains": "HuggingFace."
+    },
+    {
+      "kind": "screenshot",
+      "label": "04d-hf-autofill-filled (stubbed generation_config applied to the sampling fields)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_hf_model"
     },
     {
       "kind": "fill",
@@ -162,13 +248,18 @@
       "label": "05-timeout-and-extra-json"
     },
     {
+      "kind": "waitFor",
+      "testid": "llm-dialog-enabled-switch",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "setChecked",
-      "testid": "llm-dialog-enabled",
+      "testid": "llm-dialog-enabled-switch",
       "checked": false
     },
     {
       "kind": "setChecked",
-      "testid": "llm-dialog-default",
+      "testid": "llm-dialog-default-switch",
       "checked": true
     },
     {
@@ -177,12 +268,12 @@
     },
     {
       "kind": "setChecked",
-      "testid": "llm-dialog-enabled",
+      "testid": "llm-dialog-enabled-switch",
       "checked": true
     },
     {
       "kind": "setChecked",
-      "testid": "llm-dialog-default",
+      "testid": "llm-dialog-default-switch",
       "checked": false
     },
     {

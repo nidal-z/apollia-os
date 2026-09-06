@@ -1,6 +1,9 @@
 {
   "name": "observability-det (observability surface, operator gated + builder full; only llm-costs populated, task timeline driven per task, journal-wide audit totals and the hook registry asserted)",
   "stopOnError": false,
+  "notes": [
+    "The plan cache tab reads the seeded plan_cache.db (tests/cli/seed/fragments/plan_cache.sql, one row, three hits): the four cards render, plan-cache-clear-btn opens the purge dialog, the cancel leaves the row, the confirm posts the clear and the empty state returns. No later section reads the plan cache. The purge is not idempotent on a replayed seed HOME: a second pass on the same build finds the cache empty and the button disabled."
+  ],
   "dynamicTestids": [
     "empty-state-plan-cache",
     "observability-tab-audit-trail",
@@ -584,12 +587,85 @@
     },
     {
       "kind": "waitFor",
-      "testid": "empty-state-plan-cache",
+      "testid": "plan-cache-total",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-hits",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-hit-rate",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-misses",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-builder-plan-cache-populated (one seeded plan, three hits)"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-cache-clear-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-purge-dialog",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "17-builder-plan-cache-empty"
+      "label": "17a-builder-plan-cache-purge-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-cache-purge-dialog-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-cache-purge-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-total",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "plan-cache-clear-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-purge-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "plan-cache-purge-dialog-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-cache-purge-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "empty-state-plan-cache",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17c-builder-plan-cache-empty (after the purge)"
     },
     {
       "kind": "click",

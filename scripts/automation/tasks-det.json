@@ -1,6 +1,13 @@
 {
   "name": "tasks-det (tasks page, seeded ecosystem, operator + builder, every step green)",
   "stopOnError": false,
+  "notes": [
+    "A row leaving the list on a filter change keeps its click handler while it animates out, so a click that lands right after the filter chip selects a row of the previous filter: measured on run3, the Running filter showed one working task and the detail opened the completed one. A 500 ms sleep after the chip lets the exit transition finish before the row is addressed.",
+    "tasks-new opens the chat agent picker, which is where a task is assigned; the picker is closed with Escape and the page revisited. tasks-fab is its narrow-layout twin (md:hidden) and is played inside a resizeWindow 700x800 block that contains no boundary click and ends by restoring 1280x800.",
+    "tasks-load-error-detail-toggle and tasks-load-retry need a rejected list_tasks, which the seed never produces. The block mirrors the green list_triggers one of automations-det: a stubInvoke rejects list_tasks with a non-empty string, tasks-refresh calls Tasks.svelte refresh() (:162-172) whose catch sets loadError and loadState error (:169-170), TasksListView.svelte:111-114 mounts TasksLoadError (root testid tasks-load-error at :24, retry at :32, Disclosure tasks-load-error-detail at :41 whose button is the -toggle per Disclosure.svelte:75). The retry is clicked once with the stub armed (the error stays) and once after clearStubs (the seeded rows return). loadState has no other writer, so this is the only entry. An earlier session reported this block red at runtime; that report cited f9e248b1, whose tasks-det.json diff carries no stub at all, and no commit in the book's history ever held one, so the observation has no replayable trace and the block is armed for the batch to measure.",
+    "smart-output-raw-toggle renders only when the output parses as JSON or passes the markdown heuristic; the seed's most recent task (seed-task-alpha-completed, task-row nth 0) carries a heading, a bullet list and a blank line for that purpose, and the toggle is component-local state.",
+    "The stub is armed right after a real refresh click, so the two refreshes overlap: measured on 2026-09-06, the real one resolved after the rejected one and its success overwrote the error state (four red runs). Tasks.svelte refresh() now sequences its calls and drops a stale result, which this block proves."
+  ],
   "dynamicTestids": [
     "sidebar-mode-option-builder",
     "sidebar-mode-option-operator",
@@ -184,6 +191,91 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_tasks",
+      "reject": "seeded tasks failure: list_tasks rejected by the recipe"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-refresh",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07a1-tasks-load-error (list_tasks rejected by a stub)"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-load-error-detail-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "expect",
+      "testid": "tasks-load-error-detail",
+      "contains": "list_tasks rejected by the recipe"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07a2-tasks-load-error-detail-open (the raw rejection text)"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-load-error-detail-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-load-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07a3-tasks-load-retry-still-failing (stub still armed)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_tasks"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-load-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tasks-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-table",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07a4-tasks-load-retried (seeded rows back after clearStubs)"
+    },
+    {
       "kind": "click",
       "testid": "tasks-new",
       "timeoutMs": 2500
@@ -206,6 +298,54 @@
       "kind": "waitGone",
       "testid": "quickpicker",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "tasks"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 700,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-fab",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-tasks-fab-narrow (700 px: the md:hidden FAB is on screen)"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-fab",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "press",
+      "key": "Escape",
+      "testid": "quickpicker-textarea"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "quickpicker",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
     },
     {
       "kind": "goto",
@@ -291,6 +431,29 @@
     {
       "kind": "screenshot",
       "label": "10-task-output"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "smart-output-raw-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "smart-output-raw-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-task-output-raw (the seeded markdown output shown as source)"
+    },
+    {
+      "kind": "click",
+      "testid": "smart-output-raw-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "10c-task-output-formatted-again"
     },
     {
       "kind": "click",
@@ -632,9 +795,5 @@
       "kind": "screenshot",
       "label": "16-back-operator"
     }
-  ],
-  "notes": [
-    "A row leaving the list on a filter change keeps its click handler while it animates out, so a click that lands right after the filter chip selects a row of the previous filter: measured on run3, the Running filter showed one working task and the detail opened the completed one. A 500 ms sleep after the chip lets the exit transition finish before the row is addressed.",
-    "tasks-new opens the chat agent picker, which is where a task is assigned; the picker is closed with Escape and the page revisited. tasks-fab is the narrow-layout twin of that button (md:hidden) and never renders at 1280 px."
   ]
 }

@@ -1,6 +1,15 @@
 {
   "name": "memory-det (memory namespace explorer over the seeded ecosystem, operator + builder; export, import and purge opened at their boundary and cancelled)",
   "stopOnError": false,
+  "notes": [
+    "__user__ is no longer a memory namespace: the runtime migrates memory/__user__.db into the canonical user_memory.db at boot and retires the file to __user__.db.migrated (supervisor/persistence.rs), and list_memory_namespaces only scans memory/*.db. The namespace walk therefore runs on apollia-guide, the seeded agent namespace that populates all four type tabs.",
+    "The search assertion uses 'operator', the value of the sem-guide-mode entry: it is ASCII (no FTS accent folding to rely on) and belongs to apollia-guide, so it matches exactly one of the namespace's own entries. 'onboarding' matches an entry owned by another agent, which search_memory scopes out.",
+    "memory-error-details-toggle is reached without a corrupt fixture: a once-stub rejects list_memory_entries on the next namespace selection (onboarding-agent), the banner and its Disclosure render from the raw text, and reselecting apollia-guide reaches the backend again. A standalone memory-broken-det book with a garbage memory/*.db overlay was therefore not created: the same anchor is played here inside master-det.",
+    "Export and import go through the two plugin-dialog pickers, answered by stubInvoke: plugin:dialog|save names ${HOME}/.apollia/memory-export-probe.json, which memory_export_namespace writes, and plugin:dialog|open hands that same file back to the import. The merge re-import of the namespace's own export inserts nothing (INSERT OR IGNORE on the primary keys, FTS untouched), so the entry set every later section sees is the seeded one. The replace confirm is played only against a missing path: memory_import_namespace reads the file before it wipes anything, so the error toast is the whole effect.",
+    "memory-purge-confirm-confirm is played after the cancel path, on scope episodic older than 3650 days: the seeded rows are dated 2026-07-01, so purge_memory removes 0 rows and the toast memory-purge-done carries that count. The result is identical on a replayed seed HOME.",
+    "The success toasts of export, import and purge carry data-testid values (memory-export-done, memory-import-done, memory-purge-done) handed to addToast as object keys, which the validator's literal pool never sees in NamespaceDataActions.svelte, so the book proves the three outcomes by DOM state instead: the import and purge dialogs close only on success and stay open on failure, and a successful merge import proves the export wrote a parseable file.",
+    "memory-import-path is an <input>, whose picked path lives in its value, not in its text: the runner's expect/contains reads text, so the path is proven by what follows the pick instead (the replace warning, the confirm dialog, the merged import)."
+  ],
   "dynamicTestids": [
     "memory-type-tab-all",
     "memory-type-tab-episodic",
@@ -12,6 +21,7 @@
     "namespace-sidebar-cat-project",
     "namespace-sidebar-cat-user",
     "namespace-sidebar-item-apollia-guide",
+    "namespace-sidebar-item-onboarding-agent",
     "sidebar-mode-option-builder",
     "sidebar-mode-option-operator"
   ],
@@ -285,6 +295,55 @@
       "label": "12-entry-sheet-cancelled"
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_memory_entries",
+      "reject": "sqlite: seeded corruption",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "namespace-sidebar-item-onboarding-agent",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-load-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12a-memory-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12a2-memory-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "namespace-sidebar-item-apollia-guide",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "memory-entry-row-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12a3-memory-load-recovered (apollia-guide reselected, the stub was once)"
+    },
+    {
       "kind": "waitFor",
       "testid": "memory-data-actions",
       "timeoutMs": 4000
@@ -303,7 +362,30 @@
     },
     {
       "kind": "screenshot",
-      "label": "12b-memory-data-actions (export opens a native save dialog, NEVER clicked)"
+      "label": "12b-memory-data-actions"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|save",
+      "resolve": "${HOME}/.apollia/memory-export-probe.json",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "memory-export-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-export-button"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b2-memory-export-done (save picker answered by the stub, the file lands in the seed HOME)"
     },
     {
       "kind": "click",
@@ -333,7 +415,22 @@
     },
     {
       "kind": "screenshot",
-      "label": "12c-memory-import-dialog (no file picked, submit stays disabled)"
+      "label": "12c-memory-import-dialog (no file picked yet, submit disabled)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/memory-export-probe.json",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-pick",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-path"
     },
     {
       "kind": "selectOption",
@@ -351,9 +448,118 @@
       "label": "12d-memory-import-replace-warning"
     },
     {
+      "kind": "click",
+      "testid": "memory-import-submit",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-replace-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12d2-memory-import-replace-confirm (cancelled below)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-replace-confirm-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-import-replace-confirm",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "selectOption",
       "testid": "memory-import-mode",
       "value": "merge",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-submit",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "memory-entry-row-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12e-memory-import-merged (the namespace's own export, INSERT OR IGNORE adds nothing)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/memory-import-missing.json",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-pick",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-path"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-import-mode",
+      "value": "replace",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-submit",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-replace-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-replace-confirm-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12e2-memory-import-replace-refused (missing file: the read fails before the wipe, nothing changes)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-replace-confirm-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-import-replace-confirm",
       "timeoutMs": 2500
     },
     {
@@ -368,7 +574,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "12e-memory-import-cancelled"
+      "label": "12e3-memory-import-cancelled"
     },
     {
       "kind": "click",
@@ -459,6 +665,71 @@
     },
     {
       "kind": "click",
+      "testid": "memory-purge-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-purge-scope",
+      "value": "episodic",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "fill",
+      "testid": "memory-purge-days",
+      "text": "3650",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-continue",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12j-memory-purge-confirm (3650 days, nothing older than that)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-confirm-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "memory-entry-row-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12k-memory-purge-done (0 entries removed, the seeded rows are dated 2026-07-01)"
+    },
+    {
+      "kind": "click",
       "testid": "sidebar-mode-chip"
     },
     {
@@ -523,9 +794,5 @@
       "kind": "screenshot",
       "label": "15-back-operator"
     }
-  ],
-  "notes": [
-    "__user__ is no longer a memory namespace: the runtime migrates memory/__user__.db into the canonical user_memory.db at boot and retires the file to __user__.db.migrated (supervisor/persistence.rs), and list_memory_namespaces only scans memory/*.db. The namespace walk therefore runs on apollia-guide, the seeded agent namespace that populates all four type tabs.",
-    "The search assertion uses 'operator', the value of the sem-guide-mode entry: it is ASCII (no FTS accent folding to rely on) and belongs to apollia-guide, so it matches exactly one of the namespace's own entries. 'onboarding' matches an entry owned by another agent, which search_memory scopes out."
   ]
 }

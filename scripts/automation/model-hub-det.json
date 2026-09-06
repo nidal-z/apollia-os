@@ -1,6 +1,10 @@
 {
   "name": "model-hub-det (settings Model Hub, operator + builder, seeded 2 installed models, guarded delete to boundary, selectOption filters, gibberish empty state, download button to boundary only)",
   "stopOnError": false,
+  "notes": [
+    "model-results-clear-filters is played through the invoke stub: search_hf_models (lib/ipc/modelHub.ts:133-134) is answered with three gated cards, model-filter-gated is set to open so filteredResults empties while searchResults keeps its 3 (ModelHub.svelte:87-100), which is the only way the no-match branch renders (ModelResults.svelte:99-108); the click runs clearFilters (ModelHub.svelte:255-260) and the three cards come back. The resolve imitates the SearchPage / HfModelCard types (apollia-llm hf_registry.rs:56-81), so it drifts if they change.",
+    "model-load-more is played through the same stub: a once stub answers page 1 with next_cursor automation-page-2 so hasMore is true (ModelHub.svelte:165-167), the standing stub answers the load-more call with one card and a null cursor, so the button disappears and a third model-card- renders. The block sits after the live gibberish search, not before it: search() assigns searchResults only on success (ModelHub.svelte:165-169), so once the stub has put three cards on screen an offline or refused live search leaves them there and model-results-empty (ModelResults.svelte:74, results.length must be 0) can no longer render. The builder pass that follows remounts the route, which resets the stubbed results."
+  ],
   "dynamicTestids": [
     "settings-nav-model-hub",
     "sidebar-mode-option-builder",
@@ -364,6 +368,197 @@
     {
       "kind": "screenshot",
       "label": "13-results-empty"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "search_hf_models",
+      "resolve": {
+        "models": [
+          {
+            "repo_id": "automation/stub-alpha-instruct",
+            "author": "automation",
+            "downloads": 120000,
+            "likes": 12,
+            "license": "apache-2.0",
+            "tags": [
+              "gguf",
+              "text-generation",
+              "instruct"
+            ],
+            "gated": true,
+            "total_size_bytes": 2500000000,
+            "gguf_files": [
+              {
+                "filename": "stub-alpha-instruct-Q4_K_M.gguf",
+                "size_bytes": 2500000000,
+                "size_human": "2.3 GB",
+                "compatibility": "fits",
+                "download_url": "https://huggingface.co/automation/stub-alpha-instruct/resolve/main/stub-alpha-instruct-Q4_K_M.gguf"
+              }
+            ],
+            "generation_config": null,
+            "compatibility_issue": null,
+            "model_type": "Qwen3ForCausalLM"
+          },
+          {
+            "repo_id": "automation/stub-beta-instruct",
+            "author": "automation",
+            "downloads": 80000,
+            "likes": 12,
+            "license": "mit",
+            "tags": [
+              "gguf",
+              "text-generation",
+              "instruct"
+            ],
+            "gated": true,
+            "total_size_bytes": 2500000000,
+            "gguf_files": [
+              {
+                "filename": "stub-beta-instruct-Q4_K_M.gguf",
+                "size_bytes": 2500000000,
+                "size_human": "2.3 GB",
+                "compatibility": "fits",
+                "download_url": "https://huggingface.co/automation/stub-beta-instruct/resolve/main/stub-beta-instruct-Q4_K_M.gguf"
+              }
+            ],
+            "generation_config": null,
+            "compatibility_issue": null,
+            "model_type": "Qwen3ForCausalLM"
+          }
+        ],
+        "next_cursor": "automation-page-2"
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "search_hf_models",
+      "resolve": {
+        "models": [
+          {
+            "repo_id": "automation/stub-gamma-instruct",
+            "author": "automation",
+            "downloads": 40000,
+            "likes": 12,
+            "license": "apache-2.0",
+            "tags": [
+              "gguf",
+              "text-generation",
+              "instruct"
+            ],
+            "gated": true,
+            "total_size_bytes": 2500000000,
+            "gguf_files": [
+              {
+                "filename": "stub-gamma-instruct-Q4_K_M.gguf",
+                "size_bytes": 2500000000,
+                "size_human": "2.3 GB",
+                "compatibility": "fits",
+                "download_url": "https://huggingface.co/automation/stub-gamma-instruct/resolve/main/stub-gamma-instruct-Q4_K_M.gguf"
+              }
+            ],
+            "generation_config": null,
+            "compatibility_issue": null,
+            "model_type": "Qwen3ForCausalLM"
+          }
+        ],
+        "next_cursor": null
+      }
+    },
+    {
+      "kind": "fill",
+      "testid": "model-hub-search-input",
+      "text": "automation stub page"
+    },
+    {
+      "kind": "click",
+      "testid": "model-hub-search-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-more",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "model-card-",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-load-more-stubbed-page-1"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-more",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-more",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "model-card-",
+      "nth": 2,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13c-load-more-appended-page-2"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "model-filter-gated",
+      "value": "open",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-results-no-match",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-results-clear-filters",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13d-filters-no-match"
+    },
+    {
+      "kind": "click",
+      "testid": "model-results-clear-filters",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-results-no-match",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-results",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "model-card-",
+      "nth": 2,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13e-filters-cleared"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "search_hf_models"
     },
     {
       "kind": "click",

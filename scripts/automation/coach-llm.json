@@ -67,7 +67,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Comment cr\u00e9er un agent ?"
+      "text": "Comment créer un agent ?"
     },
     {
       "kind": "waitFor",
@@ -96,6 +96,47 @@
     {
       "kind": "screenshot",
       "label": "03-coach-answer"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Que sais-tu de moi ? Consulte ton espace mémoire avec ton outil de lecture de mémoire avant de répondre, et dis-moi ce que tu y as trouvé."
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "04-guide-memory-recall"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "context-indicator-footer",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "injected-memory-sheet",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-injected-memory-sheet"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "injected-memory-sheet",
+      "timeoutMs": 3000
     }
+  ],
+  "notes": [
+    "The companion mounts the same ChatConversation as the chat page (CompanionPanel.svelte:424), so context-indicator-footer (rendered once the session metrics report an exchange, ContextIndicator.svelte:36-47) opens the InjectedMemorySheet for the latest turn (ChatConversation.svelte:152-155, :677-685). Entries in that sheet come from the process-local injection tracker fed by the PyO3 memory recall wrapper (commands/memory.rs, apollia-aip memory/inner.rs): the guide has to recall its namespace during the turn. The prompt asks for it by name; whether an entry exists is the agent's decision, so injected-memory-entry keeps a short timeout and its click is a no-op on the host (handleInjectedEntrySelect, ChatConversation.svelte:156-159). A red step there means the guide did not recall, not a broken anchor.",
+    "The recall turn is driven by awaitTurn rather than the stop-button pair: the companion's conversation pushes its session into currentSession (ChatConversation.svelte:462), so the runner's status poll follows the right session and any approval card the guide raises is accepted.",
+    "The injected memory sheet is opened and closed here, its entries are not clicked: the seeded companion is a deterministic stub (tests/cli/seed/files/agents/apollia-guide/agent.py) that injects nothing, and the sheet lists the memory of the active turn only (InjectedMemorySheet.svelte shows 'No active turn' once the turn settled). injected-memory-entry is played by chat-llm during a running turn."
   ]
 }

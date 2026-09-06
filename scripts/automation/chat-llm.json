@@ -2,6 +2,9 @@
   "name": "chat-llm (inference + tools + HITL; fresh sessions; plan via composer-plan-toggle button)",
   "stopOnError": false,
   "dynamicTestids": [
+    "inbox-filter-ask_user",
+    "inbox-tab-pending",
+    "sidebar-mode-option-builder",
     "sidebar-mode-option-operator"
   ],
   "steps": [
@@ -45,6 +48,40 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
+      "text": "dis bonjour à toute l'équipe"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-rewrite-button",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker-rewrite-restore-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00b-quickpicker-rewritten"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-rewrite-restore-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": ""
+    },
+    {
+      "kind": "waitGone",
+      "testid": "quickpicker-rewrite-restore-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
       "text": "Combien font 17 x 23 ?"
     },
     {
@@ -76,7 +113,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "\u00c9cris une phrase qui contient le mot banane."
+      "text": "Écris une phrase qui contient le mot banane."
     },
     {
       "kind": "awaitTurn",
@@ -95,6 +132,76 @@
     {
       "kind": "screenshot",
       "label": "02-banana-done"
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "text": "dis bonjour à toute l'équipe"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-input-rewrite-button",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input-rewrite-restore-button",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02c-composer-rewritten"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-input-rewrite-restore-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "text": ""
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-input-rewrite-restore-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sendChat",
+      "text": "Écris un paragraphe de vingt phrases sur la mer, sans titre ni liste."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-streaming-text",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-streaming-text",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "02b-stream"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "captureText",
+      "testidPrefix": "chat-message-",
+      "nth": -1,
+      "as": "stream_click"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02b-stream-done"
     },
     {
       "kind": "sendChat",
@@ -208,7 +315,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Retiens que mon plat pr\u00e9f\u00e9r\u00e9 est le couscous."
+      "text": "Retiens que mon plat préféré est le couscous."
     },
     {
       "kind": "awaitTurn",
@@ -230,7 +337,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Quel est mon plat pr\u00e9f\u00e9r\u00e9 ?"
+      "text": "Quel est mon plat préféré ?"
     },
     {
       "kind": "awaitTurn",
@@ -249,6 +356,35 @@
     {
       "kind": "screenshot",
       "label": "09-memory_recall-done"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "chat-message-copy-",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-scroll-to-bottom",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09b-scroll-released"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-scroll-to-bottom",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-scroll-to-bottom",
+      "timeoutMs": 5000
     },
     {
       "kind": "expect",
@@ -310,7 +446,54 @@
     },
     {
       "kind": "click",
+      "testid": "context-indicator-footer",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "injected-memory-sheet",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-injected-memory-sheet"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "injected-memory-sheet",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
       "testid": "chat-config-button"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Explique en dix paragraphes détaillés l'histoire de l'informatique."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-stop-button",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-stop-button",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-stop-interrupted-turn"
     },
     {
       "kind": "click",
@@ -383,7 +566,7 @@
     },
     {
       "kind": "sendChat",
-      "text": "Pr\u00e9pare un plan en trois \u00e9tapes pour organiser une r\u00e9union d'\u00e9quipe hebdomadaire."
+      "text": "Prépare un plan en trois étapes pour organiser une réunion d'équipe hebdomadaire. Pendant l'exécution du plan, ne me pose aucune question (n'utilise pas ask_user) : si une information manque, choisis une valeur raisonnable et continue."
     },
     {
       "kind": "awaitTurn",
@@ -417,9 +600,33 @@
       "timeoutMs": 15000
     },
     {
+      "kind": "click",
+      "testid": "chat-plan-review-adjust-cancel",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-plan-review-adjust",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-review-request-changes",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-request-changes"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-review-adjust",
+      "timeoutMs": 15000
+    },
+    {
       "kind": "fill",
       "testid": "chat-plan-review-adjust",
-      "text": "Ajoute une quatri\u00e8me \u00e9tape de bilan \u00e0 la fin."
+      "text": "Ajoute une quatrième étape de bilan à la fin."
     },
     {
       "kind": "screenshot",
@@ -467,6 +674,101 @@
     },
     {
       "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "quickpicker-plan-mode",
+      "checked": true
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Prépare un plan en trois étapes pour ranger un bureau. Nous sommes en mode plan : soumets le plan à mon approbation avec l'outil de plan avant toute autre réponse, ne réponds pas en texte libre. Ne me pose aucune question (n'utilise pas ask_user)."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "18-plan-builder",
+      "maxApprovals": 6,
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-plan-review-builder",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-plan-review-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-review-reject",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-plan-review-builder",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "18-plan-rejected"
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-plan-rejected"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
       "testid": "chat-new-chat-btn"
     },
     {
@@ -477,7 +779,7 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Demande-moi mon pr\u00e9nom avec l'outil ask_user, puis r\u00e9p\u00e8te-le."
+      "text": "Demande-moi mon prénom avec l'outil ask_user, puis répète-le."
     },
     {
       "kind": "click",
@@ -506,13 +808,229 @@
       "label": "16-ask-user-card"
     },
     {
-      "kind": "expect",
-      "testid": "ask-user-skip"
+      "kind": "click",
+      "testid": "ask-user-prompt-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "screenshot",
+      "label": "16b-ask-user-prompt-expanded"
     },
     {
       "kind": "click",
-      "testid": "ask-user-skip",
+      "testid": "ask-user-prompt-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-agent-filter",
       "timeoutMs": 10000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "inbox-agent-filter",
+      "index": 1,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16c-inbox-agent-filter-scoped"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "inbox-agent-filter",
+      "value": "all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-ask_user",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-secondary",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16d-inbox-ask-user-row"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-secondary",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-ask-user-inline",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16e-back-on-ask-user-session"
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ask-user-form",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16f-inbox-ask-user-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "ask-user-open-chat",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-ask-user-inline",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16g-inbox-open-chat-landed"
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "ask-user-form",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16h-inbox-ask-user-form"
+    },
+    {
+      "kind": "click",
+      "testid": "ask-user-submit",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "ask-user-form",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16i-inbox-ask-user-answered-skipped"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-configure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
     },
     {
       "kind": "awaitTurn",
@@ -544,7 +1062,97 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Bonjour, pr\u00eat \u00e0 travailler ?"
+      "text": "Sans me poser aucune question (n'utilise pas ask_user), lis avec un appel file_read séparé pour chacun, sans t'arrêter avant d'avoir lu les douze, les fichiers suivants du dossier docs/adr, puis donne une ligne par fichier avec son titre : ADR-001-foundations-stack.md, ADR-002-pyo3-bridge-decoupling.md, ADR-003-sandbox-trust-platform-scope.md, ADR-004-cli-design.md, ADR-005-oria-execution-model.md, ADR-006-tool-subsystem.md, ADR-007-inference-multi-runner-sidecar.md, ADR-008-llm-backends-model-management.md, ADR-009-speech-to-text.md, ADR-010-memory-context-architecture.md, ADR-011-user-profile.md, ADR-012-observability-feedback.md."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "17b-twelve-reads",
+      "timeoutMs": 480000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "click",
+      "testid": "activity-tool-count",
+      "nth": -1,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "activity-trace",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-strip-open-collapsed"
+    },
+    {
+      "kind": "click",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-collapse",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-strip-show-more"
+    },
+    {
+      "kind": "click",
+      "testid": "reasoning-collapse",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "reasoning-collapse",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17b-strip-collapsed-again"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Bonjour, prêt à travailler ?"
     },
     {
       "kind": "click",
@@ -611,7 +1219,16 @@
   "notes": [
     "ChatPlanHost picks the review card by persona: operator gets ChatPlanReview (chat-plan-review, with request-changes + an adjust textarea), builder gets ChatPlanReviewBuilder (chat-plan-review-builder, approve/reject only, revision by continuing to type). This block is written for the operator card, so the mode is forced to operator first instead of inheriting whatever the previous section left.",
     "The journey now ends on an approval: propose, request changes, revise, approve. Stopping after the revision left the plan pending forever and never exercised the gate that releases execution.",
-    "The ask_user card is answered with ask-user-skip, not with a typed answer: AskUserCard renders whatever question TYPE the model chose (open input, radios, checkboxes) and ask-user-submit stays disabled until every question is answered, so no fixed step can answer it. Skip is always enabled and releases the turn; leaving the card pending keeps the session processing, which then hides config-save (isReadOnly = isClosed || isProcessing) and breaks the whole tail.",
-    "The turn that follows the plan approval keeps the runner's default approval budget (25), not the 6 used while reviewing the plan: approving releases the execution of every planned step, and a three-step plan with two or three tools each blows past 6 approvals and aborts as a runaway turn."
+    "The turn that follows the plan approval keeps the runner's default approval budget (25), not the 6 used while reviewing the plan: approving releases the execution of every planned step, and a three-step plan with two or three tools each blows past 6 approvals and aborts as a runaway turn.",
+    "The ask_user card is answered from the INBOX form, not from the chat card: AskUserCard's ask-user-submit is disabled until at least one question is answered (canSubmit, AskUserCard.svelte:63-70) and the model picks the question type, so no fixed step can enable it; AskUserForm's ask-user-submit is disabled only while submitting (AskUserForm.svelte:176) and packs an empty answer as skipped (buildAskUserAnswers), so it is the deterministic way to release the turn. ask-user-skip is no longer played by this book. The three inbox detours before it (inbox-agent-filter by index, since the option value is the session id's first 8 chars; inbox-row-secondary; ask-user-open-chat) each leave the request pending: openAskUserChat only sets pendingChatSessionId and navigates (Inbox.svelte:187-190).",
+    "Chat unmounts on every route change ({#key $currentRoute}, lib/components/app/Main.svelte), so a `goto chat` lands on the session list with nothing selected. Returning to the session the book just left goes through conversation-row-menu-button nth 0 -> conversation-row-menu-configure (openConfig -> navigateToSession, Chat.svelte:70-74; the list is list_chat_sessions' ORDER BY created_at DESC, so row 0 is the newest session). That path also opens the inspector on its config tab; chat-config-button is openConfig() too (Chat.svelte:585), not a toggle, so the step-budget section is unaffected.",
+    "The builder plan card (chat-plan-review-builder) is reached by forcing the builder persona and starting the conversation in plan mode from the picker (quickpicker-plan-mode, a native checkbox, so setChecked). awaitTurn yields on that card since the runner's planCss lists it next to chat-plan-review (runner.ts:276). Reject sends rejectPlan without a reason; if the model proposes a new plan right after, the following awaitTurn yields on the pending card and the section leaves it pending when it switches sessions, which does not block the ask_user section (new session).",
+    "chat-streaming-text is clicked while the answer streams: the span renders only once text arrives ({#if textContent || !activeThinking}, StreamingMessage.svelte:172), so the prompt asks for twenty sentences to keep the window open; the click itself is inert on plain text (StreamingText.svelte:33-51 acts on links and copy buttons only).",
+    "chat-scroll-to-bottom appears only after an upward scroll leaves the list more than 200 px from the bottom (scrollFollow.ts:42-45, :63-75). The runner's click calls scrollIntoView({block:'center'}) on its target (runner.ts:228-230), so clicking the first message's copy button scrolls the list up; after nine turns the list overflows enough. The copy click also copies that message to the host clipboard.",
+    "chat-stop-button is played once, on a long prompt, right before the plan section's new chat: the aborted session keeps a truncated assistant message and nothing after it reads that session again.",
+    "The two rewrite blocks (quickpicker-rewrite-restore-button, chat-input-rewrite-restore-button) each cost one meta-LLM call on the default backend; restore is rendered only after a successful rewrite (canRestore) and emptying the field resets it (QuickPicker.svelte:147-153, ChatInput.svelte:299-303). A rewrite refused by the backend (noRouter/noBackend/callFailed/emptyAnswer) leaves the button absent and the block red without blocking the rest.",
+    "dashboard-inbox-more is played by dashboard-det through a list_pending_approvals stub (six PendingApproval values, PendingDecisionsCard.svelte limit 5; the in-memory set no seed reaches), not here; hitl-always-toggle open/close is played by hitl-critical, not folded here (chat-llm keeps no approval pending).",
+    "reasoning-show-more and reasoning-collapse (ReasoningSequence.svelte:124, :136) render inside the finalized message's ActivityStrip (ChatMessageBubble.svelte:185-193), which mounts collapsed (open = false, ActivityStrip.svelte:39, :51) and renders its children only once expanded (activity-trace, ActivityStrip.svelte:146-152). The toggle <button> itself carries no data-testid (ActivityStrip.svelte:122-130), but its summary snippet does: activity-reasoning-count, activity-tool-count and activity-duration are spans rendered inside that button (ActivityStrip.svelte:99-112), and the runner's click calls el.click() on the match (runner.ts:228-229), whose click event bubbles to the button's onclick={toggle}. The block clicks activity-tool-count nth -1 (the newest message; toolCount = nonPendingCalls.length, ChatMessageBubble.svelte:98) and proves the opening by waiting for activity-trace. The buttons need more than COLLAPSE_ITEM_THRESHOLD = 10 items (reasoning.ts:485; one per thinking fragment plus one per tool call, buildReasoningSequence reasoning.ts:248-306; initial visibleCount is the threshold, PAGE_SIZE 30, ReasoningSequence.svelte:63-89), so the prompt asks for twelve separate file_read calls on docs/adr (the seed's apollia.toml pins the chat file-tool workspace to the repo). Model-dependent: a model that batches or stops early leaves fewer than eleven items, and the block is red without being a product defect. It runs before the step-budget section, which caps the budget at 1.",
+    "Measured on 2026-09-06 (two runs): the execution of the approved plan ended in an ask_user question the book never answers, which then made every later awaitTurn return 'paused for ask_user' at once and hid the plan review of the builder section and the twelve-reads turn. The plan prompts now forbid questions. Product finding for the maintainer: that question reached the inbox without a session id (the plan executor builds its ask_user executor without a session, apollia-tools native_dispatcher.rs), so the inbox row carried no 'open the conversation' action."
   ]
 }

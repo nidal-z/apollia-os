@@ -4,7 +4,11 @@
   "notes": [
     "LlmBackendCard.svelte no longer suffixes its ids with the backend name: llm-backend-card, llm-backend-badge, set-default, llm-backend-ping-btn, edit-backend, delete-backend are plain and repeated per card, so they are targeted by testid + nth instead of testidPrefix.",
     "set-default / llm-backend-ping-btn / edit-backend / delete-backend live in the builderActions snippet, so they render in builder mode only; the settings walk runs after the mode is switched to builder. set-default additionally renders only on a non-default backend.",
-    "llm-dialog-enabled-switch and llm-dialog-default-switch are the inner controls a Switch composes off llm-dialog-enabled / llm-dialog-default; the runner's setChecked descends into the wrapper, which is how those two are played, and the inner ids resolve to nothing at run time (b5-llm)."
+    "llm-dialog-enabled-switch and llm-dialog-default-switch are the <button role=switch> a SettingsToggle composes off llm-dialog-enabled / llm-dialog-default (SettingsToggle.svelte:53 passes `${dataTestId}-switch` to Toggle.svelte, which spreads it onto the button, :47-63). The earlier note claiming the inner ids resolve to nothing was wrong; llm-advanced-det drives them by their exact ids.",
+    "llm-dialog-browse is played through a stubbed picker: handleBrowse (LlmBackendDialog.svelte:72-93) calls plugin-dialog `open`, which is the IPC plugin:dialog|open; the stub resolves ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf (a seed file, tests/cli/seed/files/models) once, and applySelectedPath (:115-124) writes it into form.model. The dialog is cancelled afterwards, nothing persisted.",
+    "llm-dialog-test on the ADD path is a pure local validation (handleTest :156-169, `!editing` branch): with name/endpoint/apikey/model filled the form has no errors, so the click renders llm-dialog-test-result without any network call. On the EDIT path the same button pings the backend, which is why it is only played here.",
+    "llm-error-details-toggle: set-default on the DISABLED seeded openai-gpt4o-mini (system.sql enabled=0). set_default itself succeeds (apollia-core llm_backend.rs:398-420 only refuses an unknown name), then reload_llm_from_db (commands/llm.rs:378-443) rebuilds the router from enabled configs only (router/construct.rs:222) and resolve_default_backend refuses a default that is not instantiated (router/backends.rs:262-275), so the command rejects before swapping the router; handleSetDefault's catch (settings/Llm.svelte:80-82) sets actionError, humanize keeps the raw string as detail (humanize.ts:261-274) and LlmActionErrorBanner mounts the Disclosure whose header composes llm-error-details-toggle (Disclosure.svelte:75). Cards are ORDER BY name (llm_backend.rs:286) and set-default renders on non-default cards only (LlmBackendCard.svelte:181), so after 11c the four cards are anthropic-claude (default), automation-saved, local-llama-server, openai-gpt4o-mini and set-default nth 2 is the disabled one. The restore is two clicks (nth 1 then nth 0) because the list may or may not have been refreshed by the llm-changed SSE the failed reload emits (sse.ts:595-605): on a stale list nth 1 is local-llama-server, on a refreshed one automation-saved; both succeed, both refresh, and on the refreshed list nth 0 is anthropic-claude either way, which is the state llm-det already leaves.",
+    "llm-backend-ping-btn is played in the settings list through a stubbed IPC: handlePing -> pingLlmBackend -> ping_llm_backend (LlmBackendCard.svelte:75-97, ipc/llm.ts:21-23) sends a real completion through the router with no handler-side timeout, and nth 0 is anthropic-claude, a remote backend with a placeholder key, so the real outcome depends on the network. The block after 07-settings-cards-controls stubs the command twice, once each: a resolve shaped like PingResult (commands/llm.rs:98-107, available:true latency_ms:42) renders llm-ping-result with llm.ping_ok, asserted by 'Ping OK (42ms)', which is the same string in both locales; then a reject with a raw string lands in the catch and is rendered verbatim as pingError on the same anchor. The card clears the feedback after FEEDBACK_MS (5 s, :41), so the assertions sit right after each click. The command is cleared afterwards; nothing is written. On the llm page (04-llm-builder-cards-ping-boundary) the button is still only asserted."
   ],
   "dynamicTestids": [
     "settings-nav-llm",
@@ -252,6 +256,66 @@
       "label": "07-settings-cards-controls"
     },
     {
+      "kind": "stubInvoke",
+      "command": "ping_llm_backend",
+      "resolve": {
+        "backend": "anthropic-claude",
+        "available": true,
+        "latency_ms": 42,
+        "error": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-backend-ping-btn",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-ping-result",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "llm-ping-result",
+      "contains": "Ping OK (42ms)"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-settings-card-ping-ok (stubbed ping_llm_backend, 42 ms)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "ping_llm_backend",
+      "reject": "automation: ping refused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-backend-ping-btn",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "llm-ping-result",
+      "contains": "automation: ping refused"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-settings-card-ping-refused (stubbed reject rendered on the card)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "ping_llm_backend"
+    },
+    {
       "kind": "click",
       "testid": "edit-backend",
       "nth": 0
@@ -364,6 +428,25 @@
       "label": "09-llm-add-dialog-local"
     },
     {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-browse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "09b-llm-browse-picked-seed-gguf"
+    },
+    {
       "kind": "selectOption",
       "testid": "llm-dialog-provider",
       "value": "openai"
@@ -401,6 +484,20 @@
     {
       "kind": "screenshot",
       "label": "10-llm-add-openai-revealed"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-test",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-test-result",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-llm-add-dialog-local-test-ok"
     },
     {
       "kind": "click",
@@ -550,6 +647,98 @@
     {
       "kind": "screenshot",
       "label": "11c-backend-saved"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backends-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-card",
+      "nth": 3,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "set-default",
+      "timeoutMs": 4000,
+      "nth": 2
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-action-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-error-details-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11d-set-default-disabled-backend-error"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-error-details-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "11e-error-details-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-error-details-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "set-default",
+      "timeoutMs": 4000,
+      "nth": 1
+    },
+    {
+      "kind": "waitGone",
+      "testid": "llm-action-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1200
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-card",
+      "nth": 3,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "set-default",
+      "timeoutMs": 4000,
+      "nth": 0
+    },
+    {
+      "kind": "sleep",
+      "ms": 1200
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-card",
+      "nth": 3,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11f-default-restored-to-anthropic-claude"
     },
     {
       "kind": "click",

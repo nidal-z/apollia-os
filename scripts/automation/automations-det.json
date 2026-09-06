@@ -1,7 +1,14 @@
 {
   "name": "automations-det (automations page, operator + builder, seeded triggers: asserts table + rows + filters + delete-dialog cancel + history sheet + edit dialog driven then cancelled)",
   "stopOnError": false,
+  "notes": [
+    "automations-filter-bar stays unplayed on purpose: the id sits on the FilterChipBar wrapper <div> (FilterChipBar.svelte:58-64 renders it with a class and the data-testid only, no on* attribute; Automations.svelte:269 passes the id), and the only handlers are the chips' onclick (FilterChipBar.svelte:73), which the automations-filter-* steps all click. uncovered.py files the wrapper as a gesture; a click on it dispatches an event nothing listens to, would pass and prove nothing.",
+    "create-trigger-submit-btn is played on a webhook definition (path plus generated secret) because the cron builder exposes no testid for its presets and emits no default expression, so the cron card can never be valid from a script. The created trigger is deleted through the row menu and the delete dialog before the filter counts are asserted; neither create nor delete refreshes the list on its own, hence the automations-refresh-btn clicks around them.",
+    "automations-load-error-details-toggle needs a rejected list_triggers: a stubInvoke rejects it around a refresh, then clearStubs and a second refresh repaint the seeded table. The triggers store keeps its rows meanwhile (a failed refresh never clears it), so the table stays behind the banner.",
+    "automation-edit-cancel is played on a second opening of the edit dialog after the submitted one, so the cancelled definition is the stored one and no update_trigger call is made."
+  ],
   "dynamicTestids": [
+    "automation-delete-automation-probe-trigger",
     "automation-delete-seed-trigger-daily-digest",
     "automation-edit-advanced-toggle",
     "automation-edit-agent",
@@ -18,6 +25,7 @@
     "automation-edit-type-webhook",
     "automation-enabled-toggle-seed-trigger-daily-digest",
     "automation-history-seed-trigger-daily-digest",
+    "automation-menu-automation-probe-trigger",
     "automation-menu-seed-trigger-daily-digest",
     "automation-wizard-next-0",
     "automation-wizard-next-1",
@@ -135,6 +143,64 @@
     {
       "kind": "screenshot",
       "label": "03a-automations-refreshed"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_triggers",
+      "reject": "seeded triggers failure"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a2-automations-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-load-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a3-automations-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-load-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_triggers"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automations-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-table",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "automation-row",
+      "nth": 0,
+      "timeoutMs": 5000
     },
     {
       "kind": "click",
@@ -307,6 +373,138 @@
     {
       "kind": "waitGone",
       "testid": "trigger-create-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-new-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-wizard-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-wizard-advanced",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "trigger-create-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "trigger-input-agent",
+      "index": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-type-card-webhook",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "trigger-input-webhook-path",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "trigger-input-webhook-path",
+      "text": "/hooks/automation-probe"
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-secret-generate-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "trigger-input-name",
+      "text": "automation-probe-trigger"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03f-trigger-create-valid (webhook, generated secret, custom identifier)"
+    },
+    {
+      "kind": "click",
+      "testid": "create-trigger-submit-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "trigger-create-dialog",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "click",
+      "testid": "automations-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-menu-automation-probe-trigger",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03g-trigger-created"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-menu-automation-probe-trigger",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-delete-automation-probe-trigger",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "automation-delete-automation-probe-trigger",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "delete-automation-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "delete-automation-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "delete-automation-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automation-menu-automation-probe-trigger",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03h-trigger-deleted (the probe removed, the four seeded triggers untouched)"
     },
     {
       "kind": "click",
@@ -563,6 +761,49 @@
     {
       "kind": "screenshot",
       "label": "10e-automation-edit-submitted"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-menu-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-agent",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10f-automation-edit-reopened"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10g-automation-edit-cancelled (nothing sent)"
     },
     {
       "kind": "click",

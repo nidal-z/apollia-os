@@ -2,6 +2,12 @@
   "name": "connections-det (integrations page, operator + builder, deterministic against the seeded MCP ecosystem)",
   "stopOnError": false,
   "dynamicTestids": [
+    "arg-input-0",
+    "catalogue-entry-@modelcontextprotocol/server-brave-search",
+    "catalogue-entry-@modelcontextprotocol/server-filesystem",
+    "catalogue-entry-com.notion/mcp",
+    "catalogue-entry-io.apollia/seed-failing",
+    "catalogue-entry-io.apollia/seed-stub",
     "catalogue-filter-all",
     "catalogue-filter-community",
     "catalogue-filter-installed",
@@ -13,6 +19,12 @@
     "connections-sidebar-filter-attention",
     "connections-sidebar-filter-error",
     "connections-sidebar-filter-idle",
+    "disclaimer-check-code_on_machine",
+    "disclaimer-check-external_data",
+    "disclaimer-check-read_capabilities",
+    "disclaimer-check-revocable",
+    "env-input-BRAVE_API_KEY",
+    "env-toggle-BRAVE_API_KEY",
     "mcp-detail-tab-overview",
     "mcp-detail-tab-settings",
     "mcp-detail-tab-tools",
@@ -20,11 +32,14 @@
     "native-detail-tab-capabilities",
     "native-detail-tab-settings",
     "native-needs-config-google",
+    "oauth-add-account-google",
     "oauth-add-account-microsoft",
     "oauth-card-google",
     "oauth-card-microsoft",
     "oauth-configure-google",
     "settings-nav-integrations",
+    "sidebar-mcp-automation-stub-mcp",
+    "sidebar-mcp-seed-stub",
     "sidebar-mode-option-builder",
     "sidebar-mode-option-operator",
     "sidebar-native-google",
@@ -366,6 +381,163 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_mcp_server_raw_config",
+      "resolve": {
+        "name": "automation-remote",
+        "command": "",
+        "args": [],
+        "env": {
+          "Authorization": "${APOLLIA_OAUTH}"
+        },
+        "transport": "streamable-http",
+        "url": "https://mcp.example.test/mcp",
+        "requires_approval": false,
+        "init_timeout_secs": 30,
+        "call_timeout_secs": 60,
+        "tags": []
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-reset",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-url-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-oauth",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "reject": "automation stub: consent refused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-oauth-reconnect",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-oauth-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "mcp-settings-oauth-error",
+      "contains": "consent refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "resolve": {
+        "sub": null,
+        "email": "operator@example.test",
+        "scopes": [
+          "mcp:read"
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-oauth-reconnect",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-oauth-success",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-mcp-settings-oauth-reconnected"
+    },
+    {
+      "kind": "fill",
+      "testid": "mcp-settings-url-input",
+      "text": "https://mcp.example.test/v2/mcp"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "update_mcp_server_config",
+      "argsMatch": {
+        "config": {
+          "name": "automation-remote",
+          "command": "",
+          "args": [],
+          "env": {
+            "Authorization": "${APOLLIA_OAUTH}"
+          },
+          "transport": "streamable-http",
+          "url": "https://mcp.example.test/v2/mcp",
+          "requires_approval": false,
+          "init_timeout_secs": 30,
+          "call_timeout_secs": 60,
+          "tags": []
+        }
+      },
+      "reject": "automation stub: url reached the config"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "update_mcp_server_config",
+      "reject": "automation stub: config mismatch"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-save-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "mcp-settings-save-error",
+      "contains": "url reached the config"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11c-mcp-settings-url-forwarded"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "update_mcp_server_config"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "mcp_oauth_login"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_mcp_server_raw_config"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-reset",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-command",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "mcp-settings-url-input",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "fill",
       "testid": "mcp-settings-args-input",
       "text": "--demo"
@@ -429,6 +601,16 @@
     {
       "kind": "screenshot",
       "label": "12-mcp-disconnect-confirm-cancel-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -524,7 +706,8 @@
     {
       "kind": "fill",
       "testid": "custom-mcp-name-input",
-      "text": "automation-demo-mcp"
+      "text": "automation-stub-mcp",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -545,7 +728,8 @@
     {
       "kind": "fill",
       "testid": "custom-mcp-command-input",
-      "text": "npx"
+      "text": "/usr/bin/python3",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -555,7 +739,8 @@
     {
       "kind": "fill",
       "testid": "custom-mcp-args-input",
-      "text": "-y @modelcontextprotocol/server-filesystem /tmp"
+      "text": "${HOME}/.apollia/mcp-stub-server.py",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -633,17 +818,71 @@
       "label": "16-custom-mcp-stdio-revert"
     },
     {
+      "kind": "click",
+      "testid": "custom-mcp-test-btn",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
+      "testid": "custom-mcp-test-ok",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-custom-mcp-test-stub-ok"
+    },
+    {
+      "kind": "click",
       "testid": "custom-mcp-install-btn",
       "timeoutMs": 3000
     },
     {
+      "kind": "waitGone",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mcp-automation-stub-mcp",
+      "timeoutMs": 15000
+    },
+    {
       "kind": "screenshot",
-      "label": "17-custom-mcp-install-boundary-no-click"
+      "label": "18-custom-mcp-installed-stub"
     },
     {
       "kind": "click",
-      "testid": "custom-mcp-test-btn",
+      "testid": "sidebar-mcp-automation-stub-mcp",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-settings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-command",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-disconnect-confirm-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-confirm-btn",
       "timeoutMs": 3000
     },
     {
@@ -651,19 +890,36 @@
       "ms": 1500
     },
     {
-      "kind": "screenshot",
-      "label": "18-custom-mcp-test-ext-boundary"
+      "kind": "goto",
+      "route": "dashboard"
     },
     {
-      "kind": "press",
-      "testid": "custom-mcp-name-input",
-      "key": "Escape",
-      "timeoutMs": 3000
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitGone",
-      "testid": "custom-mcp-name-input",
-      "timeoutMs": 6000
+      "testid": "sidebar-mcp-automation-stub-mcp",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "18b-custom-mcp-stub-removed"
     },
     {
       "kind": "click",
@@ -914,6 +1170,1487 @@
     },
     {
       "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:opener|open_url",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-@modelcontextprotocol/server-filesystem",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "disclaimer-accept",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30-mcp-disclaimer-dialog-unchecked"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "disclaimer-accept",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "31-mcp-disclaimer-accepted-wizard-open"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-args",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "arg-input-0",
+      "text": "/tmp/apollia-automation-allowed",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "32-wizard-next-auth-local-files-args"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "33-wizard-back-to-disclaimer"
+    },
+    {
+      "kind": "click",
+      "testid": "dialog-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-@modelcontextprotocol/server-filesystem",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "disclaimer-learn-more",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "34-disclaimer-learn-more-lands-on-settings"
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-@modelcontextprotocol/server-brave-search",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-help-link",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "env-input-BRAVE_API_KEY",
+      "text": "automation-not-a-key",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "env-toggle-BRAVE_API_KEY",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "auth-help-link",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "35-wizard-auth-help-link-brave"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "dialog-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-community",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-io.apollia/seed-failing",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-no-vars",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "test-connection-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-error",
+      "timeoutMs": 45000
+    },
+    {
+      "kind": "screenshot",
+      "label": "36-wizard-test-seed-failing-error"
+    },
+    {
+      "kind": "click",
+      "testid": "test-fix-auth-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-no-vars",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "test-connection-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-error",
+      "timeoutMs": 45000
+    },
+    {
+      "kind": "click",
+      "testid": "test-retry-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-error",
+      "timeoutMs": 45000
+    },
+    {
+      "kind": "screenshot",
+      "label": "37-wizard-test-retry-seed-failing-error-again"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "dialog-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-community",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-io.apollia/seed-stub",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-no-vars",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "test-connection-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "38-wizard-test-seed-stub-success"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-coaching",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "coaching-examples",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "capability-example-try",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "39-wizard-coaching-try-card"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-confirm-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mcp-seed-stub",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40-wizard-confirm-installed-seed-stub"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mcp-seed-stub",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-settings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-command",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-disconnect-confirm-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-confirm-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-mcp-seed-stub",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41-wizard-confirm-seed-stub-removed"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_mcp_connection",
+      "once": true,
+      "resolve": {
+        "kind": "oauth_required",
+        "www_authenticate": "Bearer resource_metadata=\"https://mcp.notion.com/.well-known/oauth-protected-resource\""
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_discover",
+      "once": true,
+      "resolve": {
+        "as_url": "https://mcp.notion.com",
+        "scopes_supported": [
+          "read_content",
+          "update_content"
+        ],
+        "scope_descriptions": {
+          "read_content": "Read pages and databases"
+        },
+        "registration_supported": true
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-com.notion/mcp",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-scopes",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41b-wizard-auth-oauth-mode-notion"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "once": true,
+      "reject": "automation: consent refused by stubInvoke"
+    },
+    {
+      "kind": "click",
+      "testid": "auth-oauth-signin-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "auth-oauth-error",
+      "contains": "consent refused"
+    },
+    {
+      "kind": "screenshot",
+      "label": "41c-wizard-auth-oauth-signin-refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "once": true,
+      "resolve": {
+        "sub": null,
+        "email": "automation@example.com",
+        "scopes": [
+          "read_content",
+          "update_content"
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "auth-oauth-signin-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-success",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "auth-oauth-success",
+      "contains": "automation@example.com"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "auth-oauth-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-reconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41d-wizard-auth-oauth-signed-in"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "once": true,
+      "reject": "automation: reconnect refused by stubInvoke"
+    },
+    {
+      "kind": "click",
+      "testid": "auth-oauth-reconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "auth-oauth-error",
+      "contains": "reconnect refused"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-success",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41e-wizard-auth-oauth-reconnect-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "dialog-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "test_mcp_connection"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "mcp_oauth_discover"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "mcp_oauth_login"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-add-account-microsoft",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-add-account-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "42-oauth-missing-client-branch"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-integrations-oauth",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-card-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-add-account-microsoft",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "resolve": {
+        "auth_url": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=automation&state=automation-state",
+        "state": "automation-state",
+        "callback_port": 0
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-add-account-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-url-link",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "43-oauth-auth-step"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-url-link",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-paste-code-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-paste-code-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "44-oauth-paste-code-disclosed"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-paste-code-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-paste-code-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-paste-code-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-paste-code-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "oauth-paste-code-input",
+      "text": "automation-fake-code",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-finalize-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-finalize-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "45-oauth-finalize-unknown-flow-error"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_list_client_ids",
+      "resolve": [
+        {
+          "provider": "google",
+          "effective_client_id": "automation.apps.googleusercontent.com",
+          "source": "file",
+          "override_client_id": "automation.apps.googleusercontent.com",
+          "has_client_secret": true,
+          "client_secret_source": "file",
+          "requires_client_secret": true,
+          "has_api_key": false,
+          "api_key_source": "none",
+          "requires_api_key": true
+        },
+        {
+          "provider": "microsoft",
+          "effective_client_id": "automation-microsoft-client",
+          "source": "file",
+          "override_client_id": "automation-microsoft-client",
+          "has_client_secret": false,
+          "client_secret_source": "none",
+          "requires_client_secret": false,
+          "has_api_key": false,
+          "api_key_source": "none",
+          "requires_api_key": false
+        }
+      ]
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-google",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-add-account-google",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "once": true,
+      "resolve": {
+        "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=automation&state=automation-google-state",
+        "state": "automation-google-state",
+        "callback_port": 0
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_complete_flow",
+      "once": true,
+      "resolve": {
+        "provider": "google",
+        "account_id": "automation@example.com",
+        "granted_scopes": [
+          "https://www.googleapis.com/auth/drive.file"
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-add-account-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-url-link",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-paste-code-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-paste-code-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "oauth-paste-code-input",
+      "text": "automation-google-code",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-finalize-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog-drive-folder",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-drive-folder-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "45b-oauth-google-drive-folder-step"
+    },
+    {
+      "kind": "fill",
+      "testid": "oauth-drive-folder-input",
+      "text": "Apollia/Automation",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_set_drive_folder",
+      "once": true,
+      "reject": {
+        "kind": "internal",
+        "detail": "automation: drive prefs refused by stubInvoke"
+      },
+      "argsMatch": {
+        "accountId": "automation@example.com",
+        "folderPath": "Apollia/Automation"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_set_drive_folder",
+      "reject": {
+        "kind": "internal",
+        "detail": "automation: oauth_set_drive_folder received args other than the filled path"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-drive-folder-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-drive-folder-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "oauth-drive-folder-error",
+      "contains": "drive prefs refused"
+    },
+    {
+      "kind": "screenshot",
+      "label": "45c-oauth-google-drive-folder-save-refused"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_set_drive_folder"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_set_drive_folder",
+      "once": true,
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-drive-folder-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_list_client_ids"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_complete_flow"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_set_drive_folder"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
       "route": "dashboard"
     },
     {
@@ -922,10 +2659,19 @@
     },
     {
       "kind": "screenshot",
-      "label": "29-clean-exit-operator"
+      "label": "46-clean-exit-operator"
     }
   ],
   "notes": [
-    "Detail tabs and the catalogue sheet keep the last selected tab across a selection change: the operator pass leaves the MCP detail on Settings and the catalogue on Custom, so the builder pass re-selects mcp-detail-tab-overview and catalogue-tab-discover before asserting their bodies (mcp-tools-count / catalogue-list)."
+    "Detail tabs and the catalogue sheet keep the last selected tab across a selection change: the operator pass leaves the MCP detail on Settings and the catalogue on Custom, so the builder pass re-selects mcp-detail-tab-overview and catalogue-tab-discover before asserting their bodies (mcp-tools-count / catalogue-list).",
+    "The runner clears apollia-mcp-disclaimer-accepted and apollia-mcp-disclaimer-version at boot, so the first catalogue Connect click of the boot opens McpDisclaimerDialog (Connections.svelte handleConnect) and the block accepts it; the accept writes both keys for the rest of the boot, so every later wizard block lands in ConnectorWizard directly with its four checks pre-filled asynchronously (ConnectorWizard.svelte open effect). The idempotent setChecked pass is kept before each wizard-next-btn so no block depends on that timing.",
+    "Two installs happen and both are undone in their own block through mcp-disconnect-btn then mcp-disconnect-confirm-btn: the custom form on /usr/bin/python3 ${HOME}/.apollia/mcp-stub-server.py (server automation-stub-mcp) and the wizard on catalogue-entry-io.apollia/seed-stub (server seed-stub, deriveServerName of the title). A native connector is selected before each install and before the OAuth blocks, so a failed install leaves no MCP detail for the removal clicks to reach, and the seeded rows filesystem and notes are never the target of a confirm. Later sections see the two seeded rows only.",
+    "The wizard is closed only at its first step or from the coaching step: ConnectorWizard.svelte handleRequestClose asks window.confirm anywhere else, which no step can answer. Blocks that leave the test step walk back through wizard-back-btn first.",
+    "plugin:opener|open_url is stubbed (resolve null) for the whole wizard and OAuth section: auth-help-link and oauth-open-url-link go through handleExternalLinkClick to the opener plugin, and the stub keeps the host browser closed while the click still fires. The stub is dropped by the clearStubs at the end of the section.",
+    "oauth_start_flow is answered by the script twice. A reject {kind: oauth_client_not_configured} reaches the missing-client branch of NativeOauthDialog (isMissingClientError reads .kind) for oauth-open-settings-btn, with no sovereignty detour since the command never runs. A resolve imitating OauthStartResult (lib/ipc/connections.ts: auth_url, state, callback_port) reaches the auth step for oauth-open-url-link, oauth-paste-code-toggle, oauth-paste-code-input, oauth-finalize-btn and oauth-cancel-btn; oauth_complete_flow then runs for real with the unknown state and fails with FlowNotFound, the error line the finalize screenshot shows. Each OAuth block ends with clearStubs and a goto dashboard then goto integrations so the route is healthy again.",
+    "catalogue-entry-io.apollia/seed-failing launches /usr/bin/false, which exits before any MCP handshake, so test-result-error lands at once; the 45 s waits only cover a runtime that waits out init_timeout_secs (30 s) instead of the EOF. The retry is proven by the error block coming back after test-retry-btn, not by a waitGone in between, which would race the instant failure.",
+    "mcp-settings-url-input and mcp-settings-oauth-reconnect are reached by answering get_mcp_server_raw_config from the script with a value imitating McpServerConfig (apollia-mcp config.rs, the McpServerRawConfig of lib/ipc/connections.ts): transport streamable-http and an env carrying ${APOLLIA_OAUTH}, which is what McpServerSettingsEditor.svelte branches on (remote, oauthEnvHeaders). The stub is armed while the editor shows the seeded stdio server, and mcp-settings-reset is the reload that makes it take (reset calls load). mcp_oauth_login is answered twice, a reject for mcp-settings-oauth-error and a resolve imitating McpOAuthAccount (lib/types/mcp.ts) for mcp-settings-oauth-success. The URL fill is proven through update_mcp_server_config: a stub whose argsMatch carries the exact config the editor must build, new url included, rejects with the text the expect reads, and a catch-all reject behind it keeps the seeded row from ever being rewritten and reads differently when the url did not reach the config. The block ends with the three commands cleared and a real reload back to the stdio form. The block sits before the real timeout save of the same section: mcp-settings-reset is disabled while that save is in flight (McpServerSettingsEditor.svelte, disabled={saving || loading}), and a click on a disabled button is dropped, so the stubbed reload must not queue behind a restart of the seeded server.",
+    "The MCP OAuth branch of the wizard is reached on catalogue-entry-com.notion/mcp, the curated remote entry (enrichments.json remote_url https://mcp.notion.com/mcp, no oauth_pre_registered_client_id_env, so mcp_oauth_resolve_client_id never runs). test_mcp_connection is answered once with the McpConnectionTestResponse OauthRequired arm (commands/mcp.rs, kind + www_authenticate) and mcp_oauth_discover once with an McpOAuthDiscoveryResult (commands/mcp/oauth.rs: as_url, scopes_supported, scope_descriptions, registration_supported), which is what puts probeMode on oauth (ConnectorWizard.svelte runAuthProbe then runOAuthDiscovery). mcp_oauth_login is armed once before each click: a string reject for the first auth-oauth-signin-btn (auth-oauth-error shows the message), an McpOAuthAccount resolve (sub, email, scopes) for the second (auth-oauth-success names the email), and a string reject for auth-oauth-reconnect-btn, whose proof is a fresh auth-oauth-error next to the success card that stays (startOAuthSignin keeps oauthAccount on failure). The wizard is left by wizard-back-btn then dialog-close, and the three commands are cleared.",
+    "The Google Drive folder step is reached through NativeOauthDialog on the Google connector. oauth_list_client_ids is answered with two OauthClientIdStatus rows (commands/integrations/credentials.rs) whose google row has source file and a secret, so needsOauthSetup is false and the header renders oauth-add-account-google instead of oauth-configure-google; the route is remounted through dashboard so refreshNativeStatus reads the stub. oauth_start_flow is answered once with an OauthStartFlow (auth_url, state, callback_port) and oauth_complete_flow once with an OauthCompletedAccount whose provider is google (commands/integrations.rs: provider, account_id, granted_scopes), which is the branch that sets step drive_folder (NativeOauthDialog.svelte completeFlow). oauth_set_drive_folder is answered first by a reject {kind: internal, detail} whose argsMatch carries the exact accountId and folderPath the dialog must send (the account of the completed flow, the path filled in oauth-drive-folder-input), which is the proof of the fill (formatTauriError renders kind: detail in oauth-drive-folder-error); a catch-all reject behind it reads differently and keeps the real command from ever writing drive prefs when the path did not reach the call. The command is cleared, then answered once with resolve null, on which the dialog closes. All four commands are cleared and the route is remounted so the real client-id status is back on screen."
   ]
 }

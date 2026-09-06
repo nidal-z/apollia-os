@@ -9,75 +9,304 @@
     "profile-fact-add-confirm is disabled while either field is blank, so both are filled before it is clicked; on success addOpen goes false, which is what the waitGone on the form asserts.",
     "The row's edit and delete buttons live in a group-hover container at opacity 0. They are in the DOM and carry no pointer-events:none, and the runner clicks the element directly, so the hover is not needed. The opacity is why they are asserted by click rather than by screenshot.",
     "ProfileFactRow renders a ConfirmDialog with data-testid=profile-fact-delete-dialog, so its two buttons are the composed profile-fact-delete-dialog-cancel and profile-fact-delete-dialog-confirm.",
-    "The edit input is a controlled Input bound to editValue; cancelEdit restores the stored value, which is why the cancel pass asserts the row still shows the first value."
+    "The edit input is a controlled Input bound to editValue; cancelEdit restores the stored value, which is why the cancel pass asserts the row still shows the first value.",
+    "profile-fact is a role=button row with its own keyboard map (ProfileFactRow.svelte:21-36, :151-162): Enter starts the inline edit, Delete/Backspace only REQUEST a deletion through the same confirmation. The row is played with `press Enter` right after the fact is created (the first match is the row this script owns), and the editor is closed with profile-fact-edit-discard, so nothing is persisted."
   ],
   "dynamicTestids": [
     "settings-nav-profile"
   ],
   "steps": [
-    { "kind": "click", "testid": "onboarding-skip", "timeoutMs": 3000 },
-    { "kind": "waitGone", "testid": "onboarding-skip", "timeoutMs": 3000 },
-    { "kind": "waitFor", "testid": "app-main", "timeoutMs": 30000 },
-    { "kind": "goto", "route": "settings" },
-    { "kind": "waitFor", "testid": "settings-page", "timeoutMs": 10000 },
-    { "kind": "click", "testid": "settings-nav-profile" },
-    { "kind": "waitFor", "testid": "profile-section", "timeoutMs": 8000 },
-    { "kind": "waitFor", "testid": "profile-section-memory", "timeoutMs": 8000 },
-    { "kind": "screenshot", "label": "01-profile-facts-card" },
-
-    { "kind": "click", "testid": "profile-fact-add-toggle" },
-    { "kind": "waitFor", "testid": "profile-fact-add-form", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "profile-fact-add-key", "timeoutMs": 4000 },
-    { "kind": "waitFor", "testid": "profile-fact-add-value", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "02-add-form-open" },
-    { "kind": "click", "testid": "profile-fact-add-toggle" },
-    { "kind": "waitGone", "testid": "profile-fact-add-form", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "profile-fact-add-toggle" },
-    { "kind": "waitFor", "testid": "profile-fact-add-form", "timeoutMs": 4000 },
-    { "kind": "fill", "testid": "profile-fact-add-key", "text": "automation_probe" },
-    { "kind": "fill", "testid": "profile-fact-add-value", "text": "created by the gestural automaton" },
-    { "kind": "screenshot", "label": "03-add-form-filled" },
-    { "kind": "click", "testid": "profile-fact-add-confirm" },
-    { "kind": "waitGone", "testid": "profile-fact-add-form", "timeoutMs": 8000 },
-    { "kind": "waitFor", "testid": "profile-facts-list", "timeoutMs": 8000 },
-    { "kind": "waitFor", "testid": "profile-fact", "timeoutMs": 8000 },
-    { "kind": "expect", "testid": "profile-fact", "contains": "automation_probe" },
-    { "kind": "screenshot", "label": "04-fact-created" },
-
-    { "kind": "click", "testid": "profile-fact-edit" },
-    { "kind": "waitFor", "testid": "profile-fact-edit-input", "timeoutMs": 4000 },
-    { "kind": "fill", "testid": "profile-fact-edit-input", "text": "discarded by the cancel path" },
-    { "kind": "screenshot", "label": "05-edit-open" },
-    { "kind": "click", "testid": "profile-fact-edit-discard" },
-    { "kind": "waitGone", "testid": "profile-fact-edit-input", "timeoutMs": 4000 },
-    { "kind": "expect", "testid": "profile-fact", "contains": "created by the gestural automaton" },
-    { "kind": "screenshot", "label": "06-edit-cancelled" },
-
-    { "kind": "click", "testid": "profile-fact-edit" },
-    { "kind": "waitFor", "testid": "profile-fact-edit-input", "timeoutMs": 4000 },
-    { "kind": "fill", "testid": "profile-fact-edit-input", "text": "edited by the gestural automaton" },
-    { "kind": "click", "testid": "profile-fact-edit-save" },
-    { "kind": "waitGone", "testid": "profile-fact-edit-input", "timeoutMs": 8000 },
-    { "kind": "expect", "testid": "profile-fact", "contains": "edited by the gestural automaton" },
-    { "kind": "screenshot", "label": "07-edit-saved" },
-
-    { "kind": "click", "testid": "profile-fact-delete" },
-    { "kind": "waitFor", "testid": "profile-fact-delete-dialog-confirm", "timeoutMs": 4000 },
-    { "kind": "screenshot", "label": "08-delete-dialog" },
-    { "kind": "click", "testid": "profile-fact-delete-dialog-cancel" },
-    { "kind": "waitGone", "testid": "profile-fact-delete-dialog-confirm", "timeoutMs": 4000 },
-    { "kind": "expect", "testid": "profile-fact", "contains": "automation_probe" },
-    { "kind": "screenshot", "label": "09-delete-cancelled" },
-
-    { "kind": "click", "testid": "profile-fact-delete" },
-    { "kind": "waitFor", "testid": "profile-fact-delete-dialog-confirm", "timeoutMs": 4000 },
-    { "kind": "click", "testid": "profile-fact-delete-dialog-confirm" },
-    { "kind": "waitGone", "testid": "profile-fact-delete-dialog-confirm", "timeoutMs": 8000 },
-    { "kind": "sleep", "ms": 600 },
-    { "kind": "screenshot", "label": "10-fact-deleted" },
-
-    { "kind": "goto", "route": "dashboard" },
-    { "kind": "waitFor", "testid": "app-main", "timeoutMs": 10000 },
-    { "kind": "screenshot", "label": "11-left-clean" }
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-profile"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-section",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-section-memory",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-profile-facts-card"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-add-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact-add-form",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact-add-key",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact-add-value",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-add-form-open"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-add-toggle"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-fact-add-form",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-add-toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact-add-form",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-fact-add-key",
+      "text": "automation_probe"
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-fact-add-value",
+      "text": "created by the gestural automaton"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-add-form-filled"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-add-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-fact-add-form",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-facts-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-fact",
+      "contains": "automation_probe"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-fact-created"
+    },
+    {
+      "kind": "press",
+      "testid": "profile-fact",
+      "key": "Enter",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact-edit-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-fact-edit-via-keyboard"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-edit-discard"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-fact-edit-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-fact",
+      "contains": "created by the gestural automaton"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-edit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact-edit-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-fact-edit-input",
+      "text": "discarded by the cancel path"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-edit-open"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-edit-discard"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-fact-edit-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-fact",
+      "contains": "created by the gestural automaton"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-edit-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-edit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact-edit-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "profile-fact-edit-input",
+      "text": "edited by the gestural automaton"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-edit-save"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-fact-edit-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-fact",
+      "contains": "edited by the gestural automaton"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-edit-saved"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-delete"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact-delete-dialog-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-delete-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-delete-dialog-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-fact-delete-dialog-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "profile-fact",
+      "contains": "automation_probe"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-delete-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-delete"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-fact-delete-dialog-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-fact-delete-dialog-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-fact-delete-dialog-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-fact-deleted"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-left-clean"
+    }
   ]
 }

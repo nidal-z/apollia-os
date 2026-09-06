@@ -5,7 +5,13 @@
     "The STT page saves through SettingsSubPage (route='stt', onSave): one shared footer (settings-subpage-footer / settings-subpage-save) and a toast (settings-save-toast-success). The page-local sticky bar and inline saved status are gone.",
     "stt-language-select is a native <select> over STT_LANGUAGES, driven with selectOption. It is set to 'it' before the first save because the save button only enables on a real change, and neither the seed ('en') nor settings-det.json ('de' discarded, 'es' saved) leaves that value, so the dirty state holds whether this script runs standalone or inside master-det.",
     "TranscriptCard no longer anchors the source label (it became the EntityCard title); the card metadata row is asserted on transcript-time + transcript-duration + transcript-text.",
-    "Saving hot-reloads the engine: Stt.svelte's onSave sets sttApplied on a successful reloadStt() and only falls back to sttNeedsRestart when the reload throws. The seeded run reloads fine, so the deterministic assertion is stt-applied-notice, not the restart banner."
+    "Saving hot-reloads the engine: Stt.svelte's onSave sets sttApplied on a successful reloadStt() and only falls back to sttNeedsRestart when the reload throws. The seeded run reloads fine, so the deterministic assertion is stt-applied-notice, not the restart banner.",
+    "stt-load-model-btn is played through a stubbed picker: loadModel (SttEssentialSection.svelte:78-102) calls plugin-dialog `open` (the IPC plugin:dialog|open), the stub resolves ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf once, and import_model_file (commands/model_hub.rs:450-506) treats a source already inside the models directory as a no-op (`if dest != source`, both resolved from std::env::home_dir), so no file is copied or truncated. The picked path lands in config.model_path (:95) and dirties the form, which settings-subpage-reset restores from savedBaseline (Stt.svelte:94-96) before the next selectOption.",
+    "stt-configure-link sits in the stt-status-banner Card (Transcriptions.svelte:99-153, `{#if $sttStatus}`) and navigates to the STT sub-page (navigateToSettings('stt'), router.ts:25-29); the form is opened without edits so the nav guard never fires.",
+    "transcribe-file-error-detail-toggle: handleTranscribeFile (TranscribeFileDialog.svelte:19-28) sets an inline error and RETURNS BEFORE the native picker when $sttStatus exists and model_loaded is false, the state stt-model-not-loaded asserts (Transcriptions.svelte:155). humanize keeps the Error message as detail, so the Disclosure renders and its header composes -toggle (Disclosure.svelte:75). Because stopOnError is false, a `plugin:dialog|open resolve null once` stub is armed right before the click as a safety net (a cancelled picker instead of a hung boot if the guard ever fails) and cleared right after so it cannot swallow a later section's picker. Keep this block out of any recipe that loads a real whisper model.",
+    "chat-mic-button is played in chat-det.json, not here: dictation.toggle() (useComposerDictation.svelte.ts:59-77) calls start_tour_recording and stop_tour_recording with no getUserMedia in front, so both IPCs are answered by the harness and the cpal capture is never opened.",
+    "The load-model picker is answered with the seed's whisper placeholder (ggml-base.bin), never with an LLM GGUF: measured on d1-stt, picking Phi-3-mini-Q4.gguf reached the saved configuration, the engine started on it, and the app stopped answering after the overlay was created.",
+    "stt-test-start and stt-test-stop are played on the settings SttTestCard through the harness: start_tour_recording resolves null (Result<(), String> in commands/stt.rs:976-990, so the real command would open a cpal capture, flow.rs:182-233, and needs an engine the placeholder ggml-base.bin cannot load), which flips recording and swaps the button's testid to stt-test-stop (SttTestCard.svelte:190); stop_tour_recording is rejected with a string, which the catch of toggle (SttTestCard.svelte:128-131) turns into an error toast and a return to stt-test-start, the only scripted end of course since stt-transcribed and stt-dictation-failed are Tauri events no stub can emit (stt-test-result and stt-test-failure stay unreachable). toggle awaits ensureMicPermission first (SttTestCard.svelte:121), a WebView getUserMedia that never throws and whose result is ignored; App.svelte:85-91 already primes it at boot because the seed enables STT, and wry 0.55.1 grants the WebView side (wry_web_view_ui_delegate.rs:126-136), so the click adds no prompt the boot did not already raise."
   ],
   "dynamicTestids": [
     "settings-nav-stt",
@@ -132,6 +138,36 @@
     {
       "kind": "screenshot",
       "label": "04-stt-applied-notice"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/ggml-base.bin",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "stt-load-model-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-stt-load-model-picked-seed-whisper"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-subpage-reset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 5000
     },
     {
       "kind": "selectOption",
@@ -353,6 +389,73 @@
       "label": "12-stt-mic-boundary"
     },
     {
+      "kind": "stubInvoke",
+      "command": "start_tour_recording",
+      "resolve": null
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "stop_tour_recording",
+      "reject": "STT self-test stopped by the automation harness"
+    },
+    {
+      "kind": "click",
+      "testid": "stt-test-start",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-test-stop",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "stt-test-start",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-stt-test-listening (start_tour_recording answered by the harness, no capture opened)"
+    },
+    {
+      "kind": "click",
+      "testid": "stt-test-stop",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-test-start",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "stt-test-stop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "toast",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "toast",
+      "nth": -1,
+      "contains": "STT self-test stopped by the automation harness"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-stt-test-stopped (stop_tour_recording rejected by the harness, card back to start, error toast)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_tour_recording"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "stop_tour_recording"
+    },
+    {
       "kind": "goto",
       "route": "transcriptions"
     },
@@ -392,6 +495,93 @@
     {
       "kind": "screenshot",
       "label": "13-transcriptions-operator"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-status-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "stt-configure-link",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-config-form",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-configure-link-from-status-banner"
+    },
+    {
+      "kind": "goto",
+      "route": "transcriptions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcriptions-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-model-not-loaded",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcribe-file-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "transcribe-file-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcribe-file-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcribe-file-error-detail-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "transcribe-file-error-detail-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "13c-transcribe-file-error-details-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "transcribe-file-error-detail-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "13d-transcribe-file-error-details-collapsed"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
     },
     {
       "kind": "waitFor",

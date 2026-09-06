@@ -1,0 +1,456 @@
+{
+  "name": "plan-gate-llm (run-keyed plan gate: operator PlanReview then builder PlanReviewBuilder + PlanEditFlow; needs APOLLIA_SEED_PLANNER=1 and -seeded-llama)",
+  "stopOnError": false,
+  "dynamicTestids": [
+    "automation-row-seed-trigger-planner",
+    "automation-run-now-seed-trigger-planner",
+    "sidebar-mode-option-builder",
+    "sidebar-mode-option-operator"
+  ],
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "automations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-table",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-row-seed-trigger-planner",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "automation-run-now-seed-trigger-planner"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-automations-planner-row"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-run-now-seed-trigger-planner",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-mode-host",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-review",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-review-step"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-operator-plan-review"
+    },
+    {
+      "kind": "press",
+      "testid": "plan-review",
+      "key": "r"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-review-adjust",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-review-adjust-send"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-operator-adjust-open"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-review-adjust-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-review-adjust",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-operator-adjust-cancelled"
+    },
+    {
+      "kind": "press",
+      "testid": "plan-review",
+      "key": "r"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-review-adjust",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-operator-adjust-reopened"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-review-adjust-send"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-mode-host",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-operator-changes-sent"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-mode-host",
+      "timeoutMs": 180000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-review",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-review-step"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-operator-plan-revised"
+    },
+    {
+      "kind": "press",
+      "testid": "plan-review",
+      "key": "Enter",
+      "meta": true
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-mode-host",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-operator-plan-approved"
+    },
+    {
+      "kind": "goto",
+      "route": "tasks"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "topbar-agents-at-work",
+      "contains": "1 agent",
+      "timeoutMs": 420000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-operator-plan-task-finished"
+    },
+    {
+      "kind": "goto",
+      "route": "automations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-table",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-builder"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-table",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-row-seed-trigger-planner",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-run-now-seed-trigger-planner",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-builder-second-fire"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-mode-host",
+      "timeoutMs": 420000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-review-builder",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-review-step"
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-review-raw"
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-review-edit"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-builder-plan-review"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-review-raw-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-builder-raw-open"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-review-raw-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "click",
+      "testid": "plan-review-edit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-edit-flow",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-step-editor"
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-edit-submit"
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-edit-cancel"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-builder-edit-flow"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-step-remove",
+      "nth": -1
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-step-editor"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-builder-step-removed"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-edit-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-edit-flow",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-review-builder",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-review-step"
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-builder-edit-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-review-edit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-edit-flow",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "submit_plan_decision",
+      "reject": "seeded plan launch failure (rejected once by the recipe)",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "plan-edit-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-review-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14b-builder-launch-error (submit_plan_decision rejected once by the recipe)"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-review-error-detail-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "expect",
+      "testid": "plan-review-error-detail",
+      "contains": "seeded plan launch failure"
+    },
+    {
+      "kind": "screenshot",
+      "label": "14c-builder-launch-error-detail"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-review-retry",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-review-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "submit_plan_decision"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-mode-host",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-builder-plan-submitted"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-chip"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mode-menu",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mode-option-operator"
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "16-plan-gate-done"
+    }
+  ],
+  "notes": [
+    "Seed: build with APOLLIA_SEED_PLANNER=1 (tests/cli/seed/README.md, Planner). The run-keyed PlanApprovalRequired is emitted only by ORIAEngine::execute (crates/apollia-oria/src/engine/orchestrated.rs, await_plan_gate), which the desktop enters for a TASK of an agent whose agents.db manifest_json says execution_mode orchestrated (crates/apollia-desktop/src/backend/runner.rs, ExecutionBackend::execute; the row reaches the backend through bootstrap.rs auto_load_installed_agents). No base agent is orchestrated, so the base seed never shows plan-mode-host. Run: APOLLIA_SEED_PLANNER=1 just desktop-dev-automation-seeded-llama scripts/automation/plan-gate-llm.json <model.gguf>, CTX=32768 is enough (the planner prompt is a few hundred tokens).",
+    "The gate is opened from the Automations page: automation-run-now-seed-trigger-planner (AutomationRow.svelte fireNow -> fire_trigger -> TriggerEngine::fire_now) submits a task with no picker and no confirm. The planner is an LLM call, so plan-mode-host is waited for with a long timeout. The card rendered under the host is chosen by $uiMode (PlanModeHost.svelte:31,42-45): plan-review for the operator, plan-review-builder for the builder, so the mode is forced before each fire and put back to operator at the end.",
+    "Operator: request-changes opens plan-review-adjust; cancel is local (PlanReview.svelte cancelAdjust) and brings the approval bar back; send submits decision reject (PlanReview.svelte submitAdjust), which sets the store to rejected and HIDES the host (PlanModeHost renders only pending_approval or editing), then the engine replans with the feedback and re-opens the gate for the same run (orchestrated.rs plan_with_feedback), so the book waits for the host to go and come back before approving. The reason textarea (id plan-adjust-reason) carries no testid and the reason is optional, so the revision is sent empty.",
+    "plan-review-approve and plan-review-request-changes exist in the DOM (PlanReview.svelte:214-215 pass them as approveTestid / secondaryTestid, PlanApprovalBar.svelte:59,78 render data-testid={approveTestid}) but validate.py's corpus does not reconstruct a prop-passed id, so no step may name them (plan-review-reject, the builder's, has the same shape). The book drives the same two handlers through the card's own keyboard shortcuts (PlanReview.svelte:89-104 onCardKeydown on the wrapper of plan-review): press r opens the revision (openAdjust), press Meta+Enter approves (handleApprove); the runner dispatches keydown on the plan-review element and the event bubbles to the wrapper. The two ids therefore stay uncounted as gestures until the validator learns the prop-passed shape (a tooling gap to capture).",
+    "Two fires, two distinct task texts: the trigger's input_template carries {{fired_at}} because the ORIA plan cache keys on the task text and a cache hit executes the cached plan without opening the gate (plan_cache_ops.rs execute_cached_plan). The second fire lands while the first run may still execute; TaskRouterHandle::pending_count returns 0 (crates/apollia-runtime/src/router.rs), so the trigger engine never queues it, the coordinator serialises it (max_concurrent_tasks 1) and the second gate opens once the first run ends, hence the 420 s wait.",
+    "Builder: plan-review-raw-toggle is the header button Disclosure composes off testid plan-review-raw (Disclosure.svelte:75). plan-review-edit renders only with canEdit, which PlanModeHost passes in builder mode. The cancel pass removes the LAST step (plan-step-remove nth -1) and discards it through plan-edit-cancel (PlanEditFlow.svelte handleCancel puts the store back to pending_approval); the submit pass sends the plan unmodified, so the engine's validate_steps never meets a dangling dependency. plan-edit-submit sends decision edit with revised_steps: the run executes the edited plan (three LLM steps per the planner's system prompt, no tool, no HITL card).",
+    "Observed while deriving, not asserted: planMode.ts handlePlanApprovalRequired keeps previousPlan across runs (it only resets it when the new plan carries the same run_id), so the builder card of the second run shows a replan notice and a diff against the first run's plan. Cosmetic; plan-edit-flow edits the current plan only.",
+    "Side effects in the seeded HOME: two orchestrated task rows (the first approved after one replan, the second approved by the retry of the launch error card, after its edited submission was rejected once by the recipe) with their plan and audit events, two trigger_history rows for seed-trigger-planner, and two plan_cache rows. A Tasks or Observability section run after this book counts them.",
+    "The launch error card is reached by a once stub: submit_plan_decision rejects the edited plan's submission, PlanModeHost keeps the review mounted in the error state (it used to unmount it, which hid the card and its retry), the detail disclosure is opened and asserted on the rejection text, and the retry (which approves the reviewed plan, PlanReviewBuilder onRetry) goes to the real backend once the stub is consumed.",
+    "Between the operator approval and the builder's second fire the book waits for the first plan task to finish (the topbar chip goes back to '1 agent' at work, the one seeded running task, in either locale): measured on 2026-09-06, a second fire while the first task still ran was refused by the trigger engine with 'concurrency limit reached for agent' and no plan gate ever opened."
+  ]
+}

@@ -1,6 +1,12 @@
 {
   "name": "tools-det (settings > tools page against the seeded governance credential, operator + builder; contract sheet and credential inventory asserted, live test button is a boundary, never clicked)",
   "stopOnError": false,
+  "notes": [
+    "tools-empty-reload renders only when governance_list_tools returns an empty list (Tools.svelte:211 `{:else if totalCount === 0}`); the runtime upserts the native tools at boot, so no seed empties the table. The block stubs the command (`stubInvoke governance_list_tools resolve []`) before the first settings-nav-tools click of the book, so loadTools (toolGovernance.ts:30-41) lands on the EmptyState; the first reload click (reload -> loadTools, :190-197) stays empty under the stub, then clearStubs and a second click reload the real list, which the next steps assert as before. Nothing is written.",
+    "tools-filter is a bind:value on the toolbar Input (Tools.svelte:224-232): the query feeds rowMatches (:92-101), a query matching only web_search hides the other cards, a no-match query swaps tools-list for the no_results EmptyState (:246-249), and an empty query restores everything. Component state, nothing persisted, no dirty flag.",
+    "brave-api-key-delete: remove() (CredentialField.svelte:94-105) calls deleteCredential, which drops the key from the store (toolGovernance.ts:103-115). ToolConfigDrawer receives `tool` as a snapshot prop (Tools.svelte:170 drawerTool, drawer :202-204 braveConfigured), so the row keeps reading configured after the delete; the edit/save path right after re-creates the same key, and the credential inventory asserted later (credential-row-web_search-brave.api_key) is what proves the round trip. Net state after the block: key present, value brave-automation-key-not-real, as before.",
+    "brave-api-key-test is played through a stubbed IPC: runTest -> testCredential -> governance_test_credential (CredentialField.svelte:107-121, toolGovernance.ts:118-125) performs a real Brave search with the stored key (commands/tool_governance.rs:490-520), which offline returns ok:false only after the HTTP timeout. The block stubs the command twice, once each: a reject with a raw string lands in the catch of runTest and renders the CredentialErrorNotice under brave-api-key-test-result (its raw detail sits behind a collapsed Disclosure and its friendly text is localized, so that path is asserted by presence, which nothing rendered before the click); then a resolve shaped like CredentialTestResultDto (commands/tool_governance.rs, ok:true latency_ms:12) renders the success line, asserted by the locale-invariant fragment '(12 ms)' of settings.credential.test_valid_ms. The command is cleared afterwards; nothing is written, the seeded credential is untouched, and the delete/re-create round trip that follows runs as before."
+  ],
   "dynamicTestids": [
     "credential-row-web_search-brave.api_key",
     "mcp-detail-tab-overview",
@@ -61,6 +67,61 @@
       "timeoutMs": 15000
     },
     {
+      "kind": "stubInvoke",
+      "command": "governance_list_tools",
+      "resolve": []
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-tools"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-tools",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-empty-reload",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00b-tools-empty-state-stubbed"
+    },
+    {
+      "kind": "click",
+      "testid": "tools-empty-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-empty-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "governance_list_tools"
+    },
+    {
+      "kind": "click",
+      "testid": "tools-empty-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00c-tools-list-after-stub-cleared"
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-tools"
     },
@@ -103,6 +164,71 @@
     {
       "kind": "screenshot",
       "label": "03-tools-reloaded"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-bash_executor",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "tools-filter",
+      "text": "web_search"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-card-bash_executor",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03b-tools-filtered-web-search"
+    },
+    {
+      "kind": "fill",
+      "testid": "tools-filter",
+      "text": "zzz-no-such-tool"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tools-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03c-tools-filter-no-results"
+    },
+    {
+      "kind": "fill",
+      "testid": "tools-filter",
+      "text": ""
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-bash_executor",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -370,8 +496,69 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "stubInvoke",
+      "command": "governance_test_credential",
+      "reject": "automation: brave test refused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "brave-api-key-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-api-key-test-result",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "11-brave-credential-configured (delete + live-test present; test hits network so it is a boundary, NEVER clicked and NEVER asserted)"
+      "label": "11a-brave-credential-test-refused (stubbed reject, humanized notice under brave-api-key-test-result)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "governance_test_credential",
+      "resolve": {
+        "ok": true,
+        "latency_ms": 12,
+        "error": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "brave-api-key-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "brave-api-key-test-result",
+      "contains": "(12 ms)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "governance_test_credential"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-brave-credential-tested (delete + live-test present; the test was played through a stubbed governance_test_credential just above)"
+    },
+    {
+      "kind": "click",
+      "testid": "brave-api-key-delete",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-brave-credential-deleted (the drawer holds a snapshot of the tool, so the row still reads configured; the inventory below is the proof)"
     },
     {
       "kind": "click",
@@ -403,12 +590,13 @@
       "ms": 600
     },
     {
-      "kind": "screenshot",
-      "label": "12b-credential-saved"
+      "kind": "waitFor",
+      "testid": "brave-api-key-delete",
+      "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "12-credential-editor-open (input + save present; save NEVER clicked, nothing persisted)"
+      "label": "12b-credential-saved"
     },
     {
       "kind": "click",

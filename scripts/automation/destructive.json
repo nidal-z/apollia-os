@@ -3,11 +3,25 @@
   "stopOnError": false,
   "destructive": true,
   "notes": [
-    "The LLM block switches to builder mode first: delete-backend now lives in LlmBackendCard's builderActions snippet, absent in the operator default this script boots into."
+    "The LLM block switches to builder mode first: delete-backend now lives in LlmBackendCard's builderActions snippet, absent in the operator default this script boots into.",
+    "llm-empty-add-btn is reached through a stub, not through deletions: LlmBackendRepository::delete refuses the default backend (crates/apollia-core/src/llm_backend.rs:432, CannotDeleteDefault, mapped to 409 at apollia-runtime routes_llm/backends.rs:150) and set-default only moves the flag, so a table with one backend can never be emptied from the UI. The block arms stubInvoke list_llm_backends resolve [] (an empty array, no backend type to drift), clicks llm-reload-btn so the route's own refresh() (routes/Llm.svelte:44-50, 85) writes [] into the sse llmBackends store (the 10 s watchdog of sse.ts:709 would do it too, hence the 25 s waits), plays llm-empty-add-btn (routes/Llm.svelte:130) into llm-backend-dialog, cancels, clears the stub, reloads again for the real list, and re-enters Settings > LLM so the model-hub step that follows finds the settings page it expects.",
+    "One uninstall of apollia-guide serves agent-uninstall-confirm, the five companion-error-* anchors and agent-unavailable-install: rows are addressed by agents-search then agent-list-row nth 0 (store order, no sort, Agents.svelte:107; the expect on agent-detail-title guards the row), never nth -1. Uninstall unregisters the guide (commands/agents/lifecycle.rs:240-248) and it is re-provisioned only at boot (main.rs:171), so create_companion_session rejects GuideAgentNotInstalled (commands/onboarding/companion.rs:95-102); the message carries none of timeout/network/connect/session, so the error is kind internal / ERR_COMPANION_UNKNOWN (stores/companion.ts:183-220) and the details toggle renders on error.message (CompanionErrorState.svelte:121). companion-error-settings maps internal to the settings route with the panel left mounted (CompanionPanel.svelte:328-340); companion-error-close hides it, the store's enabled stays true, so no later step toggles the companion.",
+    "agent-unavailable-install: seed-session-2 is an agent-mode session on apollia-guide (tests/cli/seed/fragments/chat.sql:39-42); it is opened through the palette's Sessions group (paletteIndex.ts:98-124, keywords carry the session id; the group lists the freshest chatSessions when no session was touched through the palette yet, recentSessionsStore.ts:53-66) so the banner condition of ChatConversation.svelte:142-147 holds with the guide gone from $agents. The mapper's seed-classifier route is refuted: seed-classifier is a worker and Agents.svelte:107 keeps workers out of agent-list-row.",
+    "provider-delete-confirm-confirm runs before the project section deletes seed-project-alpha (the project that owns every seeded provider, projects.sql). It removes seed-provider-alpha-rules; ProviderEditDialog's save carries no testid, so there is no deterministic way back, which is why it lives here and never in master-det.",
+    "update-install-btn stays unplayed and a boundary even in this book: it renders only on phase available (UpdateCheckPanel.svelte:184), which needs a signed latest.json from the GitHub endpoint of tauri.conf.json (commands/updates.rs:130-141, offline the check fails at transport), and acting on it runs install_update, which replaces the binary and restarts the app before the report is written.",
+    "agent-detail-title is a prop value (AgentDetailHeader.svelte:154 titleTestid, applied at lib/components/operator/DetailHeader.svelte:44), invisible to the validator's literal corpus; declared dynamic here exactly as agents-det declares it.",
+    "user-menu-quit is played last with quit_app answered by a stub: the real command exits the process before the report is written, so the gesture is exercised up to the IPC call and the window is asserted still alive afterwards."
   ],
   "dynamicTestids": [
+    "agent-detail-title",
+    "command-item-companion.toggle",
+    "command-item-session.seed-session-2",
     "mcp-detail-tab-settings",
+    "project-row-seed-project-alpha",
+    "project-tab-context",
     "project-tab-settings",
+    "provider-card-seed-provider-alpha-rules",
+    "provider-delete-seed-provider-alpha-rules",
     "settings-nav-danger",
     "settings-nav-llm",
     "settings-nav-model-hub",
@@ -252,6 +266,99 @@
       "label": "12-llm-after"
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_llm_backends",
+      "resolve": []
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-reload-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "llm-reload-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-empty",
+      "timeoutMs": 25000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-llm-empty-state (list_llm_backends stubbed to [], the only way to an empty table: the repository refuses to delete the default backend)"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-empty-add-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-llm-empty-add-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "llm-backend-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_llm_backends"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-reload-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-grid",
+      "timeoutMs": 25000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12d-llm-grid-restored"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "add-backend-btn",
+      "timeoutMs": 15000
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-model-hub"
     },
@@ -334,6 +441,77 @@
     {
       "kind": "screenshot",
       "label": "18-automation-after"
+    },
+    {
+      "kind": "goto",
+      "route": "projects"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "project-row-seed-project-alpha",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-tabbar",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-context",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "providers-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "provider-card-seed-provider-alpha-rules",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "18b-provider-before"
+    },
+    {
+      "kind": "click",
+      "testid": "provider-delete-seed-provider-alpha-rules",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "provider-delete-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "18c-provider-delete-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "provider-delete-confirm-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "provider-delete-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "provider-card-seed-provider-alpha-rules",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "18d-provider-deleted"
     },
     {
       "kind": "goto",
@@ -542,6 +720,264 @@
     {
       "kind": "screenshot",
       "label": "30-agents-uninstall-note"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "agents-search",
+      "text": "apollia-guide",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "agent-list-row",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "agent-detail-title",
+      "contains": "apollia-guide"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-uninstall-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-uninstall-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30b-agent-uninstall-armed"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-uninstall-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-uninstall-confirm",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "fill",
+      "testid": "agents-search",
+      "text": "",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30c-guide-uninstalled"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "companion"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-item-companion.toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-companion.toggle"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "companion-panel",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "companion-error-state",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30d-companion-error-state (create_companion_session rejects GuideAgentNotInstalled once the guide is gone)"
+    },
+    {
+      "kind": "click",
+      "testid": "companion-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "companion-error-stack",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "30e-companion-error-details"
+    },
+    {
+      "kind": "click",
+      "testid": "companion-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "companion-error-stack",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "companion-error-copy-code",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "30f-companion-error-code-copied (1.5 s caption, best-effort capture)"
+    },
+    {
+      "kind": "click",
+      "testid": "companion-error-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "companion-error-state",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30g-companion-error-retry-refailed"
+    },
+    {
+      "kind": "click",
+      "testid": "companion-error-settings",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "expect",
+      "testid": "companion-panel"
+    },
+    {
+      "kind": "screenshot",
+      "label": "30h-companion-error-settings-landed"
+    },
+    {
+      "kind": "click",
+      "testid": "companion-error-close",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "companion-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30i-companion-closed"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "seed-session-2"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-item-session.seed-session-2",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-session.seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-unavailable-banner",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30j-agent-unavailable-banner"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-unavailable-install",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30k-agent-unavailable-landed"
     },
     {
       "kind": "goto",
@@ -813,6 +1249,53 @@
     {
       "kind": "screenshot",
       "label": "43-factory-reset-triggered"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-user-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "topbar-user-menu-content",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "quit_app",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "user-menu-quit",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "34-user-menu-quit (quit_app answered by the stub, the window stays)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "quit_app"
     }
   ]
 }

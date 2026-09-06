@@ -9,7 +9,7 @@
     "profile-integ-github / profile-compliance-rgpd are <button role=checkbox> (Checkbox.svelte), NOT <input>; they are toggled with click (setChecked requires a native input and would throw).",
     "The profile now saves EXPLICITLY: Profile.svelte wraps its cards in SettingsSubPage with onSave/onReset, so field edits mark the route dirty (settings-unsaved-badge) and are committed via settings-subpage-save + settings-save-toast-success. settings-saved-hint renders only while the sub-page is clean (Settings.svelte), so it is asserted AFTER the save, not after a field change.",
     "The route must be left clean before navigating away: the settings nav guard opens settings-unsaved-dialog on a dirty route, and that modal blocks every later section of master-det. Hence the explicit save before the danger-zone block.",
-    "showEnrichmentBanner is derived (calibrationDone AND tier2 has an empty field). It is treated as best-effort: observed by screenshot only, never hard-asserted and never used as a click target, so no step can fail on it.",
+    "profile-enrichment-banner shows when name AND role are non-empty and at least one TIER2 key is empty (ProfileEnrichmentBanner.svelte:23-29, profileForm.ts:34-47), so it is present deterministically from the role fill onwards (agents.trigger, tech.integrations and constraints.compliance stay empty). The block right after the role fill plays resume first (onboardingResumeMode + onboardingModalOpen, :31-34; App.svelte:223 mounts OnboardingModal on the welcome step since the boot-time skip only wrote onboarding_skipped, and its footer shows onboarding-skip, OnboardingModal.svelte:275-283), closes the modal with onboarding-skip (handleSkip -> dismiss_onboarding, idempotent, then onclose), and dismiss second, since `dismissed` is component-local (:21). The builder pass remounts Profile, so the banner reappears there and is captured by screenshot only.",
     "Profile.svelte has zero uiMode-conditional rendering; the builder pass asserts mode-invariance of the same fields."
   ],
   "dynamicTestids": [
@@ -83,6 +83,56 @@
       "kind": "fill",
       "testid": "profile-input-role",
       "text": "Automation QA engineer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-enrichment-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01b-enrichment-banner-shown"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-enrichment-resume"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-modal",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01c-enrichment-resume-opens-onboarding"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-enrichment-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-enrichment-dismiss"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-enrichment-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01d-enrichment-banner-dismissed"
     },
     {
       "kind": "fill",

@@ -1,0 +1,141 @@
+{
+  "name": "design-det (dev-only design showcases: the EmptyState primary and secondary CTAs on the empty-states page, the Disclosure toggle on the motion page; noop handlers, standalone)",
+  "stopOnError": false,
+  "notes": [
+    "design-empty-states and design-motion are members of Route (lib/stores/navigation.ts:4) rendered by Main.svelte:97-100 only under isDev = import.meta.env.DEV (Main.svelte:28), which is true for the `cargo tauri dev` boot the recipes use. `goto` is a plain navigateTo, no hash needed.",
+    "empty-state-primary-cta and empty-state-secondary-cta (EmptyState.svelte:95-113) render only when the caller passes both a label and an action; every production caller mounts EmptyState only on an empty list, which the seed never is. The showcase route mounts all six variants of EMPTY_STATE_ORDER with both CTAs bound to `noop` (routes/DesignEmptyStates.svelte:23-25, 63-72; every entry of lib/i18n/strings/empty-states.ts carries primaryCtaKey and secondaryCtaKey), so nth 0 is the `agents` variant and the click is inert: nothing is written to the seed HOME or to localStorage.",
+    "design-disclosure-toggle is composed by Disclosure off the testid DesignMotion.svelte:209 hands it (Disclosure.svelte:75, `${testid}-toggle`); the click flips component-local `expanded` (Disclosure.svelte:53, 59-61) and the open body renders the sentence asserted with `contains` (DesignMotion.svelte:215-219). The 400 ms sleep covers the slide transition before each screenshot.",
+    "Standalone book: not in regen_master.py ORDER. Every block returns to the dashboard so it can be folded in later without touching another section."
+  ],
+  "steps": [
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "design-empty-states"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "design-empty-states-showcase",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "empty-state-primary-cta",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-empty-states-showcase"
+    },
+    {
+      "kind": "click",
+      "testid": "empty-state-primary-cta",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "design-empty-states-showcase"
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-empty-state-primary-cta-clicked"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "empty-state-secondary-cta",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "empty-state-secondary-cta",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "design-empty-states-showcase"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-empty-state-secondary-cta-clicked"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "design-motion"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "design-disclosure",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "design-disclosure-toggle"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-design-motion-disclosure-closed"
+    },
+    {
+      "kind": "click",
+      "testid": "design-disclosure-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "design-disclosure",
+      "contains": "Slides open with quintOut"
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-design-motion-disclosure-open"
+    },
+    {
+      "kind": "click",
+      "testid": "design-disclosure-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-design-motion-disclosure-closed-again"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 15000
+    }
+  ]
+}

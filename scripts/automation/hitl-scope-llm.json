@@ -1,0 +1,628 @@
+{
+  "name": "hitl-scope-llm (the four always-allow scopes of the inbox HITL card, one grant each, ordered so no grant silences the next)",
+  "stopOnError": false,
+  "dynamicTestids": [
+    "inbox-filter-approval",
+    "inbox-tab-pending"
+  ],
+  "notes": [
+    "Standalone by design. hitl-scope-session / -project / -agent / -global render only inside the inbox HITLCard mounted with onAlwaysAccept, which InboxPendingList passes for an EXPANDED chat-tool pending row (InboxPendingList.svelte:169-196, HITLCard.svelte:186-233), after hitl-always-toggle. The pending row is a live tool call awaiting approval (in-memory pendingChatApprovals, no seed row), so every block starts a new free-chat session whose prompt names the tool and the file.",
+    "Each grant persists beyond its block (inboxActions.ts:53-64 -> authorize_chat_tool always_accept with the scope; tool_decision.rs:120-190): this_session stays in the session's authorized set; this_project writes a scope='project' rule keyed on the project's workspace_path in governance.db, consulted only for sessions attached to a project (libre.rs:465-476, prefix_rule_engine check_with_scope); this_agent writes a scope='agent' rule for apollia-chat that silences file_write in EVERY later free-chat session of this HOME; global writes a scope='global' rule for the tool. Hence the order session -> project -> agent -> global, the project block on a session attached to seed-project-alpha (quickpicker-project, the projects the seed holds, projects.sql:16-30), and the global block on a DIFFERENT tool (file_edit, its own approval in a fresh session) because file_write no longer asks after the agent grant. Never fold this book into master-llm before hitl-critical: hitl-critical expects file_write to ask in a new session.",
+    "hitl-scope-project is enabled only when the item's session belongs to a project (hasProject from $chatSessions.project_id, InboxPendingList.svelte:65-67, :196; disabled otherwise, HITLCard.svelte:217); the project block screenshots it enabled before clicking it, the session block screenshots it disabled.",
+    "Chat unmounts on every route change ({#key $currentRoute}, lib/components/app/Main.svelte), so the way back to the session after each inbox detour is conversation-row-menu-button nth 0 -> conversation-row-menu-configure (openConfig -> navigateToSession, Chat.svelte:70-74; list_chat_sessions is ORDER BY created_at DESC so row 0 is the session the block created). awaitTurn then follows the real session status while the granted tool runs.",
+    "Side effects in the throwaway HOME: four new sessions, three files under the workspace's tmp/ (the seed workspace is the checkout, apollia.toml default_workspace), one edit of tmp/scope-agent.txt, and two governance rules (agent + global) plus one project rule. The same book replayed on an already-mutated seed HOME finds no approval card from the agent block on (README, one recipe invocation can run the script twice).",
+    "Model-dependent: each block needs the named tool call. If the model uses file_write instead of file_edit in the last block, the agent-scope rule auto-accepts it and no card appears: that block is then red, not a product defect."
+  ],
+  "steps": [
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00-chat-ready"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Avec l'outil file_write, écris le texte \"scope session\" dans le fichier tmp/scope-session.txt."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-scope-project"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01-hitl-scope-menu-project-disabled"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-scope-session",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "02-scope-session-granted"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-configure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "03-scope-session-turn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03-scope-session-turn"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "quickpicker-project",
+      "value": "seed-project-alpha",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Avec l'outil file_write, écris le texte \"scope projet\" dans le fichier tmp/scope-project.txt."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-scope-project"
+    },
+    {
+      "kind": "screenshot",
+      "label": "04-hitl-scope-menu-project-enabled"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-scope-project",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05-scope-project-granted"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-configure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "06-scope-project-turn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06-scope-project-turn"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Avec l'outil file_write, écris le texte \"scope agent\" dans le fichier tmp/scope-agent.txt."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07-hitl-scope-menu"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-scope-agent",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-scope-agent-granted"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-configure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "09-scope-agent-turn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-scope-agent-turn"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Avec l'outil file_edit, remplace \"scope agent\" par \"scope global\" dans le fichier tmp/scope-agent.txt."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-filter-approval",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-hitl-scope-menu-file-edit"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-scope-global",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-scope-global-granted"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-configure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "12-scope-global-turn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-scope-global-turn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-hitl-scope-complete"
+    }
+  ]
+}

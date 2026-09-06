@@ -1,11 +1,20 @@
 {
   "name": "projects-det (projects page, seeded ecosystem, operator + builder; the agents tab and the documents section drive their detach confirm and cancel it)",
   "stopOnError": false,
+  "notes": [
+    "The tasks tab's attach-agents CTA renders only on a project with no linked agent, and both seeded projects link one, so the tail creates a project through the dialog (which is also the only way to play new-project-create and new-project-close) and drives the CTA there. The same throwaway project then receives the document attachments: project-doc-attach-empty-btn and project-doc-attach-btn open the native picker through plugin:dialog|open, which a stubInvoke answers with two files the seed places under ${HOME}/.apollia (upload_project_document tolerates any readable file), then with null for the cancelled picker. Nothing later reads that project's documents.",
+    "The load-error panel needs a rejected list_projects AND an empty projects store (Projects.svelte hides it once the store holds rows, and QuickPicker fills that store from any earlier chat section of master-det). The block therefore arms two once-stubs on list_projects: the first answers [] and empties the store on the first visit, the second rejects on the visit after a detour through the dashboard; the retry then reaches the backend and repaints the seeded list before the rest of the book.",
+    "project-agent-error-details and project-doc-error-details are native <details> summaries inside the ErrorBanner; each is reached by a once-stub rejecting list_project_agents (re-mounting the agents tab from the conversations tab, whose own mount never calls it) and delete_project_document (around the armed detach the book already plays). Nothing persists: the rejected read leaves the links alone and the rejected delete never reached the row.",
+    "project-agent-add-btn links onboarding-agent (installed, not attached to Seed Project Alpha) and the block removes that link through the row's own confirm, so the two seeded links the earlier steps assert are untouched."
+  ],
   "dynamicTestids": [
     "project-agent-remove-cancel-seed-classifier",
+    "project-agent-remove-confirm-onboarding-agent",
     "project-agent-remove-confirm-seed-classifier",
+    "project-agent-remove-onboarding-agent",
     "project-agent-remove-seed-classifier",
     "project-agent-row-apollia-guide",
+    "project-agent-row-onboarding-agent",
     "project-agent-row-seed-classifier",
     "project-doc-remove-cancel-seed-document-alpha-readme",
     "project-doc-remove-confirm-seed-document-alpha-readme",
@@ -51,6 +60,91 @@
       "kind": "waitFor",
       "testid": "app-main",
       "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_projects",
+      "resolve": [],
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_projects",
+      "reject": "seeded projects failure",
+      "once": true
+    },
+    {
+      "kind": "goto",
+      "route": "projects"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "00a-projects-store-emptied (first list answered [] by the stub)"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "projects"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00b-projects-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "projects-load-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "00c-projects-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "projects-load-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "projects-load-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "projects-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "project-row",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00d-projects-load-retried"
     },
     {
       "kind": "goto",
@@ -218,22 +312,46 @@
     {
       "kind": "selectOption",
       "testid": "project-agent-select",
-      "index": 1,
+      "value": "onboarding-agent",
       "timeoutMs": 2500
     },
     {
-      "kind": "sleep",
-      "ms": 300
+      "kind": "click",
+      "testid": "project-agent-add-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-onboarding-agent",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
-      "label": "07c-project-agent-candidate-picked (add NEVER clicked, no link created)"
+      "label": "07c-project-agent-attached (onboarding-agent linked through the add button)"
     },
     {
-      "kind": "selectOption",
-      "testid": "project-agent-select",
-      "value": "",
+      "kind": "click",
+      "testid": "project-agent-remove-onboarding-agent",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-remove-confirm-onboarding-agent",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-remove-confirm-onboarding-agent",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "project-agent-row-onboarding-agent",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c2-project-agent-probe-detached (the two seeded links untouched)"
     },
     {
       "kind": "click",
@@ -265,6 +383,75 @@
     },
     {
       "kind": "click",
+      "testid": "project-tab-conversations",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-conversations-list",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_project_agents",
+      "reject": "seeded project agents failure",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-agents",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-error-details",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07f-project-agent-error-details-open (list refused once by the stub)"
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-error-details",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-conversations",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-conversations-list",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-agents",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-seed-classifier",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-apollia-guide",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07g-project-agents-recovered"
+    },
+    {
+      "kind": "click",
       "testid": "project-tab-memory",
       "timeoutMs": 2500
     },
@@ -278,7 +465,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "08b-project-documents (attach opens a native file picker, NEVER clicked)"
+      "label": "08b-project-documents (attach is played on the throwaway project at the tail, through a picker stub)"
     },
     {
       "kind": "click",
@@ -307,6 +494,55 @@
     {
       "kind": "screenshot",
       "label": "08d-project-document-detach-cancelled (the document stays attached)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "delete_project_document",
+      "reject": "seeded document delete failure",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-error-details",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08e-project-document-error-details-open (delete refused by the stub before it ran)"
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-error-details",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08f-project-document-survives"
     },
     {
       "kind": "click",
@@ -645,9 +881,90 @@
     {
       "kind": "screenshot",
       "label": "31-empty-tasks-cta-opens-agents"
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-memory",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-attach-empty-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "32-new-project-documents-empty"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/apollia.toml",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-attach-empty-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "project-doc-attach-empty-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "project-doc-remove-",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "33-new-project-document-attached-from-empty-cta"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/mcp-registry.json",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-attach-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "project-doc-remove-",
+      "nth": 1,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "34-new-project-second-document-attached-from-header"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-attach-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "project-doc-attach-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35-new-project-attach-cancelled-picker (null from the picker, nothing added)"
     }
-  ],
-  "notes": [
-    "The tasks tab's attach-agents CTA renders only on a project with no linked agent, and both seeded projects link one, so the tail creates a project through the dialog (which is also the only way to play new-project-create and new-project-close) and drives the CTA there. project-doc-attach-empty-btn stays unplayed: it opens the native file picker, which the runner cannot come back from."
   ]
 }

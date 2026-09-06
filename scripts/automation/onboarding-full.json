@@ -126,6 +126,104 @@
       "label": "06-onb-ai-setup"
     },
     {
+      "kind": "waitFor",
+      "testid": "llm-load-model-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-load-model-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "06b-onb-llm-load-model-picked"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "curated-llm-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_model_download",
+      "reject": "automation: start_model_download refused (seeded fault, curated llm)",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "curated-llm-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-download-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "llm-download-error",
+      "contains": "start_model_download refused"
+    },
+    {
+      "kind": "expect",
+      "testid": "curated-llm-list"
+    },
+    {
+      "kind": "screenshot",
+      "label": "06c-onb-curated-llm-refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_model_download",
+      "resolve": "automation-curated-llm-download",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "curated-llm-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-download-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "llm-download-progress",
+      "contains": "Qwen3-4B-Q4_K_M.gguf"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "curated-llm-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06d-onb-curated-llm-downloading"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_model_download"
+    },
+    {
       "kind": "click",
       "testid": "ai-setup-back"
     },
@@ -137,6 +235,109 @@
     {
       "kind": "screenshot",
       "label": "07-onb-ai-setup-back"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "scan_for_whisper_models",
+      "resolve": []
+    },
+    {
+      "kind": "click",
+      "testid": "profile-both",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-onb-profile-both"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "curated-stt-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_model_download",
+      "reject": "automation: start_model_download refused (seeded fault, curated stt)",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "curated-stt-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-download-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "stt-download-error",
+      "contains": "start_model_download refused"
+    },
+    {
+      "kind": "expect",
+      "testid": "curated-stt-list"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-onb-curated-stt-refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_model_download",
+      "resolve": "automation-curated-stt-download",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "curated-stt-row",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-download-progress",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "stt-download-progress",
+      "contains": "ggml-tiny.bin"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "curated-stt-list",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07d-onb-curated-stt-downloading"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_model_download"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "scan_for_whisper_models"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-profile-selector",
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
@@ -379,11 +580,148 @@
     {
       "kind": "screenshot",
       "label": "13-onb-open-cloud-lands-on-llm"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "reset-onboarding-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reset-onboarding-confirm",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "reset-onboarding-confirm-continue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reset-onboarding-confirm-input",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "reset-onboarding-confirm-input",
+      "text": "RESET"
+    },
+    {
+      "kind": "click",
+      "testid": "reset-onboarding-confirm-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-modal",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-welcome",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-skip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "dismiss_onboarding",
+      "reject": "automation: dismiss_onboarding refused (seeded fault, command failed)",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-skip-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-skip-error-details",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip-error-details",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-skip-error",
+      "contains": "dismiss_onboarding refused"
+    },
+    {
+      "kind": "expect",
+      "testid": "onboarding-modal"
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-onb-skip-refused-details-open"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15-onb-skip-recovered-after-fault"
     }
   ],
   "notes": [
     "The footer button is step-dependent (OnboardingModal.svelte): every step but the conversation renders onboarding-skip (abandon onboarding), while the conversation renders onboarding-skip-optional, which drops only the remaining optional questions and still routes to the permissions phase. Abandoning there would skip permissions entirely, so the button is deliberately not the same one.",
     "The phase that follows the optional skip depends on the agent answering, which a deterministic run has no model for. The script therefore stops at the click plus a screenshot instead of asserting a downstream phase.",
-    "llm-load-model-btn, stt-load-model-btn and the curated rows stay unplayed: the first two open the native file picker, the rows start a network download. onboarding-skip-error-details needs the skip to fail, which the seeded HOME never does."
+    "llm-load-model-btn is played through the invoke stub: OnboardingLlmSection.svelte:13 imports plugin-dialog `open`, which is invoke('plugin:dialog|open'), so a once stub resolving ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf skips the OS picker and continues into import_model_file (model_hub.rs:495 copies only when dest differs from source, so the seed's own file is left intact) then selectGgufModel, the same wiring as the llm-model-row click. It sits in the operator ai-setup pass, before any row click, so llmConfiguring is false (OnboardingLlmSection.svelte:143 returns early while a configuration is in flight).",
+    "profile-both shares handleSelect('builder') with profile-card-builder (OnboardingProfileSelector.svelte:114 and :151), so it is played once, then ai-setup-back returns to the selector and the existing profile-card-builder click follows: the final state is the one the book already had.",
+    "onboarding-skip-error-details is played at the end, after a second danger-zone reset reopens the modal: a once stub rejects dismiss_onboarding (lib/ipc/onboarding.ts:43), skipOnboarding reports instead of closing (lib/onboarding/skipOnboarding.ts:37-41), humanize keeps the raw text on detail (lib/errors/humanize.ts:263-274) and the disclosure at OnboardingModal.svelte:248 renders. The stubs are then cleared and a second onboarding-skip closes the modal for real, so the book ends on a healthy shell. It comes last because onboarding-open-cloud closes the modal (OnboardingModal.svelte:226 passes onclose as onopencloud) and the earlier flow needs the modal.",
+    "curated-llm-row is played through the invoke stub, in the operator ai-setup pass right after the picker import: a once stub rejects start_model_download (lib/ipc/models.ts:102, OnboardingLlmSection.svelte:213-228) so llm-download-error renders and the curated list stays, then a once stub resolves a fake id so llm-download-progress renders with the first row's filename (Qwen3-4B-Q4_K_M.gguf, onboardingCatalogs.ts:38, the first entry fits any machine with 4 GB). No event ever settles that fake id (downloader.rs:159-161), so the block sits last before ai-setup-back, which unmounts the step (OnboardingModal.svelte:221) and resets the state.",
+    "curated-stt-row is played on the profile-both visit: scan_for_whisper_models (lib/ipc/models.ts:84) is stubbed to an empty list before profile-both mounts the step, which is the only way curated-stt-list renders (aiSetupRules.ts:84, the seed ships ggml-base.bin, copied from tests/cli/seed/files/models/ by build-seed.sh:183); the row then goes through the same reject-then-resolve pair on start_model_download (OnboardingSttSection.svelte:379-393), stt-download-error then stt-download-progress with ggml-tiny.bin (onboardingCatalogs.ts:69). Both stubs are cleared before ai-setup-back, so the builder pass that follows sees the real scan and its whisper-model-row again."
   ]
 }

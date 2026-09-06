@@ -80,6 +80,96 @@
     },
     {
       "kind": "click",
+      "testid": "chat-approval-open-inbox",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01b-inbox-scope-menu-open"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-always-toggle",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-scope-menu",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01c-critical-approval-opened-in-inbox"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-configure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "approval-always-toggle-"
     },
     {
@@ -190,6 +280,215 @@
     {
       "kind": "screenshot",
       "label": "07-hitl-complete"
+    },
+    {
+      "kind": "sendChat",
+      "text": "Avec l'outil file_write, écris le texte \"probe\" dans le fichier /tmp/apollia-fs-probe-approve.txt (chemin absolu, hors espace de travail). Si l'écriture est refusée ou échoue, n'insiste pas et dis-le moi."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-accept-",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-path",
+      "contains": "approve"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-hitl-fs-modal-approve"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-approve",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "08-hitl-fs-approve-turn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "08-hitl-fs-approved"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Avec l'outil file_write, écris le texte \"probe\" dans le fichier /tmp/apollia-fs-probe-deny.txt (chemin absolu, hors espace de travail). Si l'écriture est refusée ou échoue, n'insiste pas et dis-le moi."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-accept-",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-path",
+      "contains": "deny"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-hitl-fs-modal-deny"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-deny",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "09-hitl-fs-deny-turn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09-hitl-fs-denied"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "quickpicker-textarea",
+      "text": "Avec l'outil file_write, écris le texte \"probe\" dans le fichier /tmp/apollia-fs-probe-always.txt (chemin absolu, hors espace de travail). Si l'écriture est refusée ou échoue, n'insiste pas et dis-le moi."
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-submit",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-approval-inline",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "approval-accept-",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 60000
+    },
+    {
+      "kind": "expect",
+      "testid": "hitl-fs-path",
+      "contains": "always"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-hitl-fs-modal-always"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-always-allow",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-scope",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-hitl-fs-always-allow-scope"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-always-allow",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "awaitTurn",
+      "label": "10-hitl-fs-always-turn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-hitl-fs-always-allowed"
     }
+  ],
+  "dynamicTestids": [
+    "inbox-tab-pending"
+  ],
+  "notes": [
+    "chat-approval-open-inbox writes #inbox?item=... and navigates to the inbox (ChatMessageScroller.svelte:170-184); nothing reads that fragment back (Inbox.svelte:111 reads only ?tab), so the row is expanded by hand (inbox-row-primary nth 0, onAction = onToggleExpand, InboxPendingList.svelte:158). hitl-always-toggle is opened and closed there without picking a scope (HITLCard.svelte:167, local scopeOpen only), so no standing rule is written and the chat card's own scope menu and refuse flow that follow keep their meaning.",
+    "Chat unmounts on every route change ({#key $currentRoute}, lib/components/app/Main.svelte), so the way back to the session after the inbox detour is conversation-row-menu-button nth 0 -> conversation-row-menu-configure (openConfig -> navigateToSession, Chat.svelte:70-74; the list follows list_chat_sessions' ORDER BY created_at DESC, and this book holds one new session). The approval stays pending in the chat store meanwhile.",
+    "The three hitl-fs-* blocks target an absolute path under /tmp: HitlFilesystemGuard resolves the path against the sandbox root (an absolute path stays absolute, native_wrappers.rs:98-118) and classify_filesystem answers Medium for a write outside the trusted roots (risk_classifier.rs:238-252; /tmp is in neither the system nor the credential lists, filesystem_risk.rs:28-40), which is the only way to open hitl-fs-modal: writes inside the workspace are Low and show the generic card alone. The generic card is accepted by hand because awaitTurn would sit on the modal until its own timeout. After any decision the inner file_write refuses the path (SandboxViolation, file_write.rs:31-35), so nothing lands on disk; the prompt tells the model not to retry, and awaitTurn (not waitGone chat-stop-button) closes each block so a retried in-workspace write is auto-accepted instead of leaving a card pending for the next block.",
+    "always_allow stores write:medium in the session's in-memory rules (native_wrappers.rs:169-181, :212-222): later Medium writes of THIS session skip the modal, which is why that block is last. hitl-fs-scope is the ApprovalScopeSelect disclosed by the first click; the second click sends the decision with the selected scope (this_session by default).",
+    "Unplayed on purpose: hitl-fs-critical-input and hitl-fs-reject-reason render only for level critical (HitlFilesystemModal.svelte:87, :205-213), and RiskClassifier::classify_filesystem never returns Critical (risk_classifier.rs:193-256, at most High); reaching them takes a dev-only level override in the guard, which no script step provides. The modal opens only on the Tauri event hitl-fs-required (listen, HitlFilesystemModal.svelte:129-132), emitted from RuntimeEvent::HitlFilesystemRequired (events.rs:220-242) with the level await_decision computed (native_wrappers.rs:156-164, :185-193); the stub seam answers the invoke of @tauri-apps/api/core only (tauriCoreShim.ts:5-6, the event module's relative import bypasses the alias), and a stub returns a value, it cannot fire a listener, so no stubInvoke can deliver a level: critical payload either. A dev-only emitEvent step in the runner (emit from @tauri-apps/api/event reaches every listener) would open it deterministically, with respond_hitl_filesystem stubbed to resolve since the request_id would be unknown to resolve_fs_hitl (commands/hitl.rs:69-100).",
+    "Model-dependent: every block needs the model to call file_write with the absolute path it was given; a relative write is Low, opens no modal, and the block is red without being a product defect.",
+    "The deny and always-allow scenarios each start a fresh session: measured on 2026-09-06, a model that had just seen the sandbox refuse a write outside the workspace answered the next identical request from memory without calling the tool, so no approval card appeared in the shared session."
   ]
 }

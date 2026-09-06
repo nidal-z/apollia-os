@@ -1,6 +1,9 @@
 {
   "name": "inbox-det (inbox page, operator + builder, seeded activity + notifications; pending in-memory set empty at cold boot so pending reduced to empty state, merged decision history asserted)",
   "stopOnError": false,
+  "notes": [
+    "Every activity filter has seeded rows, so the empty state and the error box are provoked through stubInvoke on list_runtime_activity (a once-reject for inbox-error-details-toggle and inbox-error-retry, a once-resolve [] for inbox-activity-empty-cta); switching to the pending tab and back re-runs loadActivity. A standalone inbox-empty-det book with a seed overlay was therefore not created: the anchor is played here inside master-det, and the CTA's only effect is a navigation to observability, undone by the goto."
+  ],
   "dynamicTestids": [
     "inbox-activity-filter-all",
     "inbox-activity-filter-degradations",
@@ -222,6 +225,119 @@
       "label": "11-activity-all"
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_runtime_activity",
+      "reject": "seeded activity failure",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-activity-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11a-activity-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-activity-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-error-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11c-activity-retried (the stub was once, the seeded rows are back)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_runtime_activity",
+      "resolve": [],
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-activity-empty-cta",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11d-activity-empty (list answered [] by the stub)"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-empty-cta",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11e-activity-empty-cta-landed-on-observability"
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
       "kind": "click",
       "testid": "inbox-tab-notifications",
       "timeoutMs": 2500
@@ -314,8 +430,5 @@
       "kind": "screenshot",
       "label": "17-back-operator"
     }
-  ],
-  "notes": [
-    "inbox-activity-empty-cta is never played: every activity filter has seeded entries, so the empty state never renders (measured on b4-inbox)."
   ]
 }

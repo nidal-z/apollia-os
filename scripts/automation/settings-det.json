@@ -7,12 +7,18 @@
     "plan-mode-default-toggle and auto-install-python-deps-toggle ARE the <button role=switch> (Toggle.svelte spreads data-testid onto it), NOT <input> wrappers. They are clicked directly; setChecked would also work, click keeps the two-way boundary explicit.",
     "Configuration.svelte passes defaultExpanded={i === 0}, so the FIRST card (runtime) is already open on arrival: its copy button is asserted directly, and the expand interaction is exercised on the second card (oria) instead. Exact testids are used rather than the config-file-card- prefix, because an expanded card also renders config-file-card-copy/reveal/entries/raw-{section}, which the prefix would match ahead of the next card.",
     "stt-trigger and stt-language-select are native <select> (Select.svelte) with static options (toggle/push-to-talk; the STT_LANGUAGES codes). Both are exercised via selectOption in the STT save branch, then saved through the unsaved dialog. The language values (de discarded, es saved) stay distinct from the one stt-det.json picks later, so each script still produces a real change.",
-    "UpdateChecker (rendered inside System.svelte) is an external-update boundary: update-checker + update-check-btn are asserted present only and never clicked. update-install-btn renders only when an update is available (data-dependent), so it is NOT asserted.",
+    "UpdateCheckPanel (rendered inside System.svelte, variant section) is an external-update boundary only when unstubbed: the first click on update-check-btn (28-update-checker-boundary) reaches the real GitHub endpoint of tauri.conf.json and lands on whatever the host's connectivity gives. Every other phase is reached by stubbing check_for_update (commands/updates.rs UpdateCheckResult: available, current_version, new_version, release_notes, channel_unavailable) after a remount (danger then system, so the panel starts idle whatever the boundary click left). The stub imitates a backend type and drifts silently if that struct changes.",
     "Danger cards are screenshot-only; no reset btn or confirm dialog is triggered (real resets live in destructive.json).",
-    "settings-mobile-nav-toggle / -sheet render only when sidebarState === 'drawer' (mobile); at desktop they are absent, so no waitFor is issued and the desktop state is captured by screenshot only.",
+    "settings-mobile-nav-toggle / -sheet render only when sidebarState === 'drawer', i.e. under 768 px (Settings.svelte:423 `{#if isMobile}`, isMobile = $sidebarState === 'drawer' at :86; layout.ts:28/119 MD_QUERY). The narrow block after screenshot 35 resizes to 700x800 (resizeWindow lifts the 900x600 minimum), clicks the toggle (mobileOpen = true, :432), closes the Sheet with Escape on the nav (the keydown bubbles to the panel's onkeydown -> onclose, Sheet.svelte:45-49,81; the sheet renders no close testid), and restores 1280x800 before the mode chip is touched: the block holds no picker and no window.confirm.",
     "About + Help were the two CLUSTERS entries no script reached: the table holds 15 keys and this file covered 13. The block appended at the end runs in operator mode, which steps 202-206 restore.",
     "about-copy-data-dir is asserted, not about-data-dir-unknown. They are the two arms of one #if on SystemInfo.data_dir, the runner has no either/or step, and the seeded HOME always resolves, so the unknown arm is unreachable under this harness. It stays covered by the Rust test test_system_info_reports_the_resolved_data_directory.",
-    "The three external help cards (docs, community, report) and about-link-github / about-link-report are asserted with expect/waitFor and never clicked: they hand off to the system browser, which the runner cannot come back from. help-link-shortcuts is the one card that navigates in-app, so it is the one that is clicked."
+    "The three external help cards (docs, community, report) and about-link-github / about-link-report are asserted with expect/waitFor and never clicked: they hand off to the system browser, which the runner cannot come back from. help-link-shortcuts is the one card that navigates in-app, so it is the one that is clicked.",
+    "observability-toggle-debug_log_prompt is the one sensitive flag (Observability.svelte:79-81): clicking it while off opens the ConfirmDialog observability-sensitive-confirm instead of flipping (requestToggle :157-165, the {#key} nonce snaps the Toggle back). The block after 13b plays both composed buttons (ConfirmDialog.svelte:42/50): cancel leaves cfg untouched (:175-179), confirm sets debug_log_prompt = true in memory (:169-173) and dirties the explicit-save form, which settings-subpage-reset restores (handleReset :152-155) so apollia.toml is never written and the nav guard stays quiet.",
+    "observability-open-editor is a boundary click played LAST in the book: openConfigInEditor -> open_config_in_editor (commands/config.rs:248-267) creates the seeded apollia.toml only when missing (the seed ships it) then open::that(path), which launches the host's default .toml handler. Nothing in the seed HOME changes and the route stays clean, but a stray editor window stays open on the host and may take focus: a clipboard write in a later section can then land on an error toast instead of the clipboard, which is why the click sits at the very end.",
+    "update-releases-link is played under stubs: check_for_update resolves channel_unavailable true, which is phase no_channel (UpdateCheckPanel.svelte:102, :164-176), and plugin:opener|open_url resolves null so the click (openExternalUrl -> openUrl, externalLink.ts:35-46) never launches the host browser. Nothing in-app changes after that click by design, so the block asserts the phase before it (update-no-channel-label, the link itself) and that the panel is untouched after it (link and update-check-btn still rendered); the stub is what keeps the click harmless, not what proves it.",
+    "help-hero-cta is played under a plugin:opener|open_url stub resolving null: the anchor's onclick is handleExternalLinkClick (HelpHero.svelte:54, externalLink.ts:98-105), which preventDefaults and hands https://docs.apollia.fr/... to the opener, so the webview stays on the help page (help-hero-cta and help-section asserted after the click). `aria-disabled` follows navigator.onLine (Help.svelte:38-50) and only removes pointer events; the runner's el.click() is programmatic, so the handler runs online or offline. No in-app state changes on that click, so the block can assert nothing beyond the page staying mounted.",
+    "shortcuts-search is a plain bind:value filter (Shortcuts.svelte:41-55, 85-92): a no-match query renders shortcuts-empty (:99-104), an empty query restores the groups; local state, nothing persisted, the page is not nav-guarded.",
+    "update-install-btn is played twice under stubs, both after a remount. Happy path: check_for_update resolves available true with new_version 99.0.0 (update-available-label contains 99.0.0, update-changelog rendered), install_update resolves null, and the phase moves downloading -> installed (UpdateCheckPanel.svelte:110-126): installed renders no testid of its own, so it is proven by the three waitGone (update-install-btn, update-download-progress, update-check-btn), the only phase reachable from runInstall that renders none of them; error would keep update-check-btn as retry. The real install_update would replace the binary and restart the app before the report lands (commands/updates.rs:172), which is why it is never let through. Error path: install_update rejects a string, humanize keeps it as detail (lib/errors/humanize.ts:251-263) and update-error-banner contains it. listen(\"update-download-progress\") still reaches the real event plugin; nothing emits on it."
   ],
   "dynamicTestids": [
     "config-file-card-copy-oria",
@@ -30,6 +36,7 @@
     "language-fr",
     "mode-builder",
     "mode-operator",
+    "observability-toggle-debug_log_prompt",
     "settings-nav-about",
     "settings-nav-appearance",
     "settings-nav-configuration",
@@ -286,6 +293,92 @@
     {
       "kind": "screenshot",
       "label": "13b-observability-retention-reset"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-toggle-debug_log_prompt",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-toggle-debug_log_prompt",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-sensitive-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b2-sensitive-confirm-open"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-sensitive-confirm-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "observability-sensitive-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b3-sensitive-confirm-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-toggle-debug_log_prompt",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-sensitive-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-sensitive-confirm-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "observability-sensitive-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b4-sensitive-enabled-unsaved"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-subpage-reset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b5-sensitive-reset"
     },
     {
       "kind": "click",
@@ -624,6 +717,246 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "click",
+      "testid": "settings-nav-system"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-checker",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-check-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_for_update",
+      "resolve": {
+        "available": false,
+        "current_version": "0.1.0-automation",
+        "new_version": null,
+        "release_notes": null,
+        "channel_unavailable": true
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "update-check-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-no-channel-label",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-releases-link",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:opener|open_url",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "update-releases-link",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "expect",
+      "testid": "update-releases-link"
+    },
+    {
+      "kind": "expect",
+      "testid": "update-check-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "28a-update-no-channel-releases-link (opener stubbed, host browser untouched)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:opener|open_url"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_for_update",
+      "resolve": {
+        "available": true,
+        "current_version": "0.1.0-automation",
+        "new_version": "99.0.0",
+        "release_notes": "Release notes body served by the automation stub.",
+        "channel_unavailable": false
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "install_update",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "update-check-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-available-label",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "update-available-label",
+      "contains": "99.0.0"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-changelog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "28b-update-available-stubbed"
+    },
+    {
+      "kind": "click",
+      "testid": "update-install-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "update-install-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "update-download-progress",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "update-check-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "28c-update-installed-stubbed (install_update resolved, no restart)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "check_for_update"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "install_update"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-system"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-checker",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-check-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_for_update",
+      "resolve": {
+        "available": true,
+        "current_version": "0.1.0-automation",
+        "new_version": "99.0.0",
+        "release_notes": "Release notes body served by the automation stub.",
+        "channel_unavailable": false
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "install_update",
+      "reject": "automation stub: install refused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "update-check-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-available-label",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "update-install-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-error-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "update-error-banner",
+      "contains": "automation stub: install refused"
+    },
+    {
+      "kind": "expect",
+      "testid": "update-check-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "28d-update-install-error-stubbed"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "check_for_update"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "install_update"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "waitFor",
       "testid": "danger-warning-banner",
       "timeoutMs": 4000
@@ -784,6 +1117,60 @@
     {
       "kind": "screenshot",
       "label": "35-desktop-no-mobile-nav"
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 700,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-mobile-nav-toggle",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "35b-narrow-settings-mobile-nav-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-mobile-nav-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-mobile-nav-sheet",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "35c-narrow-settings-mobile-nav-sheet"
+    },
+    {
+      "kind": "press",
+      "testid": "settings-mobile-nav-sheet",
+      "key": "Escape",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-mobile-nav-sheet",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-nav",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-mobile-nav-toggle",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -1018,6 +1405,36 @@
       "testid": "help-hero-cta"
     },
     {
+      "kind": "stubInvoke",
+      "command": "plugin:opener|open_url",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "help-hero-cta",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "expect",
+      "testid": "help-hero-cta"
+    },
+    {
+      "kind": "expect",
+      "testid": "help-section"
+    },
+    {
+      "kind": "screenshot",
+      "label": "50a-help-hero-cta-clicked (opener stubbed, host browser untouched)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:opener|open_url"
+    },
+    {
       "kind": "waitFor",
       "testid": "help-link-docs",
       "timeoutMs": 4000
@@ -1071,6 +1488,35 @@
     {
       "kind": "screenshot",
       "label": "52-help-shortcuts-in-app"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "shortcuts-search",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "shortcuts-search",
+      "text": "zzz-no-shortcut-xyz"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "shortcuts-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "52b-shortcuts-search-empty"
+    },
+    {
+      "kind": "fill",
+      "testid": "shortcuts-search",
+      "text": ""
+    },
+    {
+      "kind": "waitGone",
+      "testid": "shortcuts-empty",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -1217,6 +1663,33 @@
     {
       "kind": "screenshot",
       "label": "57-about-every-field-copied"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-settings",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-open-editor",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-open-editor",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "58-observability-open-editor-boundary (open::that launches the host's .toml handler; nothing in the seed HOME changes)"
     }
   ]
 }

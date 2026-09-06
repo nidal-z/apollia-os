@@ -118,7 +118,59 @@
     },
     {
       "kind": "screenshot",
-      "label": "04-companion-handles (drag + resize are pointer-only; snap guides render mid-drag only, so they are neither driven nor asserted)"
+      "label": "04-companion-handles (pointer drag and the mid-drag snap guides are pointer-only; the keyboard nudges below play both handles)"
+    },
+    {
+      "kind": "press",
+      "testid": "companion-drag-handle",
+      "key": "ArrowRight",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-companion-nudged-right"
+    },
+    {
+      "kind": "press",
+      "testid": "companion-drag-handle",
+      "key": "ArrowLeft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "press",
+      "testid": "companion-resize-handle",
+      "key": "ArrowRight",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-companion-resized-wider"
+    },
+    {
+      "kind": "press",
+      "testid": "companion-resize-handle",
+      "key": "ArrowLeft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "expect",
+      "testid": "companion-panel"
     },
     {
       "kind": "click",
@@ -341,5 +393,9 @@
       "kind": "screenshot",
       "label": "12-back-operator"
     }
+  ],
+  "notes": [
+    "companion-drag-handle and companion-resize-handle are played with `press`: their onkeydown maps the arrow keys to onmove / onresize (CompanionDragHandle.svelte:16-37, CompanionResizeHandle.svelte:15-36) -> nudgePosition / nudgeSize (CompanionPanel.svelte:246-266), not gated on isTrusted. Both render only while the panel is not fullscreen, i.e. sidebarState !== 'drawer' (CompanionPanel.svelte:32, 378, 437), which holds at 1280x800. The drag-handle keydown also bubbles to the toolbar's own arrow handler (CompanionPanel.svelte:295-301), so one press moves 40 px; each nudge is followed by its opposite, and snapToEdges (:253) may make the return inexact. Geometry lands in localStorage `companionGeometry` (companion.ts:82), which the runner clears at boot.",
+    "companion-error-* (CompanionErrorState.svelte) render only when the guide session creation fails (CompanionPanel.svelte:414-415, companion.ts:383-388); the seeded guide session is created fine, and that fault path is outside this pass."
   ]
 }

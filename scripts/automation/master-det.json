@@ -8,6 +8,8 @@
     "agent-detail-tab-settings",
     "agent-detail-tab-tools",
     "agent-detail-title",
+    "arg-input-0",
+    "automation-delete-automation-probe-trigger",
     "automation-delete-seed-trigger-daily-digest",
     "automation-edit-advanced-toggle",
     "automation-edit-agent",
@@ -24,6 +26,7 @@
     "automation-edit-type-webhook",
     "automation-enabled-toggle-seed-trigger-daily-digest",
     "automation-history-seed-trigger-daily-digest",
+    "automation-menu-automation-probe-trigger",
     "automation-menu-seed-trigger-daily-digest",
     "automation-wizard-next-0",
     "automation-wizard-next-1",
@@ -32,6 +35,11 @@
     "automations-filter-all",
     "automations-filter-error",
     "automations-filter-paused",
+    "catalogue-entry-@modelcontextprotocol/server-brave-search",
+    "catalogue-entry-@modelcontextprotocol/server-filesystem",
+    "catalogue-entry-com.notion/mcp",
+    "catalogue-entry-io.apollia/seed-failing",
+    "catalogue-entry-io.apollia/seed-stub",
     "catalogue-filter-all",
     "catalogue-filter-community",
     "catalogue-filter-installed",
@@ -47,6 +55,7 @@
     "channel-test-btn-seed-channel-desktop",
     "channel-toggle-det-auto-channel",
     "channel-toggle-seed-channel-desktop",
+    "command-item-agents.create",
     "command-item-companion.toggle",
     "config-file-card-copy-oria",
     "config-file-card-copy-runtime",
@@ -62,7 +71,13 @@
     "danger-card-factory-reset",
     "danger-card-reset-onboarding",
     "dashboard-agent-row-seed-classifier",
+    "disclaimer-check-code_on_machine",
+    "disclaimer-check-external_data",
+    "disclaimer-check-read_capabilities",
+    "disclaimer-check-revocable",
     "empty-state-plan-cache",
+    "env-input-BRAVE_API_KEY",
+    "env-toggle-BRAVE_API_KEY",
     "getting-started-milestone-automate",
     "getting-started-milestone-chat",
     "getting-started-milestone-connect",
@@ -86,6 +101,7 @@
     "inbox-tab-activity",
     "inbox-tab-notifications",
     "inbox-tab-pending",
+    "install-secret-input-seed-deps-webhook",
     "language-en",
     "language-fr",
     "mcp-detail-tab-overview",
@@ -103,6 +119,7 @@
     "namespace-sidebar-cat-project",
     "namespace-sidebar-cat-user",
     "namespace-sidebar-item-apollia-guide",
+    "namespace-sidebar-item-onboarding-agent",
     "native-detail-tab-accounts",
     "native-detail-tab-capabilities",
     "native-detail-tab-settings",
@@ -121,6 +138,7 @@
     "nav-settings",
     "nav-tasks",
     "nav-transcriptions",
+    "oauth-add-account-google",
     "oauth-add-account-microsoft",
     "oauth-card-google",
     "oauth-card-microsoft",
@@ -131,6 +149,7 @@
     "observability-tab-llm-costs",
     "observability-tab-plan-cache",
     "observability-tab-timeline",
+    "observability-toggle-debug_log_prompt",
     "package-detail-tab-agents",
     "package-detail-tab-overview",
     "package-detail-tab-triggers",
@@ -142,9 +161,12 @@
     "profile-compliance-rgpd",
     "profile-integ-github",
     "project-agent-remove-cancel-seed-classifier",
+    "project-agent-remove-confirm-onboarding-agent",
     "project-agent-remove-confirm-seed-classifier",
+    "project-agent-remove-onboarding-agent",
     "project-agent-remove-seed-classifier",
     "project-agent-row-apollia-guide",
+    "project-agent-row-onboarding-agent",
     "project-agent-row-seed-classifier",
     "project-doc-remove-cancel-seed-document-alpha-readme",
     "project-doc-remove-confirm-seed-document-alpha-readme",
@@ -171,6 +193,8 @@
     "settings-nav-stt",
     "settings-nav-system",
     "settings-nav-tools",
+    "sidebar-mcp-automation-stub-mcp",
+    "sidebar-mcp-seed-stub",
     "sidebar-mode-option-builder",
     "sidebar-mode-option-operator",
     "sidebar-native-google",
@@ -539,6 +563,39 @@
       "testid": "user-menu-quit"
     },
     {
+      "kind": "click",
+      "testid": "user-menu-reset-onboarding",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reset-onboarding-btn",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "user-menu-reset-onboarding lands on the danger settings card"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-user-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "topbar-user-menu-content",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
       "label": "09-user-menu-open"
     },
@@ -739,6 +796,68 @@
       "label": "40-user-menu-help"
     },
     {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 700,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "topbar-sidebar-toggle",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41-narrow-topbar-sidebar-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-sidebar-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-drawer-backdrop",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41b-narrow-sidebar-drawer-open"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-drawer-backdrop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-drawer-backdrop",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "topbar-sidebar-toggle",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "waitGone",
       "testid": "sidebar-drawer-backdrop",
       "timeoutMs": 3000
@@ -775,6 +894,38 @@
     {
       "kind": "screenshot",
       "label": "42-user-menu-settings"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fault",
+      "name": "heartbeat-lost"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "runtime-disconnected-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "43-runtime-disconnected-banner (heartbeat loss injected by the recipe)"
+    },
+    {
+      "kind": "click",
+      "testid": "runtime-disconnected-retry",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "runtime-disconnected-banner",
+      "timeoutMs": 10000
     },
     {
       "kind": "screenshot",
@@ -860,6 +1011,187 @@
     {
       "kind": "expect",
       "testid": "dashboard-projects-see-all"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_pending_approvals",
+      "resolve": [
+        {
+          "task_id": "stub-approval-1",
+          "agent_name": "seed-classifier",
+          "prompt": "Send the weekly digest to the mailing list",
+          "context": {
+            "risk": {
+              "level": "medium",
+              "summary": "Send the weekly digest to the mailing list"
+            }
+          },
+          "suspended_at": "2026-09-01T08:00:00Z"
+        },
+        {
+          "task_id": "stub-approval-2",
+          "agent_name": "seed-classifier",
+          "prompt": "Delete the stale export files under exports/",
+          "context": {
+            "risk": {
+              "level": "high",
+              "summary": "Delete the stale export files under exports/"
+            }
+          },
+          "suspended_at": "2026-09-01T09:00:00Z"
+        },
+        {
+          "task_id": "stub-approval-3",
+          "agent_name": "seed-planner",
+          "prompt": "Publish the release checklist to the shared drive",
+          "context": {
+            "risk": {
+              "level": "medium",
+              "summary": "Publish the release checklist to the shared drive"
+            }
+          },
+          "suspended_at": "2026-09-01T10:00:00Z"
+        },
+        {
+          "task_id": "stub-approval-4",
+          "agent_name": "seed-classifier",
+          "prompt": "Archive the closed tickets of last quarter",
+          "context": {
+            "risk": {
+              "level": "low",
+              "summary": "Archive the closed tickets of last quarter"
+            }
+          },
+          "suspended_at": "2026-09-01T11:00:00Z"
+        },
+        {
+          "task_id": "stub-approval-5",
+          "agent_name": "seed-planner",
+          "prompt": "Rename the preview build artifacts",
+          "context": {
+            "risk": {
+              "level": "low",
+              "summary": "Rename the preview build artifacts"
+            }
+          },
+          "suspended_at": "2026-09-01T12:00:00Z"
+        },
+        {
+          "task_id": "stub-approval-6",
+          "agent_name": "seed-classifier",
+          "prompt": "Post the changelog to the announcement channel",
+          "context": {
+            "risk": {
+              "level": "medium",
+              "summary": "Post the changelog to the announcement channel"
+            }
+          },
+          "suspended_at": "2026-09-01T13:00:00Z"
+        }
+      ]
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-pending-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-inbox-more",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "dashboard-inbox-more",
+      "contains": "1"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03b-dashboard-inbox-more (six stubbed pending approvals, five rows shown, the overflow link)"
+    },
+    {
+      "kind": "click",
+      "testid": "dashboard-inbox-more",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-row-primary",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03c-inbox-more-opens-inbox"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_pending_approvals"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "dashboard-inbox-more",
+      "timeoutMs": 8000
     },
     {
       "kind": "click",
@@ -1173,6 +1505,136 @@
       "label": "10-dashboard-builder-agent-tech-best-effort"
     },
     {
+      "kind": "waitFor",
+      "testid": "dashboard-agent-row-seed-classifier",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "dashboard-agent-row-seed-classifier",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-sheet",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-messages-tab",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-message-item",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-agent-sheet-messages"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-message-item",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-message-payload",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10c-agent-message-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-message-item",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-message-payload",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "press",
+      "testid": "agent-detail-sheet",
+      "key": "Escape"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-detail-sheet",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10d-agent-sheet-closed"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-agent-row-seed-classifier",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "dashboard-agent-row-seed-classifier",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-sheet",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-memory-link",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10e-agent-sheet-builder-memory-link"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-memory-link",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-detail-sheet",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10f-memory-link-opens-memory"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
       "kind": "click",
       "testid": "sidebar-mode-chip"
     },
@@ -1246,7 +1708,7 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "conversation-row-menu-button",
+      "testid": "conversation-row-menu-button",
       "nth": 0,
       "timeoutMs": 12000
     },
@@ -1279,7 +1741,7 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "conversation-row-menu-button",
+      "testid": "conversation-row-menu-button",
       "nth": 0,
       "timeoutMs": 8000
     },
@@ -1355,6 +1817,61 @@
       "kind": "fill",
       "testid": "quickpicker-textarea",
       "text": "Deterministic UI probe, not submitted."
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "meta_rewrite_input",
+      "once": true,
+      "resolve": {
+        "rewrittenText": "Deterministic UI probe, not submitted.",
+        "fallback": "callFailed"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-rewrite-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-quickpicker-rewrite-fallback (callFailed answered by the harness: reason shown, prompt unchanged)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "meta_rewrite_input",
+      "once": true,
+      "resolve": {
+        "rewrittenText": "Probe the deterministic user interface without submitting anything.",
+        "fallback": null
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-rewrite-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker-rewrite-restore-button",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-quickpicker-rewritten (restore offered)"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-rewrite-restore-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
     },
     {
       "kind": "expect",
@@ -1487,13 +2004,216 @@
       "testid": "chat-attach-input"
     },
     {
+      "kind": "fill",
+      "testid": "chat-attach-input",
+      "text": "Attachment fed by the automation harness, never sent.",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-attachment-chip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-attachment-chip",
+      "contains": "automation-attachment.txt"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11a-composer-attachment-chip (one text file built by the harness, ingested through the hidden input)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-attachment-remove",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-attachment-chip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-attach-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-attachment-chip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-composer-attachment-from-paperclip (the file chooser answered by the harness)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-attachment-remove",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-attachment-chip",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "waitFor",
       "testid": "chat-mic-button",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "11-composer-affordances (attach = native dialog, mic = STT: opened/asserted only, never clicked)"
+      "label": "11-composer-affordances (attach = native dialog, asserted only; the mic is played next through the harness)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_tour_recording",
+      "reject": "STT engine not available",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "chat-mic-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input-hint-status",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-input-hint-status",
+      "contains": "STT engine not available"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11d-composer-mic-refused (start_tour_recording rejected by the harness, the reason in the hints line)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "start_tour_recording",
+      "resolve": null
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "stop_tour_recording",
+      "reject": "dictation stopped by the automation harness"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-mic-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "11e-composer-mic-recording (start_tour_recording answered by the harness, button lit, no capture opened)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-mic-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input-hint-status",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "chat-input-hint-status",
+      "contains": "dictation stopped by the automation harness"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11f-composer-mic-stopped (stop_tour_recording rejected by the harness, dictation ended, composer clean)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_tour_recording"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "stop_tour_recording"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "text": "Rewrite probe, offline: the engine answers through the stub."
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input-rewrite-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "meta_rewrite_input",
+      "once": true,
+      "resolve": {
+        "rewrittenText": "Rewrite probe, offline: the engine answers through the stub.",
+        "fallback": "noBackend"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-input-rewrite-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-composer-rewrite-fallback (noBackend answered by the harness: text unchanged, the toast is hidden from captures)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "meta_rewrite_input",
+      "once": true,
+      "resolve": {
+        "rewrittenText": "Summarise the seeded conversation in three bullet points, citing the tools it used.",
+        "fallback": null
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "chat-input-rewrite-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-input-rewrite-restore-button",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11c-composer-rewritten (restore offered)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-input-rewrite-restore-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "text": ""
     },
     {
       "kind": "click",
@@ -1533,6 +2253,24 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "fill",
+      "testid": "chat-input",
+      "text": ""
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_mcp_resources",
+      "resolve": [
+        {
+          "server": "filesystem",
+          "uri": "seed://readme",
+          "name": "Seed README",
+          "mime_type": "text/plain",
+          "description": "Resource answered by the automation harness"
+        }
+      ]
+    },
+    {
       "kind": "click",
       "testid": "chat-mention-button",
       "timeoutMs": 3000
@@ -1543,13 +2281,50 @@
       "timeoutMs": 8000
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-mention-menu-item",
+      "timeoutMs": 8000
+    },
+    {
       "kind": "screenshot",
-      "label": "13-mention-menu"
+      "label": "13-mention-menu (one resource, answered by the harness)"
     },
     {
       "kind": "click",
-      "testid": "chat-mention-button",
+      "testid": "chat-mention-menu-item",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "press",
+      "key": "Enter"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-pinned-resource-chip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-mention-pinned"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-pinned-resource-remove",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-pinned-resource-chip",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_mcp_resources"
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "text": ""
     },
     {
       "kind": "expect",
@@ -1863,8 +2638,145 @@
       "label": "26-header-rename-cancelled"
     },
     {
+      "kind": "resizeWindow",
+      "width": 900,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-context-backdrop",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "26b-narrow-context-drawer (900 px: the open inspector becomes an overlay)"
+    },
+    {
       "kind": "click",
-      "testidPrefix": "conversation-row-menu-button",
+      "testid": "chat-context-backdrop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-context-backdrop",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-open-sessions-button",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-open-sessions-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-sessions-backdrop",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "26c-narrow-sessions-drawer"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-sessions-backdrop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-sessions-backdrop",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-open-context-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-context-backdrop",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-context-backdrop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-context-backdrop",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 700,
+      "height": 800
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-overflow-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-overflow-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-menu-drawer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-menu-drawer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-context-backdrop",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "26d-narrow-drawer-menu-item (700 px: the overflow item opens the inspector overlay)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-context-backdrop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-context-backdrop",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-open-sessions-button",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-open-context-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-inspector-config-tab",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-button",
       "nth": 0,
       "timeoutMs": 2500
     },
@@ -1896,7 +2808,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "conversation-row-menu-button",
+      "testid": "conversation-row-menu-button",
       "nth": 0,
       "timeoutMs": 2500
     },
@@ -1942,7 +2854,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "conversation-row-menu-button",
+      "testid": "conversation-row-menu-button",
       "nth": 0,
       "timeoutMs": 2500
     },
@@ -1981,6 +2893,175 @@
       "label": "30-conversation-row-delete-cancelled"
     },
     {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-2"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-inspector-plan-tab",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "respond_hitl_filesystem",
+      "resolve": null
+    },
+    {
+      "kind": "emitEvent",
+      "event": "hitl-fs-required",
+      "payload": {
+        "request_id": "automation-critical-1",
+        "session_id": "seed-session-2",
+        "level": "critical",
+        "op": "delete",
+        "path": "${HOME}/.apollia/automation-critical.txt",
+        "preview": {
+          "kind": "content",
+          "content": "",
+          "size_bytes": 0,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-critical-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "20a-hitl-fs-critical (payload shaped like HitlFsRequiredPayload, delivered by the recipe)"
+    },
+    {
+      "kind": "fill",
+      "testid": "hitl-fs-critical-input",
+      "text": "CONFIRM"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-deny",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hitl-fs-reject-reason",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "hitl-fs-reject-reason",
+      "text": "automation reject reason"
+    },
+    {
+      "kind": "screenshot",
+      "label": "20b-hitl-fs-critical-reject-reason"
+    },
+    {
+      "kind": "click",
+      "testid": "hitl-fs-deny",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hitl-fs-modal",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "respond_hitl_filesystem"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-plan-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-dag-canvas",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-step-node",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30b-inspector-plan-seeded (seed-session-2 persists a 3-step plan)"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-dag-expand"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-dag-canvas",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30c-plan-dag-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-dag-expand"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-dag-canvas",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "plan-step-node",
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-step-drawer",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30d-plan-step-drawer"
+    },
+    {
+      "kind": "click",
+      "testid": "sheet-close"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-step-drawer",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-config-tab"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-config-panel",
+      "timeoutMs": 10000
+    },
+    {
       "kind": "click",
       "testid": "sidebar-mode-chip"
     },
@@ -2008,7 +3089,7 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "conversation-row-menu-button",
+      "testid": "conversation-row-menu-button",
       "nth": 0,
       "timeoutMs": 12000
     },
@@ -2259,7 +3340,7 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "conversation-row-menu-button",
+      "testid": "conversation-row-menu-button",
       "nth": 0,
       "timeoutMs": 2500
     },
@@ -2314,6 +3395,307 @@
     {
       "kind": "screenshot",
       "label": "42-quickpicker-closed"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "does-not-exist"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-not-found",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "43-session-not-found (deep link to an id no table holds)"
+    },
+    {
+      "kind": "click",
+      "testid": "session-not-found-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-not-found",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "does-not-exist"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-not-found",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "session-not-found-new",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-not-found",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "44-session-not-found-new-opens-picker"
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-close",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "quickpicker",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_chat_session",
+      "reject": "sqlite: database disk image is malformed (rejected by the automation harness)"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker-agent-seed-classifier",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-agent-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-corrupted",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "45-session-corrupted (get_chat_session rejected by the harness)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_chat_session"
+    },
+    {
+      "kind": "click",
+      "testid": "session-corrupted-export",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "click",
+      "testid": "session-corrupted-delete",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "session-corrupted",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "46-session-corrupted-deleted (the session this block created)"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "get_chat_session",
+      "patch": {
+        "status": "closed"
+      },
+      "argsMatch": {
+        "sessionId": "seed-session-1"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:opener|open_url",
+      "resolve": null
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "link_preview",
+      "resolve": {
+        "url": "https://example.com/apollia-docs",
+        "title": "Apollia preview docs",
+        "description": "Stubbed Open Graph metadata for the rich link card.",
+        "favicon": null,
+        "image": null,
+        "site_name": "example.com"
+      },
+      "argsMatch": {
+        "url": "https://example.com/apollia-docs"
+      }
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-1"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "link-preview-fallback",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "47-seeded-conversation-closed (standalone URL renders its fallback link; status read as closed through the patch)"
+    },
+    {
+      "kind": "click",
+      "testid": "link-preview-fallback",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "link-preview-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "link-preview-card",
+      "contains": "Apollia preview docs"
+    },
+    {
+      "kind": "screenshot",
+      "label": "47b-link-preview-card (second standalone URL of seed-msg-2, answered by the link_preview stub; the first keeps its fallback)"
+    },
+    {
+      "kind": "click",
+      "testid": "link-preview-card",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "expect",
+      "testid": "link-preview-fallback"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "link_preview"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-next-steps",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "next-steps-cards",
+      "timeoutMs": 25000
+    },
+    {
+      "kind": "screenshot",
+      "label": "48-next-steps-session-end (heuristic fallback, no engine)"
+    },
+    {
+      "kind": "click",
+      "testid": "next-steps-refresh",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "next-steps-cards",
+      "timeoutMs": 25000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49-next-steps-refreshed"
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-close-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "50-chat-healthy-after-faults"
     },
     {
       "kind": "screenshot",
@@ -2534,7 +3916,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "05b-agent-update-and-uninstall-actions (update opens a native file picker, NEVER clicked)"
+      "label": "05b-agent-update-and-uninstall-actions"
     },
     {
       "kind": "click",
@@ -2599,6 +3981,125 @@
     {
       "kind": "screenshot",
       "label": "05e-agent-uninstall-disarmed (changing agent retires the armed confirm)"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 2,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-update-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/agents/no-such-agent/agent.py",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "agent-update-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-update-confirm-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05f-agent-update-confirm-armed (running agent, picked path held)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-update-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-update-confirm-panel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-update-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05g-agent-update-cancelled (path dropped, nothing written)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/agents/no-such-agent/agent.py",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "agent-update-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-update-confirm-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-update-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-update-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-update-confirm-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-update-error-details",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05h-agent-update-refused-details (file not found, refused before the copy)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-update-error",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "05i-agent-update-error-cleared (changing agent retires the banner)"
     },
     {
       "kind": "click",
@@ -2721,6 +4222,85 @@
     {
       "kind": "click",
       "testidPrefix": "agent-list-row",
+      "nth": 2,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-settings",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-settings",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-stop-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-stop-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-stop-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-stop-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-start-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-detail-stop-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-agent-settings-stopped (start offered on a stopped installed agent)"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-start-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-stop-btn",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "agent-detail-start-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08c-agent-settings-restarted"
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-overview",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
       "timeoutMs": 2500,
       "nth": 1
     },
@@ -2791,6 +4371,59 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "resizeWindow",
+      "width": 900,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "split-open-sidebar",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-agents-narrow-list-folded"
+    },
+    {
+      "kind": "click",
+      "testid": "split-open-sidebar",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "split-sidebar-backdrop",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-agents-narrow-drawer-open"
+    },
+    {
+      "kind": "click",
+      "testid": "split-sidebar-backdrop",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "split-sidebar-backdrop",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "kind": "waitGone",
+      "testid": "split-open-sidebar",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agents-list",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "click",
       "testid": "sidebar-mode-chip"
     },
@@ -2819,6 +4452,359 @@
     {
       "kind": "screenshot",
       "label": "13-agents-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "agent"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-item-agents.create",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-agents.create"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-pick",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "command-palette",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-install-package-pick"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "install-pick-choose-folder",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "install-step-pick"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13c-install-package-pick-cancelled (cancelled picker keeps the pick step)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/agents/packages/seed-office-pack",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "install-pick-choose-folder",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-preview",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "install-preview-next"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13d-install-package-preview-seeded (next NEVER clicked: a re-install rolls back by deleting the seeded package)"
+    },
+    {
+      "kind": "click",
+      "testid": "install-preview-change",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-pick",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "install-step-preview",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/fixtures/seed-deps-pack",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "install-pick-choose-folder",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-preview",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "install-preview-next",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-deps",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13f-install-deps-step (fixture package declaring a pip dependency)"
+    },
+    {
+      "kind": "click",
+      "testid": "install-deps-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-preview",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "install-preview-next",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-deps",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "install-deps-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-configure",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13g-install-configure-step (webhook trigger without a secret)"
+    },
+    {
+      "kind": "click",
+      "testid": "install-configure-back",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "13h-install-configure-back"
+    },
+    {
+      "kind": "click",
+      "testid": "install-preview-next",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-configure",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "fill",
+      "testid": "install-secret-input-seed-deps-webhook",
+      "text": "automation-webhook-secret-0123456789"
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "click",
+      "testid": "install-configure-install",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-error",
+      "timeoutMs": 120000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13i-install-configure-install (pip dependency that resolves nowhere: the dialog reports the failure)"
+    },
+    {
+      "kind": "click",
+      "testid": "dialog-close",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "install-step-pick",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "install-step-configure",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "topbar-search",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-palette-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "command-palette-input",
+      "text": "agent"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "command-item-agents.create",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "command-item-agents.create",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-pick",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/fixtures/seed-plain-pack",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "install-pick-choose-folder",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-preview",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "install-preview-next",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "install-step-done",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13j-install-done (fixture package installed for real)"
+    },
+    {
+      "kind": "click",
+      "testid": "install-done-close",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "install-step-done",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
+    },
+    {
+      "kind": "screenshot",
+      "label": "13k-install-package-closed"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/fixtures/missing-agent.py",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "agents-install-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-install-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-install-error-details",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "screenshot",
+      "label": "13l-agent-install-error-details (picker answered with a path that does not exist)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
     },
     {
       "kind": "click",
@@ -2951,6 +4937,91 @@
       "kind": "waitFor",
       "testid": "app-main",
       "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_projects",
+      "resolve": [],
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_projects",
+      "reject": "seeded projects failure",
+      "once": true
+    },
+    {
+      "kind": "goto",
+      "route": "projects"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "00a-projects-store-emptied (first list answered [] by the stub)"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "projects"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00b-projects-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "projects-load-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "00c-projects-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "projects-load-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "projects-load-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "projects-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "project-row",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00d-projects-load-retried"
     },
     {
       "kind": "goto",
@@ -3118,22 +5189,46 @@
     {
       "kind": "selectOption",
       "testid": "project-agent-select",
-      "index": 1,
+      "value": "onboarding-agent",
       "timeoutMs": 2500
     },
     {
-      "kind": "sleep",
-      "ms": 300
+      "kind": "click",
+      "testid": "project-agent-add-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-onboarding-agent",
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
-      "label": "07c-project-agent-candidate-picked (add NEVER clicked, no link created)"
+      "label": "07c-project-agent-attached (onboarding-agent linked through the add button)"
     },
     {
-      "kind": "selectOption",
-      "testid": "project-agent-select",
-      "value": "",
+      "kind": "click",
+      "testid": "project-agent-remove-onboarding-agent",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-remove-confirm-onboarding-agent",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-remove-confirm-onboarding-agent",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "project-agent-row-onboarding-agent",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c2-project-agent-probe-detached (the two seeded links untouched)"
     },
     {
       "kind": "click",
@@ -3165,6 +5260,75 @@
     },
     {
       "kind": "click",
+      "testid": "project-tab-conversations",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-conversations-list",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_project_agents",
+      "reject": "seeded project agents failure",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-agents",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-error-details",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "07f-project-agent-error-details-open (list refused once by the stub)"
+    },
+    {
+      "kind": "click",
+      "testid": "project-agent-error-details",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-conversations",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-conversations-list",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-agents",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-seed-classifier",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-row-apollia-guide",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07g-project-agents-recovered"
+    },
+    {
+      "kind": "click",
       "testid": "project-tab-memory",
       "timeoutMs": 2500
     },
@@ -3178,7 +5342,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "08b-project-documents (attach opens a native file picker, NEVER clicked)"
+      "label": "08b-project-documents (attach is played on the throwaway project at the tail, through a picker stub)"
     },
     {
       "kind": "click",
@@ -3207,6 +5371,55 @@
     {
       "kind": "screenshot",
       "label": "08d-project-document-detach-cancelled (the document stays attached)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "delete_project_document",
+      "reject": "seeded document delete failure",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-remove-confirm-seed-document-alpha-readme",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-error-details",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08e-project-document-error-details-open (delete refused by the stub before it ran)"
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-error-details",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-remove-seed-document-alpha-readme",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "08f-project-document-survives"
     },
     {
       "kind": "click",
@@ -3547,6 +5760,90 @@
       "label": "31-empty-tasks-cta-opens-agents"
     },
     {
+      "kind": "click",
+      "testid": "project-tab-memory",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-doc-attach-empty-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "32-new-project-documents-empty"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/apollia.toml",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-attach-empty-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "project-doc-attach-empty-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "project-doc-remove-",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "33-new-project-document-attached-from-empty-cta"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/mcp-registry.json",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-attach-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "project-doc-remove-",
+      "nth": 1,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "34-new-project-second-document-attached-from-header"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "project-doc-attach-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "project-doc-attach-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "35-new-project-attach-cancelled-picker (null from the picker, nothing added)"
+    },
+    {
       "kind": "screenshot",
       "label": "section-06-tasks-det"
     },
@@ -3713,6 +6010,91 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_tasks",
+      "reject": "seeded tasks failure: list_tasks rejected by the recipe"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-refresh",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07a1-tasks-load-error (list_tasks rejected by a stub)"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-load-error-detail-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "expect",
+      "testid": "tasks-load-error-detail",
+      "contains": "list_tasks rejected by the recipe"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07a2-tasks-load-error-detail-open (the raw rejection text)"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-load-error-detail-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-load-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07a3-tasks-load-retry-still-failing (stub still armed)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_tasks"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-load-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tasks-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-table",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07a4-tasks-load-retried (seeded rows back after clearStubs)"
+    },
+    {
       "kind": "click",
       "testid": "tasks-new",
       "timeoutMs": 2500
@@ -3735,6 +6117,54 @@
       "kind": "waitGone",
       "testid": "quickpicker",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "tasks"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 700,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-fab",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-tasks-fab-narrow (700 px: the md:hidden FAB is on screen)"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-fab",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "press",
+      "key": "Escape",
+      "testid": "quickpicker-textarea"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "quickpicker",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
     },
     {
       "kind": "goto",
@@ -3820,6 +6250,29 @@
     {
       "kind": "screenshot",
       "label": "10-task-output"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "smart-output-raw-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "smart-output-raw-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-task-output-raw (the seeded markdown output shown as source)"
+    },
+    {
+      "kind": "click",
+      "testid": "smart-output-raw-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "10c-task-output-formatted-again"
     },
     {
       "kind": "click",
@@ -4263,6 +6716,64 @@
       "label": "03a-automations-refreshed"
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_triggers",
+      "reject": "seeded triggers failure"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a2-automations-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-load-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "03a3-automations-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-load-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "clearStubs",
+      "command": "list_triggers"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automations-load-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automations-table",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "automation-row",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
       "kind": "click",
       "testid": "automations-new-btn"
     },
@@ -4433,6 +6944,138 @@
     {
       "kind": "waitGone",
       "testid": "trigger-create-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "automations-new-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-wizard-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-wizard-advanced",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "trigger-create-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "trigger-input-agent",
+      "index": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-type-card-webhook",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "trigger-input-webhook-path",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "trigger-input-webhook-path",
+      "text": "/hooks/automation-probe"
+    },
+    {
+      "kind": "click",
+      "testid": "trigger-secret-generate-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "trigger-input-name",
+      "text": "automation-probe-trigger"
+    },
+    {
+      "kind": "screenshot",
+      "label": "03f-trigger-create-valid (webhook, generated secret, custom identifier)"
+    },
+    {
+      "kind": "click",
+      "testid": "create-trigger-submit-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "trigger-create-dialog",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "click",
+      "testid": "automations-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-menu-automation-probe-trigger",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03g-trigger-created"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-menu-automation-probe-trigger",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-delete-automation-probe-trigger",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "automation-delete-automation-probe-trigger",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "delete-automation-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "delete-automation-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "delete-automation-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "automations-refresh-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automation-menu-automation-probe-trigger",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03h-trigger-deleted (the probe removed, the four seeded triggers untouched)"
     },
     {
       "kind": "click",
@@ -4689,6 +7332,49 @@
     {
       "kind": "screenshot",
       "label": "10e-automation-edit-submitted"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-menu-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-seed-trigger-daily-digest",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-edit-agent",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10f-automation-edit-reopened"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-edit-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automation-edit-dialog",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10g-automation-edit-cancelled (nothing sent)"
     },
     {
       "kind": "click",
@@ -5132,6 +7818,119 @@
     {
       "kind": "screenshot",
       "label": "11-activity-all"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_runtime_activity",
+      "reject": "seeded activity failure",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-activity-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11a-activity-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-activity-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-error-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11c-activity-retried (the stub was once, the seeded rows are back)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_runtime_activity",
+      "resolve": [],
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-activity-empty-cta",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11d-activity-empty (list answered [] by the stub)"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-empty-cta",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11e-activity-empty-cta-landed-on-observability"
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "activity-row",
+      "nth": 0,
+      "timeoutMs": 5000
     },
     {
       "kind": "click",
@@ -5875,12 +8674,73 @@
     },
     {
       "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_notification_channels",
+      "reject": "seeded channels failure",
+      "once": true
+    },
+    {
+      "kind": "goto",
       "route": "notifications"
     },
     {
       "kind": "waitFor",
       "testid": "notifications-page",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "notifications-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "21a-notifications-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "notifications-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "21b-notifications-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "notifications-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "notifications"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "notifications-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-card-seed-channel-desktop",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
@@ -6166,6 +9026,55 @@
       "label": "12-entry-sheet-cancelled"
     },
     {
+      "kind": "stubInvoke",
+      "command": "list_memory_entries",
+      "reject": "sqlite: seeded corruption",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "namespace-sidebar-item-onboarding-agent",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-load-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12a-memory-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12a2-memory-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "namespace-sidebar-item-apollia-guide",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "memory-entry-row-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12a3-memory-load-recovered (apollia-guide reselected, the stub was once)"
+    },
+    {
       "kind": "waitFor",
       "testid": "memory-data-actions",
       "timeoutMs": 4000
@@ -6184,7 +9093,30 @@
     },
     {
       "kind": "screenshot",
-      "label": "12b-memory-data-actions (export opens a native save dialog, NEVER clicked)"
+      "label": "12b-memory-data-actions"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|save",
+      "resolve": "${HOME}/.apollia/memory-export-probe.json",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "memory-export-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-export-button"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b2-memory-export-done (save picker answered by the stub, the file lands in the seed HOME)"
     },
     {
       "kind": "click",
@@ -6214,7 +9146,22 @@
     },
     {
       "kind": "screenshot",
-      "label": "12c-memory-import-dialog (no file picked, submit stays disabled)"
+      "label": "12c-memory-import-dialog (no file picked yet, submit disabled)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/memory-export-probe.json",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-pick",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-path"
     },
     {
       "kind": "selectOption",
@@ -6232,9 +9179,118 @@
       "label": "12d-memory-import-replace-warning"
     },
     {
+      "kind": "click",
+      "testid": "memory-import-submit",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-replace-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12d2-memory-import-replace-confirm (cancelled below)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-replace-confirm-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-import-replace-confirm",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "selectOption",
       "testid": "memory-import-mode",
       "value": "merge",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-submit",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "memory-entry-row-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12e-memory-import-merged (the namespace's own export, INSERT OR IGNORE adds nothing)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/memory-import-missing.json",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-pick",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "expect",
+      "testid": "memory-import-path"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-import-mode",
+      "value": "replace",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-submit",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-replace-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-replace-confirm-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-import-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12e2-memory-import-replace-refused (missing file: the read fails before the wipe, nothing changes)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-import-replace-confirm-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-import-replace-confirm",
       "timeoutMs": 2500
     },
     {
@@ -6249,7 +9305,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "12e-memory-import-cancelled"
+      "label": "12e3-memory-import-cancelled"
     },
     {
       "kind": "click",
@@ -6337,6 +9393,71 @@
     {
       "kind": "screenshot",
       "label": "12i-memory-purge-cancelled (nothing was purged)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-button",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "memory-purge-scope",
+      "value": "episodic",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "fill",
+      "testid": "memory-purge-days",
+      "text": "3650",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-continue",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12j-memory-purge-confirm (3650 days, nothing older than that)"
+    },
+    {
+      "kind": "click",
+      "testid": "memory-purge-confirm-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "memory-purge-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "memory-entry-row-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12k-memory-purge-done (0 entries removed, the seeded rows are dated 2026-07-01)"
     },
     {
       "kind": "click",
@@ -6741,6 +9862,163 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "stubInvoke",
+      "command": "get_mcp_server_raw_config",
+      "resolve": {
+        "name": "automation-remote",
+        "command": "",
+        "args": [],
+        "env": {
+          "Authorization": "${APOLLIA_OAUTH}"
+        },
+        "transport": "streamable-http",
+        "url": "https://mcp.example.test/mcp",
+        "requires_approval": false,
+        "init_timeout_secs": 30,
+        "call_timeout_secs": 60,
+        "tags": []
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-reset",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-url-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-oauth",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "reject": "automation stub: consent refused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-oauth-reconnect",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-oauth-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "mcp-settings-oauth-error",
+      "contains": "consent refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "resolve": {
+        "sub": null,
+        "email": "operator@example.test",
+        "scopes": [
+          "mcp:read"
+        ]
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-oauth-reconnect",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-oauth-success",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-mcp-settings-oauth-reconnected"
+    },
+    {
+      "kind": "fill",
+      "testid": "mcp-settings-url-input",
+      "text": "https://mcp.example.test/v2/mcp"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "update_mcp_server_config",
+      "argsMatch": {
+        "config": {
+          "name": "automation-remote",
+          "command": "",
+          "args": [],
+          "env": {
+            "Authorization": "${APOLLIA_OAUTH}"
+          },
+          "transport": "streamable-http",
+          "url": "https://mcp.example.test/v2/mcp",
+          "requires_approval": false,
+          "init_timeout_secs": 30,
+          "call_timeout_secs": 60,
+          "tags": []
+        }
+      },
+      "reject": "automation stub: url reached the config"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "update_mcp_server_config",
+      "reject": "automation stub: config mismatch"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-save-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "mcp-settings-save-error",
+      "contains": "url reached the config"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11c-mcp-settings-url-forwarded"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "update_mcp_server_config"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "mcp_oauth_login"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "get_mcp_server_raw_config"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-reset",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-command",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "mcp-settings-url-input",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "fill",
       "testid": "mcp-settings-args-input",
       "text": "--demo"
@@ -6804,6 +10082,16 @@
     {
       "kind": "screenshot",
       "label": "12-mcp-disconnect-confirm-cancel-boundary"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -6899,7 +10187,8 @@
     {
       "kind": "fill",
       "testid": "custom-mcp-name-input",
-      "text": "automation-demo-mcp"
+      "text": "automation-stub-mcp",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -6920,7 +10209,8 @@
     {
       "kind": "fill",
       "testid": "custom-mcp-command-input",
-      "text": "npx"
+      "text": "/usr/bin/python3",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -6930,7 +10220,8 @@
     {
       "kind": "fill",
       "testid": "custom-mcp-args-input",
-      "text": "-y @modelcontextprotocol/server-filesystem /tmp"
+      "text": "${HOME}/.apollia/mcp-stub-server.py",
+      "timeoutMs": 3000
     },
     {
       "kind": "waitFor",
@@ -7008,17 +10299,71 @@
       "label": "16-custom-mcp-stdio-revert"
     },
     {
+      "kind": "click",
+      "testid": "custom-mcp-test-btn",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
+      "testid": "custom-mcp-test-ok",
+      "timeoutMs": 20000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-custom-mcp-test-stub-ok"
+    },
+    {
+      "kind": "click",
       "testid": "custom-mcp-install-btn",
       "timeoutMs": 3000
     },
     {
+      "kind": "waitGone",
+      "testid": "custom-mcp-name-input",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mcp-automation-stub-mcp",
+      "timeoutMs": 15000
+    },
+    {
       "kind": "screenshot",
-      "label": "17-custom-mcp-install-boundary-no-click"
+      "label": "18-custom-mcp-installed-stub"
     },
     {
       "kind": "click",
-      "testid": "custom-mcp-test-btn",
+      "testid": "sidebar-mcp-automation-stub-mcp",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-settings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-command",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-disconnect-confirm-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-confirm-btn",
       "timeoutMs": 3000
     },
     {
@@ -7026,19 +10371,36 @@
       "ms": 1500
     },
     {
-      "kind": "screenshot",
-      "label": "18-custom-mcp-test-ext-boundary"
+      "kind": "goto",
+      "route": "dashboard"
     },
     {
-      "kind": "press",
-      "testid": "custom-mcp-name-input",
-      "key": "Escape",
-      "timeoutMs": 3000
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
     },
     {
       "kind": "waitGone",
-      "testid": "custom-mcp-name-input",
-      "timeoutMs": 6000
+      "testid": "sidebar-mcp-automation-stub-mcp",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "18b-custom-mcp-stub-removed"
     },
     {
       "kind": "click",
@@ -7289,6 +10651,1487 @@
     },
     {
       "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:opener|open_url",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-@modelcontextprotocol/server-filesystem",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "disclaimer-accept",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30-mcp-disclaimer-dialog-unchecked"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "disclaimer-accept",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "31-mcp-disclaimer-accepted-wizard-open"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-args",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "arg-input-0",
+      "text": "/tmp/apollia-automation-allowed",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "32-wizard-next-auth-local-files-args"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "33-wizard-back-to-disclaimer"
+    },
+    {
+      "kind": "click",
+      "testid": "dialog-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-@modelcontextprotocol/server-filesystem",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "disclaimer-learn-more",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "34-disclaimer-learn-more-lands-on-settings"
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-@modelcontextprotocol/server-brave-search",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-help-link",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "env-input-BRAVE_API_KEY",
+      "text": "automation-not-a-key",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "env-toggle-BRAVE_API_KEY",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "auth-help-link",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "35-wizard-auth-help-link-brave"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "dialog-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-community",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-io.apollia/seed-failing",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-no-vars",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "test-connection-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-error",
+      "timeoutMs": 45000
+    },
+    {
+      "kind": "screenshot",
+      "label": "36-wizard-test-seed-failing-error"
+    },
+    {
+      "kind": "click",
+      "testid": "test-fix-auth-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-no-vars",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "test-connection-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-error",
+      "timeoutMs": 45000
+    },
+    {
+      "kind": "click",
+      "testid": "test-retry-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-error",
+      "timeoutMs": 45000
+    },
+    {
+      "kind": "screenshot",
+      "label": "37-wizard-test-retry-seed-failing-error-again"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "dialog-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-community",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-io.apollia/seed-stub",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-no-vars",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "test-connection-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "test-result-success",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "38-wizard-test-seed-stub-success"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-coaching",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "coaching-examples",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "capability-example-try",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "39-wizard-coaching-try-card"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-confirm-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-mcp-seed-stub",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40-wizard-confirm-installed-seed-stub"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-mcp-seed-stub",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-detail-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-detail-tab-settings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-settings-command",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "mcp-disconnect-confirm-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-disconnect-confirm-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-mcp-seed-stub",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41-wizard-confirm-seed-stub-removed"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "test_mcp_connection",
+      "once": true,
+      "resolve": {
+        "kind": "oauth_required",
+        "www_authenticate": "Bearer resource_metadata=\"https://mcp.notion.com/.well-known/oauth-protected-resource\""
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_discover",
+      "once": true,
+      "resolve": {
+        "as_url": "https://mcp.notion.com",
+        "scopes_supported": [
+          "read_content",
+          "update_content"
+        ],
+        "scope_descriptions": {
+          "read_content": "Read pages and databases"
+        },
+        "registration_supported": true
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "connections-open-catalogue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-tabbar",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-tab-discover",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-filter-official",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "catalogue-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "catalogue-entry-com.notion/mcp",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-code_on_machine",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-external_data",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-revocable",
+      "checked": true
+    },
+    {
+      "kind": "setChecked",
+      "testid": "disclaimer-check-read_capabilities",
+      "checked": true
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-next-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-auth",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-scopes",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41b-wizard-auth-oauth-mode-notion"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "once": true,
+      "reject": "automation: consent refused by stubInvoke"
+    },
+    {
+      "kind": "click",
+      "testid": "auth-oauth-signin-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "auth-oauth-error",
+      "contains": "consent refused"
+    },
+    {
+      "kind": "screenshot",
+      "label": "41c-wizard-auth-oauth-signin-refused"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "once": true,
+      "resolve": {
+        "sub": null,
+        "email": "automation@example.com",
+        "scopes": [
+          "read_content",
+          "update_content"
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "auth-oauth-signin-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-success",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "auth-oauth-success",
+      "contains": "automation@example.com"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "auth-oauth-error",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-reconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41d-wizard-auth-oauth-signed-in"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "mcp_oauth_login",
+      "once": true,
+      "reject": "automation: reconnect refused by stubInvoke"
+    },
+    {
+      "kind": "click",
+      "testid": "auth-oauth-reconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "auth-oauth-error",
+      "contains": "reconnect refused"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "auth-oauth-success",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "41e-wizard-auth-oauth-reconnect-refused"
+    },
+    {
+      "kind": "click",
+      "testid": "wizard-back-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "wizard-step-disclaimer",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "dialog-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "connector-wizard",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "test_mcp_connection"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "mcp_oauth_discover"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "mcp_oauth_login"
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-add-account-microsoft",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "reject": {
+        "kind": "oauth_client_not_configured",
+        "detail": "automation: forced by stubInvoke"
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-add-account-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "42-oauth-missing-client-branch"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-settings-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-integrations-oauth",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-card-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-microsoft",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-add-account-microsoft",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "resolve": {
+        "auth_url": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=automation&state=automation-state",
+        "state": "automation-state",
+        "callback_port": 0
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-add-account-microsoft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-url-link",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "43-oauth-auth-step"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-open-url-link",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-paste-code-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-paste-code-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "44-oauth-paste-code-disclosed"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-paste-code-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-paste-code-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-paste-code-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-paste-code-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "oauth-paste-code-input",
+      "text": "automation-fake-code",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-finalize-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-finalize-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "45-oauth-finalize-unknown-flow-error"
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-cancel-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_list_client_ids",
+      "resolve": [
+        {
+          "provider": "google",
+          "effective_client_id": "automation.apps.googleusercontent.com",
+          "source": "file",
+          "override_client_id": "automation.apps.googleusercontent.com",
+          "has_client_secret": true,
+          "client_secret_source": "file",
+          "requires_client_secret": true,
+          "has_api_key": false,
+          "api_key_source": "none",
+          "requires_api_key": true
+        },
+        {
+          "provider": "microsoft",
+          "effective_client_id": "automation-microsoft-client",
+          "source": "file",
+          "override_client_id": "automation-microsoft-client",
+          "has_client_secret": false,
+          "client_secret_source": "none",
+          "requires_client_secret": false,
+          "has_api_key": false,
+          "api_key_source": "none",
+          "requires_api_key": false
+        }
+      ]
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "sidebar-native-google",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "native-detail-tab-accounts",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-add-account-google",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_start_flow",
+      "once": true,
+      "resolve": {
+        "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=automation&state=automation-google-state",
+        "state": "automation-google-state",
+        "callback_port": 0
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_complete_flow",
+      "once": true,
+      "resolve": {
+        "provider": "google",
+        "account_id": "automation@example.com",
+        "granted_scopes": [
+          "https://www.googleapis.com/auth/drive.file"
+        ]
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-add-account-google",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-open-url-link",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-paste-code-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-paste-code-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "oauth-paste-code-input",
+      "text": "automation-google-code",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-finalize-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-dialog-drive-folder",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-drive-folder-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "45b-oauth-google-drive-folder-step"
+    },
+    {
+      "kind": "fill",
+      "testid": "oauth-drive-folder-input",
+      "text": "Apollia/Automation",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_set_drive_folder",
+      "once": true,
+      "reject": {
+        "kind": "internal",
+        "detail": "automation: drive prefs refused by stubInvoke"
+      },
+      "argsMatch": {
+        "accountId": "automation@example.com",
+        "folderPath": "Apollia/Automation"
+      }
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_set_drive_folder",
+      "reject": {
+        "kind": "internal",
+        "detail": "automation: oauth_set_drive_folder received args other than the filled path"
+      }
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-drive-folder-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "oauth-drive-folder-error",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "expect",
+      "testid": "oauth-drive-folder-error",
+      "contains": "drive prefs refused"
+    },
+    {
+      "kind": "screenshot",
+      "label": "45c-oauth-google-drive-folder-save-refused"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_set_drive_folder"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_set_drive_folder",
+      "once": true,
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "oauth-drive-folder-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "oauth-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_list_client_ids"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_start_flow"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_complete_flow"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "oauth_set_drive_folder"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "goto",
+      "route": "integrations"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-route",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "connections-sidebar-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
       "route": "dashboard"
     },
     {
@@ -7297,7 +12140,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "29-clean-exit-operator"
+      "label": "46-clean-exit-operator"
     },
     {
       "kind": "screenshot",
@@ -7867,12 +12710,85 @@
     },
     {
       "kind": "waitFor",
-      "testid": "empty-state-plan-cache",
+      "testid": "plan-cache-total",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-hits",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-hit-rate",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-misses",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17-builder-plan-cache-populated (one seeded plan, three hits)"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-cache-clear-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-purge-dialog",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "17-builder-plan-cache-empty"
+      "label": "17a-builder-plan-cache-purge-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "plan-cache-purge-dialog-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-cache-purge-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-total",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "plan-cache-clear-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "plan-cache-purge-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "plan-cache-purge-dialog-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "plan-cache-purge-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "empty-state-plan-cache",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "17c-builder-plan-cache-empty (after the purge)"
     },
     {
       "kind": "click",
@@ -8036,7 +12952,59 @@
     },
     {
       "kind": "screenshot",
-      "label": "04-companion-handles (drag + resize are pointer-only; snap guides render mid-drag only, so they are neither driven nor asserted)"
+      "label": "04-companion-handles (pointer drag and the mid-drag snap guides are pointer-only; the keyboard nudges below play both handles)"
+    },
+    {
+      "kind": "press",
+      "testid": "companion-drag-handle",
+      "key": "ArrowRight",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-companion-nudged-right"
+    },
+    {
+      "kind": "press",
+      "testid": "companion-drag-handle",
+      "key": "ArrowLeft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "press",
+      "testid": "companion-resize-handle",
+      "key": "ArrowRight",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-companion-resized-wider"
+    },
+    {
+      "kind": "press",
+      "testid": "companion-resize-handle",
+      "key": "ArrowLeft",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "expect",
+      "testid": "companion-panel"
     },
     {
       "kind": "click",
@@ -8497,6 +13465,92 @@
       "label": "13b-observability-retention-reset"
     },
     {
+      "kind": "waitFor",
+      "testid": "observability-toggle-debug_log_prompt",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-toggle-debug_log_prompt",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-sensitive-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b2-sensitive-confirm-open"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-sensitive-confirm-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "observability-sensitive-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b3-sensitive-confirm-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-toggle-debug_log_prompt",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-sensitive-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-sensitive-confirm-confirm"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "observability-sensitive-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b4-sensitive-enabled-unsaved"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-subpage-reset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b5-sensitive-reset"
+    },
+    {
       "kind": "click",
       "testid": "observability-open-dashboard",
       "timeoutMs": 4000
@@ -8833,6 +13887,246 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "click",
+      "testid": "settings-nav-system"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-checker",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-check-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_for_update",
+      "resolve": {
+        "available": false,
+        "current_version": "0.1.0-automation",
+        "new_version": null,
+        "release_notes": null,
+        "channel_unavailable": true
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "update-check-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-no-channel-label",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-releases-link",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:opener|open_url",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "update-releases-link",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "expect",
+      "testid": "update-releases-link"
+    },
+    {
+      "kind": "expect",
+      "testid": "update-check-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "28a-update-no-channel-releases-link (opener stubbed, host browser untouched)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:opener|open_url"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_for_update",
+      "resolve": {
+        "available": true,
+        "current_version": "0.1.0-automation",
+        "new_version": "99.0.0",
+        "release_notes": "Release notes body served by the automation stub.",
+        "channel_unavailable": false
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "install_update",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "update-check-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-available-label",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "update-available-label",
+      "contains": "99.0.0"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-changelog",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "28b-update-available-stubbed"
+    },
+    {
+      "kind": "click",
+      "testid": "update-install-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "update-install-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "update-download-progress",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "update-check-btn",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "28c-update-installed-stubbed (install_update resolved, no restart)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "check_for_update"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "install_update"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-system"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-checker",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-check-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "check_for_update",
+      "resolve": {
+        "available": true,
+        "current_version": "0.1.0-automation",
+        "new_version": "99.0.0",
+        "release_notes": "Release notes body served by the automation stub.",
+        "channel_unavailable": false
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "install_update",
+      "reject": "automation stub: install refused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "update-check-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-available-label",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "update-install-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "update-error-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "update-error-banner",
+      "contains": "automation stub: install refused"
+    },
+    {
+      "kind": "expect",
+      "testid": "update-check-btn"
+    },
+    {
+      "kind": "screenshot",
+      "label": "28d-update-install-error-stubbed"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "check_for_update"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "install_update"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "waitFor",
       "testid": "danger-warning-banner",
       "timeoutMs": 4000
@@ -8993,6 +14287,60 @@
     {
       "kind": "screenshot",
       "label": "35-desktop-no-mobile-nav"
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 700,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-mobile-nav-toggle",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "35b-narrow-settings-mobile-nav-toggle"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-mobile-nav-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-mobile-nav-sheet",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "35c-narrow-settings-mobile-nav-sheet"
+    },
+    {
+      "kind": "press",
+      "testid": "settings-mobile-nav-sheet",
+      "key": "Escape",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-mobile-nav-sheet",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "resizeWindow",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-nav",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-mobile-nav-toggle",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -9227,6 +14575,36 @@
       "testid": "help-hero-cta"
     },
     {
+      "kind": "stubInvoke",
+      "command": "plugin:opener|open_url",
+      "resolve": null
+    },
+    {
+      "kind": "click",
+      "testid": "help-hero-cta",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "expect",
+      "testid": "help-hero-cta"
+    },
+    {
+      "kind": "expect",
+      "testid": "help-section"
+    },
+    {
+      "kind": "screenshot",
+      "label": "50a-help-hero-cta-clicked (opener stubbed, host browser untouched)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:opener|open_url"
+    },
+    {
       "kind": "waitFor",
       "testid": "help-link-docs",
       "timeoutMs": 4000
@@ -9280,6 +14658,35 @@
     {
       "kind": "screenshot",
       "label": "52-help-shortcuts-in-app"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "shortcuts-search",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "fill",
+      "testid": "shortcuts-search",
+      "text": "zzz-no-shortcut-xyz"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "shortcuts-empty",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "52b-shortcuts-search-empty"
+    },
+    {
+      "kind": "fill",
+      "testid": "shortcuts-search",
+      "text": ""
+    },
+    {
+      "kind": "waitGone",
+      "testid": "shortcuts-empty",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
@@ -9428,6 +14835,33 @@
       "label": "57-about-every-field-copied"
     },
     {
+      "kind": "click",
+      "testid": "settings-nav-observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-settings",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-open-editor",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "observability-open-editor",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "58-observability-open-editor-boundary (open::that launches the host's .toml handler; nothing in the seed HOME changes)"
+    },
+    {
       "kind": "screenshot",
       "label": "section-15-profile-det"
     },
@@ -9492,6 +14926,56 @@
       "kind": "fill",
       "testid": "profile-input-role",
       "text": "Automation QA engineer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-enrichment-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01b-enrichment-banner-shown"
+    },
+    {
+      "kind": "click",
+      "testid": "profile-enrichment-resume"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-modal",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01c-enrichment-resume-opens-onboarding"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "profile-enrichment-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-enrichment-dismiss"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "profile-enrichment-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01d-enrichment-banner-dismissed"
     },
     {
       "kind": "fill",
@@ -10060,6 +15544,66 @@
       "label": "07-settings-cards-controls"
     },
     {
+      "kind": "stubInvoke",
+      "command": "ping_llm_backend",
+      "resolve": {
+        "backend": "anthropic-claude",
+        "available": true,
+        "latency_ms": 42,
+        "error": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-backend-ping-btn",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-ping-result",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "llm-ping-result",
+      "contains": "Ping OK (42ms)"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-settings-card-ping-ok (stubbed ping_llm_backend, 42 ms)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "ping_llm_backend",
+      "reject": "automation: ping refused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-backend-ping-btn",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "llm-ping-result",
+      "contains": "automation: ping refused"
+    },
+    {
+      "kind": "screenshot",
+      "label": "07c-settings-card-ping-refused (stubbed reject rendered on the card)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "ping_llm_backend"
+    },
+    {
       "kind": "click",
       "testid": "edit-backend",
       "nth": 0
@@ -10172,6 +15716,25 @@
       "label": "09-llm-add-dialog-local"
     },
     {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/Phi-3-mini-Q4.gguf",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-browse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "09b-llm-browse-picked-seed-gguf"
+    },
+    {
       "kind": "selectOption",
       "testid": "llm-dialog-provider",
       "value": "openai"
@@ -10209,6 +15772,20 @@
     {
       "kind": "screenshot",
       "label": "10-llm-add-openai-revealed"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-test",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-test-result",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-llm-add-dialog-local-test-ok"
     },
     {
       "kind": "click",
@@ -10358,6 +15935,98 @@
     {
       "kind": "screenshot",
       "label": "11c-backend-saved"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backends-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-card",
+      "nth": 3,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "set-default",
+      "timeoutMs": 4000,
+      "nth": 2
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-action-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-error-details-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11d-set-default-disabled-backend-error"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-error-details-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "11e-error-details-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-error-details-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "set-default",
+      "timeoutMs": 4000,
+      "nth": 1
+    },
+    {
+      "kind": "waitGone",
+      "testid": "llm-action-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1200
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-card",
+      "nth": 3,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "set-default",
+      "timeoutMs": 4000,
+      "nth": 0
+    },
+    {
+      "kind": "sleep",
+      "ms": 1200
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-backend-card",
+      "nth": 3,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11f-default-restored-to-anthropic-claude"
     },
     {
       "kind": "click",
@@ -10774,6 +16443,197 @@
       "label": "13-results-empty"
     },
     {
+      "kind": "stubInvoke",
+      "command": "search_hf_models",
+      "resolve": {
+        "models": [
+          {
+            "repo_id": "automation/stub-alpha-instruct",
+            "author": "automation",
+            "downloads": 120000,
+            "likes": 12,
+            "license": "apache-2.0",
+            "tags": [
+              "gguf",
+              "text-generation",
+              "instruct"
+            ],
+            "gated": true,
+            "total_size_bytes": 2500000000,
+            "gguf_files": [
+              {
+                "filename": "stub-alpha-instruct-Q4_K_M.gguf",
+                "size_bytes": 2500000000,
+                "size_human": "2.3 GB",
+                "compatibility": "fits",
+                "download_url": "https://huggingface.co/automation/stub-alpha-instruct/resolve/main/stub-alpha-instruct-Q4_K_M.gguf"
+              }
+            ],
+            "generation_config": null,
+            "compatibility_issue": null,
+            "model_type": "Qwen3ForCausalLM"
+          },
+          {
+            "repo_id": "automation/stub-beta-instruct",
+            "author": "automation",
+            "downloads": 80000,
+            "likes": 12,
+            "license": "mit",
+            "tags": [
+              "gguf",
+              "text-generation",
+              "instruct"
+            ],
+            "gated": true,
+            "total_size_bytes": 2500000000,
+            "gguf_files": [
+              {
+                "filename": "stub-beta-instruct-Q4_K_M.gguf",
+                "size_bytes": 2500000000,
+                "size_human": "2.3 GB",
+                "compatibility": "fits",
+                "download_url": "https://huggingface.co/automation/stub-beta-instruct/resolve/main/stub-beta-instruct-Q4_K_M.gguf"
+              }
+            ],
+            "generation_config": null,
+            "compatibility_issue": null,
+            "model_type": "Qwen3ForCausalLM"
+          }
+        ],
+        "next_cursor": "automation-page-2"
+      },
+      "once": true
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "search_hf_models",
+      "resolve": {
+        "models": [
+          {
+            "repo_id": "automation/stub-gamma-instruct",
+            "author": "automation",
+            "downloads": 40000,
+            "likes": 12,
+            "license": "apache-2.0",
+            "tags": [
+              "gguf",
+              "text-generation",
+              "instruct"
+            ],
+            "gated": true,
+            "total_size_bytes": 2500000000,
+            "gguf_files": [
+              {
+                "filename": "stub-gamma-instruct-Q4_K_M.gguf",
+                "size_bytes": 2500000000,
+                "size_human": "2.3 GB",
+                "compatibility": "fits",
+                "download_url": "https://huggingface.co/automation/stub-gamma-instruct/resolve/main/stub-gamma-instruct-Q4_K_M.gguf"
+              }
+            ],
+            "generation_config": null,
+            "compatibility_issue": null,
+            "model_type": "Qwen3ForCausalLM"
+          }
+        ],
+        "next_cursor": null
+      }
+    },
+    {
+      "kind": "fill",
+      "testid": "model-hub-search-input",
+      "text": "automation stub page"
+    },
+    {
+      "kind": "click",
+      "testid": "model-hub-search-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-load-more",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "model-card-",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-load-more-stubbed-page-1"
+    },
+    {
+      "kind": "click",
+      "testid": "model-load-more",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-load-more",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "model-card-",
+      "nth": 2,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13c-load-more-appended-page-2"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "model-filter-gated",
+      "value": "open",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-results-no-match",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-results-clear-filters",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13d-filters-no-match"
+    },
+    {
+      "kind": "click",
+      "testid": "model-results-clear-filters",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "model-results-no-match",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-results",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "model-card-",
+      "nth": 2,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13e-filters-cleared"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "search_hf_models"
+    },
+    {
       "kind": "click",
       "testid": "sidebar-mode-chip"
     },
@@ -10962,6 +16822,36 @@
     {
       "kind": "screenshot",
       "label": "04-stt-applied-notice"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": "${HOME}/.apollia/models/ggml-base.bin",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "stt-load-model-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-stt-load-model-picked-seed-whisper"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-subpage-reset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-unsaved-badge",
+      "timeoutMs": 5000
     },
     {
       "kind": "selectOption",
@@ -11183,6 +17073,73 @@
       "label": "12-stt-mic-boundary"
     },
     {
+      "kind": "stubInvoke",
+      "command": "start_tour_recording",
+      "resolve": null
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "stop_tour_recording",
+      "reject": "STT self-test stopped by the automation harness"
+    },
+    {
+      "kind": "click",
+      "testid": "stt-test-start",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-test-stop",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "stt-test-start",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-stt-test-listening (start_tour_recording answered by the harness, no capture opened)"
+    },
+    {
+      "kind": "click",
+      "testid": "stt-test-stop",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-test-start",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "stt-test-stop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "toast",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "toast",
+      "nth": -1,
+      "contains": "STT self-test stopped by the automation harness"
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-stt-test-stopped (stop_tour_recording rejected by the harness, card back to start, error toast)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "start_tour_recording"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "stop_tour_recording"
+    },
+    {
       "kind": "goto",
       "route": "transcriptions"
     },
@@ -11222,6 +17179,93 @@
     {
       "kind": "screenshot",
       "label": "13-transcriptions-operator"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-status-banner",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "stt-configure-link",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-config-form",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-configure-link-from-status-banner"
+    },
+    {
+      "kind": "goto",
+      "route": "transcriptions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcriptions-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-model-not-loaded",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcribe-file-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "plugin:dialog|open",
+      "resolve": null,
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "transcribe-file-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcribe-file-error",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcribe-file-error-detail-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "transcribe-file-error-detail-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "13c-transcribe-file-error-details-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "transcribe-file-error-detail-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "13d-transcribe-file-error-details-collapsed"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "plugin:dialog|open"
     },
     {
       "kind": "waitFor",
@@ -11420,6 +17464,61 @@
       "timeoutMs": 15000
     },
     {
+      "kind": "stubInvoke",
+      "command": "governance_list_tools",
+      "resolve": []
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-tools"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-tools",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-empty-reload",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00b-tools-empty-state-stubbed"
+    },
+    {
+      "kind": "click",
+      "testid": "tools-empty-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-empty-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "clearStubs",
+      "command": "governance_list_tools"
+    },
+    {
+      "kind": "click",
+      "testid": "tools-empty-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "00c-tools-list-after-stub-cleared"
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-tools"
     },
@@ -11462,6 +17561,71 @@
     {
       "kind": "screenshot",
       "label": "03-tools-reloaded"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-bash_executor",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "tools-filter",
+      "text": "web_search"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-web_search",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tool-card-bash_executor",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03b-tools-filtered-web-search"
+    },
+    {
+      "kind": "fill",
+      "testid": "tools-filter",
+      "text": "zzz-no-such-tool"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tools-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "03c-tools-filter-no-results"
+    },
+    {
+      "kind": "fill",
+      "testid": "tools-filter",
+      "text": ""
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tools-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tool-card-bash_executor",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitFor",
@@ -11729,8 +17893,69 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "stubInvoke",
+      "command": "governance_test_credential",
+      "reject": "automation: brave test refused",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "brave-api-key-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "brave-api-key-test-result",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "11-brave-credential-configured (delete + live-test present; test hits network so it is a boundary, NEVER clicked and NEVER asserted)"
+      "label": "11a-brave-credential-test-refused (stubbed reject, humanized notice under brave-api-key-test-result)"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "governance_test_credential",
+      "resolve": {
+        "ok": true,
+        "latency_ms": 12,
+        "error": null
+      },
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "brave-api-key-test",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "expect",
+      "testid": "brave-api-key-test-result",
+      "contains": "(12 ms)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "governance_test_credential"
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-brave-credential-tested (delete + live-test present; the test was played through a stubbed governance_test_credential just above)"
+    },
+    {
+      "kind": "click",
+      "testid": "brave-api-key-delete",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-brave-credential-deleted (the drawer holds a snapshot of the tool, so the row still reads configured; the inventory below is the proof)"
     },
     {
       "kind": "click",
@@ -11762,12 +17987,13 @@
       "ms": 600
     },
     {
-      "kind": "screenshot",
-      "label": "12b-credential-saved"
+      "kind": "waitFor",
+      "testid": "brave-api-key-delete",
+      "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "12-credential-editor-open (input + save present; save NEVER clicked, nothing persisted)"
+      "label": "12b-credential-saved"
     },
     {
       "kind": "click",
@@ -12709,6 +18935,59 @@
       "label": "11-session-auth-revoked"
     },
     {
+      "kind": "stubInvoke",
+      "command": "governance_list_permission_rules",
+      "reject": "seeded governance failure",
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permissions-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-permissions-rules-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-permissions-rules-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "permissions-reload",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "permissions-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rules-list",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-permissions-rules-reloaded"
+    },
+    {
       "kind": "screenshot",
       "label": "section-21-tour-det"
     },
@@ -13152,6 +19431,246 @@
     {
       "kind": "screenshot",
       "label": "17-band-restored-from-help"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "reset-onboarding-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reset-onboarding-confirm",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "reset-onboarding-confirm-continue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reset-onboarding-confirm-input",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "fill",
+      "testid": "reset-onboarding-confirm-input",
+      "text": "RESET"
+    },
+    {
+      "kind": "click",
+      "testid": "reset-onboarding-confirm-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-modal",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-skip",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-skip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-cta",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "18-band-cta-follow-after-tour-reset"
+    },
+    {
+      "kind": "click",
+      "testid": "getting-started-cta",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-step-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "19-follow-tour-from-cta"
+    },
+    {
+      "kind": "click",
+      "testid": "tour-skip",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tour-exit",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "tour-exit-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-step-card",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "tour-spotlight",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "getting-started-cta",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "20-band-all-milestones-done"
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_mcp_servers",
+      "resolve": []
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "oauth_get_status",
+      "resolve": []
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-cta",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "21-band-connect-undone-under-stub"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "clearStubs"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-keep",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "getting-started-keep",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "getting-started-keep",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "getting-started-milestone-follow",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "getting-started-cta",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "expect",
+      "testid": "getting-started-card"
+    },
+    {
+      "kind": "screenshot",
+      "label": "22-band-kept-after-closing"
     }
   ]
 }

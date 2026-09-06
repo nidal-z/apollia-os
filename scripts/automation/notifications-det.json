@@ -1,6 +1,11 @@
 {
   "name": "notifications-det (seeded channels + global events, native selects, create det-auto-channel, operator + builder, every step green)",
   "stopOnError": false,
+  "notes": [
+    "The technical identifier field moved into a collapsed Disclosure (disc-technical-id) in CreateChannelDialog.svelte. Its toggle button carries disc-technical-id-toggle (the Disclosure root testid only marks the wrapper, clicking it does nothing), so the panel is opened before channel-id-input / channel-id-error are asserted.",
+    "edit-channel-id-input stays unplayed on purpose: it is a readonly input with a one-way value and no handler (EditChannelDialog.svelte:220-221 passes value={channel.id} and readonly, which Input.svelte:106 spreads onto the <input>), and the update request reads channel.id (EditChannelDialog.svelte:136), never the field, the slug being fixed at creation time. uncovered.py files every input as a gesture; a fill on it changes a value nothing reads, would pass and prove nothing.",
+    "notifications-error-details-toggle needs a rejected channel list: a once-stub on list_notification_channels is armed from the dashboard and the route is entered afresh, so the mount's loadData rejects (Promise.all) and the banner renders with the raw text behind its Disclosure. The next entry through the dashboard reaches the backend and the seeded cards return before the history link is followed."
+  ],
   "dynamicTestids": [
     "channel-card-det-auto-channel",
     "channel-card-seed-channel-desktop",
@@ -665,12 +670,73 @@
     },
     {
       "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_notification_channels",
+      "reject": "seeded channels failure",
+      "once": true
+    },
+    {
+      "kind": "goto",
       "route": "notifications"
     },
     {
       "kind": "waitFor",
       "testid": "notifications-page",
       "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "notifications-error",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "21a-notifications-load-error"
+    },
+    {
+      "kind": "click",
+      "testid": "notifications-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "21b-notifications-load-error-details-open"
+    },
+    {
+      "kind": "click",
+      "testid": "notifications-error-details-toggle",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "app-main",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "goto",
+      "route": "notifications"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "notifications-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "channel-card-seed-channel-desktop",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
@@ -685,8 +751,5 @@
       "kind": "screenshot",
       "label": "22-history-link"
     }
-  ],
-  "notes": [
-    "The technical identifier field moved into a collapsed Disclosure (disc-technical-id) in CreateChannelDialog.svelte. Its toggle button carries disc-technical-id-toggle (the Disclosure root testid only marks the wrapper, clicking it does nothing), so the panel is opened before channel-id-input / channel-id-error are asserted."
   ]
 }
