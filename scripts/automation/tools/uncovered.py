@@ -35,9 +35,10 @@ Three origins are reported apart, because they are not equally certain:
             `validate.py` does. The reconstruction over-generates: a class name
             caught in the same literal pool produces an id nothing renders.
   composed  a shared component appends a suffix to the id it is handed
-            (`${dataTestId}-input`). Reported per call site rather than over
-            the whole file, which is why this tool counts far fewer of them
-            than the validation corpus does.
+            (`${dataTestId}-input`), and that id is a literal. Reported per
+            call site rather than over the whole file, which is why this tool
+            counts far fewer of them than the validation corpus does. A suffix
+            appended to a derived id is reported as derived.
 
 Exit codes: 0 measured and within budget, 1 a defect (uncovered gestures above
 `--max-uncovered`, or an anchor this tool sees that the validation corpus does
@@ -382,8 +383,12 @@ def anchors_from_sites(sites, components):
         if len(exprs) == 1 and tail:
             for lit in site["pool"]:
                 add(lit + tail, site, "derived")
+                # A suffix a component appends to a derived id inherits the
+                # doubt of that id: `rounded-xl-confirm-input` is no more real
+                # than `rounded-xl-confirm`. Reported as derived, not composed,
+                # so the composed bucket only ever holds ids built on a literal.
                 for stail in suffixes.get(site["tag"].split(".")[0], ()):
-                    add(lit + tail + stail, site, "composed",
+                    add(lit + tail + stail, site, "derived",
                         suffix_kind.get((site["tag"].split(".")[0], stail)))
         else:
             unresolved.append(site)

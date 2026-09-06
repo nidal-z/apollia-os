@@ -65,7 +65,9 @@ dispatcher only registers `ask_user` when that field is `Some`
 `apollia-os eval run` therefore receives `UnknownTool`. Covering it needs the
 chat surface, where `pending_user_inputs` is set, and a responder for the
 question; the desktop gestural automaton is the instrument for that, not this
-one.
+one. `scripts/automation/chat-llm.json` asks the model for the tool and
+answers its card, and `scripts/capability_inventory.py` credits the tool from
+that recipe, on the condition that the `-seeded-llama` run is green.
 
 **`http_fetch` is driven only on its refusal path.** The same runner passes
 `http_allowlist: None` (`runner.rs:143` and `:250`), and with no allowlist the

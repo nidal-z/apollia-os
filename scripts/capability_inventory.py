@@ -344,12 +344,28 @@ def classify_anchors(ui_root: Path):
     anchors, families, _unresolved = uncovered.anchors_from_sites(sites, components)
 
     corpus = set(anchors)
-    gestures = {a for a, meta in anchors.items() if meta.get("kind") == "gesture"}
+    # Three origins, not equally certain (see the classifier's own header). A
+    # literal id renders, and so does a suffix a component appends to it. A
+    # derived id is rebuilt from every string literal of its file and
+    # over-generates by construction: measured on this tree, the danger page
+    # holds four actions and the reconstruction names a hundred anchors for
+    # them, `rounded-xl-confirm-input` among them. Counting those as holes
+    # makes zero unreachable by construction, so they stay out of the
+    # denominator until a recipe acts on one, which is the evidence that it
+    # renders.
+    gestures = {
+        a for a, meta in anchors.items()
+        if meta.get("kind") == "gesture" and meta.get("origin") in ("literal", "composed")
+    }
+    derived = {
+        a for a, meta in anchors.items()
+        if meta.get("kind") == "gesture" and meta.get("origin") == "derived"
+    }
     owner: dict[str, set[str]] = {}
     for anchor, meta in anchors.items():
         if meta.get("file"):
             owner.setdefault(anchor, set()).add(meta["file"])
-    return corpus, gestures, owner, families
+    return corpus, gestures, owner, families, derived
 def automation_actions(scripts_dir: Path, kinds: frozenset[str] = ACTION_KINDS) -> set[str]:
     """Anchors an automation step acts on, by exact id, for the given kinds."""
     acted: set[str] = set()
@@ -361,6 +377,10 @@ def automation_actions(scripts_dir: Path, kinds: frozenset[str] = ACTION_KINDS) 
         for step in doc.get("steps", []):
             if step.get("kind") in kinds and step.get("testid"):
                 acted.add(step["testid"])
+            # `sendChat` is the runner filling the composer and pressing its
+            # send button, the two anchors `uncovered.py` credits it with.
+            elif step.get("kind") == "sendChat" and "click" in kinds:
+                acted.update(("chat-input", "chat-send-button"))
     return acted
 
 
@@ -386,12 +406,17 @@ def renders_components(ui_root: Path) -> bool:
 def extract_desktop(ui_root: Path, scripts_dir: Path) -> dict:
     if not ui_root.is_dir():
         return unmeasured("desktop", f"{ui_root} is absent, so no anchor was resolved")
-    corpus, gestures, owner, _ = classify_anchors(ui_root)
+    corpus, gestures, owner, _, derived = classify_anchors(ui_root)
     if not corpus:
         return unmeasured("desktop", "the anchor corpus is empty")
     scripts = sorted(scripts_dir.glob("*.json")) if scripts_dir.is_dir() else []
     acted = automation_actions(scripts_dir) if scripts else set()
     clicked = automation_actions(scripts_dir, NON_DESCENDING_KINDS) if scripts else set()
+    # A reconstructed anchor a step acts on is one a run has reached: it is
+    # counted, and covered, on that evidence alone.
+    promoted = derived & acted
+    unverified = derived - acted
+    gestures = gestures | promoted
 
     # A gesture is a DOM anchor, so a unit test can only reach it by rendering
     # the component and querying that anchor. This tree's vitest corpus does not
@@ -451,6 +476,8 @@ def extract_desktop(ui_root: Path, scripts_dir: Path) -> dict:
             # `setChecked` is the runner doing what it says it does.
             "acted_but_classified_marker": sorted((clicked & corpus) - gestures),
             "reached_through_a_wrapper": sorted(((acted - clicked) & corpus) - gestures),
+            "reconstructed_promoted_by_evidence": sorted(promoted),
+            "reconstructed_unverified": len(unverified),
         },
     }
 
@@ -545,7 +572,48 @@ def extract_api(openapi: Path, api_dir: Path, cli_root: Path) -> dict:
 # ─── Surface: native tools ───────────────────────────────────────────────────
 
 
-def extract_tools(dispatcher: Path, tools_dir: Path, tracks_dir: Path, eval_suites: Path) -> dict:
+# A tool whose only production path is a chat surface with a human in the
+# loop. `ask_user` is registered by the dispatcher only when a pending-input
+# registry is handed over, which the task-mode runner never does
+# (`crates/apollia-cli/src/commands/start/runner.rs`, `pending_user_inputs:
+# None`), so no eval task can drive it: evals/tools/README.md names the desktop
+# automaton as its instrument. The automaton proves it the way it proves a
+# gesture: a `sendChat` that asks the model for the tool, then an acting step
+# on the card only that tool renders. Both halves are required; a prompt that
+# merely names the tool is the mention this axis refuses to count.
+TOOL_CHAT_SURFACES = {"ask_user": ("ask-user-skip", "ask-user-submit")}
+CHAT_COMPOSERS = frozenset({"chat-input", "quickpicker-textarea"})
+
+
+def tools_driven_by_automation(scripts_dir: Path) -> set[str]:
+    """Tools a recipe asks the model for and then answers on the tool's own card."""
+    driven: set[str] = set()
+    if not scripts_dir.is_dir():
+        return driven
+    for path in sorted(scripts_dir.glob("*.json")):
+        try:
+            steps = json.loads(read(path)).get("steps", [])
+        except json.JSONDecodeError:
+            continue
+        for tool, anchors in TOOL_CHAT_SURFACES.items():
+            asked_at = None
+            for i, step in enumerate(steps):
+                # The ask is typed into a composer: the chat input through
+                # `sendChat`, or the quickpicker's textarea through `fill`.
+                composer = step.get("kind") == "sendChat" or (
+                    step.get("kind") == "fill" and step.get("testid") in CHAT_COMPOSERS
+                )
+                if composer and tool in str(step.get("text", "")):
+                    asked_at = i
+                elif (asked_at is not None and step.get("kind") in ACTION_KINDS
+                      and step.get("testid") in anchors):
+                    driven.add(tool)
+                    break
+    return driven
+
+
+def extract_tools(dispatcher: Path, tools_dir: Path, tracks_dir: Path, eval_suites: Path,
+                  automation_dir: Path | None = None) -> dict:
     if not dispatcher.exists():
         return unmeasured("tools", f"{dispatcher} is absent, so no tool was enumerated")
     names = sorted(set(re.findall(r'is_active\("([a-z_]+)"\)', read(dispatcher))))
@@ -567,6 +635,7 @@ def extract_tools(dispatcher: Path, tools_dir: Path, tracks_dir: Path, eval_suit
         suite_ids.update(re.findall(r'^\s*id\s*=\s*"([^"]+)"', text, re.M))
         suite_ids.update(re.findall(r'"id"\s*:\s*"([^"]+)"', text))
 
+    driven = tools_driven_by_automation(automation_dir) if automation_dir else set()
     caps = []
     for name in names:
         homes = [f for f, (prod, _) in sources.items() if f'"{name}"' in prod]
@@ -576,7 +645,8 @@ def extract_tools(dispatcher: Path, tools_dir: Path, tracks_dir: Path, eval_suit
                 "id": name,
                 "implemented_in": sorted(homes),
                 "unit": unit,
-                "e2e": name in suite_ids if suites else False,
+                "e2e": (name in suite_ids if suites else False) or name in driven,
+                "e2e_by": ("eval" if name in suite_ids else "desktop" if name in driven else None),
             }
         )
     return {
@@ -584,9 +654,10 @@ def extract_tools(dispatcher: Path, tools_dir: Path, tracks_dir: Path, eval_suit
         "measured": True,
         "capabilities": caps,
         "unit_measured": bool(sources),
-        "e2e_measured": bool(suites),
+        "e2e_measured": bool(suites) or bool(driven),
         "e2e_instrument": (
             f"{len(suites)} eval suite(s) under {eval_suites}"
+            + (f", and the automation corpus for {', '.join(sorted(driven))}" if driven else "")
             if suites
             else f"none: {eval_suites} holds no suite, so the column is blindness, not zero"
         ),
@@ -809,7 +880,8 @@ def build(args) -> tuple[dict, dict[str, str], list[str]]:
     if "api" in wanted:
         inventory["api"] = extract_api(OPENAPI, API_DIR, REPO_ROOT / "crates/apollia-cli/src")
     if "tools" in wanted:
-        inventory["tools"] = extract_tools(DISPATCHER, TOOLS_DIR, TRACKS_DIR, Path(args.eval_suites))
+        inventory["tools"] = extract_tools(DISPATCHER, TOOLS_DIR, TRACKS_DIR, Path(args.eval_suites),
+                                           automation_dir=AUTOMATION_DIR)
     if "connectors" in wanted:
         inventory["connectors"] = extract_connectors(
             CONNECTOR_SPECS, CONNECTOR_BRIDGE, TRACKS_DIR, AUTOMATION_DIR
@@ -899,6 +971,13 @@ def render(inventory: dict, dead: dict[str, str], orphans: list[str]) -> None:
                 f"  {len(wrapped)} more sit on a wrapper the runner descends into,"
                 f" which is by design: {', '.join(wrapped)}"
             )
+        promoted = notes.get("reconstructed_promoted_by_evidence", [])
+        print(
+            f"  {notes.get('reconstructed_unverified', 0)} reconstructed anchor(s) sit outside"
+            " the denominator: their id is built from data and rebuilt from the file's"
+            "\n  string literals, which over-generates; only a run can tell which render."
+            f" {len(promoted)} such anchor(s) a step acts on are counted on that evidence."
+        )
 
 
 # ─── Selftest ────────────────────────────────────────────────────────────────
@@ -921,10 +1000,60 @@ def selftest() -> int:
          extract_cli(missing / "apollia-os", missing, missing)["measured"] is False)
     case("desktop on an absent UI root measures nothing",
          extract_desktop(missing, missing)["measured"] is False)
+
+    # A reconstructed anchor enters the denominator on evidence only.
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        ui = Path(tmp) / "ui"
+        (ui / "routes").mkdir(parents=True)
+        (ui / "routes" / "Probe.svelte").write_text(
+            '<script lang="ts">\n'
+            '  const actions = [{ id: "alpha" }];\n'
+            '  const cls = cn("rounded-xl");\n'
+            '</script>\n'
+            '<button data-testid="real-btn">x</button>\n'
+            '{#each actions as action}\n'
+            '  <button data-testid={`${action.id}-btn`} class={cls}>y</button>\n'
+            '{/each}\n',
+            encoding="utf-8",
+        )
+        scripts = Path(tmp) / "scripts"
+        scripts.mkdir()
+        (scripts / "probe.json").write_text(
+            json.dumps({"name": "probe", "steps": [{"kind": "click", "testid": "alpha-btn"}]}),
+            encoding="utf-8",
+        )
+        probe = extract_desktop(ui, scripts)
+        ids = {c["id"]: c for c in probe["capabilities"]}
+        case("a literal anchor is in the desktop denominator", "real-btn" in ids)
+        case("a reconstructed anchor a step acts on is counted, and covered",
+             "alpha-btn" in ids and ids["alpha-btn"]["e2e"] is True)
+        case("a reconstructed anchor nothing acts on stays out of the denominator",
+             "rounded-xl-btn" not in ids and probe["notes"]["reconstructed_unverified"] == 1)
     case("api on an absent document measures nothing",
          extract_api(missing / "openapi.json", missing, missing)["measured"] is False)
     case("tools on an absent dispatcher measures nothing",
          extract_tools(missing / "d.rs", missing, missing, missing)["measured"] is False)
+
+    # A tool driven through its chat card needs the ask and the answer.
+    with tempfile.TemporaryDirectory() as tmp:
+        scripts = Path(tmp) / "scripts"
+        scripts.mkdir()
+        both = {"name": "p", "steps": [
+            {"kind": "sendChat", "text": "Use the ask_user tool to ask my name."},
+            {"kind": "click", "testid": "ask-user-skip"}]}
+        ask_only = {"name": "q", "steps": [
+            {"kind": "fill", "testid": "quickpicker-textarea", "text": "Use ask_user."},
+            {"kind": "click", "testid": "quickpicker-submit"}]}
+        answer_only = {"name": "r", "steps": [{"kind": "click", "testid": "ask-user-skip"}]}
+        (scripts / "both.json").write_text(json.dumps(both), encoding="utf-8")
+        case("a recipe that asks for ask_user and answers its card drives the tool",
+             tools_driven_by_automation(scripts) == {"ask_user"})
+        (scripts / "both.json").unlink()
+        (scripts / "ask.json").write_text(json.dumps(ask_only), encoding="utf-8")
+        (scripts / "answer.json").write_text(json.dumps(answer_only), encoding="utf-8")
+        case("a prompt that names the tool, or a click with no ask, drives nothing",
+             tools_driven_by_automation(scripts) == set())
     case("connectors on absent families measures nothing",
          extract_connectors((missing / "g.rs",), missing, missing, missing)["measured"] is False)
 
