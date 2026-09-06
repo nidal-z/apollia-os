@@ -18,6 +18,14 @@
 #                              but missing is a hard error: an overlay that was
 #                              asked for and silently skipped would produce a
 #                              plausible-looking wrong fixture.
+#   APOLLIA_SEED_PLANNER       "1" adds the opt-in orchestrated planner: the
+#                              seed-planner agent row, its package under
+#                              agents/seed-planner, and the seed-trigger-planner
+#                              row (planner/fragments, planner/files). Not set
+#                              means the base fixture, whose row counts the CLI
+#                              suite and the -det books assert. Any other value
+#                              is a hard error, for the same reason as a missing
+#                              overlay. The plan-gate-llm book is the consumer.
 #   APOLLIA_SEED_PROJECT_ROOT  what __APOLLIA_SEED_WORKSPACE__ expands to.
 #                              Defaults to this repository checkout, which is
 #                              what the context providers need to have real git
@@ -55,6 +63,15 @@ if [ -n "$OVERLAY" ] && [ ! -d "$OVERLAY" ]; then
   exit 1
 fi
 
+PLANNER="${APOLLIA_SEED_PLANNER:-}"
+case "$PLANNER" in
+  ""|1) ;;
+  *)
+    echo "error: APOLLIA_SEED_PLANNER is '$PLANNER'; set it to 1 for the planner opt-in, or unset it" >&2
+    exit 1
+    ;;
+esac
+
 # Expand the seed placeholders on stdin. Keeps absolute paths out of the
 # checked-in fragments while the seeded rows still point at real locations.
 expand_seed_paths() {
@@ -89,6 +106,11 @@ if [ -n "$OVERLAY" ]; then
 else
   echo "==> overlay:   none (checked-in seed only)"
 fi
+if [ "$PLANNER" = "1" ]; then
+  echo "==> planner:   opt-in (seed-planner agent + seed-trigger-planner)"
+else
+  echo "==> planner:   none (base fixture)"
+fi
 rm -rf "$SEED_HOME"
 # `Downloads` is not part of the profile: it is the directory the seeded
 # filesystem trigger watches (fragments/triggers_def.sql). On the human path the
@@ -116,6 +138,20 @@ for schema in "$HERE"/schemas/*.sql; do
   fi
 done
 
+# 1a) Planner opt-in rows. Replayed AFTER the base fragments and BEFORE the
+#     overlay, into databases the base schemas already created, so an overlay
+#     still lands last and step 3 rewrites the planner's install_path like every
+#     other agent row. Nothing here runs on the base build: the CLI suite and
+#     the -det books count four agents and four triggers.
+if [ "$PLANNER" = "1" ]; then
+  for frag in "$HERE"/planner/fragments/*.sql; do
+    [ -e "$frag" ] || continue
+    db="$(basename "$frag" .sql)"
+    echo "==> planner db rows:   $db.db"
+    expand_seed_paths < "$frag" | sqlite3 "$DATA/$db.db"
+  done
+fi
+
 # 1b) Overlay databases. Schemas first (a DB the checked-in seed does not know
 #     about, such as runtime_events.db, exists only here), then fragments, which
 #     are replayed AFTER the base ones so overlay rows extend rather than race
@@ -140,11 +176,24 @@ if [ -n "$OVERLAY" ]; then
   fi
 fi
 
-# 2) On-disk files (agents, memory, models, mcp registry). Copied verbatim.
+# 2) On-disk files (agents, memory, models). Copied verbatim. The MCP registry
+#    cache is written in 2b below, because it names the stub path.
 [ -d "$HERE/files/agents" ] && cp -R "$HERE/files/agents/." "$DATA/agents/"
 [ -d "$HERE/files/memory" ] && cp -R "$HERE/files/memory/." "$DATA/memory/"
 [ -d "$HERE/files/models" ] && cp -R "$HERE/files/models/." "$DATA/models/"
-[ -f "$HERE/files/mcp-registry.json" ] && cp "$HERE/files/mcp-registry.json" "$DATA/mcp-registry.json"
+# Fixture packages the install dialog previews or installs from a picker the
+# automaton answers; never installed by the builder, so the package counts the
+# books and the CLI suite assert stay what they are.
+if [ -d "$HERE/files/fixtures" ]; then
+  mkdir -p "$DATA/fixtures"
+  cp -R "$HERE/files/fixtures/." "$DATA/fixtures/"
+fi
+
+# 2p) Planner opt-in package, copied over the base agents like an overlay's
+#     (same name wins) and before step 3, whose install_path rewrite names it.
+if [ "$PLANNER" = "1" ] && [ -d "$HERE/planner/files/agents" ]; then
+  cp -R "$HERE/planner/files/agents/." "$DATA/agents/"
+fi
 
 # 2a) Memory fixture file names ARE namespaces: list_memory_namespaces() returns
 #     the file stem and list_memory_entries(ns) opens `<ns>.db` then filters its
@@ -186,6 +235,15 @@ if [ -f "$HERE/files/mcp-stub-server.py" ]; then
   if [ -f "$DATA/mcp.db" ]; then
     sqlite3 "$DATA/mcp.db" \
       "UPDATE mcp_servers SET args_json = replace(args_json, '__APOLLIA_SEED_MCP_STUB__', '$STUB_REF') WHERE args_json LIKE '%__APOLLIA_SEED_MCP_STUB__%';"
+  fi
+  # The MCP registry cache. McpRegistryClient reads `<data dir>/mcp-registry.json`
+  # without a network call while the file is younger than fifteen minutes
+  # (crates/apollia-desktop/src/mcp/registry_client.rs, CACHE_TTL), and falls
+  # back to it when the registry is unreachable, so the catalogue shows these
+  # entries on a hermetic run. The seed-stub entry installs the same stub as
+  # the mcp.db rows, through the same token, rewritten to the same path.
+  if [ -f "$HERE/files/mcp-registry.json" ]; then
+    sed "s|__APOLLIA_SEED_MCP_STUB__|$STUB_REF|g" "$HERE/files/mcp-registry.json" > "$DATA/mcp-registry.json"
   fi
 fi
 

@@ -1,0 +1,50 @@
+[
+  {
+    "server": {
+      "name": "io.apollia/seed-stub",
+      "title": "Seed Stub",
+      "description": "Deterministic stdio MCP server bundled with the seed. Installing it from the catalogue spawns the same stub the seeded filesystem and notes rows run, so the handshake succeeds offline.",
+      "version": "1.0.0",
+      "repository": null,
+      "websiteUrl": null,
+      "packages": [
+        {
+          "registryType": "custom",
+          "identifier": "__APOLLIA_SEED_MCP_STUB__",
+          "version": "1.0.0",
+          "runtimeHint": "/usr/bin/python3",
+          "transport": { "type": "stdio" },
+          "environmentVariables": [],
+          "packageArguments": []
+        }
+      ],
+      "icons": null,
+      "remotes": []
+    },
+    "_meta": null
+  },
+  {
+    "server": {
+      "name": "io.apollia/seed-failing",
+      "title": "Seed Failing",
+      "description": "Catalogue entry whose launcher exits at once without speaking MCP, so a connection test fails instantly instead of waiting on a package download.",
+      "version": "1.0.0",
+      "repository": null,
+      "websiteUrl": null,
+      "packages": [
+        {
+          "registryType": "custom",
+          "identifier": "apollia-seed-failing",
+          "version": "1.0.0",
+          "runtimeHint": "/usr/bin/false",
+          "transport": { "type": "stdio" },
+          "environmentVariables": [],
+          "packageArguments": []
+        }
+      ],
+      "icons": null,
+      "remotes": []
+    },
+    "_meta": null
+  }
+]

@@ -1,0 +1,14 @@
+# Apollia OS - seed fixture package (automation verification only).
+# Never installed by the seed builder: it sits under fixtures/ for the install
+# dialog to install for real, which needs no dependency and no network.
+
+[package]
+name = "seed-plain-pack"
+version = "0.1.0"
+description = "Seed fixture: one worker with no dependency, installable offline."
+author = "Apollia <contact@apollia.fr>"
+
+[[agents]]
+name = "seed-plain-worker"
+role = "worker"
+entry = "agents/plain_worker/agent.py"

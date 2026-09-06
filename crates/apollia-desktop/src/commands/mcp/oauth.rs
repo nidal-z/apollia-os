@@ -156,25 +156,6 @@ pub fn mcp_oauth_resolve_client_id(env_var: String) -> Option<String> {
 
 /// Persist a user-entered OAuth client id to the OS keychain.
 ///
-/// Called by the wizard when the operator pastes a `client_id` into the
-/// input field shown for connectors that require manual app registration
-/// (Figma today). Subsequent `mcp_oauth_resolve_client_id` calls will
-/// return this value (priority 2) until the user clears it.
-///
-/// Returns `Ok(())` on success. The store is keyed by `env_var` so each
-/// provider lives in its own keychain entry, never collides.
-#[tauri::command]
-pub fn mcp_oauth_store_client_id(env_var: String, value: String) -> Result<(), String> {
-    if value.trim().is_empty() {
-        return Err("client id is empty".into());
-    }
-    let store = apollia_auth::select_secret_store()
-        .map_err(|e| format!("secret store unavailable: {e}"))?;
-    store
-        .set(MCP_CLIENT_ID_SERVICE, &env_var, value.trim())
-        .map_err(|e| format!("keychain write failed: {e}"))
-}
-
 fn load_stored_client_id(env_var: &str) -> Option<String> {
     let store = apollia_auth::select_secret_store().ok()?;
     store.get(MCP_CLIENT_ID_SERVICE, env_var).ok().flatten()

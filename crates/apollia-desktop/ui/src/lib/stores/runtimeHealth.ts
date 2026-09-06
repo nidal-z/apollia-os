@@ -68,6 +68,18 @@ function armWatchdog(): void {
   }, HEARTBEAT_TIMEOUT_MS);
 }
 
+/**
+ * Dev-only fault for the automation harness: the product never asks for a lost
+ * heartbeat, so the recipe has to fake one. Mutes the liveness listeners until
+ * the banner's retry runs, then fires the watchdog path.
+ */
+let muted = false;
+export function simulateHeartbeatLoss(): void {
+  if (!import.meta.env.DEV) return;
+  muted = true;
+  onHeartbeatMissed();
+}
+
 function onHeartbeatMissed(): void {
   const current = get(runtimeHealth);
   if (current.status === "connected") {
@@ -116,6 +128,7 @@ async function attemptReconnect(): Promise<void> {
 
 /** Manually trigger a reconnect - wired to the banner's "Retry now" button. */
 export function triggerReconnect(): void {
+  muted = false;
   if (retryTimer !== null) {
     clearTimeout(retryTimer);
     retryTimer = null;
@@ -132,7 +145,7 @@ export function startRuntimeHealthMonitor(): () => void {
   armWatchdog();
 
   void listen("runtime:heartbeat", () => {
-    if (destroyed) return;
+    if (destroyed || muted) return;
     markConnected();
   }).then((fn) => {
     if (destroyed) fn();
@@ -142,7 +155,7 @@ export function startRuntimeHealthMonitor(): () => void {
   // Any runtime event is proof the bridge is alive, even if the explicit
   // heartbeat channel is not wired yet on the backend.
   void listen("runtime-event", () => {
-    if (destroyed) return;
+    if (destroyed || muted) return;
     markConnected();
   }).then((fn) => {
     if (destroyed) fn();

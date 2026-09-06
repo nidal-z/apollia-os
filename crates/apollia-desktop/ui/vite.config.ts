@@ -2,12 +2,25 @@ import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import path from "node:path";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [svelte()],
   resolve: {
     alias: {
       $lib: path.resolve(__dirname, "src/lib"),
+      // Dev server only: the automation runner's stubInvoke step answers IPC
+      // calls through this shim, since the webview's own invoke is read-only.
+      // A production build resolves the real module.
+      ...(command === "serve"
+        ? { "@tauri-apps/api/core": path.resolve(__dirname, "src/lib/automation/tauriCoreShim.ts") }
+        : {}),
     },
+  },
+  // The Tauri plugins import `@tauri-apps/api/core` too; pre-bundled, they
+  // would carry their own copy of it and bypass the alias above (measured:
+  // a stubbed `plugin:dialog|open` was never consumed). Served as source in
+  // the dev server, their imports resolve through the alias like the app's.
+  optimizeDeps: {
+    exclude: command === "serve" ? ["@tauri-apps/plugin-dialog", "@tauri-apps/plugin-notification", "@tauri-apps/plugin-opener"] : [],
   },
   server: {
     port: 5173,
@@ -24,4 +37,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

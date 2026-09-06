@@ -57,8 +57,15 @@ VALUES
     ('seed-msg-1', 'seed-session-1', 'user',
      'How does Apollia keep my data local?', NULL, NULL,
      '2026-07-01T00:00:00Z', 1, NULL),
+    -- The two trailing URL lines are what the chat link-preview cards render
+    -- on. The host has no fetch for them, so both show their fallback state;
+    -- chat-det answers the second one through a link_preview stub to render
+    -- the rich card while the first keeps the fallback (the preview client
+    -- caches one answer per URL, so one URL cannot show both states).
     ('seed-msg-2', 'seed-session-1', 'assistant',
-     'The runtime runs inference on-device and never sends your data off the machine without an explicit action.',
+     'The runtime runs inference on-device and never sends your data off the machine without an explicit action.'
+       || char(10) || 'https://example.com/apollia-preview'
+       || char(10) || 'https://example.com/apollia-docs',
      NULL, NULL, '2026-07-01T00:00:00Z', 2, NULL),
     ('seed-msg-3', 'seed-session-1', 'user',
      'Can it read a local file for me?', NULL, NULL,

@@ -29,6 +29,10 @@
 -- Deterministic: fixed ids, timestamps anchored on 2026-07-01. created_at is
 -- given distinct hours purely so ORDER BY created_at DESC is stable (the most
 -- recent row, seed-task-alpha-completed, is nth 0 and carries an output).
+--
+-- That output is markdown on purpose: SmartOutput.svelte shows its
+-- raw/formatted toggle (smart-output-raw-toggle) only when the text carries at
+-- least two markdown signals (a heading, a bullet list and a blank line here).
 
 -- Tasks. list_recent_tasks selects
 --   task_id, agent_name, input_text, output_text, duration_ms,
@@ -46,7 +50,10 @@ VALUES
    NULL, NULL,
    'Summarize the weekly market watch for the dashboard.',
    0,
-   'Summary: 7 sources reviewed, 3 priority signals kept, no blocking risk found.',
+   '## Weekly market watch' || char(10) || char(10)
+     || '- 7 sources reviewed' || char(10)
+     || '- 3 priority signals kept' || char(10)
+     || '- No blocking risk found' || char(10),
    0,
    4200,
    '[{"status":"submitted","ts":"2026-07-01T06:00:00Z"},{"status":"working","ts":"2026-07-01T06:00:05Z"},{"status":"completed","ts":"2026-07-01T06:00:20Z"}]',

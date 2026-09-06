@@ -631,7 +631,6 @@ fn main() {
             commands::mcp::test_mcp_live_server,
             commands::mcp::oauth::mcp_oauth_discover,
             commands::mcp::oauth::mcp_oauth_resolve_client_id,
-            commands::mcp::oauth::mcp_oauth_store_client_id,
             commands::mcp::oauth::mcp_oauth_login,
             commands::mcp::restart_mcp_server,
             commands::mcp::discovery::fetch_mcp_registry,
@@ -682,6 +681,8 @@ fn main() {
             commands::automation::automation_script,
             #[cfg(debug_assertions)]
             commands::automation::automation_capture,
+            #[cfg(debug_assertions)]
+            commands::automation::automation_resize,
             #[cfg(debug_assertions)]
             commands::automation::automation_finish,
         ])

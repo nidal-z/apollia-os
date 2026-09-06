@@ -45,6 +45,27 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 UI_SUBTREE = Path("crates/apollia-desktop/ui")
 DEFAULT_ENTRIES = ["src/main.ts", "src/overlay.ts"]
 
+# A module the dev server reaches through a `resolve.alias` of vite.config.ts
+# (the automation seam standing in for `@tauri-apps/api/core`) has no importer
+# in the tree by construction: the alias replaces a bare specifier. Its
+# targets are read from the config and walked as entries.
+ALIAS_TARGET = re.compile(r'path\.resolve\(\s*__dirname\s*,\s*"(src/[^"]+)"\s*\)')
+
+
+def alias_entries(ui_root: Path) -> list[str]:
+    """Alias targets of vite.config.ts, relative to the ui directory."""
+    config = ui_root / "vite.config.ts"
+    if not config.is_file():
+        return []
+    text = config.read_text(encoding="utf-8", errors="replace")
+    start = text.find("alias:")
+    if start < 0:
+        return []
+    block = text[start:]
+    end = block.find("},")
+    block = block if end < 0 else block[: end + 1]
+    return sorted({m.group(1) for m in ALIAS_TARGET.finditer(block) if not m.group(1).endswith("/lib")})
+
 NAMED_IMPORT = re.compile(
     r"""(?:^|[^\w$.])import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]""", re.M
 )
@@ -149,7 +170,10 @@ def report(ui_root: Path, entries: list[str]) -> int:
         and not path.name.endswith(".d.ts")
         and path.is_file()
     ]
-    roots = [ui_root / entry for entry in entries if (ui_root / entry).is_file()]
+    aliased = alias_entries(ui_root)
+    roots = [ui_root / entry for entry in [*entries, *aliased] if (ui_root / entry).is_file()]
+    if aliased:
+        print(f"alias targets walked as entries (vite.config.ts): {', '.join(aliased)}")
     if not sources or not roots:
         print("NOTHING MEASURED: no source file or no entry point found.")
         return 2

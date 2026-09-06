@@ -51,8 +51,8 @@ NAVIGATION = f"{UI}/lib/stores/navigation.ts"
 TARGET_KEYS = {"testid", "testidPrefix", "nth"}
 SCHEMAS = {
     # kind: (required, optional, target)
-    "goto": ({"route"}, set(), None),
-    "waitFor": (set(), {"timeoutMs"}, "one"),
+    "goto": ({"route"}, {"sessionId"}, None),
+    "waitFor": (set(), {"timeoutMs", "contains"}, "one"),
     "waitGone": (set(), {"timeoutMs"}, "one"),
     "click": (set(), {"timeoutMs"}, "one"),
     "fill": ({"text"}, {"timeoutMs"}, "one"),
@@ -65,6 +65,13 @@ SCHEMAS = {
     "setChecked": ({"checked"}, set(), "one"),
     "selectOption": (set(), {"timeoutMs", "value", "labelText", "index"}, "one"),
     "press": ({"key"}, {"meta", "ctrl", "shift", "alt", "timeoutMs"}, "opt"),
+    # Exactly one of resolve/reject/patch, by key presence (`"resolve": null`
+    # is a cancelled picker); checked in check_step like selectOption.
+    "stubInvoke": ({"command"}, {"resolve", "reject", "patch", "once", "argsMatch"}, None),
+    "clearStubs": (set(), {"command"}, None),
+    "resizeWindow": ({"width", "height"}, set(), None),
+    "fault": ({"name"}, set(), None),
+    "emitEvent": ({"event"}, {"payload"}, None),
 }
 SCRIPT_KEYS = {"name", "stopOnError", "destructive", "notes", "dynamicTestids", "steps"}
 
@@ -295,6 +302,10 @@ def check_step(idx, step, routes, resolve_testid, static_ids, prefixes):
         selectors = sum(1 for key in ("value", "labelText", "index") if key in step)
         if selectors != 1:
             errs.append(f"step {idx} (selectOption): exactly one of value/labelText/index required")
+    if kind == "stubInvoke":
+        modes = sum(1 for key in ("resolve", "reject", "patch") if key in step)
+        if modes != 1:
+            errs.append(f"step {idx} (stubInvoke): exactly one of resolve/reject/patch required")
     if kind == "goto" and step.get("route") not in routes:
         errs.append(f"step {idx}: illegal route {step.get('route')!r}")
     t = step.get("testid")

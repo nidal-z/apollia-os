@@ -1,0 +1,25 @@
+# Apollia OS - seed fixture package (automation verification only).
+# Never installed by the seed builder: it sits under fixtures/ for the install
+# dialog to preview. Declares a pip dependency and a webhook trigger without a
+# secret, so the dialog shows its dependency confirmation and its configure
+# step, the two it never shows on the packages the seed installs.
+
+[package]
+name = "seed-deps-pack"
+version = "0.1.0"
+description = "Seed fixture: a worker that declares a pip dependency and an unconfigured webhook."
+author = "Apollia <contact@apollia.fr>"
+
+[[agents]]
+name = "seed-deps-worker"
+role = "worker"
+entry = "agents/deps_worker/agent.py"
+
+[pip]
+packages = ["apollia-seed-no-such-package-0000"]
+
+[[triggers]]
+id = "seed-deps-webhook"
+agent = "seed-deps-worker"
+[triggers.source]
+type = "webhook"

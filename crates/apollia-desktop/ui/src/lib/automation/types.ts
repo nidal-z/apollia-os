@@ -19,11 +19,19 @@ export interface Target {
 export interface GotoStep {
   kind: "goto";
   route: Route;
+  /** Chat session to open on arrival, set on `pendingChatSessionId` before the
+   *  navigation (the order the command palette uses). An id no table holds is
+   *  the dangling deep link the not-found screen exists for. Keep the palette
+   *  clicks where a recipe already has them: this is for the ghost id, not a
+   *  shortcut around the palette. */
+  sessionId?: string;
 }
 export interface WaitForStep extends Target {
   kind: "waitFor";
   /** Poll deadline (defaults to 15000; pass ~120000 for chat/inference waits). */
   timeoutMs?: number;
+  /** When set, the target must also read this fragment (a count, a status). */
+  contains?: string;
 }
 export interface WaitGoneStep extends Target {
   kind: "waitGone";
@@ -39,6 +47,11 @@ export interface ClickStep extends Target {
 }
 export interface FillStep extends Target {
   kind: "fill";
+  /**
+   * `${HOME}` expands to the boot's `homeDir` (the seeded, throwaway home).
+   * On an `input[type=file]` the text becomes the content of one text/plain
+   * file named `automation-attachment.txt`, built in the webview.
+   */
   text: string;
   /** Wait deadline for the element (default 15000). */
   timeoutMs?: number;
@@ -123,6 +136,75 @@ export interface PressStep extends Target {
   timeoutMs?: number;
 }
 
+/** Answer one Tauri command from the script instead of the backend.
+ *
+ *  Every webview call funnels through the `invoke` of `@tauri-apps/api/core`, the
+ *  plugin-dialog pickers included (`plugin:dialog|open`, `plugin:dialog|save`),
+ *  so one seam reaches every IPC-borne fault and every native picker: a list
+ *  that rejects opens the error panel, a picker that resolves a path skips the
+ *  OS dialog, `resolve: null` is a cancelled picker. Exactly one of `resolve`,
+ *  `reject`, `patch` is given (the key must be present; its value may be null).
+ *  Strings inside them expand `${HOME}`. The first stub whose `argsMatch` (each
+ *  listed key deep-equal to the call's argument) accepts the call answers it;
+ *  a stub without `argsMatch` accepts every call of its command. Everything
+ *  not stubbed, the runner's own `automation_*` calls included, reaches the
+ *  backend as before. The wrapper is installed by the first `stubInvoke` of a
+ *  run and removed when the run ends, whatever ended it. A `patch` on
+ *  `get_chat_session` also reaches `awaitTurn`'s own status poll: never leave
+ *  one armed across a turn. */
+export interface StubInvokeStep {
+  kind: "stubInvoke";
+  /** Tauri command name, e.g. `list_projects` or `plugin:dialog|open`. */
+  command: string;
+  /** Resolve with this value (JSON `null` is a legal value: a cancelled picker). */
+  resolve?: unknown;
+  /** Reject with this value; the UI classifies it (`.kind`, message text). */
+  reject?: unknown;
+  /** Let the real call run, then merge these fields over its result. */
+  patch?: Record<string, unknown>;
+  /** Fire once, then drop the stub (default: stays armed until cleared). */
+  once?: boolean;
+  /** Fire only when each key deep-equals the call's argument of that name. */
+  argsMatch?: Record<string, unknown>;
+}
+/** Drop the stubs of one command, or every stub when `command` is absent. The
+ *  invoke wrapper stays installed until the run ends; a cleared command simply
+ *  passes through again. */
+export interface ClearStubsStep {
+  kind: "clearStubs";
+  command?: string;
+}
+/** Resize the app window to a logical size, lifting the `tauri.conf.json`
+ *  minimum (900 x 600) so the narrow-layout anchors (sidebar drawer under
+ *  768 px, panes-as-drawers under 1024 px) become reachable, and putting the
+ *  minimum back once the requested size satisfies it. The runner waits 400 ms
+ *  for the reflow and the matchMedia listeners, and restores 1280 x 800 when
+ *  the run ends, whatever ended it. A narrow block must contain no boundary
+ *  click: a hung step keeps the window narrow for the rest of the boot. */
+export interface ResizeWindowStep {
+  kind: "resizeWindow";
+  width: number;
+  height: number;
+}
+/**
+ * Inject a fault the product cannot be asked for through IPC. `heartbeat-lost`
+ * mutes the runtime heartbeat listeners and fires the watchdog, so the
+ * disconnected banner shows; its retry button unmutes them.
+ */
+export interface FaultStep {
+  kind: "fault";
+  name: "heartbeat-lost";
+}
+/**
+ * Emit a Tauri event from the webview, as the backend would. Reaches every
+ * listener, this webview's included. `${HOME}` expands inside the payload.
+ */
+export interface EmitEventStep {
+  kind: "emitEvent";
+  event: string;
+  payload?: unknown;
+}
+
 export type Step =
   | GotoStep
   | WaitForStep
@@ -137,7 +219,12 @@ export type Step =
   | AwaitTurnStep
   | SetCheckedStep
   | SelectOptionStep
-  | PressStep;
+  | PressStep
+  | StubInvokeStep
+  | ClearStubsStep
+  | ResizeWindowStep
+  | FaultStep
+  | EmitEventStep;
 
 export interface Script {
   name: string;
@@ -171,4 +258,8 @@ export interface RunReport {
 export interface AutomationBoot {
   script: string;
   allowDestructive: boolean;
+  /** The home the process runs under (the seeded, throwaway one in a recipe);
+   *  substituted for `${HOME}` in `fill.text` and in `stubInvoke` values.
+   *  Empty when no home resolves, in which case `${HOME}` is refused. */
+  homeDir: string;
 }

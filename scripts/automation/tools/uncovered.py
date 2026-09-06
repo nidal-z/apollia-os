@@ -79,6 +79,11 @@ CONTAINER_HINT = re.compile(r'aria-modal|(?<![=\w])\{\s*role\s*\}|role\s*=\s*\{\
 HANDLER = re.compile(r'\bon(click|change|input|keydown|keyup|submit|pointerdown|mousedown)\s*=')
 # `onclick={onclick}` / `role={onclick ? "button" : undefined}`: the element is
 # a control only when its caller hands it a handler, so the call site decides.
+# A static `readonly` on the element: the anchor can be read, never acted on.
+READONLY = re.compile(r'\breadonly\b(?!\s*=\s*\{)')
+# A `testidPrefix` prop on the same tag: the gestures are the prefixed children
+# the component renders, and the bare id names their container.
+PREFIX_PROP = re.compile(r'\btestidPrefix\s*=')
 HANDLER_FORWARDED = re.compile(r'\bon(?:click|change|input|keydown|submit)\s*=\s*\{\s*(?:on\w+|\w+\s*\?)')
 ROLE_FORWARDED = re.compile(r'role\s*=\s*\{[^}]*\?')
 SPREAD = re.compile(r'\{\s*\.\.\.\s*(?:restProps|rest|props)\b')
@@ -253,6 +258,8 @@ def resolve_components(carriers):
 def site_kind(site, components):
     """Gesture or marker, for one anchor site."""
     tag, tag_txt = site["tag"], site["tag_txt"]
+    if READONLY.search(tag_txt) or PREFIX_PROP.search(tag_txt):
+        return MARKER
     direct = classify_element(tag, tag_txt)
     if direct in (INTERACTIVE, MARKER):
         return INTERACTIVE if direct == INTERACTIVE else MARKER

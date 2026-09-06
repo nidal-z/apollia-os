@@ -234,11 +234,6 @@ export function mcpOauthResolveClientId(envVar: string): Promise<string | null> 
   return invoke<string | null>("mcp_oauth_resolve_client_id", { envVar });
 }
 
-/** Persist a client id under its env var for later logins. */
-export function mcpOauthStoreClientId(envVar: string, value: string): Promise<void> {
-  return invoke<void>("mcp_oauth_store_client_id", { envVar, value });
-}
-
 /** Parameters accepted by {@link mcpOauthLogin}. */
 export interface McpOauthLoginArgs {
   serverName: string;

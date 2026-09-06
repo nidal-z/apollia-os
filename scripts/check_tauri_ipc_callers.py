@@ -217,11 +217,36 @@ def _resolve_through_declared_list(
     return None
 
 
+SEAM_ALIAS = re.compile(
+    r'"@tauri-apps/api/core"\s*:\s*path\.resolve\(\s*__dirname\s*,\s*"(src/[^"]+)"\s*\)'
+)
+
+
+def seam_modules(ui_root: Path) -> set[Path]:
+    """The dev-server stand-ins for `@tauri-apps/api/core`, from vite.config.ts.
+
+    Such a module re-exports the real `invoke` and delegates every call it
+    receives; its own `invoke(cmd, ...)` lines carry no command name by
+    construction, and the names are read at the callers the alias redirects.
+    """
+    # The subtree walked is `ui/src`; the config sits one level up, and its
+    # targets are written relative to the ui directory.
+    for base in (ui_root, ui_root.parent):
+        config = base / "vite.config.ts"
+        if config.is_file():
+            text = config.read_text(encoding="utf-8", errors="replace")
+            return {(base / m.group(1)).resolve() for m in SEAM_ALIAS.finditer(text)}
+    return set()
+
+
 def invoke_sites(ui_root: Path) -> list[dict[str, object]]:
     """Every `invoke` call of the subtree, resolved to the names it may reach."""
     sites: list[dict[str, object]] = []
+    seams = seam_modules(ui_root)
     for path in sorted(ui_root.rglob("*")):
         if path.suffix not in ipc_args.UI_SUFFIXES or not path.is_file():
+            continue
+        if path.resolve() in seams:
             continue
         source = path.read_text(encoding="utf-8")
         lines = source.splitlines(keepends=True)

@@ -7,7 +7,12 @@
 // `import.meta.env.DEV` guard, so it never ships in a production build.
 
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
+import { InvokeStubs, expandHome } from "./invokeStubs";
+import { seam } from "./invokeSeam";
+import { simulateHeartbeatLoss } from "../stores/runtimeHealth";
 import type {
+  AutomationBoot,
   RunReport,
   Script,
   Step,
@@ -17,6 +22,11 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 150;
+// After a native resize WKWebView reflows and the matchMedia change listeners
+// fire on their own schedule; the next waitFor must not race them.
+const RESIZE_SETTLE_MS = 400;
+// The main window of tauri.conf.json, put back when a run that resized ends.
+const DEFAULT_WINDOW = { width: 1280, height: 800 };
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -43,6 +53,9 @@ function selectorFor(target: Target): ResolvedSelector {
   }
   throw new Error("step needs a testid or testidPrefix");
 }
+
+/** Name of the one text file the harness feeds to a file input. */
+const HARNESS_FILE_NAME = "automation-attachment.txt";
 
 function resolveEl(css: string, nth?: number): HTMLElement | null {
   const els = document.querySelectorAll<HTMLElement>(css);
@@ -82,6 +95,17 @@ async function waitGoneEl(css: string, timeoutMs: number, nth?: number): Promise
 // Svelte 5 two-way bindings only react to native input/change events; setting
 // `.value` alone is silently ignored. This is the central caveat of the runner.
 function fillEl(el: HTMLElement, text: string): void {
+  if (el instanceof HTMLInputElement && el.type === "file") {
+    // `.value` is read-only on a file input and its chooser is served by wry
+    // through a modal NSOpenPanel that would freeze the boot, so the harness
+    // feeds `.files` with one text file built in the webview (nothing is read
+    // from disk) and fires the change event the composer listens to.
+    const dt = new DataTransfer();
+    dt.items.add(new File([text], HARNESS_FILE_NAME, { type: "text/plain" }));
+    el.files = dt.files;
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return;
+  }
   if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
     el.focus();
     el.value = text;
@@ -175,21 +199,55 @@ async function captureWindow(label: string): Promise<string> {
   }
 }
 
-async function runStep(
-  step: Step,
-  captures: Record<string, string>,
-  screenshots: string[],
-): Promise<string> {
+/** What one run accumulates and the seams it holds, shared by every step. */
+interface RunContext {
+  captures: Record<string, string>;
+  screenshots: string[];
+  /** The IPC stub seam, installed on first use. */
+  stubs: InvokeStubs | null;
+  /** The boot's homeDir, substituted for `${HOME}`. */
+  home: string;
+  /** Set by resizeWindow so the run's end puts the default size back. */
+  resized: boolean;
+}
+
+async function runStep(step: Step, ctx: RunContext): Promise<string> {
+  const { captures, screenshots } = ctx;
   switch (step.kind) {
     case "goto": {
       const { navigateTo } = await import("$lib/stores/navigation");
+      if (step.sessionId !== undefined) {
+        // Set before navigating, the order the command palette uses: a Chat
+        // already mounted adopts the id through its live subscription, a fresh
+        // one reads it on mount.
+        const { pendingChatSessionId } = await import("$lib/stores/chat");
+        pendingChatSessionId.set(step.sessionId);
+      }
       navigateTo(step.route);
-      return `navigated to ${step.route}`;
+      return step.sessionId === undefined
+        ? `navigated to ${step.route}`
+        : `navigated to ${step.route} (session ${step.sessionId})`;
     }
     case "waitFor": {
       const sel = selectorFor(step);
-      await waitForEl(sel.css, step.timeoutMs ?? DEFAULT_TIMEOUT_MS, step.nth);
-      return `present: ${sel.label}`;
+      const timeout = step.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+      if (step.contains === undefined) {
+        await waitForEl(sel.css, timeout, step.nth);
+        return `present: ${sel.label}`;
+      }
+      // Text-aware wait: the element must be there AND read the fragment,
+      // which is how a recipe waits for a count or a status to change.
+      const deadline = Date.now() + timeout;
+      for (;;) {
+        const el = resolveEl(sel.css, step.nth);
+        if (el && isVisible(el) && (el.textContent ?? "").includes(step.contains)) {
+          return `present: ${sel.label} containing "${step.contains}"`;
+        }
+        if (Date.now() >= deadline) {
+          throw new Error(`timeout (${timeout}ms) waiting for ${sel.css} to contain "${step.contains}"`);
+        }
+        await sleep(POLL_INTERVAL_MS);
+      }
     }
     case "waitGone": {
       const sel = selectorFor(step);
@@ -205,9 +263,26 @@ async function runStep(
     }
     case "fill": {
       const sel = selectorFor(step);
-      const el = await waitForEl(sel.css, step.timeoutMs ?? DEFAULT_TIMEOUT_MS, step.nth);
-      fillEl(el, step.text);
+      // A file input is display:none by design (a visible button proxies it),
+      // so it is taken without the visibility gate the other targets get.
+      const hiddenFile = resolveEl(sel.css, step.nth);
+      const el =
+        hiddenFile instanceof HTMLInputElement && hiddenFile.type === "file"
+          ? hiddenFile
+          : await waitForEl(sel.css, step.timeoutMs ?? DEFAULT_TIMEOUT_MS, step.nth);
+      fillEl(el, expandHome(step.text, ctx.home));
       return `filled ${sel.label}`;
+    }
+    case "fault": {
+      simulateHeartbeatLoss();
+      return `faulted ${step.name}`;
+    }
+    case "emitEvent": {
+      // Tauri's JS `emit` goes through plugin:event|emit and reaches every
+      // listener, the webview's own `listen` included, which is how a recipe
+      // delivers a backend-borne event (a HITL request, say) without a model.
+      await emit(step.event, expandHome(step.payload, ctx.home));
+      return `emitted ${step.event}`;
     }
     case "sendChat": {
       const input = await waitForEl(`[data-testid="chat-input"]`, DEFAULT_TIMEOUT_MS);
@@ -247,7 +322,7 @@ async function runStep(
       const cardCss = `[data-testid="chat-approval-inline"], [data-testid^="operator-approval-"]`;
       const acceptCss = `[data-testid^="approval-accept-"], [data-testid^="operator-approval-accept-"]`;
       const askCss = `[data-testid="chat-ask-user-inline"]`;
-      const planCss = `[data-testid="chat-plan-review"]`;
+      const planCss = `[data-testid="chat-plan-review"], [data-testid="chat-plan-review-builder"]`;
       // DOM activity indicators (any visible => the turn is still moving).
       const busyCss = [
         `[data-testid="chat-stop-button"]`,
@@ -436,6 +511,38 @@ async function runStep(
       const mods = `${step.meta ? "Meta+" : ""}${step.ctrl ? "Ctrl+" : ""}${step.shift ? "Shift+" : ""}${step.alt ? "Alt+" : ""}`;
       return `pressed ${mods}${step.key}`;
     }
+    case "stubInvoke": {
+      if (!ctx.stubs) {
+        throw new Error("stubInvoke needs the invoke seam, which only the dev server wires");
+      }
+      // Presence of the key, not of a value: `"resolve": null` is a cancelled
+      // picker and must count as the resolve mode.
+      const modes = (["resolve", "reject", "patch"] as const).filter((m) => m in step);
+      if (modes.length !== 1) {
+        throw new Error("stubInvoke takes exactly one of resolve/reject/patch");
+      }
+      const mode = modes[0];
+      ctx.stubs.add({
+        command: step.command,
+        mode,
+        value: expandHome(step[mode], ctx.home),
+        once: step.once === true,
+        argsMatch: step.argsMatch,
+      });
+      return `stubbed ${step.command} (${mode}${step.once ? ", once" : ""})`;
+    }
+    case "clearStubs": {
+      const n = ctx.stubs?.clear(step.command) ?? 0;
+      return step.command === undefined
+        ? `cleared ${n} stub(s)`
+        : `cleared ${n} stub(s) of ${step.command}`;
+    }
+    case "resizeWindow": {
+      await invoke("automation_resize", { width: step.width, height: step.height });
+      ctx.resized = true;
+      await sleep(RESIZE_SETTLE_MS);
+      return `resized to ${step.width}x${step.height}`;
+    }
   }
 }
 
@@ -477,8 +584,15 @@ function keyToCode(key: string): string {
 // `apollia.quickpicker.expanded` collapses the accordion the chat script asserts
 // on, a stale `apollia.delete_automation.skip` bypasses the delete dialog. Clear
 // the known non-deterministic UI-state keys so each component falls back to its
-// default. Deliberately does NOT touch the MCP disclaimer key: removing it would
-// re-trigger a blocking modal.
+// default. Every key a component persists is a new leak until it is added here.
+//
+// The two MCP disclaimer keys are on the list: the dialog they gate opens only
+// from a catalogue Connect click (Connections.svelte handleConnect), never at
+// boot, so clearing them costs nothing at startup and makes that click land on
+// the disclaimer every run. `apollia.tour.state` is deliberately absent:
+// tour-det measures the Getting started band with whatever followVisited the
+// machine holds, and a reset at boot would make getting-started-keep
+// unreachable for good.
 function resetDeterministicUiState(): void {
   if (typeof localStorage === "undefined") return;
   const keys = [
@@ -487,6 +601,16 @@ function resetDeterministicUiState(): void {
     "apollia.next_steps.dismissed",
     "apollia.next_steps.feedback",
     "apollia.ui.sidebar",
+    // layout.ts persists the drawer state whenever the viewport is sm, which
+    // a resizeWindow block reaches.
+    "apollia.ui.sidebarState_sm",
+    // McpDisclaimerDialog.svelte / WizardStepDisclaimer.svelte.
+    "apollia-mcp-disclaimer-accepted",
+    "apollia-mcp-disclaimer-version",
+    // companion.ts: a keyboard nudge of the panel would leak its position.
+    "companionGeometry",
+    // agentInstallPrefs.ts: settings-det toggles it, the install deps step reads it.
+    "apollia.agent-install-prefs",
   ];
   for (const key of keys) {
     try {
@@ -497,7 +621,22 @@ function resetDeterministicUiState(): void {
   }
 }
 
-export async function runAutomation(scriptJson: string, allowDestructive: boolean): Promise<void> {
+// App.svelte hands the runner the boot's script and gate; the home comes from
+// the same payload, re-read here when the caller does not pass it.
+async function bootHomeDir(): Promise<string> {
+  try {
+    const boot = await invoke<AutomationBoot | null>("automation_script");
+    return boot?.homeDir ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export async function runAutomation(
+  scriptJson: string,
+  allowDestructive: boolean,
+  homeDir?: string,
+): Promise<void> {
   let script: Script;
   try {
     script = JSON.parse(scriptJson) as Script;
@@ -520,37 +659,76 @@ export async function runAutomation(scriptJson: string, allowDestructive: boolea
   const overlay = mountOverlay(script.name);
   const startedAt = new Date().toISOString();
   const steps: StepResult[] = [];
-  const captures: Record<string, string> = {};
-  const screenshots: string[] = [];
+  const ctx: RunContext = {
+    captures: {},
+    screenshots: [],
+    stubs: new InvokeStubs(seam),
+    home: homeDir ?? (await bootHomeDir()),
+    resized: false,
+  };
   let ok = true;
 
-  for (let i = 0; i < script.steps.length; i++) {
-    const step = script.steps[i];
-    overlay.update(i + 1, script.steps.length, step.kind);
-    const t0 = performance.now();
-    let stepOk = true;
-    let detail = "";
-    try {
-      detail = await runStep(step, captures, screenshots);
-    } catch (e) {
-      stepOk = false;
-      ok = false;
-      detail = e instanceof Error ? e.message : String(e);
-      console.error(`[automation] step ${i + 1} (${step.kind}) failed: ${detail}`);
+  // A file input's click() reaches WebKit's chooser, which wry answers with a
+  // modal NSOpenPanel.runModal that freezes the boot. Under automation the
+  // chooser is replaced by an immediate pick of one harness-built text file,
+  // so a button that proxies the input (the composer paperclip) stays playable
+  // end to end: button, input, ingest, chip.
+  const nativeInputClick = HTMLInputElement.prototype.click;
+  HTMLInputElement.prototype.click = function (this: HTMLInputElement) {
+    if (this.type !== "file") return nativeInputClick.call(this);
+    const dt = new DataTransfer();
+    dt.items.add(
+      new File(["Attachment picked by the automation harness."], HARNESS_FILE_NAME, {
+        type: "text/plain",
+      }),
+    );
+    this.files = dt.files;
+    this.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  try {
+    for (let i = 0; i < script.steps.length; i++) {
+      const step = script.steps[i];
+      overlay.update(i + 1, script.steps.length, step.kind);
+      const t0 = performance.now();
+      let stepOk = true;
+      let detail = "";
       try {
-        screenshots.push(await captureWindow(`fail-${i + 1}-${step.kind}`));
-      } catch {
-        // a failing capture must not mask the step failure
+        detail = await runStep(step, ctx);
+      } catch (e) {
+        stepOk = false;
+        ok = false;
+        detail = e instanceof Error ? e.message : String(e);
+        console.error(`[automation] step ${i + 1} (${step.kind}) failed: ${detail}`);
+        try {
+          ctx.screenshots.push(await captureWindow(`fail-${i + 1}-${step.kind}`));
+        } catch {
+          // a failing capture must not mask the step failure
+        }
+      }
+      steps.push({
+        index: i,
+        kind: step.kind,
+        ok: stepOk,
+        detail,
+        tsMs: Math.round(performance.now() - t0),
+      });
+      if (!stepOk && script.stopOnError) break;
+    }
+  } finally {
+    // Whatever ended the loop (the last step, stopOnError, a throw), the two
+    // seams go back: the original invoke first so nothing below is answered
+    // by a stub, then the window size. Neither may keep the report from
+    // landing, so the resize failure is logged rather than rethrown.
+    HTMLInputElement.prototype.click = nativeInputClick;
+    ctx.stubs?.restore();
+    if (ctx.resized) {
+      try {
+        await invoke("automation_resize", DEFAULT_WINDOW);
+      } catch (e) {
+        console.error("[automation] window size restore failed", e);
       }
     }
-    steps.push({
-      index: i,
-      kind: step.kind,
-      ok: stepOk,
-      detail,
-      tsMs: Math.round(performance.now() - t0),
-    });
-    if (!stepOk && script.stopOnError) break;
   }
 
   const report: RunReport = {
@@ -559,8 +737,8 @@ export async function runAutomation(scriptJson: string, allowDestructive: boolea
     finishedAt: new Date().toISOString(),
     ok,
     steps,
-    captures,
-    screenshots,
+    captures: ctx.captures,
+    screenshots: ctx.screenshots,
   };
   try {
     const path = await invoke<string>("automation_finish", {

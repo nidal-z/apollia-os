@@ -91,7 +91,7 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
 - **Deterministic** (`<page>-det.json`, no model): one exhaustive book per surface
   (operator + builder walk, empty/error states, dialogs opened then cancelled,
   mutating controls driven to the boundary). `master-det.json` runs all 21 in one
-  boot and is the release gate (2819 steps); `just desktop-automation-verdict` reads its report. `tour-det` covers the Getting
+  boot and is the release gate (4108 steps); `just desktop-automation-verdict` reads its report. `tour-det` covers the Getting
   started band and the guided tour (entry points, step navigation, the
   anchorless fallback, the exit confirmation, finishing).
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
@@ -129,9 +129,79 @@ A script is `{ name, stopOnError?, destructive?, steps: [...] }`. Step kinds
 (see `crates/apollia-desktop/ui/src/lib/automation/types.ts` for the full typed
 contract): `goto`, `waitFor`, `waitGone`, `click`, `fill`, `sendChat`, `expect`,
 `captureText`, `screenshot`, `sleep`, `awaitTurn`, `setChecked`, `selectOption`,
-`press`. Targets are an exact `testid` or a `testidPrefix` (+ optional `nth`,
-negative counts from the end). `awaitTurn` drives a chat/agent turn to completion
-and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`).
+`press`, `stubInvoke`, `clearStubs`, `resizeWindow`, `fault`, `emitEvent`. Targets are an exact
+`testid` or a `testidPrefix` (+ optional `nth`, negative counts from the end).
+`awaitTurn` drives a chat/agent turn to completion and auto-accepts HITL cards;
+`sendChat` targets the chat composer (`chat-input`).
+`waitFor` takes an optional `contains`: the target must then be visible AND
+read that fragment before the step passes, which is how a recipe waits for a
+count or a status to change (the topbar's agents-at-work chip going back to
+`1 agent`) instead of sleeping for a guessed duration.
+
+Five kinds act on the harness rather than on the DOM:
+
+- **`stubInvoke { command, resolve? | reject? | patch?, once?, argsMatch? }`**
+  answers one Tauri command from the script. Every webview call, the
+  plugin-dialog pickers included (`plugin:dialog|open`, `plugin:dialog|save`),
+  goes through the `invoke` of `@tauri-apps/api/core` (aliased in the dev server to `tauriCoreShim.ts`, since the webview's own invoke is read-only), and the runner replaces that
+  one function on the first `stubInvoke` of a run. Exactly one of `resolve`
+  (the value returned; JSON `null` is a cancelled picker), `reject` (the payload
+  the UI classifies, by `.kind` or by message text) or `patch` (the real call
+  runs, these fields are merged over its result) is given, by key presence.
+  `once` drops the stub after its first hit; `argsMatch` restricts it to calls
+  whose argument object carries each listed key with a deep-equal value, so
+  `get_chat_session` can be broken for one seeded session and left alone for
+  the others. What the table does not answer reaches the backend unchanged,
+  the runner's own `automation_*` calls included. The original `invoke` comes
+  back when the run ends, whatever ended it. Two cautions: a stub proves the
+  UI's handling of a shape the backend never produced, so a `resolve` that
+  imitates a backend type (`PendingApproval`, `McpResourceSummary`) drifts
+  silently when the type changes and should name the type in the script's
+  `notes`; and a `patch` on `get_chat_session` also reaches `awaitTurn`'s own
+  status poll, so never leave one armed across a turn.
+- **`clearStubs { command? }`** drops the stubs of one command, or all of them.
+  The wrapper stays until the run ends; a cleared command passes through again.
+- **`resizeWindow { width, height }`** resizes the app window to a logical size
+  through the dev-only `automation_resize` command. `tauri.conf.json` pins a
+  minimum of 900 x 600 that the OS enforces, so the command lifts the minimum
+  first and puts it back, from the same config, once the requested size
+  satisfies it again. The runner waits 400 ms for WKWebView to reflow and the
+  `matchMedia` listeners to fire, and restores 1280 x 800 when the run ends.
+  Two bands matter: under 1024 px the chat panes become drawers, under 768 px
+  the sidebar does. A narrow block must contain no boundary click (a native
+  picker, a `window.confirm`): a hung step keeps the window narrow for the
+  rest of the boot, and every later section assumes 1280 x 800.
+- **`fault { name: "heartbeat-lost" }`** injects the one fault no IPC can ask
+  for: the runtime heartbeat is an event the backend emits every five seconds,
+  so the dev-only `simulateHeartbeatLoss` of `stores/runtimeHealth.ts` mutes
+  the liveness listeners and fires the watchdog, which shows the disconnected
+  banner. The banner's retry unmutes them and the next real heartbeat closes
+  it, which is what the recipe asserts.
+- **`emitEvent { event, payload? }`** emits a Tauri event from the webview, as
+  the backend would; Tauri's JS `emit` reaches every listener, this webview's
+  `listen` included. It is how a recipe delivers an event-borne request the
+  product cannot produce on demand (the critical filesystem HITL card, whose
+  level the classifier never returns). The payload imitates a backend type and
+  the script's `notes` name it, for the same drift reason as a `stubInvoke`.
+
+Two more substitutions concern file inputs, whose chooser is served by wry as
+a modal `NSOpenPanel` that would freeze the boot: a `fill` on an
+`input[type=file]` builds one `text/plain` file named
+`automation-attachment.txt` in the webview from the step's text (nothing is
+read from disk), assigns it to `.files` and fires `change`, taking the input
+without the visibility gate since such inputs are `display:none` by design;
+and for the whole run the runner replaces `HTMLInputElement.prototype.click`
+on file inputs by the same immediate pick, so the button that proxies the
+input (the composer paperclip) plays end to end, then restores it.
+
+Two substitutions ride on the boot: `goto` takes an optional `sessionId`, set
+on `pendingChatSessionId` before the navigation (the order the command palette
+uses), which is how a recipe reaches the session-not-found screen with an id no
+table holds; and `${HOME}` in `fill.text` and in every string of a `stubInvoke`
+value and of an `emitEvent` payload expands to the boot's `homeDir`, the seeded throwaway home the recipe
+swapped in, so a picker stub can name `${HOME}/.apollia/models/<file>` without
+knowing where the recipe put it. A boot without a home refuses the token rather
+than expanding it to nothing.
 
 ## Maintenance
 
@@ -208,12 +278,16 @@ and auto-accepts HITL cards; `sendChat` targets the chat composer (`chat-input`)
 - **Screenshots capture the app window by id** (`screencapture -l`), so an editor
   or launcher on top no longer pollutes them. If a capture is ever wrong, check
   the window is a normal (non-minimized) window.
-- **A native file dialog is a dead end.** `memory-export-button`,
-  `memory-import-pick`, `project-doc-attach-btn` and `agent-update-btn` all open
-  an OS picker the runner cannot answer: the click never returns and every later
-  step of the boot fails. Those buttons are asserted present and never clicked.
-  The gesture they start is still covered where it has a DOM half: the import
-  dialog is opened and cancelled, the detach confirms are armed and retired.
+- **A native file dialog is answered by a stub, or not at all.**
+  `memory-export-button`, `memory-import-pick`, `project-doc-attach-btn` and
+  `agent-update-btn` open an OS picker the runner cannot drive: an unstubbed
+  click never returns and every later step of the boot fails. Arm
+  `stubInvoke { command: "plugin:dialog|open", resolve: "${HOME}/...", once: true }`
+  (`plugin:dialog|save` for the export) right before the click, or `resolve:
+  null` for a cancelled picker. The chat composer is the exception: its attach
+  button clicks a hidden `<input type=file>`, which is not an IPC and stays a
+  boundary. Never point an update picker at the agent's own installed module:
+  `std::fs::copy` onto the same path truncates the file before copying it.
 - **An inline confirm may have no cancel testid.** Arming the agent uninstall
   swaps the header for a confirm panel whose Cancel button carries none, so the
   only scripted way out is to select another agent, which the route uses to
