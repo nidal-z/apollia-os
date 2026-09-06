@@ -260,7 +260,7 @@ async fn outlook_move(
 ) -> Result<Value, String> {
     let message_id = get_str(input, "message_id")?;
     let destination = get_str(input, "destination_folder_id")?;
-    let scopes = [MicrosoftScope::MailRead];
+    let scopes = [MicrosoftScope::MailReadWrite];
     let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let moved = connector

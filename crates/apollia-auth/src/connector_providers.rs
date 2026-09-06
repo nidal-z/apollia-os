@@ -121,6 +121,9 @@ pub enum MicrosoftScope {
     MailRead,
     /// Send mail as the user (`Mail.Send`).
     MailSend,
+    /// Move and edit mail (`Mail.ReadWrite`), which Graph requires for
+    /// `POST /me/messages/{id}/move`; `Mail.Read` cannot move a message.
+    MailReadWrite,
     /// Read calendar events (`Calendars.Read`).
     CalendarRead,
     /// Create / update / delete calendar events (`Calendars.ReadWrite`).
@@ -141,6 +144,7 @@ impl MicrosoftScope {
         match self {
             Self::MailRead => "Mail.Read",
             Self::MailSend => "Mail.Send",
+            Self::MailReadWrite => "Mail.ReadWrite",
             Self::CalendarRead => "Calendars.Read",
             Self::CalendarWrite => "Calendars.ReadWrite",
             Self::FilesRead => "Files.Read.All",
@@ -494,6 +498,10 @@ mod tests {
         // WHEN resolved
         // THEN matches Microsoft Graph documented value
         assert_eq!(MicrosoftScope::MailRead.oauth_scope(), "Mail.Read");
+        assert_eq!(
+            MicrosoftScope::MailReadWrite.oauth_scope(),
+            "Mail.ReadWrite"
+        );
         assert_eq!(MicrosoftScope::Offline.oauth_scope(), "offline_access");
     }
 

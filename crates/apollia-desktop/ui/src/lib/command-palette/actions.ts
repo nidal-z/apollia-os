@@ -56,7 +56,6 @@ import { companionStore } from "$lib/stores/companion";
 import { restoreBand } from "$lib/tour/persistence";
 import { onboardingModalOpen } from "$lib/stores/onboarding";
 import { openNewChatRequested } from "$lib/stores/chat";
-import { openNewTaskRequested } from "$lib/stores/tasks";
 
 export type PaletteGroupKind =
   | "pages"
@@ -161,8 +160,8 @@ export function buildPaletteActions(): PaletteAction[] {
       shortcut: [modKey, "T"],
       kind: "actions",
       execute: () => {
-        navigateTo("tasks");
-        openNewTaskRequested.set(Date.now());
+        navigateTo("chat");
+        openNewChatRequested.set(Date.now());
       },
     },
     {

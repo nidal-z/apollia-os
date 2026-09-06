@@ -2516,7 +2516,6 @@
       "toast": {
         "reset_done": "Profile reset"
       },
-      "avatar_change": "Change avatar",
       "memory": {
         "title": "Memory facts",
         "subtitle": "Details your agents retained across conversations. Right-click to edit or delete.",

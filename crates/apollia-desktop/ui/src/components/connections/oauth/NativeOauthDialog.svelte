@@ -113,7 +113,10 @@
               "tasks",
               "forms",
             ]
-          : ["mail.read", "mail.send", "calendar.read", "calendar.write", "files.read"];
+          : // "mail.readwrite" carries outlook.move: Graph refuses the move
+            // action on Mail.Read alone, so a consent without it left that
+            // operation advertised and unusable.
+            ["mail.read", "mail.readwrite", "mail.send", "calendar.read", "calendar.write", "files.read"];
       const startResult = await oauthStartFlow(provider, scopes, await resolveSovereignty());
       authUrl = startResult.auth_url;
       flowState = startResult.state;

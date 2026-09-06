@@ -105,12 +105,47 @@ fn stt_unavailable() -> (StatusCode, Json<SttErrorResponse>) {
     )
 }
 
+/// Snapshot the persisted STT configuration, dropping the (!Send) lock guard
+/// before any await. Shared by the status and reload routes.
+fn read_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
+    state: &AppState<B>,
+) -> Result<SttConfigRow, (StatusCode, Json<SttErrorResponse>)> {
+    let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(SttErrorResponse {
+                error: "STT config repository not available".into(),
+            }),
+        )
+    })?;
+    let guard = repo.lock().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SttErrorResponse {
+                error: format!("repository lock error: {e}"),
+            }),
+        )
+    })?;
+    guard.get_or_default().map_err(|e| {
+        tracing::error!(error = %e, "stt.config.read.failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(SttErrorResponse {
+                error: format!("database error: {e}"),
+            }),
+        )
+    })
+}
+
 // ── Handlers ────────────────────────────────────────────────────────
 
 /// `GET /api/v1/stt/status`, return current STT engine status.
 ///
-/// Returns `200 OK` with the status when the engine is running.
-/// Returns `503 Service Unavailable` when the engine is absent.
+/// Returns `200 OK` with the status when the engine is running, and `200 OK`
+/// with `model_loaded: false` read from the persisted configuration when it is
+/// absent (disabled, model file missing, runner sidecar unavailable).
+/// Returns `503 Service Unavailable` only when that configuration cannot be
+/// read either.
 #[utoipa::path(
     get,
     path = "/api/v1/stt/status",
@@ -124,12 +159,32 @@ fn stt_unavailable() -> (StatusCode, Json<SttErrorResponse>) {
 pub async fn stt_status<B: ExecutionBackend + Clone + From<DynBackend>>(
     State(state): State<AppState<B>>,
 ) -> RouteResult<SttStatusResponse> {
-    let engine = state
-        .stt_engine
-        .read()
-        .await
-        .clone()
-        .ok_or_else(stt_unavailable)?;
+    let Some(engine) = state.stt_engine.read().await.clone() else {
+        // No engine: disabled in configuration, model file absent, or the
+        // runner sidecar unavailable on this build. A status query still gets
+        // a status, read from the persisted configuration, with
+        // `model_loaded` false; the 503 stays for the case where even that
+        // configuration cannot be read. Measured on a Linux build without a
+        // runner, the previous 503 made `apollia-os stt status` answer an
+        // error where the same fixture on macOS answered "not loaded".
+        let cfg = read_stt_config(&state)?;
+        let model_name = std::path::Path::new(&cfg.model_path)
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        return Ok((
+            StatusCode::OK,
+            Json(SttStatusResponse {
+                enabled: cfg.enabled,
+                model_loaded: false,
+                model_path: cfg.model_path,
+                model_name,
+                backend_name: String::new(),
+                metal_enabled: false,
+                cuda_enabled: false,
+            }),
+        ));
+    };
 
     let status = engine.status().await.ok_or_else(|| {
         (
@@ -638,33 +693,7 @@ pub async fn reload_stt_engine<B: ExecutionBackend + Clone + From<DynBackend>>(
 ) -> RouteResult<SttReloadResponse> {
     // Snapshot the persisted config, dropping the (!Send) lock guard before the
     // async rebuild.
-    let cfg = {
-        let repo = state.stt_config_repo.as_ref().ok_or_else(|| {
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(SttErrorResponse {
-                    error: "STT config repository not available".into(),
-                }),
-            )
-        })?;
-        let guard = repo.lock().map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(SttErrorResponse {
-                    error: format!("repository lock error: {e}"),
-                }),
-            )
-        })?;
-        guard.get_or_default().map_err(|e| {
-            tracing::error!(error = %e, "stt.config.read.failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(SttErrorResponse {
-                    error: format!("database error: {e}"),
-                }),
-            )
-        })?
-    };
+    let cfg = read_stt_config(&state)?;
 
     let (engine, repository) = crate::stt::build_stt_engine(
         &state.data_dir,

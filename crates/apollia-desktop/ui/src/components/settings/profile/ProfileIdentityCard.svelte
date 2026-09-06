@@ -5,7 +5,7 @@
    * name / role / sector / team-size / goals fields.
    */
   import { t } from "svelte-i18n";
-  import { User, Camera } from "lucide-svelte";
+  import { User } from "lucide-svelte";
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
   import { Select } from "$lib/components/ui/select";
@@ -67,12 +67,13 @@
 
   <!-- Warm avatar focal + resolved identity summary. -->
   <div class="flex items-center gap-4 pb-1">
-    <div class="group relative shrink-0">
-      <button
-        type="button"
+    <div class="relative shrink-0">
+      <!-- Decorative: no avatar picker exists behind this tile, so it neither
+           claims one in its label nor invites a click. -->
+      <div
         style="--agent-hue: {hue};"
-        class="relative grid h-16 w-16 place-items-center rounded-2xl bg-[image:var(--avatar-gradient-warm)] text-heading-md font-bold tracking-tight text-primary-foreground shadow-elev-2 transition-all duration-base ease-apple hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-warm-focus focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        aria-label={$t("settings.profile.avatar_change")}
+        class="relative grid h-16 w-16 place-items-center rounded-2xl bg-[image:var(--avatar-gradient-warm)] text-heading-md font-bold tracking-tight text-primary-foreground shadow-elev-2"
+        aria-hidden="true"
         data-testid="profile-avatar"
       >
         {#if initials}
@@ -80,12 +81,7 @@
         {:else}
           <User size={26} strokeWidth={1.5} />
         {/if}
-        <span
-          class="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full border border-border bg-card text-muted-foreground opacity-0 transition-opacity duration-fast ease-apple group-hover:opacity-100 group-focus-within:opacity-100"
-        >
-          <Camera size={12} strokeWidth={1.9} aria-hidden="true" />
-        </span>
-      </button>
+      </div>
     </div>
 
     <div class="min-w-0">

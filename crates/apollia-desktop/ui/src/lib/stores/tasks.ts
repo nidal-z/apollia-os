@@ -4,7 +4,7 @@
  * Re-exports the base tasks store from sse.ts and provides derived
  * stores for filtered views (running tasks, completed count, etc.).
  */
-import { derived, writable } from "svelte/store";
+import { derived } from "svelte/store";
 import { tasks } from "./sse";
 
 export { tasks } from "./sse";
@@ -28,10 +28,3 @@ export const tasksRunningCount = derived(tasks, ($tasks) =>
 export const completedTaskCount = derived(tasks, ($tasks) =>
   $tasks.filter((t) => t.status === "completed").length,
 );
-
-/**
- * Cross-component signal to open the "new task" dialog on the Tasks route.
- * The sidebar / command palette / FAB set this to `Date.now()`; `TaskList`
- * subscribes and opens the dialog on change.
- */
-export const openNewTaskRequested = writable<number>(0);

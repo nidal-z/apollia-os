@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { openNewChatRequested } from "$lib/stores/chat";
   import { onMount } from "svelte";
     import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { isLoading, t } from "svelte-i18n";
@@ -22,7 +23,6 @@
   import { CommandPalette } from "./components/command-palette";
   import { mountShortcutDispatcher } from "$lib/navigation/shortcutDispatcher";
   import { registerGlobalShortcutHandlers } from "$lib/navigation/globalShortcutHandlers";
-  import { openNewTaskRequested } from "$lib/stores/tasks";
   import { llmBackends } from "$lib/stores/sse";
   import { get } from "svelte/store";
   import { getSttConfig } from "$lib/ipc/models";
@@ -46,8 +46,8 @@
           target.isContentEditable);
       if (isEditing) return;
       event.preventDefault();
-      navigateTo("tasks");
-      openNewTaskRequested.set(Date.now());
+      navigateTo("chat");
+      openNewChatRequested.set(Date.now());
       return;
     }
     // Cmd/Ctrl+Shift+A: toggle the artifacts tab of the context drawer.

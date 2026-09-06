@@ -185,6 +185,45 @@
     },
     {
       "kind": "click",
+      "testid": "tasks-new",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-assign-task-opens-agent-picker"
+    },
+    {
+      "kind": "press",
+      "key": "Escape",
+      "testid": "quickpicker-textarea"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "quickpicker",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "tasks"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
       "testidPrefix": "task-row",
       "nth": 0,
       "timeoutMs": 2500
@@ -595,6 +634,7 @@
     }
   ],
   "notes": [
-    "A row leaving the list on a filter change keeps its click handler while it animates out, so a click that lands right after the filter chip selects a row of the previous filter: measured on run3, the Running filter showed one working task and the detail opened the completed one. A 500 ms sleep after the chip lets the exit transition finish before the row is addressed."
+    "A row leaving the list on a filter change keeps its click handler while it animates out, so a click that lands right after the filter chip selects a row of the previous filter: measured on run3, the Running filter showed one working task and the detail opened the completed one. A 500 ms sleep after the chip lets the exit transition finish before the row is addressed.",
+    "tasks-new opens the chat agent picker, which is where a task is assigned; the picker is closed with Escape and the page revisited. tasks-fab is the narrow-layout twin of that button (md:hidden) and never renders at 1280 px."
   ]
 }

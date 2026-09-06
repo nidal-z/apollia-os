@@ -222,6 +222,7 @@ fn build_provider_with_scopes(
                 let m = match s.as_str() {
                     "mail.read" => MicrosoftScope::MailRead,
                     "mail.send" => MicrosoftScope::MailSend,
+                    "mail.readwrite" => MicrosoftScope::MailReadWrite,
                     "calendar.read" => MicrosoftScope::CalendarRead,
                     "calendar.write" => MicrosoftScope::CalendarWrite,
                     "files.read" => MicrosoftScope::FilesRead,

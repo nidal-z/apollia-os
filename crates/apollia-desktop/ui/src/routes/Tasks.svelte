@@ -3,7 +3,9 @@
   import { t, locale } from "svelte-i18n";
   import { fly } from "svelte/transition";
   import type { TaskSummary } from "$lib/types";
-  import { tasks, openNewTaskRequested } from "$lib/stores/tasks";
+  import { tasks } from "$lib/stores/tasks";
+  import { navigateTo } from "$lib/stores/navigation";
+  import { openNewChatRequested } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
   import { formatRelativeTime } from "$lib/utils";
   import { listTasks, cancelTask, submitTask, deleteTask } from "$lib/ipc/tasks";
@@ -148,8 +150,13 @@
     selectedTaskId = null;
   }
 
+  // A task is assigned by starting a conversation with an agent: the chat
+  // page opens its agent picker on this signal. The previous signal,
+  // `openNewTaskRequested`, had lost its only consumer with the task dialog it
+  // opened, and the button stayed on screen doing nothing.
   function newTask() {
-    openNewTaskRequested.set(Date.now());
+    navigateTo("chat");
+    openNewChatRequested.set(Date.now());
   }
 
   async function refresh(showLoading = false) {
