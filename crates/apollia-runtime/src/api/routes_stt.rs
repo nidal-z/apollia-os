@@ -758,6 +758,7 @@ mod tests {
     use crate::eventbus::EventBus;
     use crate::registry::AgentRegistry;
     use crate::router::TaskRouterHandle;
+    use apollia_core::SttConfigRepository;
     use apollia_core::{AIPResult, AIPTask, TaskStatus};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
@@ -882,7 +883,43 @@ mod tests {
             .with_state(state)
     }
 
-    // GIVEN no STT engine in AppState
+    // GIVEN no STT engine in AppState, and a config repository that holds a
+    //       configuration enabling STT on a model path
+    // WHEN GET /api/v1/stt/status
+    // THEN 200 with that configuration and model_loaded false, the reading a
+    //      Linux build without a runner sidecar used to answer with a 503
+    #[tokio::test]
+    async fn status_without_engine_but_with_config_reports_not_loaded() {
+        let mut state = base_state();
+        let dir =
+            std::env::temp_dir().join(format!("apollia_stt_api_test_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let repo = SttConfigRepository::open(&dir.join("stt_config.db")).expect("open config repo");
+        let mut row = repo.get_or_default().expect("default row");
+        row.enabled = true;
+        row.model_path = "/models/ggml-base.bin".into();
+        repo.upsert(&row).expect("persist row");
+        state.stt_config_repo = Some(Arc::new(std::sync::Mutex::new(repo)));
+        let router = Router::new()
+            .route("/api/v1/stt/status", get(stt_status::<MockBackend>))
+            .with_state(state);
+
+        let req = Request::builder()
+            .uri("/api/v1/stt/status")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["enabled"], serde_json::Value::Bool(true));
+        assert_eq!(json["model_loaded"], serde_json::Value::Bool(false));
+        assert_eq!(json["model_path"], "/models/ggml-base.bin");
+        assert_eq!(json["model_name"], "ggml-base");
+    }
+
+    // GIVEN no STT engine in AppState, and no config repository either
     // WHEN GET /api/v1/stt/status
     // THEN 503 with descriptive error
     #[tokio::test]
