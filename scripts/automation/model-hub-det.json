@@ -155,6 +155,15 @@
       "testid": "hf-token-save"
     },
     {
+      "kind": "click",
+      "testid": "hf-token-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
       "kind": "screenshot",
       "label": "04-hf-token-form"
     },
@@ -207,6 +216,25 @@
     {
       "kind": "expect",
       "testid": "model-filter-incompatible"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "model-filter-sort",
+      "index": 0
+    },
+    {
+      "kind": "selectOption",
+      "testid": "model-filter-language",
+      "index": 0
+    },
+    {
+      "kind": "click",
+      "testid": "model-filter-incompatible",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
     },
     {
       "kind": "screenshot",

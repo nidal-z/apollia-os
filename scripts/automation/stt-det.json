@@ -181,6 +181,72 @@
       "timeoutMs": 6000
     },
     {
+      "kind": "click",
+      "testid": "stt-hotkey-change-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "hotkey-capture-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "press",
+      "testid": "hotkey-capture-dialog",
+      "key": "k",
+      "meta": true,
+      "shift": true,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "05b-hotkey-captured"
+    },
+    {
+      "kind": "click",
+      "testid": "hotkey-capture-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "hotkey-capture-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "setChecked",
+      "testid": "stt-enable-switch",
+      "checked": false
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "setChecked",
+      "testid": "stt-enable-switch",
+      "checked": true
+    },
+    {
+      "kind": "selectOption",
+      "testid": "stt-model-select",
+      "index": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "stt-input-device",
+      "index": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "05c-stt-essentials-driven"
+    },
+    {
       "kind": "waitFor",
       "testid": "stt-section-performance",
       "timeoutMs": 3000
@@ -285,6 +351,34 @@
     {
       "kind": "screenshot",
       "label": "12-stt-mic-boundary"
+    },
+    {
+      "kind": "goto",
+      "route": "transcriptions"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "transcriptions-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-model-not-loaded",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "stt-open-settings",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-config-form",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10b-open-settings-from-transcriptions"
     },
     {
       "kind": "goto",

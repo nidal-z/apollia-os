@@ -91,7 +91,7 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
 - **Deterministic** (`<page>-det.json`, no model): one exhaustive book per surface
   (operator + builder walk, empty/error states, dialogs opened then cancelled,
   mutating controls driven to the boundary). `master-det.json` runs all 21 in one
-  boot and is the release gate (2431 steps); `just desktop-automation-verdict` reads its report. `tour-det` covers the Getting
+  boot and is the release gate (2819 steps); `just desktop-automation-verdict` reads its report. `tour-det` covers the Getting
   started band and the guided tour (entry points, step navigation, the
   anchorless fallback, the exit confirmation, finishing).
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
@@ -116,14 +116,12 @@ The whole corpus was last run green on 2026-07-28 against the redesigned UI:
 14 suites, 3056 steps, 0 failures. The LLM ones ran on
 `Qwen3.6-35B-A3B-MXFP4_MOE.gguf` with `CTX=32768 NP=1`.
 
-Eleven surfaces landed after that run and were covered in a later pass: a
-project's agents and documents, the in-place edition of an automation, an
-agent's file replacement and its uninstall, the merged decision history of the
-inbox, the export / import / purge of a memory namespace, the timeline of a
-single task, the journal-wide audit totals, the hook registry, a tool's contract
-sheet, the credential inventory, and the cost alert ceiling. Their steps pass
-`validate.py` but have not been through a runtime round yet, so treat the first
-`master-det` run that includes them as a debugging run, not as a gate.
+The deterministic books went through a runtime round on 2026-09-06, page by
+page and then as `master-det`, after a pass that turned observed anchors into
+played ones wherever the seeded, throwaway HOME made the action safe. What a
+book still leaves unplayed is written in its top-level `notes`, with the
+reason measured on a run (a native picker, a network boundary, a narrow-layout
+control, a state the seed cannot reach). `uncovered.py --list` names the rest.
 
 ## Script contract
 

@@ -546,6 +546,108 @@
     {
       "kind": "screenshot",
       "label": "16-back-operator"
+    },
+    {
+      "kind": "goto",
+      "route": "projects"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "projects-new-project-btn",
+      "timeoutMs": 3000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "new-project-close",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "new-project-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "new-project-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "projects-new-project-btn",
+      "timeoutMs": 3000,
+      "nth": 0
+    },
+    {
+      "kind": "waitFor",
+      "testid": "new-project-continue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "new-project-continue",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "new-project-name-input",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "new-project-name-input",
+      "text": "Automation Project"
+    },
+    {
+      "kind": "click",
+      "testid": "new-project-create",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "new-project-create",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-tab-tasks",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "30-new-project-created"
+    },
+    {
+      "kind": "click",
+      "testid": "project-tab-tasks",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-tasks-attach-agents-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "project-tasks-attach-agents-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "project-agent-select",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "31-empty-tasks-cta-opens-agents"
     }
+  ],
+  "notes": [
+    "The tasks tab's attach-agents CTA renders only on a project with no linked agent, and both seeded projects link one, so the tail creates a project through the dialog (which is also the only way to play new-project-create and new-project-close) and drives the CTA there. project-doc-attach-empty-btn stays unplayed: it opens the native file picker, which the runner cannot come back from."
   ]
 }

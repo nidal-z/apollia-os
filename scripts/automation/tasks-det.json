@@ -169,6 +169,22 @@
     },
     {
       "kind": "click",
+      "testid": "tasks-refresh",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-table",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
       "testidPrefix": "task-row",
       "nth": 0,
       "timeoutMs": 2500
@@ -277,6 +293,222 @@
     },
     {
       "kind": "click",
+      "testid": "tasks-filter-running",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-detail-title",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12a-running-task-detail"
+    },
+    {
+      "kind": "captureText",
+      "testid": "task-detail-title",
+      "as": "running-task-title"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-stop",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "task-stop",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-running-task-stopped"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-back-to-list",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-filter-error",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-detail-title",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "task-retry",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "12c-failed-task-retried"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-back-to-list",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-filter-done",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-detail-title",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-delete",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "task-delete",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-delete-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "task-delete-confirm-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "task-delete-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "screenshot",
+      "label": "12d-delete-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "task-delete",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "task-delete-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "task-delete-confirm-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitGone",
+      "testid": "task-delete-confirm",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12e-done-task-deleted"
+    },
+    {
+      "kind": "click",
+      "testid": "tasks-filter-all",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "task-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
       "testid": "sidebar-mode-chip"
     },
     {
@@ -361,5 +593,8 @@
       "kind": "screenshot",
       "label": "16-back-operator"
     }
+  ],
+  "notes": [
+    "A row leaving the list on a filter change keeps its click handler while it animates out, so a click that lands right after the filter chip selects a row of the previous filter: measured on run3, the Running filter showed one working task and the detail opened the completed one. A 500 ms sleep after the chip lets the exit transition finish before the row is addressed."
   ]
 }

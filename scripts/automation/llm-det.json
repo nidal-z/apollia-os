@@ -3,7 +3,8 @@
   "stopOnError": false,
   "notes": [
     "LlmBackendCard.svelte no longer suffixes its ids with the backend name: llm-backend-card, llm-backend-badge, set-default, llm-backend-ping-btn, edit-backend, delete-backend are plain and repeated per card, so they are targeted by testid + nth instead of testidPrefix.",
-    "set-default / llm-backend-ping-btn / edit-backend / delete-backend live in the builderActions snippet, so they render in builder mode only; the settings walk runs after the mode is switched to builder. set-default additionally renders only on a non-default backend."
+    "set-default / llm-backend-ping-btn / edit-backend / delete-backend live in the builderActions snippet, so they render in builder mode only; the settings walk runs after the mode is switched to builder. set-default additionally renders only on a non-default backend.",
+    "llm-dialog-enabled-switch and llm-dialog-default-switch are the inner controls a Switch composes off llm-dialog-enabled / llm-dialog-default; the runner's setChecked descends into the wrapper, which is how those two are played, and the inner ids resolve to nothing at run time (b5-llm)."
   ],
   "dynamicTestids": [
     "settings-nav-llm",
@@ -197,6 +198,15 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "click",
+      "testid": "llm-reload-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
       "kind": "waitFor",
       "testid": "llm-backends-list",
       "timeoutMs": 6000
@@ -256,6 +266,14 @@
       "testid": "llm-dialog-name"
     },
     {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
       "kind": "expect",
       "testid": "llm-dialog-provider"
     },
@@ -311,6 +329,35 @@
     {
       "kind": "expect",
       "testid": "llm-dialog-scan"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "llm-dialog-provider",
+      "value": "llama-cpp",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-scan",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-scan-result-row",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-scan-result-row",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "07b-scan-result-picked"
     },
     {
       "kind": "screenshot",
@@ -390,12 +437,119 @@
       "testid": "llm-delete-cancel"
     },
     {
+      "kind": "waitGone",
+      "testid": "llm-delete-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "delete-backend",
+      "nth": 1,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-delete-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-delete-confirm-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-delete-confirm-input",
+      "text": "DELETE"
+    },
+    {
+      "kind": "screenshot",
+      "label": "09b-delete-default-typed"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-delete-cancel"
+    },
+    {
+      "kind": "waitGone",
+      "testid": "llm-delete-dialog",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "sleep",
       "ms": 400
     },
     {
       "kind": "screenshot",
       "label": "12-llm-delete-cancelled"
+    },
+    {
+      "kind": "click",
+      "testid": "set-default",
+      "timeoutMs": 4000,
+      "nth": 0
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "11b-set-default"
+    },
+    {
+      "kind": "click",
+      "testid": "add-backend-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-name",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "llm-dialog-provider",
+      "value": "openai"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-endpoint",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-name",
+      "text": "automation-saved"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-endpoint",
+      "text": "https://api.openai.com/v1"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-apikey",
+      "text": "sk-automation-saved-not-real"
+    },
+    {
+      "kind": "fill",
+      "testid": "llm-dialog-model",
+      "text": "gpt-4o-mini"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-save",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "llm-dialog-name",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11c-backend-saved"
     },
     {
       "kind": "click",
@@ -417,6 +571,39 @@
     {
       "kind": "screenshot",
       "label": "13-back-operator"
+    },
+    {
+      "kind": "goto",
+      "route": "llm"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "llm-add-backend-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-dialog-name",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-llm-route-add-dialog"
+    },
+    {
+      "kind": "click",
+      "testid": "llm-dialog-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "llm-dialog-name",
+      "timeoutMs": 4000
     }
   ]
 }

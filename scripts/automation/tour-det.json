@@ -10,7 +10,8 @@
     "The frame tour is used to exercise the anchorless fallback: its third step declares anchor null in the catalogue, so tour-anchorless is asserted deterministically and tour-spotlight is asserted ABSENT at that point.",
     "tour-prev is not rendered at index 0 (not merely disabled), so its absence is asserted with waitGone rather than with a disabled check.",
     "The exit confirmation is a Dialog carrying data-testid tour-exit; its two buttons are tour-exit-cancel and tour-exit-confirm. The cancel path is exercised before the confirm path.",
-    "The landmarks walk counts clicks to reach the last step, which assumes pre-flight retains all four. That holds because the four anchors are permanent chrome present in both modes; if a future refactor drops one, the surplus click fails loudly here, which is the intended signal."
+    "The landmarks walk counts clicks to reach the last step, which assumes pre-flight retains all four. That holds because the four anchors are permanent chrome present in both modes; if a future refactor drops one, the surplus click fails loudly here, which is the intended signal.",
+    "getting-started-cta is never played: the CTA renders only while a next milestone exists, and milestone progress lives in WKWebView localStorage under the real ~/Library, which the swapped HOME does not reset, so its presence changed from one run to the next (present on b4, absent on b5). Not a recipe a run can hold."
   ],
   "dynamicTestids": [
     "getting-started-milestone-automate",
@@ -464,15 +465,6 @@
     {
       "kind": "screenshot",
       "label": "17-band-restored-from-help"
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
     }
   ]
 }

@@ -256,6 +256,66 @@
       "label": "13-nav-observability"
     },
     {
+      "kind": "waitFor",
+      "testid": "observability-settings",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-input-retention_days",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "fill",
+      "testid": "observability-input-retention_days",
+      "text": "45"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "settings-subpage-reset",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "13b-observability-retention-reset"
+    },
+    {
+      "kind": "click",
+      "testid": "observability-open-dashboard",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13c-observability-open-dashboard"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-nav",
+      "timeoutMs": 8000
+    },
+    {
       "kind": "click",
       "testid": "settings-nav-danger"
     },
@@ -540,6 +600,15 @@
     {
       "kind": "expect",
       "testid": "update-check-btn"
+    },
+    {
+      "kind": "click",
+      "testid": "update-check-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
     },
     {
       "kind": "screenshot",
@@ -974,6 +1043,19 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "fill",
+      "testid": "help-faq-search",
+      "text": "a"
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "51b-help-faq-filtered"
+    },
+    {
       "kind": "screenshot",
       "label": "51-help-resources"
     },
@@ -1077,6 +1159,64 @@
     {
       "kind": "screenshot",
       "label": "56-about-diagnostic-copied"
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-version",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-platform",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-python",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-engine",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-stt",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "click",
+      "testid": "about-copy-contact",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 250
+    },
+    {
+      "kind": "screenshot",
+      "label": "57-about-every-field-copied"
     }
   ]
 }

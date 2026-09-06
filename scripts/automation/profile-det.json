@@ -191,6 +191,25 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "click",
+      "testid": "profile-radio-hitl",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-radio-trigger",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-radio-sovereignty",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
       "kind": "screenshot",
       "label": "05-profile-radios-present"
     },

@@ -15,7 +15,7 @@
     {
       "kind": "waitGone",
       "testid": "onboarding-skip",
-      "timeoutMs": 3000
+      "timeoutMs": 8000
     },
     {
       "kind": "click",
@@ -245,6 +245,23 @@
       "testid": "chat-header-title"
     },
     {
+      "kind": "click",
+      "testid": "chat-header-title",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "press",
+      "key": "Escape"
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
       "kind": "expect",
       "testid": "chat-header-meta"
     },
@@ -305,6 +322,20 @@
       "testid": "chat-slash-menu-item"
     },
     {
+      "kind": "click",
+      "testid": "chat-slash-menu-item",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "fill",
+      "testid": "chat-input",
+      "text": ""
+    },
+    {
       "kind": "screenshot",
       "label": "12-slash-menu"
     },
@@ -339,6 +370,15 @@
     {
       "kind": "expect",
       "testid": "chat-plan-mode-chip"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-plan-mode-chip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
     },
     {
       "kind": "click",
@@ -505,12 +545,60 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "chat-header-link-project-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-link-project-item",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-link-project-item",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "sleep",
-      "ms": 250
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-meta-project",
+      "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "22-header-link-project (best-effort submenu)"
+      "label": "22-header-project-linked"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-overflow-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-overflow-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-menu-unlink-project",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-header-meta-project",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "22b-header-project-unlinked"
     },
     {
       "kind": "click",
@@ -604,6 +692,30 @@
     {
       "kind": "expect",
       "testid": "conversation-row-menu-configure"
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-configure",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "27b-row-configure"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
     },
     {
       "kind": "expect",
@@ -809,6 +921,214 @@
     {
       "kind": "screenshot",
       "label": "36-back-operator"
+    },
+    {
+      "kind": "press",
+      "testid": "chat-input",
+      "key": "/",
+      "meta": true,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "shortcuts-help-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "37-shortcuts-help"
+    },
+    {
+      "kind": "click",
+      "testid": "shortcuts-help-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "shortcuts-help-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "press",
+      "testid": "app-main",
+      "key": "?",
+      "shift": true,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "keyboard-hint-overlay",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "38-keyboard-hint"
+    },
+    {
+      "kind": "click",
+      "testid": "keyboard-hint-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "keyboard-hint-overlay",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-overflow-button",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-overflow-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-menu-link-project",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-link-project-menu",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-link-project-item",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-header-meta-project",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-header-meta-project",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "39-project-chip-opens-project"
+    },
+    {
+      "kind": "goto",
+      "route": "chat"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker-agent-seed-classifier",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-agent-seed-classifier",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-close-button",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "41-conversation-closed"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "conversation-row-menu-button",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-menu",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-menu-delete",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "conversation-row-delete-confirm",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "conversation-row-delete-confirm-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "conversation-row-delete-confirm",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "40-conversation-row-deleted"
+    },
+    {
+      "kind": "click",
+      "testid": "chat-new-chat-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "quickpicker",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "quickpicker-close",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "screenshot",
+      "label": "42-quickpicker-closed"
     }
+  ],
+  "notes": [
+    "chat-mention-menu-item is never played: the mention menu lists the resources of connected MCP servers, and the seed's stub server exposes tools only, so the menu opens empty under this harness (measured on the b2-chat run)."
   ]
 }

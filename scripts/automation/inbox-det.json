@@ -314,5 +314,8 @@
       "kind": "screenshot",
       "label": "17-back-operator"
     }
+  ],
+  "notes": [
+    "inbox-activity-empty-cta is never played: every activity filter has seeded entries, so the empty state never renders (measured on b4-inbox)."
   ]
 }

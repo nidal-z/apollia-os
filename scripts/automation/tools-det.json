@@ -198,6 +198,20 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "click",
+      "testid": "tool-contract-output-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "click",
+      "testid": "tool-contract-output-raw-toggle",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "waitFor",
       "testid": "tool-contract-input-raw",
       "timeoutMs": 3000
@@ -323,6 +337,21 @@
       "checked": true
     },
     {
+      "kind": "fill",
+      "testid": "ddg-timeout",
+      "text": "15"
+    },
+    {
+      "kind": "fill",
+      "testid": "ddg-max-response-kb",
+      "text": "256"
+    },
+    {
+      "kind": "click",
+      "testid": "web-search-backend-group",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "sleep",
       "ms": 300
     },
@@ -360,26 +389,40 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "fill",
+      "testid": "brave-api-key-input",
+      "text": "brave-automation-key-not-real"
+    },
+    {
+      "kind": "click",
+      "testid": "brave-api-key-save",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "12b-credential-saved"
+    },
+    {
       "kind": "screenshot",
       "label": "12-credential-editor-open (input + save present; save NEVER clicked, nothing persisted)"
     },
     {
       "kind": "click",
-      "testid": "sheet-close",
+      "testid": "tool-config-save",
       "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 400
     },
     {
       "kind": "waitGone",
       "testid": "tool-config-drawer-body",
-      "timeoutMs": 4000
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
-      "label": "13-tool-config-closed-unsaved (edits and credential draft discarded)"
+      "label": "13-tool-config-saved-and-closed"
     },
     {
       "kind": "waitFor",
@@ -412,21 +455,32 @@
       "timeoutMs": 4000
     },
     {
-      "kind": "expect",
-      "testid": "tool-config-save"
+      "kind": "fill",
+      "testid": "web-read-timeout",
+      "text": "15"
     },
     {
-      "kind": "screenshot",
-      "label": "14-tool-config-web-read"
+      "kind": "fill",
+      "testid": "web-read-max-response-kb",
+      "text": "512"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "web-read-ssrf-guard",
+      "checked": true
     },
     {
       "kind": "click",
-      "testid": "sheet-close",
+      "testid": "tool-config-save",
       "timeoutMs": 4000
     },
     {
       "kind": "sleep",
-      "ms": 400
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "14-tool-config-web-read"
     },
     {
       "kind": "waitGone",

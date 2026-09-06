@@ -19,6 +19,9 @@
     "automation-enabled-toggle-seed-trigger-daily-digest",
     "automation-history-seed-trigger-daily-digest",
     "automation-menu-seed-trigger-daily-digest",
+    "automation-wizard-next-0",
+    "automation-wizard-next-1",
+    "automation-wizard-next-2",
     "automations-filter-active",
     "automations-filter-all",
     "automations-filter-error",
@@ -241,6 +244,11 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "fill",
+      "testid": "trigger-input-webhook-path",
+      "text": "/hooks/automation"
+    },
+    {
       "kind": "click",
       "testid": "trigger-secret-generate-btn",
       "timeoutMs": 3000
@@ -263,6 +271,16 @@
       "kind": "click",
       "testid": "trigger-advanced-toggle",
       "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "trigger-input-template-textarea",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "trigger-input-template-textarea",
+      "text": "{{payload}}"
     },
     {
       "kind": "fill",
@@ -397,6 +415,20 @@
       "testid": "delete-automation-skip"
     },
     {
+      "kind": "setChecked",
+      "testid": "delete-automation-skip",
+      "checked": true
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "setChecked",
+      "testid": "delete-automation-skip",
+      "checked": false
+    },
+    {
       "kind": "expect",
       "testid": "delete-automation-confirm"
     },
@@ -519,22 +551,18 @@
       "timeoutMs": 3000
     },
     {
-      "kind": "expect",
-      "testid": "automation-edit-submit"
-    },
-    {
       "kind": "click",
-      "testid": "automation-edit-cancel",
+      "testid": "automation-edit-submit",
       "timeoutMs": 3000
     },
     {
       "kind": "waitGone",
       "testid": "automation-edit-dialog",
-      "timeoutMs": 3000
+      "timeoutMs": 8000
     },
     {
       "kind": "screenshot",
-      "label": "10e-automation-edit-cancelled (submit NEVER clicked, the definition is untouched)"
+      "label": "10e-automation-edit-submitted"
     },
     {
       "kind": "click",
@@ -657,6 +685,99 @@
       "kind": "waitFor",
       "testid": "automations-table",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "automations-new-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-wizard-dialog",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "fill",
+      "testid": "automation-wizard-describe",
+      "text": "every 2 hours, run seed-classifier"
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "automation-wizard-next-0",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-wizard-schedule-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-wizard-back",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-wizard-describe",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-wizard-next-0",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-wizard-schedule-card",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-wizard-next-1",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-wizard-agent-select",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "automation-wizard-agent-select",
+      "value": "seed-classifier",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "automation-wizard-next-2",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "automation-wizard-preview-card",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16b-wizard-preview"
+    },
+    {
+      "kind": "click",
+      "testid": "automation-wizard-activate",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "automation-wizard-dialog",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "16c-wizard-activated"
     },
     {
       "kind": "click",

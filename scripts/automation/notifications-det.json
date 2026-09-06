@@ -155,6 +155,11 @@
       "testid": "channel-id-input"
     },
     {
+      "kind": "fill",
+      "testid": "channel-id-input",
+      "text": "det-auto-channel"
+    },
+    {
       "kind": "expect",
       "testid": "channel-type-select"
     },
@@ -195,6 +200,11 @@
       "testid": "channel-url-input",
       "text": "https://example.invalid/det-hook",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "fill",
+      "testid": "channel-headers-textarea",
+      "text": "{\"X-Det\": \"1\"}"
     },
     {
       "kind": "selectOption",
@@ -329,6 +339,20 @@
     {
       "kind": "expect",
       "testid": "edit-channel-enabled-toggle"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "edit-channel-enabled-toggle",
+      "checked": false
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "setChecked",
+      "testid": "edit-channel-enabled-toggle",
+      "checked": true
     },
     {
       "kind": "fill",
@@ -564,6 +588,102 @@
     {
       "kind": "screenshot",
       "label": "21-back-operator"
+    },
+    {
+      "kind": "goto",
+      "route": "notifications"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "notifications-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "channel-edit-btn-seed-channel-desktop",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "edit-channel-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "selectOption",
+      "testid": "edit-channel-type-select",
+      "value": "webhook",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "edit-channel-url-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "edit-channel-url-input",
+      "text": "https://hooks.example.invalid/apollia"
+    },
+    {
+      "kind": "fill",
+      "testid": "edit-channel-headers-textarea",
+      "text": "{\"X-Automation\": \"1\"}"
+    },
+    {
+      "kind": "selectOption",
+      "testid": "edit-channel-throttle-select",
+      "value": "custom",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "edit-channel-throttle-custom-input",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "edit-channel-throttle-custom-input",
+      "text": "45"
+    },
+    {
+      "kind": "screenshot",
+      "label": "20-edit-channel-webhook-form"
+    },
+    {
+      "kind": "click",
+      "testid": "edit-channel-submit-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "edit-channel-dialog",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "21-edit-channel-saved"
+    },
+    {
+      "kind": "goto",
+      "route": "notifications"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "notifications-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "notifications-history-link",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "screenshot",
+      "label": "22-history-link"
     }
   ],
   "notes": [

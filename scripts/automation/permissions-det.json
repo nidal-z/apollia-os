@@ -247,6 +247,20 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "click",
+      "testid": "permission-rule-add-action-allow",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 150
+    },
+    {
+      "kind": "click",
+      "testid": "permission-rule-add-action-deny",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "selectOption",
       "testid": "permission-rule-add-scope",
       "value": "project",
@@ -279,21 +293,18 @@
       "testid": "permission-rule-add-submit"
     },
     {
-      "kind": "screenshot",
-      "label": "06-rule-add-filled (tool/action/scope set via selectOption, scope=project revealed project-path; submit persists via add_permission_prefix_rule so it is NEVER clicked)"
-    },
-    {
       "kind": "click",
-      "testid": "permission-rule-add-cancel"
-    },
-    {
-      "kind": "sleep",
-      "ms": 300
+      "testid": "permission-rule-add-submit",
+      "timeoutMs": 4000
     },
     {
       "kind": "waitGone",
       "testid": "permission-rule-add-form",
-      "timeoutMs": 4000
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06b-rule-added"
     },
     {
       "kind": "waitFor",
@@ -548,6 +559,87 @@
     {
       "kind": "screenshot",
       "label": "16-back-operator"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-permissions",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rules-list",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "permission-rule-revoke",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rule-revoke-confirm-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "permission-rule-revoke-confirm-cancel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "permission-rule-revoke-confirm-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "permission-rule-revoke",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "permission-rule-revoke-confirm-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "permission-rule-revoke-confirm-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "permission-rule-revoke-confirm-cancel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "10-rule-revoked"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "session-auth-revoke",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "session-auth-revoke",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-session-auth-revoked"
     }
   ]
 }

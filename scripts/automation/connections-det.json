@@ -275,6 +275,15 @@
       "timeoutMs": 2000
     },
     {
+      "kind": "click",
+      "testid": "mcp-reconnect-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
       "kind": "screenshot",
       "label": "08-mcp-overview-operator"
     },
@@ -355,6 +364,48 @@
       "kind": "waitFor",
       "testid": "mcp-settings-reset",
       "timeoutMs": 3000
+    },
+    {
+      "kind": "fill",
+      "testid": "mcp-settings-args-input",
+      "text": "--demo"
+    },
+    {
+      "kind": "fill",
+      "testid": "mcp-settings-init-timeout",
+      "text": "20"
+    },
+    {
+      "kind": "fill",
+      "testid": "mcp-settings-call-timeout",
+      "text": "30"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-reset",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 200
+    },
+    {
+      "kind": "fill",
+      "testid": "mcp-settings-init-timeout",
+      "text": "25"
+    },
+    {
+      "kind": "click",
+      "testid": "mcp-settings-save",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "09b-mcp-settings-saved"
     },
     {
       "kind": "screenshot",

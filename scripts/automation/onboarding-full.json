@@ -3,7 +3,8 @@
   "stopOnError": false,
   "dynamicTestids": [
     "onboarding-lang-en",
-    "onboarding-lang-fr"
+    "onboarding-lang-fr",
+    "settings-nav-danger"
   ],
   "steps": [
     {
@@ -151,8 +152,87 @@
       "label": "08-onb-ai-setup-builder"
     },
     {
+      "kind": "waitFor",
+      "testid": "llm-model-row",
+      "timeoutMs": 8000
+    },
+    {
       "kind": "click",
-      "testid": "ai-setup-skip"
+      "testid": "llm-model-row",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08b-onb-llm-detected-row-picked"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "stt-toggle",
+      "checked": true
+    },
+    {
+      "kind": "waitFor",
+      "testid": "stt-hotkey-block",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "whisper-model-row",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "whisper-model-row",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "selectOption",
+      "testid": "stt-input-device",
+      "index": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "stt-hotkey-capture",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "press",
+      "testid": "stt-hotkey-capture",
+      "key": "k",
+      "meta": true,
+      "shift": true,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "click",
+      "testid": "stt-hotkey-save",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "screenshot",
+      "label": "08c-onb-stt-configured"
+    },
+    {
+      "kind": "click",
+      "testid": "ai-setup-continue",
+      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
@@ -178,10 +258,132 @@
     {
       "kind": "screenshot",
       "label": "10-onb-skip-optional"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-finish",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "screenshot",
+      "label": "11-onb-celebration"
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-finish",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "onboarding-modal",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12-onb-finished"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-danger",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "danger-section",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "reset-onboarding-btn",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reset-onboarding-confirm",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "reset-onboarding-confirm-continue",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reset-onboarding-confirm-input",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "fill",
+      "testid": "reset-onboarding-confirm-input",
+      "text": "RESET"
+    },
+    {
+      "kind": "click",
+      "testid": "reset-onboarding-confirm-confirm",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-modal",
+      "timeoutMs": 30000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-welcome",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-welcome-cta",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-profile-selector",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "profile-card-operator",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-ai-setup",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "onboarding-open-cloud",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "click",
+      "testid": "onboarding-open-cloud",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "llm-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "screenshot",
+      "label": "13-onb-open-cloud-lands-on-llm"
     }
   ],
   "notes": [
     "The footer button is step-dependent (OnboardingModal.svelte): every step but the conversation renders onboarding-skip (abandon onboarding), while the conversation renders onboarding-skip-optional, which drops only the remaining optional questions and still routes to the permissions phase. Abandoning there would skip permissions entirely, so the button is deliberately not the same one.",
-    "The phase that follows the optional skip depends on the agent answering, which a deterministic run has no model for. The script therefore stops at the click plus a screenshot instead of asserting a downstream phase."
+    "The phase that follows the optional skip depends on the agent answering, which a deterministic run has no model for. The script therefore stops at the click plus a screenshot instead of asserting a downstream phase.",
+    "llm-load-model-btn, stt-load-model-btn and the curated rows stay unplayed: the first two open the native file picker, the rows start a network download. onboarding-skip-error-details needs the skip to fail, which the seeded HOME never does."
   ]
 }

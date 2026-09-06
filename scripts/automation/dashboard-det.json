@@ -2,6 +2,7 @@
   "name": "dashboard-det (dashboard page, operator + builder, deterministic against the seed)",
   "stopOnError": false,
   "dynamicTestids": [
+    "dashboard-agent-row-seed-classifier",
     "sidebar-mode-option-builder",
     "sidebar-mode-option-operator"
   ],
@@ -90,8 +91,182 @@
       "testid": "dashboard-projects-see-all"
     },
     {
+      "kind": "click",
+      "testid": "dashboard-projects-see-all",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "projects-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04a-projects-see-all"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
       "kind": "screenshot",
       "label": "04-dashboard-agents-pending-best-effort"
+    },
+    {
+      "kind": "waitFor",
+      "testidPrefix": "dashboard-agent-row-",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "dashboard-agent-row-",
+      "nth": 0,
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-sheet",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04b-agent-sheet"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-stop-btn",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-stop-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-stop-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-stop-confirm",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 1500
+    },
+    {
+      "kind": "screenshot",
+      "label": "04c-agent-sheet-stopped"
+    },
+    {
+      "kind": "setChecked",
+      "testid": "agent-detail-enabled-toggle",
+      "checked": false
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "setChecked",
+      "testid": "agent-detail-enabled-toggle",
+      "checked": true
+    },
+    {
+      "kind": "sleep",
+      "ms": 500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-logs-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-logs-copy-btn",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-logs-copy-btn",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 300
+    },
+    {
+      "kind": "screenshot",
+      "label": "04e-agent-logs-copied"
+    },
+    {
+      "kind": "press",
+      "testid": "app-main",
+      "key": "Escape"
+    },
+    {
+      "kind": "sleep",
+      "ms": 400
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-agent-row-seed-classifier",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "dashboard-agent-row-seed-classifier",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-sheet",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-task-row",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-task-row",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "tasks-page",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "screenshot",
+      "label": "04f-sheet-task-row-opens-tasks"
+    },
+    {
+      "kind": "goto",
+      "route": "dashboard"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 15000
     },
     {
       "kind": "click",
@@ -247,5 +422,8 @@
       "kind": "screenshot",
       "label": "11-back-operator"
     }
+  ],
+  "notes": [
+    "The agent sheet (AgentDetail, opened from the agents-at-work card) is driven for stop + confirm, the auto-start toggle, the logs sheet and its copy button, and the activity row. agent-detail-start-btn never rendered after the stop on b3-dashboard (canStartAgent needs a stopped status with an install path), and the builder block that clicked agent-message-item then agent-detail-memory-link froze the app with no further IPC line in the log, so both stay unplayed until that freeze is understood."
   ]
 }

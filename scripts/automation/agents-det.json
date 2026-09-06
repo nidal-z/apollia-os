@@ -146,6 +146,29 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "fill",
+      "testid": "apollia-chat-system-prompt",
+      "text": "Automation system prompt"
+    },
+    {
+      "kind": "click",
+      "testid": "apollia-chat-tool-row",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "apollia-chat-config-save",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
+    },
+    {
+      "kind": "screenshot",
+      "label": "03b-apollia-chat-config-saved"
+    },
+    {
       "kind": "click",
       "testid": "apollia-chat-tools-filter",
       "timeoutMs": 2500
@@ -300,6 +323,67 @@
       "timeoutMs": 2500
     },
     {
+      "kind": "click",
+      "timeoutMs": 4000,
+      "testid": "agent-list-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 2000
+    },
+    {
+      "kind": "click",
+      "timeoutMs": 4000,
+      "testid": "agent-list-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 2000
+    },
+    {
+      "kind": "click",
+      "timeoutMs": 4000,
+      "testid": "package-list-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 2000
+    },
+    {
+      "kind": "click",
+      "timeoutMs": 4000,
+      "testid": "package-list-toggle"
+    },
+    {
+      "kind": "sleep",
+      "ms": 2000
+    },
+    {
+      "kind": "screenshot",
+      "label": "06e-list-toggles-round-trip"
+    },
+    {
+      "kind": "click",
+      "testidPrefix": "agent-list-row",
+      "nth": 0,
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-title",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-detail-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-detail-activity",
+      "timeoutMs": 2500
+    },
+    {
       "kind": "waitFor",
       "testidPrefix": "agent-detail-trigger-row",
       "timeoutMs": 4000
@@ -359,9 +443,8 @@
     },
     {
       "kind": "click",
-      "testidPrefix": "package-list-row",
-      "timeoutMs": 2500,
-      "nth": 0
+      "testid": "package-list-row",
+      "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
