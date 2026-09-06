@@ -335,13 +335,6 @@
     "filters": {
       "clear_all": "Clear all"
     },
-    "error": {
-      "title": "Error details",
-      "unknown": "Unknown error - check the logs.",
-      "retry": "Retry",
-      "view_logs": "View logs",
-      "consult_docs": "Consult docs"
-    },
     "empty": {
       "no_results_title": "No results for \"{query}\"",
       "no_results_description": "Try different keywords or clear the active filters.",
@@ -565,8 +558,7 @@
         "command_missing": "Command not found - the package is probably not installed.",
         "generic": "The connection failed. Check your credentials and try again.",
         "raw_details": "Show technical details",
-        "fix_auth": "Fix authentication",
-        "bypass": "Skip (expert)"
+        "fix_auth": "Fix authentication"
       },
       "coaching": {
         "approval_title": "Permissions",
@@ -603,9 +595,6 @@
       "oauth_signin_failed": "Sign-in failed: {error}",
       "oauth_discovery_failed": "Couldn't discover the server's OAuth configuration. If you have a static token, use the custom mode to paste it manually.",
       "oauth_settings_connected": "Connected via OAuth",
-      "oauth_client_id_title": "OAuth Client ID required",
-      "oauth_client_id_hint": "This server requires a pre-registered OAuth app. Follow the instructions above to create the app at the provider's developer portal, then paste the resulting Client ID here. It will be encrypted in your system keychain.",
-      "oauth_client_id_save": "Save",
       "oauth_preregistered_scope_note": "Permissions are set on your OAuth app's page at the provider's dev portal (figma.com/developers/apps, etc.). To change them, edit the app there then come back here.",
       "test_button": "Test connection",
       "test_testing": "Testing…",
@@ -621,7 +610,6 @@
       "test_unavailable": "Connection test is unavailable - no configuration found for this server.",
       "no_package_title": "Server not configurable",
       "no_package_body": "This server has no installable package and no remote endpoint. It cannot be added automatically.",
-      "client_id_empty": "The Client ID is empty.",
       "connector_not_configured": "This connector is not yet configured in this build of Apollia. See the help above."
     },
     "manage": {
@@ -3335,9 +3323,7 @@
     "ask_user_title": "The agent needs some information",
     "ask_user_submit": "Submit",
     "ask_user_skip": "Skip",
-    "ask_user_answered": "{count} answer(s) submitted",
     "ask_user_skipped_label": "Skipped",
-    "ask_user_skip_default": "Skip with default",
     "ask_user_qa_label": "Questions & answers",
     "ask_user_pending": "Pending…",
     "you": "You",
@@ -3355,7 +3341,6 @@
     "slash_commands": "Commands",
     "mention_resources": "Mention a resource",
     "context_inspect_turn": "Inspect the memory injected for this turn",
-    "context_inspect": "Inspect injected memory",
     "context_summary": "Summary: {pct}%",
     "empty_response_operator": "I couldn't produce a response for this request. Try rephrasing it or asking again.",
     "empty_response_builder": "No text response was produced. See the reasoning and tool details above for what happened.",
@@ -4123,23 +4108,6 @@
       "medium": "Medium impact",
       "high": "High impact",
       "critical": "Critical impact"
-    },
-    "section": {
-      "why": "Why the agent is asking",
-      "risk": "Risk assessment",
-      "if_approved": "If you approve",
-      "if_rejected": "If you reject"
-    },
-    "risk": {
-      "fallback_approved": "The agent will proceed with the action.",
-      "fallback_rejected": "The agent will be blocked and must choose a different approach."
-    },
-    "reject": {
-      "reason_required": "Please explain why (min {min} characters).",
-      "reason_placeholder": "Tell the agent why you are refusing…",
-      "open": "Reject…",
-      "confirm": "Confirm reject",
-      "cancel": "Cancel"
     },
     "fs": {
       "title": "File operation requires approval",

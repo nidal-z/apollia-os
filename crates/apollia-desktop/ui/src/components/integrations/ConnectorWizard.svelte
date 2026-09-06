@@ -14,7 +14,6 @@
     mcpOauthDiscover,
     mcpOauthLogin,
     mcpOauthResolveClientId,
-    mcpOauthStoreClientId,
     testMcpConnection,
     type PendingSecret,
   } from "$lib/ipc/connections";
@@ -42,8 +41,6 @@
   interface Props {
     server: RegistryServerView;
     open: boolean;
-    /** When true, expose "bypass test" escape hatch + skip disclaimer re-prompt logic. */
-    builder?: boolean;
     onclose: () => void;
     oncomplete: () => void;
     /** Called with a pre-filled prompt when the user clicks "Try" on a coaching card. */
@@ -53,7 +50,6 @@
   let {
     server,
     open,
-    builder = false,
     onclose,
     oncomplete,
     ontryprompt = () => {},
@@ -81,7 +77,6 @@
   let argValues = $state<Record<number, string>>({});
   let approvalLevel = $state<"auto" | "ask">("ask");
   let testSucceeded = $state(false);
-  let testBypassed = $state(false);
   let finalizing = $state(false);
   let finalizeError = $state<string | null>(null);
 
@@ -112,8 +107,6 @@
    *  `""` when declared but env var unset (surface a guidance error before
    *  even opening the browser). */
   let oauthClientIdOverride = $state<string | null>(null);
-  let oauthSavingClientId = $state(false);
-  let oauthSaveClientIdError = $state<string | null>(null);
 
   $effect(() => {
     if (open) {
@@ -122,7 +115,6 @@
       argValues = {};
       approvalLevel = "ask";
       testSucceeded = false;
-      testBypassed = false;
       finalizeError = null;
       probeMode = "idle";
       probeError = null;
@@ -133,8 +125,6 @@
       oauthSigningIn = false;
       oauthSigninError = null;
       oauthClientIdOverride = null;
-      oauthSavingClientId = false;
-      oauthSaveClientIdError = null;
       // Pre-check disclaimer if current version is already accepted.
       void isDisclaimerVersionAccepted().then((v) => {
         disclaimerVersionOk = v;
@@ -277,7 +267,7 @@
       case "auth":
         return authComplete;
       case "test":
-        return testSucceeded || testBypassed;
+        return testSucceeded;
       case "coaching":
         return canInstall && !finalizing;
       default:
@@ -420,38 +410,6 @@
     }
   }
 
-  /** Persist a user-entered OAuth client id to the keychain via IPC.
-   *  Triggered from the input field shown in the Auth step when the
-   *  connector's enrichment declares `oauth_pre_registered_client_id_env`
-   *  and none of {runtime env var, prior keychain entry, build-time const}
-   *  resolved a value. Subsequent calls to `mcp_oauth_resolve_client_id`
-   *  return this value transparently (priority 2). */
-  async function saveOAuthClientId(value: string): Promise<void> {
-    const envVar = server.enrichment?.oauth_pre_registered_client_id_env;
-    if (!envVar) return;
-    const trimmed = value.trim();
-    if (!trimmed) {
-      oauthSaveClientIdError = $t("integrations.wizard.client_id_empty");
-      return;
-    }
-    oauthSavingClientId = true;
-    oauthSaveClientIdError = null;
-    try {
-      await mcpOauthStoreClientId(envVar, trimmed);
-      oauthClientIdOverride = trimmed;
-      // Mirror runOAuthDiscovery's pre-registered branch: once the user
-      // supplies a pre-registered client_id, scopes are baked at the
-      // provider's dev portal - sending PRM-published placeholders
-      // (`mcp:connect` on Figma) to the AS produces "Invalid scope".
-      // Empty list ⇒ orchestrator omits `scope=` from the authorize URL.
-      oauthSelectedScopes = [];
-    } catch (err: unknown) {
-      oauthSaveClientIdError = err instanceof Error ? err.message : String(err);
-    } finally {
-      oauthSavingClientId = false;
-    }
-  }
-
   function toggleOAuthScope(scope: string): void {
     if (oauthSelectedScopes.includes(scope)) {
       oauthSelectedScopes = oauthSelectedScopes.filter((s) => s !== scope);
@@ -507,13 +465,7 @@
 
   function handleFixAuth(): void {
     testSucceeded = false;
-    testBypassed = false;
     currentStepIndex = steps.indexOf("auth");
-  }
-
-  function handleBypass(): void {
-    if (!builder) return;
-    testBypassed = true;
   }
 
   function handleRequestClose(): void {
@@ -606,19 +558,11 @@
         oauthAccount={oauthAccount}
         oauthSigningIn={oauthSigningIn}
         oauthSigninError={oauthSigninError}
-        oauthClientIdMissing={
-          (server.enrichment?.oauth_pre_registered_client_id_env ?? null) !== null
-          && (oauthClientIdOverride === null || oauthClientIdOverride === "")
-        }
         oauthUsingPreRegisteredApp={
           (server.enrichment?.oauth_pre_registered_client_id_env ?? null) !== null
           && oauthClientIdOverride !== null
           && oauthClientIdOverride !== ""
         }
-        oauthClientIdEnvVar={server.enrichment?.oauth_pre_registered_client_id_env ?? null}
-        oauthSavingClientId={oauthSavingClientId}
-        oauthSaveClientIdError={oauthSaveClientIdError}
-        onOAuthSaveClientId={saveOAuthClientId}
         onOAuthToggleScope={toggleOAuthScope}
         onOAuthSignin={startOAuthSignin}
       />
@@ -626,10 +570,8 @@
       {#if testConfig}
         <WizardStepTest
           config={testConfig}
-          allowBypass={builder}
           onsuccess={handleTestSuccess}
           onfixauth={handleFixAuth}
-          onbypass={handleBypass}
         />
       {:else}
         <div

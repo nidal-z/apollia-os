@@ -12,6 +12,7 @@
   import type { AlwaysScope } from "$lib/components/operator/HITLCard.svelte";
   import { listFlip, rowOut } from "$lib/design/listMotion";
   import { ContextMenu } from "$lib/components/ui/context-menu";
+  import { chatSessions } from "$lib/stores/sse";
   import AskUserForm from "./AskUserForm.svelte";
   import type { AskUserAnswer } from "$lib/types";
   import type { InboxItem } from "./types";
@@ -58,6 +59,12 @@
   }: Props = $props();
 
   const flat = $derived(GROUP_ORDER.flatMap((g) => grouped[g]));
+
+  /** Sessions that belong to a project, so "Always for this project" is
+   *  offered only where the runtime has a project to attach the rule to. */
+  const projectSessionIds = $derived(
+    new Set($chatSessions.filter((s) => s.project_id !== null).map((s) => s.id)),
+  );
   const menuHandlers = $derived({
     tr: $t as Translate,
     onApprove,
@@ -186,7 +193,7 @@
                         onApprove={() => onApprove(item)}
                         onReject={() => onReject(item)}
                         onAlwaysAccept={isChatToolItem(item) ? (s) => onAlwaysAccept(item, s) : undefined}
-                        hasProject={false}
+                        hasProject={item.sessionId !== undefined && projectSessionIds.has(item.sessionId)}
                       />
                     </div>
                   {/if}

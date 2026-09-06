@@ -24,9 +24,13 @@
 
   const state = $derived($planModeState);
   const runId = $derived(state.runId);
+  // The error state stays mounted: the review card carries the launch
+  // failure and its retry, and unmounting the host on error hid both.
   const visible = $derived(
     runId !== null &&
-      (state.status === "pending_approval" || state.status === "editing"),
+      (state.status === "pending_approval" ||
+        state.status === "editing" ||
+        state.status === "error"),
   );
   const isBuilder = $derived($uiMode === "builder");
 </script>

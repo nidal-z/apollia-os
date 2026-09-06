@@ -82,6 +82,7 @@
         size="icon-sm"
         onclick={onInstallAgent}
         disabled={installingAgent}
+        data-testid="agents-install-button"
         title={$t("agents.new_assistant")}
         aria-label={$t("agents.new_assistant")}
       >

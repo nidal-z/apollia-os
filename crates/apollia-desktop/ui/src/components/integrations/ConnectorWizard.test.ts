@@ -70,7 +70,7 @@ describe("WizardStepDisclaimer - version hashing", () => {
 // derivation inside ConnectorWizard.svelte:
 //   - disclaimer → all 4 items checked
 //   - auth       → every required env var has a value
-//   - test       → test has succeeded OR user bypassed (builder only)
+//   - test       → test has succeeded
 //   - coaching   → server is installable
 
 function disclaimerReady(checks: Record<string, boolean>): boolean {
@@ -126,14 +126,6 @@ describe("ConnectorWizard - gating rules", () => {
   test("auth gating - filled required var unlocks Next", () => {
     const vars = [{ name: "API_KEY", is_required: true }];
     expect(authReady(vars, { API_KEY: "secret-value" })).toBe(true);
-  });
-
-  test("test gating - success OR bypass unlocks, neither blocks", () => {
-    const canAdvanceTest = (succeeded: boolean, bypass: boolean) =>
-      succeeded || bypass;
-    expect(canAdvanceTest(false, false)).toBe(false);
-    expect(canAdvanceTest(true, false)).toBe(true);
-    expect(canAdvanceTest(false, true)).toBe(true);
   });
 });
 

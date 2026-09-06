@@ -17,8 +17,6 @@
       autoDismiss={toast.autoDismiss}
       showProgress={toast.showProgress}
       ondismiss={() => removeToast(toast.id)}
-      actionLabel={toast.actionLabel}
-      onaction={toast.onaction}
       data-testid={toast["data-testid"] ?? "toast"}
     />
   {/each}

@@ -17,7 +17,6 @@
   import McpServerDetail from "../components/connections/detail/McpServerDetail.svelte";
   import CatalogueSheet from "../components/connections/catalogue/CatalogueSheet.svelte";
   import NativeOauthDialog from "../components/connections/oauth/NativeOauthDialog.svelte";
-  import ConnectionErrorModal from "../components/connections/ConnectionErrorModal.svelte";
   import ConnectorWizard from "../components/integrations/ConnectorWizard.svelte";
   import McpDisclaimerDialog, {
     isDisclaimerAccepted,
@@ -30,7 +29,6 @@
     fetchMcpRegistry,
     oauthGetStatus,
     oauthDisconnect,
-    restartMcpServer,
     type OauthAccountInfo,
     type ProviderId,
   } from "$lib/ipc/connections";
@@ -104,15 +102,13 @@
     navigateToSettings("integrations");
   }
 
-  // ── Catalogue + wizard + error modal ─────────────────────────────────────────
+  // ── Catalogue + wizard ───────────────────────────────────────────────────────
   let catalogueOpen = $state(false);
   let registryLoading = $state(false);
   let catalogueTier = $state<"none" | "curated" | "full">("none");
   let selectedRegistryServer = $state<RegistryServerView | null>(null);
   let wizardOpen = $state(false);
   let disclaimerOpen = $state(false);
-  let errorModalOpen = $state(false);
-  let errorServer = $state<McpServerStatusView | null>(null);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   function resolveEnrichment(server: McpServerStatusView): ConnectorEnrichmentView | null {
@@ -251,21 +247,6 @@
     }
   }
 
-  async function handleRetry(name: string): Promise<void> {
-    errorModalOpen = false;
-    try {
-      await restartMcpServer(name);
-    } catch {
-      /* surfaced via reload */
-    }
-    await loadAll();
-  }
-
-  function handleViewLogs(name: string): void {
-    errorModalOpen = false;
-    handleManage(name);
-  }
-
   // ── Effects ──────────────────────────────────────────────────────────────────
   $effect(() => {
     void loadAll();
@@ -397,15 +378,6 @@
     disclaimerOpen = false;
     selectedRegistryServer = null;
   }}
-/>
-
-<ConnectionErrorModal
-  open={errorModalOpen}
-  server={errorServer}
-  enrichment={errorServer ? resolveEnrichment(errorServer) : null}
-  onclose={() => (errorModalOpen = false)}
-  onretry={handleRetry}
-  onviewLogs={handleViewLogs}
 />
 
 <NativeOauthDialog

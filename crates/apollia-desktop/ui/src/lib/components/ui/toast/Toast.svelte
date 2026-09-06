@@ -21,8 +21,6 @@
     ondismiss?: () => void;
     autoDismiss?: number;
     showProgress?: boolean;
-    actionLabel?: string;
-    onaction?: () => void;
     "data-testid"?: string;
   }
 
@@ -34,8 +32,6 @@
     ondismiss,
     autoDismiss,
     showProgress = false,
-    actionLabel,
-    onaction,
     ...restProps
   }: Props = $props();
 
@@ -100,11 +96,6 @@
     ondismiss?.();
   }
 
-  function handleAction() {
-    onaction?.();
-    handleDismiss();
-  }
-
   const IconComponent = $derived(iconByVariant[variant]);
   const iconClass = $derived(iconClassByVariant[variant]);
 </script>
@@ -132,17 +123,6 @@
         <p class="desc text-muted-foreground">{description}</p>
       {/if}
     </div>
-    {#if actionLabel}
-      <Button
-        variant="ghost"
-        size="sm"
-        class="shrink-0 px-2.5 text-primary hover:bg-primary/10"
-        onclick={handleAction}
-        data-testid="toast-action"
-      >
-        {actionLabel}
-      </Button>
-    {/if}
     {#if variant !== "loading"}
       <Button
         variant="ghost"

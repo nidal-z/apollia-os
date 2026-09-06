@@ -7,8 +7,6 @@
   interface Props {
     /** Current chat session id - required to read live metrics. */
     sessionId: string;
-    /** Variant: `pill` (used in Metrics tab) or `footer` (mini under input). */
-    variant?: "pill" | "footer";
     /**
      * Click handler - when supplied, the indicator becomes a button (P7 -
      * opens the `<InjectedMemorySheet />` sheet).
@@ -16,7 +14,7 @@
     onclick?: () => void;
   }
 
-  let { sessionId, variant = "footer", onclick }: Props = $props();
+  let { sessionId, onclick }: Props = $props();
 
   const metrics = $derived(sessionMetricsStore(sessionId));
 
@@ -42,54 +40,33 @@
 </script>
 
 {#if hasActivity}
-  {#if variant === "footer"}
-    {#if onclick}
-      <button
-        type="button"
-        class="flex items-center justify-center gap-1.5 rounded px-3 py-1 {toneClass} text-micro transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-        data-testid="context-indicator-footer"
-        aria-label={$t("chat.context_inspect_turn")}
-        {onclick}
-      >
-        <Gauge size={10} />
-        <span class="tabular-nums">
-          {$t("chat.context_gauge", {
-            values: { ctx: ctxLabel, budget: Math.round(budgetPct) },
-          })}
-        </span>
-      </button>
-    {:else}
-      <div
-        class="flex items-center justify-center gap-1.5 px-3 py-1 {toneClass} text-micro"
-        data-testid="context-indicator-footer"
-        aria-label={$t("chat.context_summary")}
-      >
-        <Gauge size={10} />
-        <span class="tabular-nums">
-          {$t("chat.context_gauge", {
-            values: { ctx: ctxLabel, budget: Math.round(budgetPct) },
-          })}
-        </span>
-      </div>
-    {/if}
-  {:else if onclick}
+  {#if onclick}
     <button
       type="button"
-      class="inline-flex items-center gap-1 rounded-full leading-none bg-primary/10 px-2 py-0.5 text-micro text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-      data-testid="context-indicator-pill"
-      aria-label={$t("chat.context_inspect")}
+      class="flex items-center justify-center gap-1.5 rounded px-3 py-1 {toneClass} text-micro transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+      data-testid="context-indicator-footer"
+      aria-label={$t("chat.context_inspect_turn")}
       {onclick}
     >
       <Gauge size={10} />
-      {ctxLabel}
+      <span class="tabular-nums">
+        {$t("chat.context_gauge", {
+          values: { ctx: ctxLabel, budget: Math.round(budgetPct) },
+        })}
+      </span>
     </button>
   {:else}
-    <span
-      class="inline-flex items-center gap-1 rounded-full leading-none bg-primary/10 px-2 py-0.5 text-micro text-primary"
-      data-testid="context-indicator-pill"
+    <div
+      class="flex items-center justify-center gap-1.5 px-3 py-1 {toneClass} text-micro"
+      data-testid="context-indicator-footer"
+      aria-label={$t("chat.context_summary")}
     >
       <Gauge size={10} />
-      {ctxLabel}
-    </span>
+      <span class="tabular-nums">
+        {$t("chat.context_gauge", {
+          values: { ctx: ctxLabel, budget: Math.round(budgetPct) },
+        })}
+      </span>
+    </div>
   {/if}
 {/if}

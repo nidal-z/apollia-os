@@ -335,13 +335,6 @@
     "filters": {
       "clear_all": "Tout effacer"
     },
-    "error": {
-      "title": "Détails de l'erreur",
-      "unknown": "Erreur inconnue - consultez les logs.",
-      "retry": "Réessayer",
-      "view_logs": "Voir logs",
-      "consult_docs": "Consulter docs"
-    },
     "empty": {
       "no_results_title": "Aucun résultat pour « {query} »",
       "no_results_description": "Essayez d'autres mots-clés ou effacez les filtres actifs.",
@@ -565,8 +558,7 @@
         "command_missing": "Commande introuvable - le paquet n'est probablement pas installé.",
         "generic": "La connexion a échoué. Vérifiez vos identifiants et réessayez.",
         "raw_details": "Voir le détail technique",
-        "fix_auth": "Modifier l'authentification",
-        "bypass": "Passer outre (expert)"
+        "fix_auth": "Modifier l'authentification"
       },
       "coaching": {
         "approval_title": "Autorisations",
@@ -603,9 +595,6 @@
       "oauth_signin_failed": "La connexion a échoué : {error}",
       "oauth_discovery_failed": "Impossible de découvrir la configuration OAuth du serveur. Si vous possédez un jeton statique, utilisez le mode personnalisé pour le coller manuellement.",
       "oauth_settings_connected": "Connecté via OAuth",
-      "oauth_client_id_title": "Client ID OAuth requis",
-      "oauth_client_id_hint": "Ce serveur exige une app OAuth pré-enregistrée. Suivez les instructions ci-dessus pour créer l'app chez l'éditeur, puis collez ici le Client ID obtenu. Il sera chiffré dans le trousseau système.",
-      "oauth_client_id_save": "Enregistrer",
       "oauth_preregistered_scope_note": "Les permissions sont fixées sur la page de votre app OAuth chez l'éditeur (figma.com/developers/apps, etc.). Pour les modifier, éditez l'app puis revenez ici.",
       "test_button": "Tester la connexion",
       "test_testing": "Test en cours…",
@@ -621,7 +610,6 @@
       "test_unavailable": "Test de connexion indisponible - aucune configuration trouvée pour ce serveur.",
       "no_package_title": "Serveur non configurable",
       "no_package_body": "Ce serveur ne possède ni paquet installable ni point d'accès distant. Il ne peut pas être ajouté automatiquement.",
-      "client_id_empty": "Le Client ID est vide.",
       "connector_not_configured": "Ce connecteur n'est pas encore configuré dans ce build d'Apollia. Voir l'aide ci-dessus."
     },
     "manage": {
@@ -3335,9 +3323,7 @@
     "ask_user_title": "L'agent a besoin de quelques informations",
     "ask_user_submit": "Répondre",
     "ask_user_skip": "Passer",
-    "ask_user_answered": "{count} réponse(s) envoyée(s)",
     "ask_user_skipped_label": "Question passée",
-    "ask_user_skip_default": "Utiliser la valeur par défaut",
     "ask_user_qa_label": "Questions et réponses",
     "ask_user_pending": "En attente…",
     "you": "Vous",
@@ -3355,7 +3341,6 @@
     "slash_commands": "Commandes",
     "mention_resources": "Mentionner une ressource",
     "context_inspect_turn": "Inspecter la mémoire injectée pour ce tour",
-    "context_inspect": "Inspecter la mémoire injectée",
     "context_summary": "Résumé : {pct} %",
     "empty_response_operator": "Je n'ai pas réussi à formuler une réponse à cette demande. Reformule-la ou réessaie.",
     "empty_response_builder": "Aucune réponse textuelle n'a été produite. Le détail du raisonnement et des outils ci-dessus indique ce qui s'est passé.",
@@ -4123,23 +4108,6 @@
       "medium": "Impact modéré",
       "high": "Impact élevé",
       "critical": "Impact critique"
-    },
-    "section": {
-      "why": "Pourquoi l'agent demande",
-      "risk": "Évaluation des risques",
-      "if_approved": "Si vous approuvez",
-      "if_rejected": "Si vous refusez"
-    },
-    "risk": {
-      "fallback_approved": "L'agent poursuivra l'action.",
-      "fallback_rejected": "L'agent sera bloqué et devra emprunter une autre voie."
-    },
-    "reject": {
-      "reason_required": "Expliquez pourquoi (min {min} caractères).",
-      "reason_placeholder": "Indiquez à l'agent la raison du refus…",
-      "open": "Refuser…",
-      "confirm": "Confirmer le refus",
-      "cancel": "Annuler"
     },
     "fs": {
       "title": "Opération fichier nécessite une approbation",

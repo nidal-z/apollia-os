@@ -10,8 +10,6 @@ export interface ToastItem {
   variant: ToastVariant;
   autoDismiss: number;
   showProgress: boolean;
-  actionLabel?: string;
-  onaction?: () => void;
   "data-testid"?: string;
 }
 
@@ -31,8 +29,6 @@ export interface AddToastOptions {
   duration?: number;
   showProgress?: boolean;
   description?: string;
-  actionLabel?: string;
-  onaction?: () => void;
   "data-testid"?: string;
 }
 
@@ -67,8 +63,6 @@ export function addToast(
     variant,
     autoDismiss: duration,
     showProgress: showProgress && duration > 0,
-    actionLabel: options?.actionLabel,
-    onaction: options?.onaction,
     "data-testid": options?.["data-testid"],
   };
 

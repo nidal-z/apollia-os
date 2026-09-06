@@ -13,11 +13,9 @@
     turnId: string | null;
     /** Handler for closing the sheet. */
     onclose: () => void;
-    /** Called when the user clicks an entry - typically opens InsightsPanel. */
-    onentryselect?: (entry: InjectedEntry) => void;
   }
 
-  let { open, turnId, onclose, onentryselect }: Props = $props();
+  let { open, turnId, onclose }: Props = $props();
 
   let entries = $state<InjectedEntry[]>([]);
   let loading = $state(false);
@@ -52,9 +50,6 @@
     }
   });
 
-  function handleEntryClick(entry: InjectedEntry) {
-    onentryselect?.(entry);
-  }
 
   function scorePct(score: number): number {
     return Math.round(Math.max(0, Math.min(1, score)) * 100);
@@ -62,7 +57,7 @@
 </script>
 
 <Sheet {open} {onclose} width="md">
-  <SheetHeader title={$t("memory.injected_title")} class="px-4 py-3 items-center">
+  <SheetHeader title={$t("memory.injected_title")} {onclose} class="px-4 py-3 items-center">
     {#snippet leading()}
       <Brain size={14} class="text-primary" />
     {/snippet}
@@ -100,11 +95,9 @@
       <ul class="flex flex-col gap-2">
         {#each entries as entry (entry.id)}
           <li>
-            <button
-              type="button"
-              class="group w-full rounded-lg border border-border/60 bg-card/40 p-3 text-left transition-colors hover:border-primary/50 hover:bg-card"
+            <div
+              class="group w-full rounded-lg border border-border/60 bg-card/40 p-3 text-left"
               data-testid="injected-memory-entry"
-              onclick={() => handleEntryClick(entry)}
             >
               <div class="flex items-start justify-between gap-2">
                 <p class="flex-1 text-caption leading-snug text-foreground/90">
@@ -135,7 +128,7 @@
               >
                 {entry.injection_reason}
               </p>
-            </button>
+            </div>
           </li>
         {/each}
       </ul>

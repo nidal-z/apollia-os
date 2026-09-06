@@ -342,7 +342,10 @@
       {/if}
 
       {#if installError}
-        <div class="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+        <div
+          class="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          data-testid="install-error"
+        >
           <AlertTriangle size={13} class="mt-0.5 shrink-0" />
           <span>{installError}</span>
         </div>
@@ -409,7 +412,10 @@
       </p>
 
       {#if installError}
-        <div class="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+        <div
+          class="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          data-testid="install-error"
+        >
           <AlertTriangle size={13} class="mt-0.5 shrink-0" />
           <span>{installError}</span>
         </div>
@@ -511,7 +517,10 @@
       {/each}
 
       {#if installError}
-        <div class="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+        <div
+          class="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          data-testid="install-error"
+        >
           <AlertTriangle size={13} class="mt-0.5 shrink-0" />
           <span>{installError}</span>
         </div>

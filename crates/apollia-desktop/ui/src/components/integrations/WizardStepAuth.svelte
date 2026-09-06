@@ -65,25 +65,12 @@
     onOAuthToggleScope?: (scope: string) => void;
     /** Click handler for the "Sign in to <provider>" button. */
     onOAuthSignin?: () => void;
-    /** True when this connector requires a pre-registered OAuth client id
-     *  (e.g. Figma) and none of {runtime env var, keychain, build-time}
-     *  resolved one. Triggers the inline input field below the help text. */
-    oauthClientIdMissing?: boolean;
     /** True when this connector uses a pre-registered OAuth app (override
      *  in effect). The scope selector is hidden in this case because scopes
      *  are configured at the provider's developer portal, not negotiated
      *  per sign-in - e.g. Figma rejects the PRM-published `mcp:connect`
      *  scope when sent to a third-party OAuth app's authorize endpoint. */
     oauthUsingPreRegisteredApp?: boolean;
-    /** Name of the env var the connector expects, surfaced verbatim in
-     *  the input field label so power users can also export it manually. */
-    oauthClientIdEnvVar?: string | null;
-    /** True while the saveClientId IPC is in flight. */
-    oauthSavingClientId?: boolean;
-    /** Error message from the saveClientId IPC. */
-    oauthSaveClientIdError?: string | null;
-    /** Click handler for the "Save" button - receives the trimmed value. */
-    onOAuthSaveClientId?: (value: string) => void;
   }
 
   let {
@@ -104,15 +91,8 @@
     oauthSigninError = null,
     onOAuthToggleScope = () => {},
     onOAuthSignin = () => {},
-    oauthClientIdMissing = false,
     oauthUsingPreRegisteredApp = false,
-    oauthClientIdEnvVar = null,
-    oauthSavingClientId = false,
-    oauthSaveClientIdError = null,
-    onOAuthSaveClientId = () => {},
   }: Props = $props();
-
-  let clientIdDraft = $state("");
 
   // When there are no fields to fill *and* the connector isn't a local-loopback
   // one, the only message worth showing is the generic "no auth required".
@@ -266,51 +246,6 @@
           </p>
         </div>
       </div>
-
-      {#if oauthClientIdMissing}
-        <!-- Provider that requires an OAuth registration (Figma). An input
-             field is shown so non-technical users do NOT have to go through
-             an environment variable. Persisted in
-             keychain via `mcp_oauth_store_client_id`. -->
-        <div class="space-y-2 rounded-md border border-warning/40 bg-warning/5 px-4 py-3" data-testid="auth-oauth-client-id-input">
-          <p class="text-sm font-medium text-foreground">
-            {$t("integrations.wizard.oauth_client_id_title")}
-          </p>
-          <p class="text-caption-lg text-muted-foreground leading-[1.5]">
-            {$t("integrations.wizard.oauth_client_id_hint")}
-          </p>
-          <div class="flex gap-2">
-            <Input
-              type="text"
-              value={clientIdDraft}
-              oninput={(e) => (clientIdDraft = (e.currentTarget as HTMLInputElement).value)}
-              placeholder={oauthClientIdEnvVar ?? "Client ID"}
-              aria-label={$t("integrations.wizard.oauth_client_id_title")}
-              autocomplete="off"
-              class="flex-1 font-mono text-xs"
-              disabled={oauthSavingClientId}
-              data-testid="auth-oauth-client-id-field"
-            />
-            <Button
-              variant="primary-solid"
-              size="sm"
-              onclick={() => onOAuthSaveClientId(clientIdDraft)}
-              disabled={oauthSavingClientId || clientIdDraft.trim().length === 0}
-              data-testid="auth-oauth-client-id-save"
-            >
-              {#if oauthSavingClientId}
-                <Spinner size={12} class="mr-1.5" />
-              {/if}
-              {$t("integrations.wizard.oauth_client_id_save")}
-            </Button>
-          </div>
-          {#if oauthSaveClientIdError}
-            <p class="text-caption text-destructive" data-testid="auth-oauth-client-id-error">
-              {oauthSaveClientIdError}
-            </p>
-          {/if}
-        </div>
-      {/if}
 
       {#if oauthUsingPreRegisteredApp}
         <!-- Pre-registered OAuth app - scopes are baked at the provider's

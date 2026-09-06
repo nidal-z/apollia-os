@@ -11,22 +11,16 @@
 
   interface Props {
     config: McpServerConfigInput;
-    /** When true, a "Skip test (expert)" escape hatch is shown (builder only). */
-    allowBypass?: boolean;
     /** Called when the test succeeds - parent uses this to unlock the Next button. */
     onsuccess?: (result: McpConnectionTestResultView) => void;
     /** Called when user asks to go back to the Auth step to fix credentials. */
     onfixauth?: () => void;
-    /** Called when expert user chooses to bypass the test (builder only). */
-    onbypass?: () => void;
   }
 
   let {
     config,
-    allowBypass = false,
     onsuccess = () => {},
     onfixauth = () => {},
-    onbypass = () => {},
   }: Props = $props();
 
   let testResult = $state<McpConnectionTestResultView | null>(null);
@@ -217,16 +211,6 @@
           <RefreshCw size={12} class="mr-1" aria-hidden="true" />
           {$t("integrations.wizard.test_retry")}
         </Button>
-        {#if allowBypass}
-          <Button
-            size="sm"
-            variant="outline"
-            onclick={onbypass}
-            data-testid="test-bypass-btn"
-          >
-            {$t("integrations.wizard.test_err.bypass")}
-          </Button>
-        {/if}
       </div>
     </div>
   {/if}

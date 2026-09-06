@@ -159,13 +159,20 @@
     openNewChatRequested.set(Date.now());
   }
 
+  // Two refreshes can overlap (a click during a fetch); only the newest one
+  // may write the state, or a late success masks the failure that followed it.
+  let refreshSeq = 0;
   async function refresh(showLoading = false) {
+    const seq = ++refreshSeq;
     if (showLoading) loadState = "loading";
     try {
-      tasks.set(await listTasks());
+      const list = await listTasks();
+      if (seq !== refreshSeq) return;
+      tasks.set(list);
       loadError = null;
       loadState = "ready";
     } catch (error) {
+      if (seq !== refreshSeq) return;
       loadError = reportError(error, { surface: "inline" });
       loadState = "error";
     }
