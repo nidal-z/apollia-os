@@ -33,7 +33,7 @@ if [[ ! -x "$PYO3_PYTHON" ]]; then
 fi
 
 # 2. LD_LIBRARY_PATH (Linux) / DYLD_LIBRARY_PATH (macOS), so the loader
-#    trouve libpython3.13.so / .dylib.
+#    finds libpython3.13.so / .dylib.
 case "$(uname -s)" in
     Linux)
         export LD_LIBRARY_PATH="${HERE}/python/lib:${LD_LIBRARY_PATH:-}"

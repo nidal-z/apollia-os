@@ -276,35 +276,6 @@ jobs:
             --target ${{ matrix.triple }} \
             --no-default-features
 
-      # The binary every preset builds was never executed by anything: the
-      # release published eighteen deliverables that nothing had started once.
-      # This runs the one it just produced, on a runner of its own
-      # architecture, with a throwaway home so it depends on no state. It says
-      # nothing about behaviour and everything about the class that ships
-      # broken: a missing shared library, a wrong glibc, an unusable binary.
-      - name: Smoke the binary this job just built
-        shell: bash
-        run: |
-          set -euo pipefail
-          BIN="target/${{ matrix.triple }}/release/apollia-os"
-          [ -x "$BIN" ] || BIN="target/${{ matrix.triple }}/release/apollia-os.exe"
-          if [ ! -x "$BIN" ]; then
-            echo "::error::no apollia-os binary under target/${{ matrix.triple }}/release"
-            exit 1
-          fi
-          HOME_DIR="$(mktemp -d)"
-          export HOME="$HOME_DIR" USERPROFILE="$HOME_DIR"
-          echo "== version"
-          "$BIN" --version
-          "$BIN" --version | grep -q "apollia-os" || {
-            echo "::error::--version does not name the binary"; exit 1; }
-          echo "== help"
-          "$BIN" --help > /dev/null
-          echo "== doctor, machine readable"
-          "$BIN" doctor --json > doctor.json
-          python3 -c "import json,sys; d=json.load(open('doctor.json')); n=len(d['checks']); print(f'{n} check(s)'); sys.exit(0 if n else 1)"
-          rm -rf "$HOME_DIR"
-
       # Build apollia-runner with the matching backend feature.
       # Extracts local-{cpu,cuda,rocm,vulkan,metal} from matrix.features.
       # For the presets with no local-* (cloud only), no runner is built.
@@ -455,6 +426,49 @@ jobs:
           Pop-Location
 
       # ── SBOM (whole bundle : Rust crates + embedded CPython) ────────────────
+      # The release published eighteen deliverables that nothing had ever
+      # started. This runs the bundle this job just assembled, through the
+      # launcher a user runs, under a throwaway home so it depends on no state
+      # and leaves none. It is placed after assembly on purpose: the binary
+      # alone cannot start on macOS, where its libpython is linked at
+      # `@executable_path/../Resources/python/lib`, a path only the packaged
+      # layout answers. What is asserted is thin, that the thing starts, names
+      # itself and answers its command surface; what it catches is the class
+      # that ships broken and is found by a user.
+      - name: Smoke the bundle this job just assembled
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}"
+          # The launcher is the entry point the archive documents and a user
+          # runs: it points the binary at the interpreter beside it and at the
+          # library that interpreter needs. Running the binary alone is not the
+          # shipped contract and does not start on macOS.
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            LAUNCH=(cmd //c "$(cygpath -w "$STAGE/apollia-os.bat")")
+            PROBE="$STAGE/apollia-os.bat"
+          else
+            LAUNCH=("$STAGE/apollia-os.sh")
+            PROBE="$STAGE/apollia-os.sh"
+          fi
+          if [ ! -f "$PROBE" ]; then
+            echo "::error::$PROBE is not in the assembled bundle"
+            ls -la "$STAGE" || true
+            exit 1
+          fi
+          HOME_DIR="$(mktemp -d)"
+          export HOME="$HOME_DIR" USERPROFILE="$HOME_DIR"
+          echo "== version"
+          "${LAUNCH[@]}" --version
+          "${LAUNCH[@]}" --version | grep -q "apollia-os" || {
+            echo "::error::--version does not name the binary"; exit 1; }
+          echo "== help"
+          "${LAUNCH[@]}" --help > /dev/null
+          echo "== doctor, machine readable"
+          "${LAUNCH[@]}" doctor --json > doctor.json
+          python3 -c "import json,sys; d=json.load(open('doctor.json')); n=len(d['checks']); print(f'{n} check(s)'); sys.exit(0 if n else 1)"
+          rm -rf "$HOME_DIR" doctor.json
+
       - name: Generate SBOM (CycloneDX)
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
