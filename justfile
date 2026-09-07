@@ -170,10 +170,18 @@ runner-debug-suffixed backend:
     # adhoc to restore execution.
     if [ "$(uname)" = "Darwin" ]; then codesign --force --sign - "target/debug/apollia-runner-{{backend}}"; fi
 
-# macOS dev defaults: Metal + CPU fallback
-runners-dev-macos:
-    just runner-debug-suffixed metal
+# Build the STT runner the desktop dev recipes expect beside the binary
+runners-dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # CPU everywhere, Metal on Darwin alone: `local-metal` turns on a
+    # whisper-rs backend that exists on no other system, so a clone on Linux or
+    # Windows used to stop on this dependency before the app was ever launched.
     just runner-debug-suffixed cpu
+    if [ "$(uname -s)" = "Darwin" ]; then just runner-debug-suffixed metal; fi
+
+# The name the desktop recipes used while they were macOS-only.
+runners-dev-macos: runners-dev
 
 # -----------------------------------------------------------------------------
 # Desktop (Tauri)
@@ -239,7 +247,7 @@ desktop-dev:
     cd crates/apollia-desktop && cargo tauri dev
 
 # macOS dev shortcut: ensure metal+cpu runners then start desktop
-desktop-dev-macos: runners-dev-macos
+desktop-dev-macos: runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
@@ -285,7 +293,7 @@ llama-server model=llama_model port=llama_port:
 # APOLLIA_LLAMA_MODEL). For the baked-in Qwen dev model, use `just desktop-dev-qwen`.
 
 # macOS dev with the external llama-server (:8899) + desktop together.
-desktop-dev-llama model=llama_model: runners-dev-macos
+desktop-dev-llama model=llama_model: runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
@@ -374,7 +382,7 @@ llama-qwen:
 # Same env overrides as `llama-qwen`.
 
 # Dedicated: Qwen dev backend (llama-qwen, background) + desktop together on macOS.
-desktop-dev-qwen: runners-dev-macos
+desktop-dev-qwen: runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
@@ -752,7 +760,7 @@ clean:
 # Usage: just desktop-dev-automation scripts/automation/master-det.json
 
 # Run a gestural automation script against the real desktop app.
-desktop-dev-automation script: runners-dev-macos
+desktop-dev-automation script: runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then
@@ -777,7 +785,7 @@ desktop-dev-automation script: runners-dev-macos
 # Override via CTX / NP env.
 
 # Same as desktop-dev-automation, plus a background llama-server (--jinja, :8899).
-desktop-dev-automation-llama script model=llama_model: runners-dev-macos
+desktop-dev-automation-llama script model=llama_model: runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then
@@ -837,7 +845,7 @@ desktop-dev-automation-llama script model=llama_model: runners-dev-macos
 # Usage: just desktop-dev-automation-seeded scripts/automation/master-det.json
 
 # Seeded variant: the app runs against a throwaway, fully-populated HOME.
-desktop-dev-automation-seeded script: runners-dev-macos
+desktop-dev-automation-seeded script: runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then
@@ -958,7 +966,7 @@ desktop-screenshots script:
 # Usage: just desktop-dev-automation-seeded-llama scripts/automation/chat-llm.json
 
 # Seeded + llama-server, for the -llama scripts.
-desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
+desktop-dev-automation-seeded-llama script model=llama_model: runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then

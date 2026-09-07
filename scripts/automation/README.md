@@ -68,11 +68,27 @@ needs, measured rather than assumed:
   reads the first on Windows and the second on Unix: without it the seeded
   throwaway home redirects nothing and the run writes into the real profile.
 
-Then the same command as on macOS:
+Then the same commands as on macOS:
 
 ```
-just desktop-dev-automation-seeded scripts/automation/master-det.json
+just desktop-dev-automation-seeded scripts/automation/nav-det.json      # boots in a minute
+just desktop-dev-automation-seeded scripts/automation/master-det.json   # the whole deterministic suite
 ```
+
+The deterministic books never reach a model: the seed's GGUF and whisper files
+are kilobyte placeholders, the recording commands are stubbed, and nothing
+spawns llama-server. What a run of them proves on a new system is the whole
+interface, the runtime, the agents and the seeded data; what it does not touch
+is inference and dictation, which is where a platform usually breaks. One
+model book covers the first:
+
+```
+just desktop-dev-automation-seeded-llama scripts/automation/chat-llm.json /path/to/model.gguf
+```
+
+It needs `llama-server` on PATH (or `LLAMA_BIN=/path/to/llama-server`) built
+for that machine. Dictation has no automated path with a real engine on any
+system: loading a whisper model and recording once is a manual check.
 
 Read `.apollia-automation/report.json` for the verdict. A run on a machine with
 no window capture reports its `screenshot` steps as skipped, so compare the
