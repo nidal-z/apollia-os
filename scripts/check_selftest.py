@@ -1936,8 +1936,23 @@ def guards_recipe_body(justfile: str) -> str:
     return "\n".join(body) + "\n"
 
 
-def _stub_recipe(body: str, subjects: list[str], externals: list[str]) -> str:
-    """The same body, judging stub subjects instead of the tree's guards."""
+def _stub_recipe(
+    body: str, subjects: list[str], externals: list[str], build: str = "true"
+) -> str:
+    """The same body, judging stub subjects instead of the tree's guards.
+
+    The build the recipe runs before judging is replaced too. What these cases
+    pin is the exit code the recipe answers for a set of verdicts, not whether
+    this tree compiles: leaving the real `cargo build` in would rebuild the
+    binary once per case, and on a runner with no warm toolchain it fails
+    outright, which turned every case red while the recipe was correct. The
+    build's own contract is pinned by passing `false` here.
+    """
+    body, count = re.subn(
+        r"^if ! cargo build [^\n]*; then$", f"if ! {build}; then", body, count=1, flags=re.M
+    )
+    if count != 1:
+        return ""
     for name, entries in (("guards", subjects), ("externals", externals)):
         block = f"{name}=(\n" + "".join(f'  "{e}"\n' for e in entries) + ")\n"
         body, count = re.subn(
@@ -1948,14 +1963,16 @@ def _stub_recipe(body: str, subjects: list[str], externals: list[str]) -> str:
     return body
 
 
-def _run_recipe(tmp: Path, body: str, codes: list[int], gates: list[str]) -> tuple[int, str]:
+def _run_recipe(
+    tmp: Path, body: str, codes: list[int], gates: list[str], build: str = "true"
+) -> tuple[int, str]:
     subjects = []
     for i, code in enumerate(codes):
         stub = tmp / f"stub{i}_{code}.py"
         stub.write_text(f"import sys\nsys.exit({code})\n", encoding="utf-8")
         subjects.append(str(stub))
     script = tmp / "guards.sh"
-    script.write_text(_stub_recipe(body, subjects, gates), encoding="utf-8")
+    script.write_text(_stub_recipe(body, subjects, gates, build), encoding="utf-8")
     proc = subprocess.run(
         ["bash", str(script)],
         cwd=REPO_ROOT,
@@ -1974,7 +1991,7 @@ def check_guards_recipe_exit() -> None:
     )
     case(
         "the `guards` recipe body is read from the justfile",
-        "reds=()" in body and "skips=()" in body,
+        "reds=()" in body and "skips=()" in body and "cargo build " in body,
         f"extracted {len(body)} char(s), which do not carry the two tallies. "
         f"The three cases below judge whatever this returns, so an empty "
         f"extraction would pass them all without running the recipe",
@@ -1982,6 +1999,15 @@ def check_guards_recipe_exit() -> None:
 
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
+
+        code, said = _run_recipe(tmp, body, [0, 0], ["true"], build="false")
+        case(
+            "a binary the recipe cannot build stops it before any verdict",
+            code == 1 and "could not be built" in said and "guards green" not in said,
+            f"code {code}, output {said!r}. Five guards read the binary rather "
+            f"than the source, so a recipe that judged on without it would "
+            f"report on an executable this tree no longer describes",
+        )
 
         code, said = _run_recipe(tmp, body, [0, 0], ["true"])
         case(

@@ -83,12 +83,12 @@ the skill ships sample payloads. ``name`` is the encoded form
 which is what the bridge decodes back on dispatch.
 
 The schema key is ``input_schema``, which is the Anthropic spelling.
-``ctx.llm.run_tools`` and ``apollia.react`` read ``parameters`` first
-and fall back to ``input_schema``, so this descriptor can be handed to
-either as it stands and the tool reaches the model with its arguments.
-The bridge read only ``parameters`` until it was fixed: a descriptor
-built by hand for an older runtime should spell the key ``parameters``,
-which still takes precedence.
+``ctx.llm.run_tools`` and `apollia.react` read ``parameters``
+first and fall back to ``input_schema``, so this descriptor can be
+handed to either as it stands and the tool reaches the model with its
+arguments. The bridge read only ``parameters`` until it was fixed: a
+descriptor built by hand for an older runtime should spell the key
+``parameters``, which still takes precedence.
 
 The method is ``async``: the bridge resolves the skill against
 the in-process A2A registry. Always call with ``await``.
