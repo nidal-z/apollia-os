@@ -263,6 +263,27 @@ fn extract_cursor_raw(body: &str) -> Option<String> {
 /// cannot be buffered whole.
 const REGISTRY_MAX_PAGE_BYTES: u64 = 16 * 1024 * 1024;
 
+/// The public MCP registry, used when no override is set.
+const DEFAULT_REGISTRY_URL: &str = "https://registry.modelcontextprotocol.io";
+/// Environment variable that overrides the registry endpoint.
+const REGISTRY_URL_ENV: &str = "APOLLIA_MCP_REGISTRY_URL";
+
+/// Registry this client talks to, from `APOLLIA_MCP_REGISTRY_URL` when set.
+///
+/// Two callers need it. An operator running against a private registry points
+/// it there. The gestural automaton points it at an unreachable local port, so
+/// a seeded run answers from the seeded cache instead of the public registry:
+/// the cache is stale after fifteen minutes, and a long book reaching the
+/// connections section after that used to swap the two seeded servers for the
+/// twenty thousand public ones, mid-run, on network timing alone.
+fn base_url_from_env() -> String {
+    std::env::var(REGISTRY_URL_ENV)
+        .ok()
+        .map(|url| url.trim().trim_end_matches('/').to_string())
+        .filter(|url| !url.is_empty())
+        .unwrap_or_else(|| DEFAULT_REGISTRY_URL.to_string())
+}
+
 impl McpRegistryClient {
     /// Create a new registry client.
     ///
@@ -277,7 +298,7 @@ impl McpRegistryClient {
         Ok(Self {
             http,
             cache_path: cache_dir.join("mcp-registry.json"),
-            base_url: "https://registry.modelcontextprotocol.io".to_string(),
+            base_url: base_url_from_env(),
         })
     }
 
@@ -555,6 +576,10 @@ impl McpRegistryClient {
 mod tests {
     use super::*;
 
+    /// The environment is process-wide, so the tests that set it take this
+    /// lock rather than racing each other.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     use tempfile::TempDir;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -594,6 +619,39 @@ mod tests {
     }
 
     // ── fetch all servers (single-page fast-path) ─────────────────────
+
+    #[test]
+    fn registry_url_defaults_to_the_public_registry() {
+        // GIVEN no override in the environment
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: the lock above makes this the only thread touching the
+        // environment for the duration of the test.
+        unsafe { std::env::remove_var(REGISTRY_URL_ENV) };
+
+        // WHEN the client resolves its endpoint
+        let url = base_url_from_env();
+
+        // THEN it is the public registry
+        assert_eq!(url, DEFAULT_REGISTRY_URL);
+    }
+
+    #[test]
+    fn registry_url_override_wins_and_drops_a_trailing_slash() {
+        // GIVEN an override, written with a trailing slash the client must not
+        // keep (every path is joined with a leading one)
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // SAFETY: the lock above makes this the only thread touching the
+        // environment for the duration of the test.
+        unsafe { std::env::set_var(REGISTRY_URL_ENV, "http://127.0.0.1:1/") };
+
+        // WHEN the client resolves its endpoint
+        let url = base_url_from_env();
+
+        // THEN it targets the override, without the trailing slash
+        // SAFETY: same lock.
+        unsafe { std::env::remove_var(REGISTRY_URL_ENV) };
+        assert_eq!(url, "http://127.0.0.1:1");
+    }
 
     #[tokio::test]
     async fn test_fetch_servers_returns_list() {

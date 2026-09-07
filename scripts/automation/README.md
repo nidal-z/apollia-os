@@ -33,6 +33,12 @@ is never touched) and build it from `tests/cli/seed/` (see
 screenshots. The app does not exit on its own; kill `cargo-tauri tauri dev`
 once the report lands.
 
+Network: both seeded recipes export `APOLLIA_MCP_REGISTRY_URL=http://127.0.0.1:1`,
+so the MCP catalogue answers from the seeded registry cache instead of the
+public registry. Without it a run longer than fifteen minutes (the cache TTL)
+swaps the two seeded servers for the twenty thousand public ones mid-book, and
+the connections section fails on network timing rather than on the product.
+
 Model: `-seeded-llama` defaults `CTX=131072 NP=1 --jinja`, and samples
 greedily on a fixed seed (`--temp 0 --seed 42`, `TEMP` and `SEED` override):
 a model book asserts what the model does next, so its answer has to be the

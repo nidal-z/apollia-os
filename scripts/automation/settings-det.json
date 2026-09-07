@@ -18,7 +18,8 @@
     "update-releases-link is played under stubs: check_for_update resolves channel_unavailable true, which is phase no_channel (UpdateCheckPanel.svelte:102, :164-176), and plugin:opener|open_url resolves null so the click (openExternalUrl -> openUrl, externalLink.ts:35-46) never launches the host browser. Nothing in-app changes after that click by design, so the block asserts the phase before it (update-no-channel-label, the link itself) and that the panel is untouched after it (link and update-check-btn still rendered); the stub is what keeps the click harmless, not what proves it.",
     "help-hero-cta is played under a plugin:opener|open_url stub resolving null: the anchor's onclick is handleExternalLinkClick (HelpHero.svelte:54, externalLink.ts:98-105), which preventDefaults and hands https://docs.apollia.fr/... to the opener, so the webview stays on the help page (help-hero-cta and help-section asserted after the click). `aria-disabled` follows navigator.onLine (Help.svelte:38-50) and only removes pointer events; the runner's el.click() is programmatic, so the handler runs online or offline. No in-app state changes on that click, so the block can assert nothing beyond the page staying mounted.",
     "shortcuts-search is a plain bind:value filter (Shortcuts.svelte:41-55, 85-92): a no-match query renders shortcuts-empty (:99-104), an empty query restores the groups; local state, nothing persisted, the page is not nav-guarded.",
-    "update-install-btn is played twice under stubs, both after a remount. Happy path: check_for_update resolves available true with new_version 99.0.0 (update-available-label contains 99.0.0, update-changelog rendered), install_update resolves null, and the phase moves downloading -> installed (UpdateCheckPanel.svelte:110-126): installed renders no testid of its own, so it is proven by the three waitGone (update-install-btn, update-download-progress, update-check-btn), the only phase reachable from runInstall that renders none of them; error would keep update-check-btn as retry. The real install_update would replace the binary and restart the app before the report lands (commands/updates.rs:172), which is why it is never let through. Error path: install_update rejects a string, humanize keeps it as detail (lib/errors/humanize.ts:251-263) and update-error-banner contains it. listen(\"update-download-progress\") still reaches the real event plugin; nothing emits on it."
+    "update-install-btn is played twice under stubs, both after a remount. Happy path: check_for_update resolves available true with new_version 99.0.0 (update-available-label contains 99.0.0, update-changelog rendered), install_update resolves null, and the phase moves downloading -> installed (UpdateCheckPanel.svelte:110-126): installed renders no testid of its own, so it is proven by the three waitGone (update-install-btn, update-download-progress, update-check-btn), the only phase reachable from runInstall that renders none of them; error would keep update-check-btn as retry. The real install_update would replace the binary and restart the app before the report lands (commands/updates.rs:172), which is why it is never let through. Error path: install_update rejects a string, humanize keeps it as detail (lib/errors/humanize.ts:251-263) and update-error-banner contains it. listen(\"update-download-progress\") still reaches the real event plugin; nothing emits on it.",
+    "open_config_in_editor is stubbed: the real command hands the file to the host's editor, which takes the focus and made the capture that follows fail. An automaton run opens no other application."
   ],
   "dynamicTestids": [
     "config-file-card-copy-oria",
@@ -1679,6 +1680,12 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "stubInvoke",
+      "command": "open_config_in_editor",
+      "resolve": null,
+      "once": true
+    },
+    {
       "kind": "click",
       "testid": "observability-open-editor",
       "timeoutMs": 4000
@@ -1689,7 +1696,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "58-observability-open-editor-boundary (open::that launches the host's .toml handler; nothing in the seed HOME changes)"
+      "label": "58-observability-open-editor (the host handler is answered by a stub: an automaton opens no other application)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "open_config_in_editor"
     }
   ]
 }

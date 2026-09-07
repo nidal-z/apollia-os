@@ -2540,26 +2540,6 @@
     },
     {
       "kind": "click",
-      "testid": "chat-inspector-journal-tab",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "journal-event",
-      "nth": 0,
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "chat-config-panel",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "20b-inspector-back-to-journal"
-    },
-    {
-      "kind": "click",
       "testid": "chat-header-overflow-button",
       "timeoutMs": 3000
     },
@@ -3653,6 +3633,26 @@
       "contains": "12"
     },
     {
+      "kind": "click",
+      "testid": "chat-inspector-config-tab",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-config-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "journal-event",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "chat-inspector-journal-tab",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "waitFor",
       "testid": "journal-event",
       "nth": 0,
@@ -3661,7 +3661,13 @@
     {
       "kind": "expect",
       "testid": "journal-event",
-      "nth": -1,
+      "nth": 1,
+      "contains": "executed successfully"
+    },
+    {
+      "kind": "expect",
+      "testid": "journal-event",
+      "nth": 4,
       "contains": "ran and failed"
     },
     {
@@ -15272,6 +15278,12 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "stubInvoke",
+      "command": "open_config_in_editor",
+      "resolve": null,
+      "once": true
+    },
+    {
       "kind": "click",
       "testid": "observability-open-editor",
       "timeoutMs": 3000
@@ -15282,7 +15294,11 @@
     },
     {
       "kind": "screenshot",
-      "label": "58-observability-open-editor-boundary (open::that launches the host's .toml handler; nothing in the seed HOME changes)"
+      "label": "58-observability-open-editor (the host handler is answered by a stub: an automaton opens no other application)"
+    },
+    {
+      "kind": "clearStubs",
+      "command": "open_config_in_editor"
     },
     {
       "kind": "screenshot",

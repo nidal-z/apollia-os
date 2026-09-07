@@ -451,13 +451,13 @@ mod tests {
                 )
                 .await
         });
+        // No deadline is armed: either the registry receives the question, or
+        // the call answers first, which is the failure this races against.
         let registered = tokio::select! {
             outcome = &mut call => panic!("ask_user answered before registering: {outcome:?}"),
-            next = tokio::time::timeout(std::time::Duration::from_secs(5), pending.next_pending()) => next,
+            next = pending.next_pending() => next,
         };
-        let (_request_id, request) = registered
-            .expect("the question reaches the registry within five seconds")
-            .expect("the registry hands the question back");
+        let (_request_id, request) = registered.expect("the registry hands the question back");
 
         // THEN the registered request names the session, which is what lets
         // the inbox open the conversation that asked

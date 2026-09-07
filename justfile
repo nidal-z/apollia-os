@@ -866,6 +866,11 @@ desktop-dev-automation-seeded script: runners-dev-macos
       bash "{{justfile_directory()}}/tests/cli/seed/build-seed.sh" "$SEED_HOME"
     else
       env -u APOLLIA_SEED_OVERLAY bash "{{justfile_directory()}}/tests/cli/seed/build-seed.sh" "$SEED_HOME"
+    # A seeded run answers from the seeded MCP registry cache, never from the
+    # public registry: the cache goes stale after fifteen minutes and a long
+    # book would otherwise swap the two seeded servers for the public ones
+    # mid-run, on network timing alone.
+    export APOLLIA_MCP_REGISTRY_URL="http://127.0.0.1:1"
     fi
     # Preserve the toolchain env (defaults derive from the REAL home) before the swap.
     export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
@@ -969,6 +974,11 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
     SEED_HOME="${APOLLIA_SEED_HOME:-$PWD/.apollia-seed-home}"
     # See the deterministic recipe above for why the overlay is unset here.
     env -u APOLLIA_SEED_OVERLAY bash "{{justfile_directory()}}/tests/cli/seed/build-seed.sh" "$SEED_HOME"
+    # A seeded run answers from the seeded MCP registry cache, never from the
+    # public registry: the cache goes stale after fifteen minutes and a long
+    # book would otherwise swap the two seeded servers for the public ones
+    # mid-run, on network timing alone.
+    export APOLLIA_MCP_REGISTRY_URL="http://127.0.0.1:1"
     export CARGO_HOME="${CARGO_HOME:-$REAL_HOME/.cargo}"
     export RUSTUP_HOME="${RUSTUP_HOME:-$REAL_HOME/.rustup}"
     # Build PyO3 against the SAME interpreter the app will run with, which is
