@@ -69,7 +69,10 @@ mod tests {
     fn base() -> TranscribeParams {
         TranscribeParams {
             model_id: "whisper-base".into(),
-            audio_path: PathBuf::from("/tmp/audio.wav"),
+            // Absolute on the system running the test: `/tmp/...` carries no
+            // drive prefix, so Windows reads it as relative and validate()
+            // rejects a request these cases build as valid.
+            audio_path: std::env::temp_dir().join("audio.wav"),
             // The daemon sends the model path alongside the id; None is the
             // already-cached case, which is what these validation cases assume.
             model_path: None,

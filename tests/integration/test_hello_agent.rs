@@ -86,6 +86,10 @@ impl ExecutionBackend for AIPBridgeBackend {
 
 fn test_manifest_for(name: &str) -> AgentManifest {
     AgentManifest {
+        // The manifest format's own version, not the agent's; it gained the
+        // field and this literal, built behind a feature no default build
+        // compiles, kept the old shape.
+        format_version: 1,
         name: name.to_string(),
         version: "1.0.0".to_string(),
         description: String::new(),

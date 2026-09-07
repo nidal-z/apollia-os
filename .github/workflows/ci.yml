@@ -240,10 +240,20 @@ jobs:
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             cmake clang pkg-config sqlite3
       # sqlite3 is what the seed builder and the assertions read the throwaway
-      # HOME with; the macOS runner ships it, the Linux one does not.
-      - name: Check sqlite3 is present
+      # HOME with, and two schemas declare FTS5 virtual tables. The sqlite3 the
+      # macOS runner ships carries no FTS5 module, so the profile is built half
+      # way and twenty assertions fail without naming the cause; Homebrew's
+      # carries it and goes first on PATH.
+      - name: Install a sqlite3 that carries FTS5
         if: startsWith(matrix.os, 'macos')
-        run: sqlite3 --version
+        run: |
+          brew install sqlite
+          echo "$(brew --prefix sqlite)/bin" >> "$GITHUB_PATH"
+      - name: Check sqlite3 carries FTS5
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          sqlite3 --version
+          sqlite3 :memory: "CREATE VIRTUAL TABLE t USING fts5(x);"
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Build apollia-cli
         run: cargo build -p apollia-cli

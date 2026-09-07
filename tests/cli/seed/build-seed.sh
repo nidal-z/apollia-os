@@ -38,6 +38,25 @@
 #                              be baked into a row.
 set -euo pipefail
 
+# The schemas of chat.db and user_memory.db declare FTS5 virtual tables, and a
+# sqlite3 built without that module answers "no such module: fts5" halfway
+# through, leaving a profile whose databases are half there. Measured on the
+# GitHub macOS runner on 2026-09-07: twenty assertions failed one after the
+# other, none of them naming the cause. The product is never affected, it
+# carries its own SQLite through rusqlite's bundled build; this is the CLI on
+# PATH, and the check names it rather than letting the failure cascade.
+if ! command -v sqlite3 >/dev/null 2>&1; then
+  echo "seed: sqlite3 is not on PATH; the seeded profile cannot be built" >&2
+  exit 2
+fi
+if ! sqlite3 :memory: "CREATE VIRTUAL TABLE t USING fts5(x);" >/dev/null 2>&1; then
+  echo "seed: the sqlite3 on PATH has no FTS5 module ($(command -v sqlite3))" >&2
+  echo "      $(sqlite3 --version 2>/dev/null | head -1)" >&2
+  echo "      Install one that carries it (macOS: brew install sqlite, then put" >&2
+  echo "      its bin first on PATH; Debian: the packaged sqlite3 has it)." >&2
+  exit 2
+fi
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 REPO_ROOT="$(cd "$HERE/../../.." >/dev/null 2>&1 && pwd)"
 SEED_HOME="${1:-$PWD/.apollia-seed-home}"
