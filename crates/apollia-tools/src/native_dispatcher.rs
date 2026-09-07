@@ -72,6 +72,10 @@ pub struct NativeDispatcherConfig {
     /// Pending user-input registry for `ask_user`. `None` omits the tool
     /// (task-mode agents rely on AIP `input_required` instead).
     pub pending_user_inputs: Option<PendingUserInputs>,
+    /// Chat session the dispatcher serves, stamped on every `ask_user` request
+    /// so the inbox can open the conversation that asked. `None` for a
+    /// dispatcher that serves no chat session (a task-mode agent).
+    pub session_id: Option<String>,
     /// Tool names disabled at runtime via [`crate::tool_registry::ToolRegistry`]
     /// or by static config. These are excluded from the dispatcher entirely
     /// so any agent invocation surfaces `UnknownTool`.
@@ -242,7 +246,10 @@ pub fn build_dispatcher_with(
 
     if is_active("ask_user") {
         if let Some(pending) = cfg.pending_user_inputs.as_ref() {
-            executors.push(Box::new(AskUserExecutor::new(pending)));
+            executors.push(Box::new(AskUserExecutor::new_with_session(
+                pending,
+                cfg.session_id.clone(),
+            )));
         }
     }
 
@@ -400,5 +407,61 @@ mod tests {
             }
             other => panic!("expected ExecutionFailed with tool_unavailable, got {other:?}"),
         }
+    }
+    #[tokio::test]
+    async fn ask_user_request_carries_the_session_the_dispatcher_serves() {
+        // GIVEN a dispatcher built for one chat session, with the ask_user
+        // registry the inbox drains
+        let pending = crate::tools::ask_user::PendingUserInputs::new();
+        let root = std::env::temp_dir().join("apollia-native-dispatcher-session-test");
+        let cfg = NativeDispatcherConfig {
+            sandbox_roots: vec![root.clone()],
+            agent_id: "apollia:chat:s1".to_string(),
+            venv_base_dir: root.join("venvs"),
+            memory_namespace: None,
+            memory_shared_namespaces: Vec::new(),
+            memory_base_dir: root.join("memory"),
+            http_allowlist: None,
+            pending_user_inputs: Some(pending.clone()),
+            session_id: Some("s1".to_string()),
+            disabled_tools: Vec::new(),
+            brave_api_key: None,
+            web_search_config: Default::default(),
+            web_read_config: Default::default(),
+            governance_db_path: None,
+        };
+        let dispatcher = std::sync::Arc::new(build_native_dispatcher(&cfg));
+        assert!(
+            dispatcher.tool_names().contains(&"ask_user"),
+            "ask_user is registered when a pending registry is given"
+        );
+
+        // WHEN the agent asks the user a question through that dispatcher
+        // (the call blocks until an answer, so it runs on its own task; a
+        // call that returns before the registry saw the question is a defect
+        // of its own, reported with the tool's answer)
+        let asking = dispatcher.clone();
+        let mut call = tokio::spawn(async move {
+            asking
+                .dispatch(
+                    "ask_user",
+                    serde_json::json!({
+                        "questions": [{ "id": "q1", "question": "Your name?", "type": "open" }]
+                    }),
+                )
+                .await
+        });
+        let registered = tokio::select! {
+            outcome = &mut call => panic!("ask_user answered before registering: {outcome:?}"),
+            next = tokio::time::timeout(std::time::Duration::from_secs(5), pending.next_pending()) => next,
+        };
+        let (_request_id, request) = registered
+            .expect("the question reaches the registry within five seconds")
+            .expect("the registry hands the question back");
+
+        // THEN the registered request names the session, which is what lets
+        // the inbox open the conversation that asked
+        assert_eq!(request.session_id.as_deref(), Some("s1"));
+        call.abort();
     }
 }

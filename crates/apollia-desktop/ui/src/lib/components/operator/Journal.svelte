@@ -132,7 +132,7 @@
       >
         <IconCmp size={7} />
       </div>
-      <div class="flex-1 min-w-0">
+      <div class="flex-1 min-w-0" data-testid="journal-event">
         <div class="flex items-baseline gap-1.5">
           <span
             class="text-caption font-semibold text-foreground {isBuilder ? 'font-mono' : ''}"

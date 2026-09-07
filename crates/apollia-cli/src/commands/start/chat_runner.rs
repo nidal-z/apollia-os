@@ -145,6 +145,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 memory_base_dir: memory_base_dir.clone(),
                 http_allowlist: None,
                 pending_user_inputs: self.pending_user_inputs.get().cloned(),
+                session_id: None,
                 disabled_tools,
                 brave_api_key: snapshot.brave_api_key,
                 web_search_config: self.tools_config.web_search.clone(),

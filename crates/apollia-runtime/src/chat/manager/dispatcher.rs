@@ -37,7 +37,7 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     let mut invoker = NativeChatToolInvoker::new_unrestricted(workspace_path.clone())
         .with_trusted_paths(trusted_paths.clone());
     if let Some(pending) = pending_user_inputs.clone() {
-        invoker = invoker.with_ask_user_support(pending);
+        invoker = invoker.with_ask_user_support(pending, session_id);
     }
 
     // Convergence point: every tool outside the native hardcoded fast path,
@@ -240,6 +240,7 @@ fn build_full_chat_dispatcher(
         // dynamic allowlist behaviour preserving Chat Libre UX.
         http_allowlist: None,
         pending_user_inputs: pending_user_inputs.clone(),
+        session_id: Some(session_id.to_string()),
         disabled_tools: disabled,
         brave_api_key: cfg.brave_api_key.clone(),
         web_search_config: cfg.tools_config.web_search.clone(),

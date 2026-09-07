@@ -34,7 +34,8 @@ export interface ConversationRestorePatch {
   isStreaming?: boolean;
   isProcessing?: boolean;
   approval?: ConversationRestoreInput["approval"];
-  userInput?: {
+  /** `null` clears a question the shown session does not have. */
+  userInput?: null | {
     requestId: string;
     questions: AskUserQuestion[];
     context: string | null;
@@ -73,6 +74,12 @@ export function restoreConversationState(
     } catch {
       // Malformed questions_json - ignore, will be re-emitted by backend
     }
+  } else if (!input.userInput && input.hasUserInput) {
+    // The conversation carries a question the session it now shows does not
+    // have. It belongs to another session (the component is reused across
+    // them), so it is cleared rather than left asking here; every live
+    // question is in the global store, so nothing is lost.
+    patch.userInput = null;
   }
 
   // Still processing with nothing to show yet: say so rather than look idle.

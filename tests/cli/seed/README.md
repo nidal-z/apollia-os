@@ -43,7 +43,11 @@ profile is still in `~/.apollia.before-seed` at that point.
   3.45.1 and 3.46.1 refuse them. The builder strips them either way, so no
   caller has to know which one it has.
 - `fragments/<db>.sql` : INSERT-only seed rows per DB. A schema with no fragment
-  is created empty.
+  is created empty. `chat.sql` also carries one assistant turn with a
+  twelve-fragment thinking trace and four tool calls (`seed-session-4`), which
+  puts the activity strip past its collapse threshold so a deterministic book
+  can play the reasoning list instead of waiting for a model to take enough
+  steps.
 - `files/` : on-disk artifacts copied verbatim into `<SEED_HOME>/.apollia/` :
   - `agents/<name>/` (+ `packages/`) : installed-agent dirs (manifest + agent.py).
   - `memory/<namespace>.db` : one memory DB per namespace (file-scoped store).

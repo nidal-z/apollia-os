@@ -84,6 +84,8 @@
   // so the picker reflects the configured behavior, and applied before the
   // first message so that turn already runs under the plan gate.
   let startInPlanMode = $state(false);
+  // The default arrives asynchronously; a choice the user already made wins.
+  let planModeTouched = false;
   // Stored as a string ("" == no project) to match the native <Select>'s
   // value model used by the DS Select component, which expects `bind:value`
   // on a string.
@@ -135,7 +137,7 @@
       .catch(() => { /* link selector will just stay empty */ });
     void getPlanModeDefault()
       .then((on) => {
-        startInPlanMode = on;
+        if (!planModeTouched) startInPlanMode = on;
       })
       .catch(() => { /* keep the default-off toggle */ });
     const stopPolling = startAgentStatusPolling();
@@ -393,6 +395,7 @@
     <input
       type="checkbox"
       bind:checked={startInPlanMode}
+      onchange={() => (planModeTouched = true)}
       disabled={creating}
       class="h-3.5 w-3.5 rounded border-border accent-primary"
       data-testid="quickpicker-plan-mode"

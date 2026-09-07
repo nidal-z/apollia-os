@@ -120,3 +120,20 @@ VALUES
    strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-1 day'),    'Outside the perimeter allowed for this workspace.'),
   ('seed-session-agent-1', 'seed-msg-4', 'web_search',    'accept',
    strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-3 days'),   NULL);
+
+-- Conversation history for seed-session-4. One assistant turn carrying a
+-- twelve-fragment thinking trace and four tool calls, which is what puts the
+-- activity strip over COLLAPSE_ITEM_THRESHOLD (10 items, lib/chat/reasoning.ts)
+-- and renders reasoning-show-more / reasoning-collapse. Seeded rather than
+-- produced by a model: the gestures then belong to a deterministic book
+-- instead of depending on how a model chooses to answer.
+INSERT INTO chat_messages
+    (id, session_id, role, content, tool_calls_json, tool_name, created_at, seq, metadata)
+VALUES
+    ('seed-msg-mcp-1', 'seed-session-4', 'user',
+     'Which MCP tools do I have on this machine?', NULL, NULL,
+     '2026-07-01T00:00:00Z', 1, NULL),
+    ('seed-msg-mcp-2', 'seed-session-4', 'assistant',
+     'Two servers answered. seed-stub exposes echo, ping and describe; seed-failing did not complete its handshake, so it exposes nothing. None of them is authorised for this session yet, and a response larger than 8 MiB is truncated rather than refused.',
+     '[{"tool_name": "mcp.list_servers", "input": {}, "output": "seed-stub, seed-failing", "status": "executed", "duration_ms": 12}, {"tool_name": "mcp.list_tools", "input": {"server": "seed-stub"}, "output": "echo, ping, describe", "status": "executed", "duration_ms": 18}, {"tool_name": "mcp.describe_tool", "input": {"server": "seed-stub", "tool": "echo"}, "output": "Echoes its argument back, capped at 8 MiB.", "status": "executed", "duration_ms": 9}, {"tool_name": "mcp.list_tools", "input": {"server": "seed-failing"}, "output": null, "status": "failed", "duration_ms": 31}]', NULL,
+     '2026-07-01T00:00:00Z', 2, '{"thinking_trace": "The operator asks which MCP tools this machine exposes. Start from the registry the runtime keeps, not from memory.\n\n---\n\nThe registry cache lists the servers whose handshake succeeded at boot, so a server that failed to start will not be there.\n\n---\n\nList the servers first, then their tools, so the answer names where each tool comes from.\n\n---\n\nThe first server answers with three tools. Note their names before asking the second one.\n\n---\n\nThe second server is a stub used for verification; its single tool echoes what it receives.\n\n---\n\nOne tool name appears on both servers, so the answer has to qualify each with its server.\n\n---\n\nRead the tool descriptions rather than guessing from the names, since two of them are close.\n\n---\n\nA description mentions a byte cap on responses; that belongs in the answer as a limit, not as a feature.\n\n---\n\nCheck whether any of these tools needs an authorisation before it can run in this session.\n\n---\n\nNone of them is authorised yet, so say what the operator would have to allow.\n\n---\n\nGroup the answer by server, then by tool, and keep it to one line per tool.\n\n---\n\nClose with the one limit that would surprise: a response larger than the cap is truncated, not refused."}');

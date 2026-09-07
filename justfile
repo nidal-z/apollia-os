@@ -1023,8 +1023,13 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
       exit 1
     fi
     SLOG="/tmp/apollia-dev-llama-server.log"
-    echo "→ starting llama-server (--jinja) on :{{llama_port}} : $(basename "$MODEL") [ctx=${CTX:-131072} np=${NP:-1}] ..."
+    # Greedy sampling on a fixed seed: the model books assert what the model
+    # does next (a plan, a tool call, a question), and a sampled answer that
+    # differs from one run to the next is a red nobody can act on. TEMP and
+    # SEED override for an experiment.
+    echo "→ starting llama-server (--jinja) on :{{llama_port}} : $(basename "$MODEL") [ctx=${CTX:-131072} np=${NP:-1} temp=${TEMP:-0} seed=${SEED:-42}] ..."
     "$LLAMA_BIN" -m "$MODEL" -ngl 999 -c "${CTX:-131072}" -np "${NP:-1}" -cb \
+      --temp "${TEMP:-0}" --seed "${SEED:-42}" \
       --flash-attn on --jinja --chat-template-kwargs '{"enable_thinking":false}' \
       --host 127.0.0.1 --port {{llama_port}} > "$SLOG" 2>&1 &
     LPID=$!

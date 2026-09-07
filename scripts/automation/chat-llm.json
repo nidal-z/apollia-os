@@ -1062,96 +1062,6 @@
     {
       "kind": "fill",
       "testid": "quickpicker-textarea",
-      "text": "Sans me poser aucune question (n'utilise pas ask_user), lis avec un appel file_read séparé pour chacun, sans t'arrêter avant d'avoir lu les douze, les fichiers suivants du dossier docs/adr, puis donne une ligne par fichier avec son titre : ADR-001-foundations-stack.md, ADR-002-pyo3-bridge-decoupling.md, ADR-003-sandbox-trust-platform-scope.md, ADR-004-cli-design.md, ADR-005-oria-execution-model.md, ADR-006-tool-subsystem.md, ADR-007-inference-multi-runner-sidecar.md, ADR-008-llm-backends-model-management.md, ADR-009-speech-to-text.md, ADR-010-memory-context-architecture.md, ADR-011-user-profile.md, ADR-012-observability-feedback.md."
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-submit"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-input",
-      "timeoutMs": 20000
-    },
-    {
-      "kind": "awaitTurn",
-      "label": "17b-twelve-reads",
-      "timeoutMs": 480000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "click",
-      "testid": "activity-tool-count",
-      "nth": -1,
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "activity-trace",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "reasoning-show-more",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "screenshot",
-      "label": "17b-strip-open-collapsed"
-    },
-    {
-      "kind": "click",
-      "testid": "reasoning-show-more",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "reasoning-collapse",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "reasoning-show-more",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "screenshot",
-      "label": "17b-strip-show-more"
-    },
-    {
-      "kind": "click",
-      "testid": "reasoning-collapse",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "reasoning-show-more",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "reasoning-collapse",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "screenshot",
-      "label": "17b-strip-collapsed-again"
-    },
-    {
-      "kind": "click",
-      "testid": "chat-new-chat-btn"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker",
-      "timeoutMs": 10000
-    },
-    {
-      "kind": "fill",
-      "testid": "quickpicker-textarea",
       "text": "Bonjour, prêt à travailler ?"
     },
     {
@@ -1228,7 +1138,7 @@
     "chat-stop-button is played once, on a long prompt, right before the plan section's new chat: the aborted session keeps a truncated assistant message and nothing after it reads that session again.",
     "The two rewrite blocks (quickpicker-rewrite-restore-button, chat-input-rewrite-restore-button) each cost one meta-LLM call on the default backend; restore is rendered only after a successful rewrite (canRestore) and emptying the field resets it (QuickPicker.svelte:147-153, ChatInput.svelte:299-303). A rewrite refused by the backend (noRouter/noBackend/callFailed/emptyAnswer) leaves the button absent and the block red without blocking the rest.",
     "dashboard-inbox-more is played by dashboard-det through a list_pending_approvals stub (six PendingApproval values, PendingDecisionsCard.svelte limit 5; the in-memory set no seed reaches), not here; hitl-always-toggle open/close is played by hitl-critical, not folded here (chat-llm keeps no approval pending).",
-    "reasoning-show-more and reasoning-collapse (ReasoningSequence.svelte:124, :136) render inside the finalized message's ActivityStrip (ChatMessageBubble.svelte:185-193), which mounts collapsed (open = false, ActivityStrip.svelte:39, :51) and renders its children only once expanded (activity-trace, ActivityStrip.svelte:146-152). The toggle <button> itself carries no data-testid (ActivityStrip.svelte:122-130), but its summary snippet does: activity-reasoning-count, activity-tool-count and activity-duration are spans rendered inside that button (ActivityStrip.svelte:99-112), and the runner's click calls el.click() on the match (runner.ts:228-229), whose click event bubbles to the button's onclick={toggle}. The block clicks activity-tool-count nth -1 (the newest message; toolCount = nonPendingCalls.length, ChatMessageBubble.svelte:98) and proves the opening by waiting for activity-trace. The buttons need more than COLLAPSE_ITEM_THRESHOLD = 10 items (reasoning.ts:485; one per thinking fragment plus one per tool call, buildReasoningSequence reasoning.ts:248-306; initial visibleCount is the threshold, PAGE_SIZE 30, ReasoningSequence.svelte:63-89), so the prompt asks for twelve separate file_read calls on docs/adr (the seed's apollia.toml pins the chat file-tool workspace to the repo). Model-dependent: a model that batches or stops early leaves fewer than eleven items, and the block is red without being a product defect. It runs before the step-budget section, which caps the budget at 1.",
-    "Measured on 2026-09-06 (two runs): the execution of the approved plan ended in an ask_user question the book never answers, which then made every later awaitTurn return 'paused for ask_user' at once and hid the plan review of the builder section and the twelve-reads turn. The plan prompts now forbid questions. Product finding for the maintainer: that question reached the inbox without a session id (the plan executor builds its ask_user executor without a session, apollia-tools native_dispatcher.rs), so the inbox row carried no 'open the conversation' action."
+    "Measured on 2026-09-06 (two runs): the execution of the approved plan ended in an ask_user question the book never answers, which then made every later awaitTurn return 'paused for ask_user' at once and hid the plan review of the builder section and the twelve-reads turn. The plan prompts now forbid questions. Product finding for the maintainer: that question reached the inbox without a session id (the plan executor builds its ask_user executor without a session, apollia-tools native_dispatcher.rs), so the inbox row carried no 'open the conversation' action.",
+    "The reasoning list's show-more and collapse are not played here: they need more than ten items in one turn, which depends on how many steps the model takes. chat-det plays them on a seeded turn instead."
   ]
 }

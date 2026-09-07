@@ -389,11 +389,20 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
             continue;
           }
         }
-        // Yield to the caller for states that need scripted input.
-        const askEl = resolveEl(askCss);
-        if (askEl && isVisible(askEl)) return `paused for ask_user (${approvals} approval(s))`;
-        const planEl = resolveEl(planCss);
-        if (planEl && isVisible(planEl)) return `paused for plan review (${approvals} approval(s))`;
+        // Yield to the caller for states that need scripted input, but only
+        // once this turn has actually started: a card left on screen by an
+        // earlier turn used to end every later awaitTurn in zero milliseconds,
+        // and the whole book after it read as paused when it was not.
+        if (started) {
+          const askEl = resolveEl(askCss);
+          if (askEl && isVisible(askEl)) {
+            return `paused for ask_user (${approvals} approval(s))`;
+          }
+          const planEl = resolveEl(planCss);
+          if (planEl && isVisible(planEl)) {
+            return `paused for plan review (${approvals} approval(s))`;
+          }
+        }
         if (busyDom || cardVisible) {
           idle = 0;
           await sleep(POLL_INTERVAL_MS);

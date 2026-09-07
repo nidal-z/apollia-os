@@ -360,11 +360,13 @@
         } else {
           body = status === "executed"
             ? $t("chat.journal.tool_executed")
-            : status === "refused"
-              ? $t("chat.journal.tool_refused")
-              : status === "authorized"
-                ? $t("chat.journal.tool_authorized")
-                : $t("chat.journal.tool_pending");
+            : status === "failed"
+              ? $t("chat.journal.tool_failed")
+              : status === "refused"
+                ? $t("chat.journal.tool_refused")
+                : status === "authorized"
+                  ? $t("chat.journal.tool_authorized")
+                  : $t("chat.journal.tool_pending");
         }
         const evType: JournalEvent["type"] = status === "pending" || status === "authorized" ? "wait" : "tool";
         out.push({ type: evType, heading, body, time });
@@ -636,6 +638,7 @@
             ? 'bg-primary/10 text-primary'
             : 'text-muted-foreground hover:text-foreground'}"
           onclick={() => (railTab = "journal")}
+          data-testid="chat-inspector-journal-tab"
         >
           {$t("plan_session.tab_journal")}
         </button>

@@ -33,7 +33,11 @@ is never touched) and build it from `tests/cli/seed/` (see
 screenshots. The app does not exit on its own; kill `cargo-tauri tauri dev`
 once the report lands.
 
-Model: `-seeded-llama` defaults `CTX=131072 NP=1 --jinja`. For a dense model a
+Model: `-seeded-llama` defaults `CTX=131072 NP=1 --jinja`, and samples
+greedily on a fixed seed (`--temp 0 --seed 42`, `TEMP` and `SEED` override):
+a model book asserts what the model does next, so its answer has to be the
+same from one run to the next; the seed's `apollia.toml` pins
+`tool_turn_temperature = 0.0` for the same reason. For a dense model a
 full 131072 KV cache can be heavy; override with `CTX=32768`. The free-chat
 prompt is ~13.5k tokens (the loaded tool surface), so keep a comfortable margin.
 

@@ -47,6 +47,7 @@ fn dispatcher_config(
         memory_base_dir: PathBuf::from("/tmp/apollia-test-memory"),
         http_allowlist: None,
         pending_user_inputs: None,
+        session_id: None,
         disabled_tools: disabled,
         brave_api_key: None,
         web_search_config: WebSearchConfig::default(),

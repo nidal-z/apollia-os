@@ -5,3 +5,8 @@
 
 [chat]
 default_workspace = "__APOLLIA_SEED_WORKSPACE__"
+# Tool turns are sampled greedily: the model books assert the next tool call,
+# and the automaton's llama-server runs at temperature 0 on a fixed seed for
+# the same reason (justfile, desktop-dev-automation-seeded-llama). The
+# deterministic books never reach a model, so the key is inert for them.
+tool_turn_temperature = 0.0

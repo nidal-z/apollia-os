@@ -151,6 +151,10 @@ export function getPendingUserInputForSession(
   sessionId: string,
 ): PendingUserInputView | null {
   const list = get(pendingUserInputs);
-  // Match by session_id, or return empty-session entries to any session.
-  return list.find((i) => i.session_id === sessionId || i.session_id === "") ?? null;
+  // Matched by session id alone. An entry used to fall back to "belongs to
+  // every session" when its id was empty, which showed one conversation's
+  // question in all the others and let an answer be attributed to a session
+  // that never asked. The runtime stamps the session on every chat request,
+  // and an unattributed one stays answerable from the inbox.
+  return list.find((i) => i.session_id === sessionId) ?? null;
 }

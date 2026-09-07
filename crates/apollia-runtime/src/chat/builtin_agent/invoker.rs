@@ -162,11 +162,18 @@ impl NativeChatToolInvoker {
     ///
     /// When enabled, the agent can call the `ask_user` tool to pose structured
     /// questions to the user and wait for responses.
+    ///
+    /// The session id travels with every request the tool registers, so the
+    /// inbox can open the conversation that asked; it used to be set only by
+    /// `with_hitl_support`, and a session without filesystem HITL asked as
+    /// nobody.
     pub fn with_ask_user_support(
         mut self,
         pending: apollia_tools::tools::ask_user::PendingUserInputs,
+        session_id: impl Into<String>,
     ) -> Self {
         self.pending_user_inputs = Some(pending);
+        self.session_id = Some(session_id.into());
         self
     }
 

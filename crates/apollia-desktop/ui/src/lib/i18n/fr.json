@@ -3560,6 +3560,7 @@
     "journal": {
       "tool_heading": "Outil - {name}",
       "tool_executed": "Outil exécuté avec succès.",
+      "tool_failed": "Outil exécuté en échec.",
       "tool_refused": "Outil refusé par l'opérateur.",
       "tool_authorized": "Outil autorisé, exécution en cours.",
       "tool_pending": "Outil en attente d'approbation.",

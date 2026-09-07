@@ -825,6 +825,26 @@
     },
     {
       "kind": "click",
+      "testid": "chat-inspector-journal-tab",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-event",
+      "nth": 0,
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-config-panel",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "screenshot",
+      "label": "20b-inspector-back-to-journal"
+    },
+    {
+      "kind": "click",
       "testid": "chat-header-overflow-button"
     },
     {
@@ -1871,6 +1891,111 @@
       "label": "46-session-corrupted-deleted (the session this block created)"
     },
     {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-4"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "activity-strip",
+      "timeoutMs": 10000
+    },
+    {
+      "kind": "expect",
+      "testid": "activity-reasoning-count",
+      "contains": "12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-event",
+      "nth": 0,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "expect",
+      "testid": "journal-event",
+      "nth": -1,
+      "contains": "ran and failed"
+    },
+    {
+      "kind": "screenshot",
+      "label": "49a-journal-tool-statuses (the seeded failed call reads as failed, not as awaiting approval)"
+    },
+    {
+      "kind": "screenshot",
+      "label": "49b-activity-strip-collapsed (seeded turn: twelve thinking fragments, four tool calls)"
+    },
+    {
+      "kind": "click",
+      "testid": "activity-tool-count",
+      "nth": -1,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "activity-trace",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49c-activity-trace-open (sixteen items, the list collapses past ten)"
+    },
+    {
+      "kind": "click",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-collapse",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49d-reasoning-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "reasoning-collapse",
+      "timeoutMs": 5000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "reasoning-collapse",
+      "timeoutMs": 6000
+    },
+    {
+      "kind": "click",
+      "testid": "activity-tool-count",
+      "nth": -1,
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "activity-trace",
+      "timeoutMs": 6000
+    },
+    {
       "kind": "clearStubs"
     },
     {
@@ -2059,6 +2184,8 @@
     "chat-mic-button is played through the harness: dictation.toggle() (useComposerDictation.svelte.ts:59-77) calls start_tour_recording and stop_tour_recording (commands/stt.rs:976-1005, both Result<(), String>) with no getUserMedia in front, so no cpal capture and no microphone prompt are ever reached. First click: start rejected once, the string lands in dictation.error and InputHints renders it as chat-input-hint-status. Second click: start resolves null, recording flips true (the lit button has no text, so it is asserted by the third click). Third click: the stop branch, reachable only when recording is true, is rejected, which the catch turns into recording=false, busy=false and a new message in the hints line. The success branch (stt-transcribed, stt-dictation-failed) is a Tauri event no stub can emit, so a stop that resolves would leave busy armed for the rest of the boot; the rejection is the only scripted end of course. The last message stays in the hints line until the next toggle, which is cosmetic.",
     "link-preview-card is played on seed-session-1 through a stub: the real link_preview command refuses without [ui].link_preview_enabled and then needs a public HTTP fetch (crates/apollia-desktop/src/commands/link_preview.rs), and lib/chat/linkPreview.ts caches a null answer per URL for fifteen minutes, so the URL the fallback block relies on can never turn into a card in the same boot. seed-msg-2 therefore carries two standalone URLs (tests/cli/seed/fragments/chat.sql): the first still reaches the backend and renders link-preview-fallback, the second is answered by a link_preview stub under argsMatch (the type it imitates: LinkPreview, url/title/description/favicon/image/site_name, same file) armed before the session is first mounted in the boot. The card click goes to the plugin:opener|open_url stub already armed for the fallback, so the host browser stays closed; nothing in the DOM changes on that click, so the card's rendering (waitFor plus the expect on the stubbed title) is what can fail, and the click itself is covered only by the fact that it fires. The link_preview stub is cleared before the block moves on; the opener stub is dropped by the block's closing clearStubs.",
     "Attachments are played twice: a fill on chat-attach-input (the runner builds one text/plain file in the webview and fires change, nothing is read from disk) and a click on chat-attach-button (under automation the runner replaces a file input's click() with the same immediate pick, because the real chooser is a modal NSOpenPanel that would freeze the boot). The chip then its removal are asserted each time.",
-    "The critical filesystem request is delivered by an emitEvent step imitating HitlFsRequiredPayload (crates/apollia-desktop/src/events.rs): the classifier never returns critical, so no model can produce it. respond_hitl_filesystem is stubbed to resolve because the request id is unknown to the backend; the modal must still disclose the confirm word input and the reject reason, and close on the second deny."
+    "The critical filesystem request is delivered by an emitEvent step imitating HitlFsRequiredPayload (crates/apollia-desktop/src/events.rs): the classifier never returns critical, so no model can produce it. respond_hitl_filesystem is stubbed to resolve because the request id is unknown to the backend; the modal must still disclose the confirm word input and the reject reason, and close on the second deny.",
+    "The reasoning list's show-more and collapse are played on a seeded turn (seed-session-4, twelve thinking fragments and four tool calls in tests/cli/seed/fragments/chat.sql), not on a model answer: the list collapses past COLLAPSE_ITEM_THRESHOLD = 10 items (lib/chat/reasoning.ts), a count a model reaches only when it happens to take enough steps.",
+    "The operator journal is read on the seeded turn: its fourth tool call is seeded failed, and the journal had no branch for that status, so it announced an executed-and-errored call as awaiting approval. The expect holds the branch that now exists."
   ]
 }

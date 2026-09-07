@@ -3560,6 +3560,7 @@
     "journal": {
       "tool_heading": "Tool - {name}",
       "tool_executed": "Tool executed successfully.",
+      "tool_failed": "Tool ran and failed.",
       "tool_refused": "Tool refused by the operator.",
       "tool_authorized": "Tool authorized, execution in progress.",
       "tool_pending": "Tool awaiting approval.",

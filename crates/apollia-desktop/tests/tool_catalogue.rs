@@ -47,6 +47,7 @@ fn production_tools_fixture_matches_runtime_registration() {
         memory_base_dir: sandbox.path().join("memory"),
         http_allowlist: None,
         pending_user_inputs: Some(PendingUserInputs::new()),
+        session_id: None,
         disabled_tools: Vec::new(),
         brave_api_key: None,
         web_search_config: Default::default(),

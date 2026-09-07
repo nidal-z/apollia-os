@@ -626,7 +626,7 @@
     if (patch.isStreaming !== undefined) isStreaming = patch.isStreaming;
     if (patch.isProcessing !== undefined) isProcessing = patch.isProcessing;
     if (patch.approval) pendingApproval = patch.approval;
-    if (patch.userInput) pendingUserInput = patch.userInput;
+    if (patch.userInput !== undefined) pendingUserInput = patch.userInput;
     if (patch.scroll) scroll.toBottom();
   }
 

@@ -2540,6 +2540,26 @@
     },
     {
       "kind": "click",
+      "testid": "chat-inspector-journal-tab",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-event",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "chat-config-panel",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "20b-inspector-back-to-journal"
+    },
+    {
+      "kind": "click",
       "testid": "chat-header-overflow-button",
       "timeoutMs": 3000
     },
@@ -3611,6 +3631,111 @@
     {
       "kind": "screenshot",
       "label": "46-session-corrupted-deleted (the session this block created)"
+    },
+    {
+      "kind": "goto",
+      "route": "chat",
+      "sessionId": "seed-session-4"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "chat-conversation-header",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "activity-strip",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "activity-reasoning-count",
+      "contains": "12"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "journal-event",
+      "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "journal-event",
+      "nth": -1,
+      "contains": "ran and failed"
+    },
+    {
+      "kind": "screenshot",
+      "label": "49a-journal-tool-statuses (the seeded failed call reads as failed, not as awaiting approval)"
+    },
+    {
+      "kind": "screenshot",
+      "label": "49b-activity-strip-collapsed (seeded turn: twelve thinking fragments, four tool calls)"
+    },
+    {
+      "kind": "click",
+      "testid": "activity-tool-count",
+      "nth": -1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "activity-trace",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49c-activity-trace-open (sixteen items, the list collapses past ten)"
+    },
+    {
+      "kind": "click",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "49d-reasoning-expanded"
+    },
+    {
+      "kind": "click",
+      "testid": "reasoning-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "reasoning-show-more",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "reasoning-collapse",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "activity-tool-count",
+      "nth": -1,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "activity-trace",
+      "timeoutMs": 3000
     },
     {
       "kind": "clearStubs"

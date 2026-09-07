@@ -358,6 +358,7 @@ impl AgentRunner for BridgeRunner {
 
             let dispatcher = Arc::new(build_dispatcher_with(
                 &NativeDispatcherConfig {
+                    session_id: None,
                     sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
                     agent_id: agent_id.clone(),
                     venv_base_dir: memory_base_dir
