@@ -1206,6 +1206,8 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
+    // A Unix domain socket and its mode bits: neither exists on Windows.
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_unix_socket_is_owner_only_after_bind() {
         // GIVEN a permissive umask, so the mode the socket ends up with is the

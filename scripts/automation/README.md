@@ -55,12 +55,19 @@ the window capture, and a `screenshot` step says so and carries on rather than
 failing a book whose gestures all passed. What a clone on another machine
 needs, measured rather than assumed:
 
+- **A binary built against that bundle**: `just cli-build`. A plain
+  `cargo build` picks the machine's interpreter, which PyO3 refuses above 3.13,
+  and on Linux the recipe also bakes the path to the bundle's libpython into
+  the binary so it starts outside the shipped launcher.
 - **The Python bundle for that machine's triple.** The recipes look for
   `target/python-bundle/<triple>/python`, any triple. Without it the embedded
   interpreter is absent and every agent fails to load at boot, which reds a
   large share of the books for a reason that is not the product. Build it with
   `bash packaging/build-python-bundle.sh <triple>`; the script covers
   `*-unknown-linux-gnu` and `*-pc-windows-msvc` as well as Darwin.
+- **The Tauri CLI**, which every desktop recipe drives:
+  `cargo install tauri-cli --version '^2'`, the version the release uses. The
+  recipes refuse without it before building anything.
 - **Linux**: the webkit2gtk and audio development packages the CI job installs
   (see `cli-e2e` in `.github/workflows/ci.yml`), plus `sqlite3`.
 - **Windows**: a bash (git-bash), `sqlite3` on PATH, and the WebView2 runtime.

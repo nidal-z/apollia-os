@@ -206,6 +206,20 @@ desktop-ui-install:
 # does for the same resolution. Its four callers read its standard output, so
 # an exit 0 let them carry on with no interpreter and no link.
 
+# Refuse early when the Tauri CLI is absent, naming what to install
+_require-tauri:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! cargo tauri --version >/dev/null 2>&1; then
+      echo "error: cargo-tauri is not installed, and every desktop recipe needs it." >&2
+      echo "       Install the same version the release uses:" >&2
+      echo "         cargo install tauri-cli --version '^2'" >&2
+      echo "       It is checked here rather than at the end, because the recipes" >&2
+      echo "       below first build a runner and seed a throwaway profile: on a" >&2
+      echo "       fresh clone that is a minute of work thrown away." >&2
+      exit 2
+    fi
+
 # Link PyO3 against the interpreter setup_bundled_python resolves at run time.
 _bundle-python:
     #!/usr/bin/env bash
@@ -238,21 +252,33 @@ _bundle-python:
     echo "$BUNDLE_ROOT"
 
 # Run desktop in dev mode (expects runners in target/debug/)
-desktop-dev:
+desktop-dev: _require-tauri
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    # -L tells the linker where libpython is; it does not tell the loader.
+    # On Linux a locally built binary then fails on every invocation, and
+    # only the shipped launcher, which exports LD_LIBRARY_PATH, can start
+    # it: measured on 2026-09-07, the CLI suite reported 172 failed
+    # assertions on a binary that could not load. An RPATH makes the built
+    # binary carry the answer. macOS needs none: the install name holds it.
+    if [ "$(uname -s)" = "Linux" ]; then
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+    fi
     cd crates/apollia-desktop && cargo tauri dev
 
 # macOS dev shortcut: ensure metal+cpu runners then start desktop
-desktop-dev-macos: runners-dev
+desktop-dev-macos: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    if [ "$(uname -s)" = "Linux" ]; then
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+    fi
     cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
 
 # Launched WITH --jinja so tool-calling is template-driven (native); a server
@@ -293,12 +319,15 @@ llama-server model=llama_model port=llama_port:
 # APOLLIA_LLAMA_MODEL). For the baked-in Qwen dev model, use `just desktop-dev-qwen`.
 
 # macOS dev with the external llama-server (:8899) + desktop together.
-desktop-dev-llama model=llama_model: runners-dev
+desktop-dev-llama model=llama_model: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    if [ "$(uname -s)" = "Linux" ]; then
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+    fi
     if [ -z "{{model}}" ]; then
       echo "set a model: just desktop-dev-llama /path/to/model.gguf (or export APOLLIA_LLAMA_MODEL)" >&2
       exit 1
@@ -382,12 +411,15 @@ llama-qwen:
 # Same env overrides as `llama-qwen`.
 
 # Dedicated: Qwen dev backend (llama-qwen, background) + desktop together on macOS.
-desktop-dev-qwen: runners-dev
+desktop-dev-qwen: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    if [ "$(uname -s)" = "Linux" ]; then
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+    fi
     MODEL="${APOLLIA_LLAMA_MODEL:-$HOME/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf}"
     if [ ! -f "$MODEL" ]; then
       echo "model not found: $MODEL (set APOLLIA_LLAMA_MODEL to override)" >&2
@@ -468,6 +500,9 @@ cli-build:
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    if [ "$(uname -s)" = "Linux" ]; then
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+    fi
     cargo build -p apollia-cli
 
 # The GGUF path is pointed at a file that does not exist so Track 3 records a
@@ -772,7 +807,7 @@ clean:
 # Usage: just desktop-dev-automation scripts/automation/master-det.json
 
 # Run a gestural automation script against the real desktop app.
-desktop-dev-automation script: runners-dev
+desktop-dev-automation script: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then
@@ -797,7 +832,7 @@ desktop-dev-automation script: runners-dev
 # Override via CTX / NP env.
 
 # Same as desktop-dev-automation, plus a background llama-server (--jinja, :8899).
-desktop-dev-automation-llama script model=llama_model: runners-dev
+desktop-dev-automation-llama script model=llama_model: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then
@@ -857,7 +892,7 @@ desktop-dev-automation-llama script model=llama_model: runners-dev
 # Usage: just desktop-dev-automation-seeded scripts/automation/master-det.json
 
 # Seeded variant: the app runs against a throwaway, fully-populated HOME.
-desktop-dev-automation-seeded script: runners-dev
+desktop-dev-automation-seeded script: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then
@@ -926,6 +961,9 @@ desktop-dev-automation-seeded script: runners-dev
       # RUSTFLAGS; the dev recipes did not, which is the other half of why a
       # local build never used the bundled interpreter.
       export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+      if [ "$(uname -s)" = "Linux" ]; then
+        export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+      fi
       # The linked install_name is @executable_path/../Resources/python/lib,
       # which is the packaged layout. In a dev run @executable_path is
       # target/debug, so dyld looks in target/Resources and finds nothing, and
@@ -978,7 +1016,7 @@ desktop-screenshots script:
 # Usage: just desktop-dev-automation-seeded-llama scripts/automation/chat-llm.json
 
 # Seeded + llama-server, for the -llama scripts.
-desktop-dev-automation-seeded-llama script model=llama_model: runners-dev
+desktop-dev-automation-seeded-llama script model=llama_model: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -f "{{script}}" ]; then
@@ -1036,6 +1074,9 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev
       # RUSTFLAGS; the dev recipes did not, which is the other half of why a
       # local build never used the bundled interpreter.
       export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+      if [ "$(uname -s)" = "Linux" ]; then
+        export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+      fi
       # The linked install_name is @executable_path/../Resources/python/lib,
       # which is the packaged layout. In a dev run @executable_path is
       # target/debug, so dyld looks in target/Resources and finds nothing, and

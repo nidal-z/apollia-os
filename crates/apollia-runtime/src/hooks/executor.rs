@@ -514,7 +514,11 @@ mod tests {
     use apollia_core::{HookHandlerConfig, HookHandlerKind, HooksConfig};
     use serde_json::json;
 
+    // The hook contract is a shell script the runtime executes: on Windows there
+    // is no such script and no mode bit to set, so these cases compile out
+    // rather than break the build of a crate whose product code is portable.
     /// Writes an executable shell script to a tempdir and returns its path.
+    #[cfg(unix)]
     fn write_script(dir: &std::path::Path, name: &str, body: &str) -> String {
         use std::os::unix::fs::PermissionsExt;
         let path = dir.join(name);
@@ -540,6 +544,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_allow_decision_returned() {
         // GIVEN a handler that echoes an allow decision
@@ -560,6 +565,7 @@ mod tests {
         assert_eq!(decision, HookDecision::Allow);
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_pre_tool_use_delivers_the_payload_and_reads_the_answer() {
         // GIVEN a PreToolUse handler that denies and then records the payload
@@ -663,6 +669,7 @@ mod tests {
         assert_eq!(decision, HookDecision::Allow);
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_timeout_defaults_to_allow() {
         // GIVEN a handler that never responds within the timeout
@@ -677,6 +684,7 @@ mod tests {
         assert_eq!(decision, HookDecision::Allow);
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_invalid_response_defaults_to_allow() {
         // GIVEN a handler that returns non-JSON output
@@ -917,6 +925,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_post_tool_use_delivers_the_payload_and_reads_the_answer() {
         // GIVEN a PostToolUse handler that answers with an injection and then
@@ -965,6 +974,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_post_tool_use_timeout_is_best_effort() {
         // GIVEN a PostToolUse handler that never responds in time
@@ -985,6 +995,7 @@ mod tests {
         assert_eq!(injected, None);
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_subagent_start_receives_payload() {
         // GIVEN a SubagentStart handler that captures its stdin payload

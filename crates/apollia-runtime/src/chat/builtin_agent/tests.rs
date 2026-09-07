@@ -2889,6 +2889,9 @@ fn hook_capture_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
     dir.join(format!("{name}.payload"))
 }
 
+// The hook contract is a shell script the runtime executes: on Windows there
+// is no such script and no mode bit to set, so these cases compile out
+// rather than break the build of a crate whose product code is portable.
 /// Writes an executable hook script returning the given decision JSON.
 ///
 /// The script answers first, then reads its stdin and records it. Both halves
@@ -2899,6 +2902,7 @@ fn hook_capture_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
 /// rewrite or an injection reads as a broken product. Answering before reading
 /// means a recorded payload on disk implies the answer was already on stdout.
 /// Only shell builtins are used, so no second fork stands between the two.
+#[cfg(unix)]
 fn write_hook_script(dir: &std::path::Path, name: &str, decision_json: &str) -> String {
     use std::os::unix::fs::PermissionsExt;
     let path = dir.join(name);
@@ -2947,6 +2951,7 @@ fn bash_call_model() -> Arc<MockReActModel> {
 
 /// A deny decision blocks the invocation and records a refusal,
 /// without ever calling the tool invoker.
+#[cfg(unix)]
 #[tokio::test]
 async fn test_pretooluse_deny_blocks_invocation() {
     // GIVEN a model that emits one authorized bash_executor call
@@ -3026,6 +3031,7 @@ async fn test_pretooluse_deny_blocks_invocation() {
 /// A rewrite decision no longer rides the session authorization: the call the
 /// handler substituted goes through the approval flow, whatever the operator
 /// authorized for the tool name earlier.
+#[cfg(unix)]
 #[tokio::test]
 async fn test_pretooluse_rewrite_requires_an_approval() {
     // GIVEN a model that emits one bash_executor call, and a session where
@@ -3119,6 +3125,7 @@ async fn test_pretooluse_rewrite_requires_an_approval() {
 }
 
 /// An allow decision lets the invocation proceed normally.
+#[cfg(unix)]
 #[tokio::test]
 async fn test_pretooluse_allow_lets_tool_run() {
     // GIVEN a model that emits one authorized bash_executor call
@@ -3186,6 +3193,7 @@ async fn test_pretooluse_allow_lets_tool_run() {
 }
 
 /// A PreToolUse decision emits a HookDecisionRecorded event for the log.
+#[cfg(unix)]
 #[tokio::test]
 async fn test_pretooluse_decision_emits_hook_event() {
     // GIVEN a model that emits one authorized bash_executor call
@@ -3335,6 +3343,7 @@ impl CompletionModel for CapturingModel {
 
 /// A PostToolUse injection is appended as a system message and is
 /// visible in the LLM request on the following turn.
+#[cfg(unix)]
 #[tokio::test]
 async fn test_posttooluse_injection_reaches_next_turn() {
     // GIVEN a model that calls bash then stops, capturing turn-2 messages
