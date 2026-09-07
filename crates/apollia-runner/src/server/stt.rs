@@ -70,6 +70,9 @@ mod tests {
         TranscribeParams {
             model_id: "whisper-base".into(),
             audio_path: PathBuf::from("/tmp/audio.wav"),
+            // The daemon sends the model path alongside the id; None is the
+            // already-cached case, which is what these validation cases assume.
+            model_path: None,
             language: None,
             task: "transcribe".into(),
         }
