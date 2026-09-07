@@ -207,9 +207,18 @@ jobs:
 
   # ── CLI end-to-end (Track 1, offline, seeded fixture) ────────────────────
   cli-e2e:
-    name: CLI E2E (offline)
+    # The suite carries three of the five coverage axes (cli, api, tools), and
+    # it used to run on Linux alone, so the table it feeds said nothing about
+    # the two other systems the release ships. It is bash over the built
+    # binary and sqlite3, and it passes on macOS unchanged (measured
+    # 2026-09-07: 172 assertions, 9s).
+    name: CLI E2E (offline, ${{ matrix.os }})
     needs: clippy
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
@@ -221,6 +230,7 @@ jobs:
       - name: Set PYO3_PYTHON
         run: echo "PYO3_PYTHON=$(python3 -c 'import sys; print(sys.executable)')" >> $GITHUB_ENV
       - name: Install system deps
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt-get update -q
           sudo apt-get install -y \
@@ -229,6 +239,11 @@ jobs:
             libssl-dev libxdo-dev \
             libasound2-dev libpulse-dev libjack-jackd2-dev \
             cmake clang pkg-config sqlite3
+      # sqlite3 is what the seed builder and the assertions read the throwaway
+      # HOME with; the macOS runner ships it, the Linux one does not.
+      - name: Check sqlite3 is present
+        if: startsWith(matrix.os, 'macos')
+        run: sqlite3 --version
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Build apollia-cli
         run: cargo build -p apollia-cli
