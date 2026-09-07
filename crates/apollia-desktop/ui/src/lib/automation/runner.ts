@@ -308,9 +308,22 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
       return `captured ${step.as} (${text.length} chars)`;
     }
     case "screenshot": {
-      const path = await captureWindow(step.label);
-      screenshots.push(path);
-      return `screenshot ${step.label}`;
+      // A capture is documentation, not an assertion: the assertions are the
+      // waits, the clicks and the expects around it. The window capture is
+      // implemented for macOS alone (commands/automation.rs), so on Linux and
+      // Windows the step says what it could not do rather than failing a book
+      // whose gestures all passed.
+      try {
+        const path = await captureWindow(step.label);
+        screenshots.push(path);
+        return `screenshot ${step.label}`;
+      } catch (e) {
+        const said = e instanceof Error ? e.message : String(e);
+        if (said.includes("only supported on macOS")) {
+          return `screenshot ${step.label} skipped: no window capture on this platform`;
+        }
+        throw e;
+      }
     }
     case "awaitTurn": {
       const timeout = step.timeoutMs ?? 180_000;

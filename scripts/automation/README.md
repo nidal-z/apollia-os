@@ -47,6 +47,37 @@ same from one run to the next; the seed's `apollia.toml` pins
 full 131072 KV cache can be heavy; override with `CTX=32768`. The free-chat
 prompt is ~13.5k tokens (the loaded tool surface), so keep a comfortable margin.
 
+## Running it on Linux and Windows
+
+The harness is not macOS-bound: the runner is TypeScript inside the app, the
+recipes are JSON and the seed is bash over sqlite3. One thing is macOS-only,
+the window capture, and a `screenshot` step says so and carries on rather than
+failing a book whose gestures all passed. What a clone on another machine
+needs, measured rather than assumed:
+
+- **The Python bundle for that machine's triple.** The recipes look for
+  `target/python-bundle/<triple>/python`, any triple. Without it the embedded
+  interpreter is absent and every agent fails to load at boot, which reds a
+  large share of the books for a reason that is not the product. Build it with
+  `bash packaging/build-python-bundle.sh <triple>`; the script covers
+  `*-unknown-linux-gnu` and `*-pc-windows-msvc` as well as Darwin.
+- **Linux**: the webkit2gtk and audio development packages the CI job installs
+  (see `cli-e2e` in `.github/workflows/ci.yml`), plus `sqlite3`.
+- **Windows**: a bash (git-bash), `sqlite3` on PATH, and the WebView2 runtime.
+  The recipes export `USERPROFILE` next to `HOME`, because `std::env::home_dir`
+  reads the first on Windows and the second on Unix: without it the seeded
+  throwaway home redirects nothing and the run writes into the real profile.
+
+Then the same command as on macOS:
+
+```
+just desktop-dev-automation-seeded scripts/automation/master-det.json
+```
+
+Read `.apollia-automation/report.json` for the verdict. A run on a machine with
+no window capture reports its `screenshot` steps as skipped, so compare the
+failed count, not the step count, with a macOS run.
+
 ## Taking the documentation screenshots
 
 `SCREENSHOTS.md` next to this file is the shooting script: one row per image,

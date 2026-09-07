@@ -203,7 +203,10 @@ _bundle-python:
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT=""
-    for c in "$PWD/target/python-bundle/aarch64-apple-darwin/python" "$PWD/target/debug/python"; do
+    # Any triple, not the macOS one alone: a clone on Linux or Windows carries
+    # its own bundle under target/python-bundle/<triple>/python, and without it
+    # the embedded interpreter is absent and every agent fails to load at boot.
+    for c in $PWD/target/python-bundle/*/python "$PWD/target/debug/python"; do
       if [ -x "$c/bin/python3.13" ]; then BUNDLE_ROOT="$c"; break; fi
     done
     if [ -z "$BUNDLE_ROOT" ]; then
@@ -888,7 +891,10 @@ desktop-dev-automation-seeded script: runners-dev-macos
     # what matters is linking against the SAME bundle setup_bundled_python will
     # resolve at run time, not against a particular path.
     BUNDLE_ROOT=""
-    for c in "$PWD/target/python-bundle/aarch64-apple-darwin/python" "$PWD/target/debug/python"; do
+    # Any triple, not the macOS one alone: a clone on Linux or Windows carries
+    # its own bundle under target/python-bundle/<triple>/python, and without it
+    # the embedded interpreter is absent and every agent fails to load at boot.
+    for c in $PWD/target/python-bundle/*/python "$PWD/target/debug/python"; do
       if [ -x "$c/bin/python3.13" ]; then BUNDLE_ROOT="$c"; break; fi
     done
     BUNDLE_PY="$BUNDLE_ROOT/bin/python3.13"
@@ -916,7 +922,8 @@ desktop-dev-automation-seeded script: runners-dev-macos
     fi
     echo "→ seeded automation: {{script}}  (HOME=$SEED_HOME, out: $OUT)"
     cd crates/apollia-desktop && \
-      HOME="$SEED_HOME" APOLLIA_AUTOMATION="$SCRIPT_ABS" APOLLIA_AUTOMATION_OUT="$OUT" \
+      HOME="$SEED_HOME" USERPROFILE="$SEED_HOME" \
+      APOLLIA_AUTOMATION="$SCRIPT_ABS" APOLLIA_AUTOMATION_OUT="$OUT" \
       RUST_LOG=info cargo tauri dev
 
 # `desktop-dev-automation-seeded` deliberately strips APOLLIA_SEED_OVERLAY,
@@ -994,7 +1001,10 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
     # what matters is linking against the SAME bundle setup_bundled_python will
     # resolve at run time, not against a particular path.
     BUNDLE_ROOT=""
-    for c in "$PWD/target/python-bundle/aarch64-apple-darwin/python" "$PWD/target/debug/python"; do
+    # Any triple, not the macOS one alone: a clone on Linux or Windows carries
+    # its own bundle under target/python-bundle/<triple>/python, and without it
+    # the embedded interpreter is absent and every agent fails to load at boot.
+    for c in $PWD/target/python-bundle/*/python "$PWD/target/debug/python"; do
       if [ -x "$c/bin/python3.13" ]; then BUNDLE_ROOT="$c"; break; fi
     done
     BUNDLE_PY="$BUNDLE_ROOT/bin/python3.13"
@@ -1052,5 +1062,6 @@ desktop-dev-automation-seeded-llama script model=llama_model: runners-dev-macos
     echo "✅ llama-server ready on :{{llama_port}} (log: $SLOG)"
     echo "→ seeded automation: {{script}}  (HOME=$SEED_HOME, out: $OUT)"
     cd crates/apollia-desktop && \
-      HOME="$SEED_HOME" APOLLIA_AUTOMATION="$SCRIPT_ABS" APOLLIA_AUTOMATION_OUT="$OUT" \
+      HOME="$SEED_HOME" USERPROFILE="$SEED_HOME" \
+      APOLLIA_AUTOMATION="$SCRIPT_ABS" APOLLIA_AUTOMATION_OUT="$OUT" \
       RUST_LOG=info cargo tauri dev
