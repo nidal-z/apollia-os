@@ -1,0 +1,42 @@
+# Line endings, decided here rather than by each machine's git configuration.
+#
+# The tooling of this repository is bash first: the seeded profile, the CLI
+# end-to-end suite, the packaging scripts and the launchers are shell, and the
+# checksum files they read are matched line by line with an end-of-line anchor.
+# A clone made on Windows with `core.autocrlf=true`, which is the installer's
+# default, rewrites every one of those files with CRLF. Bash then reads
+# `set -euo pipefail\r` and answers "invalid option name", and a checksum line
+# stops matching a pattern anchored on the end of the line: the archive is
+# refused as unpinned while its hash sits right there in the file. Both were
+# measured on 2026-09-07, on a Windows clone.
+#
+# So: every text file lands as LF in the working tree, on every system. Git
+# for Windows handles LF files without complaint, and the editors this project
+# uses are configured through .editorconfig.
+* text=auto eol=lf
+
+# The two exceptions, and they are real: a Windows batch file is read by
+# cmd.exe, which is the one interpreter here that wants CRLF, and a PowerShell
+# script is read by the same family.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binaries git must never touch. Declared rather than left to detection: a
+# heuristic that guesses wrong on a model file or an icon corrupts it silently.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.pdf  binary
+*.ico  binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.gguf binary
+*.bin  binary
+*.db   binary
+*.zip  binary
+*.gz   binary
