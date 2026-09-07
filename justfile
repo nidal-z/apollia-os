@@ -455,7 +455,19 @@ desktop-build-host runners=desktop_runners:
 # CLI / release helpers
 # -----------------------------------------------------------------------------
 
+# Build the CLI against the bundled interpreter, not the machine's
 cli-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # PyO3 refuses an interpreter newer than 3.13, and a current distribution
+    # ships 3.14: a plain `cargo build -p apollia-cli` then dies on the system
+    # python before compiling a line of this tree. The bundle carries 3.13,
+    # which is also the interpreter the shipped binary embeds, so building
+    # against it is both what works and what the release does. Measured on
+    # 2026-09-07 on Ubuntu under WSL, and the same week on a macOS runner.
+    BUNDLE_ROOT="$(just _bundle-python | tail -1)"
+    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
     cargo build -p apollia-cli
 
 # The GGUF path is pointed at a file that does not exist so Track 3 records a

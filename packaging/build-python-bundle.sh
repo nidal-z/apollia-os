@@ -28,6 +28,23 @@ OUT_DIR="${2:?usage: build-python-bundle.sh <target-triple> <output-dir>}"
 PACKAGING_DIR="$(cd "$(dirname "$0")" && pwd)"
 REQUIREMENTS="${PACKAGING_DIR}/requirements-bundled.txt"
 
+# A Windows bundle carries python.exe, a native Windows program that cannot
+# open a path like /mnt/c/... . Typing `bash` in a Windows shell starts WSL,
+# not Git Bash, and the two look identical until pip is handed a POSIX path and
+# answers "Could not open requirements file" on a file that is right there.
+# Measured on 2026-09-07, after the interpreter had already been downloaded and
+# extracted, which is the worst moment to find out.
+if [[ "$TARGET" == *-pc-windows-msvc ]] && grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "error: a Windows bundle cannot be built from WSL." >&2
+    echo "       The interpreter it downloads is python.exe, and this shell hands" >&2
+    echo "       it POSIX paths (/mnt/c/...) that it cannot open." >&2
+    echo "       Build it from Git Bash instead (Start menu: 'Git Bash')," >&2
+    echo "       or build the Linux triple here:" >&2
+    echo "         bash packaging/build-python-bundle.sh x86_64-unknown-linux-gnu \\" >&2
+    echo "           target/python-bundle/x86_64-unknown-linux-gnu" >&2
+    exit 2
+fi
+
 echo "==> Step 1/4: fetch python-build-standalone"
 "${PACKAGING_DIR}/fetch-python-standalone.sh" "$TARGET" "$OUT_DIR"
 
