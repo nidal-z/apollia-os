@@ -276,6 +276,35 @@ jobs:
             --target ${{ matrix.triple }} \
             --no-default-features
 
+      # The binary every preset builds was never executed by anything: the
+      # release published eighteen deliverables that nothing had started once.
+      # This runs the one it just produced, on a runner of its own
+      # architecture, with a throwaway home so it depends on no state. It says
+      # nothing about behaviour and everything about the class that ships
+      # broken: a missing shared library, a wrong glibc, an unusable binary.
+      - name: Smoke the binary this job just built
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="target/${{ matrix.triple }}/release/apollia-os"
+          [ -x "$BIN" ] || BIN="target/${{ matrix.triple }}/release/apollia-os.exe"
+          if [ ! -x "$BIN" ]; then
+            echo "::error::no apollia-os binary under target/${{ matrix.triple }}/release"
+            exit 1
+          fi
+          HOME_DIR="$(mktemp -d)"
+          export HOME="$HOME_DIR" USERPROFILE="$HOME_DIR"
+          echo "== version"
+          "$BIN" --version
+          "$BIN" --version | grep -q "apollia-os" || {
+            echo "::error::--version does not name the binary"; exit 1; }
+          echo "== help"
+          "$BIN" --help > /dev/null
+          echo "== doctor, machine readable"
+          "$BIN" doctor --json > doctor.json
+          python3 -c "import json,sys; d=json.load(open('doctor.json')); n=len(d['checks']); print(f'{n} check(s)'); sys.exit(0 if n else 1)"
+          rm -rf "$HOME_DIR"
+
       # Build apollia-runner with the matching backend feature.
       # Extracts local-{cpu,cuda,rocm,vulkan,metal} from matrix.features.
       # For the presets with no local-* (cloud only), no runner is built.
