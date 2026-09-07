@@ -1855,6 +1855,37 @@ jobs:
           fi
           echo "release body: $(wc -l < RELEASE_BODY.md) line(s)"
 
+      # The upload sends one file per matched path, and a file matched by two
+      # patterns is sent twice: the second send goes to the asset-update
+      # endpoint and races the first, which answers 404 and fails the job after
+      # eighty minutes of building. Measured twice, on 2026-09-04 and
+      # 2026-09-07, on SHA256SUMS.cosign.bundle, caught by both `SHA256SUMS*`
+      # and `*.cosign.bundle`. The patterns are read from this file, so the
+      # check cannot drift from what the step below actually uploads.
+      - name: Refuse a file the upload would send twice
+        run: |
+          python3 - <<'PY'
+          import glob, pathlib, re, sys, collections
+          text = pathlib.Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+          block = re.search(
+              r"name: Create release draft\n.*?\n          files: \|\n((?:            \S+\n)+)",
+              text, re.S)
+          if block is None:
+              print("::error::the upload patterns could not be read from this workflow")
+              sys.exit(2)
+          patterns = [line.strip() for line in block.group(1).splitlines() if line.strip()]
+          seen = collections.Counter()
+          for pattern in patterns:
+              for path in glob.glob(pattern):
+                  seen[pathlib.Path(path).name] += 1
+          twice = sorted(name for name, n in seen.items() if n > 1)
+          print(f"{len(patterns)} pattern(s), {len(seen)} file(s) matched")
+          if twice:
+              print("::error::these files are matched by more than one upload pattern, "
+                    "and the second upload of a name races the first: " + ", ".join(twice))
+              sys.exit(1)
+          PY
+
       - name: Create release draft
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
@@ -1871,7 +1902,8 @@ jobs:
             artifacts/*.exe
             artifacts/latest.json
             artifacts/latest-cuda.json
-            artifacts/SHA256SUMS*
+            artifacts/SHA256SUMS
+            artifacts/SHA256SUMS.asc
             artifacts/*.cdx.json
             artifacts/*.spdx.json
             artifacts/*.sig

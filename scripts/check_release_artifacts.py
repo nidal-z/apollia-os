@@ -538,9 +538,13 @@ def check(root: Path) -> list[str] | int:
     # them in SHA256SUMS, so the verification command SECURITY.md documents
     # failed twelve times on a correctly built release. One list now decides,
     # and this rule keeps it equal to the one the release step uploads.
-    # `SHA256SUMS*` and `*.cosign.bundle` are the declared exception: they are
-    # produced after the selection, from it.
-    produced_after = {"SHA256SUMS*", "*.cosign.bundle"}
+    # The checksum file, its detached signature and the cosign bundles are the
+    # declared exception: they are produced after the selection, from it. The
+    # first two are named one by one rather than globbed, because `SHA256SUMS*`
+    # also matched the bundles of those same two files, the upload sent them
+    # twice, and the second send raced the first into a 404 that killed two
+    # releases after eighty minutes of building.
+    produced_after = {"SHA256SUMS", "SHA256SUMS.asc", "*.cosign.bundle"}
     selection: list[str] = []
     for step in jobs.get("release", {}).get("steps", []):
         if "select what the release publishes" in str(step.get("name", "")).lower():
