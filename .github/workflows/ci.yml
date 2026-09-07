@@ -804,11 +804,15 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      # patreon.com answers 403 to the checker whatever the page, so the two
+      # sponsor links were red on every run. A job that is always red stops
+      # being read, and the 403 says nothing about whether the page exists: the
+      # host is excluded rather than left to drown the reds that mean something.
       - uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: "--no-progress --max-retries 2 README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md CHANGELOG.md SPONSORS.md .github/CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/SUPPORT.md .github/FUNDING.yml .github/ISSUE_TEMPLATE"
+          args: "--no-progress --max-retries 2 --exclude '^https?://(www\\.)?patreon\\.com' README.md CONTRIBUTING.md SECURITY.md GOVERNANCE.md CHANGELOG.md SPONSORS.md .github/CODE_OF_CONDUCT.md .github/PULL_REQUEST_TEMPLATE.md .github/SUPPORT.md .github/FUNDING.yml .github/ISSUE_TEMPLATE"
           fail: true
 
   # ── Docs build : Docusaurus build on every PR (onBrokenLinks: throw) ───────
