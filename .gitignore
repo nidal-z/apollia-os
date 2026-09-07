@@ -186,3 +186,11 @@ tests/cli/report/
 # Work backlog: captures and lots. See backlog/README.md for the reason it is
 # not published before contributions open.
 /backlog/
+
+# What a model book writes while it plays. The seeded run pins the chat
+# workspace to this repository, so a file the agent is asked to create lands
+# here and not in the throwaway home: four of them were committed by accident
+# and read as leftovers in the tree. The books create them, nothing reads them
+# back, and a run must leave the tree clean.
+/tmp/
+/notes/

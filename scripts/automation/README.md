@@ -324,6 +324,15 @@ than expanding it to nothing.
   just desktop-dev-automation-seeded scripts/automation/master-det-scan.json
   ```
 
+## What a run writes into this repository
+
+The seeded run redirects `HOME`, not the chat workspace: the seed's
+`apollia.toml` pins the workspace to this checkout, so a file the model is
+asked to create lands here rather than in the throwaway home. The model books
+write under `tmp/` and `notes/`, both ignored by git. Four of those files were
+once committed and read as leftovers in a public tree; nothing creates them but
+a run, and nothing reads them back.
+
 ## Gotchas (learned the hard way)
 
 - **Dismiss onboarding first.** The seed sets no `onboarding.completed_at`, so
