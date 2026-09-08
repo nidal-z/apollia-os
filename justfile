@@ -975,8 +975,19 @@ desktop-dev-automation-seeded script: _require-tauri runners-dev
       mkdir -p target/Resources
       ln -sfn "$BUNDLE_ROOT" target/Resources/python
     else
-      echo "warning: no Python bundle found in target/python-bundle or target/debug" >&2
-      echo "         agents will fail to load; run packaging/build-python-bundle.sh" >&2
+      # Refused, not warned. Without the bundle the embedded interpreter has no
+      # `apollia` package, so every agent fails to load and the books answer
+      # "agent not found" for hundreds of steps, each one waiting out its own
+      # timeout. Measured on 2026-09-08: forty minutes of a Windows run spent
+      # proving that a warning printed before two minutes of compilation had
+      # scrolled past. Principle 4, fail fast.
+      echo "error: no Python bundle under target/python-bundle or target/debug" >&2
+      echo "       Every agent would fail to load and the run would measure that," >&2
+      echo "       not the product. Build it first, from a shell of this system:" >&2
+      echo "         bash packaging/build-python-bundle.sh <triple> target/python-bundle/<triple>" >&2
+      echo "       Triples: x86_64-apple-darwin, aarch64-apple-darwin," >&2
+      echo "                x86_64-unknown-linux-gnu, x86_64-pc-windows-msvc" >&2
+      exit 2
     fi
     echo "→ seeded automation: {{script}}  (HOME=$SEED_HOME, out: $OUT)"
     cd crates/apollia-desktop && \
@@ -1088,8 +1099,19 @@ desktop-dev-automation-seeded-llama script model=llama_model: _require-tauri run
       mkdir -p target/Resources
       ln -sfn "$BUNDLE_ROOT" target/Resources/python
     else
-      echo "warning: no Python bundle found in target/python-bundle or target/debug" >&2
-      echo "         agents will fail to load; run packaging/build-python-bundle.sh" >&2
+      # Refused, not warned. Without the bundle the embedded interpreter has no
+      # `apollia` package, so every agent fails to load and the books answer
+      # "agent not found" for hundreds of steps, each one waiting out its own
+      # timeout. Measured on 2026-09-08: forty minutes of a Windows run spent
+      # proving that a warning printed before two minutes of compilation had
+      # scrolled past. Principle 4, fail fast.
+      echo "error: no Python bundle under target/python-bundle or target/debug" >&2
+      echo "       Every agent would fail to load and the run would measure that," >&2
+      echo "       not the product. Build it first, from a shell of this system:" >&2
+      echo "         bash packaging/build-python-bundle.sh <triple> target/python-bundle/<triple>" >&2
+      echo "       Triples: x86_64-apple-darwin, aarch64-apple-darwin," >&2
+      echo "                x86_64-unknown-linux-gnu, x86_64-pc-windows-msvc" >&2
+      exit 2
     fi
     # `command -v` returns non-zero when the binary is absent, and under
     # `set -e` that kills the recipe before any echo runs: the operator sees a
