@@ -13,6 +13,7 @@ import { InvokeStubs, expandTokens, type RunTokens } from "./invokeStubs";
 import { seam } from "./invokeSeam";
 import { simulateHeartbeatLoss } from "../stores/runtimeHealth";
 import { clearToasts } from "$lib/components/ui/toast";
+import { waitClickable } from "./clickable";
 import type {
   AutomationBoot,
   RunReport,
@@ -259,9 +260,12 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
     case "click": {
       const sel = selectorFor(step);
       const el = await waitForEl(sel.css, step.timeoutMs ?? DEFAULT_TIMEOUT_MS, step.nth);
+      const waited = await waitClickable(el, step.timeoutMs ?? DEFAULT_TIMEOUT_MS);
       el.scrollIntoView({ block: "center" });
       el.click();
-      return `clicked ${sel.label}`;
+      return waited > 0
+        ? `clicked ${sel.label} (enabled after ${waited}ms)`
+        : `clicked ${sel.label}`;
     }
     case "fill": {
       const sel = selectorFor(step);
