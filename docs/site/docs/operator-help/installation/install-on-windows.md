@@ -126,9 +126,9 @@ install and nothing to set: with a working driver the engine uses the card. The
 
 **Dictation stays on the CPU.** Speech to text runs in the `apollia-runner`
 sidecar, which is built on whisper, and whisper has no Vulkan backend: the
-`apollia-runner-vulkan.exe` binary shipped in the Vulkan archive is byte for byte
-the CPU one. Copying it into the installation directory changes nothing. No
-Windows artifact published today carries a GPU-accelerated speech-to-text runner.
+Vulkan archive carries no speech to text runner of its own, and the installer
+ships a single one, `apollia-runner-cpu.exe`. No Windows artifact published
+today carries a GPU-accelerated speech-to-text runner.
 
 ## What is different on Windows
 

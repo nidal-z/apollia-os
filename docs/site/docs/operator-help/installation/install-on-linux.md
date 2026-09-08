@@ -93,9 +93,9 @@ a machine with no graphics driver.
 
 **Dictation stays on the CPU.** Speech to text runs in the `apollia-runner`
 sidecar, which is built on whisper, and whisper has no Vulkan backend: the
-`apollia-runner-vulkan` binary shipped in the Vulkan archive is byte for byte
-the CPU one. Copying it over the bundled runner changes nothing. No Linux
-artifact published today carries a GPU-accelerated speech-to-text runner.
+Vulkan archive carries no speech to text runner of its own, and the desktop
+package ships a single one, `apollia-runner-cpu`. No Linux artifact published
+today carries a GPU-accelerated speech-to-text runner.
 
 ## Update
 

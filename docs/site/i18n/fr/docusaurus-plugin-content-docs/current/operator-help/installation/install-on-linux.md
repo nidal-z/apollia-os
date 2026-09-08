@@ -95,9 +95,9 @@ sur une machine sans pilote graphique.
 
 **La dictée reste sur le processeur.** La reconnaissance vocale tourne dans le
 sidecar `apollia-runner`, bâti sur whisper, et whisper n'a pas de backend
-Vulkan : le binaire `apollia-runner-vulkan` livré dans l'archive Vulkan est
-octet pour octet celui du CPU. Le copier par-dessus le runner embarqué ne change
-rien. Aucun artefact Linux publié aujourd'hui ne porte de runner de
+Vulkan : l'archive Vulkan ne porte aucun runner de reconnaissance vocale, et le
+paquet de bureau n'en livre qu'un seul, `apollia-runner-cpu`. Aucun artefact
+Linux publié aujourd'hui ne porte de runner de
 reconnaissance vocale accéléré par le GPU.
 
 ## Mettre à jour

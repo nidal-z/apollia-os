@@ -33,9 +33,9 @@ If `apollia-runner-cpu` is missing: reinstall Apollia (the bundle has been alter
 
 ## 2. The GPU driver is missing or too old
 
-The daemon detected your GPU and tried to spawn the matching STT runner (for example `apollia-runner-vulkan`), but the runtime libraries are missing.
+The daemon detected your GPU and tried to spawn the matching STT runner, `apollia-runner-metal`, but the runtime libraries are missing. This section applies to macOS: it is the only system with a GPU speech to text runner.
 
-The published bundles carry three STT runners and no others: `apollia-runner-cpu` everywhere, `apollia-runner-metal` on macOS, and `apollia-runner-vulkan` on the Linux and Windows GPU builds. There is no CUDA or ROCm STT runner to install, so a CUDA or ROCm driver changes nothing for dictation.
+The published bundles carry two STT runners and no others: `apollia-runner-cpu` everywhere, and `apollia-runner-metal` on macOS. Whisper has no Vulkan backend, so no Linux or Windows bundle carries a GPU one, and there is no CUDA or ROCm STT runner either. A GPU driver of any kind changes nothing for dictation off macOS.
 
 **Symptoms:**
 
@@ -46,7 +46,7 @@ The published bundles carry three STT runners and no others: `apollia-runner-cpu
 
 ## 3. Firewall blocks the loopback connection (Windows)
 
-The runner listens on `127.0.0.1:<auto-port>`. If Windows Defender Firewall blocked `apollia-runner-vulkan.exe` on first launch, the daemon cannot connect to it.
+The runner listens on `127.0.0.1:<auto-port>`. If Windows Defender Firewall blocked `apollia-runner-cpu.exe` on first launch, the daemon cannot connect to it.
 
 **Fix:** `Settings > Privacy & security > Windows Security > Firewall & network protection > Allow an app`, then tick Apollia OS for private networks.
 

@@ -131,9 +131,9 @@ régler : avec un pilote qui fonctionne, le moteur utilise la carte. Le bundle
 
 **La dictée reste sur le processeur.** La reconnaissance vocale tourne dans le
 sidecar `apollia-runner`, bâti sur whisper, et whisper n'a pas de backend
-Vulkan : le binaire `apollia-runner-vulkan.exe` livré dans l'archive Vulkan est
-octet pour octet celui du CPU. Le copier dans le répertoire d'installation ne
-change rien. Aucun artefact Windows publié aujourd'hui ne porte de runner de
+Vulkan : l'archive Vulkan ne porte aucun runner de reconnaissance vocale, et
+l'installateur n'en livre qu'un seul, `apollia-runner-cpu.exe`. Aucun artefact
+Windows publié aujourd'hui ne porte de runner de
 reconnaissance vocale accéléré par le GPU.
 
 ## Ce qui change sur Windows
