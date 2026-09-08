@@ -258,6 +258,7 @@ desktop-dev: _require-tauri
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
     bundle_python_env "$BUNDLE_ROOT"
+    bundle_python_link_dev "$BUNDLE_ROOT" "$PWD/target/debug/python"
     export PYO3_PYTHON="$BUNDLE_PY"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     # -L tells the linker where libpython is; it does not tell the loader.
@@ -278,6 +279,7 @@ desktop-dev-macos: _require-tauri runners-dev
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
     bundle_python_env "$BUNDLE_ROOT"
+    bundle_python_link_dev "$BUNDLE_ROOT" "$PWD/target/debug/python"
     export PYO3_PYTHON="$BUNDLE_PY"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     if [ "$(uname -s)" = "Linux" ]; then
@@ -329,6 +331,7 @@ desktop-dev-llama model=llama_model: _require-tauri runners-dev
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
     bundle_python_env "$BUNDLE_ROOT"
+    bundle_python_link_dev "$BUNDLE_ROOT" "$PWD/target/debug/python"
     export PYO3_PYTHON="$BUNDLE_PY"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     if [ "$(uname -s)" = "Linux" ]; then
@@ -423,6 +426,7 @@ desktop-dev-qwen: _require-tauri runners-dev
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
     bundle_python_env "$BUNDLE_ROOT"
+    bundle_python_link_dev "$BUNDLE_ROOT" "$PWD/target/debug/python"
     export PYO3_PYTHON="$BUNDLE_PY"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     if [ "$(uname -s)" = "Linux" ]; then
@@ -508,6 +512,7 @@ cli-build:
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
     source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
     bundle_python_env "$BUNDLE_ROOT"
+    bundle_python_link_dev "$BUNDLE_ROOT" "$PWD/target/debug/python"
     export PYO3_PYTHON="$BUNDLE_PY"
     export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     if [ "$(uname -s)" = "Linux" ]; then
@@ -962,6 +967,7 @@ desktop-dev-automation-seeded script: _require-tauri runners-dev
     BUNDLE_ROOT="$(bundle_python_find || true)"
     if [ -n "$BUNDLE_ROOT" ]; then
       bundle_python_env "$BUNDLE_ROOT"
+      bundle_python_link_dev "$BUNDLE_ROOT" "$PWD/target/debug/python"
       export PYO3_PYTHON="$BUNDLE_PY"
       # The bundle is relocatable but its sysconfig still names the path it was
       # built at, so PyO3 emits `-L /install/lib` and the link fails on
@@ -1089,6 +1095,7 @@ desktop-dev-automation-seeded-llama script model=llama_model: _require-tauri run
     BUNDLE_ROOT="$(bundle_python_find || true)"
     if [ -n "$BUNDLE_ROOT" ]; then
       bundle_python_env "$BUNDLE_ROOT"
+      bundle_python_link_dev "$BUNDLE_ROOT" "$PWD/target/debug/python"
       export PYO3_PYTHON="$BUNDLE_PY"
       # The bundle is relocatable but its sysconfig still names the path it was
       # built at, so PyO3 emits `-L /install/lib` and the link fails on

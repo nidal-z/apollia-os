@@ -53,3 +53,34 @@ bundle_python_find() {
     done
     return 1
 }
+
+# Make the bundle reachable from the executable's own directory.
+#
+# At run time the app probes `<exe dir>/python` (and, on macOS,
+# `<exe dir>/../Resources/python`), which is the packaged layout. A dev build
+# lives in target/debug while the bundle sits under target/python-bundle/<triple>,
+# so without a link the app finds nothing, falls back to the developer's own
+# interpreter and every agent fails to load with "No module named 'apollia'".
+# The macOS half of this was already handled by the recipes; Windows and Linux
+# were not. Measured on 2026-09-08, on a Windows machine with a complete bundle.
+#
+# Idempotent, and it never replaces a real directory: a bundle built straight
+# into the destination is left exactly where it is.
+bundle_python_link_dev() {
+    local root="$1" dest="$2"
+    [ -n "$root" ] || return 0
+    [ "$root" != "$dest" ] || return 0
+    if [ -e "$dest" ] || [ -L "$dest" ]; then
+        [ -L "$dest" ] || return 0
+        rm -f "$dest"
+    fi
+    mkdir -p "$(dirname "$dest")"
+    if command -v cygpath >/dev/null 2>&1; then
+        # An NTFS junction, which an ordinary user may create; a symbolic link
+        # needs a privilege, and git-bash's emulated `ln -s` would copy the
+        # 200 MB of the bundle on every run instead of pointing at it.
+        cmd //c mklink /J "$(cygpath -w "$dest")" "$(cygpath -w "$root")" >/dev/null 2>&1
+    else
+        ln -sfn "$root" "$dest"
+    fi
+}
