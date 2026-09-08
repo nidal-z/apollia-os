@@ -21,7 +21,8 @@
 #
 # Environment variables:
 #   APOLLIA_BIN              binary path. Default: ./target/release/apollia-os
-#                            (fallback ./target/debug/apollia-os).
+#                            (fallback ./target/debug/apollia-os). On Windows
+#                            the `.exe` suffix is added where it is missing.
 #   APOLLIA_TEST_MODEL_GGUF  GGUF for the local LLM backend (Track 3). Default:
 #                            ~/.apollia/models/Qwen3-30B-A3B-Q4_K_M.gguf. Absent
 #                            → Track 3 is SKIPped, never failed.
@@ -43,6 +44,17 @@ LIB_DIR="$SCRIPT_DIR/lib"
 TRACK_DIR="$SCRIPT_DIR/tracks"
 
 # ── Resolve binary ─────────────────────────────────────────────────────────
+# The executable suffix of this machine. It has to be explicit: git-bash
+# appends `.exe` itself when it tests a file, so `[[ -x target/debug/apollia-os ]]`
+# succeeds there while the path names nothing. The suite then handed that path
+# to its Python controls, which are native Windows programs and append nothing,
+# and the run stopped on a binary reported absent right after a build that had
+# just succeeded.
+BIN_EXT=""
+case "$(uname -s 2>/dev/null || echo unknown)" in
+    MINGW* | MSYS* | CYGWIN*) BIN_EXT=".exe" ;;
+esac
+
 if [[ -n "${APOLLIA_BIN:-}" ]]; then
     # Resolved against the directory the suite was invoked from, once, here.
     # One assertion runs the binary after a `cd` (workspace init --force,
@@ -52,15 +64,20 @@ if [[ -n "${APOLLIA_BIN:-}" ]]; then
     # the command under test.
     BIN=$APOLLIA_BIN
     [[ "$BIN" == /* ]] || BIN="$PWD/$BIN"
+    # Accept a path given without the suffix on Windows, the shape every other
+    # command in this tree is written with.
+    if [[ ! -f "$BIN" && -n "$BIN_EXT" && -f "${BIN}${BIN_EXT}" ]]; then
+        BIN="${BIN}${BIN_EXT}"
+    fi
     if [[ ! -x "$BIN" ]]; then
         echo "REFUSING: APOLLIA_BIN resolves to $BIN, which is not executable." >&2
         echo "          No assertion was run. Build with \`cargo build -p apollia-cli\`, or point APOLLIA_BIN at a binary." >&2
         exit 2
     fi
-elif [[ -x "$REPO_ROOT/target/release/apollia-os" ]]; then
-    BIN="$REPO_ROOT/target/release/apollia-os"
-elif [[ -x "$REPO_ROOT/target/debug/apollia-os" ]]; then
-    BIN="$REPO_ROOT/target/debug/apollia-os"
+elif [[ -x "$REPO_ROOT/target/release/apollia-os${BIN_EXT}" ]]; then
+    BIN="$REPO_ROOT/target/release/apollia-os${BIN_EXT}"
+elif [[ -x "$REPO_ROOT/target/debug/apollia-os${BIN_EXT}" ]]; then
+    BIN="$REPO_ROOT/target/debug/apollia-os${BIN_EXT}"
 else
     echo "REFUSING: apollia-os binary not found. Build with \`cargo build -p apollia-cli\` or set APOLLIA_BIN." >&2
     echo "          No assertion was run." >&2
