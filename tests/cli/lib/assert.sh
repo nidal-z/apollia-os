@@ -117,7 +117,7 @@ check_json_field() {
     local label=$1 expr=$2 expected=$3; shift 3
     local out rc got t0 dur
     t0=$(_now_ms); out=$("$@" 2>/dev/null); rc=$?
-    got=$(printf '%s' "$out" | /usr/bin/python3 -c "import sys,json;d=json.load(sys.stdin);print($expr)" 2>/dev/null)
+    got=$(printf '%s' "$out" | "${E2E_PYTHON:-python3}" -c "import sys,json;d=json.load(sys.stdin);print($expr)" 2>/dev/null)
     dur=$(( $(_now_ms) - t0 ))
     if [[ $rc -eq 0 && "$got" == "$expected" ]]; then
         _pass "$label" "$expr=$got" "$dur"
@@ -148,11 +148,11 @@ skip() {
 _capture_assert() {
     local summary=$1 label=$2 min_chunks=$3 input=$4 capfile=$5 mode=${6:-strict}
     local exit_code chunks dur first timed
-    exit_code=$(printf '%s' "$summary" | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin).get('exit',-1))" 2>/dev/null)
-    chunks=$(printf   '%s' "$summary" | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin).get('chunks',0))" 2>/dev/null)
-    dur=$(printf      '%s' "$summary" | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin).get('duration_ms',0))" 2>/dev/null)
-    first=$(printf    '%s' "$summary" | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin).get('first_chunk_ms',0))" 2>/dev/null)
-    timed=$(printf    '%s' "$summary" | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin).get('timed_out',False))" 2>/dev/null)
+    exit_code=$(printf '%s' "$summary" | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin).get('exit',-1))" 2>/dev/null)
+    chunks=$(printf   '%s' "$summary" | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin).get('chunks',0))" 2>/dev/null)
+    dur=$(printf      '%s' "$summary" | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin).get('duration_ms',0))" 2>/dev/null)
+    first=$(printf    '%s' "$summary" | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin).get('first_chunk_ms',0))" 2>/dev/null)
+    timed=$(printf    '%s' "$summary" | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin).get('timed_out',False))" 2>/dev/null)
     _report_capture "$label" "${exit_code:-1}" "${dur:-0}" "${chunks:-0}" "${first:-0}" "$input" "$capfile"
 
     local ok=1
@@ -176,7 +176,7 @@ capture_run() {
     [[ "$1" == "--" ]] && shift
     CAP_N=$((CAP_N + 1))
     local capfile="$REPORT_CAP_DIR/cap-$CAP_N.txt" summary
-    summary=$(/usr/bin/python3 "$LIB_DIR/run_capture.py" --timeout "$timeout" --out "$capfile" -- "$@" 2>/dev/null)
+    summary=$("${E2E_PYTHON:-python3}" "$LIB_DIR/run_capture.py" --timeout "$timeout" --out "$capfile" -- "$@" 2>/dev/null)
     _capture_assert "$summary" "$label" 1 "$input" "$capfile" strict
 }
 
@@ -186,7 +186,7 @@ capture_run_soft() {
     [[ "$1" == "--" ]] && shift
     CAP_N=$((CAP_N + 1))
     local capfile="$REPORT_CAP_DIR/cap-$CAP_N.txt" summary
-    summary=$(/usr/bin/python3 "$LIB_DIR/run_capture.py" --timeout "$timeout" --out "$capfile" -- "$@" 2>/dev/null)
+    summary=$("${E2E_PYTHON:-python3}" "$LIB_DIR/run_capture.py" --timeout "$timeout" --out "$capfile" -- "$@" 2>/dev/null)
     _capture_assert "$summary" "$label" 1 "$input" "$capfile" soft
 }
 
@@ -196,7 +196,7 @@ capture_stream() {
     [[ "$1" == "--" ]] && shift
     CAP_N=$((CAP_N + 1))
     local capfile="$REPORT_CAP_DIR/cap-$CAP_N.txt" summary
-    summary=$(/usr/bin/python3 "$LIB_DIR/run_capture.py" --timeout "$timeout" --out "$capfile" -- "$@" 2>/dev/null)
+    summary=$("${E2E_PYTHON:-python3}" "$LIB_DIR/run_capture.py" --timeout "$timeout" --out "$capfile" -- "$@" 2>/dev/null)
     _capture_assert "$summary" "$label" "$min_chunks" "$input" "$capfile" strict
 }
 
@@ -206,6 +206,6 @@ capture_pty() {
     [[ "$1" == "--" ]] && shift
     CAP_N=$((CAP_N + 1))
     local capfile="$REPORT_CAP_DIR/cap-$CAP_N.txt" summary
-    summary=$(/usr/bin/python3 "$LIB_DIR/pty_run.py" --timeout "$timeout" --idle 6 --prompt "$prompt" --out "$capfile" -- "$@" 2>/dev/null)
+    summary=$("${E2E_PYTHON:-python3}" "$LIB_DIR/pty_run.py" --timeout "$timeout" --idle 6 --prompt "$prompt" --out "$capfile" -- "$@" 2>/dev/null)
     _capture_assert "$summary" "$label" "$min_chunks" "$prompt" "$capfile" stream
 }

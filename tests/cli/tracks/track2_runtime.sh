@@ -84,7 +84,7 @@ check         "tools approvals resolved"           "${Q[@]}" tools approvals res
 # exercise the desktop "test" button; it makes `tools reload` fail to decrypt.
 # Drop it from THIS run's throwaway seed HOME (never the shared fixture) so the
 # command is exercised for real.
-/usr/bin/sqlite3 "$HOME/.apollia/governance.db" "DELETE FROM tool_credentials;" >/dev/null 2>&1 || true
+e2e_sqlite "$HOME/.apollia/governance.db" "DELETE FROM tool_credentials;" >/dev/null 2>&1 || true
 check         "tools reload"                        "${Q[@]}" tools reload
 check         "tools enable bash_executor"          "${Q[@]}" tools enable bash_executor
 check         "tools approvals pending"             "${Q[@]}" tools approvals pending

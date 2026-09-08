@@ -15,6 +15,21 @@ _seed_builder() {
     printf '%s/tests/cli/seed/build-seed.sh' "$REPO_ROOT"
 }
 
+# One SQLite for the helpers, chosen the way build-seed.sh chooses it: the
+# command when PATH carries it, the interpreter's own module otherwise. Windows
+# ships no sqlite3 on PATH, and neither does a minimal Linux image; a helper
+# that names the command outright stops those tracks on a machine whose product
+# is fine. Measured on 2026-09-08.
+e2e_sqlite() {
+    local database="$1"
+    shift
+    if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 "$database" "$@"
+    else
+        "${E2E_PYTHON:-python3}" "$LIB_DIR/../seed/sqlite_exec.py" "$database" "$@"
+    fi
+}
+
 # build_seed_home <dest>
 #   Build a deterministic seeded HOME at <dest>. Prints nothing on success;
 #   returns non-zero (and a diagnostic) if the builder or its deps are missing.
@@ -70,7 +85,7 @@ seed_wire_real_model() {
     # nothing else: a WHERE on any other name matches no row, and the preceding
     # `SET is_default = 0` then leaves the base with NO default at all, a state
     # `reload_llm_from_db` refuses.
-    /usr/bin/sqlite3 "$sysdb" \
+    e2e_sqlite "$sysdb" \
         "UPDATE llm_backends SET is_default = 0;
          UPDATE llm_backends
             SET model = '$gguf',
