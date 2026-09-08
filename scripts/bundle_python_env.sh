@@ -101,11 +101,26 @@ bundle_python_link_dev() {
         elif command -v cygpath >/dev/null 2>&1; then
             # An NTFS junction, which an ordinary user may create; a symbolic
             # link needs a privilege, and git-bash's emulated `ln -s` would
-            # copy the 200 MB of the bundle on every run instead of pointing
-            # at it.
-            cmd //c mklink /J "$(cygpath -w "$dest")" "$(cygpath -w "$root")" >/dev/null 2>&1 || true
+            # copy the bundle instead of pointing at it.
+            #
+            # `//J`, not `/J`: git-bash rewrites any argument that starts with
+            # a single slash into a Windows path, so `/J` reached mklink as
+            # something like `C:/Program Files/Git/J` and the call failed with
+            # no output. The same convention is why `cmd //c` is spelled that
+            # way. Measured on 2026-09-08.
+            cmd //c mklink //J "$(cygpath -w "$dest")" "$(cygpath -w "$root")" >/dev/null 2>&1 || true
         else
             ln -sfn "$root" "$dest" || true
+        fi
+        # Whatever the link did, a copy always works: no privilege, no
+        # junction, no shell convention. It costs a couple of hundred
+        # megabytes once, since the next run finds the bundle in place and
+        # skips this block entirely. A run that boots is worth more than a
+        # link that saves disk.
+        if ! bundle_python_holds_interpreter "$dest"; then
+            echo "note: linking the Python bundle did not take; copying it to $dest" >&2
+            rm -rf "$dest" 2>/dev/null || true
+            cp -R "$root" "$dest" 2>/dev/null || true
         fi
     fi
     # Verified on every path, including the one that changed nothing. An
