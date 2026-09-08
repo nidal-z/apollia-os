@@ -242,7 +242,7 @@ check        "tools config get bash_executor"        "$BIN" tools config get bas
 # is exported by the orchestrator), so nothing reaches the OS keychain. The
 # seed ships one row for web_search, with a deliberately non-decryptable blob.
 check_content "tools credentials list has seeded web_search" "web_search" "$BIN" tools credentials list
-check_exit   "tools credentials set refuses non-TTY"  1 bash -c "'$BIN' tools credentials set web_search api_key </dev/null"
+check_exit   "tools credentials set refuses an empty piped value" 1 bash -c "'$BIN' tools credentials set web_search api_key </dev/null"
 check        "tools credentials delete (absent key, idempotent)" "$BIN" tools credentials delete web_search e2e-absent-key --confirm
 check_exit   "tools credentials test (seeded undecryptable blob) → 1" 1 "$BIN" tools credentials test web_search
 check_content "model list shows 2 seeded gguf" "Qwen3.6|Phi-3" "$BIN" model list
@@ -305,5 +305,5 @@ skip "mcp oauth login (browser flow)" "AS authorize URL + browser callback; the 
 skip "mcp oauth discover (live endpoint)" "network discovery; the unconfigured refusal is asserted above"
 skip "onboard (interactive session)"  "chat-based onboarding agent; the daemon-off refusal is asserted above"
 skip "stt transcribe (real audio)"    "needs an audio file + a loaded Whisper model; the missing-file refusal is asserted above"
-skip "tools credentials set (with a TTY)" "masked stdin passphrase prompt; the non-TTY refusal is asserted above"
+skip "tools credentials set (with a TTY)" "masked console prompt; the piped path is asserted above"
 skip "tools credentials test (decryptable credential)" "needs a live credentialed backend; the seeded undecryptable blob is asserted above"

@@ -1,5 +1,6 @@
 //! `tools credentials` and the legacy `tools show`.
 
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -86,6 +87,32 @@ pub(super) fn run_credentials_list(filter: Option<&str>, json: bool) -> i32 {
     exit_codes::SUCCESS
 }
 
+/// Strip the line terminator a piped value carries, CRLF included.
+fn credential_value_from_line(line: &str) -> String {
+    line.trim_end_matches(['\r', '\n']).to_string()
+}
+
+/// The value to store: read from the console without echo when a human is
+/// driving, and from standard input when one is not.
+///
+/// `rpassword` reads the console itself, `/dev/tty` on Unix and `CONIN$` on
+/// Windows, and that is deliberate: a secret must not be echoed and must not
+/// be captured by a shell redirection. The consequence is that it ignores
+/// standard input entirely, so `echo secret | apollia tools credentials set`
+/// never reaches it and `< /dev/null` answers nothing. On Windows under a
+/// terminal that owns no console, git-bash among them, the prompt is not even
+/// visible and the command waits forever on input nobody knows to type.
+/// Measured on 2026-09-08: the end-to-end suite stopped there and never
+/// finished. Principle 8, human CLI and machine API, says the same thing.
+fn read_credential_value(prompt: &str) -> std::io::Result<String> {
+    if std::io::stdin().is_terminal() {
+        return rpassword::prompt_password(prompt);
+    }
+    let mut line = String::new();
+    std::io::stdin().read_line(&mut line)?;
+    Ok(credential_value_from_line(&line))
+}
+
 pub(super) fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
     if !is_valid_credential_target(tool) {
         return emit_unknown_tool(tool, json);
@@ -95,7 +122,7 @@ pub(super) fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
         Err(code) => return code,
     };
     let prompt = format!("Value for {tool}/{key}: ");
-    let value = match rpassword::prompt_password(&prompt) {
+    let value = match read_credential_value(&prompt) {
         Ok(v) => v,
         Err(e) => return emit_error(format!("failed to read prompt: {e}"), json),
     };
@@ -280,4 +307,39 @@ pub(super) async fn run_describe(socket: Option<PathBuf>, tool_name: &str, json:
         }
     }
     exit_codes::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::credential_value_from_line;
+
+    #[test]
+    fn a_piped_value_keeps_its_content_and_loses_its_terminator() {
+        // GIVEN a value piped by a script, terminated the Unix way and the
+        // Windows way
+        let unix = "s3cret\n";
+        let windows = "s3cret\r\n";
+
+        // WHEN the command reads that line
+        let from_unix = credential_value_from_line(unix);
+        let from_windows = credential_value_from_line(windows);
+
+        // THEN both store the same secret, with no terminator in it
+        assert_eq!(from_unix, "s3cret");
+        assert_eq!(from_windows, "s3cret");
+    }
+
+    #[test]
+    fn a_closed_input_reads_as_empty_so_the_command_refuses() {
+        // GIVEN standard input closed with nothing on it, which is what
+        // `< /dev/null` hands the command
+        let nothing = "";
+
+        // WHEN the command reads that line
+        let value = credential_value_from_line(nothing);
+
+        // THEN the value is empty, the case the caller answers with a refusal
+        // rather than storing a blank credential
+        assert!(value.is_empty());
+    }
 }
