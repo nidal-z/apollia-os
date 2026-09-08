@@ -21,9 +21,10 @@
 --   stub server files/mcp-stub-server.py, which completes the handshake and
 --   advertises a fixed 4-tool catalogue.
 --
--- Dependency: the stub is launched with /usr/bin/python3, present on any macOS
---   machine with the Xcode command-line tools (the desktop build toolchain
---   already requires them). No third-party Python package is used.
+-- Dependency: the stub is launched with a Python 3, named here by the token
+--   __APOLLIA_SEED_PYTHON__ and rewritten by build-seed.sh to an interpreter it
+--   resolved by running one. A hardcoded /usr/bin/python3 held on macOS and on
+--   Linux and named nothing on Windows. No third-party Python package is used.
 --
 -- Path wiring: args_json carries the placeholder token __APOLLIA_SEED_MCP_STUB__.
 --   build-seed.sh copies the stub into the seed data dir and rewrites the token
@@ -42,7 +43,7 @@ INSERT INTO mcp_servers
    enabled, created_at, updated_at)
 VALUES
   ('filesystem',
-   '/usr/bin/python3',
+   '__APOLLIA_SEED_PYTHON__',
    '["__APOLLIA_SEED_MCP_STUB__"]',
    '{}',
    'stdio',
@@ -55,7 +56,7 @@ VALUES
    '2026-07-01T00:00:00Z',
    '2026-07-01T00:00:00Z'),
   ('notes',
-   '/usr/bin/python3',
+   '__APOLLIA_SEED_PYTHON__',
    '["__APOLLIA_SEED_MCP_STUB__"]',
    '{}',
    'stdio',

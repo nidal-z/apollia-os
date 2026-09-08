@@ -12,7 +12,7 @@
           "registryType": "custom",
           "identifier": "__APOLLIA_SEED_MCP_STUB__",
           "version": "1.0.0",
-          "runtimeHint": "/usr/bin/python3",
+          "runtimeHint": "__APOLLIA_SEED_PYTHON__",
           "transport": { "type": "stdio" },
           "environmentVariables": [],
           "packageArguments": []

@@ -253,5 +253,7 @@ These are the only remaining non-green-able steps, and each is handled so it can
   overwrites it; offline, it keeps falling back to the seeded file.
 - Onboarding is not seeded as completed; every `-det` script begins with an
   `onboarding-skip` step that dismisses the first-launch modal deterministically.
-- The MCP stub needs `/usr/bin/python3` (present with Xcode CLT, already a build
-  dependency).
+- The MCP stub needs a Python 3, which the builder resolves by running the
+  candidates in turn and writes into the seeded rows in place of the token
+  `__APOLLIA_SEED_PYTHON__`. It used to be `/usr/bin/python3` in the fragment,
+  which named nothing on Windows and left the two servers disconnected.

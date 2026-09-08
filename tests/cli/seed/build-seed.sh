@@ -78,6 +78,40 @@ if [ -z "$SEED_SQLITE_MODE" ]; then
   exit 2
 fi
 
+# A path a native process can open. git-bash hands out `/c/Users/...`, which is
+# its own POSIX view: the product is a native Windows binary and opens nothing
+# under that name. `cygpath -m` renders `C:/Users/...`, accepted by Windows and
+# safe to embed in JSON, which the backslash form is not. A no-op everywhere
+# else, where cygpath does not exist.
+seed_native_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+# The interpreter the seeded MCP servers are launched with, resolved rather
+# than written into the fragment. `/usr/bin/python3` is there on macOS and on
+# most Linux images and nowhere on Windows, where the two seeded rows would
+# spawn nothing: the servers stay disconnected, and every connection assertion
+# of the desktop books fails on a machine whose product is fine. The candidate
+# is selected by RUNNING it, because `python3` on Windows is a Microsoft Store
+# alias that sits on PATH and refuses to start. Measured on 2026-09-08.
+SEED_MCP_PYTHON=""
+for _py in "${APOLLIA_E2E_PYTHON:-}" "$SEED_PYTHON" /usr/bin/python3 python3 python; do
+  [ -n "$_py" ] || continue
+  command -v "$_py" >/dev/null 2>&1 || continue
+  if "$_py" -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' >/dev/null 2>&1; then
+    SEED_MCP_PYTHON="$(seed_native_path "$(command -v "$_py")")"
+    break
+  fi
+done
+if [ -z "$SEED_MCP_PYTHON" ]; then
+  echo "seed: no runnable Python 3 found, so the seeded MCP servers will not start" >&2
+  echo "      (the rest of the profile is built; the connections page will read empty)" >&2
+fi
+
 # One entry point for every statement this builder runs. SQL comes as an
 # argument when there is one, on standard input otherwise, which is the shape
 # the fragments use.
@@ -284,12 +318,16 @@ if [ -f "$HERE/files/mcp-stub-server.py" ]; then
   STUB_DST="$DATA/mcp-stub-server.py"
   # Copied to the staging path, referenced by the final one, for the reason
   # given at DATA_ALIAS above.
-  STUB_REF="$DATA_ALIAS/mcp-stub-server.py"
+  STUB_REF="$(seed_native_path "$DATA_ALIAS/mcp-stub-server.py")"
   cp "$HERE/files/mcp-stub-server.py" "$STUB_DST"
   chmod +x "$STUB_DST"
   if [ -f "$DATA/mcp.db" ]; then
     seed_sqlite "$DATA/mcp.db" \
       "UPDATE mcp_servers SET args_json = replace(args_json, '__APOLLIA_SEED_MCP_STUB__', '$STUB_REF') WHERE args_json LIKE '%__APOLLIA_SEED_MCP_STUB__%';"
+    if [ -n "$SEED_MCP_PYTHON" ]; then
+      seed_sqlite "$DATA/mcp.db" \
+        "UPDATE mcp_servers SET command = '$SEED_MCP_PYTHON' WHERE command = '__APOLLIA_SEED_PYTHON__';"
+    fi
   fi
   # The MCP registry cache. McpRegistryClient reads `<data dir>/mcp-registry.json`
   # without a network call while the file is younger than fifteen minutes
@@ -298,7 +336,9 @@ if [ -f "$HERE/files/mcp-stub-server.py" ]; then
   # entries on a hermetic run. The seed-stub entry installs the same stub as
   # the mcp.db rows, through the same token, rewritten to the same path.
   if [ -f "$HERE/files/mcp-registry.json" ]; then
-    sed "s|__APOLLIA_SEED_MCP_STUB__|$STUB_REF|g" "$HERE/files/mcp-registry.json" > "$DATA/mcp-registry.json"
+    sed -e "s|__APOLLIA_SEED_MCP_STUB__|$STUB_REF|g" \
+        -e "s|__APOLLIA_SEED_PYTHON__|${SEED_MCP_PYTHON:-/usr/bin/python3}|g" \
+        "$HERE/files/mcp-registry.json" > "$DATA/mcp-registry.json"
   fi
 fi
 
