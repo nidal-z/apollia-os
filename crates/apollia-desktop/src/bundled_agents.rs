@@ -402,9 +402,7 @@ mod tests {
         assert!(agent_py.is_file(), "the first provisioning writes the file");
         std::fs::remove_dir_all(tmp.path().join("agents/onboarding-agent")).expect("remove");
         assert!(
-            repo.get("onboarding-agent")
-                .expect("get")
-                .is_some(),
+            repo.get("onboarding-agent").expect("get").is_some(),
             "the row survives the file, which is the whole trap"
         );
 

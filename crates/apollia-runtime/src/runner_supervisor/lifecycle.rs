@@ -378,7 +378,8 @@ pub(super) fn locate_runner_binary(
     let layouts = |name: &str| {
         [
             dir.join(format!("{name}{ext}")),
-            dir.join("../Resources/runners").join(format!("{name}{ext}")),
+            dir.join("../Resources/runners")
+                .join(format!("{name}{ext}")),
             dir.join("runners").join(format!("{name}{ext}")),
             dir.join("../lib/apollia-os/runners")
                 .join(format!("{name}{ext}")),

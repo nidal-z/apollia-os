@@ -309,7 +309,6 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
     parsed
 }
 
-
 /// Returns a backend whose binary is actually in this build, starting from the
 /// one that was chosen.
 ///
@@ -784,7 +783,6 @@ mod tests {
         // THEN the override is applied (binary present)
         assert_eq!(backend, RunnerBackend::Vulkan);
     }
-
 
     fn write_runner(name: &str) -> std::path::PathBuf {
         let ext = if cfg!(windows) { ".exe" } else { "" };
