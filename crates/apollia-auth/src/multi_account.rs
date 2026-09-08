@@ -85,7 +85,7 @@ enum TokenBackend {
 impl MultiAccountStorage {
     /// Build a [`MultiAccountStorage`] using the default index location.
     pub fn new() -> Result<Self, AuthError> {
-        let home = dirs::home_dir()
+        let home = apollia_core::paths::home_dir()
             .ok_or_else(|| AuthError::Keyring("home directory not found".into()))?;
         let dir = apollia_core::paths::data_dir_under(home);
         std::fs::create_dir_all(&dir)

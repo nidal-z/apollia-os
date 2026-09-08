@@ -134,7 +134,7 @@ impl AgeFileSecretStore {
     /// Build using the default location `~/.apollia/secrets/` and the
     /// passphrase from `APOLLIA_TOKEN_PASSPHRASE`.
     pub fn from_env() -> Result<Self, AuthError> {
-        let home = dirs::home_dir()
+        let home = apollia_core::paths::home_dir()
             .ok_or_else(|| AuthError::Keyring("home directory not found".into()))?;
         let base = apollia_core::paths::data_dir_under(home).join("secrets");
         let passphrase = std::env::var("APOLLIA_TOKEN_PASSPHRASE").map_err(|_| {

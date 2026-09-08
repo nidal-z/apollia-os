@@ -192,7 +192,7 @@ pub(super) fn run_setup(args: SetupArgs<'_>) -> i32 {
         }
     });
 
-    let apollia_home = dirs::home_dir()
+    let apollia_home = apollia_core::paths::home_dir()
         .map(apollia_core::paths::data_dir_under)
         .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME));
     let models_dir = models_dir_override

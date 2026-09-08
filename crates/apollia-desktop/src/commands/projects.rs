@@ -106,7 +106,7 @@ pub async fn get_project(
 /// Creates no directory on disk.
 #[tauri::command]
 pub async fn suggest_workspace_path(project_name: String) -> Result<String, String> {
-    let home = dirs::home_dir().ok_or_else(|| "$HOME not available".to_string())?;
+    let home = apollia_core::paths::home_dir().ok_or_else(|| "$HOME not available".to_string())?;
     Ok(suggest_workspace_path_in(&home, &project_name)
         .to_string_lossy()
         .into_owned())

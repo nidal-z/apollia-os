@@ -66,7 +66,6 @@ scopeguard         = { workspace = true }
 sha2               = { workspace = true }
 reqwest            = { workspace = true }
 rustyline          = { workspace = true }
-dirs               = { workspace = true }
 open               = { workspace = true }
 
 [dev-dependencies]

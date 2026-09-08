@@ -237,7 +237,7 @@ fn resolve_mcp_db(override_path: Option<&std::path::Path>) -> PathBuf {
     if let Some(p) = override_path {
         return p.to_path_buf();
     }
-    dirs::home_dir()
+    apollia_core::paths::home_dir()
         .map(apollia_core::paths::data_dir_under)
         .unwrap_or_else(|| PathBuf::from(apollia_core::paths::DATA_DIR_NAME))
         .join(apollia_core::paths::DataFile::Mcp.file_name())

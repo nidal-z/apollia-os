@@ -19,6 +19,12 @@ holds three rules against it:
      `/<name>`, must go through `DataFile` instead.
   3. The catalogue and the seed fixture agree: `tests/cli/seed/schemas/`
      carries exactly one `<name>.sql` per catalogue entry.
+  4. No production line resolves the home directory through `dirs::home_dir`.
+     That crate asks Windows for the profile folder and ignores %USERPROFILE%,
+     while `paths::home_dir` reads the variable, so a binary holding both has
+     two homes on one machine. Measured on 2026-09-08: fifteen call sites read
+     the real profile while the rest read the redirected one, and the CLI suite
+     wrote to the operator's own directory on Windows.
 
 Scope is `git ls-files -- 'crates/**/*.rs'`, production text only: comments
 are blanked, test files (`tests/` directories, `tests.rs`, `*_test(s).rs`)
@@ -51,6 +57,9 @@ STRING_RE = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 # `.apollia` used as a path segment: not part of a longer name such as
 # `.apollia-seed-home` or `io.apollia.os`.
 SEGMENT_RE = re.compile(r"\.apollia(?![A-Za-z0-9_.\-])")
+
+
+FOREIGN_HOME_RE = re.compile(r"\bdirs::home_dir\s*\(")
 
 
 def production_text(text):
@@ -96,9 +105,13 @@ def inventory(root):
 
 
 def scan_file(rel, text, catalogue):
-    """Return the rule 1 and rule 2 violations of one file's production text."""
+    """Return the rule 1, 2 and 4 violations of one file's production text."""
     violations = []
     for i, line in enumerate(production_text(text).split("\n"), 1):
+        if FOREIGN_HOME_RE.search(line):
+            violations.append(
+                (rel, i, "resolves the home through `dirs`: use apollia_core::paths::home_dir")
+            )
         for lit_m in STRING_RE.finditer(line):
             lit = lit_m.group(1)
             for seg in SEGMENT_RE.finditer(lit):

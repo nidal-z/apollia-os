@@ -125,7 +125,7 @@ pub(crate) fn resolve_path(override_path: Option<&Path>) -> PathBuf {
     }
     let xdg = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from);
     let base = xdg
-        .or_else(|| dirs::home_dir().map(|h| h.join(".config")))
+        .or_else(|| apollia_core::paths::home_dir().map(|h| h.join(".config")))
         .unwrap_or_else(|| PathBuf::from("."));
     base.join("apollia").join("apollia.toml")
 }
@@ -535,7 +535,7 @@ fn resolve_apollia_home(override_path: Option<&Path>) -> Option<PathBuf> {
     if let Some(p) = override_path {
         return Some(p.to_path_buf());
     }
-    dirs::home_dir().map(apollia_core::paths::data_dir_under)
+    apollia_core::paths::home_dir().map(apollia_core::paths::data_dir_under)
 }
 
 /// Wipe the Apollia home directory (factory reset).

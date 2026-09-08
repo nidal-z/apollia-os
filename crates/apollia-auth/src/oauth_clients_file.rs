@@ -75,7 +75,7 @@ pub struct OAuthClientsFile {
 /// Returns `None` when the home directory cannot be determined (e.g. minimal
 /// container without `$HOME`). Callers treat this as "no override file".
 pub fn oauth_clients_path() -> Option<PathBuf> {
-    Some(oauth_clients_path_in(dirs::home_dir()?))
+    Some(oauth_clients_path_in(apollia_core::paths::home_dir()?))
 }
 
 /// Build the overrides path rooted at `home`. Used by tests to bypass `$HOME`.

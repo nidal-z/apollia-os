@@ -103,7 +103,7 @@ fn make_client(socket: Option<PathBuf>) -> RuntimeClient {
 /// `~/.apollia/` directory cannot be created. In that case history
 /// is kept in memory only for the current session.
 fn history_path() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
+    let home = apollia_core::paths::home_dir()?;
     let dir = apollia_core::paths::data_dir_under(home);
     std::fs::create_dir_all(&dir).ok()?;
     Some(dir.join("repl_history"))

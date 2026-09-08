@@ -146,7 +146,7 @@ pub(super) fn parse_runtime_servers(servers: &serde_json::Value) -> Vec<serde_js
 /// Open `~/.apollia/mcp.db` and list every persisted server config (enabled or not).
 /// Returns an empty vec on any error; the live runtime list still wins.
 pub(super) fn read_configured_servers() -> Vec<apollia_mcp::config::McpServerConfig> {
-    let home = match dirs::home_dir() {
+    let home = match apollia_core::paths::home_dir() {
         Some(h) => h,
         None => return Vec::new(),
     };

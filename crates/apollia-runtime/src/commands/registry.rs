@@ -83,7 +83,7 @@ impl CommandRegistry {
     ///
     /// Fail-silent: missing directories are treated as empty command sets.
     pub async fn load(cwd: &Path) -> Self {
-        let home = dirs::home_dir();
+        let home = apollia_core::paths::home_dir();
         Self::load_with_home(cwd, home.as_deref()).await
     }
 
@@ -108,7 +108,7 @@ impl CommandRegistry {
     /// during [`CommandRegistry::load`].  A missing directory that is now
     /// present (or vice-versa) also triggers a reload.
     pub async fn needs_reload(&self, cwd: &Path) -> bool {
-        let home = dirs::home_dir();
+        let home = apollia_core::paths::home_dir();
         let cwd_dir = apollia_core::paths::data_dir_under(cwd).join("commands");
         let home_dir = home
             .as_deref()

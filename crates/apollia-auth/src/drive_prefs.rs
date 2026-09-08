@@ -114,7 +114,7 @@ pub struct DrivePrefsFile {
 
 /// Resolve the path to `~/.apollia/drive-prefs.toml`.
 pub fn drive_prefs_path() -> Option<PathBuf> {
-    Some(drive_prefs_path_in(dirs::home_dir()?))
+    Some(drive_prefs_path_in(apollia_core::paths::home_dir()?))
 }
 
 /// Build the prefs path rooted at `home`. Used by tests.
