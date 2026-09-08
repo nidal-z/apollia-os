@@ -27,35 +27,52 @@ pub struct SystemInfo {
     pub data_dir: Option<String>,
 }
 
+/// The system interpreter, named by asking it rather than by naming a command.
+///
+/// `python3` alone is a Unix habit: Windows installs `python.exe` and its
+/// `python3` is a Microsoft Store execution alias, a stub that sits on PATH,
+/// answers a "which" probe and refuses to run. The panel therefore showed no
+/// interpreter at all on Windows, and the two buttons that copy the path were
+/// simply absent from the settings page and from About. Measured on
+/// 2026-09-08 by the desktop books, which look for them.
+///
+/// Each candidate is tried by RUNNING it, so presence proves nothing and the
+/// alias is skipped. `None` when none answers, which the interface reads as
+/// "no system Python", and which stays true: the agents run on the bundled
+/// interpreter either way.
+async fn detect_system_python() -> Option<String> {
+    for candidate in ["python3", "python"] {
+        let mut probe = tokio::process::Command::new(candidate);
+        apollia_core::subprocess_env::scrub_bundled_python_async(&mut probe);
+        apollia_core::subprocess_window::hide_console_async(&mut probe);
+        let output = probe
+            .args(["-c", "import sys; print(sys.executable)"])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .await;
+        if let Ok(output) = output {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path.is_empty() {
+                    return Some(path);
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Returns the system information for the Advanced section of Settings.
 ///
-/// Detects the Apollia version, the OS, and the Python 3 path via
-/// `python3 -c "import sys; print(sys.executable)"`.
+/// Detects the Apollia version, the OS, and the system Python, the last one
+/// through [`detect_system_python`].
 #[tauri::command]
 pub async fn get_system_info() -> Result<SystemInfo, String> {
     let version = env!("CARGO_PKG_VERSION").to_string();
     let os = format!("{} {}", std::env::consts::OS, std::env::consts::ARCH);
 
-    let mut which_python = tokio::process::Command::new("python3");
-    apollia_core::subprocess_env::scrub_bundled_python_async(&mut which_python);
-    apollia_core::subprocess_window::hide_console_async(&mut which_python);
-    let python_path = match which_python
-        .args(["-c", "import sys; print(sys.executable)"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .output()
-        .await
-    {
-        Ok(output) if output.status.success() => {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if path.is_empty() {
-                None
-            } else {
-                Some(path)
-            }
-        }
-        _ => None,
-    };
+    let python_path = detect_system_python().await;
 
     let data_dir = apollia_core::paths::data_dir().map(|p| p.display().to_string());
 
