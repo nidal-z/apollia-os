@@ -17633,6 +17633,9 @@
       "label": "12b-stt-test-listening (start_tour_recording answered by the harness, no capture opened)"
     },
     {
+      "kind": "clearToasts"
+    },
+    {
       "kind": "click",
       "testid": "stt-test-stop",
       "timeoutMs": 3000

@@ -211,6 +211,22 @@ export interface EmitEventStep {
   payload?: unknown;
 }
 
+/**
+ * Empty the toast stack.
+ *
+ * The container renders four toasts and queues the rest behind a "+N" chip, so
+ * a fifth one raised by the gesture under test is never in the document and no
+ * assertion can read it. How many are alive when the gesture runs depends on
+ * how fast the preceding steps went, which is a property of the machine: the
+ * same book left four live toasts under Ubuntu, where a screenshot step costs
+ * nothing, and none on macOS, where each one costs about a second. Measured on
+ * 2026-09-08, on the dictation self-test. A book asserting the toast of one
+ * gesture clears the stack first.
+ */
+export interface ClearToastsStep {
+  kind: "clearToasts";
+}
+
 export type Step =
   | GotoStep
   | WaitForStep
@@ -228,6 +244,7 @@ export type Step =
   | PressStep
   | StubInvokeStep
   | ClearStubsStep
+  | ClearToastsStep
   | ResizeWindowStep
   | FaultStep
   | EmitEventStep;

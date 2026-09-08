@@ -12,6 +12,7 @@ import { resetDeterministicUiState, pinRunLocale } from "./determinism";
 import { InvokeStubs, expandHome } from "./invokeStubs";
 import { seam } from "./invokeSeam";
 import { simulateHeartbeatLoss } from "../stores/runtimeHealth";
+import { clearToasts } from "$lib/components/ui/toast";
 import type {
   AutomationBoot,
   RunReport,
@@ -560,6 +561,10 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
         argsMatch: step.argsMatch,
       });
       return `stubbed ${step.command} (${mode}${step.once ? ", once" : ""})`;
+    }
+    case "clearToasts": {
+      clearToasts();
+      return "cleared the toast stack";
     }
     case "clearStubs": {
       const n = ctx.stubs?.clear(step.command) ?? 0;

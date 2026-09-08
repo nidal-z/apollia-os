@@ -69,6 +69,7 @@ SCHEMAS = {
     # is a cancelled picker); checked in check_step like selectOption.
     "stubInvoke": ({"command"}, {"resolve", "reject", "patch", "once", "argsMatch"}, None),
     "clearStubs": (set(), {"command"}, None),
+    "clearToasts": (set(), set(), None),
     "resizeWindow": ({"width", "height"}, set(), None),
     "fault": ({"name"}, set(), None),
     "emitEvent": ({"event"}, {"payload"}, None),
