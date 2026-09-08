@@ -1,5 +1,11 @@
 # Rust build artifacts
 /target/
+# A crate's own target/, at any depth. The anchored rule above covers the
+# workspace one alone, and a build driven from inside a crate directory, which
+# the desktop recipes do, leaves a second one there: 5.9 GB reported as
+# untracked by every editor. No tracked file has ever lived under a directory
+# named target.
+**/target/
 **/*.rs.bk
 
 # Cargo.lock - omitted for binaries (kept for libraries)
