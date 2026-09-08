@@ -133,8 +133,15 @@ SEED_HOME="${1:-$PWD/.apollia-seed-home}"
 DATA="$SEED_HOME/.apollia"
 CFG="$SEED_HOME/.config/apollia"
 
-PROJECT_ROOT="${APOLLIA_SEED_PROJECT_ROOT:-$REPO_ROOT}"
-HOME_ALIAS="${APOLLIA_SEED_HOME_ALIAS:-$SEED_HOME}"
+PROJECT_ROOT="$(seed_native_path "${APOLLIA_SEED_PROJECT_ROOT:-$REPO_ROOT}")"
+# Native form, because these two are the only paths this script writes INTO a
+# database rather than passing to a shell tool: the product reads them back and
+# opens them itself. git-bash hands out `/c/Users/...`, its own POSIX view, and
+# a native Windows binary opens nothing under that name. Measured on
+# 2026-09-08: the desktop books answered "agent not found: seed-classifier" on
+# a profile whose agent files were all in place, because installed_agents named
+# them the POSIX way.
+HOME_ALIAS="$(seed_native_path "${APOLLIA_SEED_HOME_ALIAS:-$SEED_HOME}")"
 # Every absolute path written INTO a database has to name the home the profile
 # will end up under, not the directory this script happens to build in. They are
 # the same for the automaton, which builds straight into its target, and they
@@ -318,7 +325,7 @@ if [ -f "$HERE/files/mcp-stub-server.py" ]; then
   STUB_DST="$DATA/mcp-stub-server.py"
   # Copied to the staging path, referenced by the final one, for the reason
   # given at DATA_ALIAS above.
-  STUB_REF="$(seed_native_path "$DATA_ALIAS/mcp-stub-server.py")"
+  STUB_REF="$DATA_ALIAS/mcp-stub-server.py"
   cp "$HERE/files/mcp-stub-server.py" "$STUB_DST"
   chmod +x "$STUB_DST"
   if [ -f "$DATA/mcp.db" ]; then
