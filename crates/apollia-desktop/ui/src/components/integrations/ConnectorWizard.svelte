@@ -23,6 +23,7 @@
     recordDisclaimerAcceptance,
   } from "./WizardStepDisclaimer.svelte";
   import WizardStepAuth from "./WizardStepAuth.svelte";
+  import { nextDisclaimerChecks } from "./disclaimerChecks";
   import WizardStepTest from "./WizardStepTest.svelte";
   import WizardStepCoaching from "./WizardStepCoaching.svelte";
   import {
@@ -60,6 +61,9 @@
   // ── Disclaimer state (step 1) ───────────────────────────────────────────────
   let disclaimerChecks = $state<Record<string, boolean>>({});
   let disclaimerVersionOk = $state(false);
+  // Whether anyone has ticked a box yet, so the asynchronous version lookup
+  // cannot undo their work when it lands.
+  let disclaimerTouched = $state(false);
 
   const disclaimerComplete = $derived(
     DISCLAIMER_ITEMS.every((key) => {
@@ -125,19 +129,18 @@
       oauthSigningIn = false;
       oauthSigninError = null;
       oauthClientIdOverride = null;
-      // Pre-check disclaimer if current version is already accepted.
+      disclaimerTouched = false;
+      // Pre-check the disclaimer if the current version is already accepted.
+      // This lookup hashes the disclaimer text, so it resolves after the
+      // dialog is on screen: whatever it decides, it must not overwrite boxes
+      // someone has ticked in the meantime. See nextDisclaimerChecks.
       void isDisclaimerVersionAccepted().then((v) => {
         disclaimerVersionOk = v;
-        if (v) {
-          disclaimerChecks = {
-            code_on_machine: true,
-            external_data: true,
-            revocable: true,
-            read_capabilities: true,
-          };
-        } else {
-          disclaimerChecks = {};
-        }
+        disclaimerChecks = nextDisclaimerChecks(
+          disclaimerTouched,
+          v,
+          disclaimerChecks,
+        );
       });
     }
   });
@@ -308,6 +311,7 @@
   }
 
   function handleDisclaimerChange(key: string, value: boolean): void {
+    disclaimerTouched = true;
     disclaimerChecks = { ...disclaimerChecks, [key]: value };
   }
 
