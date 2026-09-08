@@ -83,4 +83,14 @@ bundle_python_link_dev() {
     else
         ln -sfn "$root" "$dest"
     fi
+    # Say so here rather than let the app boot on the wrong interpreter and the
+    # books measure four agents that failed to load. Two runs were spent that
+    # way on 2026-09-08, each one twenty minutes, before the cause was named.
+    if [ ! -x "$dest/python.exe" ] && [ ! -x "$dest/bin/python3.13" ]; then
+        echo "error: could not put the Python bundle at $dest" >&2
+        echo "       The app probes that path at run time; without it every" >&2
+        echo "       agent fails to load with \"No module named 'apollia'\"." >&2
+        echo "       Bundle: $root" >&2
+        return 1
+    fi
 }
