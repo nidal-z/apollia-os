@@ -143,6 +143,35 @@ if ! FRESHNESS=$("$E2E_PYTHON" "$REPO_ROOT/scripts/binary_freshness.py" \
 fi
 
 REAL_HOME=$HOME
+# On Windows the product reads %USERPROFILE%, never $HOME: redirecting HOME
+# alone left every command running against the real profile of whoever ran the
+# suite. Measured on 2026-09-08 on a Windows machine, where the seeded
+# assertions failed for want of a seed while the destructive ones, a config
+# reset and a memory purge among them, were reaching the user's own data. The
+# two variables move together from here on, and are restored together.
+REAL_USERPROFILE="${USERPROFILE:-}"
+
+# Points the product at a profile, whatever this system calls the home of a
+# user. A Windows path goes through cygpath when git-bash provides it, because
+# a native binary cannot open the /c/... form this shell hands out.
+use_profile() {
+    export HOME="$1"
+    if [ -n "$REAL_USERPROFILE" ] || [ -n "${WINDIR:-}" ]; then
+        if command -v cygpath >/dev/null 2>&1; then
+            USERPROFILE="$(cygpath -w "$1")"
+        else
+            USERPROFILE="$1"
+        fi
+        export USERPROFILE
+    fi
+}
+
+restore_profile() {
+    export HOME="$REAL_HOME"
+    if [ -n "$REAL_USERPROFILE" ]; then
+        export USERPROFILE="$REAL_USERPROFILE"
+    fi
+}
 DEFAULT_GGUF="${REAL_HOME}/.apollia/models/Qwen3-30B-A3B-Q4_K_M.gguf"
 TEST_GGUF="${APOLLIA_TEST_MODEL_GGUF:-$DEFAULT_GGUF}"
 REQUIRE_RUNTIME="${APOLLIA_REQUIRE_RUNTIME:-0}"
@@ -223,11 +252,11 @@ SEED1="$RUN_TMP/seed-offline"
 # detail carries the reason instead of nothing, and echoed back so an operator
 # watching the run still reads it.
 if seed_err=$(build_seed_home "$SEED1" 2>&1); then
-    export HOME="$SEED1"
+    use_profile "$SEED1"
     CURRENT_TRACK="offline"
     # shellcheck source=tracks/track1_offline.sh
     source "$TRACK_DIR/track1_offline.sh"
-    export HOME="$REAL_HOME"
+    restore_profile
 else
     echo "$(red "FAIL"): could not build the seeded HOME for Track 1." >&2
     printf '%s\n' "$seed_err" >&2
@@ -242,7 +271,7 @@ if [[ "$REQUIRE_RUNTIME" == "1" ]]; then
     echo "$(bold "═══ Track 2 - RUNTIME (daemon on seeded HOME) ═══")"
     SEED2="$RUN_TMP/seed-runtime"
     if seed_err=$(build_seed_home "$SEED2" 2>&1); then
-        export HOME="$SEED2"
+        use_profile "$SEED2"
         MODEL_READY=0
         if [[ -f "$TEST_GGUF" ]]; then
             # Repoint the seeded default backend at the real model by ABSOLUTE
@@ -306,7 +335,7 @@ if [[ "$REQUIRE_RUNTIME" == "1" ]]; then
             _record_fail "daemon start" "daemon.log (tail): $daemon_tail"
             echo "--- daemon.log (tail) ---"; printf '%s\n' "$daemon_tail"; echo "--- end ---"
         fi
-        export HOME="$REAL_HOME"
+        restore_profile
     else
         printf '%s\n' "$seed_err" >&2
         CURRENT_TRACK="runtime"
