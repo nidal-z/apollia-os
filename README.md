@@ -206,89 +206,16 @@ you whether one is there.
 
 ## LLM Backends
 
-The `apollia-os` binary talks to Anthropic, OpenAI, Mistral, Ollama and any
-other OpenAI-compatible endpoint (LM Studio, vLLM, a self-hosted gateway), and
-serves local GGUF models through an embedded `llama-server` (upstream
-llama.cpp) that the daemon spawns and supervises.
+Apollia talks to Anthropic, OpenAI, Mistral, Ollama and any OpenAI-compatible
+endpoint (LM Studio, vLLM, a self-hosted gateway), and serves local GGUF models
+through an embedded `llama-server` that the daemon spawns and supervises. A
+local model is the default; a cloud one is a choice you make, per agent or per
+conversation.
 
-Google Vertex AI is the exception to that list. Its backend exists and the
-router loads it, but `--provider` has no `vertex` value, so it is configured from
-`apollia.toml` alone, in a `[llm.vertex]` section authenticated by Application
-Default Credentials. It does not stream.
-
-Ollama needs no API key and runs anywhere you can reach over HTTP, including
-another machine on your network:
-
-```bash
-apollia-os llm backends create ollama-local --provider ollama --model qwen2.5:14b --default
-apollia-os llm backends create ollama-remote --provider ollama --model qwen2.5:14b \
-  --base-url http://192.168.1.20:11434/v1
-```
-
-### Cloud backends
-
-Configure a provider from the CLI:
-
-```bash
-apollia-os llm backends create prod --provider anthropic \
-  --model claude-sonnet-4-6 --api-key "$ANTHROPIC_API_KEY" --default
-apollia-os llm status
-```
-
-Cloud API backends can also be declared in `apollia.toml`. Only `type = "api"`
-backends are file-representable:
-
-```toml
-[llm]
-default = "anthropic"
-
-[[llm.backends]]
-name        = "anthropic"
-type        = "api"
-provider    = "anthropic"
-model       = "claude-haiku-4-5"
-api_url     = "https://api.anthropic.com"
-api_key_env = "ANTHROPIC_API_KEY"
-```
-
-Mind the base URL: the Anthropic client appends `/v1/messages` itself, so its
-`api_url` stops at the host. Every OpenAI-compatible provider is the opposite,
-its base must already end in `/v1` because `/chat/completions` is appended to
-it. The desktop settings dialog prefills the right shape per provider.
-
-Any OpenAI-compatible endpoint (OpenAI, Mistral, Ollama, LM Studio, vLLM, and so on)
-works the same way with `provider = "openai"` and the matching `api_url`.
-
-### Local GGUF inference
-
-Local models are not configured with a `type = "embedded"` block; they are
-registered through the CLI, and the daemon serves them through the embedded
-`llama-server` (upstream llama.cpp) over its OpenAI-compatible HTTP API, with
-native tool calling (`--jinja`) and continuous batching. The provider name is
-`llama-cpp`. Register the model:
-
-```bash
-apollia-os llm setup --local --model /path/to/model.gguf
-apollia-os llm reload
-```
-
-A packaged build stages `llama-server` automatically. On a source build the
-daemon looks for `llama-server` on your `PATH`; the repository provides a recipe
-to run one for local testing:
-
-```bash
-just llama-server /path/to/model.gguf
-```
-
-An upstream install works too (for example `brew install llama.cpp` on macOS, or
-a llama.cpp build on Linux). Place any `.gguf` file under `~/.apollia/models/`. If
-a local backend is configured but no `llama-server` is reachable, LLM calls fail
-with a `503 BackendUnavailable`.
-
-Multiple backends can coexist. `default` selects which one agents use unless they
-override it in their manifest.
-
----
+Declaring a backend:
+[configuration reference](https://docs.apollia.fr/reference/configuration/).
+Getting the most out of a local model:
+[accelerate local inference](https://docs.apollia.fr/how-to/accelerate-local-inference/).
 
 ## Writing an Agent
 
@@ -334,169 +261,52 @@ apollia-os agent enable coach
 apollia-os run coach "How does the Director pattern work?"
 ```
 
-### Workers and directors
+### Beyond a conversation
 
-- A **worker** exposes typed capabilities as A2A skills with `@skill`, invocable by any director.
-- A **director** orchestrates workers by calling `react(...)`, the ReAct (Reason + Act) loop utility exported from `apollia`:
+A **worker** answers one skill at a time and returns a payload; a **director**
+orchestrates workers and holds the plan. Both are the same minimal contract: a
+decorated class and an `agent = MyClass()` at module level.
 
-```python
-from apollia import agent, on_message, react
+Inside a skill, `ctx` is the whole runtime surface: `ctx.llm` for the model,
+`ctx.memory` for what the agent remembers, `ctx.tools` for the native tools
+(filesystem, shell, HTTP, search), `ctx.logger` for the trace. Every tool call
+goes through the permission engine and lands in the audit journal.
 
+- [Your first agent](https://docs.apollia.fr/tutorials/your-first-agent/)
+- [Write a worker](https://docs.apollia.fr/how-to/write-a-worker/)
+- [Write a director](https://docs.apollia.fr/how-to/write-a-director/)
+- [SDK reference](https://docs.apollia.fr/reference/sdk/), including the full
+  `ctx` contract and the native tools
 
-@agent(name="director", version="0.1.0", description="Coordinates workers.")
-class Director:
-    @on_message
-    async def chat(self, message, history, ctx):
-        return await react(
-            ctx,
-            system="You are a director agent.",
-            user=message,
-            tools=[
-                await ctx.a2a.skill_as_tool("pdf.read_text"),
-                await ctx.a2a.skill_as_tool("web.search"),
-            ],
-            max_steps=10,
-        )
-```
-
-`react` delegates the `LLM -> tool(s) -> LLM -> ... -> final answer` cycle to the
-runtime, enforces an explicit `max_steps` budget, and returns the final answer as
-a string. Full tutorials: [Your first agent](https://docs.apollia.fr/tutorials/your-first-agent/)
-and the how-to guides for [workers](https://docs.apollia.fr/how-to/write-a-worker/) and
-[directors](https://docs.apollia.fr/how-to/write-a-director/).
-
-### Runtime context (`ctx`)
-
-The `ctx` object exposes the runtime's typed services to your handler. The most
-common ones:
-
-| Attribute | Description |
-|---|---|
-| `ctx.llm` | Text generation: `await ctx.llm.complete(messages)` |
-| `ctx.tools` | Native tool calls: `await ctx.tools.call("tool_name", args)`. `None` unless the agent declares `tools_required=("tool_name", ...)` in `@agent(...)` |
-| `ctx.memory` | Persistence: `record`, `recall`, `search`, `forget` (opt in per agent) |
-| `ctx.a2a` | Call other agents' skills |
-| `ctx.logger` | Structured logging routed to the runtime tracer |
-
-Several services degrade to `None` when the agent does not opt into them (for
-example `ctx.memory` without a `memory_namespace`); check before use. The full
-contract is documented in the [SDK / ctx reference](https://docs.apollia.fr/reference/sdk/).
-
-### Native tools
-
-The runtime ships a set of native tools that agents call through `ctx.tools`.
-Run `apollia-os tools list` for the live catalog with feature-flag and credential
-status. The current set:
-
-| Category | Tools |
-|---|---|
-| Shell / code | `bash_executor`, `python_executor` |
-| Files | `file_read`, `file_write`, `file_list`, `file_edit`, `file_glob`, `file_grep` |
-| Notebooks | `notebook_read`, `notebook_edit` |
-| Web | `http_fetch`, `web_search`, `web_read` |
-| Memory | `memory_search` |
-| Permissions | `permission_rule_add`, `permission_rule_list`, `permission_rule_remove` |
-| Human input | `ask_user` |
-
----
 
 ## Configuration
 
-Runtime behaviour is controlled by an `apollia.toml` file. The CLI resolves it in
-this order: an explicit `--config` override, then `./apollia.toml` in the working
-directory, then `$XDG_CONFIG_HOME/apollia/apollia.toml` (defaulting to
-`~/.config/apollia/apollia.toml`). Runtime state (the API token, SQLite databases,
-downloaded models) lives separately under `~/.apollia/`. Paths in the file support
-`~` expansion.
+Configuration lives in `~/.config/apollia/apollia.toml`, and every key is also
+reachable from `apollia-os config`. Nothing is required to start: the defaults
+run a local model against a local workspace.
 
-The recognized top-level sections are `[llm]`, `[runtime]`, `[tools]`, `[api]`,
-`[hitl]`, `[mcp]`, `[hooks]`, `[chat]`, and `[filesystem]`. Any other section is
-rejected by `config set`, and a file that still carries one logs a warning at
-startup rather than dropping it silently.
-
-`[memory]`, `[budget]`, `[a2a]`, `[oria]`, `[registry]` and `[permissions]` used
-to be accepted and are not. `[memory]` and `[budget]` never had a field to
-deserialize into at all; the other four did, and that structure was then never
-consulted, so a value written in any of the six never had an effect.
-`[permissions]` is the one worth naming, since it reads as though it governs
-something: the governance path that does run is the prefix-rule engine, and it
-takes nothing from this file.
-
-Triggers, notifications, speech-to-text, and installed agents are managed
-through the CLI and the desktop app (persisted in SQLite), not through this
-file.
-
-Inspect and edit the live config with the `config` command:
-
-```bash
-apollia-os config show
-apollia-os config get llm
-```
-
-The full section-by-section surface is in the
-[configuration reference](https://docs.apollia.fr/reference/configuration/) and the
-[CLI reference](https://docs.apollia.fr/reference/cli/).
-
----
+Every key, its default and its effect:
+[configuration reference](https://docs.apollia.fr/reference/configuration/).
 
 ## Triggers
 
-Triggers fire tasks automatically on a schedule or an external event. They are
-managed through the CLI (and the desktop app), which persists them:
+An agent can be woken by a schedule, a file that changes, or a webhook, rather
+than by you. Triggers are declared in the desktop application or through
+`apollia-os trigger`, and each one carries what happens when the agent is
+already busy.
 
-```bash
-apollia-os trigger create daily-report --agent reporter --kind cron --detail '0 9 * * *'
-apollia-os trigger list
-apollia-os trigger fire daily-report
-apollia-os trigger enable daily-report
-apollia-os trigger logs daily-report
-apollia-os trigger reload
-```
+The trigger types and their options:
+[`apollia-os trigger`](https://docs.apollia.fr/reference/cli/).
 
-**Source types:** `cron` · `interval` · `oneshot` · `file_watch` · `webhook`
+## Human-in-the-Loop
 
-A webhook trigger authenticates with an HMAC-SHA256 signature. Call
-`POST http://127.0.0.1:7771/webhooks/<trigger-id>` with header
-`X-Apollia-Signature: sha256=<hex-digest>`. The `sha256=` prefix is part of the
-value: without it the runtime answers 401.
+An agent that reaches a boundary stops and asks. Filesystem writes outside its
+workspace, a tool marked as requiring approval, a question it cannot answer on
+its own: each one becomes a request you answer, in the application or from the
+CLI, and each answer is recorded in the audit journal.
 
----
-
-## Human-in-the-Loop (HITL)
-
-A tool named in the agent manifest's `tools_requiring_approval` suspends the task
-before that tool runs and waits for a human decision. The gate is enforced on the
-orchestrated path, step by step, before ORIA executes a step whose tool is in the
-list, plus on `mailbox:send` wherever it is called.
-
-Set it in the manifest, not in Python: the `@agent` decorator has no
-`tools_requiring_approval` parameter today, so the field is written in the
-`manifest.json` of an agent package and read from there by the runtime.
-`apollia-os agent validate` echoes back what it found, which is the way to check
-that the declaration took.
-
-```json
-{
-  "name": "reviewer",
-  "version": "0.1.0",
-  "description": "Reviews and edits code.",
-  "tools_requiring_approval": ["bash_executor", "file_write"]
-}
-```
-
-Approve or reject from the CLI:
-
-```bash
-apollia-os task list --pending-approval
-apollia-os task resume <task-id> --approve
-apollia-os task resume <task-id> --reject --reason "Too broad a command"
-```
-
-The agent resumes exactly where it stopped; conversation history is persisted
-across the suspension by the memory engine. A configurable timeout watcher
-auto-rejects approvals that exceed a deadline.
-
----
+How approvals are asked, scoped and revoked:
+[human in the loop](https://docs.apollia.fr/how-to/human-in-the-loop/).
 
 ## Security model
 
@@ -552,74 +362,21 @@ Views update in real time over the Tauri event bus, not over SSE; the HTTP API i
 
 ## CLI Reference
 
-### Level 1 - Daily operations
+`apollia-os` covers the same surface as the desktop application: agents, tasks,
+chat, memory, triggers, permissions, models, connectors and the audit journal.
+Every command answers `--json` for scripting, and exit codes are part of the
+contract (0 success, 1 usage, 2 runtime unavailable).
 
-| Command | Description |
-|---|---|
-| `apollia-os start` | Start the runtime (foreground) |
-| `apollia-os stop` | Graceful shutdown (task drain) |
-| `apollia-os status` | Overview: agents, active tasks, tool health |
-| `apollia-os run <agent> "<input>"` | Submit a task and print the result |
-| `apollia-os doctor` | Diagnose the local environment (no runtime required) |
-
-### Level 2 - Full management
-
-| Command | Description |
-|---|---|
-| `apollia-os agent list\|install\|enable\|disable\|start\|stop\|show` | Manage agents |
-| `apollia-os task list\|status\|cancel\|resume\|approvals` | Manage tasks and HITL approvals |
-| `apollia-os a2a skills\|invoke` | Discover and invoke worker skills |
-| `apollia-os tools list\|show\|enable\|disable\|credentials` | Inspect and govern native tools |
-| `apollia-os memory` | Memory management |
-| `apollia-os audit list\|stats\|verify\|export` | Tool-call audit log |
-| `apollia-os trigger list\|fire\|enable\|disable\|logs\|reload` | Manage triggers |
-| `apollia-os llm status\|ping\|chat\|backends\|reload` | LLM backend health and interactive chat |
-| `apollia-os model list\|search\|show\|delete` | Local GGUF model files in `~/.apollia/models/` |
-| `apollia-os mcp list\|add\|remove\|test` | Manage MCP servers |
-| `apollia-os notify test\|list\|logs\|events` | Notification channel management |
-| `apollia-os config show\|set` | Inspect and edit `apollia.toml` |
-
-**Global flags:** `--json` (machine output) · `-q/--quiet` · `-v/--verbose` · `--debug` · `--socket <path>`
-
-**Exit codes:** `0` success · `1` usage error · `2` runtime error · `3` task failed · `4` timeout · `5` interrupted (`start` stopped by Ctrl+C)
-
-Every flag on every command is in the [CLI reference](https://docs.apollia.fr/reference/cli/).
-
----
+The full command tree: [CLI reference](https://docs.apollia.fr/reference/cli/).
 
 ## Project Structure
 
-```
-crates/
-  apollia-core/          # Shared types + config schema (AgentManifest, AIPTask, AIPResult, RuntimeEvent)
-  apollia-runtime/       # Runtime core (Supervisor, AgentRegistry, TaskRouter, EventBus, axum API)
-  apollia-oria/          # ORIA engine (Observer, Reasoner, Actor, StepBudget, ResilienceLayer)
-  apollia-aip/           # AIP bridge (PyO3, ctx services, ToolProxy, MemoryInterface, LlmProxy)
-  apollia-llm/           # LLM router (embedded llama-server for local GGUF + Anthropic, OpenAI-compatible, Vertex cloud)
-  apollia-runner/        # Out-of-process speech-to-text runner sidecar (whisper)
-  apollia-tools/         # Native tool registry + sandbox
-  apollia-memory/        # Memory engine (SQLite, FTS5, episodic/semantic/procedural)
-  apollia-triggers/      # Trigger engine (cron, interval, oneshot, file_watch, webhook)
-  apollia-notifications/ # Notification engine (desktop, webhook channels)
-  apollia-mcp/           # MCP client transports
-  apollia-stt/           # Speech-to-text (whisper)
-  apollia-permissions/   # Permissions engine (safelist, injection detection)
-  apollia-workspace/     # Workspace inspection and initialization
-  apollia-auth/          # OAuth2 PKCE authentication
-  apollia-connectors/    # Native SaaS connectors (Google Workspace, Microsoft 365)
-  apollia-prompts/       # Unified prompt corpus
-  apollia-eval/          # Evaluation harness
-  apollia-cli/           # CLI binary (clap v4, produces the `apollia-os` binary)
-  apollia-desktop/       # Desktop app (Tauri v2 + Svelte 5)
-sdk/                     # Python SDK (the `apollia` package)
-clients/                 # Generated client SDKs + example agents (echo_agent.py, demo_driver.py)
-agents/                  # Example agents (examples/hello/agent.py)
-docs/                    # Documentation (Docusaurus site, LLM rulebook)
-tests/                   # End-to-end integration tests
-scripts/                 # Tooling and desktop E2E automation
-```
+A Cargo workspace of Rust crates, a Python SDK under `sdk/`, the desktop
+application under `crates/apollia-desktop/`, and the documentation site under
+`docs/site/`.
 
----
+What each crate holds and why it exists:
+[repository layout](https://docs.apollia.fr/explanation/repository-layout/).
 
 ## Contributing
 
