@@ -82,6 +82,36 @@ pub struct AutomationBoot {
     script: String,
     allow_destructive: bool,
     home_dir: String,
+    python_path: String,
+}
+
+/// A Python 3 that actually starts, for the `${PYTHON}` token of a recipe.
+///
+/// A book that has to name an interpreter, the custom MCP form being the one
+/// that does, used to spell `/usr/bin/python3`: right on macOS and on most
+/// Linux images, and a path that names nothing on Windows, where the server it
+/// declares then fails to spawn with "the system cannot find the path
+/// specified". Candidates are tried by RUNNING them, because `python3` on
+/// Windows is a Microsoft Store alias that sits on PATH and refuses to start.
+/// Empty when none answers: the runner then refuses `${PYTHON}` rather than
+/// expanding it to nothing.
+fn resolve_python() -> String {
+    for candidate in ["python3", "python"] {
+        let mut probe = std::process::Command::new(candidate);
+        probe.arg("-c").arg("import sys; sys.exit(0)");
+        apollia_core::subprocess_window::hide_console(&mut probe);
+        let started = probe
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if started {
+            return candidate.to_string();
+        }
+    }
+    String::new()
 }
 
 /// Returns the JSON script pointed at by `APOLLIA_AUTOMATION`, or `None` when the
@@ -116,6 +146,7 @@ pub async fn automation_script() -> Result<Option<AutomationBoot>, String> {
                 script: content,
                 allow_destructive,
                 home_dir,
+                python_path: resolve_python(),
             }))
         }
         Err(source) => Err(AutomationError::ScriptRead {

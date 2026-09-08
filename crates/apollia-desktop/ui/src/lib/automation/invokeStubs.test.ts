@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { InvokeStubs, argsMatch, expandHome, type InvokeHost } from "./invokeStubs";
+import { InvokeStubs, argsMatch, expandTokens, type InvokeHost } from "./invokeStubs";
 
 /**
  * The stub seam replaces the one function every Tauri call of the webview
@@ -33,7 +33,7 @@ function call(host: InvokeHost, cmd: string, args?: unknown): Promise<unknown> {
   return current(cmd, args);
 }
 
-describe("expandHome", () => {
+describe("expandTokens", () => {
   it("replaces every ${HOME} in nested strings and leaves other values alone", () => {
     // GIVEN a value mixing strings with the token, strings without, and non-strings
     const value = {
@@ -44,7 +44,7 @@ describe("expandHome", () => {
     };
 
     // WHEN it is expanded against a home
-    const out = expandHome(value, "/seed");
+    const out = expandTokens(value, { home: "/seed", python: "python3" });
 
     // THEN each token is replaced, nothing else changes
     expect(out).toEqual({
@@ -55,14 +55,27 @@ describe("expandHome", () => {
     });
   });
 
-  it("refuses the token when the boot carried no home", () => {
-    // GIVEN an empty home
-    const home = "";
+  it("refuses a token the boot resolved nothing for", () => {
+    // GIVEN a boot that resolved neither a home nor an interpreter
+    const none = { home: "", python: "" };
 
-    // WHEN a string carrying the token is expanded
-    // THEN it throws instead of producing a path rooted at nothing
-    expect(() => expandHome("${HOME}/.apollia", home)).toThrow(/homeDir/);
-    expect(expandHome("no token", home)).toBe("no token");
+    // WHEN a string carrying either token is expanded
+    // THEN it throws instead of producing a path rooted at nothing, or a
+    // server declared with no command at all
+    expect(() => expandTokens("${HOME}/.apollia", none)).toThrow(/HOME/);
+    expect(() => expandTokens("${PYTHON}", none)).toThrow(/PYTHON/);
+    expect(expandTokens("no token", none)).toBe("no token");
+  });
+
+  it("replaces the interpreter token the custom MCP form needs", () => {
+    // GIVEN a boot that resolved an interpreter
+    const tokens = { home: "/seed", python: "C:/Python312/python.exe" };
+
+    // WHEN a command line naming both tokens is expanded
+    const out = expandTokens("${PYTHON} ${HOME}/.apollia/stub.py", tokens);
+
+    // THEN both are replaced, each by its own value
+    expect(out).toBe("C:/Python312/python.exe /seed/.apollia/stub.py");
   });
 });
 

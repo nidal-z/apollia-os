@@ -728,7 +728,7 @@
     {
       "kind": "fill",
       "testid": "custom-mcp-command-input",
-      "text": "/usr/bin/python3",
+      "text": "${PYTHON}",
       "timeoutMs": 3000
     },
     {

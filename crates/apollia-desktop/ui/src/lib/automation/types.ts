@@ -48,7 +48,8 @@ export interface ClickStep extends Target {
 export interface FillStep extends Target {
   kind: "fill";
   /**
-   * `${HOME}` expands to the boot's `homeDir` (the seeded, throwaway home).
+   * `${HOME}` expands to the boot's `homeDir` (the seeded, throwaway home),
+   * and `${PYTHON}` to an interpreter the boot found by running one.
    * On an `input[type=file]` the text becomes the content of one text/plain
    * file named `automation-attachment.txt`, built in the webview.
    */
@@ -285,4 +286,10 @@ export interface AutomationBoot {
    *  substituted for `${HOME}` in `fill.text` and in `stubInvoke` values.
    *  Empty when no home resolves, in which case `${HOME}` is refused. */
   homeDir: string;
+  /** An interpreter that starts on this machine; substituted for `${PYTHON}`
+   *  in the same places. A book that has to name one, the custom MCP form
+   *  being the one that does, cannot spell an absolute path: `/usr/bin/python3`
+   *  names nothing on Windows. Empty when none answered, in which case
+   *  `${PYTHON}` is refused. */
+  pythonPath: string;
 }

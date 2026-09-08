@@ -9,7 +9,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { resetDeterministicUiState, pinRunLocale } from "./determinism";
-import { InvokeStubs, expandHome } from "./invokeStubs";
+import { InvokeStubs, expandTokens, type RunTokens } from "./invokeStubs";
 import { seam } from "./invokeSeam";
 import { simulateHeartbeatLoss } from "../stores/runtimeHealth";
 import { clearToasts } from "$lib/components/ui/toast";
@@ -207,8 +207,8 @@ interface RunContext {
   screenshots: string[];
   /** The IPC stub seam, installed on first use. */
   stubs: InvokeStubs | null;
-  /** The boot's homeDir, substituted for `${HOME}`. */
-  home: string;
+  /** What a recipe may name without knowing where the run put it. */
+  tokens: RunTokens;
   /** Set by resizeWindow so the run's end puts the default size back. */
   resized: boolean;
 }
@@ -272,7 +272,7 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
         hiddenFile instanceof HTMLInputElement && hiddenFile.type === "file"
           ? hiddenFile
           : await waitForEl(sel.css, step.timeoutMs ?? DEFAULT_TIMEOUT_MS, step.nth);
-      fillEl(el, expandHome(step.text, ctx.home));
+      fillEl(el, expandTokens(step.text, ctx.tokens));
       return `filled ${sel.label}`;
     }
     case "fault": {
@@ -283,7 +283,7 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
       // Tauri's JS `emit` goes through plugin:event|emit and reaches every
       // listener, the webview's own `listen` included, which is how a recipe
       // delivers a backend-borne event (a HITL request, say) without a model.
-      await emit(step.event, expandHome(step.payload, ctx.home));
+      await emit(step.event, expandTokens(step.payload, ctx.tokens));
       return `emitted ${step.event}`;
     }
     case "sendChat": {
@@ -556,7 +556,7 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
       ctx.stubs.add({
         command: step.command,
         mode,
-        value: expandHome(step[mode], ctx.home),
+        value: expandTokens(step[mode], ctx.tokens),
         once: step.once === true,
         argsMatch: step.argsMatch,
       });
@@ -629,15 +629,23 @@ function keyToCode(key: string): string {
 // machine holds, and a reset at boot would make getting-started-keep
 // unreachable for good.
 
-// App.svelte hands the runner the boot's script and gate; the home comes from
-// the same payload, re-read here when the caller does not pass it.
-async function bootHomeDir(): Promise<string> {
+// App.svelte hands the runner the boot's script and gate; the tokens a recipe
+// may name come from the same payload, re-read here when the caller passes
+// only the home.
+async function bootTokens(): Promise<RunTokens> {
   try {
     const boot = await invoke<AutomationBoot | null>("automation_script");
-    return boot?.homeDir ?? "";
+    return { home: boot?.homeDir ?? "", python: boot?.pythonPath ?? "" };
   } catch {
-    return "";
+    return { home: "", python: "" };
   }
+}
+
+/** The run's tokens: an explicit home still wins, the interpreter is the
+ *  boot's, since no caller of this function knows one. */
+async function runTokens(homeDir?: string): Promise<RunTokens> {
+  const boot = await bootTokens();
+  return { home: homeDir ?? boot.home, python: boot.python };
 }
 
 export async function runAutomation(
@@ -672,7 +680,7 @@ export async function runAutomation(
     captures: {},
     screenshots: [],
     stubs: new InvokeStubs(seam),
-    home: homeDir ?? (await bootHomeDir()),
+    tokens: await runTokens(homeDir),
     resized: false,
   };
   let ok = true;

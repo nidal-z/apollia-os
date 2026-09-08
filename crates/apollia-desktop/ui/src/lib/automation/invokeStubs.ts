@@ -36,25 +36,44 @@ export interface Stub {
   argsMatch?: Record<string, unknown>;
 }
 
-const HOME_TOKEN = "${HOME}";
+/** What a recipe may name without knowing where the run put it. */
+export interface RunTokens {
+  /** The boot's home, for `${HOME}`. */
+  home: string;
+  /** An interpreter that starts, for `${PYTHON}`; empty when none answered. */
+  python: string;
+}
 
-/** Replace every `${HOME}` in the strings of `value`, recursing through arrays
- *  and plain objects; other values pass through untouched. Refuses the token
- *  when `home` is empty, so a boot without a home cannot expand it to nothing
- *  and quietly point a picker at `/.apollia`. */
-export function expandHome<T>(value: T, home: string): T {
+const TOKEN_NAMES: Array<[string, keyof RunTokens]> = [
+  ["${HOME}", "home"],
+  ["${PYTHON}", "python"],
+];
+
+/** Replace every run token in the strings of `value`, recursing through arrays
+ *  and plain objects; other values pass through untouched. Refuses a token
+ *  whose value is empty, so a boot that resolved nothing cannot expand it away
+ *  and quietly point a picker at `/.apollia` or declare a server with no
+ *  command. */
+export function expandTokens<T>(value: T, tokens: RunTokens): T {
   if (typeof value === "string") {
-    if (!value.includes(HOME_TOKEN)) return value;
-    if (!home) throw new Error("${HOME} used but the boot carried no homeDir");
-    return value.split(HOME_TOKEN).join(home) as T;
+    let out: string = value;
+    for (const [token, key] of TOKEN_NAMES) {
+      if (!out.includes(token)) continue;
+      const replacement = tokens[key];
+      if (!replacement) {
+        throw new Error(`${token} used but the boot resolved none`);
+      }
+      out = out.split(token).join(replacement);
+    }
+    return out as T;
   }
   if (Array.isArray(value)) {
-    return value.map((v: unknown) => expandHome(v, home)) as T;
+    return value.map((v: unknown) => expandTokens(v, tokens)) as T;
   }
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = expandHome(v, home);
+      out[k] = expandTokens(v, tokens);
     }
     return out as T;
   }
