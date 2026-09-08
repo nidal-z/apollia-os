@@ -24,6 +24,11 @@ bundle_python_native() {
     fi
 }
 
+# True when a directory holds an interpreter, either layout.
+bundle_python_holds_interpreter() {
+    [ -x "$1/python.exe" ] || [ -x "$1/bin/python3.13" ]
+}
+
 bundle_python_env() {
     local root="$1"
     if [ -x "$root/python.exe" ]; then
@@ -69,28 +74,41 @@ bundle_python_find() {
 bundle_python_link_dev() {
     local root="$1" dest="$2"
     [ -n "$root" ] || return 0
-    [ "$root" != "$dest" ] || return 0
-    if [ -e "$dest" ] || [ -L "$dest" ]; then
-        [ -L "$dest" ] || return 0
-        rm -f "$dest"
+    if [ "$root" != "$dest" ] && ! bundle_python_holds_interpreter "$dest"; then
+        # Whatever sits there carries no interpreter: a link left by an earlier
+        # layout, or an empty directory. Remove the entry itself and never its
+        # contents, so a junction cannot take the real bundle down with it.
+        if [ -L "$dest" ]; then
+            rm -f "$dest"
+        elif [ -d "$dest" ]; then
+            if command -v cygpath >/dev/null 2>&1; then
+                cmd //c rmdir "$(cygpath -w "$dest")" >/dev/null 2>&1
+            else
+                rmdir "$dest" 2>/dev/null
+            fi
+        fi
+        mkdir -p "$(dirname "$dest")"
+        if command -v cygpath >/dev/null 2>&1; then
+            # An NTFS junction, which an ordinary user may create; a symbolic
+            # link needs a privilege, and git-bash's emulated `ln -s` would
+            # copy the 200 MB of the bundle on every run instead of pointing
+            # at it.
+            cmd //c mklink /J "$(cygpath -w "$dest")" "$(cygpath -w "$root")" >/dev/null 2>&1
+        else
+            ln -sfn "$root" "$dest"
+        fi
     fi
-    mkdir -p "$(dirname "$dest")"
-    if command -v cygpath >/dev/null 2>&1; then
-        # An NTFS junction, which an ordinary user may create; a symbolic link
-        # needs a privilege, and git-bash's emulated `ln -s` would copy the
-        # 200 MB of the bundle on every run instead of pointing at it.
-        cmd //c mklink /J "$(cygpath -w "$dest")" "$(cygpath -w "$root")" >/dev/null 2>&1
-    else
-        ln -sfn "$root" "$dest"
-    fi
-    # Say so here rather than let the app boot on the wrong interpreter and the
-    # books measure four agents that failed to load. Two runs were spent that
-    # way on 2026-09-08, each one twenty minutes, before the cause was named.
-    if [ ! -x "$dest/python.exe" ] && [ ! -x "$dest/bin/python3.13" ]; then
-        echo "error: could not put the Python bundle at $dest" >&2
+    # Verified on every path, including the one that changed nothing. The first
+    # version of this returned early when the destination already existed, so a
+    # stale directory sitting there was reported as success and the app booted
+    # on the system interpreter anyway. Measured on 2026-09-08: that early
+    # return cost a full run.
+    if ! bundle_python_holds_interpreter "$dest"; then
+        echo "error: no Python bundle reachable at $dest" >&2
         echo "       The app probes that path at run time; without it every" >&2
         echo "       agent fails to load with \"No module named 'apollia'\"." >&2
-        echo "       Bundle: $root" >&2
+        echo "       Bundle found at: $root" >&2
+        echo "       If something else occupies that path, remove it and rerun." >&2
         return 1
     fi
 }
