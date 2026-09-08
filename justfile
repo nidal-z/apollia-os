@@ -495,39 +495,30 @@ desktop-dev-qwen: _require-tauri runners-dev
 
 # Build desktop bundle for a target (defaults to this host).
 desktop-build target="" runners="" backend="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source "{{justfile_directory()}}/scripts/host_desktop_defaults.sh"
-    TARGET="{{target}}"
-    [ -n "$TARGET" ] || TARGET="$(host_desktop_triple)"
-    RUNNERS="{{runners}}"
-    [ -n "$RUNNERS" ] || RUNNERS="$(host_desktop_runners "$TARGET")"
-    BACKEND="{{backend}}"
-    [ -n "$BACKEND" ] || BACKEND="$(host_desktop_llama_backend "$TARGET")"
-    echo "==> desktop-build target=$TARGET runners=$RUNNERS engine=${BACKEND:-derived from runners}"
-    cd crates/apollia-desktop
-    APOLLIA_DESKTOP_RUNNERS="$RUNNERS" \
-        APOLLIA_DESKTOP_LLAMA_BACKEND="$BACKEND" \
-        CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
-        cargo tauri build --target "$TARGET"
+    @source "{{justfile_directory()}}/scripts/host_desktop_defaults.sh"; \
+    TARGET="{{target}}"; [ -n "$TARGET" ] || TARGET="$(host_desktop_triple)"; \
+    RUNNERS="{{runners}}"; [ -n "$RUNNERS" ] || RUNNERS="$(host_desktop_runners "$TARGET")"; \
+    BACKEND="{{backend}}"; [ -n "$BACKEND" ] || BACKEND="$(host_desktop_llama_backend "$TARGET")"; \
+    PATCH="$(desktop_updater_patch)"; \
+    echo "==> desktop-build target=$TARGET runners=$RUNNERS engine=${BACKEND:-derived from runners}"; \
+    cd "{{justfile_directory()}}/crates/apollia-desktop"; \
+    export APOLLIA_DESKTOP_RUNNERS="$RUNNERS" APOLLIA_DESKTOP_LLAMA_BACKEND="$BACKEND" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded; \
+    if [ -n "$PATCH" ]; then cargo tauri build --target "$TARGET" --config "$PATCH"; \
+    else cargo tauri build --target "$TARGET"; fi
 
 # The artifacts land in target/release rather than target/<triple>/release.
 
 # Build desktop bundle for the host without naming a triple.
 desktop-build-host runners="" backend="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    source "{{justfile_directory()}}/scripts/host_desktop_defaults.sh"
-    RUNNERS="{{runners}}"
-    [ -n "$RUNNERS" ] || RUNNERS="$(host_desktop_runners)"
-    BACKEND="{{backend}}"
-    [ -n "$BACKEND" ] || BACKEND="$(host_desktop_llama_backend)"
-    echo "==> desktop-build-host runners=$RUNNERS engine=${BACKEND:-derived from runners}"
-    cd crates/apollia-desktop
-    APOLLIA_DESKTOP_RUNNERS="$RUNNERS" \
-        APOLLIA_DESKTOP_LLAMA_BACKEND="$BACKEND" \
-        CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
-        cargo tauri build
+    @source "{{justfile_directory()}}/scripts/host_desktop_defaults.sh"; \
+    RUNNERS="{{runners}}"; [ -n "$RUNNERS" ] || RUNNERS="$(host_desktop_runners)"; \
+    BACKEND="{{backend}}"; [ -n "$BACKEND" ] || BACKEND="$(host_desktop_llama_backend)"; \
+    PATCH="$(desktop_updater_patch)"; \
+    echo "==> desktop-build-host runners=$RUNNERS engine=${BACKEND:-derived from runners}"; \
+    cd "{{justfile_directory()}}/crates/apollia-desktop"; \
+    export APOLLIA_DESKTOP_RUNNERS="$RUNNERS" APOLLIA_DESKTOP_LLAMA_BACKEND="$BACKEND" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded; \
+    if [ -n "$PATCH" ]; then cargo tauri build --config "$PATCH"; \
+    else cargo tauri build; fi
 
 # -----------------------------------------------------------------------------
 # CLI / release helpers

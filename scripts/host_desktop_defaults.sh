@@ -54,3 +54,25 @@ host_desktop_llama_backend() {
         *) printf 'vulkan\n' ;;
     esac
 }
+
+# The bundle configuration patch to pass to `cargo tauri build`, or nothing.
+#
+# tauri.conf.json carries an updater public key and `createUpdaterArtifacts`,
+# which together make the build demand TAURI_SIGNING_PRIVATE_KEY. Without it
+# the build runs to completion, writes its installers, and only then refuses,
+# so the operator reads a failure over artifacts that are sitting on disk and
+# are perfectly usable. Measured on 2026-09-08, on a Linux build that had just
+# produced its .deb and its AppImage.
+#
+# The release workflow already answers this by building with the artifacts
+# turned off and saying so. This is the same answer, so that a local build and
+# a CI build fail and succeed for the same reasons.
+desktop_updater_patch() {
+    if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+        return 0
+    fi
+    echo "==> TAURI_SIGNING_PRIVATE_KEY is not set: building without updater" >&2
+    echo "    artifacts. The installers are complete; what this build does not" >&2
+    echo "    produce is the signature the auto-update channel reads." >&2
+    printf '{"bundle":{"createUpdaterArtifacts":false}}\n'
+}
