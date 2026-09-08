@@ -75,18 +75,39 @@ fi
 # before running a single assertion, reporting a missing file rather than a
 # missing interpreter. Override with APOLLIA_E2E_PYTHON when a machine needs a
 # specific one.
-E2E_PYTHON="${APOLLIA_E2E_PYTHON:-}"
-if [ -z "$E2E_PYTHON" ]; then
+# A candidate counts only if it runs and answers 3. On Windows `python3` is an
+# App Execution Alias installed by the system: the file is there, `command -v`
+# finds it, and running it prints "Python was not found; run without arguments
+# to install from the Microsoft Store". Selecting on presence alone picked that
+# stub over the interpreter sitting first on PATH.
+_e2e_python_works() {
+    [ -n "$1" ] && "$1" -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)' \
+        >/dev/null 2>&1
+}
+
+E2E_PYTHON=""
+if [ -n "${APOLLIA_E2E_PYTHON:-}" ]; then
+    if _e2e_python_works "$APOLLIA_E2E_PYTHON"; then
+        E2E_PYTHON="$APOLLIA_E2E_PYTHON"
+    else
+        echo "error: APOLLIA_E2E_PYTHON=$APOLLIA_E2E_PYTHON does not run as Python 3." >&2
+        echo "          No assertion was run." >&2
+        exit 2
+    fi
+else
     for _candidate in python3 python /usr/bin/python3; do
-        if command -v "$_candidate" >/dev/null 2>&1; then
-            E2E_PYTHON="$(command -v "$_candidate")"
+        _resolved="$(command -v "$_candidate" 2>/dev/null || true)"
+        if _e2e_python_works "$_resolved"; then
+            E2E_PYTHON="$_resolved"
             break
         fi
     done
 fi
 if [ -z "$E2E_PYTHON" ]; then
-    echo "error: no python3 on this machine; the suite drives its controls with one." >&2
-    echo "       Install Python 3, or set APOLLIA_E2E_PYTHON to an interpreter." >&2
+    echo "error: no working Python 3 on this machine; the suite drives its controls" >&2
+    echo "       with one. On Windows, \`python3\` is often the Microsoft Store alias," >&2
+    echo "       which is a stub that refuses to run: put a real interpreter first on" >&2
+    echo "       PATH, or set APOLLIA_E2E_PYTHON to one." >&2
     echo "          No assertion was run." >&2
     exit 2
 fi
