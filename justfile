@@ -10,7 +10,6 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 set windows-shell := ["C:/Program Files/Git/bin/bash.exe", "-euo", "pipefail", "-c"]
 
 # Defaults (override per command: `just <recipe> var=value`)
-desktop_runners := "cpu metal"
 macos_target := "aarch64-apple-darwin"
 linux_target := "x86_64-unknown-linux-gnu"
 linux_runners := "cpu"
@@ -481,19 +480,54 @@ desktop-dev-qwen: _require-tauri runners-dev
     echo "✅ llama-server ready on :$PORT (log: $SLOG)"
     cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
 
-# `runners` selects which apollia-runner-{backend} sidecars are staged and
-# which llama-server GPU build is bundled (first gpu backend in the list wins).
+# `runners` selects which apollia-runner-{backend} STT sidecars are staged.
+# `backend` selects the llama-server build; left empty it is derived from the
+# first GPU backend named in `runners`. The two are not the same list: there is
+# no Vulkan STT runner, so a Vulkan engine is asked for by name.
 # Examples:
-#   just desktop-build x86_64-pc-windows-msvc "cpu vulkan"
+#   just desktop-build                                        # this host
+#   just desktop-build x86_64-pc-windows-msvc "cpu" vulkan
 #   just desktop-build aarch64-apple-darwin "cpu metal"
 
-# Build desktop bundle (uses bundle-cli.sh + APOLLIA_DESKTOP_RUNNERS).
-desktop-build target=macos_target runners=desktop_runners:
-    cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded cargo tauri build --target "{{target}}"
+# Every argument defaults to the host rather than to Apple Silicon. The old
+# defaults meant that on Windows and on Linux this recipe fetched a macOS
+# Python bundle and a Metal engine that does not exist there.
 
-# Build desktop bundle for current host target
-desktop-build-host runners=desktop_runners:
-    cd crates/apollia-desktop && APOLLIA_DESKTOP_RUNNERS="{{runners}}" CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded cargo tauri build
+# Build desktop bundle for a target (defaults to this host).
+desktop-build target="" runners="" backend="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source "{{justfile_directory()}}/scripts/host_desktop_defaults.sh"
+    TARGET="{{target}}"
+    [ -n "$TARGET" ] || TARGET="$(host_desktop_triple)"
+    RUNNERS="{{runners}}"
+    [ -n "$RUNNERS" ] || RUNNERS="$(host_desktop_runners "$TARGET")"
+    BACKEND="{{backend}}"
+    [ -n "$BACKEND" ] || BACKEND="$(host_desktop_llama_backend "$TARGET")"
+    echo "==> desktop-build target=$TARGET runners=$RUNNERS engine=${BACKEND:-derived from runners}"
+    cd crates/apollia-desktop
+    APOLLIA_DESKTOP_RUNNERS="$RUNNERS" \
+        APOLLIA_DESKTOP_LLAMA_BACKEND="$BACKEND" \
+        CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
+        cargo tauri build --target "$TARGET"
+
+# The artifacts land in target/release rather than target/<triple>/release.
+
+# Build desktop bundle for the host without naming a triple.
+desktop-build-host runners="" backend="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source "{{justfile_directory()}}/scripts/host_desktop_defaults.sh"
+    RUNNERS="{{runners}}"
+    [ -n "$RUNNERS" ] || RUNNERS="$(host_desktop_runners)"
+    BACKEND="{{backend}}"
+    [ -n "$BACKEND" ] || BACKEND="$(host_desktop_llama_backend)"
+    echo "==> desktop-build-host runners=$RUNNERS engine=${BACKEND:-derived from runners}"
+    cd crates/apollia-desktop
+    APOLLIA_DESKTOP_RUNNERS="$RUNNERS" \
+        APOLLIA_DESKTOP_LLAMA_BACKEND="$BACKEND" \
+        CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded \
+        cargo tauri build
 
 # -----------------------------------------------------------------------------
 # CLI / release helpers
@@ -568,7 +602,7 @@ cli-release target="":
 # Example: just release-desktop x86_64-pc-windows-msvc "cpu cuda"
 
 # Build CLI + desktop bundle for any rust triple and runner set.
-release-desktop target runners=desktop_runners:
+release-desktop target runners="":
     just cli-release {{target}}
     just desktop-build {{target}} "{{runners}}"
 
