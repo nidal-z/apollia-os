@@ -46,13 +46,38 @@ case "$(uname)" in
         fi
         ;;
     Linux)
-        # AppImage/.deb: usr/bin/apollia-desktop -> usr/lib/apollia-os/python/lib
-        if command -v patchelf >/dev/null 2>&1; then
-            patchelf --set-rpath '$ORIGIN/../lib/apollia-os/python/lib' "$BIN" || true
-            echo "==> $BIN: rpath set for bundled libpython"
-        else
-            echo "==> patchelf not available, skip Linux rpath patch"
+        # AppImage and .deb both lay the binary at usr/bin/apollia-desktop and
+        # the resources at usr/lib/<productName>/, so the directory carries the
+        # product name as written, spaces and capitals included: `Apollia OS`,
+        # not `apollia-os`. The hardcoded lowercase spelling pointed the loader
+        # at a directory no package ever contained, and since the binary needs
+        # libpython3.13.so.1.0 dynamically, the installed application could not
+        # start at all. Measured on 2026-09-08 by reading the RUNPATH out of the
+        # .deb that the release matrix had produced.
+        #
+        # Both spellings are kept, colon separated. The second costs one failed
+        # lookup and covers a bundler that would sanitize the directory name.
+        PRODUCT="$(sed -n 's/.*"productName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+            "${REPO_ROOT}/crates/apollia-desktop/tauri.conf.json" | head -1)"
+        if [ -z "$PRODUCT" ]; then
+            echo "==> ERROR: productName not found in tauri.conf.json, cannot" >&2
+            echo "    compute the rpath the bundle needs." >&2
+            exit 1
         fi
+        # patchelf is not optional here. Skipping it produces a bundle that
+        # installs cleanly and then fails to start, which is the worst of the
+        # three possible outcomes: the operator reads a green build.
+        if ! command -v patchelf >/dev/null 2>&1; then
+            echo "==> ERROR: patchelf is required to bundle on Linux and was not" >&2
+            echo "    found. Without it the binary keeps a libpython reference" >&2
+            echo "    that resolves nowhere once installed, and the application" >&2
+            echo "    does not start. Install it with:" >&2
+            echo "        sudo apt-get install -y patchelf" >&2
+            exit 1
+        fi
+        RPATH="\$ORIGIN/../lib/${PRODUCT}/python/lib:\$ORIGIN/../lib/apollia-os/python/lib"
+        patchelf --set-rpath "$RPATH" "$BIN"
+        echo "==> $BIN: rpath set for bundled libpython (${PRODUCT})"
         ;;
     *)
         echo "==> $(uname): no libpython relocation needed here"

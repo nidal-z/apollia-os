@@ -118,7 +118,7 @@ otool -L target/aarch64-apple-darwin/release/apollia-desktop | grep python
 # Linux : inspecter le RPATH
 patchelf --print-rpath target/release/apollia-desktop
 
-# Doit ressortir : $ORIGIN/../lib/apollia-os/python/lib
+# Doit ressortir : $ORIGIN/../lib/Apollia OS/python/lib:$ORIGIN/../lib/apollia-os/python/lib
 ```
 
 Si c'est `/opt/homebrew/...` ou `/Users/...`, c'est que le patch d'avant

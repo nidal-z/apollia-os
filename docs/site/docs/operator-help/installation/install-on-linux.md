@@ -46,7 +46,7 @@ sudo apt install ./Apollia-OS_<version>_amd64.deb
 
 Then launch **Apollia OS** from your desktop application menu: the app starts
 the daemon itself. The `apollia-os` command line ships inside the package
-(`/usr/lib/apollia-os/`) but is not on your `PATH` until you enable it from
+(`/usr/lib/Apollia OS/`) but is not on your `PATH` until you enable it from
 **Settings > System** in the app, which creates the `/usr/local/bin` link. The
 verification commands below assume that link exists.
 

@@ -10,7 +10,7 @@
 #   ./build-python-bundle.sh <target-triple> <output-dir>
 #
 # After success, <output-dir>/python/ is ready to be copied into a Tauri bundle
-# as `Contents/Resources/python/` (macOS) or `usr/lib/apollia-os/python/` (Linux).
+# as `Contents/Resources/python/` (macOS) or `usr/lib/Apollia OS/python/` (Linux).
 set -euo pipefail
 
 # Isolate the bundle build from the developer's per-user site-packages
