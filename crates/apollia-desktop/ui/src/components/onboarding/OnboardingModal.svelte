@@ -68,6 +68,9 @@
   // toast container at `--z-toast: 40` (`app.css`), so a toast fired from
   // inside this modal is painted underneath it.
   let skipError = $state<HumanizedError | null>(null);
+  // Set once the conversation reports it never started: Escape becomes an exit
+  // again, because there is no turn left to interrupt by accident.
+  let chatStranded = $state(false);
 
   const stepIndex = $derived(STEPS.findIndex((s) => s.id === currentStep));
 
@@ -75,7 +78,7 @@
   // swallows Escape (otherwise users may dismiss the agent dialog mid-turn
   // by accident). Earlier steps allow the standard Escape to skip.
   function captureEscape(event: KeyboardEvent): void {
-    if (currentStep === "chat" && event.key === "Escape") {
+    if (currentStep === "chat" && !chatStranded && event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
     }
@@ -229,6 +232,10 @@
             <OnboardingChatStep
               onback={() => goTo("ai-setup")}
               skipSignal={chatSkipSignal}
+              onstranded={() => {
+                chatStranded = true;
+                void handleSkip();
+              }}
               {onclose}
             />
           {/if}

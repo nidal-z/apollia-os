@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { decideSkip } from "./skipDecision";
   /**
    * Onboarding step 4 - Agent chat.
    *
@@ -52,9 +53,15 @@
      * backend, with no model turn (conversational nudge as fallback only).
      */
     skipSignal?: number;
+    /**
+     * Called when the step is asked to skip and cannot: the conversation never
+     * started, so there is nothing to finalize. The parent abandons onboarding
+     * rather than leaving the user on a card whose only button does nothing.
+     */
+    onstranded?: () => void;
   }
 
-  const { onback, onclose, skipSignal = 0 }: Props = $props();
+  const { onback, onclose, skipSignal = 0, onstranded }: Props = $props();
 
   let sessionId = $state<string | null>(null);
   let bootstrapping = $state(false);
@@ -183,7 +190,16 @@
     const signal = skipSignal;
     if (signal > lastSkipSignal) {
       lastSkipSignal = signal;
-      if (sessionId && !completed) void skipDirectly();
+      switch (decideSkip({ sessionId, completed })) {
+        case "finalize":
+          void skipDirectly();
+          break;
+        case "abandon":
+          onstranded?.();
+          break;
+        case "ignore":
+          break;
+      }
     }
   });
 
