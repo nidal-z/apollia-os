@@ -59,7 +59,7 @@ release: a `.dmg` for macOS Apple Silicon, an `.msi` or `.exe` for Windows
 x86-64, an `.AppImage` or `.deb` for Linux x86-64, plus CUDA-engine variants for
 Linux and Windows. No compiler, no checkout, no command line. The step by step,
 including the checksum verification and the first-launch warnings, is in
-[Install the desktop app](docs/site/docs/how-to/install-the-desktop-app.md).
+[Install the desktop app](https://docs.apollia.fr/how-to/install-the-desktop-app/).
 
 **Install the command-line runtime.** The same releases attach a self-contained
 archive per platform preset (`apollia-os-macos-silicon.tar.gz`,
@@ -137,7 +137,7 @@ macOS note: PyO3 must find the right interpreter at build time. If your default
 
 For an agent that generates text, configure a model backend (see [LLM Backends](#llm-backends)).
 Full instructions, including local GGUF inference, are in
-[the install guide](docs/site/docs/how-to/install-and-run.md).
+[the install guide](https://docs.apollia.fr/how-to/install-and-run/).
 
 ---
 
@@ -145,42 +145,29 @@ Full instructions, including local GGUF inference, are in
 
 Apollia OS is built around independent Tokio actors communicating over channels. Zero shared mutable state between actors.
 
-```
-+------------------------------------------------------------------------+
-|                          APOLLIA OS RUNTIME                            |
-|                                                                        |
-|  Supervisor · AgentRegistry · TaskRouter · EventBus · APIServer        |
-|                          |                                             |
-|             +------------v------------+                                |
-|             |   ExecutionCoordinator  |  one per active agent          |
-|             +------------+------------+                                |
-|                          |                                             |
-|             +------------v------------+                                |
-|             |      ORIA ENGINE        |  Observer - Reasoner - Actor   |
-|             |  Direct / Orchestrated  |  StepBudget · ResilienceLayer  |
-|             +-------+----------+------+                                |
-|                     |          |                                       |
-|  +------------------v-+  +-----v----------+  +--------------------+   |
-|  |   TOOL REGISTRY    |  |  MEMORY ENGINE |  |    LLM ROUTER      |   |
-|  |   + SANDBOX        |  |  SQLite/FTS5   |  |  local · cloud     |   |
-|  +--------------------+  +----------------+  +--------------------+   |
-|                                                                        |
-|  TriggerEngine · NotificationEngine · PermissionsEngine               |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    AIP BRIDGE (PyO3)                             |  |
-|  |          Rust <-> Python async · ToolProxy · MemoryInterface    |  |
-|  +------------------------------+-----------------------------------+  |
-+-------------------------------- | --------------------------------------+
-                                  | AIP contract
-                      +-----------v-----------+
-                      |     PYTHON AGENT      |
-                      |  @agent / @on_message |
-                      |     (duck-typed)      |
-                      +-----------------------+
+```mermaid
+flowchart TB
+    subgraph rt["Apollia OS runtime"]
+        sup["Supervisor · AgentRegistry · TaskRouter · EventBus · APIServer"]
+        coord["ExecutionCoordinator<br/>one per active agent"]
+        oria["ORIA engine · Observer, Reasoner, Actor<br/>Direct / Orchestrated · StepBudget · ResilienceLayer"]
+        tools["Tool registry<br/>+ sandbox"]
+        mem["Memory engine<br/>SQLite / FTS5"]
+        llm["LLM router<br/>local · cloud"]
+        side["TriggerEngine · NotificationEngine · PermissionsEngine"]
+        aip["AIP bridge (PyO3)<br/>Rust and Python async · ToolProxy · MemoryInterface"]
+    end
+    agent["Python agent<br/>@agent / @on_message<br/>duck-typed"]
+
+    sup --> coord --> oria
+    oria --> tools
+    oria --> mem
+    oria --> llm
+    oria --> aip
+    aip -- "AIP contract" --> agent
 ```
 
-Full architecture documentation: [the arc42 architecture section](docs/site/docs/architecture/)
+Full architecture documentation: [the arc42 architecture section](https://docs.apollia.fr/architecture/)
 
 ---
 
@@ -374,9 +361,9 @@ class Director:
 
 `react` delegates the `LLM -> tool(s) -> LLM -> ... -> final answer` cycle to the
 runtime, enforces an explicit `max_steps` budget, and returns the final answer as
-a string. Full tutorials: [Your first agent](docs/site/docs/tutorials/your-first-agent.md)
-and the how-to guides for [workers](docs/site/docs/how-to/write-a-worker.md) and
-[directors](docs/site/docs/how-to/write-a-director.md).
+a string. Full tutorials: [Your first agent](https://docs.apollia.fr/tutorials/your-first-agent/)
+and the how-to guides for [workers](https://docs.apollia.fr/how-to/write-a-worker/) and
+[directors](https://docs.apollia.fr/how-to/write-a-director/).
 
 ### Runtime context (`ctx`)
 
@@ -393,7 +380,7 @@ common ones:
 
 Several services degrade to `None` when the agent does not opt into them (for
 example `ctx.memory` without a `memory_namespace`); check before use. The full
-contract is documented in the [SDK / ctx reference](docs/site/docs/reference/sdk/).
+contract is documented in the [SDK / ctx reference](https://docs.apollia.fr/reference/sdk/).
 
 ### Native tools
 
@@ -447,8 +434,8 @@ apollia-os config get llm
 ```
 
 The full section-by-section surface is in the
-[configuration reference](docs/site/docs/reference/configuration.md) and the
-[CLI reference](docs/site/docs/reference/cli/).
+[configuration reference](https://docs.apollia.fr/reference/configuration/) and the
+[CLI reference](https://docs.apollia.fr/reference/cli/).
 
 ---
 
@@ -596,7 +583,7 @@ Views update in real time over the Tauri event bus, not over SSE; the HTTP API i
 
 **Exit codes:** `0` success · `1` usage error · `2` runtime error · `3` task failed · `4` timeout · `5` interrupted (`start` stopped by Ctrl+C)
 
-Every flag on every command is in the [CLI reference](docs/site/docs/reference/cli/).
+Every flag on every command is in the [CLI reference](https://docs.apollia.fr/reference/cli/).
 
 ---
 
