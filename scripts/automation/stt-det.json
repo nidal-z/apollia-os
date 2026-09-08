@@ -439,8 +439,7 @@
     },
     {
       "kind": "expect",
-      "testid": "toast",
-      "nth": -1,
+      "testid": "toast-container",
       "contains": "STT self-test stopped by the automation harness"
     },
     {

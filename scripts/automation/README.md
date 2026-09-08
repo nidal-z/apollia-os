@@ -331,6 +331,16 @@ than expanding it to nothing.
   just desktop-dev-automation-seeded scripts/automation/master-det-scan.json
   ```
 
+## The language a run speaks
+
+Every book asserts English sentences, and the run states English rather than
+inheriting it: the runner pins the locale before the first step. Left alone,
+the application takes its language from a stored preference and failing that
+from the machine, so the same book read English on macOS and French under
+Ubuntu, and two journal assertions failed on a build that was correct. Assert
+an English string freely; a book that needs another language drives the
+language buttons itself.
+
 ## What a run writes into this repository
 
 The seeded run redirects `HOME`, not the chat workspace: the seed's

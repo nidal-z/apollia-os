@@ -8,6 +8,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
+import { resetDeterministicUiState, pinRunLocale } from "./determinism";
 import { InvokeStubs, expandHome } from "./invokeStubs";
 import { seam } from "./invokeSeam";
 import { simulateHeartbeatLoss } from "../stores/runtimeHealth";
@@ -517,13 +518,20 @@ async function runStep(step: Step, ctx: RunContext): Promise<string> {
       } else {
         target = (document.activeElement as HTMLElement | null) ?? document.body;
       }
+      // `mod` is the shortcut modifier of the machine playing the book, the
+      // one the application's own dispatcher reads: Command on macOS, Control
+      // everywhere else. A book that hardcodes `meta` asserts a macOS chord and
+      // fails on Linux and Windows against a product that works. Measured on
+      // 2026-09-08: the shortcuts dialog never opened under Ubuntu.
+      const isMac = navigator.platform.includes("Mac");
+      const mod = step.mod === true;
       const init: KeyboardEventInit = {
         key: step.key,
         code: keyToCode(step.key),
         bubbles: true,
         cancelable: true,
-        metaKey: step.meta === true,
-        ctrlKey: step.ctrl === true,
+        metaKey: step.meta === true || (mod && isMac),
+        ctrlKey: step.ctrl === true || (mod && !isMac),
         shiftKey: step.shift === true,
         altKey: step.alt === true,
       };
@@ -615,33 +623,6 @@ function keyToCode(key: string): string {
 // tour-det measures the Getting started band with whatever followVisited the
 // machine holds, and a reset at boot would make getting-started-keep
 // unreachable for good.
-function resetDeterministicUiState(): void {
-  if (typeof localStorage === "undefined") return;
-  const keys = [
-    "apollia.quickpicker.expanded",
-    "apollia.delete_automation.skip",
-    "apollia.next_steps.dismissed",
-    "apollia.next_steps.feedback",
-    "apollia.ui.sidebar",
-    // layout.ts persists the drawer state whenever the viewport is sm, which
-    // a resizeWindow block reaches.
-    "apollia.ui.sidebarState_sm",
-    // McpDisclaimerDialog.svelte / WizardStepDisclaimer.svelte.
-    "apollia-mcp-disclaimer-accepted",
-    "apollia-mcp-disclaimer-version",
-    // companion.ts: a keyboard nudge of the panel would leak its position.
-    "companionGeometry",
-    // agentInstallPrefs.ts: settings-det toggles it, the install deps step reads it.
-    "apollia.agent-install-prefs",
-  ];
-  for (const key of keys) {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // Private mode / quota - ignore.
-    }
-  }
-}
 
 // App.svelte hands the runner the boot's script and gate; the home comes from
 // the same payload, re-read here when the caller does not pass it.
@@ -676,6 +657,7 @@ export async function runAutomation(
   }
 
   resetDeterministicUiState();
+  await pinRunLocale();
 
   console.info(`[automation] running "${script.name}" (${script.steps.length} steps)`);
   const overlay = mountOverlay(script.name);

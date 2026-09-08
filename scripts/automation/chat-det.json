@@ -1545,8 +1545,8 @@
       "kind": "press",
       "testid": "chat-input",
       "key": "/",
-      "meta": true,
-      "timeoutMs": 3000
+      "timeoutMs": 3000,
+      "mod": true
     },
     {
       "kind": "waitFor",

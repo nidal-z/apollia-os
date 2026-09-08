@@ -131,6 +131,12 @@ export interface PressStep extends Target {
   key: string;
   meta?: boolean;
   ctrl?: boolean;
+  /**
+   * The shortcut modifier of the machine playing the book: Command on macOS,
+   * Control elsewhere, matching what the application's dispatcher reads. Use
+   * it for a product shortcut; use `meta` only to record a literal chord.
+   */
+  mod?: boolean;
   shift?: boolean;
   alt?: boolean;
   timeoutMs?: number;

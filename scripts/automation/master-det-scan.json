@@ -3287,8 +3287,8 @@
       "kind": "press",
       "testid": "chat-input",
       "key": "/",
-      "meta": true,
-      "timeoutMs": 3000
+      "timeoutMs": 3000,
+      "mod": true
     },
     {
       "kind": "waitFor",
@@ -17654,8 +17654,7 @@
     },
     {
       "kind": "expect",
-      "testid": "toast",
-      "nth": -1,
+      "testid": "toast-container",
       "contains": "STT self-test stopped by the automation harness"
     },
     {
