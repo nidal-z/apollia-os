@@ -559,7 +559,7 @@ fn pick_free_port() -> Result<u16, LlamaServerError> {
 ///
 /// Resolution order: the `APOLLIA_LLAMA_SERVER_BIN` override, then the bundle
 /// layouts (next to the executable, a `runners/` sibling, the macOS
-/// `Contents/Resources/runners/`, and the Linux `lib/apollia-os/runners/`), then
+/// `Contents/Resources/runners/`, and the Linux product directory), then
 /// the ambient `PATH`, then the common install dirs. The override lets a
 /// developer whose `llama-server` lives in a non-standard directory (a llama.cpp
 /// build tree) point the app at it, which a GUI launch cannot reach via `PATH`.
@@ -582,12 +582,12 @@ fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
 
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let candidates = [
-                dir.join(&name),
-                dir.join("runners").join(&name),
-                dir.join("../Resources/runners").join(&name),
-                dir.join("../lib/apollia-os/runners").join(&name),
-            ];
+            let mut candidates = vec![dir.join(&name)];
+            candidates.extend(
+                apollia_core::paths::bundled_resource_dirs(dir, "runners")
+                    .into_iter()
+                    .map(|d| d.join(&name)),
+            );
             if let Some(found) = candidates.iter().find(|c| c.exists()) {
                 return Ok(found.clone());
             }

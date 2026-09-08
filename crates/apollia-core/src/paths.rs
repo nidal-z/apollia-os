@@ -159,6 +159,49 @@ pub fn home_dir() -> Option<PathBuf> {
     std::env::home_dir()
 }
 
+/// Directories a packaged build may keep a resource in, relative to the
+/// executable, most specific first.
+///
+/// `leaf` is the resource directory name, `runners` or `python`.
+///
+/// The Linux packagers name their directory after the product, so a .deb and
+/// an AppImage install under `/usr/lib/Apollia OS/`, with the capitals and the
+/// space. Three call sites guessed `apollia-os` instead and therefore found
+/// nothing: the local engine reported "llama-server not found" with the binary
+/// sitting in the package, and every agent failed to load because the Python
+/// bundle was invisible by the same path. Measured on 2026-09-08 on the built
+/// .deb. The name is now discovered rather than guessed.
+pub fn bundled_resource_dirs(exe_dir: &Path, leaf: &str) -> Vec<PathBuf> {
+    let mut out = vec![
+        exe_dir.join(leaf),
+        exe_dir.join("../Resources").join(leaf),
+        exe_dir.join("../../resources").join(leaf),
+    ];
+    if let Ok(entries) = std::fs::read_dir(exe_dir.join("../lib")) {
+        for entry in entries.flatten() {
+            if !entry.path().is_dir() {
+                continue;
+            }
+            let name = entry.file_name();
+            if is_product_dir(&name.to_string_lossy()) {
+                out.push(entry.path().join(leaf));
+            }
+        }
+    }
+    out
+}
+
+/// True when a directory under `lib/` belongs to this product, whatever the
+/// packager did to the name: `Apollia OS`, `apollia-os`, `apollia_os`.
+fn is_product_dir(name: &str) -> bool {
+    let squashed: String = name
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect();
+    squashed.starts_with("apollia")
+}
+
 /// The runtime data directory: `<home>/.apollia`.
 ///
 /// Holds the API token, the SQLite databases, models and configuration.
@@ -409,5 +452,83 @@ mod tests {
         assert_eq!(pipe_name_for(None), bare);
         assert_eq!(pipe_name_for(Some("")), bare);
         assert_eq!(pipe_name_for(Some("   ")), bare);
+    }
+}
+
+#[cfg(test)]
+mod bundled_resource_tests {
+    use super::{bundled_resource_dirs, is_product_dir};
+    use std::path::Path;
+
+    #[test]
+    fn a_product_directory_is_recognised_however_it_was_written() {
+        // GIVEN the three spellings packagers produce for the same product
+        // WHEN each is examined
+        // THEN all three are recognised, and a neighbour is not
+        assert!(is_product_dir("Apollia OS"));
+        assert!(is_product_dir("apollia-os"));
+        assert!(is_product_dir("apollia_os"));
+        assert!(!is_product_dir("systemd"));
+    }
+
+    #[test]
+    fn the_linux_install_layout_is_among_the_candidates() {
+        // GIVEN the layout a .deb produces: the binary in usr/bin, the
+        // resources under usr/lib/Apollia OS/
+        let root = tempfile::tempdir().expect("a temporary root");
+        let bin = root.path().join("usr/bin");
+        let res = root.path().join("usr/lib/Apollia OS/runners");
+        std::fs::create_dir_all(&bin).expect("bin");
+        std::fs::create_dir_all(&res).expect("resources");
+
+        // WHEN the candidates are listed from the executable's directory
+        let candidates = bundled_resource_dirs(&bin, "runners");
+
+        // THEN the directory the packager actually created is one of them,
+        // which the hardcoded `apollia-os` spelling never was
+        assert!(
+            candidates
+                .iter()
+                .any(|c| c.canonicalize().ok() == res.canonicalize().ok()),
+            "candidates were {candidates:?}"
+        );
+    }
+
+    #[test]
+    fn a_directory_that_is_not_ours_is_left_alone() {
+        // GIVEN a lib directory holding somebody else's product
+        let root = tempfile::tempdir().expect("a temporary root");
+        std::fs::create_dir_all(root.path().join("usr/bin")).expect("bin");
+        std::fs::create_dir_all(root.path().join("usr/lib/other-app/runners")).expect("other");
+
+        // WHEN the candidates are listed
+        let candidates = bundled_resource_dirs(&root.path().join("usr/bin"), "runners");
+
+        // THEN the neighbour is not probed
+        assert!(
+            !candidates
+                .iter()
+                .any(|c| c.to_string_lossy().contains("other-app")),
+            "candidates were {candidates:?}"
+        );
+    }
+
+    #[test]
+    fn the_macos_layout_is_still_first_in_line() {
+        // GIVEN the macOS bundle layout, Contents/MacOS beside Contents/Resources
+        let exe_dir = Path::new("/Applications/Apollia OS.app/Contents/MacOS");
+
+        // WHEN the candidates are listed
+        let candidates = bundled_resource_dirs(exe_dir, "python");
+
+        // THEN the Resources path is among them: `../Resources` is kept as
+        // written rather than normalised, which is what the resolver hands to
+        // the filesystem.
+        assert!(
+            candidates.iter().any(|c| c
+                .to_string_lossy()
+                .contains("Contents/MacOS/../Resources/python")),
+            "candidates were {candidates:?}"
+        );
     }
 }

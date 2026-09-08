@@ -372,18 +372,18 @@ pub(super) fn locate_runner_binary(
 
     // Every place a runner is staged, for one name. The desktop Tauri app ships
     // them in `Contents/Resources/runners/` (macOS), the CLI self-contained
-    // bundle and the Linux packages in a sibling `runners/` or in
-    // `lib/apollia-os/runners/`, and a dev build leaves them next to the
-    // executable.
+    // bundle and the Linux packages in a sibling `runners/` or in the product
+    // directory under `lib/`, whose name the packager chooses, and a dev build
+    // leaves them next to the executable.
     let layouts = |name: &str| {
-        [
-            dir.join(format!("{name}{ext}")),
-            dir.join("../Resources/runners")
-                .join(format!("{name}{ext}")),
-            dir.join("runners").join(format!("{name}{ext}")),
-            dir.join("../lib/apollia-os/runners")
-                .join(format!("{name}{ext}")),
-        ]
+        let file = format!("{name}{ext}");
+        let mut out = vec![dir.join(&file)];
+        out.extend(
+            apollia_core::paths::bundled_resource_dirs(dir, "runners")
+                .into_iter()
+                .map(|d| d.join(&file)),
+        );
+        out
     };
 
     if let Some(found) = layouts(bin_name).iter().find(|c| c.exists()) {

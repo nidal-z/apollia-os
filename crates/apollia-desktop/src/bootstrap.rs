@@ -63,7 +63,7 @@ pub(crate) fn load_toml_config(config: EmbeddedConfig) -> EmbeddedConfig {
 ///
 /// Behaviour:
 /// - If a `python/` directory is found adjacent to the executable (macOS
-///   `Contents/Resources/python/`, Linux `../lib/apollia-os/python/` relative to
+///   `Contents/Resources/python/`, the Linux product directory under `../lib/`
 ///   `/usr/bin/`, or `../python/` relative to a dev `target/release/` layout),
 ///   the interpreter is reconfigured against it.
 /// - If not found, logs a warning and leaves env vars alone (dev mode: the
@@ -85,18 +85,11 @@ pub(crate) fn setup_bundled_python() {
         None => return,
     };
 
-    // Candidate search order: first match wins.
-    let candidates: [std::path::PathBuf; 4] = [
-        // macOS: Contents/MacOS/apollia-desktop -> Contents/Resources/python/
-        exe_dir.join("../Resources/python"),
-        // Linux AppImage / .deb: usr/bin/apollia-desktop -> usr/lib/apollia-os/python/
-        exe_dir.join("../lib/apollia-os/python"),
-        // Windows: Tauri stages resources next to the executable.
-        exe_dir.join("python"),
-        // Dev build fallback: target/release/apollia-desktop -> target/python-bundle/<triple>/python/
-        // (populated by packaging/build-python-bundle.sh during dev)
-        exe_dir.join("../../resources/python"),
-    ];
+    // Candidate search order: first match wins. The Linux directory is
+    // discovered rather than spelled, because the packagers name it after the
+    // product: a .deb installs under `/usr/lib/Apollia OS/`, and the
+    // hardcoded `apollia-os` matched nothing there.
+    let candidates = apollia_core::paths::bundled_resource_dirs(&exe_dir, "python");
 
     // The interpreter sits at a different place per platform: `bin/python3.13`
     // on POSIX, `python.exe` at the root on Windows. Probing only the POSIX path
