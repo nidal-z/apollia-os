@@ -18,13 +18,17 @@
   import UserMenu from "./UserMenu.svelte";
   import ModeChip from "./ModeChip.svelte";
 
-  function openSearch() {
+  function toggleSearch() {
     // The store the shortcut drives, not a synthetic keystroke: the button
     // used to dispatch a keydown carrying metaKey, the macOS modifier, while
     // the dispatcher reads ctrlKey off a Mac. Clicking the search bar
     // therefore did nothing at all on Windows and on Linux. Measured on
     // 2026-09-08 by the gestural automaton, on Ubuntu.
-    commandPaletteOpen.set(true);
+    //
+    // It toggles, like the shortcut it stands for: a second click on the bar
+    // closes the palette it opened. Setting it open unconditionally left the
+    // bar unable to close anything, which is what the automaton measured next.
+    commandPaletteOpen.update((open) => !open);
   }
 
   const agentsAtWork = $derived($runningTasks.length);
@@ -57,7 +61,7 @@
     <button
       type="button"
       class="command-bar v4-hair flex w-full cursor-text items-center gap-2 rounded-md border bg-surface-1 px-2.5 text-left text-body-xs text-muted-foreground shadow-elev-0 transition-colors hover:bg-surface-1/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-      onclick={openSearch}
+      onclick={toggleSearch}
       aria-label={$t("topbar.search_aria")}
       data-testid="topbar-search"
     >
