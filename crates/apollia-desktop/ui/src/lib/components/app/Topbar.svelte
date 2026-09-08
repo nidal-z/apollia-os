@@ -10,6 +10,7 @@
   import { t } from "svelte-i18n";
   import { Menu, Search, ShieldCheck, Settings as SettingsIcon } from "lucide-svelte";
   import { navigateTo } from "$lib/stores/navigation";
+  import { commandPaletteOpen } from "$lib/stores/commandPalette";
   import { sidebarState, layoutActions } from "$lib/stores/layout";
   import { runningTasks } from "$lib/stores/tasks";
   import { OperatorBreadcrumb } from "$lib/components/layout";
@@ -18,7 +19,12 @@
   import ModeChip from "./ModeChip.svelte";
 
   function openSearch() {
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
+    // The store the shortcut drives, not a synthetic keystroke: the button
+    // used to dispatch a keydown carrying metaKey, the macOS modifier, while
+    // the dispatcher reads ctrlKey off a Mac. Clicking the search bar
+    // therefore did nothing at all on Windows and on Linux. Measured on
+    // 2026-09-08 by the gestural automaton, on Ubuntu.
+    commandPaletteOpen.set(true);
   }
 
   const agentsAtWork = $derived($runningTasks.length);
