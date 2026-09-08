@@ -344,7 +344,7 @@ fn matches_exclude_pattern(path: &Path, pattern: &str) -> bool {
 /// does not start with `~`, it is returned unchanged.
 fn expand_tilde(path: &Path) -> PathBuf {
     if let Ok(stripped) = path.strip_prefix("~") {
-        if let Some(home) = dirs_next::home_dir() {
+        if let Some(home) = apollia_core::paths::home_dir() {
             return home.join(stripped);
         }
     }

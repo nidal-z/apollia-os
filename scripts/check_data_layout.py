@@ -59,7 +59,7 @@ STRING_RE = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 SEGMENT_RE = re.compile(r"\.apollia(?![A-Za-z0-9_.\-])")
 
 
-FOREIGN_HOME_RE = re.compile(r"\bdirs::home_dir\s*\(")
+FOREIGN_HOME_RE = re.compile(r"\bdirs(?:_next)?::home_dir\s*\(")
 
 
 def production_text(text):
