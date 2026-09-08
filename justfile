@@ -224,13 +224,11 @@ _require-tauri:
 _bundle-python:
     #!/usr/bin/env bash
     set -euo pipefail
-    BUNDLE_ROOT=""
-    # Any triple, not the macOS one alone: a clone on Linux or Windows carries
-    # its own bundle under target/python-bundle/<triple>/python, and without it
-    # the embedded interpreter is absent and every agent fails to load at boot.
-    for c in $PWD/target/python-bundle/*/python "$PWD/target/debug/python"; do
-      if [ -x "$c/bin/python3.13" ]; then BUNDLE_ROOT="$c"; break; fi
-    done
+    source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
+    # Any triple and either layout: a clone on Linux or Windows carries its own
+    # bundle under target/python-bundle/<triple>/python, and Windows lays it out
+    # as python.exe beside libs/ rather than bin/python3.13 beside lib/.
+    BUNDLE_ROOT="$(bundle_python_find || true)"
     if [ -z "$BUNDLE_ROOT" ]; then
       echo "error: no Python bundle in target/python-bundle or target/debug." >&2
       echo "       Agents will fail to load at boot. Build one with:" >&2
@@ -247,8 +245,10 @@ _bundle-python:
     # main(). DYLD_FALLBACK_LIBRARY_PATH is too late: setup_bundled_python runs
     # inside the process, after dyld has resolved. A symlink makes the dev tree
     # answer the same path the bundle does.
-    mkdir -p target/Resources
-    ln -sfn "$BUNDLE_ROOT" target/Resources/python
+    if [ "$(uname -s)" = "Darwin" ]; then
+      mkdir -p target/Resources
+      ln -sfn "$BUNDLE_ROOT" target/Resources/python
+    fi
     echo "$BUNDLE_ROOT"
 
 # Run desktop in dev mode (expects runners in target/debug/)
@@ -256,8 +256,10 @@ desktop-dev: _require-tauri
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
-    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
-    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
+    bundle_python_env "$BUNDLE_ROOT"
+    export PYO3_PYTHON="$BUNDLE_PY"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     # -L tells the linker where libpython is; it does not tell the loader.
     # On Linux a locally built binary then fails on every invocation, and
     # only the shipped launcher, which exports LD_LIBRARY_PATH, can start
@@ -265,7 +267,7 @@ desktop-dev: _require-tauri
     # assertions on a binary that could not load. An RPATH makes the built
     # binary carry the answer. macOS needs none: the install name holds it.
     if [ "$(uname -s)" = "Linux" ]; then
-      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_LIBDIR"
     fi
     cd crates/apollia-desktop && cargo tauri dev
 
@@ -274,10 +276,12 @@ desktop-dev-macos: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
-    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
-    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
+    bundle_python_env "$BUNDLE_ROOT"
+    export PYO3_PYTHON="$BUNDLE_PY"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     if [ "$(uname -s)" = "Linux" ]; then
-      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_LIBDIR"
     fi
     cd crates/apollia-desktop && RUST_LOG=debug cargo tauri dev
 
@@ -323,10 +327,12 @@ desktop-dev-llama model=llama_model: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
-    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
-    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
+    bundle_python_env "$BUNDLE_ROOT"
+    export PYO3_PYTHON="$BUNDLE_PY"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     if [ "$(uname -s)" = "Linux" ]; then
-      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_LIBDIR"
     fi
     if [ -z "{{model}}" ]; then
       echo "set a model: just desktop-dev-llama /path/to/model.gguf (or export APOLLIA_LLAMA_MODEL)" >&2
@@ -415,10 +421,12 @@ desktop-dev-qwen: _require-tauri runners-dev
     #!/usr/bin/env bash
     set -euo pipefail
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
-    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
-    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
+    bundle_python_env "$BUNDLE_ROOT"
+    export PYO3_PYTHON="$BUNDLE_PY"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     if [ "$(uname -s)" = "Linux" ]; then
-      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_LIBDIR"
     fi
     MODEL="${APOLLIA_LLAMA_MODEL:-$HOME/.apollia/models/Qwen3.6-35B-A3B-MXFP4_MOE.gguf}"
     if [ ! -f "$MODEL" ]; then
@@ -498,10 +506,12 @@ cli-build:
     # against it is both what works and what the release does. Measured on
     # 2026-09-07 on Ubuntu under WSL, and the same week on a macOS runner.
     BUNDLE_ROOT="$(just _bundle-python | tail -1)"
-    export PYO3_PYTHON="$BUNDLE_ROOT/bin/python3.13"
-    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+    source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
+    bundle_python_env "$BUNDLE_ROOT"
+    export PYO3_PYTHON="$BUNDLE_PY"
+    export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
     if [ "$(uname -s)" = "Linux" ]; then
-      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+      export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_LIBDIR"
     fi
     cargo build -p apollia-cli
 
@@ -945,24 +955,22 @@ desktop-dev-automation-seeded script: _require-tauri runners-dev
     # a plain build leaves in target/debug. Take whichever is present, because
     # what matters is linking against the SAME bundle setup_bundled_python will
     # resolve at run time, not against a particular path.
-    BUNDLE_ROOT=""
-    # Any triple, not the macOS one alone: a clone on Linux or Windows carries
-    # its own bundle under target/python-bundle/<triple>/python, and without it
-    # the embedded interpreter is absent and every agent fails to load at boot.
-    for c in $PWD/target/python-bundle/*/python "$PWD/target/debug/python"; do
-      if [ -x "$c/bin/python3.13" ]; then BUNDLE_ROOT="$c"; break; fi
-    done
-    BUNDLE_PY="$BUNDLE_ROOT/bin/python3.13"
+    source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
+    # Any triple and either layout: a clone on Linux or Windows carries its own
+    # bundle under target/python-bundle/<triple>/python, and Windows lays it out
+    # as python.exe beside libs/ rather than bin/python3.13 beside lib/.
+    BUNDLE_ROOT="$(bundle_python_find || true)"
     if [ -n "$BUNDLE_ROOT" ]; then
+      bundle_python_env "$BUNDLE_ROOT"
       export PYO3_PYTHON="$BUNDLE_PY"
       # The bundle is relocatable but its sysconfig still names the path it was
       # built at, so PyO3 emits `-L /install/lib` and the link fails on
       # "library 'python3.13' not found". release.yml compensates with the same
       # RUSTFLAGS; the dev recipes did not, which is the other half of why a
       # local build never used the bundled interpreter.
-      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
       if [ "$(uname -s)" = "Linux" ]; then
-        export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+        export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_LIBDIR"
       fi
       # The linked install_name is @executable_path/../Resources/python/lib,
       # which is the packaged layout. In a dev run @executable_path is
@@ -972,8 +980,13 @@ desktop-dev-automation-seeded script: _require-tauri runners-dev
       # already resolved. A symlink makes the dev tree answer the same path the
       # bundle does, and as a bonus setup_bundled_python then matches on its
       # macOS candidate instead of falling through to the Windows one.
-      mkdir -p target/Resources
-      ln -sfn "$BUNDLE_ROOT" target/Resources/python
+      # macOS alone: this answers a dyld install_name. Elsewhere it is dead
+      # weight, and under git-bash `ln -s` is emulated and can fail, which
+      # `set -e` turns into a dead recipe.
+      if [ "$(uname -s)" = "Darwin" ]; then
+        mkdir -p target/Resources
+        ln -sfn "$BUNDLE_ROOT" target/Resources/python
+      fi
     else
       # Refused, not warned. Without the bundle the embedded interpreter has no
       # `apollia` package, so every agent fails to load and the books answer
@@ -1069,24 +1082,22 @@ desktop-dev-automation-seeded-llama script model=llama_model: _require-tauri run
     # a plain build leaves in target/debug. Take whichever is present, because
     # what matters is linking against the SAME bundle setup_bundled_python will
     # resolve at run time, not against a particular path.
-    BUNDLE_ROOT=""
-    # Any triple, not the macOS one alone: a clone on Linux or Windows carries
-    # its own bundle under target/python-bundle/<triple>/python, and without it
-    # the embedded interpreter is absent and every agent fails to load at boot.
-    for c in $PWD/target/python-bundle/*/python "$PWD/target/debug/python"; do
-      if [ -x "$c/bin/python3.13" ]; then BUNDLE_ROOT="$c"; break; fi
-    done
-    BUNDLE_PY="$BUNDLE_ROOT/bin/python3.13"
+    source "{{justfile_directory()}}/scripts/bundle_python_env.sh"
+    # Any triple and either layout: a clone on Linux or Windows carries its own
+    # bundle under target/python-bundle/<triple>/python, and Windows lays it out
+    # as python.exe beside libs/ rather than bin/python3.13 beside lib/.
+    BUNDLE_ROOT="$(bundle_python_find || true)"
     if [ -n "$BUNDLE_ROOT" ]; then
+      bundle_python_env "$BUNDLE_ROOT"
       export PYO3_PYTHON="$BUNDLE_PY"
       # The bundle is relocatable but its sysconfig still names the path it was
       # built at, so PyO3 emits `-L /install/lib` and the link fails on
       # "library 'python3.13' not found". release.yml compensates with the same
       # RUSTFLAGS; the dev recipes did not, which is the other half of why a
       # local build never used the bundled interpreter.
-      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_ROOT/lib"
+      export RUSTFLAGS="${RUSTFLAGS:-} -L $BUNDLE_LIBDIR"
       if [ "$(uname -s)" = "Linux" ]; then
-        export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_ROOT/lib"
+        export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-rpath,$BUNDLE_LIBDIR"
       fi
       # The linked install_name is @executable_path/../Resources/python/lib,
       # which is the packaged layout. In a dev run @executable_path is
@@ -1096,8 +1107,13 @@ desktop-dev-automation-seeded-llama script model=llama_model: _require-tauri run
       # already resolved. A symlink makes the dev tree answer the same path the
       # bundle does, and as a bonus setup_bundled_python then matches on its
       # macOS candidate instead of falling through to the Windows one.
-      mkdir -p target/Resources
-      ln -sfn "$BUNDLE_ROOT" target/Resources/python
+      # macOS alone: this answers a dyld install_name. Elsewhere it is dead
+      # weight, and under git-bash `ln -s` is emulated and can fail, which
+      # `set -e` turns into a dead recipe.
+      if [ "$(uname -s)" = "Darwin" ]; then
+        mkdir -p target/Resources
+        ln -sfn "$BUNDLE_ROOT" target/Resources/python
+      fi
     else
       # Refused, not warned. Without the bundle the embedded interpreter has no
       # `apollia` package, so every agent fails to load and the books answer
