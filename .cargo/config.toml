@@ -9,6 +9,16 @@
 # build).
 MACOSX_DEPLOYMENT_TARGET = { value = "15.0", force = false }
 
+# The C++ half of the static CRT decided further down. cargo hands this to
+# every process it starts, build scripts included, so whisper-rs-sys builds
+# ggml against the same runtime rustc links against. It used to be set by the
+# CI workflow alone, and by two packaging recipes: a build driven from the
+# justfile, which is what the runbook asks for, therefore could not link at
+# all on Windows. Measured on 2026-09-08: 24 unresolved `__imp_*` symbols on
+# `just desktop-dev-automation-seeded`, on a machine with the toolchain in
+# place. Harmless anywhere else, where nothing reads it.
+CMAKE_MSVC_RUNTIME_LIBRARY = { value = "MultiThreaded", force = false }
+
 # ── Faster dev profile ───────────────────────────────────────────────────────
 # split-debuginfo = "unpacked": keeps the macOS linker from aggregating the
 # debug info into a .dSYM, which saves 20 to 40% of the link time in dev.
@@ -23,9 +33,9 @@ codegen-units = 256
 # user's machine. The binary embeds vcruntime140.dll and msvcp140.dll directly,
 # so there is nothing extra to install.
 #
-# It has to be matched on the C/C++ side (whisper-rs-sys) with:
-#   export CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-# (otherwise the link fails on /MD against /MT). The CI workflow does it.
+# It has to be matched on the C/C++ side (whisper-rs-sys), otherwise the link
+# fails on /MD against /MT. That is what CMAKE_MSVC_RUNTIME_LIBRARY does, in
+# the [env] block above, so every cargo command carries it.
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
 

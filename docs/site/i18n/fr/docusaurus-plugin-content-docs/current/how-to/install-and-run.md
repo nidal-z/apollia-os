@@ -137,7 +137,6 @@ v2](https://v2.tauri.app/start/prerequisites/).
 
   ```powershell
   $env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin"
-  $env:CMAKE_MSVC_RUNTIME_LIBRARY = "MultiThreaded"
   ```
 
   Sans `LIBCLANG_PATH`, la compilation de `whisper-rs-sys` échoue avec
@@ -413,9 +412,8 @@ x86-64 (CPU, Vulkan, ROCm), Linux arm64 (CPU) et Windows x86-64 (CPU, CUDA,
 Vulkan). Pour tout autre couple, compilez llama.cpp vous-même et passez
 `LLAMA_SERVER_DIR=<bin dir>` ; la recette embarque alors votre build.
 
-Sur Windows, exportez `LIBCLANG_PATH` et `CMAKE_MSVC_RUNTIME_LIBRARY` dans le
-même shell avant de lancer l'une de ces recettes (voir les prérequis Windows
-ci-dessus). Sur Linux, l'exécuteur de reconnaissance vocale a en plus besoin
+Sur Windows, exportez `LIBCLANG_PATH` dans le même shell avant de lancer
+l'une de ces recettes (voir les prérequis Windows ci-dessus). Sur Linux, l'exécuteur de reconnaissance vocale a en plus besoin
 de `clang` et `cmake` dans votre gestionnaire de paquets.
 
 Le bundle se retrouve sous `target/<triple>/release/bundle/` (par exemple
