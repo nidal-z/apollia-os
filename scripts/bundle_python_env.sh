@@ -76,39 +76,51 @@ bundle_python_link_dev() {
     [ -n "$root" ] || return 0
     if [ "$root" != "$dest" ] && ! bundle_python_holds_interpreter "$dest"; then
         # Whatever sits there carries no interpreter: a link left by an earlier
-        # layout, or an empty directory. Remove the entry itself and never its
+        # layout, or a directory. Remove the entry itself and never its
         # contents, so a junction cannot take the real bundle down with it.
+        #
+        # Every step here is allowed to fail: the verification below is what
+        # decides. Without `|| true`, `set -e` killed the whole recipe on a
+        # bare `rmdir` refusal, exit 145 (ERROR_DIR_NOT_EMPTY), printing
+        # nothing at all. Measured on 2026-09-08.
         if [ -L "$dest" ]; then
-            rm -f "$dest"
+            rm -f "$dest" || true
         elif [ -d "$dest" ]; then
             if command -v cygpath >/dev/null 2>&1; then
-                cmd //c rmdir "$(cygpath -w "$dest")" >/dev/null 2>&1
+                cmd //c rmdir "$(cygpath -w "$dest")" >/dev/null 2>&1 || true
             else
-                rmdir "$dest" 2>/dev/null
+                rmdir "$dest" 2>/dev/null || true
             fi
         fi
-        mkdir -p "$(dirname "$dest")"
-        if command -v cygpath >/dev/null 2>&1; then
+        mkdir -p "$(dirname "$dest")" || true
+        # Only when the path is free. `ln -sfn` against an existing directory
+        # creates the link INSIDE it, which would leave a bundle at
+        # <dest>/python that nothing looks for.
+        if [ -e "$dest" ] || [ -L "$dest" ]; then
+            :
+        elif command -v cygpath >/dev/null 2>&1; then
             # An NTFS junction, which an ordinary user may create; a symbolic
             # link needs a privilege, and git-bash's emulated `ln -s` would
             # copy the 200 MB of the bundle on every run instead of pointing
             # at it.
-            cmd //c mklink /J "$(cygpath -w "$dest")" "$(cygpath -w "$root")" >/dev/null 2>&1
+            cmd //c mklink /J "$(cygpath -w "$dest")" "$(cygpath -w "$root")" >/dev/null 2>&1 || true
         else
-            ln -sfn "$root" "$dest"
+            ln -sfn "$root" "$dest" || true
         fi
     fi
-    # Verified on every path, including the one that changed nothing. The first
-    # version of this returned early when the destination already existed, so a
-    # stale directory sitting there was reported as success and the app booted
-    # on the system interpreter anyway. Measured on 2026-09-08: that early
-    # return cost a full run.
+    # Verified on every path, including the one that changed nothing. An
+    # earlier version returned success as soon as the destination existed,
+    # which let a stale directory through and cost a full run.
     if ! bundle_python_holds_interpreter "$dest"; then
         echo "error: no Python bundle reachable at $dest" >&2
         echo "       The app probes that path at run time; without it every" >&2
         echo "       agent fails to load with \"No module named 'apollia'\"." >&2
         echo "       Bundle found at: $root" >&2
-        echo "       If something else occupies that path, remove it and rerun." >&2
+        if [ -e "$dest" ]; then
+            echo "       Something else occupies that path. It holds:" >&2
+            ls -A "$dest" 2>/dev/null | head -5 | sed 's/^/         /' >&2
+            echo "       Remove it and rerun." >&2
+        fi
         return 1
     fi
 }
