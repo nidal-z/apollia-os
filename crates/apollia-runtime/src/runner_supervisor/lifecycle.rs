@@ -369,29 +369,30 @@ pub(super) fn locate_runner_binary(
 
     let bin_name = backend.binary_name();
     let ext = if cfg!(windows) { ".exe" } else { "" };
-    let candidate = dir.join(format!("{bin_name}{ext}"));
-    if candidate.exists() {
-        return Ok(candidate);
-    }
 
-    // Packaged-bundle locations: the runners are staged under a `runners/`
-    // resource directory, not next to the executable. The desktop Tauri app
-    // ships them in `Contents/Resources/runners/` (macOS) while the CLI
-    // self-contained bundle and the Linux packages place them in a sibling or
-    // `lib/apollia-os/runners/` directory. Check each layout.
-    let bundled = [
-        // macOS .app: Contents/MacOS/apollia-desktop -> Contents/Resources/runners/
-        dir.join("../Resources/runners")
-            .join(format!("{bin_name}{ext}")),
-        // Same-dir `runners/` subdir (CLI bundle / Linux staging).
-        dir.join("runners").join(format!("{bin_name}{ext}")),
-        // Linux .deb/AppImage: usr/bin/apollia-desktop -> usr/lib/apollia-os/runners/
-        dir.join("../lib/apollia-os/runners")
-            .join(format!("{bin_name}{ext}")),
-    ];
-    if let Some(found) = bundled.iter().find(|c| c.exists()) {
+    // Every place a runner is staged, for one name. The desktop Tauri app ships
+    // them in `Contents/Resources/runners/` (macOS), the CLI self-contained
+    // bundle and the Linux packages in a sibling `runners/` or in
+    // `lib/apollia-os/runners/`, and a dev build leaves them next to the
+    // executable.
+    let layouts = |name: &str| {
+        [
+            dir.join(format!("{name}{ext}")),
+            dir.join("../Resources/runners").join(format!("{name}{ext}")),
+            dir.join("runners").join(format!("{name}{ext}")),
+            dir.join("../lib/apollia-os/runners")
+                .join(format!("{name}{ext}")),
+        ]
+    };
+
+    if let Some(found) = layouts(bin_name).iter().find(|c| c.exists()) {
         return Ok(found.clone());
     }
+
+    // This stays strict on purpose: `is_backend_available` reads it to decide
+    // which backend to resolve, so answering yes for a binary that is not there
+    // would make that decision lie. Degrading to another runner is the caller's
+    // job, and it happens in `resolve_backend`.
 
     // Dev fallback (`cargo run -p apollia-cli`): the `apollia-runner` binary
     // is placed in target/{debug,release}/ without a backend suffix. We accept
@@ -407,9 +408,10 @@ pub(super) fn locate_runner_binary(
     }
 
     Err(RunnerError::BinaryNotFound(format!(
-        "{} not found near {} (also checked apollia-runner{})",
+        "{} not found near {} (also checked {} and apollia-runner{})",
         bin_name,
         dir.display(),
+        RunnerBackend::Cpu.binary_name(),
         ext
     )))
 }
@@ -478,5 +480,44 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod locate_runner_tests {
+    use super::*;
+
+    /// The resolver reads `current_exe`, so a test drives it by putting a file
+    /// where the test binary itself runs. That directory is shared with the
+    /// backend-degradation cases, which create and remove the same names, so
+    /// every one of them takes this lock: without it a case deletes the runner
+    /// another just wrote, which showed up as a failure that passed on rerun.
+    fn exe_dir() -> std::path::PathBuf {
+        std::env::current_exe()
+            .expect("current_exe")
+            .parent()
+            .expect("parent")
+            .to_path_buf()
+    }
+
+    #[test]
+    fn a_missing_runner_names_both_binaries_it_looked_for() {
+        // GIVEN a directory holding no runner of any flavour
+        let _guard = crate::runner_supervisor::gpu_detection::runner_dir_lock();
+        let ext = if cfg!(windows) { ".exe" } else { "" };
+        let dir = exe_dir();
+        let rocm = dir.join(format!("apollia-runner-rocm{ext}"));
+        let cpu = dir.join(format!("apollia-runner-cpu{ext}"));
+        let _ = std::fs::remove_file(&rocm);
+        let _ = std::fs::remove_file(&cpu);
+
+        // WHEN the supervisor looks for the ROCm runner
+        let found = locate_runner_binary(RunnerBackend::Rocm);
+
+        // THEN the refusal names the processor runner it also mentions, so a
+        // reader is not left believing a single name was searched
+        let message = found.expect_err("no runner is there").to_string();
+        assert!(message.contains("apollia-runner-rocm"), "{message}");
+        assert!(message.contains("apollia-runner-cpu"), "{message}");
     }
 }

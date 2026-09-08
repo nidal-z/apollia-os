@@ -67,13 +67,37 @@ else
     exit 2
 fi
 
+# The interpreter the Python controls of this suite run under.
+#
+# Both controls are standard-library only, so any Python 3 answers. The path
+# was hardcoded to /usr/bin/python3, which exists on macOS and on most Linux
+# distributions and nowhere in git-bash: on Windows the suite refused to start
+# before running a single assertion, reporting a missing file rather than a
+# missing interpreter. Override with APOLLIA_E2E_PYTHON when a machine needs a
+# specific one.
+E2E_PYTHON="${APOLLIA_E2E_PYTHON:-}"
+if [ -z "$E2E_PYTHON" ]; then
+    for _candidate in python3 python /usr/bin/python3; do
+        if command -v "$_candidate" >/dev/null 2>&1; then
+            E2E_PYTHON="$(command -v "$_candidate")"
+            break
+        fi
+    done
+fi
+if [ -z "$E2E_PYTHON" ]; then
+    echo "error: no python3 on this machine; the suite drives its controls with one." >&2
+    echo "       Install Python 3, or set APOLLIA_E2E_PYTHON to an interpreter." >&2
+    echo "          No assertion was run." >&2
+    exit 2
+fi
+
 # The suite resolves this binary, it never builds it, so until now nothing here
 # said it came from this tree. Five times in one campaign it did not, and the
 # run rendered a plausible red about another tree (PASS 156, FAIL 16), which
 # reads exactly like a product regression. The control is the one the three
 # Python guards over the same artefact read, and its refusal is `nothing
 # measured` (2), never a failed assertion.
-if ! FRESHNESS=$(/usr/bin/python3 "$REPO_ROOT/scripts/binary_freshness.py" \
+if ! FRESHNESS=$("$E2E_PYTHON" "$REPO_ROOT/scripts/binary_freshness.py" \
         --bin "$BIN" --tree "$REPO_ROOT" 2>&1); then
     printf '%s\n' "$FRESHNESS" >&2
     echo "          No assertion was run." >&2
@@ -266,7 +290,7 @@ report_finalize "$REPORT_DIR/report.json" "$REPORT_DIR/report.md" "$PASS" "$FAIL
 # leaves without a track) is enforced by scripts/check_cli_e2e_coverage.py in
 # `just guards` and in CI; here a violation is surfaced without flipping the
 # suite's own verdict, which is about the assertions that ran.
-if ! /usr/bin/python3 "$LIB_DIR/coverage.py" --bin "$BIN" --tracks-dir "$TRACK_DIR" \
+if ! "$E2E_PYTHON" "$LIB_DIR/coverage.py" --bin "$BIN" --tracks-dir "$TRACK_DIR" \
     --append-md "$REPORT_DIR/report.md"; then
     echo "$(yellow "WARNING"): command-coverage floor violated or unmeasured;" \
          "run python3 scripts/check_cli_e2e_coverage.py for the verdict." >&2

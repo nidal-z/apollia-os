@@ -68,6 +68,18 @@ pub fn ensure_bundled_agents(repo: &AgentRepository, data_dir: &Path) {
     }
 }
 
+/// Whether a registered agent still has the file the registry points at.
+///
+/// The provisioning used to trust the version recorded in `agents.db` alone,
+/// and a row survives what wrote it: a profile carried over, a data directory
+/// cleaned by hand, a first write that failed. The application then booted with
+/// an agent it believed installed, the loader answered `file not found`, and
+/// the registry stayed empty, which is what left a first run unable to start
+/// its onboarding. Measured on 2026-09-08 on the packaged Windows build.
+fn agent_file_present(existing: &InstalledAgent) -> bool {
+    existing.install_path.is_file()
+}
+
 /// Extracts the onboarding agent bundle to disk and registers it in the repository.
 ///
 /// Layout produced:
@@ -82,9 +94,11 @@ fn provision_onboarding_agent(
 ) -> Result<(), BundledAgentError> {
     let agent_name = "onboarding-agent";
 
-    // Check if already installed at the current version.
+    // Installed at the current version AND still on disk: nothing to do. The
+    // second half of that condition is what a stale row costs when it is
+    // missing, see `agent_file_present`.
     if let Some(existing) = repo.get(agent_name)? {
-        if existing.version == ONBOARDING_AGENT_VERSION {
+        if existing.version == ONBOARDING_AGENT_VERSION && agent_file_present(&existing) {
             tracing::debug!(
                 name = %agent_name,
                 detail = "the upgrade is skipped",
@@ -191,7 +205,7 @@ fn provision_apollia_guide_agent(
     let agent_name = "apollia-guide";
 
     if let Some(existing) = repo.get(agent_name)? {
-        if existing.version == APOLLIA_GUIDE_VERSION {
+        if existing.version == APOLLIA_GUIDE_VERSION && agent_file_present(&existing) {
             tracing::debug!(
                 name = %agent_name,
                 detail = "the upgrade is skipped",
@@ -373,6 +387,33 @@ mod tests {
         assert!(ts.ends_with('Z'));
         assert_eq!(&ts[4..5], "-");
         assert_eq!(&ts[10..11], "T");
+    }
+
+    #[test]
+    fn provision_rewrites_an_agent_whose_file_was_removed() {
+        // GIVEN a profile where the agents were provisioned once and their
+        // files have since gone, which is what a carried-over profile or a
+        // hand-cleaned data directory leaves behind
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let db_path = tmp.path().join("agents.db");
+        let repo = AgentRepository::open(&db_path).expect("open repo");
+        ensure_bundled_agents(&repo, tmp.path());
+        let agent_py = tmp.path().join("agents/onboarding-agent/agent.py");
+        assert!(agent_py.is_file(), "the first provisioning writes the file");
+        std::fs::remove_dir_all(tmp.path().join("agents/onboarding-agent")).expect("remove");
+        assert!(
+            repo.get("onboarding-agent")
+                .expect("get")
+                .is_some(),
+            "the row survives the file, which is the whole trap"
+        );
+
+        // WHEN the application boots again and provisions
+        ensure_bundled_agents(&repo, tmp.path());
+
+        // THEN the file is written back, so the loader finds what the registry
+        // promises instead of answering `file not found`
+        assert!(agent_py.is_file());
     }
 
     #[test]

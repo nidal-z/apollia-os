@@ -287,7 +287,7 @@ pub fn scan_gguf_in_dir(dir: &std::path::Path) -> Vec<GgufModelInfo> {
         if path.extension().and_then(|e| e.to_str()) != Some("gguf") {
             continue;
         }
-        let size_bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        let size_bytes = size_on_disk(&path);
         let filename = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -329,7 +329,7 @@ fn collect_gguf_recursive(
         if file_type.is_dir() {
             collect_gguf_recursive(&path, out, depth + 1, max_depth);
         } else if file_type.is_file() && path.extension().and_then(|e| e.to_str()) == Some("gguf") {
-            let size_bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            let size_bytes = size_on_disk(&path);
             let filename = path
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
@@ -372,7 +372,7 @@ fn scan_whisper_in_dir(dir: &std::path::Path, total_ram_gb: f64) -> Vec<WhisperM
             None => continue,
         };
 
-        let size_bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        let size_bytes = size_on_disk(&path);
         let recommended = whisper_model_recommended(&model_size, total_ram_gb);
 
         results.push(WhisperModelInfo {
@@ -425,6 +425,28 @@ pub fn recommended_max_gguf_size_bytes(total_ram_gb: f64) -> u64 {
 /// Formats a byte count as a human-readable string using binary divisions.
 ///
 /// Examples: `4_500_000_000` → `"4.2 GB"`, `500_000_000` → `"476.8 MB"`.
+/// Size of a model file, read through the path rather than the directory entry.
+///
+/// `DirEntry::metadata` does not follow a link, and on Windows a file inside a
+/// synchronised folder is a reparse point: the call succeeds and answers zero
+/// while the file is perfectly valid. The onboarding then listed a model, and
+/// a dictation model beside it, at 0 B. Reported on 2026-09-08 on the packaged
+/// Windows build. A failure is logged rather than swallowed, because a size
+/// silently read as zero is what made this take a user report to notice.
+fn size_on_disk(path: &std::path::Path) -> u64 {
+    match std::fs::metadata(path) {
+        Ok(meta) => meta.len(),
+        Err(e) => {
+            tracing::warn!(
+                path = %path.display(),
+                error = %e,
+                "model.size.unreadable"
+            );
+            0
+        }
+    }
+}
+
 pub fn format_size_human(bytes: u64) -> String {
     const GB: f64 = 1024.0 * 1024.0 * 1024.0;
     const MB: f64 = 1024.0 * 1024.0;
@@ -543,5 +565,43 @@ mod tests {
         // THEN human-readable output matches expected strings
         assert_eq!(format_size_human(4_500_000_000), "4.2 GB");
         assert_eq!(format_size_human(500_000_000), "476.8 MB");
+    }
+
+    #[test]
+    fn a_model_reached_through_a_link_reports_the_size_of_the_file() {
+        // GIVEN a model file and a link pointing at it, which is the shape a
+        // synchronised Windows folder presents to a directory walk
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let real = tmp.path().join("model.gguf");
+        std::fs::write(&real, vec![0u8; 4096]).expect("write the model");
+        let link = tmp.path().join("linked.gguf");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&real, &link).expect("symlink");
+        #[cfg(windows)]
+        if std::os::windows::fs::symlink_file(&real, &link).is_err() {
+            // Creating a link needs a privilege this runner may not hold; the
+            // case still proves the direct read below.
+            return;
+        }
+
+        // WHEN the size is read the way the scan reads it
+        let size = size_on_disk(&link);
+
+        // THEN it is the size of the file, not the zero a link answers when it
+        // is measured instead of followed
+        assert_eq!(size, 4096);
+    }
+
+    #[test]
+    fn a_path_that_is_not_there_reads_as_zero() {
+        // GIVEN a path no file occupies
+        let tmp = tempfile::tempdir().expect("tempdir");
+
+        // WHEN its size is read
+        let size = size_on_disk(&tmp.path().join("absent.gguf"));
+
+        // THEN zero is returned, and the warning names the path so the reader
+        // is not left with a silent 0 B in the interface
+        assert_eq!(size, 0);
     }
 }

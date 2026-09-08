@@ -279,7 +279,7 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
             backend = ?detected.recommended_backend,
             "runner.backend.auto",
         );
-        return detected.recommended_backend;
+        return degrade_to_something_present(detected.recommended_backend);
     }
 
     let parsed = match RunnerBackend::from_str(&raw.to_ascii_lowercase()) {
@@ -298,7 +298,7 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
             requested = ?parsed,
             detail = "using the detected backend", "runner.backend.override.unavailable",
         );
-        return detected.recommended_backend;
+        return degrade_to_something_present(detected.recommended_backend);
     }
 
     tracing::info!(
@@ -309,12 +309,81 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
     parsed
 }
 
+
+/// Returns a backend whose binary is actually in this build, starting from the
+/// one that was chosen.
+///
+/// The runner carries the speech-to-text engine and only that: the language
+/// model runs in llama-server, a separate binary chosen on its own. So the
+/// name asked for here follows the graphics card, while packaging follows what
+/// whisper can use: measured on the release of 2026-09-08, four desktop
+/// bundles out of five ship the processor runner alone, macOS being the
+/// exception. A machine with a Radeon therefore asked for
+/// `apollia-runner-vulkan`, found nothing, and lost dictation AND the local
+/// model at once, on a build that carried both.
+///
+/// Order: what was chosen, then the processor runner, then whatever is there.
+/// The last step matters for a bundle that ships a GPU runner alone, where the
+/// chosen one can be the processor.
+fn degrade_to_something_present(chosen: RunnerBackend) -> RunnerBackend {
+    if is_backend_available(chosen) {
+        return chosen;
+    }
+    if chosen != RunnerBackend::Cpu && is_backend_available(RunnerBackend::Cpu) {
+        tracing::warn!(
+            requested = ?chosen,
+            using = ?RunnerBackend::Cpu,
+            detail = "dictation runs on the processor; the language model keeps its own engine",
+            "runner.backend.degraded",
+        );
+        return RunnerBackend::Cpu;
+    }
+    let others = [
+        RunnerBackend::Metal,
+        RunnerBackend::Cuda,
+        RunnerBackend::Vulkan,
+        RunnerBackend::Rocm,
+    ];
+    if let Some(found) = others
+        .into_iter()
+        .find(|b| *b != chosen && is_backend_available(*b))
+    {
+        tracing::warn!(
+            requested = ?chosen,
+            using = ?found,
+            detail = "the only runner this build ships",
+            "runner.backend.degraded",
+        );
+        return found;
+    }
+    tracing::warn!(
+        requested = ?chosen,
+        detail = "no runner binary ships with this build",
+        "runner.backend.none_available",
+    );
+    chosen
+}
+
+/// Guards the directory the runner-lookup tests write into.
+///
+/// Those cases live in two modules and create the same file names next to the
+/// test binary, so they take one lock rather than racing each other.
+#[cfg(test)]
+pub(super) fn runner_dir_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// Check that a runner binary is present next to the current executable.
 ///
-/// The Apollia bundle ships the 5 runner binaries on Linux/Windows, and
-/// `metal`+`cpu` on macOS. We also accept `CARGO_MANIFEST_DIR` in a test or dev
-/// environment: if we cannot resolve the current executable, we return `true`
-/// so as not to break tests that call `resolve_backend`.
+/// What a bundle ships is decided by packaging, not by this file: as of the
+/// release of 2026-09-08 the macOS desktop carries `cpu` and `metal` while
+/// every other desktop bundle carries `cpu` alone, and a CLI archive carries
+/// the single runner of its preset. This function answers for one name; use
+/// `degrade_to_something_present` to end up on one that exists.
+///
+/// A test or dev environment where the current executable cannot be resolved
+/// answers `true`, so `resolve_backend` keeps working there.
 fn is_backend_available(backend: RunnerBackend) -> bool {
     // Delegate to the spawn-path resolver so detection and spawning agree on
     // every bundle layout (macOS .app `Contents/Resources/runners/`, the CLI
@@ -646,7 +715,11 @@ mod tests {
 
     #[test]
     fn override_auto_uses_detection() {
-        // GIVEN an NVIDIA detected and override = "auto"
+        // GIVEN an NVIDIA detected, override = "auto", and no runner staged:
+        // resolution reads what ships, so the case says so rather than
+        // inheriting whatever a neighbouring case left behind
+        let _guard = runner_dir_lock();
+        remove_every_runner();
         let detected = nvidia_detected();
         let cfg = make_runner_config("auto");
         // WHEN resolving the backend
@@ -657,7 +730,9 @@ mod tests {
 
     #[test]
     fn override_auto_case_insensitive() {
-        // GIVEN override = "Auto" (mixed case)
+        // GIVEN override = "Auto" (mixed case) and no runner staged
+        let _guard = runner_dir_lock();
+        remove_every_runner();
         let detected = nvidia_detected();
         let cfg = make_runner_config("Auto");
         // WHEN the backend is resolved
@@ -667,7 +742,9 @@ mod tests {
 
     #[test]
     fn override_empty_uses_detection() {
-        // GIVEN override = "" (config absent from the toml)
+        // GIVEN override = "" (config absent from the toml) and no runner staged
+        let _guard = runner_dir_lock();
+        remove_every_runner();
         let detected = nvidia_detected();
         let cfg = make_runner_config("");
         // WHEN the backend is resolved
@@ -677,6 +754,8 @@ mod tests {
 
     #[test]
     fn override_explicit_used_if_available() {
+        let _guard = runner_dir_lock();
+        remove_every_runner();
         // GIVEN an NVIDIA detected and override = "vulkan".
         // The test creates a dummy `apollia-runner-vulkan` binary next to the
         // test executable to simulate a complete bundle.
@@ -706,8 +785,101 @@ mod tests {
         assert_eq!(backend, RunnerBackend::Vulkan);
     }
 
+
+    fn write_runner(name: &str) -> std::path::PathBuf {
+        let ext = if cfg!(windows) { ".exe" } else { "" };
+        let path = std::env::current_exe()
+            .expect("current_exe")
+            .parent()
+            .expect("parent")
+            .join(format!("{name}{ext}"));
+        std::fs::write(&path, b"probe").expect("write a runner");
+        path
+    }
+
+    fn remove_every_runner() {
+        let ext = if cfg!(windows) { ".exe" } else { "" };
+        let dir = std::env::current_exe()
+            .expect("current_exe")
+            .parent()
+            .expect("parent")
+            .to_path_buf();
+        for name in [
+            "apollia-runner-cpu",
+            "apollia-runner-cuda",
+            "apollia-runner-rocm",
+            "apollia-runner-vulkan",
+            "apollia-runner-metal",
+        ] {
+            let _ = std::fs::remove_file(dir.join(format!("{name}{ext}")));
+        }
+    }
+
+    #[test]
+    fn a_detected_gpu_with_no_runner_degrades_to_the_processor_one() {
+        // GIVEN a machine whose card resolves to Vulkan, on a build that ships
+        // the processor runner alone: four desktop bundles out of five
+        let _guard = runner_dir_lock();
+        remove_every_runner();
+        let cpu = write_runner("apollia-runner-cpu");
+
+        // WHEN the backend is resolved with no override, the default path
+        let cfg = make_runner_config("auto");
+        let detected = GpuInfo {
+            recommended_backend: RunnerBackend::Vulkan,
+            ..GpuInfo::cpu_fallback()
+        };
+        let backend = resolve_backend(&cfg, &detected);
+
+        // THEN it lands on the runner that exists rather than on one that does
+        // not: asking for the absent name cost dictation and the local model
+        // at once on a machine carrying both
+        assert_eq!(backend, RunnerBackend::Cpu);
+        let _ = std::fs::remove_file(&cpu);
+    }
+
+    #[test]
+    fn a_build_shipping_one_gpu_runner_alone_is_used_by_a_machine_without_a_card() {
+        // GIVEN a bundle carrying the Vulkan runner alone, which is what a
+        // vulkan CLI preset ships, on a machine detected as processor-only
+        let _guard = runner_dir_lock();
+        remove_every_runner();
+        let vulkan = write_runner("apollia-runner-vulkan");
+
+        // WHEN the backend is resolved
+        let cfg = make_runner_config("auto");
+        let detected = GpuInfo::cpu_fallback();
+        let backend = resolve_backend(&cfg, &detected);
+
+        // THEN the runner that ships is used, because refusing here disables
+        // dictation on a build that carries a working one
+        assert_eq!(backend, RunnerBackend::Vulkan);
+        let _ = std::fs::remove_file(&vulkan);
+    }
+
+    #[test]
+    fn a_build_with_no_runner_at_all_keeps_the_detected_backend() {
+        // GIVEN a build shipping no runner, a dev tree for instance
+        let _guard = runner_dir_lock();
+        remove_every_runner();
+
+        // WHEN the backend is resolved
+        let cfg = make_runner_config("auto");
+        let detected = GpuInfo {
+            recommended_backend: RunnerBackend::Cuda,
+            ..GpuInfo::cpu_fallback()
+        };
+        let backend = resolve_backend(&cfg, &detected);
+
+        // THEN the detected backend is kept and the spawn reports the missing
+        // binary by name, which is the diagnosis a reader needs
+        assert_eq!(backend, RunnerBackend::Cuda);
+    }
+
     #[test]
     fn override_falls_back_if_binary_missing() {
+        let _guard = runner_dir_lock();
+        remove_every_runner();
         // GIVEN an NVIDIA detected and override = "rocm".
         // The `apollia-runner-rocm` binary is NOT next to the test executable.
         // (current_exe points to target/debug/deps/<test-binary>, we look for
