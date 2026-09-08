@@ -90,14 +90,14 @@ _report_capture() {
 # report_finalize <out_json> <out_md> <pass> <fail> <skip> <wall_s>
 report_finalize() {
     local out_json=$1 out_md=$2 pass=$3 fail=$4 skip=$5 wall=$6
-    /usr/bin/python3 "$LIB_DIR/render_report.py" \
+    "${E2E_PYTHON:-python3}" "$LIB_DIR/render_report.py" \
         --rows "$REPORT_ROWS" \
         --captures "$REPORT_CAPS" \
         --out-json "$out_json" \
         --out-md "$out_md" \
         --pass "$pass" --fail "$fail" --skip "$skip" --wall "$wall" \
         2>/dev/null || {
-            echo "report render failed (python3 missing?); rows kept at $REPORT_ROWS" >&2
+            echo "report render failed; rows kept at $REPORT_ROWS" >&2
             return 1
         }
 }

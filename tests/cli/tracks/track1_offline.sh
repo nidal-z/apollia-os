@@ -70,7 +70,7 @@ check_json_field "project show alpha id"    "d['id']"          "seed-project-alp
 check_json_field "project show alpha name"  "d['name']"        "Seed Project Alpha" "$BIN" project show seed-project-alpha --json
 check_content "project show alpha: 3 providers" "Providers +3|Providers[[:space:]]+3" "$BIN" project show seed-project-alpha
 # CRUD on a fresh project (leaves the seeded rows intact).
-PID=$("$BIN" project create e2e-tmp --description demo --json 2>/dev/null | /usr/bin/python3 -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
+PID=$("$BIN" project create e2e-tmp --description demo --json 2>/dev/null | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['id'])" 2>/dev/null)
 [[ -n "$PID" ]] && _pass "project create + JSON id parse" || { _fail "project create" ""; PID=ghost; }
 check         "project update --name e2e-tmp2"         "$BIN" project update "$PID" --name e2e-tmp2
 check         "project agents add"                     "$BIN" project agents add "$PID" my-agent

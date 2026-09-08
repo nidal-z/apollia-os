@@ -45,19 +45,55 @@ set -euo pipefail
 # other, none of them naming the cause. The product is never affected, it
 # carries its own SQLite through rusqlite's bundled build; this is the CLI on
 # PATH, and the check names it rather than letting the failure cascade.
-if ! command -v sqlite3 >/dev/null 2>&1; then
-  echo "seed: sqlite3 is not on PATH; the seeded profile cannot be built" >&2
-  exit 2
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
+# Which SQLite this build drives, decided once. The command is preferred when
+# it is there and carries FTS5; Python's own SQLite stands in otherwise, since
+# Windows ships no `sqlite3` on PATH and neither does a minimal Linux image.
+# Measured on 2026-09-08: a Windows machine with everything else in place could
+# not build the profile at all.
+SEED_SQLITE_MODE=""
+SEED_PYTHON=""
+FTS5_PROBE="CREATE VIRTUAL TABLE t USING fts5(x);"
+if command -v sqlite3 >/dev/null 2>&1 &&
+  sqlite3 :memory: "$FTS5_PROBE" >/dev/null 2>&1; then
+  SEED_SQLITE_MODE="cli"
+else
+  for _py in "${APOLLIA_E2E_PYTHON:-}" python3 python; do
+    [ -n "$_py" ] || continue
+    command -v "$_py" >/dev/null 2>&1 || continue
+    if "$_py" "$HERE/sqlite_exec.py" :memory: "$FTS5_PROBE" >/dev/null 2>&1; then
+      SEED_PYTHON="$_py"
+      SEED_SQLITE_MODE="python"
+      break
+    fi
+  done
 fi
-if ! sqlite3 :memory: "CREATE VIRTUAL TABLE t USING fts5(x);" >/dev/null 2>&1; then
-  echo "seed: the sqlite3 on PATH has no FTS5 module ($(command -v sqlite3))" >&2
-  echo "      $(sqlite3 --version 2>/dev/null | head -1)" >&2
-  echo "      Install one that carries it (macOS: brew install sqlite, then put" >&2
-  echo "      its bin first on PATH; Debian: the packaged sqlite3 has it)." >&2
+if [ -z "$SEED_SQLITE_MODE" ]; then
+  echo "seed: no SQLite carrying FTS5 is reachable, so the profile cannot be built" >&2
+  echo "      Two ways out: a sqlite3 on PATH built with FTS5 (macOS: brew install" >&2
+  echo "      sqlite, then its bin first on PATH; Debian: the packaged one has it;" >&2
+  echo "      Windows: winget install SQLite.SQLite), or a Python 3 whose sqlite3" >&2
+  echo "      module carries FTS5, which the bundled interpreter of this tree does." >&2
   exit 2
 fi
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+# One entry point for every statement this builder runs. SQL comes as an
+# argument when there is one, on standard input otherwise, which is the shape
+# the fragments use.
+seed_sqlite() {
+  local database="$1"
+  shift
+  if [ "$SEED_SQLITE_MODE" = "cli" ]; then
+    if [ "$#" -gt 0 ]; then sqlite3 "$database" "$@"; else sqlite3 "$database"; fi
+  else
+    if [ "$#" -gt 0 ]; then
+      "$SEED_PYTHON" "$HERE/sqlite_exec.py" "$database" "$@"
+    else
+      "$SEED_PYTHON" "$HERE/sqlite_exec.py" "$database"
+    fi
+  fi
+}
 REPO_ROOT="$(cd "$HERE/../../.." >/dev/null 2>&1 && pwd)"
 SEED_HOME="${1:-$PWD/.apollia-seed-home}"
 DATA="$SEED_HOME/.apollia"
@@ -116,7 +152,7 @@ expand_seed_paths() {
 # database out of seventeen: that is what made every CI run of this seed produce
 # three databases and a self-test reporting twelve failures.
 apply_schema() {
-  grep -vE "CREATE TABLE sqlite_sequence|CREATE TABLE IF NOT EXISTS .[A-Za-z_]+_fts_(data|idx|content|docsize|config)." "$1" | sqlite3 "$2"
+  grep -vE "CREATE TABLE sqlite_sequence|CREATE TABLE IF NOT EXISTS .[A-Za-z_]+_fts_(data|idx|content|docsize|config)." "$1" | seed_sqlite "$2"
 }
 
 echo "==> seed HOME: $SEED_HOME"
@@ -153,7 +189,7 @@ for schema in "$HERE"/schemas/*.sql; do
   echo "==> db: $db.db"
   apply_schema "$schema" "$DATA/$db.db"
   if [ -f "$frag" ]; then
-    expand_seed_paths < "$frag" | sqlite3 "$DATA/$db.db"
+    expand_seed_paths < "$frag" | seed_sqlite "$DATA/$db.db"
   fi
 done
 
@@ -167,7 +203,7 @@ if [ "$PLANNER" = "1" ]; then
     [ -e "$frag" ] || continue
     db="$(basename "$frag" .sql)"
     echo "==> planner db rows:   $db.db"
-    expand_seed_paths < "$frag" | sqlite3 "$DATA/$db.db"
+    expand_seed_paths < "$frag" | seed_sqlite "$DATA/$db.db"
   done
 fi
 
@@ -190,7 +226,7 @@ if [ -n "$OVERLAY" ]; then
       [ -e "$frag" ] || continue
       db="$(basename "$frag" .sql)"
       echo "==> overlay db rows:   $db.db"
-      expand_seed_paths < "$frag" | sqlite3 "$DATA/$db.db"
+      expand_seed_paths < "$frag" | seed_sqlite "$DATA/$db.db"
     done
   fi
 fi
@@ -252,7 +288,7 @@ if [ -f "$HERE/files/mcp-stub-server.py" ]; then
   cp "$HERE/files/mcp-stub-server.py" "$STUB_DST"
   chmod +x "$STUB_DST"
   if [ -f "$DATA/mcp.db" ]; then
-    sqlite3 "$DATA/mcp.db" \
+    seed_sqlite "$DATA/mcp.db" \
       "UPDATE mcp_servers SET args_json = replace(args_json, '__APOLLIA_SEED_MCP_STUB__', '$STUB_REF') WHERE args_json LIKE '%__APOLLIA_SEED_MCP_STUB__%';"
   fi
   # The MCP registry cache. McpRegistryClient reads `<data dir>/mcp-registry.json`
@@ -271,11 +307,11 @@ fi
 #    install_path must point at the agent's .py entrypoint (agent.py): the boot
 #    loader validates it as a .py file (loader.rs), not the containing directory.
 if [ -f "$DATA/agents.db" ]; then
-  sqlite3 "$DATA/agents.db" \
+  seed_sqlite "$DATA/agents.db" \
     "UPDATE installed_agents SET install_path = '$DATA_ALIAS/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
-  sqlite3 "$DATA/agents.db" \
+  seed_sqlite "$DATA/agents.db" \
     "UPDATE installed_agents SET source_path = '$DATA_ALIAS/agents/' || name || '/agent.py' WHERE 1;" 2>/dev/null || true
-  sqlite3 "$DATA/agents.db" \
+  seed_sqlite "$DATA/agents.db" \
     "UPDATE installed_packages SET root_path = '$DATA_ALIAS/agents/packages/' || name WHERE 1;" 2>/dev/null || true
 fi
 

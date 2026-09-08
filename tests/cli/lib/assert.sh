@@ -89,7 +89,7 @@ check_json() {
     local label=$1; shift
     local out rc t0 dur
     t0=$(_now_ms); out=$("$@" 2>/dev/null); rc=$?; dur=$(( $(_now_ms) - t0 ))
-    if [[ $rc -eq 0 ]] && /usr/bin/python3 -c "import sys,json;json.loads(sys.stdin.read())" <<<"$out" 2>/dev/null; then
+    if [[ $rc -eq 0 ]] && "${E2E_PYTHON:-python3}" -c "import sys,json;json.loads(sys.stdin.read())" <<<"$out" 2>/dev/null; then
         _pass "$label" "JSON valid" "$dur"
     else
         _fail "$label" "rc=$rc or non-JSON | cmd: $* | out: ${out:0:300}" "$rc" "$dur"

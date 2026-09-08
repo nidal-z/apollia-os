@@ -181,7 +181,7 @@ check         "chat --list (daemon on)"            "${Q[@]}" chat --list
 # while it sits in `working` (no model wired in Track 2), then we cancel it.
 section "task lifecycle"
 TRUN=$("${Q[@]}" run apollia-chat "ping" --detach --json 2>/dev/null)
-TID=$(printf '%s' "$TRUN" | /usr/bin/python3 -c "import sys,json;d=json.load(sys.stdin);print(d.get('task_id') or d.get('id',''))" 2>/dev/null)
+TID=$(printf '%s' "$TRUN" | "${E2E_PYTHON:-python3}" -c "import sys,json;d=json.load(sys.stdin);print(d.get('task_id') or d.get('id',''))" 2>/dev/null)
 if [[ -n "$TID" ]]; then
     _pass "run --detach + task_id parse" "$TID"
     check   "task status <id>"                     "${Q[@]}" task status "$TID"
