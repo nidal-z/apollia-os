@@ -2,9 +2,13 @@
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
+  import { hotkeyFromSearch } from "$lib/stt/overlayHotkey";
 
   let isRecording = $state(true);
-  let hotkey = $state("…");
+  // The address carries the label from the first paint; the config event
+  // below only refreshes it when the hotkey changes later.
+  const openedWith = hotkeyFromSearch(window.location.search);
+  let hotkey = $state(openedWith === null ? "…" : formatHotkey(openedWith));
 
   // Voice visualizer - a scrolling waveform driven by the real capture level.
   // The Rust cpal stream (the same one the STT engine transcribes) emits a

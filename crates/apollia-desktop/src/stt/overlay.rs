@@ -43,6 +43,23 @@ const OVERLAY_HEIGHT: f64 = 98.0;
 /// Margin from the bottom of the screen in logical pixels.
 const BOTTOM_MARGIN: f64 = 40.0;
 
+/// The overlay page with the hotkey label carried in its query string.
+///
+/// The page used to learn the label from the `stt-overlay-config` event alone,
+/// emitted by [`RecordingOverlay::show`]. The window is built by the STT
+/// reload and shown by the first recording, and the onboarding does both
+/// within the same second: the event left before the page had registered its
+/// listener, and the label stayed on its placeholder for the whole recording.
+/// Measured on 2026-09-09: "… pour arrêter" for over two minutes. The query
+/// string is read by the page at start, so the first paint already carries
+/// the label; the event still updates it when the hotkey changes later.
+///
+/// Percent-encoded: `+` is the separator of every hotkey and reads as a space
+/// in a query string.
+fn overlay_page(hotkey: &str) -> String {
+    format!("overlay.html?hotkey={}", urlencoding::encode(hotkey))
+}
+
 /// Manages the recording overlay window lifecycle.
 ///
 /// Created once during Tauri setup. The overlay window is built hidden and
@@ -93,7 +110,7 @@ impl RecordingOverlay {
         let builder = WebviewWindowBuilder::new(
             &self.app,
             WINDOW_LABEL,
-            WebviewUrl::App("overlay.html".into()),
+            WebviewUrl::App(overlay_page(&self.hotkey).into()),
         )
         .title(crate::i18n::overlay_recording(crate::i18n::locale()))
         .decorations(false)
@@ -227,4 +244,30 @@ pub fn spawn_overlay_listener(overlay: RecordingOverlay, event_bus: &EventBusSen
         }
         tracing::debug!(generation, "stt.overlay.listener.stopped");
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::overlay_page;
+
+    #[test]
+    fn the_hotkey_travels_in_the_query_string_with_its_pluses_intact() {
+        // GIVEN the default hotkey, whose separators are pluses
+        let hotkey = "ctrl+shift+space";
+
+        // WHEN the overlay page address is built
+        let page = overlay_page(hotkey);
+
+        // THEN the pluses are percent-encoded, since a bare plus decodes as a
+        // space and the page would read "ctrl shift space"
+        assert_eq!(page, "overlay.html?hotkey=ctrl%2Bshift%2Bspace");
+    }
+
+    #[test]
+    fn an_empty_hotkey_still_yields_a_valid_page_address() {
+        // GIVEN no hotkey at all
+        // WHEN the address is built
+        // THEN the page loads and the placeholder stays, rather than a broken URL
+        assert_eq!(overlay_page(""), "overlay.html?hotkey=");
+    }
 }
