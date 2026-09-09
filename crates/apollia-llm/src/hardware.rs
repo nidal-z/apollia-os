@@ -87,16 +87,32 @@ impl CompatibilityBadge {
     }
 }
 
-/// Detect the hardware profile of the local machine.
-///
-/// Blocking: call from `tokio::task::spawn_blocking` if needed.
-pub fn detect() -> HardwareProfile {
-    let mut sys = System::new_all();
-    sys.refresh_all();
+/// The half of the profile that cannot change while the process runs: the
+/// processor, the installed memory, and the accelerator.
+struct StaticProfile {
+    total_ram_gb: f64,
+    cpu_model: String,
+    cpu_cores: u32,
+    accelerator: AcceleratorProfile,
+    memory_budget_gb: f64,
+}
+
+/// Computed once. Everything in it costs a full hardware interrogation, and
+/// none of it changes without a reboot or a driver installation, which needs
+/// the application restarted to be picked up.
+static STATIC_PROFILE: std::sync::OnceLock<StaticProfile> = std::sync::OnceLock::new();
+
+fn detect_static() -> StaticProfile {
+    // `System::new()` plus a targeted refresh, not `new_all()` followed by
+    // `refresh_all()`. The pair enumerated every process on the machine twice,
+    // and this function is called by several API routes on each read of a
+    // hardware panel. On Windows, where process enumeration is expensive and
+    // the machine is busy, that alone was felt in the interface.
+    let mut sys = System::new();
+    sys.refresh_memory();
+    sys.refresh_cpu_all();
 
     let total_ram_gb = sys.total_memory() as f64 / 1_073_741_824.0;
-    let available_ram_gb = sys.available_memory() as f64 / 1_073_741_824.0;
-
     let cpu_model = sys
         .cpus()
         .first()
@@ -112,13 +128,35 @@ pub fn detect() -> HardwareProfile {
 
     let memory_budget_gb = compute_budget(&accelerator, total_ram_gb);
 
-    HardwareProfile {
+    StaticProfile {
         total_ram_gb,
-        available_ram_gb,
         cpu_model,
         cpu_cores,
         accelerator,
         memory_budget_gb,
+    }
+}
+
+/// Detect the hardware profile of the local machine.
+///
+/// Blocking: call from `tokio::task::spawn_blocking` if needed. Only the
+/// available memory is read on each call; the rest is computed once, since
+/// interrogating it spawns `nvidia-smi`, the engine, or a PowerShell query
+/// depending on the machine.
+pub fn detect() -> HardwareProfile {
+    let base = STATIC_PROFILE.get_or_init(detect_static);
+
+    let mut sys = System::new();
+    sys.refresh_memory();
+    let available_ram_gb = sys.available_memory() as f64 / 1_073_741_824.0;
+
+    HardwareProfile {
+        total_ram_gb: base.total_ram_gb,
+        available_ram_gb,
+        cpu_model: base.cpu_model.clone(),
+        cpu_cores: base.cpu_cores,
+        accelerator: base.accelerator.clone(),
+        memory_budget_gb: base.memory_budget_gb,
     }
 }
 
@@ -398,13 +436,18 @@ fn probe_generic_gpu() -> Option<String> {
 
 #[cfg(not(target_os = "macos"))]
 fn detect_nvidia_cuda() -> Option<AcceleratorProfile> {
-    let output = std::process::Command::new("nvidia-smi")
-        .args([
-            "--query-gpu=name,memory.total,compute_cap",
-            "--format=csv,noheader,nounits",
-        ])
-        .output()
-        .ok()?;
+    let mut cmd = std::process::Command::new("nvidia-smi");
+    cmd.args([
+        "--query-gpu=name,memory.total,compute_cap",
+        "--format=csv,noheader,nounits",
+    ]);
+    // The desktop binary owns no console, so Windows allocates a fresh one for
+    // every console-subsystem child and shows it. This spawn had no such call
+    // and `detect` runs on several API routes, so a console flashed each time a
+    // hardware panel was read. It went unnoticed because the guard that holds
+    // this rule did not scan this crate; it does now.
+    apollia_core::subprocess_window::hide_console(&mut cmd);
+    let output = cmd.output().ok()?;
 
     if !output.status.success() {
         return None;

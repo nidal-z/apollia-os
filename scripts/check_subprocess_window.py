@@ -43,6 +43,10 @@ SCANNED_CRATES = [
     "apollia-connectors",
     "apollia-auth",
     "apollia-stt",
+    # Linked by the desktop binary, and it was missing here: its `nvidia-smi`
+    # spawn showed a console on every hardware read for as long as the list
+    # stayed short.
+    "apollia-llm",
 ]
 
 SPAWN = re.compile(r"\bCommand::new\s*\(")
@@ -62,6 +66,32 @@ NON_WINDOWS_CFG = re.compile(
     r'#\[cfg\(.*(target_os\s*=\s*"(linux|macos|ios|android|freebsd)"|\bunix\b|target_family\s*=\s*"unix").*\)\]'
 )
 FN_DECL = re.compile(r"^\s*(pub(\([^)]*\))?\s+)?(async\s+)?(unsafe\s+)?fn\s")
+
+# A gate that excludes Windows outright. Checked before anything else, so that
+# `all(not(target_os = "macos"), not(target_os = "windows"))` is read as the
+# Unix-only gate it is rather than as the negation below.
+EXCLUDES_WINDOWS = re.compile(r'not\s*\(\s*target_os\s*=\s*"windows"\s*\)')
+
+# A `not(...)` group, innermost first. Negations are stripped before looking for
+# a non-Windows gate, because NON_WINDOWS_CFG matches on the target name and a
+# negation carries that name too: `#[cfg(not(target_os = "macos"))]` was read as
+# "off Windows" and exempted a `nvidia-smi` spawn that runs on Windows, showing
+# a console on every hardware read. Measured on 2026-09-09.
+#
+# Stripping rather than refusing outright, because a gate may carry both:
+# `#[cfg(all(unix, not(target_os = "linux")))]` is a Unix-only gate that happens
+# to hold a negation, and it must stay exempt. Only what survives the strip
+# decides.
+NOT_GROUP = re.compile(r"not\s*\([^()]*\)")
+
+
+def without_negations(cfg: str) -> str:
+    """The cfg with every `not(...)` group removed, innermost outwards."""
+    previous = None
+    while previous != cfg:
+        previous = cfg
+        cfg = NOT_GROUP.sub("", cfg)
+    return cfg
 
 
 def is_off_windows(lines: list[str], index: int) -> bool:
@@ -87,11 +117,11 @@ def is_off_windows(lines: list[str], index: int) -> bool:
         stripped = lines[i].strip()
         if not stripped.startswith("#[cfg("):
             continue
-        if re.search(r"not\s*\(\s*unix\s*\)", stripped):
-            return False
         if stripped.startswith("#[cfg(test)]"):
             continue
-        return bool(NON_WINDOWS_CFG.search(stripped))
+        if EXCLUDES_WINDOWS.search(stripped):
+            return True
+        return bool(NON_WINDOWS_CFG.search(without_negations(stripped)))
     return False
 
 
