@@ -60,6 +60,20 @@ pub enum AcceleratorProfile {
     },
 }
 
+impl AcceleratorProfile {
+    /// Whether the engine has a device other than the processor to load onto.
+    ///
+    /// The one question a "GPU" indicator asks. Answered here, next to the
+    /// profile, so every surface reads the same detection instead of guessing
+    /// from the operating system: on Windows the desktop's onboarding used to
+    /// answer `false` unconditionally and never showed the chip, on a machine
+    /// whose engine was loading every layer onto a Radeon.
+    #[must_use]
+    pub fn is_available(&self) -> bool {
+        !matches!(self, Self::None)
+    }
+}
+
 /// Compatibility badge for a GGUF file against the local hardware.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -479,6 +493,34 @@ fn detect_nvidia_cuda() -> Option<AcceleratorProfile> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_absence_of_a_device_reads_as_unavailable() {
+        // GIVEN the four shapes an accelerator profile can take
+        let none = AcceleratorProfile::None;
+        let generic = AcceleratorProfile::Generic {
+            device_name: "AMD Radeon RX 6900 XT".to_string(),
+            vram_gb: 16.0,
+        };
+        let cuda = AcceleratorProfile::Cuda {
+            device_name: "NVIDIA GeForce RTX 4090".to_string(),
+            vram_gb: 24.0,
+            compute_capability: (8, 9),
+        };
+        let apple = AcceleratorProfile::AppleSilicon {
+            chip: "M4 Max".to_string(),
+            generation: 4,
+            vram_gb: 64.0,
+        };
+
+        // WHEN each is asked whether a device is available
+        // THEN only the processor-only profile says no; the control is that
+        // very case, which fails if the answer were a blanket yes
+        assert!(!none.is_available(), "no device must read as unavailable");
+        assert!(generic.is_available());
+        assert!(cuda.is_available());
+        assert!(apple.is_available());
+    }
 
     // GIVEN a profile with a 24 GB budget
     // WHEN  CompatibilityBadge::compute with a 10 GB file

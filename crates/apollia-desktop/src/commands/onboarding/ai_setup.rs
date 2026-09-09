@@ -486,7 +486,16 @@ fn detect_gpu_basic() -> bool {
         std::path::Path::new("/dev/dri/card0").exists()
             || std::path::Path::new("/proc/driver/nvidia").exists()
     }
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(target_os = "windows")]
+    {
+        // Ask the engine, not the operating system. This arm answered `false`
+        // unconditionally, so no Windows machine ever saw the chip, including
+        // one whose engine was loading every layer onto a Radeon (measured
+        // 2026-09-09). The profile is computed once per process, so this costs
+        // nothing after the first read.
+        apollia_llm::hardware::detect().accelerator.is_available()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         false
     }
