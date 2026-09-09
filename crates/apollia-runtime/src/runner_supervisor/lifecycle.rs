@@ -408,11 +408,16 @@ pub(super) fn locate_runner_binary(
         return Ok(dev_fallback);
     }
 
+    // Names the two paths actually tried, and no others. The previous wording
+    // claimed the CPU runner had been checked too; it never is here, because
+    // choosing another backend belongs to the caller. An operator reading that
+    // line went looking for a CPU runner that the search had not touched.
     Err(RunnerError::BinaryNotFound(format!(
-        "{} not found near {} (also checked {} and apollia-runner{})",
+        "{}{} not found near {}, nor in its bundled runners directory (also \
+         checked apollia-runner{})",
         bin_name,
+        ext,
         dir.display(),
-        RunnerBackend::Cpu.binary_name(),
         ext
     )))
 }
@@ -502,7 +507,7 @@ mod locate_runner_tests {
     }
 
     #[test]
-    fn a_missing_runner_names_both_binaries_it_looked_for() {
+    fn a_missing_runner_names_only_the_binaries_it_actually_looked_for() {
         // GIVEN a directory holding no runner of any flavour
         let _guard = crate::runner_supervisor::gpu_detection::runner_dir_lock();
         let ext = if cfg!(windows) { ".exe" } else { "" };
@@ -515,10 +520,15 @@ mod locate_runner_tests {
         // WHEN the supervisor looks for the ROCm runner
         let found = locate_runner_binary(RunnerBackend::Rocm);
 
-        // THEN the refusal names the processor runner it also mentions, so a
-        // reader is not left believing a single name was searched
+        // THEN it names the backend it searched and the dev fallback, and it
+        // does NOT name the processor runner: this function never looks for
+        // that one, choosing another backend belongs to the caller. The
+        // previous wording claimed otherwise, and an operator on Windows read
+        // that the CPU runner had been checked when the search had not touched
+        // it, which sent them looking for the wrong missing file.
         let message = found.expect_err("no runner is there").to_string();
         assert!(message.contains("apollia-runner-rocm"), "{message}");
-        assert!(message.contains("apollia-runner-cpu"), "{message}");
+        assert!(message.contains("apollia-runner"), "{message}");
+        assert!(!message.contains("apollia-runner-cpu"), "{message}");
     }
 }

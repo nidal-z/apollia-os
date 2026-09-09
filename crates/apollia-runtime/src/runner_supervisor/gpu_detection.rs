@@ -324,6 +324,20 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
 /// Order: what was chosen, then the processor runner, then whatever is there.
 /// The last step matters for a bundle that ships a GPU runner alone, where the
 /// chosen one can be the processor.
+/// The backend to start with at boot, when no operator override is in reach.
+///
+/// Boot used to hand `detected.recommended_backend` straight to the supervisor.
+/// Detection recommends Vulkan for every AMD and Intel card, no bundle has ever
+/// shipped `apollia-runner-vulkan`, and the spawn path does not fall back on its
+/// own, so the runner failed to start and took dictation and the local model
+/// down with it. Measured on 2026-09-09, on Windows with a Radeon RX 6900 XT.
+///
+/// `resolve_backend` held the degradation and had test callers only. This is
+/// the seam boot goes through, so the two agree by construction.
+pub(crate) fn boot_backend(detected: &GpuInfo) -> RunnerBackend {
+    degrade_to_something_present(detected.recommended_backend)
+}
+
 fn degrade_to_something_present(chosen: RunnerBackend) -> RunnerBackend {
     if is_backend_available(chosen) {
         return chosen;
@@ -832,6 +846,30 @@ mod tests {
         // THEN it lands on the runner that exists rather than on one that does
         // not: asking for the absent name cost dictation and the local model
         // at once on a machine carrying both
+        assert_eq!(backend, RunnerBackend::Cpu);
+        let _ = std::fs::remove_file(&cpu);
+    }
+
+    #[test]
+    fn boot_degrades_a_vulkan_recommendation_onto_the_runner_that_ships() {
+        // GIVEN what every published Windows and Linux bundle carries, the
+        // processor runner alone, on a machine whose card makes detection
+        // recommend Vulkan: an AMD or an Intel GPU
+        let _guard = runner_dir_lock();
+        remove_every_runner();
+        let cpu = write_runner("apollia-runner-cpu");
+        let detected = GpuInfo {
+            recommended_backend: RunnerBackend::Vulkan,
+            ..GpuInfo::cpu_fallback()
+        };
+
+        // WHEN boot picks the backend to start
+        let backend = boot_backend(&detected);
+
+        // THEN it starts the runner that exists. Boot used to pass the
+        // recommendation straight through, so the supervisor looked for
+        // apollia-runner-vulkan, a binary no bundle has ever carried, failed,
+        // and disabled dictation and the local model together.
         assert_eq!(backend, RunnerBackend::Cpu);
         let _ = std::fs::remove_file(&cpu);
     }

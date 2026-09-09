@@ -9,14 +9,20 @@ pub(in crate::supervisor) async fn spawn_runner_supervisor(
     use crate::runner_supervisor::{gpu_detection, RunnerSupervisor};
 
     let detected = gpu_detection::detect_gpu();
+    // What detection recommends is not always what this build ships. Vulkan is
+    // recommended for every AMD and Intel card and no bundle carries a Vulkan
+    // runner, so starting on the recommendation alone failed outright and took
+    // dictation and the local model with it.
+    let backend = gpu_detection::boot_backend(&detected);
     tracing::info!(
         vendor = ?detected.vendor,
         model = %detected.model,
-        backend = ?detected.recommended_backend,
+        recommended = ?detected.recommended_backend,
+        backend = ?backend,
         "supervisor.runner.spawning"
     );
 
-    match RunnerSupervisor::start(detected.clone(), detected.recommended_backend).await {
+    match RunnerSupervisor::start(detected.clone(), backend).await {
         Ok(sup) => {
             info!("supervisor.runner.spawned");
             Some(sup)

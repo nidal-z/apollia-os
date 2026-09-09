@@ -200,6 +200,95 @@ fn parse_apple_silicon_generation(chip: &str) -> u8 {
 // ── Linux / Windows NVIDIA CUDA detection ────────────────────────────────
 
 #[cfg(not(target_os = "macos"))]
+/// The devices the bundled engine actually offers, as it prints them.
+///
+/// Every other probe on this path asks the operating system and infers: a
+/// registry value under Windows, a sysfs node under Linux. Both answered wrong
+/// on the same machine on 2026-09-09. The registry query returned nothing for a
+/// Radeon RX 6900 XT, so the settings page read "no acceleration" and the model
+/// budget fell back to sixty percent of system RAM, offering 38 GB models to a
+/// 16 GB card. Meanwhile `llama-server`, sitting in the same bundle, printed
+/// `Vulkan0: AMD Radeon RX 6900 XT (16368 MiB, 7313 MiB free)`.
+///
+/// It is also the only source that answers the question actually being asked.
+/// A card the operating system reports is not a card the engine can use: what
+/// decides the budget is what the engine will load onto, and that is precisely
+/// what this list is.
+///
+/// Spawned once per process. Several API routes call `detect` on every page
+/// load, and paying a subprocess each time would be worse than the guess it
+/// replaces.
+#[cfg(not(target_os = "macos"))]
+static ENGINE_DEVICES: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+
+#[cfg(not(target_os = "macos"))]
+fn engine_device_line() -> Option<String> {
+    ENGINE_DEVICES.get_or_init(probe_engine_devices).clone()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn probe_engine_devices() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    let ext = if cfg!(windows) { ".exe" } else { "" };
+    let file = format!("llama-server{ext}");
+    let mut candidates = vec![dir.join(&file)];
+    candidates.extend(
+        apollia_core::paths::bundled_resource_dirs(dir, "runners")
+            .into_iter()
+            .map(|d| d.join(&file)),
+    );
+    let binary = candidates.into_iter().find(|c| c.exists())?;
+
+    let mut cmd = std::process::Command::new(binary);
+    cmd.arg("--list-devices");
+    apollia_core::subprocess_window::hide_console(&mut cmd);
+    let out = cmd.output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .find_map(|l| parse_engine_device_line(l).map(|_| l.to_string()))
+}
+
+/// One line of `llama-server --list-devices`, as name and VRAM in GB.
+///
+/// The shape is `  <backend><index>: <name> (<total> MiB, <free> MiB free)`.
+/// The heading line carries no parenthesis and is refused by the same rule that
+/// reads the others, so nothing special-cases it.
+#[cfg(not(target_os = "macos"))]
+pub(super) fn parse_engine_device_line(line: &str) -> Option<(String, f64)> {
+    let (_, rest) = line.trim().split_once(':')?;
+    let rest = rest.trim();
+    let open = rest.rfind('(')?;
+    let name = rest[..open].trim();
+    if name.is_empty() {
+        return None;
+    }
+    let mib: String = rest[open + 1..]
+        .trim_start()
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    let mib: f64 = mib.parse().ok()?;
+    if mib <= 0.0 {
+        return None;
+    }
+    Some((name.to_string(), mib / 1024.0))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn detect_engine_gpu() -> Option<AcceleratorProfile> {
+    let line = engine_device_line()?;
+    let (device_name, vram_gb) = parse_engine_device_line(&line)?;
+    Some(AcceleratorProfile::Generic {
+        device_name,
+        vram_gb,
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
 fn detect_gpu_non_macos() -> AcceleratorProfile {
     // NVIDIA first, because `nvidia-smi` gives the compute capability nothing
     // else does. Every other card then gets a `Generic` profile rather than
@@ -210,7 +299,12 @@ fn detect_gpu_non_macos() -> AcceleratorProfile {
     // 38 GB, and the settings page read "hardware acceleration: none" while
     // the runtime had detected the very same card and started its Vulkan
     // engine.
+    // NVIDIA stays first: its profile carries the compute capability, which no
+    // device listing exposes. Everyone else is asked of the engine before the
+    // operating system, and the OS probes remain as the last resort for a
+    // bundle whose engine is absent or refuses to run.
     detect_nvidia_cuda()
+        .or_else(detect_engine_gpu)
         .or_else(detect_generic_gpu)
         .unwrap_or(AcceleratorProfile::None)
 }
@@ -437,6 +531,53 @@ mod tests {
 
 // Platform-gated with the parsers they cover: the probes exist on Linux
 // and Windows alone, and CI runs the suite on both.
+#[cfg(all(test, not(target_os = "macos")))]
+mod engine_device_tests {
+    use super::parse_engine_device_line;
+
+    #[test]
+    fn a_vulkan_device_line_yields_its_name_and_its_real_memory() {
+        // GIVEN the line the bundled engine printed on the machine where the
+        // registry probe returned nothing at all
+        let line = "  Vulkan0: AMD Radeon RX 6900 XT (16368 MiB, 7313 MiB free)";
+
+        // WHEN it is read
+        let parsed = parse_engine_device_line(line);
+
+        // THEN the card is named and its memory is the card's, not the
+        // saturated 4095 MiB that WMI reports for the same adapter
+        let (name, vram) = parsed.expect("the line describes a device");
+        assert_eq!(name, "AMD Radeon RX 6900 XT");
+        assert!((vram - 15.984_375).abs() < 0.001, "vram was {vram}");
+    }
+
+    #[test]
+    fn the_heading_of_the_listing_is_not_read_as_a_device() {
+        // GIVEN the first line of the listing, which names no device
+        let line = "Available devices:";
+
+        // WHEN it is read by the same rule as the others
+        let parsed = parse_engine_device_line(line);
+
+        // THEN it yields nothing, so a build whose engine sees no card is not
+        // credited with one called "Available devices"
+        assert!(parsed.is_none());
+    }
+
+    #[test]
+    fn a_device_reporting_no_memory_is_refused() {
+        // GIVEN a listing entry whose memory reads zero
+        let line = "  Vulkan0: Some Adapter (0 MiB, 0 MiB free)";
+
+        // WHEN it is read
+        let parsed = parse_engine_device_line(line);
+
+        // THEN it is refused rather than accepted with a zero budget, which
+        // would size every recommendation to nothing
+        assert!(parsed.is_none());
+    }
+}
+
 #[cfg(all(test, not(target_os = "macos")))]
 mod generic_gpu_tests {
     use super::{parse_generic_gpu, vram_gb_from_bytes};
