@@ -76,6 +76,17 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     let sandbox_root = workspace_path
         .clone()
         .unwrap_or_else(apollia_core::paths::home_dir_or_temp);
+    // The anchor above is where a relative path lands, and a project stays the
+    // natural place to work. What an absolute path may reach is a separate
+    // question, and passing the anchor alone answered it far too narrowly: with
+    // a project open, every tool built here was confined to that one directory,
+    // so the assistant could not read the user's Downloads or Documents.
+    //
+    // In the same conversation, `file_write` and `file_edit` run off the fast
+    // path, built by `new_unrestricted`, and reach the whole machine. So the
+    // assistant could write anywhere and read almost nowhere. Reported on
+    // 2026-09-09, on every system.
+    let sandbox_roots = chat_sandbox_roots(&sandbox_root, &trusted_paths);
 
     // When the supervisor handed us a `ChatToolsConfig`, build the full native
     // dispatcher (same factory the Agent-mode + Triggers pipeline uses). This
@@ -90,13 +101,14 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
             cfg,
             session_id,
             sandbox_root: &sandbox_root,
+            sandbox_roots: &sandbox_roots,
             workspace_path: &workspace_path,
             pending_user_inputs: &pending_user_inputs,
             hitl: hitl.as_ref(),
             extra_executors,
         })
     } else {
-        build_fallback_chat_dispatcher(&sandbox_root, extra_executors)
+        build_fallback_chat_dispatcher(&sandbox_roots, extra_executors)
     };
     invoker = invoker.with_fallback_dispatcher(std::sync::Arc::new(
         apollia_tools::dispatcher_invoker::DispatcherToolInvoker::new(std::sync::Arc::new(
@@ -191,6 +203,7 @@ fn build_full_chat_dispatcher(
     let FullDispatcherParams {
         cfg,
         session_id,
+        sandbox_roots,
         sandbox_root,
         workspace_path,
         pending_user_inputs,
@@ -227,7 +240,7 @@ fn build_full_chat_dispatcher(
     }
 
     let native_cfg = apollia_tools::NativeDispatcherConfig {
-        sandbox_roots: vec![sandbox_root.to_path_buf()],
+        sandbox_roots: sandbox_roots.to_vec(),
         agent_id: format!("apollia:chat:{session_id}"),
         venv_base_dir: cfg.data_dir.join("venvs"),
         // Per-session memory namespace so `memory_search` reads/writes
@@ -417,27 +430,78 @@ fn push_hitl_natives(
     }
 }
 
+/// What the chat's file tools may reach, anchor first.
+///
+/// The anchor decides where a relative path lands and stays the workspace. The
+/// entries after it only widen what an absolute path may reach, which is what
+/// lets the assistant open a file the user names by its real path.
+///
+/// The volume of the anchor is included rather than a bare `/`: on Windows that
+/// is the drive, which puts Downloads and Documents in reach without having to
+/// enumerate the mounted volumes, and on Unix it is the filesystem root. The
+/// home directory and the configured trusted paths follow, so a home on another
+/// volume and an operator's own entries are covered too.
+///
+/// This is not a widening of the trust model, it is the removal of an
+/// inconsistency: `file_write` on the fast path already reaches the whole
+/// machine, and the human approval on write is the barrier the design names.
+fn chat_sandbox_roots(
+    anchor: &std::path::Path,
+    trusted: &[std::path::PathBuf],
+) -> Vec<std::path::PathBuf> {
+    let mut roots = vec![anchor.to_path_buf()];
+    if let Some(volume) = volume_root(anchor) {
+        roots.push(volume);
+    }
+    roots.push(apollia_core::paths::home_dir_or_temp());
+    roots.extend(
+        trusted
+            .iter()
+            .filter(|p| !p.as_os_str().is_empty())
+            .cloned(),
+    );
+    roots.dedup();
+    roots
+}
+
+/// The volume a path sits on: `/` on Unix, `C:\` and its siblings on Windows.
+///
+/// Returns `None` for a relative path, which has no volume to speak of.
+fn volume_root(path: &std::path::Path) -> Option<std::path::PathBuf> {
+    use std::path::Component;
+    let mut root = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => root.push(prefix.as_os_str()),
+            Component::RootDir => {
+                root.push(component.as_os_str());
+                return Some(root);
+            }
+            _ => break,
+        }
+    }
+    None
+}
+
 /// Build the fallback dispatcher used when no `ChatToolsConfig` was provided
 /// (e.g. tests): connector + MCP + read-only file natives only.
 fn build_fallback_chat_dispatcher(
-    sandbox_root: &std::path::Path,
+    sandbox_roots: &[std::path::PathBuf],
     mut extra_executors: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
 ) -> apollia_tools::executor::ToolDispatcher {
-    if let Ok(t) = apollia_tools::tools::file_read::FileRead::new(sandbox_root.to_path_buf()) {
+    if let Ok(t) = apollia_tools::tools::file_read::FileRead::new(sandbox_roots.to_vec()) {
         extra_executors.push(Box::new(t));
     }
-    if let Ok(t) = apollia_tools::tools::file_list::FileList::new(sandbox_root.to_path_buf()) {
+    if let Ok(t) = apollia_tools::tools::file_list::FileList::new(sandbox_roots.to_vec()) {
         extra_executors.push(Box::new(t));
     }
-    if let Ok(t) = apollia_tools::tools::file_glob::FileGlob::new(sandbox_root.to_path_buf()) {
+    if let Ok(t) = apollia_tools::tools::file_glob::FileGlob::new(sandbox_roots.to_vec()) {
         extra_executors.push(Box::new(t));
     }
-    if let Ok(t) = apollia_tools::tools::file_grep::FileGrep::new(sandbox_root.to_path_buf()) {
+    if let Ok(t) = apollia_tools::tools::file_grep::FileGrep::new(sandbox_roots.to_vec()) {
         extra_executors.push(Box::new(t));
     }
-    if let Ok(t) =
-        apollia_tools::tools::notebook_read::NotebookRead::new(sandbox_root.to_path_buf())
-    {
+    if let Ok(t) = apollia_tools::tools::notebook_read::NotebookRead::new(sandbox_roots.to_vec()) {
         extra_executors.push(Box::new(t));
     }
     apollia_tools::executor::ToolDispatcher::new(extra_executors)
@@ -464,6 +528,69 @@ pub(in crate::chat::manager) fn now_rfc3339() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_project_anchors_relative_paths_without_confining_absolute_ones() {
+        // GIVEN a workspace directory, which is what the desktop opens by
+        // default, and no operator trusted path
+        let workspace = std::env::temp_dir().join("apollia-roots-anchor");
+        std::fs::create_dir_all(&workspace).expect("the workspace is created");
+
+        // WHEN the roots of the chat file tools are built from it
+        let roots = chat_sandbox_roots(&workspace, &[]);
+
+        // THEN the workspace comes first, so a relative path still lands in the
+        // project, and the volume follows, so an absolute path elsewhere is
+        // reachable. Passing the workspace alone confined every read-only tool
+        // to it while file_write, built on the fast path, reached the whole
+        // machine.
+        assert_eq!(roots.first(), Some(&workspace));
+        assert!(roots.len() > 1, "roots were {roots:?}");
+        let outside = std::env::temp_dir().join("apollia-roots-outside.txt");
+        let sandbox = apollia_tools::SandboxRoot::new(roots).expect("the roots are usable");
+        let resolved = sandbox.resolve(&outside.to_string_lossy());
+        assert!(
+            resolved.is_ok(),
+            "a path outside the project was refused: {resolved:?}"
+        );
+
+        // AND the control, so this test cannot pass by accident: the anchor on
+        // its own, which is what was passed before, refuses that same path.
+        let anchor_only =
+            apollia_tools::SandboxRoot::new(workspace.clone()).expect("the anchor alone is usable");
+        assert!(
+            anchor_only.resolve(&outside.to_string_lossy()).is_err(),
+            "the anchor alone should refuse, or this test proves nothing"
+        );
+        let _ = std::fs::remove_dir_all(&workspace);
+    }
+
+    #[test]
+    fn an_operator_trusted_path_on_another_volume_is_kept() {
+        // GIVEN a trusted path the operator named in apollia.toml
+        let workspace = std::env::temp_dir().join("apollia-roots-trusted");
+        let trusted = vec![std::path::PathBuf::from("/opt/apollia-elsewhere")];
+
+        // WHEN the roots are built
+        let roots = chat_sandbox_roots(&workspace, &trusted);
+
+        // THEN the operator's entry survives, since a volume it does not sit on
+        // would otherwise drop it
+        assert!(roots.contains(&trusted[0]), "roots were {roots:?}");
+    }
+
+    #[test]
+    fn a_relative_anchor_contributes_no_volume() {
+        // GIVEN a path with no volume to speak of
+        let relative = std::path::Path::new("some/where");
+
+        // WHEN its volume is asked for
+        let volume = volume_root(relative);
+
+        // THEN none is claimed, rather than a root that would silently widen
+        // the reachable surface to everything
+        assert!(volume.is_none());
+    }
 
     /// HITL parameters that approve every filesystem risk level up front, so a
     /// test never waits on an approval nobody will answer.
@@ -533,6 +660,7 @@ mod tests {
             cfg: &cfg,
             session_id: "session-under-test",
             sandbox_root: sandbox.path(),
+            sandbox_roots: &[sandbox.path().to_path_buf()],
             workspace_path: &None,
             pending_user_inputs: &None,
             hitl: Some(&hitl),
@@ -604,6 +732,7 @@ mod tests {
             cfg: &cfg,
             session_id: "session-under-test",
             sandbox_root: sandbox.path(),
+            sandbox_roots: &[sandbox.path().to_path_buf()],
             workspace_path: &None,
             pending_user_inputs: &None,
             hitl: Some(&hitl),
@@ -640,6 +769,7 @@ mod tests {
             cfg: &cfg,
             session_id: "session-under-test",
             sandbox_root: sandbox.path(),
+            sandbox_roots: &[sandbox.path().to_path_buf()],
             workspace_path: &None,
             pending_user_inputs: &None,
             hitl: Some(&hitl),

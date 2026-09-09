@@ -253,6 +253,9 @@ pub(in crate::chat::manager) struct FullDispatcherParams<'a> {
     pub(in crate::chat::manager) cfg: &'a Arc<ChatToolsConfig>,
     pub(in crate::chat::manager) session_id: &'a str,
     pub(in crate::chat::manager) sandbox_root: &'a std::path::Path,
+    /// Every root the file tools may reach, anchor first. Wider than
+    /// `sandbox_root`, which stays the anchor for relative paths alone.
+    pub(in crate::chat::manager) sandbox_roots: &'a [std::path::PathBuf],
     pub(in crate::chat::manager) workspace_path: &'a Option<std::path::PathBuf>,
     pub(in crate::chat::manager) pending_user_inputs:
         &'a Option<apollia_tools::tools::ask_user::PendingUserInputs>,
