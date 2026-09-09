@@ -74,6 +74,13 @@ bundle_python_find() {
 bundle_python_link_dev() {
     local root="$1" dest="$2"
     [ -n "$root" ] || return 0
+    # A junction left by an earlier version of this function passes the
+    # interpreter test from this shell and is still refused by an elevated
+    # rustc, so it is removed here and replaced by the copy below. The entry
+    # alone is removed, never what it points at.
+    if command -v cygpath >/dev/null 2>&1 && [ -L "$dest" ]; then
+        cmd //c rmdir "$(cygpath -w "$dest")" >/dev/null 2>&1 || rm -f "$dest" 2>/dev/null || true
+    fi
     if [ "$root" != "$dest" ] && ! bundle_python_holds_interpreter "$dest"; then
         # Whatever sits there carries no interpreter: a link left by an earlier
         # layout, or a directory. Remove the entry itself and never its
@@ -99,16 +106,23 @@ bundle_python_link_dev() {
         if [ -e "$dest" ] || [ -L "$dest" ]; then
             :
         elif command -v cygpath >/dev/null 2>&1; then
-            # An NTFS junction, which an ordinary user may create; a symbolic
-            # link needs a privilege, and git-bash's emulated `ln -s` would
-            # copy the bundle instead of pointing at it.
+            # A copy, not a junction. A junction is what an ordinary user may
+            # create, and this used `mklink //J` for that reason, but Windows
+            # refuses to follow a junction from an elevated process when a
+            # lower-integrity one created it (error 448, untrusted mount
+            # point). The build script of the desktop crate copies a resource
+            # through this path, so from an elevated shell every rebuild after
+            # a source change died on "file already exists (os error 183)",
+            # which names neither the junction nor the elevation. Measured on
+            # 2026-09-09. The shell's own test below cannot tell the two
+            # apart either: it read the junction fine while rustc could not.
             #
-            # `//J`, not `/J`: git-bash rewrites any argument that starts with
-            # a single slash into a Windows path, so `/J` reached mklink as
-            # something like `C:/Program Files/Git/J` and the call failed with
-            # no output. The same convention is why `cmd //c` is spelled that
-            # way. Measured on 2026-09-08.
-            cmd //c mklink //J "$(cygpath -w "$dest")" "$(cygpath -w "$root")" >/dev/null 2>&1 || true
+            # A symbolic link needs a privilege the unelevated developer does
+            # not have, and git-bash's `ln -s` copies anyway. So the copy is
+            # the one form every process on the machine can open. It costs a
+            # couple of hundred megabytes once: the next run finds the bundle
+            # in place and skips this block entirely.
+            cp -R "$root" "$dest" 2>/dev/null || true
         else
             ln -sfn "$root" "$dest" || true
         fi
