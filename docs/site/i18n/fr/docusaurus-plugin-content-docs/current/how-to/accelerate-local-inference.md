@@ -93,7 +93,7 @@ varier le débit se situent en amont de lui :
 
 <!-- claim:llama-server-env-overrides -->
 
-Le moteur embarqué lit douze variables d'environnement à chaque démarrage, si
+Le moteur embarqué lit treize variables d'environnement à chaque démarrage, si
 bien qu'un réglage peut être modifié sans build depuis les sources. Définissez-
 les dans l'environnement de ce qui lance le daemon.
 
@@ -110,10 +110,16 @@ les dans l'environnement de ce qui lance le daemon.
 | `APOLLIA_LLAMA_FLASH_ATTN` | `on` | Mode flash attention. |
 | `APOLLIA_LLAMA_CACHE_REUSE` | défaut du moteur | Seuil de réutilisation de préfixe. |
 | `APOLLIA_LLAMA_METRICS` | `false` | Expose le point de terminaison de métriques du moteur. |
+| `APOLLIA_LLAMA_LOG_VERBOSITY` | `4` | Niveau de journal du moteur (`-lv`). À `4`, le chargement nomme son périphérique et le nombre de couches déchargées, que le journal du daemon rapporte sous `llama.server.device`, `llama.server.offload` et `llama.server.buffer`. |
 | `APOLLIA_LLAMA_EXTRA_ARGS` | vide | Options supplémentaires transmises telles quelles. |
 
 Augmenter `N_PARALLEL` est ce qui transforme le batching continu en véritable
 concurrence : avec le défaut d'un seul slot, les requêtes s'empilent.
+
+Pour vérifier qu'un modèle a bien chargé sur l'accélérateur, lisez le journal
+du daemon au démarrage suivant du moteur : `llama.server.offload` porte le
+nombre de couches placées contre le total du modèle, et `llama.server.buffer`
+la taille de chaque tampon par périphérique.
 
 La liste complète, y compris les variables de stockage de secrets et de
 diagnostic, se trouve dans

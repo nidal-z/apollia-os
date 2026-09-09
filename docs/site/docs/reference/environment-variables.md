@@ -39,6 +39,7 @@ tune and why.
 | `APOLLIA_LLAMA_FLASH_ATTN` | `on` | Flash attention mode. |
 | `APOLLIA_LLAMA_CACHE_REUSE` | engine default | Prefix-reuse threshold. |
 | `APOLLIA_LLAMA_METRICS` | `false` | Exposes the engine's metrics endpoint. |
+| `APOLLIA_LLAMA_LOG_VERBOSITY` | `4` | Engine log level (`-lv`); `4` is where the load names its device and offload tally. |
 | `APOLLIA_LLAMA_EXTRA_ARGS` | empty | Extra flags passed through verbatim. |
 
 The GGUF the engine loads has no environment override, deliberately. It is

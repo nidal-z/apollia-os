@@ -40,6 +40,7 @@ quoi régler et pourquoi.
 | `APOLLIA_LLAMA_FLASH_ATTN` | `on` | Mode flash attention. |
 | `APOLLIA_LLAMA_CACHE_REUSE` | valeur par défaut du moteur | Seuil de réutilisation de préfixe. |
 | `APOLLIA_LLAMA_METRICS` | `false` | Expose le point de terminaison de métriques du moteur. |
+| `APOLLIA_LLAMA_LOG_VERBOSITY` | `4` | Niveau de journal du moteur (`-lv`) ; à `4`, le chargement nomme son périphérique et le nombre de couches déchargées. |
 | `APOLLIA_LLAMA_EXTRA_ARGS` | vide | Options supplémentaires transmises telles quelles. |
 
 Le GGUF chargé par le moteur n'a délibérément aucune surcharge par

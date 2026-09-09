@@ -18,6 +18,7 @@
 //! engine moves here.
 
 mod config;
+mod engine_facts;
 
 pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError};
 
@@ -657,6 +658,12 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
                 let line = String::from_utf8_lossy(&buf);
                 let line = line.trim_end_matches(['\r', '\n']);
                 tracing::info!(target: "llama-server", line = %line, "llama.server.line");
+                // The placement facts are the lines an operator needs when the
+                // default filter drops the target above: where the model
+                // loaded, and how much of it.
+                if let Some(fact) = engine_facts::engine_fact(line) {
+                    engine_facts::emit(&fact);
+                }
             }
         }
     }

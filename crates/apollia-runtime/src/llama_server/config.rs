@@ -7,8 +7,15 @@
 //!
 //! ```text
 //! -m <model> -ngl 999 -c 32768 -np 1 -cb --flash-attn on --jinja
-//! --reasoning-format none --host 127.0.0.1 --port <port>
+//! --reasoning-format none -lv 4 --host 127.0.0.1 --port <port>
 //! ```
+//!
+//! `-lv 4` is the one flag that line did not carry. At the engine's default
+//! verbosity the load prints no device and no offload tally, so the runtime's
+//! journal could not say where the model went; at 4 it prints both, plus the
+//! per-device buffer sizes, which `engine_facts` lifts into structured events.
+//! Measured on 2026-09-09: 30 lines forwarded at the default, none naming a
+//! device; 281 at 4, the placement among them.
 //!
 //! A field whose flag that line does not pass defaults to `None` and emits
 //! nothing, leaving llama-server's own default in force. No upstream default is
@@ -40,6 +47,7 @@
 //! | `APOLLIA_LLAMA_FLASH_ATTN` | `flash_attn` |
 //! | `APOLLIA_LLAMA_CACHE_REUSE` | `cache_reuse` |
 //! | `APOLLIA_LLAMA_METRICS` | `metrics` |
+//! | `APOLLIA_LLAMA_LOG_VERBOSITY` | `log_verbosity` |
 //! | `APOLLIA_LLAMA_EXTRA_ARGS` | `extra_args` |
 //!
 //! For an optional field, an empty value clears it and omits the flag, which is
@@ -71,6 +79,7 @@ const ENV_CACHE_TYPE_V: &str = "APOLLIA_LLAMA_CACHE_TYPE_V";
 const ENV_FLASH_ATTN: &str = "APOLLIA_LLAMA_FLASH_ATTN";
 const ENV_CACHE_REUSE: &str = "APOLLIA_LLAMA_CACHE_REUSE";
 const ENV_METRICS: &str = "APOLLIA_LLAMA_METRICS";
+const ENV_LOG_VERBOSITY: &str = "APOLLIA_LLAMA_LOG_VERBOSITY";
 const ENV_EXTRA_ARGS: &str = "APOLLIA_LLAMA_EXTRA_ARGS";
 
 /// Flash attention mode accepted by `--flash-attn`.
@@ -167,6 +176,10 @@ pub struct LlamaServerConfig {
     /// action. Binding to loopback is not a reason to expose an endpoint by
     /// default, only a reason it is safe to expose when asked for.
     pub metrics: bool,
+    /// Engine log verbosity (`-lv`). `None` leaves the engine default, which
+    /// prints neither the device the model loads onto nor the offload tally.
+    /// The default here is 4, the lowest level at which the load names both.
+    pub log_verbosity: Option<u8>,
     /// Extra arguments appended verbatim after every generated flag, so a later
     /// entry wins wherever llama-server takes the last occurrence.
     pub extra_args: Vec<String>,
@@ -187,6 +200,7 @@ impl Default for LlamaServerConfig {
             flash_attn: Some(FlashAttn::On),
             cache_reuse: None,
             metrics: false,
+            log_verbosity: Some(4),
             extra_args: Vec::new(),
         }
     }
@@ -237,6 +251,10 @@ pub(crate) fn build_args(config: &LlamaServerConfig, port: u16) -> Vec<String> {
     args.push("--jinja".to_owned());
     args.push("--reasoning-format".to_owned());
     args.push("none".to_owned());
+    if let Some(v) = config.log_verbosity {
+        args.push("-lv".to_owned());
+        args.push(v.to_string());
+    }
     if config.metrics {
         args.push("--metrics".to_owned());
     }
@@ -292,6 +310,9 @@ pub(crate) fn resolve_env_overrides(
     }
     if let Some(raw) = get(ENV_METRICS) {
         cfg.metrics = parse_optional_bool(ENV_METRICS, &raw, Some(cfg.metrics)).unwrap_or(false);
+    }
+    if let Some(raw) = get(ENV_LOG_VERBOSITY) {
+        cfg.log_verbosity = parse_optional(ENV_LOG_VERBOSITY, &raw, cfg.log_verbosity);
     }
     if let Some(raw) = get(ENV_EXTRA_ARGS) {
         cfg.extra_args = raw.split_whitespace().map(str::to_owned).collect();
@@ -388,6 +409,8 @@ mod tests {
             "--jinja",
             "--reasoning-format",
             "none",
+            "-lv",
+            "4",
             "--host",
             "127.0.0.1",
             "--port",
@@ -624,7 +647,7 @@ mod tests {
         // THEN --metrics is added just before --host and nothing else moves
         assert_eq!(
             args,
-            baseline_with(|v| v.insert(14, "--metrics".to_owned()))
+            baseline_with(|v| v.insert(16, "--metrics".to_owned()))
         );
     }
 
@@ -716,6 +739,41 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_env_log_verbosity_changes_only_the_lv_flag() {
+        // GIVEN APOLLIA_LLAMA_LOG_VERBOSITY asking for the engine's quietest level
+        let config = with_env(ENV_LOG_VERBOSITY, "1");
+
+        // WHEN the argument vector is built
+        let args = build_args(&config, PORT);
+
+        // THEN only the value after -lv differs
+        assert_eq!(args, baseline_with(|v| v[15] = "1".to_owned()));
+    }
+
+    #[test]
+    fn test_build_args_no_log_verbosity_emits_no_flag() {
+        // GIVEN a configuration that leaves the engine's own verbosity in force.
+        // This is the control for the default: without it, a build that always
+        // printed `-lv 4` would pass the baseline test for the wrong reason.
+        let config = LlamaServerConfig {
+            log_verbosity: None,
+            ..LlamaServerConfig::default()
+        };
+
+        // WHEN the argument vector is built
+        let args = build_args(&config, PORT);
+
+        // THEN the flag is absent and nothing else moves
+        assert_eq!(
+            args,
+            baseline_with(|v| {
+                v.remove(14);
+                v.remove(14);
+            })
+        );
+    }
+
+    #[test]
     fn test_build_args_all_optional_fields_emit_in_declaration_order() {
         // GIVEN every optional field populated
         let config = LlamaServerConfig {
@@ -758,6 +816,8 @@ mod tests {
             "--jinja",
             "--reasoning-format",
             "none",
+            "-lv",
+            "4",
             "--host",
             "127.0.0.1",
             "--port",

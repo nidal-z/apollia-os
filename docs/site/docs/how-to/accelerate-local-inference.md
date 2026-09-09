@@ -84,7 +84,7 @@ that move throughput are upstream of it:
 
 <!-- claim:llama-server-env-overrides -->
 
-The embedded engine reads twelve environment variables at every start, so a knob
+The embedded engine reads thirteen environment variables at every start, so a knob
 can be turned without a source build. Set them in the environment of whatever
 launches the daemon.
 
@@ -101,10 +101,16 @@ launches the daemon.
 | `APOLLIA_LLAMA_FLASH_ATTN` | `on` | Flash attention mode. |
 | `APOLLIA_LLAMA_CACHE_REUSE` | engine default | Prefix-reuse threshold. |
 | `APOLLIA_LLAMA_METRICS` | `false` | Exposes the engine's metrics endpoint. |
+| `APOLLIA_LLAMA_LOG_VERBOSITY` | `4` | Engine log level (`-lv`). At `4` the load names its device and its offload tally, which the daemon's journal reports as `llama.server.device`, `llama.server.offload` and `llama.server.buffer`. |
 | `APOLLIA_LLAMA_EXTRA_ARGS` | empty | Extra flags passed through verbatim. |
 
 Raising `N_PARALLEL` is what turns continuous batching into real concurrency: at
 the default of one slot, requests queue.
+
+To check that a model really loaded on the accelerator, read the daemon's
+journal at the next engine start: `llama.server.offload` carries the layers
+placed against the model's total, and `llama.server.buffer` the size of each
+buffer per device.
 
 The full list, including the secret-storage and diagnostic variables, is in
 [Environment variables](/reference/environment-variables).
