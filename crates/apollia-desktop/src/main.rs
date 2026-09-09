@@ -19,6 +19,7 @@ mod connectors_bridge;
 mod events;
 pub mod i18n;
 pub mod mcp;
+mod process_job;
 mod project_context;
 pub mod stt;
 mod token_coalescer;
@@ -60,6 +61,19 @@ fn main() {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("apollia=info,warn")),
         )
         .init();
+
+    // Before the first child is spawned: membership in the job is inherited
+    // at process creation, never applied afterwards. On Windows this is what
+    // stops `llama-server` and the runner from outliving a host that dies
+    // without running its exit hook. A refusal is logged and not fatal.
+    match process_job::bind_children_to_this_process() {
+        Ok(()) => tracing::info!("process.job.bound"),
+        Err(error) => tracing::warn!(
+            error = %error,
+            detail = "children are killed on graceful exits only",
+            "process.job.bind_failed"
+        ),
+    }
 
     // Point PyO3 at the bundled Python BEFORE any Python runtime code runs.
     setup_bundled_python();

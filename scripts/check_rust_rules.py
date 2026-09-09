@@ -274,6 +274,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-core/src/net.rs": 1,
     "crates/apollia-core/src/subprocess_env.rs": 3,
     "crates/apollia-core/src/subprocess_window.rs": 2,
+    # Both sites are the only observable a job object offers: a member is
+    # either terminated within a bounded wall time or it is not. The control
+    # test holds the second site, and it is the one that proves the first can
+    # fail. Windows only.
+    "crates/apollia-desktop/src/process_job.rs": 2,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
     "crates/apollia-llm/src/retry.rs": 1,
