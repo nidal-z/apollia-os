@@ -1709,6 +1709,23 @@ jobs:
       - name: List artifacts
         run: ls -lh artifacts/
 
+      # `plugins.updater.pubkey` and the private key in the repository secrets
+      # are two values nothing ties together. A rotation moves one and leaves
+      # the other, in silence, and the bundle then refuses every update it is
+      # ever offered, unrepairable remotely because the broken channel is the
+      # one that would carry the repair. It happened twice on 2026-09-10 alone.
+      # Reading the key id out of the signatures this run just produced is the
+      # only moment both halves are in the same place.
+      - name: The updater signatures come from the key the bundle trusts
+        run: |
+          mapfile -t sigs < <(find artifacts -name '*.sig' -type f | sort)
+          if [ "${#sigs[@]}" -eq 0 ]; then
+            echo "no updater signature in this run, nothing to check"
+            exit 0
+          fi
+          python3 scripts/check_updater_key.py \
+            crates/apollia-desktop/tauri.conf.json "${sigs[@]}"
+
       # Say plainly which platforms made it, and refuse an empty set outright.
       # The job only runs when every producing job succeeded, so a missing
       # family here means an upload contract broke, not a failed build.
