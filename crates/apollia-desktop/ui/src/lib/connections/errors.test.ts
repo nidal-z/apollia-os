@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { isMissingClientError, isMissingSecretError, formatTauriError } from "./errors";
+import {
+  formatTauriError,
+  isMissingClientError,
+  isMissingSecretError,
+  isSovereigntyBlocked,
+} from "./errors";
 
 /** Identity translator: asserts on the key rather than on localized copy. */
 const echo = (key: string): string => key;
@@ -79,5 +84,18 @@ describe("formatTauriError", () => {
 
     // THEN nothing is swallowed
     expect(text).toBe("some_new_kind: context");
+  });
+});
+
+describe("isSovereigntyBlocked", () => {
+  it("recognises the sovereignty refusal and nothing else", () => {
+    // GIVEN the refusal the command returns under a local-only profile, and
+    // two other shapes. The two others are the control: a helper answering
+    // true on any error would offer to allow cloud for a missing client id.
+    // WHEN each is classified
+    // THEN only the sovereignty refusal is recognised
+    expect(isSovereigntyBlocked({ kind: "sovereignty_blocked" })).toBe(true);
+    expect(isSovereigntyBlocked({ kind: "oauth_client_not_configured" })).toBe(false);
+    expect(isSovereigntyBlocked("network down")).toBe(false);
   });
 });

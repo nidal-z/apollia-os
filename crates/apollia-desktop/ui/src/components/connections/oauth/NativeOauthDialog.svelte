@@ -15,10 +15,12 @@
   import OauthAuthStep from "./OauthAuthStep.svelte";
   import OauthDriveFolderStep from "./OauthDriveFolderStep.svelte";
   import { navigateToSettings } from "$lib/router";
+  import { setProfileEntry } from "$lib/ipc/profile";
   import {
     formatTauriError,
     isMissingClientError,
     isMissingSecretError,
+    isSovereigntyBlocked,
   } from "$lib/connections/errors";
   import {
     oauthStartFlow,
@@ -43,6 +45,11 @@
   let pastedCode = $state("");
   let error = $state<string | null>(null);
   let errorIsMissingClient = $state(false);
+  // The profile refused cloud connectors. Offered as a choice, not an error:
+  // an onboarding left early never wrote `constraints.sovereignty`, and the
+  // absent value reads as local-only on purpose.
+  let errorIsSovereignty = $state(false);
+  let switchingProfile = $state(false);
   let errorIsMissingSecret = $state(false);
   let busy = $state(false);
   let awaitingCallback = $state(false);
@@ -84,6 +91,7 @@
     pastedCode = "";
     error = null;
     errorIsMissingClient = false;
+    errorIsSovereignty = false;
     errorIsMissingSecret = false;
     busy = true;
     awaitingCallback = false;
@@ -145,6 +153,7 @@
       error = formatTauriError(e, $t);
       errorIsMissingClient = isMissingClientError(e);
       errorIsMissingSecret = isMissingSecretError(e);
+      errorIsSovereignty = isSovereigntyBlocked(e);
     } finally {
       busy = false;
     }
@@ -185,6 +194,25 @@
       driveFolderError = formatTauriError(e, $t);
     } finally {
       driveFolderSaving = false;
+    }
+  }
+
+  /**
+   * Allow cloud connectors and start the flow again. Writes the profile the
+   * settings page would write, `cloud-ok`, so the choice is the same one and
+   * lands in the same place.
+   */
+  async function allowCloudAndRetry(): Promise<void> {
+    switchingProfile = true;
+    try {
+      await setProfileEntry("constraints.sovereignty", "cloud-ok");
+      errorIsSovereignty = false;
+      error = null;
+      await startFlow();
+    } catch (e) {
+      error = formatTauriError(e, $t);
+    } finally {
+      switchingProfile = false;
     }
   }
 
@@ -246,6 +274,18 @@
         data-testid="oauth-open-settings-btn"
       >
         {$t("connections.open_settings_integrations")}
+      </Button>
+    </div>
+  {:else if errorIsSovereignty}
+    <Banner variant="warning" title={$t("connections.oauth_sovereignty_title")} data-testid="oauth-sovereignty-banner">
+      {$t("connections.oauth_sovereignty_body")}
+    </Banner>
+    <div class="mt-4 flex justify-end gap-2">
+      <Button variant="outline" size="sm" onclick={close} data-testid="oauth-cancel-btn">
+        {$t("connections.oauth_sovereignty_keep_local")}
+      </Button>
+      <Button variant="primary-solid" size="sm" onclick={allowCloudAndRetry} disabled={switchingProfile} data-testid="oauth-allow-cloud-btn">
+        {$t("connections.oauth_sovereignty_allow_cloud")}
       </Button>
     </div>
   {:else if errorIsMissingClient}

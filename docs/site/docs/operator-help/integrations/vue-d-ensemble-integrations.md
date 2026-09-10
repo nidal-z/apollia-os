@@ -77,6 +77,6 @@ You can also add your own server, on the **Custom MCP** tab of the same sheet. C
 ## If it does not work
 
 - **The Connections page is empty or does not load**: restart Apollia, the runtime may not have finished initializing the MCP client.
-- **Connecting a native connector reports a sovereignty error**: the message reads *Sovereignty profile "local-only": cloud connectors disabled*. The button is not greyed out, the refusal comes on the click. Open **Settings, Profile** and set **Data sovereignty** to *Local preferred* or *Cloud allowed*.
+- **Connecting a native connector stops on the sovereignty profile**: the dialog says cloud connectors are off in your profile, which also happens when the onboarding never asked the question. It offers to keep strictly local or to allow cloud and continue; the second writes **Data sovereignty** to *Cloud allowed* in **Settings, Profile**, where the three values stay available.
 
 > **Technical reference:** [Apollia reference](/reference) , Tool Registry architecture, scoping, tool governance.

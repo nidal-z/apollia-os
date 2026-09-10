@@ -121,7 +121,7 @@ Clearing the field again restores the identifier shipped with Apollia. Existing 
 - **Consent refused at the Microsoft screen**: a managed Entra ID tenant often requires an organization-level approval before an external application may be used at all. The error text comes from Microsoft, not from Apollia, and it names the tenant policy at fault. Ask your administrator to pre-approve the application, or use a personal Microsoft account.
 - **`outlook.send` fails on a recipient**: Microsoft Graph validates recipients more strictly than Google does. Apollia surfaces Graph's own error verbatim, prefixed with the HTTP status. Check the target address and make sure there is no dead alias.
 - **OneDrive write refused**: that is expected in v0.1.0, OneDrive is read-only.
-- **Connecting reports a sovereignty error**: the message reads *Sovereignty profile "local-only": cloud connectors disabled*. The button is not greyed out, the refusal comes on the click. Change **Data sovereignty** in **Settings, Profile**.
+- **Connecting stops on the sovereignty profile**: the dialog says cloud connectors are off in your profile, which also happens when the onboarding never asked the question. It offers to keep strictly local or to allow cloud and continue; the second writes **Data sovereignty** to *Cloud allowed* in **Settings, Profile**.
 
 ## Disconnecting an account
 

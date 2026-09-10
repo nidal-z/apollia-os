@@ -30,6 +30,16 @@ export function isMissingSecretError(e: unknown): boolean {
 }
 
 /**
+ * True when the command refused the flow because the sovereignty profile is
+ * `local-only`, or is absent, which reads the same way on purpose. The dialog
+ * turns this one into a choice rather than a dead end: the operator can allow
+ * cloud connectors on the spot, which writes `constraints.sovereignty`.
+ */
+export function isSovereigntyBlocked(e: unknown): boolean {
+  return (e as TauriErrorShape | null)?.kind === "sovereignty_blocked";
+}
+
+/**
  * Format a raw Tauri error into a display string. Known kinds map to localized
  * copy; everything else falls back to the raw detail / message / string form.
  */

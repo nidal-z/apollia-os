@@ -77,6 +77,6 @@ Vous pouvez aussi ajouter votre propre serveur, sur l'onglet **MCP personnalisé
 ## Si ça ne marche pas
 
 - **La page Connexions est vide ou ne charge pas** : redémarrez Apollia, le runtime n'a peut-être pas fini d'initialiser le client MCP.
-- **Connecter un connecteur natif renvoie une erreur de souveraineté** : le message dit *Profil souveraineté « local-only » : connecteurs cloud désactivés*. Le bouton n'est pas grisé, le refus arrive au clic. Ouvrez **Réglages, Profil** et mettez **Souveraineté des données** sur *Local préféré* ou *Cloud autorisé*.
+- **Connecter un connecteur natif s'arrête sur le profil de souveraineté** : la fenêtre dit que les connecteurs cloud sont désactivés par votre profil, ce qui arrive aussi quand l'onboarding n'a jamais posé la question. Elle propose de garder le local strict ou d'autoriser le cloud et continuer ; le second écrit **Souveraineté des données** sur *Cloud autorisé* dans **Réglages, Profil**, où les trois valeurs restent disponibles.
 
 > **Référence technique :** [Référence Apollia](/reference) , architecture du Tool Registry, scoping, gouvernance des outils.
