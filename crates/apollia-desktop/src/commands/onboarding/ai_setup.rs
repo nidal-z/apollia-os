@@ -26,6 +26,10 @@ pub struct SystemInfo {
     pub arch: String,
     /// Whether a GPU is available (basic heuristic).
     pub gpu_available: bool,
+    /// The accelerator's dedicated memory in gigabytes, when the engine's
+    /// device list names one. `None` on a processor-only machine and on
+    /// platforms where the heuristic above answers without a device list.
+    pub gpu_vram_gb: Option<f64>,
 }
 
 /// GGUF model file detected on the local filesystem.
@@ -268,6 +272,28 @@ pub fn get_system_info_sync() -> SystemInfo {
         os: std::env::consts::OS.to_owned(),
         arch: std::env::consts::ARCH.to_owned(),
         gpu_available: detect_gpu_basic(),
+        gpu_vram_gb: detect_gpu_vram_gb(),
+    }
+}
+
+/// The accelerator's memory as the engine's device list reports it.
+///
+/// Read from the same cached profile as the Windows availability check, so
+/// the chip that says "GPU" can also say how much of it there is: an operator
+/// choosing a model wants the number, not the word. `None` when the profile
+/// names no accelerator.
+fn detect_gpu_vram_gb() -> Option<f64> {
+    vram_gb_of(&apollia_llm::hardware::detect().accelerator)
+}
+
+/// The dedicated memory a profile carries, whatever the accelerator's kind.
+fn vram_gb_of(accelerator: &apollia_llm::AcceleratorProfile) -> Option<f64> {
+    use apollia_llm::AcceleratorProfile;
+    match accelerator {
+        AcceleratorProfile::None => None,
+        AcceleratorProfile::AppleSilicon { vram_gb, .. }
+        | AcceleratorProfile::Cuda { vram_gb, .. }
+        | AcceleratorProfile::Generic { vram_gb, .. } => Some(*vram_gb),
     }
 }
 
@@ -508,6 +534,35 @@ fn detect_gpu_basic() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_vram_follows_the_accelerator_kind_and_is_absent_without_one() {
+        use apollia_llm::AcceleratorProfile;
+        // GIVEN the four shapes an accelerator profile can take
+        let none = AcceleratorProfile::None;
+        let generic = AcceleratorProfile::Generic {
+            device_name: "AMD Radeon RX 6900 XT".to_string(),
+            vram_gb: 16.0,
+        };
+        let cuda = AcceleratorProfile::Cuda {
+            device_name: "NVIDIA GeForce RTX 4090".to_string(),
+            vram_gb: 24.0,
+            compute_capability: (8, 9),
+        };
+        let apple = AcceleratorProfile::AppleSilicon {
+            chip: "M4 Max".to_string(),
+            generation: 4,
+            vram_gb: 64.0,
+        };
+
+        // WHEN each is asked for its memory
+        // THEN the number comes out for every kind, and the processor-only
+        // profile answers nothing, which is the control for the chip
+        assert_eq!(vram_gb_of(&none), None);
+        assert_eq!(vram_gb_of(&generic), Some(16.0));
+        assert_eq!(vram_gb_of(&cuda), Some(24.0));
+        assert_eq!(vram_gb_of(&apple), Some(64.0));
+    }
 
     #[test]
     fn test_system_info_returns_valid_values() {

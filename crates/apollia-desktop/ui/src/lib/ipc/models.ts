@@ -14,6 +14,8 @@ export interface SystemInfo {
   os: string;
   arch: string;
   gpu_available: boolean;
+  /** Dedicated accelerator memory in GB, when the engine names a device. */
+  gpu_vram_gb: number | null;
 }
 
 export interface GgufModelInfo {

@@ -119,7 +119,10 @@
       <span class="sys-chip">
         <MonitorCog size={11} strokeWidth={2} />{osLabel(sysInfo.os)} · {sysInfo.arch}
       </span>
-      {#if sysInfo.gpu_available}<span class="sys-chip sys-chip-gpu">GPU</span>{/if}
+      {#if sysInfo.gpu_available}
+        <!-- i18n-ignore: accelerator acronym and memory unit, identical in every locale -->
+        <span class="sys-chip sys-chip-gpu">{sysInfo.gpu_vram_gb === null ? "GPU" : `GPU · ${ramLabel(sysInfo.gpu_vram_gb)} VRAM`}</span>
+      {/if}
     </div>
   {/if}
 
