@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import {
   flagsAfterStop,
+  flagsAfterStopReply,
   showsListening,
   showsTranscribing,
   testInFlight,
@@ -48,5 +49,27 @@ describe("phase display", () => {
     // WHEN a global dictation broadcast reaches the listeners
     // THEN the card leaves it alone
     expect(testInFlight(idle)).toBe(false);
+  });
+});
+
+describe("flagsAfterStopReply", () => {
+  it("announces transcribing when the stop reply lands before any result", () => {
+    // GIVEN a stop whose reply arrives with no result received meanwhile
+    // WHEN the flags are recomputed
+    const flags = flagsAfterStopReply(false);
+
+    // THEN the card leaves listening and waits for the text
+    expect(flags).toEqual({ recording: false, busy: true });
+  });
+
+  it("does not undo a result that beat the stop reply", () => {
+    // GIVEN the transcription (or its failure) already arrived while the stop
+    // reply was in flight. This is the control: applying flagsAfterStop here
+    // is what pinned the card on "transcribing" forever.
+    // WHEN the flags are recomputed
+    const flags = flagsAfterStopReply(true);
+
+    // THEN nothing is pending any more
+    expect(flags).toEqual({ recording: false, busy: false });
   });
 });

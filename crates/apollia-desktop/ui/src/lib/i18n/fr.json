@@ -3690,6 +3690,7 @@
     "test_start": "Tester maintenant",
     "test_stop": "Parle… (clique pour arrêter)",
     "test_empty": "(transcription vide)",
+    "test_transcribing": "Transcription en cours…",
     "test_error": "Erreur : {error}",
     "mic_label": "Microphone",
     "mic_default": "Périphérique par défaut",

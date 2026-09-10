@@ -342,7 +342,12 @@
     if (!sttTestRecording) return;
     try {
       await stopTourRecording();
-      // sttTesting stays true until the transcribed event fires (or fails).
+      // The capture is over; only the text is pending. Leave the listening
+      // state now, sttTesting holds until the transcribed event fires (or
+      // fails). The stop used to answer only after the transcription, so on a
+      // processor-bound machine this button read "speak, click to stop" for
+      // tens of seconds after the click.
+      sttTestRecording = false;
     } catch (err) {
       sttTestRecording = false;
       sttTesting = false;
@@ -582,7 +587,7 @@
             disabled={sttTesting}
             data-testid="stt-test-start"
           >
-            <Mic size={12} /> {$t("onboarding_stt.test_start")}
+            <Mic size={12} /> {sttTesting ? $t("onboarding_stt.test_transcribing") : $t("onboarding_stt.test_start")}
           </Button>
         {:else}
           <Button variant="ghost" size="sm"

@@ -140,6 +140,15 @@ impl SttFlow {
     /// the flow has to be rebuilt. Every field the flow reads at trigger time
     /// comes from this snapshot, so the comparison has to cover the whole row
     /// rather than the hotkey alone.
+    /// Whether a capture is running right now.
+    ///
+    /// Read by the stop command before it spawns the transcription, so a
+    /// stop with nothing to stop answers with an error instead of a success
+    /// that no event will ever follow.
+    pub fn is_recording(&self) -> bool {
+        self.recording.load(Ordering::SeqCst)
+    }
+
     pub fn config(&self) -> &SttConfigRow {
         &self.config
     }

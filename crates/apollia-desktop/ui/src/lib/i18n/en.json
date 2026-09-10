@@ -3690,6 +3690,7 @@
     "test_start": "Test now",
     "test_stop": "Speak… (click to stop)",
     "test_empty": "(empty transcription)",
+    "test_transcribing": "Transcribing…",
     "test_error": "Error: {error}",
     "mic_label": "Microphone",
     "mic_default": "System default",

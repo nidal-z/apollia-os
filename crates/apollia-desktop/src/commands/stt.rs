@@ -991,9 +991,17 @@ pub async fn start_tour_recording(
 
 /// Stops microphone capture and triggers Whisper transcription.
 ///
-/// The transcription result is broadcast as a `stt-transcribed` Tauri event
-/// with the recognised text, which the guided tour consumes to execute the
-/// corresponding navigation action.
+/// Answers as soon as the capture is stopped. The transcription runs on its
+/// own task and lands as a `stt-transcribed` Tauri event (or a dictation
+/// failure), which is what every in-app surface listens for. This used to
+/// await the transcription before answering: on a processor-bound machine the
+/// reply took as long as the transcription itself, tens of seconds, and every
+/// surface kept its "speak, click to stop" state for the whole wait, a second
+/// click being swallowed as a stop of nothing. Measured on 2026-09-10 on
+/// Windows: 19.5 s of processing for 5.5 s of audio.
+///
+/// A stop with no capture running is an error rather than a silent success,
+/// since no event follows it and a caller waiting on one would wait forever.
 #[tauri::command]
 pub async fn stop_tour_recording(flow_state: tauri::State<'_, SttFlowState>) -> Result<(), String> {
     // Clone the Arc out of the lock so transcription runs outside the guard.
@@ -1002,14 +1010,53 @@ pub async fn stop_tour_recording(flow_state: tauri::State<'_, SttFlowState>) -> 
         guard.as_ref().cloned()
     };
 
-    match maybe_flow {
-        Some(flow) => {
-            // Delivery follows the origin recorded at start, so stopping an
-            // in-app recording from here never triggers an OS paste even if
-            // the global hotkey is what actually stopped it.
-            flow.stop_and_transcribe().await;
-            Ok(())
-        }
-        None => Err("STT engine not available".to_owned()),
+    let Some(flow) = maybe_flow else {
+        return Err("STT engine not available".to_owned());
+    };
+    stop_request_outcome(flow.is_recording())?;
+    // Delivery follows the origin recorded at start, so stopping an in-app
+    // recording from here never triggers an OS paste even if the global
+    // hotkey is what actually stopped it.
+    tauri::async_runtime::spawn(async move {
+        flow.stop_and_transcribe().await;
+    });
+    Ok(())
+}
+
+/// What a stop request answers, given whether a capture is running.
+///
+/// Pure, so the refusal is assertable without a microphone.
+pub(crate) fn stop_request_outcome(recording: bool) -> Result<(), String> {
+    if recording {
+        Ok(())
+    } else {
+        Err("no recording in progress".to_owned())
+    }
+}
+
+#[cfg(test)]
+mod stop_request_tests {
+    use super::stop_request_outcome;
+
+    #[test]
+    fn a_stop_with_a_capture_running_is_accepted() {
+        // GIVEN a flow whose capture is running
+        // WHEN a stop is requested
+        let outcome = stop_request_outcome(true);
+
+        // THEN the request goes through, the transcription follows as an event
+        assert!(outcome.is_ok());
+    }
+
+    #[test]
+    fn a_stop_with_nothing_running_is_refused() {
+        // GIVEN a flow with no capture running. This is the control: a stop
+        // that answered Ok here is the silent success that left surfaces
+        // waiting for an event that never came.
+        // WHEN a stop is requested
+        let outcome = stop_request_outcome(false);
+
+        // THEN the caller is told, and can reset instead of waiting
+        assert_eq!(outcome, Err("no recording in progress".to_owned()));
     }
 }

@@ -36,6 +36,15 @@
   export function showsTranscribing(flags: SttTestFlags): boolean {
     return flags.busy && !flags.recording;
   }
+  /**
+   * Flags once the stop reply lands, given whether a result (text or failure)
+   * already arrived in the meantime. The reply and the event travel on
+   * different channels, so the event can win: applying `flagsAfterStop` on
+   * top of it would announce a transcription that is already over, forever.
+   */
+  export function flagsAfterStopReply(resultArrived: boolean): SttTestFlags {
+    return resultArrived ? { recording: false, busy: false } : flagsAfterStop();
+  }
 </script>
 
 <script lang="ts">
@@ -76,6 +85,8 @@
 
   let recording = $state(false);
   let busy = $state(false);
+  // Set by the result handlers; read when the stop reply lands.
+  let resultSinceStop = false;
   let result = $state<string | null>(null);
   // Why the last test produced no text. Without it a self-test on a muted
   // microphone leaves the card spinning on "transcribing" with nothing to say.
@@ -107,11 +118,12 @@
     busy = true;
     try {
       if (recording) {
+        resultSinceStop = false;
         await stopTourRecording();
         // The capture is over; only the text is pending. The card leaves the
         // listening state now, and busy holds until the transcription event
-        // arrives.
-        const after = flagsAfterStop();
+        // arrives, unless it already did while the reply was in flight.
+        const after = flagsAfterStopReply(resultSinceStop);
         recording = after.recording;
         busy = after.busy;
       } else {
@@ -138,6 +150,7 @@
     }).then((fn) => (cancelled ? fn() : unlisteners.push(fn)));
     void listen<{ text?: string } | string>("stt-transcribed", (event) => {
       if (!testInFlight({ recording, busy })) return;
+      resultSinceStop = true;
       result =
         typeof event.payload === "string" ? event.payload : (event.payload?.text ?? "");
       failure = null;
@@ -147,6 +160,7 @@
     }).then((fn) => (cancelled ? fn() : unlisteners.push(fn)));
     void listen(DICTATION_FAILED_EVENT, (event) => {
       if (!testInFlight({ recording, busy })) return;
+      resultSinceStop = true;
       failure = $t(failureMessageKey(readFailureReason(event.payload)));
       result = null;
       recording = false;
