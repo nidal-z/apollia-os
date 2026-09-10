@@ -124,11 +124,13 @@ the Vulkan one. Vulkan drives NVIDIA, AMD and Intel cards alike. Nothing to
 install and nothing to set: with a working driver the engine uses the card. The
 `-cpu` bundle is the one to take on a machine with no graphics driver.
 
-**Dictation stays on the CPU.** Speech to text runs in the `apollia-runner`
-sidecar, which is built on whisper, and whisper has no Vulkan backend: the
-Vulkan archive carries no speech to text runner of its own, and the installer
-ships a single one, `apollia-runner-cpu.exe`. No Windows artifact published
-today carries a GPU-accelerated speech-to-text runner.
+**Dictation runs on the GPU too.** Speech to text runs in the `apollia-runner`
+sidecar, built on whisper, and the installer ships two of them:
+`apollia-runner-vulkan.exe`, which whisper drives through Vulkan, and
+`apollia-runner-cpu.exe`. The runtime picks the Vulkan one for an AMD or Intel
+card, and for an NVIDIA card without CUDA 12; it falls back to the processor
+only when no Vulkan loader is present. The `apollia-os-windows-x86-vulkan.zip`
+command-line bundle carries no speech to text runner of its own.
 
 ## What is different on Windows
 

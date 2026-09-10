@@ -94,9 +94,10 @@ qui fonctionne, le moteur utilise la carte. Le bundle `-cpu` est celui à prendr
 sur une machine sans pilote graphique.
 
 **La dictée reste sur le processeur.** La reconnaissance vocale tourne dans le
-sidecar `apollia-runner`, bâti sur whisper, et whisper n'a pas de backend
-Vulkan : l'archive Vulkan ne porte aucun runner de reconnaissance vocale, et le
-paquet de bureau n'en livre qu'un seul, `apollia-runner-cpu`. Aucun artefact
+sidecar `apollia-runner`, bâti sur whisper, et les artefacts Linux ne le
+compilent que pour le processeur : l'archive Vulkan ne porte aucun runner de
+reconnaissance vocale, et le paquet de bureau n'en livre qu'un seul,
+`apollia-runner-cpu`. Aucun artefact
 Linux publié aujourd'hui ne porte de runner de
 reconnaissance vocale accéléré par le GPU.
 

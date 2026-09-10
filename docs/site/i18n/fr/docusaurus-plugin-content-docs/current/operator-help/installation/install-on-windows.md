@@ -129,12 +129,14 @@ indifféremment les cartes NVIDIA, AMD et Intel. Rien à installer et rien à
 régler : avec un pilote qui fonctionne, le moteur utilise la carte. Le bundle
 `-cpu` est celui à prendre sur une machine sans pilote graphique.
 
-**La dictée reste sur le processeur.** La reconnaissance vocale tourne dans le
-sidecar `apollia-runner`, bâti sur whisper, et whisper n'a pas de backend
-Vulkan : l'archive Vulkan ne porte aucun runner de reconnaissance vocale, et
-l'installateur n'en livre qu'un seul, `apollia-runner-cpu.exe`. Aucun artefact
-Windows publié aujourd'hui ne porte de runner de
-reconnaissance vocale accéléré par le GPU.
+**La dictée tourne aussi sur le GPU.** La reconnaissance vocale tourne dans le
+sidecar `apollia-runner`, bâti sur whisper, et l'installateur en livre deux :
+`apollia-runner-vulkan.exe`, où whisper passe par Vulkan, et
+`apollia-runner-cpu.exe`. Le runtime choisit le premier pour une carte AMD ou
+Intel, et pour une carte NVIDIA sans CUDA 12 ; il ne retombe sur le processeur
+qu'en l'absence de chargeur Vulkan. Le bundle en ligne de commande
+`apollia-os-windows-x86-vulkan.zip` ne porte aucun runner de reconnaissance
+vocale.
 
 ## Ce qui change sur Windows
 

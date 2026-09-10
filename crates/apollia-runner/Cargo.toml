@@ -22,8 +22,11 @@ local-cpu        = ["dep:whisper-rs"]
 local-cuda       = ["local-cpu", "whisper-rs/cuda"]
 local-metal      = ["local-cpu", "whisper-rs/metal"]
 local-rocm       = ["local-cpu", "whisper-rs/hipblas"]
-# whisper-rs has no Vulkan backend; STT runs on CPU when the GPU is Vulkan-only.
-local-vulkan     = ["local-cpu"]
+# Before this line existed, `local-vulkan` was the processor build under
+# another name, so a machine with a Vulkan-only card ran dictation on four
+# processor threads. Needs the Vulkan SDK (`VULKAN_SDK`) at build time.
+# Measured on 2026-09-10 on Windows with a Radeon RX 6900 XT.
+local-vulkan     = ["local-cpu", "whisper-rs/vulkan"]
 
 [dependencies]
 # IPC + serveur HTTP

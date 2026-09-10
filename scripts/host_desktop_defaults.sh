@@ -40,6 +40,13 @@ host_desktop_triple() {
 host_desktop_runners() {
     case "${1:-$(host_desktop_triple)}" in
         *-apple-darwin) printf 'cpu metal\n' ;;
+        # Windows ships the Vulkan runner next to the processor one: the
+        # runtime recommends Vulkan for every AMD and Intel card and degrades
+        # to the processor only when that binary is absent, which it always
+        # was. Building it needs the Vulkan SDK (`VULKAN_SDK`), the same
+        # requirement release.yml already installs for its windows-x86-vulkan
+        # preset.
+        *-pc-windows-msvc) printf 'cpu vulkan\n' ;;
         *) printf 'cpu\n' ;;
     esac
 }
@@ -97,6 +104,18 @@ desktop_updater_patch() {
 # 2026-09-10, the same convention that spells `cmd //c` in this tree). Unix
 # builds are untouched: their optimisation flags live in `CMAKE_C_FLAGS` and
 # survive.
+#
+# Two more settings serve the Vulkan runner, whose build nests a second CMake
+# tree for ggml's shader generator. CMAKE_PROJECT_INCLUDE names the file
+# beside this one that moves that tree to a short directory: from cargo's
+# output directory its compiler check wrote an object file at 265 characters,
+# past the 260 cl.exe enforces, and every Vulkan build died there (measured
+# 2026-09-10, details in host_runner_ep_base.cmake). The generator is Ninja
+# when the Visual Studio tools ship one: with MSBuild, the same nested tree
+# hit the file tracker's own 260 limit and then ran its configure, build and
+# install steps at once. Ninja runs one build graph, and it is the generator
+# llama.cpp's own Windows builds use. Without Ninja the Visual Studio
+# generator is kept, so a processor-only build still works as before.
 host_runner_cmake_env() {
     case "${1:-$(host_desktop_triple)}" in
         *-pc-windows-msvc)
@@ -104,6 +123,16 @@ host_runner_cmake_env() {
             export CMAKE_CXX_FLAGS_RELEASE="-MT -O2 -Ob2 -DNDEBUG"
             export CMAKE_C_FLAGS_RELWITHDEBINFO="-MT -O2 -Ob1 -DNDEBUG -Zi"
             export CMAKE_CXX_FLAGS_RELWITHDEBINFO="-MT -O2 -Ob1 -DNDEBUG -Zi"
+            CMAKE_PROJECT_INCLUDE="$(cygpath -m "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/host_runner_ep_base.cmake")"
+            export CMAKE_PROJECT_INCLUDE
+            local ninja_dir
+            if ninja_dir="$(host_runner_ninja_dir)"; then
+                export CMAKE_GENERATOR=Ninja
+                case ":$PATH:" in
+                    *":$ninja_dir:"*) ;;
+                    *) export PATH="$ninja_dir:$PATH" ;;
+                esac
+            fi
             ;;
     esac
 }
@@ -126,4 +155,26 @@ host_runner_cmake_clean() {
     case "$triple" in
         *-pc-windows-msvc) cargo clean -p whisper-rs-sys "$@" ;;
     esac
+}
+
+# The directory holding ninja.exe: the PATH first, then the one the Visual
+# Studio installer lays down with its "C++ CMake tools" component, located
+# through vswhere, which every Visual Studio 2017 and later install carries.
+# Prints nothing and returns 1 when there is none.
+host_runner_ninja_dir() {
+    local found
+    if found="$(command -v ninja 2>/dev/null)" && [ -n "$found" ]; then
+        dirname "$found"
+        return 0
+    fi
+    local pf86 vswhere root
+    pf86="$(printenv 'ProgramFiles(x86)' 2>/dev/null || true)"
+    [ -n "$pf86" ] || return 1
+    vswhere="$(cygpath -u "$pf86")/Microsoft Visual Studio/Installer/vswhere.exe"
+    [ -x "$vswhere" ] || return 1
+    root="$("$vswhere" -latest -products '*' -property installationPath 2>/dev/null | tr -d '\r')"
+    [ -n "$root" ] || return 1
+    found="$(cygpath -u "$root")/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja"
+    [ -x "$found/ninja.exe" ] || return 1
+    printf '%s' "$found"
 }

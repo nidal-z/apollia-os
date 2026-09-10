@@ -365,7 +365,7 @@ correspondant à votre matériel :
 |---|---|---|
 | Apple Silicon | `cpu metal` | Préréglage par défaut pour macOS |
 | NVIDIA (CUDA 12+) | `cpu cuda` | Sur Windows, LLM et STT utilisent tous deux CUDA. Sur Linux, cette valeur fait échouer le bundle : la release amont épinglée ne publie pas de `llama-server` CUDA Linux, la récupération sort en erreur et le script s'arrête sur `could not bundle llama-server (cuda)`. Compilez-en un et passez `LLAMA_SERVER_DIR`, ce que fait la chaîne de publication pour le paquet `-cuda` Linux |
-| AMD Radeon / Intel Arc | `cpu vulkan` | LLM sur GPU ; STT reste sur CPU (`whisper-rs` n'a pas de backend Vulkan) |
+| AMD Radeon / Intel Arc | `cpu vulkan` | LLM et STT sur GPU via Vulkan ; le runner STT demande le SDK Vulkan (`VULKAN_SDK`) à la compilation |
 | AMD Pro / Instinct + HIP SDK | `cpu rocm` | LLM et STT sur ROCm là où c'est pris en charge |
 
 Préréglages par plateforme :

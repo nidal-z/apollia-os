@@ -291,8 +291,8 @@ jobs:
           fi
 
       # host_runner_cmake_env restores whisper.cpp's optimisation flags on
-      # MSVC, which the cmake crate strips; the clean makes a cached tree
-      # apply them.
+      # MSVC, which the cmake crate strips, and routes the Vulkan build around
+      # a path-length limit; the clean makes a cached tree apply them.
       - name: Build apollia-runner
         if: steps.runner_feat.outputs.feature != ''
         shell: bash

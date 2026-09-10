@@ -329,7 +329,7 @@ matches your hardware:
 |---|---|---|
 | Apple Silicon | `cpu metal` | Default macOS preset |
 | NVIDIA (CUDA 12+) | `cpu cuda` | On Windows, LLM and STT both use CUDA. On Linux this value fails the bundle: the pinned upstream release ships no Linux CUDA `llama-server`, the fetch exits and the script stops on `could not bundle llama-server (cuda)`. Build one and pass `LLAMA_SERVER_DIR`, which is what the release pipeline does for the Linux `-cuda` bundle |
-| AMD Radeon / Intel Arc | `cpu vulkan` | LLM on GPU; STT stays CPU (`whisper-rs` has no Vulkan backend) |
+| AMD Radeon / Intel Arc | `cpu vulkan` | LLM and STT on GPU through Vulkan; the STT runner needs the Vulkan SDK (`VULKAN_SDK`) at build time |
 | AMD Pro / Instinct + HIP SDK | `cpu rocm` | LLM and STT on ROCm where supported |
 
 Platform presets:
