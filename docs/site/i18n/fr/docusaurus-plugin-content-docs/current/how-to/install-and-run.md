@@ -345,7 +345,7 @@ Chaque recette accepte deux arguments optionnels :
 | Argument | Rôle | Valeur par défaut (macOS / Linux / Windows) |
 |---|---|---|
 | `target` | Triplet Rust passé à `cargo tauri build` | `aarch64-apple-darwin` / `x86_64-unknown-linux-gnu` / `x86_64-pc-windows-msvc` |
-| `runners` | Liste, séparée par des espaces, des backends d'exécuteurs à compiler et inclure dans le bundle | `cpu metal` / `cpu` / `cpu` |
+| `runners` | Liste, séparée par des espaces, des backends d'exécuteurs à compiler et inclure dans le bundle | `cpu metal` / `cpu` / `cpu vulkan` |
 
 La valeur `runners` contrôle deux choses :
 

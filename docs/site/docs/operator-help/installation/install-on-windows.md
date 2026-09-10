@@ -62,7 +62,7 @@ memory or a loopback port afterwards. To confirm, from PowerShell after
 quitting:
 
 ```powershell
-Get-Process apollia-os, llama-server, apollia-runner-cpu -ErrorAction SilentlyContinue
+Get-Process apollia-os, llama-server, apollia-runner-vulkan, apollia-runner-cpu -ErrorAction SilentlyContinue
 ```
 
 It should print nothing.

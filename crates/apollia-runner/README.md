@@ -18,6 +18,8 @@ cargo build --release -p apollia-runner --features local-metal   # macOS only
 
 The produced binary is named `apollia-runner` (no suffix). Final packaging (`release.yml`) renames it to `apollia-runner-{backend}` according to the feature.
 
+On Windows, build through `just runner-release <backend>` rather than the bare `cargo build`: the recipe sources `host_runner_cmake_env`, which restores the optimisation flags the `cmake` crate strips from whisper.cpp on MSVC (a bare release build transcribed thirty times slower than the debug one, measured 2026-09-10) and, for `local-vulkan`, routes ggml's shader generator around a 260-character path limit. `local-vulkan` needs the Vulkan SDK (`VULKAN_SDK`) at build time.
+
 ## Standalone test
 
 ```sh

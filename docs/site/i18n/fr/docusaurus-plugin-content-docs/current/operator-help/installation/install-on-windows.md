@@ -64,7 +64,7 @@ l'application. Rien ne reste à occuper de la mémoire vidéo ou un port loopbac
 Pour le vérifier, depuis PowerShell après avoir quitté :
 
 ```powershell
-Get-Process apollia-os, llama-server, apollia-runner-cpu -ErrorAction SilentlyContinue
+Get-Process apollia-os, llama-server, apollia-runner-vulkan, apollia-runner-cpu -ErrorAction SilentlyContinue
 ```
 
 La commande ne doit rien afficher.

@@ -309,7 +309,7 @@ Each recipe accepts two optional arguments:
 | Argument | Role | Default (macOS / Linux / Windows) |
 |---|---|---|
 | `target` | Rust triple passed to `cargo tauri build` | `aarch64-apple-darwin` / `x86_64-unknown-linux-gnu` / `x86_64-pc-windows-msvc` |
-| `runners` | Space-separated list of runner backends to build and bundle | `cpu metal` / `cpu` / `cpu` |
+| `runners` | Space-separated list of runner backends to build and bundle | `cpu metal` / `cpu` / `cpu vulkan` |
 
 The `runners` value controls two things:
 
