@@ -321,9 +321,14 @@ pub fn resolve_backend(config: &LlmRunnerConfig, detected: &GpuInfo) -> RunnerBa
 /// `apollia-runner-vulkan`, found nothing, and lost dictation AND the local
 /// model at once, on a build that carried both.
 ///
-/// Order: what was chosen, then the processor runner, then whatever is there.
-/// The last step matters for a bundle that ships a GPU runner alone, where the
-/// chosen one can be the processor.
+/// Order: what was chosen, then the Vulkan runner when the choice was another
+/// card backend, then the processor runner, then whatever is there. Vulkan
+/// reaches the same NVIDIA and AMD cards CUDA and ROCm do, and the Windows
+/// bundles ship it next to the processor runner since 2026-09-10 while no
+/// bundle carries a CUDA or ROCm one: a card whose first choice is absent
+/// keeps its dictation on the card rather than on the processor. The last
+/// step matters for a bundle that ships a GPU runner alone, where the chosen
+/// one can be the processor.
 /// The backend to start with at boot, when no operator override is in reach.
 ///
 /// Boot used to hand `detected.recommended_backend` straight to the supervisor.
@@ -341,6 +346,17 @@ pub(crate) fn boot_backend(detected: &GpuInfo) -> RunnerBackend {
 fn degrade_to_something_present(chosen: RunnerBackend) -> RunnerBackend {
     if is_backend_available(chosen) {
         return chosen;
+    }
+    if matches!(chosen, RunnerBackend::Cuda | RunnerBackend::Rocm)
+        && is_backend_available(RunnerBackend::Vulkan)
+    {
+        tracing::warn!(
+            requested = ?chosen,
+            using = ?RunnerBackend::Vulkan,
+            detail = "dictation runs on the card through Vulkan; the language model keeps its own engine",
+            "runner.backend.degraded",
+        );
+        return RunnerBackend::Vulkan;
     }
     if chosen != RunnerBackend::Cpu && is_backend_available(RunnerBackend::Cpu) {
         tracing::warn!(
@@ -871,6 +887,32 @@ mod tests {
         // apollia-runner-vulkan, a binary no bundle has ever carried, failed,
         // and disabled dictation and the local model together.
         assert_eq!(backend, RunnerBackend::Cpu);
+        let _ = std::fs::remove_file(&cpu);
+    }
+
+    #[test]
+    fn an_nvidia_card_without_a_cuda_runner_lands_on_the_vulkan_one_that_ships() {
+        // GIVEN what the Windows bundles ship since 2026-09-10, the processor
+        // and the Vulkan runners, on a machine whose card makes detection
+        // recommend CUDA
+        let _guard = runner_dir_lock();
+        remove_every_runner();
+        let cpu = write_runner("apollia-runner-cpu");
+        let vulkan = write_runner("apollia-runner-vulkan");
+        let detected = nvidia_detected();
+
+        // WHEN boot picks the backend to start
+        let backend = boot_backend(&detected);
+
+        // THEN dictation stays on the card: the Vulkan runner reaches it,
+        // where the processor one would have been chosen before this test
+        // existed
+        assert_eq!(backend, RunnerBackend::Vulkan);
+
+        // AND the control: without the Vulkan runner, the processor one is
+        // still the answer, so the change is about preference, not presence
+        let _ = std::fs::remove_file(&vulkan);
+        assert_eq!(boot_backend(&detected), RunnerBackend::Cpu);
         let _ = std::fs::remove_file(&cpu);
     }
 
