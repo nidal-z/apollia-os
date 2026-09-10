@@ -2584,6 +2584,7 @@
     "stt_enabled": "Enabled",
     "stt_disabled": "Disabled",
     "stt_model_not_loaded": "Model not loaded",
+    "stt_model_ready_hint": "· loads on first use",
     "stt_backend": "Backend",
     "stt_model_name": "Active model",
     "stt_metal": "Metal",
