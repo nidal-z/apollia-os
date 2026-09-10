@@ -13,12 +13,11 @@ never reached this file, once because the key was regenerated the same day. Both
 were caught by reading the key id out of a published signature by hand, which
 nobody does by habit.
 
-Usage: check_updater_key.py <tauri.conf.json> <signature> [<signature> ...]
-
 A signature is a Tauri updater `.sig` file. Exit 0 when every one of them was
 produced by the key the configuration declares, 1 otherwise.
 """
 
+import argparse
 import base64
 import json
 import sys
@@ -44,18 +43,42 @@ def key_id_from_signature(raw: str) -> str:
     return signature[2:10][::-1].hex().upper()
 
 
-def main() -> int:
-    if len(sys.argv) < 3:
-        print(__doc__, file=sys.stderr)
-        return 2
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="check_updater_key.py",
+        description=(
+            "Check that every updater signature was produced by the key the "
+            "bundle configuration declares."
+        ),
+        epilog=(
+            "A mismatch means the bundle refuses every update it is offered, "
+            "and the failure cannot be repaired remotely."
+        ),
+    )
+    parser.add_argument(
+        "config",
+        type=Path,
+        help="path to tauri.conf.json, which declares plugins.updater.pubkey",
+    )
+    parser.add_argument(
+        "signatures",
+        type=Path,
+        nargs="+",
+        help="one or more Tauri updater .sig files",
+    )
+    return parser.parse_args(argv)
 
-    config = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+
+    config = json.loads(args.config.read_text(encoding="utf-8"))
     declared = key_id_from_pubkey(config["plugins"]["updater"]["pubkey"])
 
     failures = []
-    for path in sys.argv[2:]:
+    for path in args.signatures:
         try:
-            produced = key_id_from_signature(Path(path).read_text(encoding="utf-8"))
+            produced = key_id_from_signature(path.read_text(encoding="utf-8"))
         except (ValueError, IndexError) as exc:
             failures.append(f"{path}: unreadable as a signature ({exc})")
             continue
@@ -64,7 +87,7 @@ def main() -> int:
         if produced != declared:
             failures.append(f"{path}: signed by {produced}, bundle trusts {declared}")
 
-    print(f"bundle trusts {declared}, {len(sys.argv) - 2} signature(s) read")
+    print(f"bundle trusts {declared}, {len(args.signatures)} signature(s) read")
     if failures:
         print(
             "\nThe bundle would refuse every update it is offered, and the failure\n"
