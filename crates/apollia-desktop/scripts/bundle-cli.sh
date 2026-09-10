@@ -132,6 +132,14 @@ case "$RUNNER_TARGET" in
     *-pc-windows-*) BIN_EXT=".exe" ;;
 esac
 
+# Optimisation flags for whisper.cpp on MSVC, see host_runner_cmake_env: without
+# them the shipped runner transcribed fifty times slower than real time. The
+# clean is what makes a tree that already holds a runner apply them.
+# shellcheck source=../../../scripts/host_desktop_defaults.sh
+source "${REPO_ROOT}/scripts/host_desktop_defaults.sh"
+host_runner_cmake_env "$RUNNER_TARGET"
+host_runner_cmake_clean "$RUNNER_TARGET" --release --target "$RUNNER_TARGET"
+
 # Runners staging directory: tauri.conf.json declares `runners/**` as a
 # resource. The `.gitkeep` stays so the glob matches even when no runner has
 # been built yet (plain cargo check, local dev without a bundle).

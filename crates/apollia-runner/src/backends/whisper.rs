@@ -278,6 +278,19 @@ struct WhisperRun {
     language_detected: Option<String>,
 }
 
+/// Threads handed to whisper for one transcription.
+///
+/// Left unset, whisper.cpp uses four, whatever the machine has. On a sixteen
+/// core, thirty-two thread processor that is an eighth of the threads, which
+/// is exactly the 13 percent the task manager showed while a dictation crawled
+/// (2026-09-10, Windows, Ryzen 9 5950X). Half the logical count approximates the physical cores, which is
+/// where whisper's matrix work stops scaling; the floor keeps a small machine
+/// at whisper's own default.
+fn transcription_threads() -> i32 {
+    let logical = std::thread::available_parallelism().map_or(4, |n| n.get());
+    i32::try_from((logical / 2).max(4)).unwrap_or(4)
+}
+
 fn run_whisper(
     ctx: &WhisperContext,
     audio: &[f32],
@@ -289,6 +302,7 @@ fn run_whisper(
     }
 
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+    params.set_n_threads(transcription_threads());
     params.set_translate(translate);
     params.set_print_progress(false);
     params.set_print_realtime(false);
@@ -358,5 +372,26 @@ mod tests {
         // WHEN its loaded model ids are read
         // THEN there are none: construction loads nothing
         assert!(b.loaded_ids().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod thread_tests {
+    use super::transcription_threads;
+
+    #[test]
+    fn the_thread_count_never_drops_below_whisper_s_own_default() {
+        // GIVEN whatever machine runs this test
+        // WHEN the thread count is chosen
+        let threads = transcription_threads();
+
+        // THEN it is at least four, whisper's default, and at most the logical
+        // count, so a small machine loses nothing and a large one uses its cores
+        let logical = std::thread::available_parallelism().map_or(4, |n| n.get());
+        assert!(threads >= 4, "{threads}");
+        assert!(
+            usize::try_from(threads).unwrap_or(0) <= logical.max(4),
+            "{threads} > {logical}"
+        );
     }
 }

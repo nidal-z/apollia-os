@@ -151,16 +151,30 @@ worktree-compare MAIN WORKTREE:
 # Runner sidecar
 # -----------------------------------------------------------------------------
 
+# Every runner build goes through host_runner_cmake_env: on MSVC the cmake
+# crate strips whisper.cpp's optimisation flags unless the caller sets them,
+# and a runner built without them transcribed fifty times slower than real
+# time (measured 2026-09-10). A no-op on every other host.
+
 # Build debug runner for one backend and keep unsuffixed binary
 runner-debug backend:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source "{{justfile_directory()}}/scripts/host_desktop_defaults.sh"; host_runner_cmake_env
     cargo build -p apollia-runner --features local-{{backend}}
 
 # Build release runner for one backend and keep unsuffixed binary
 runner-release backend target="":
-    if [ -n "{{target}}" ]; then cargo build -p apollia-runner --release --target "{{target}}" --features local-{{backend}}; else cargo build -p apollia-runner --release --features local-{{backend}}; fi
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source "{{justfile_directory()}}/scripts/host_desktop_defaults.sh"; host_runner_cmake_env "{{target}}"
+    if [ -n "{{target}}" ]; then host_runner_cmake_clean "{{target}}" --release --target "{{target}}"; cargo build -p apollia-runner --release --target "{{target}}" --features local-{{backend}}; else host_runner_cmake_clean "" --release; cargo build -p apollia-runner --release --features local-{{backend}}; fi
 
 # Build + suffix debug runner binary so daemon can auto-detect it
 runner-debug-suffixed backend:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source "{{justfile_directory()}}/scripts/host_desktop_defaults.sh"; host_runner_cmake_env
     cargo build -p apollia-runner --features local-{{backend}}
     cp "target/debug/apollia-runner" "target/debug/apollia-runner-{{backend}}"
     chmod +x "target/debug/apollia-runner-{{backend}}" || true

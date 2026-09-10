@@ -76,3 +76,54 @@ desktop_updater_patch() {
     echo "    produce is the signature the auto-update channel reads." >&2
     printf '{"bundle":{"createUpdaterArtifacts":false}}\n'
 }
+
+# The compiler flags the STT runner's C++ (whisper.cpp, through whisper-rs-sys)
+# is built with on Windows.
+#
+# The `cmake` crate that drives that build sets `CMAKE_C_FLAGS_<BUILD_TYPE>`
+# to the `cc` crate's own flags, and it computes those at optimisation level
+# zero, whatever cargo's profile. On MSVC that variable is the one carrying
+# `/O2`, so every whisper.cpp built this way ran unoptimised: the crate's own
+# source calls the override "bad". Measured on 2026-09-10 on a Ryzen 9 5950X,
+# a 5.5 s file through the release runner: 311 s at whisper's default four
+# threads, 97.7 s at sixteen threads, and 8.9 s at sixteen threads once these
+# flags were in force, which is the debug runner's own figure (9.2 s). The
+# override is skipped for a variable the caller defined, and whisper-rs-sys
+# passes every `CMAKE_*` variable from its environment through, which is the
+# seam used here. `-MT` keeps the static runtime the desktop bundle links
+# against. Dashes rather than slashes, which cl accepts alike: under git-bash
+# an argument starting with a single slash is rewritten into a Windows path,
+# and `/MT` reached the compiler as `C:/Program Files/Git/MT` (measured
+# 2026-09-10, the same convention that spells `cmd //c` in this tree). Unix
+# builds are untouched: their optimisation flags live in `CMAKE_C_FLAGS` and
+# survive.
+host_runner_cmake_env() {
+    case "${1:-$(host_desktop_triple)}" in
+        *-pc-windows-msvc)
+            export CMAKE_C_FLAGS_RELEASE="-MT -O2 -Ob2 -DNDEBUG"
+            export CMAKE_CXX_FLAGS_RELEASE="-MT -O2 -Ob2 -DNDEBUG"
+            export CMAKE_C_FLAGS_RELWITHDEBINFO="-MT -O2 -Ob1 -DNDEBUG -Zi"
+            export CMAKE_CXX_FLAGS_RELWITHDEBINFO="-MT -O2 -Ob1 -DNDEBUG -Zi"
+            ;;
+    esac
+}
+
+# Drop whisper.cpp's compiled library so the flags above are applied.
+#
+# cargo reruns a build script on the conditions that script declares, and
+# whisper-rs-sys declares its wrapper header and a few SDK variables, none of
+# which is a CMAKE_* flag. On a tree that already holds a runner, the release
+# build kept the library it had, compiled without optimisation, and the flags
+# above changed nothing. `cargo clean -p` on that one package is what makes
+# the next build compile it again, at the cost of one whisper.cpp build, one
+# and a half minutes on the bench with Ninja. A no-op on every other host.
+#
+# Arguments: the triple (or empty for the host), then the cargo arguments that
+# select the artefacts, `--release` and `--target <triple>` as the build uses.
+host_runner_cmake_clean() {
+    local triple="${1:-$(host_desktop_triple)}"
+    shift || true
+    case "$triple" in
+        *-pc-windows-msvc) cargo clean -p whisper-rs-sys "$@" ;;
+    esac
+}

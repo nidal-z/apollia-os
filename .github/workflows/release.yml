@@ -290,12 +290,18 @@ jobs:
             echo "backend=$BACKEND" >> "$GITHUB_OUTPUT"
           fi
 
+      # host_runner_cmake_env restores whisper.cpp's optimisation flags on
+      # MSVC, which the cmake crate strips; the clean makes a cached tree
+      # apply them.
       - name: Build apollia-runner
         if: steps.runner_feat.outputs.feature != ''
         shell: bash
         env:
           CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
         run: |
+          source scripts/host_desktop_defaults.sh
+          host_runner_cmake_env "${{ matrix.triple }}"
+          host_runner_cmake_clean "${{ matrix.triple }}" --release --target ${{ matrix.triple }}
           cargo build --release -p apollia-runner \
             --target ${{ matrix.triple }} \
             --no-default-features \
