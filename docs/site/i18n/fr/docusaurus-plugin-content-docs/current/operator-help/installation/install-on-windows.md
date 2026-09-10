@@ -135,8 +135,7 @@ sidecar `apollia-runner`, bâti sur whisper, et l'installateur en livre deux :
 `apollia-runner-cpu.exe`. Le runtime choisit le premier pour une carte AMD ou
 Intel, et pour une carte NVIDIA sans CUDA 12 ; il ne retombe sur le processeur
 qu'en l'absence de chargeur Vulkan. Le bundle en ligne de commande
-`apollia-os-windows-x86-vulkan.zip` ne porte aucun runner de reconnaissance
-vocale.
+`apollia-os-windows-x86-vulkan.zip` porte lui aussi le runner Vulkan.
 
 ## Ce qui change sur Windows
 

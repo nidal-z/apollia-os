@@ -93,13 +93,11 @@ cartes NVIDIA, AMD et Intel. Rien à installer et rien à régler : avec un pilo
 qui fonctionne, le moteur utilise la carte. Le bundle `-cpu` est celui à prendre
 sur une machine sans pilote graphique.
 
-**La dictée reste sur le processeur.** La reconnaissance vocale tourne dans le
-sidecar `apollia-runner`, bâti sur whisper, et les artefacts Linux ne le
-compilent que pour le processeur : l'archive Vulkan ne porte aucun runner de
-reconnaissance vocale, et le paquet de bureau n'en livre qu'un seul,
-`apollia-runner-cpu`. Aucun artefact
-Linux publié aujourd'hui ne porte de runner de
-reconnaissance vocale accéléré par le GPU.
+**La dictée tourne sur le processeur dans les paquets de bureau.** La
+reconnaissance vocale tourne dans le sidecar `apollia-runner`, bâti sur
+whisper. Les paquets de bureau n'en livrent qu'un seul, `apollia-runner-cpu` ;
+l'archive Vulkan en ligne de commande porte `apollia-runner-vulkan`, whisper
+sur la carte, que le daemon utilise quand le pilote fournit un chargeur Vulkan.
 
 ## Mettre à jour
 

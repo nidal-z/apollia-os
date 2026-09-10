@@ -52,6 +52,9 @@ cycle, before anything was published.
 
 - LLM router serving local GGUF models through an embedded `llama-server`
   (upstream llama.cpp), alongside Anthropic and OpenAI providers.
+- Local speech to text through whisper in the `apollia-runner` sidecar, on
+  the card through Metal on macOS and Vulkan on Windows, on the processor
+  elsewhere; the daemon picks the runner its bundle carries.
 - Meta planner for next-step suggestions, plan caching, and orchestrated
   decision points.
 - Token budget tracking per session with hard and soft limits.

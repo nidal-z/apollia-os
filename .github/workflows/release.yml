@@ -1010,12 +1010,15 @@ jobs:
         env:
           PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/bin/python3.13
           RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/lib
+          # The STT runner stays on the processor here. The Vulkan one exists
+          # since 2026-09-10 and is measured on Windows alone; this job is
+          # blocking, and it takes the Vulkan SDK once the linux-x86-vulkan CLI
+          # preset, which builds that runner with the same SDK, is green.
           APOLLIA_DESKTOP_RUNNERS: "cpu"
-          # The inference engine is Vulkan here, and the STT runner stays CPU.
-          # Vulkan reaches NVIDIA, AMD and Intel from one 32 MB binary, where
-          # the CUDA engine covers NVIDIA alone, weighs 238 MB plus a 373 MB
-          # runtime, and falls back to the CPU on every other card. whisper-rs
-          # has no Vulkan backend, so the STT side has nothing to gain here.
+          # The inference engine is Vulkan here. Vulkan reaches NVIDIA, AMD
+          # and Intel from one 32 MB binary, where the CUDA engine covers
+          # NVIDIA alone, weighs 238 MB plus a 373 MB runtime, and falls back
+          # to the CPU on every other card.
           APOLLIA_DESKTOP_LLAMA_BACKEND: "vulkan"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -1161,6 +1164,24 @@ jobs:
         with:
           key: desktop-windows-x86_64
 
+      # The Vulkan STT runner is built here, so the SDK it needs at build
+      # time (headers, loader, glslc for ggml's shaders) is installed the way
+      # the windows-x86-vulkan CLI preset installs it, integrity pinned.
+      - name: Install Vulkan SDK (Windows)
+        shell: pwsh
+        run: |
+          $url = "https://sdk.lunarg.com/sdk/download/1.3.290.0/windows/VulkanSDK-1.3.290.0-Installer.exe"
+          $expected = "0ba0392a78157b82354157c5c988d74ddc6bc15573cc9c8653aa60245355fe8a"
+          Invoke-WebRequest -Uri $url -OutFile VulkanSDK.exe -UseBasicParsing
+          $actual = (Get-FileHash VulkanSDK.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+              throw "VulkanSDK.exe sha256 mismatch: expected $expected, got $actual"
+          }
+          Start-Process -FilePath ".\VulkanSDK.exe" -ArgumentList "--accept-licenses","--default-answer","--confirm-command","install" -Wait
+          $sdk = "C:\VulkanSDK\1.3.290.0"
+          echo "VULKAN_SDK=$sdk" >> $env:GITHUB_ENV
+          echo "$sdk\Bin" >> $env:GITHUB_PATH
+
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
 
@@ -1196,12 +1217,16 @@ jobs:
         env:
           PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-pc-windows-msvc/python/python.exe
           CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
-          APOLLIA_DESKTOP_RUNNERS: "cpu"
-          # The inference engine is Vulkan here, and the STT runner stays CPU.
-          # Vulkan reaches NVIDIA, AMD and Intel from one 32 MB binary, where
-          # the CUDA engine covers NVIDIA alone, weighs 238 MB plus a 373 MB
-          # runtime, and falls back to the CPU on every other card. whisper-rs
-          # has no Vulkan backend, so the STT side has nothing to gain here.
+          # Both STT runners: the Vulkan one, which whisper drives on AMD,
+          # Intel and NVIDIA cards alike (measured 2026-09-10 on a Radeon RX
+          # 6900 XT, 2.2 s for 5.5 s of audio against 8.2 s on the processor),
+          # and the processor one the runtime degrades to without a Vulkan
+          # loader. This is what host_desktop_runners answers for Windows.
+          APOLLIA_DESKTOP_RUNNERS: "cpu vulkan"
+          # The inference engine is Vulkan here. Vulkan reaches NVIDIA, AMD
+          # and Intel from one 32 MB binary, where the CUDA engine covers
+          # NVIDIA alone, weighs 238 MB plus a 373 MB runtime, and falls back
+          # to the CPU on every other card.
           APOLLIA_DESKTOP_LLAMA_BACKEND: "vulkan"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -1378,9 +1403,10 @@ jobs:
           RUSTFLAGS: -L ${{ github.workspace }}/target/python-bundle/x86_64-unknown-linux-gnu/python/lib
           APOLLIA_DESKTOP_RUNNERS: "cpu"
           # CUDA here, against Vulkan in the sibling job. The STT runner stays
-          # CPU either way: whisper-rs has no Vulkan backend, and a CUDA one
-          # would drag nvcc into this build for the smaller half of the gain.
-          # LLAMA_SERVER_DIR, set above, is what makes this reachable at all.
+          # on the processor, as in the sibling job and for the same reason;
+          # a CUDA one would drag nvcc into this build for the smaller half of
+          # the gain. LLAMA_SERVER_DIR, set above, is what makes this
+          # reachable at all.
           APOLLIA_DESKTOP_LLAMA_BACKEND: "cuda"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -1490,6 +1516,24 @@ jobs:
         with:
           key: desktop-windows-cuda-x86_64
 
+      # The Vulkan STT runner is built here, so the SDK it needs at build
+      # time (headers, loader, glslc for ggml's shaders) is installed the way
+      # the windows-x86-vulkan CLI preset installs it, integrity pinned.
+      - name: Install Vulkan SDK (Windows)
+        shell: pwsh
+        run: |
+          $url = "https://sdk.lunarg.com/sdk/download/1.3.290.0/windows/VulkanSDK-1.3.290.0-Installer.exe"
+          $expected = "0ba0392a78157b82354157c5c988d74ddc6bc15573cc9c8653aa60245355fe8a"
+          Invoke-WebRequest -Uri $url -OutFile VulkanSDK.exe -UseBasicParsing
+          $actual = (Get-FileHash VulkanSDK.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+              throw "VulkanSDK.exe sha256 mismatch: expected $expected, got $actual"
+          }
+          Start-Process -FilePath ".\VulkanSDK.exe" -ArgumentList "--accept-licenses","--default-answer","--confirm-command","install" -Wait
+          $sdk = "C:\VulkanSDK\1.3.290.0"
+          echo "VULKAN_SDK=$sdk" >> $env:GITHUB_ENV
+          echo "$sdk\Bin" >> $env:GITHUB_PATH
+
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2"
 
@@ -1525,7 +1569,11 @@ jobs:
         env:
           PYO3_PYTHON: ${{ github.workspace }}/target/python-bundle/x86_64-pc-windows-msvc/python/python.exe
           CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
-          APOLLIA_DESKTOP_RUNNERS: "cpu"
+          # The same two STT runners as the Vulkan installer. No CUDA STT
+          # runner: it would need nvcc in this build, and the runtime lands
+          # an NVIDIA card on the Vulkan runner when the CUDA one is absent,
+          # so dictation runs on the card either way.
+          APOLLIA_DESKTOP_RUNNERS: "cpu vulkan"
           # CUDA here, against Vulkan in the sibling job. Unlike Linux, this
           # engine is a download: llama.cpp publishes a Windows CUDA build and
           # its separate runtime archive, both handled by fetch-llama-server.sh.

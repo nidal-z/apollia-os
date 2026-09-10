@@ -33,9 +33,9 @@ If `apollia-runner-cpu` is missing: reinstall Apollia (the bundle has been alter
 
 ## 2. The GPU driver is missing or too old
 
-The daemon detected your GPU and tried to spawn the matching STT runner, `apollia-runner-metal`, but the runtime libraries are missing. This section applies to macOS: it is the only system with a GPU speech to text runner.
+The daemon detected your GPU and tried to spawn the matching STT runner, `apollia-runner-metal` on macOS or `apollia-runner-vulkan` on Windows, but the runtime libraries are missing.
 
-The published bundles carry two STT runners and no others: `apollia-runner-cpu` everywhere, and `apollia-runner-metal` on macOS. Whisper has no Vulkan backend, so no Linux or Windows bundle carries a GPU one, and there is no CUDA or ROCm STT runner either. A GPU driver of any kind changes nothing for dictation off macOS.
+The published bundles carry three STT runners and no others: `apollia-runner-cpu` everywhere, `apollia-runner-metal` on macOS, and `apollia-runner-vulkan` on Windows, in the installers and in the Vulkan command-line bundle. There is no CUDA or ROCm STT runner: on an NVIDIA card the daemon uses the Vulkan one. The Linux bundles carry the processor runner alone, so a GPU driver changes nothing for dictation there.
 
 **Symptoms:**
 

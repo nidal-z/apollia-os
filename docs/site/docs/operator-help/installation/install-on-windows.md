@@ -130,7 +130,7 @@ sidecar, built on whisper, and the installer ships two of them:
 `apollia-runner-cpu.exe`. The runtime picks the Vulkan one for an AMD or Intel
 card, and for an NVIDIA card without CUDA 12; it falls back to the processor
 only when no Vulkan loader is present. The `apollia-os-windows-x86-vulkan.zip`
-command-line bundle carries no speech to text runner of its own.
+command-line bundle carries the Vulkan runner as well.
 
 ## What is different on Windows
 

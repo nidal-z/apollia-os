@@ -91,11 +91,11 @@ NVIDIA, AMD and Intel cards alike. Nothing to install and nothing to set: with a
 working driver the engine uses the card. The `-cpu` bundle is the one to take on
 a machine with no graphics driver.
 
-**Dictation stays on the CPU.** Speech to text runs in the `apollia-runner`
-sidecar, which is built on whisper, and the Linux artifacts build it for the
-processor alone: the Vulkan archive carries no speech to text runner of its
-own, and the desktop package ships a single one, `apollia-runner-cpu`. No Linux artifact published
-today carries a GPU-accelerated speech-to-text runner.
+**Dictation runs on the processor in the desktop packages.** Speech to text
+runs in the `apollia-runner` sidecar, which is built on whisper. The desktop
+packages ship a single one, `apollia-runner-cpu`; the Vulkan command-line
+archive carries `apollia-runner-vulkan`, whisper on the card, which the daemon
+uses when the driver provides a Vulkan loader.
 
 ## Update
 

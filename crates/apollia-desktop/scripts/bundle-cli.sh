@@ -184,12 +184,11 @@ done
 # build instead of downloading, and APOLLIA_ALLOW_NO_LLAMA_SERVER=1 accepts a
 # bundle with no engine (offline work on a non-inference change only).
 # The engine backend is chosen independently of the STT runners, because the
-# two accelerations are unrelated. whisper-rs has no Vulkan backend, so
-# `local-vulkan` is `local-cpu` under another name and asking for it would
-# stage a second, byte-identical runner. llama.cpp does have one. And a CUDA
-# STT runner needs a CUDA toolchain in the build, where the engine is a
-# prebuilt download that needs none: coupling them made the cheap half wait on
-# the expensive one.
+# two accelerations are unrelated: a CUDA STT runner needs a CUDA toolchain in
+# the build, where the engine is a prebuilt download that needs none, so
+# coupling them made the cheap half wait on the expensive one. The Vulkan STT
+# runner, `local-vulkan`, is a real one since 2026-09-10 and needs the Vulkan
+# SDK at build time; host_desktop_runners names it on Windows.
 #
 # APOLLIA_DESKTOP_LLAMA_BACKEND decides when set. Otherwise the first GPU
 # backend named in RUNNERS, which keeps every existing caller unchanged.
