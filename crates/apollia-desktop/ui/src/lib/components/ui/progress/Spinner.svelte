@@ -36,10 +36,5 @@
   {#if label}<span class="sr-only">{label}</span>{/if}
 </span>
 
-<style>
-  @media (prefers-reduced-motion: reduce) {
-    :global(.spinner-icon) {
-      animation-duration: 3s !important;
-    }
-  }
-</style>
+<!-- The reduced-motion behaviour of the icon lives in app.css, next to the
+     global rule it amends, so the two cannot drift apart again. -->

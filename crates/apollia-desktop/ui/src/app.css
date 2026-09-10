@@ -1787,4 +1787,17 @@
   .elev-interactive:active {
     transform: none !important;
   }
+  /* A loader is a status, not a decoration: it has to keep conveying that
+     something runs. The rule above limits every animation to one iteration,
+     and the spinner's own override restored only the duration, so under
+     reduced motion a spinner turned once in three seconds and then stood
+     still for the rest of a long inference. Measured on 2026-09-10 on a
+     Windows machine whose animations are turned off system-wide
+     (`prefers-reduced-motion: reduce`): duration 3s, iteration count 1.
+     Slow and endless is what the preference asks for. */
+  .animate-spin,
+  .spinner-icon {
+    animation-duration: 3s !important;
+    animation-iteration-count: infinite !important;
+  }
 }
