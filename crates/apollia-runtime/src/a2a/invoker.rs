@@ -393,13 +393,17 @@ impl A2AInvoker {
             }
         };
 
-        let aip_result = build_aip_result_from_flattened_output(&delegate.output);
+        let mut aip_result = build_aip_result_from_flattened_output(&delegate.output);
+        // The builder reads the output text alone and has no task to name; the
+        // delegate does. Left empty, `result.task_id` reached callers as `""`.
+        aip_result.task_id = delegate.task_id;
 
         Ok(A2AInvocationResult {
             result: aip_result,
             agent_name: delegate.agent_name,
             skill_id: skill_id.to_string(),
             duration_ms,
+            run_id: delegate.run_id,
         })
     }
 
@@ -698,6 +702,7 @@ mod tests {
                 > = Box::pin(async move {
                     Ok(crate::a2a::A2aDelegateResult {
                         task_id: "task-test".to_string(),
+                        run_id: None,
                         agent_name: "excel-worker".to_string(),
                         output: out,
                     })
@@ -775,6 +780,7 @@ mod tests {
             agent_name: "excel-worker".to_string(),
             skill_id: "read-excel".to_string(),
             duration_ms: 450,
+            run_id: None,
         };
         // WHEN
         let json = serde_json::to_string(&result).expect("serialization failed");
@@ -1075,6 +1081,70 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_invoke_hands_back_the_task_and_the_run_it_journals_under() {
+        // GIVEN a worker whose delegation reports the task it ran and that task's
+        // run, as the production delegate does once it has asked the router
+        let (bus_tx, _bus_rx) = EventBus::new();
+        let registry = AgentRegistry::spawn(bus_tx.clone());
+        let agent_id = registry
+            .register(make_a2a_manifest("excel-worker", &["read-excel"]))
+            .await
+            .expect("register failed");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .expect("update state failed");
+        let delegate: A2aDelegateFn = Arc::new(
+            |_skill_id: String,
+             _input: serde_json::Value,
+             _timeout: u64,
+             _chain: Vec<apollia_core::AgentId>,
+             _caller: apollia_core::AgentId| {
+                let fut: Pin<
+                    Box<
+                        dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
+                            + Send,
+                    >,
+                > = Box::pin(async {
+                    Ok(crate::a2a::A2aDelegateResult {
+                        task_id: "task-7f3a".to_string(),
+                        run_id: Some("run-91c2".to_string()),
+                        agent_name: "excel-worker".to_string(),
+                        output: "{\"proposals\": []}".to_string(),
+                    })
+                });
+                fut
+            },
+        );
+        let invoker = A2AInvoker::new_for_test(registry, delegate, bus_tx, A2AConfig::default());
+
+        // WHEN it is invoked, which is what `POST /api/v1/a2a/invoke` does
+        let result = invoker
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "api",
+                a2a_depth: 0,
+                timeout: None,
+                chain_deadline: None,
+            })
+            .await
+            .expect("invoke failed");
+
+        // THEN `result.task_id` names the task, where it used to be the empty
+        // string the result builder filled in
+        assert_eq!(result.result.task_id, "task-7f3a");
+        // AND the run is handed back beside it, since it is the run and not the
+        // task that `GET /api/v1/audit/journal/{run_id}` is keyed by
+        assert_eq!(result.run_id.as_deref(), Some("run-91c2"));
+
+        // AND both reach the HTTP body under the names a caller reads
+        let body = serde_json::to_value(&result).expect("serialize");
+        assert_eq!(body["result"]["task_id"], "task-7f3a");
+        assert_eq!(body["run_id"], "run-91c2");
+    }
+
+    #[tokio::test]
     async fn test_invoke_timeout_returns_a2a_timeout_error() {
         // GIVEN excel-worker Active, delegate returns Timeout
         let (bus_tx, _) = EventBus::new();
@@ -1322,6 +1392,7 @@ mod a2a_guard_tests {
                 > = Box::pin(async move {
                     Ok(crate::a2a::A2aDelegateResult {
                         task_id: "task-guard-test".to_string(),
+                        run_id: None,
                         agent_name: "excel-worker".to_string(),
                         output: "ok".to_string(),
                     })

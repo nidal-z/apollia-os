@@ -30,12 +30,14 @@ class A2AInvocationResult:
             duration_ms (int): Total invocation duration in milliseconds.
             result (A2AInvocationResultResult): AIP result returned by the Worker Agent.
             skill_id (str): Identifier of the invoked skill.
+            run_id (None | str | Unset): The run the invoked task journals under, the key of `GET /api/v1/audit/journal/{run_id}`. Not the same identifier as `result.task_id`.
      """
 
     agent_name: str
     duration_ms: int
     result: A2AInvocationResultResult
     skill_id: str
+    run_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -52,6 +54,12 @@ class A2AInvocationResult:
 
         skill_id = self.skill_id
 
+        run_id: None | str | Unset
+        if isinstance(self.run_id, Unset):
+            run_id = UNSET
+        else:
+            run_id = self.run_id
+
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -61,6 +69,8 @@ class A2AInvocationResult:
             "result": result,
             "skill_id": skill_id,
         })
+        if run_id is not UNSET:
+            field_dict["run_id"] = run_id
 
         return field_dict
 
@@ -81,11 +91,21 @@ class A2AInvocationResult:
 
         skill_id = d.pop("skill_id")
 
+        def _parse_run_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        run_id = _parse_run_id(d.pop("run_id", UNSET))
+
         a2a_invocation_result = cls(
             agent_name=agent_name,
             duration_ms=duration_ms,
             result=result,
             skill_id=skill_id,
+            run_id=run_id,
         )
 
 

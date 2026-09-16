@@ -2063,6 +2063,15 @@ export interface components {
             duration_ms: number;
             /** @description AIP result returned by the Worker Agent. */
             result: Record<string, never>;
+            /**
+             * @description The run the invoked task journals under, the key of
+             *     `GET /api/v1/audit/journal/{run_id}`.
+             *
+             *     Not the same identifier as `result.task_id`: both are minted at
+             *     submission and the journal is stored under this one. `null` only when
+             *     the invocation did not go through the task router.
+             */
+            run_id?: string | null;
             /** @description Identifier of the invoked skill. */
             skill_id: string;
         };
@@ -2090,6 +2099,16 @@ export interface components {
             agent_name: string;
             /** @description Text output produced by the Worker Agent. */
             output: string;
+            /**
+             * @description The run that task journals under, when the delegation went through the
+             *     task router.
+             *
+             *     Distinct from `task_id`, and it is the key of
+             *     `GET /api/v1/audit/journal/{run_id}`: a caller given only the task id
+             *     looks the journal up under an identifier nothing is stored under.
+             *     `None` for a delegate that does not submit through the router.
+             */
+            run_id?: string | null;
             /** @description Identifier of the task executed by the Worker Agent. */
             task_id: string;
         };

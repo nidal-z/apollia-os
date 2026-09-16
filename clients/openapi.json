@@ -5375,6 +5375,13 @@
             "type": "object",
             "description": "AIP result returned by the Worker Agent."
           },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run the invoked task journals under, the key of\n`GET /api/v1/audit/journal/{run_id}`.\n\nNot the same identifier as `result.task_id`: both are minted at\nsubmission and the journal is stored under this one. `null` only when\nthe invocation did not go through the task router."
+          },
           "skill_id": {
             "type": "string",
             "description": "Identifier of the invoked skill."
@@ -5449,6 +5456,13 @@
           "output": {
             "type": "string",
             "description": "Text output produced by the Worker Agent."
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run that task journals under, when the delegation went through the\ntask router.\n\nDistinct from `task_id`, and it is the key of\n`GET /api/v1/audit/journal/{run_id}`: a caller given only the task id\nlooks the journal up under an identifier nothing is stored under.\n`None` for a delegate that does not submit through the router."
           },
           "task_id": {
             "type": "string",

@@ -168,6 +168,14 @@ pub struct A2AInvocationResult {
     pub skill_id: String,
     /// Total invocation duration in milliseconds.
     pub duration_ms: u64,
+    /// The run the invoked task journals under, the key of
+    /// `GET /api/v1/audit/journal/{run_id}`.
+    ///
+    /// Not the same identifier as `result.task_id`: both are minted at
+    /// submission and the journal is stored under this one. `null` only when
+    /// the invocation did not go through the task router.
+    #[serde(default)]
+    pub run_id: Option<String>,
 }
 
 /// Discovery information for an A2A skill.

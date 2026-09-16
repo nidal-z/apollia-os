@@ -115,6 +115,7 @@ mod tests {
                 > = Box::pin(async move {
                     Ok(A2aDelegateResult {
                         task_id: "task-test".to_string(),
+                        run_id: None,
                         agent_name: "test-worker".to_string(),
                         output: format!("output for {skill_id}"),
                     })

@@ -1742,6 +1742,7 @@ mod tool_proxy_a2a_tests {
                 > = Box::pin(async move {
                     Ok(A2aDelegateResult {
                         task_id: "task-a2a".to_string(),
+                        run_id: None,
                         agent_name: "excel-worker".to_string(),
                         output: format!("processed {skill_id}"),
                     })
