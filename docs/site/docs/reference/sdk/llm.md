@@ -21,6 +21,18 @@ system-plus-user case, `map` for a batch sharing one prefix,
 `stream` for token iteration, `run_tools` for the built-in
 tool loop.  Stream cleanup propagates cancellation to the Rust backend.
 
+`complete` and `chat` take an optional ``schema``: a JSON
+Schema the answer must satisfy. The call then returns the validated value
+itself, so an agent that needs structure never parses a string::
+
+    REPORT = {
+        "type": "object",
+        "properties": {"title": {"type": "string"}, "count": {"type": "integer"}},
+        "required": ["title", "count"],
+    }
+    report = await ctx.llm.complete(messages, schema=REPORT)
+    ctx.logger.info("%s: %d", report["title"], report["count"])
+
 | Field | Type | Default |
 | --- | --- | --- |
 | `default_backend` | `str` |  |
@@ -28,7 +40,7 @@ tool loop.  Stream cleanup propagates cancellation to the Rust backend.
 #### `complete`
 
 ```python
-async def complete(self, messages: list[dict[str, Any]], *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None) -> LlmResponse
+async def complete(self, messages: list[dict[str, Any]], *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None, schema: dict[str, Any] | None=None) -> LlmResponse | StructuredValue
 ```
 
 Run a single-shot completion over a message list.
@@ -40,14 +52,29 @@ Args:
     max_tokens: Cap on generated tokens, or None for the backend default.
     seed: Sampling seed, for reproducible output where the backend
         supports it.
+    schema: JSON Schema the answer must satisfy, or None for free-form
+        generation. With it the call constrains generation, validates
+        what comes back against the same schema, and returns the
+        validated value rather than an `LlmResponse`. Supported
+        subset: ``object`` and ``array`` nested freely, ``string``,
+        ``number``, ``integer``, ``boolean``, ``null``, ``enum``,
+        ``required``. ``anyOf``, ``oneOf``, ``allOf`` and ``$ref`` are
+        refused by name.
 
 Returns:
-    The completed response, with its content, latency and usage.
+    The completed response, with its content, latency and usage; or the
+    validated value, as a plain Python object, when ``schema`` is given.
+
+Raises:
+    StructuredOutputError: The schema cannot constrain generation, the
+        backend has no structured output mode, or the answer does not
+        satisfy the schema. Carries the JSON path of the offending node.
+        Nothing is retried on your behalf.
 
 #### `chat`
 
 ```python
-async def chat(self, system: str, user: str, *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None) -> LlmResponse
+async def chat(self, system: str, user: str, *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None, schema: dict[str, Any] | None=None) -> LlmResponse | StructuredValue
 ```
 
 Run a completion over a system and a user message.
@@ -63,9 +90,15 @@ Args:
     max_tokens: Cap on generated tokens, or None for the backend default.
     seed: Sampling seed, for reproducible output where the backend
         supports it.
+    schema: JSON Schema the answer must satisfy, or None for free-form
+        generation. Same contract as `complete`.
 
 Returns:
-    The completed response, with its content, latency and usage.
+    The completed response, with its content, latency and usage; or the
+    validated value, as a plain Python object, when ``schema`` is given.
+
+Raises:
+    StructuredOutputError: Same three situations as `complete`.
 
 #### `map`
 

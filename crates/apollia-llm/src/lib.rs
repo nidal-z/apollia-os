@@ -64,7 +64,9 @@ pub use repository::{
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
 pub use routing_level::{EscalationSignal, LlmRoutingLevel};
-pub use schema_validate::{parse_and_validate, validate_against_schema, SchemaViolation};
+pub use schema_validate::{
+    parse_and_validate, schema_fingerprint, validate_against_schema, SchemaViolation,
+};
 pub use token_budget::SessionBudgetTracker;
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{

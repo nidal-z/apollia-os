@@ -1336,6 +1336,17 @@ pub enum RuntimeEvent {
         /// Run this call belongs to, when emitted within a correlated run.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         run_id: Option<RunId>,
+        /// Fingerprint of the JSON Schema the answer was constrained to, when
+        /// the call asked for structured output.
+        ///
+        /// `Some` means the output was constrained and says by which schema;
+        /// `None` means free-form generation. The schema itself is never
+        /// carried: it is caller data, it can be large, and the journal is an
+        /// audit trail rather than a store. Two calls constrained by the same
+        /// schema carry the same fingerprint, which is what makes the trail
+        /// answer "was this run constrained the way that one was".
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        response_schema_fingerprint: Option<String>,
     },
     /// A tool is about to be invoked (before the dispatcher).
     ///

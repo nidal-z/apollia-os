@@ -33,7 +33,7 @@ use convert::{
     build_messages, build_tools, estimate_cost_usd, map_finish_reason, map_openai_error,
     with_structured_output,
 };
-use reasoning::{inline_reasoning, ReasoningEnvelope, WithTimings};
+use reasoning::{constrained_content, inline_reasoning, ReasoningEnvelope, WithTimings};
 use stream::{next_openai_stream_item, OpenAIStreamState};
 
 use crate::types::{
@@ -224,7 +224,14 @@ impl OpenAICompatibleClient {
             .ok_or_else(|| LlmError::ParseError("no choices in response".to_owned()))?;
 
         let finish_reason = map_finish_reason(choice.finish_reason.as_ref());
-        let content = inline_reasoning(reasoning, choice.message.content.unwrap_or_default());
+        // A constrained call reads the two channels as one: see
+        // `constrained_content` for what a reasoning model does with a grammar.
+        let raw_content = choice.message.content.unwrap_or_default();
+        let content = if req.response_schema.is_some() || req.grammar.is_some() {
+            constrained_content(reasoning, raw_content)
+        } else {
+            inline_reasoning(reasoning, raw_content)
+        };
 
         let tool_calls = choice
             .message

@@ -17,6 +17,7 @@ __all__ = [
     "PayloadError",
     "SchemaError",
     "SkillNotFound",
+    "StructuredOutputError",
 ]
 
 
@@ -102,6 +103,55 @@ class PayloadError(AgentError):
 
 class SchemaError(AgentError):
     """A handler signature could not be inferred to a valid JSON Schema."""
+
+
+class StructuredOutputError(AgentError):
+    """A ``ctx.llm`` call with a ``schema`` could not deliver a valid value.
+
+    Raised by the bridge, never constructed by an agent. Three situations reach
+    it, told apart by :attr:`kind`:
+
+    - ``"schema_unsupported"``: the schema cannot be turned into a decoding
+      constraint (``anyOf``, ``$ref``, an untyped node). Raised before the
+      model is called, so no tokens were spent.
+    - ``"backend_unsupported"``: the resolved backend has no structured output
+      mode. The constraint is refused rather than dropped in silence.
+    - ``"response_invalid"``: the answer came back and the schema refuses it.
+
+    :attr:`path` is the JSON path of the offending node, so a caller branches on
+    a field instead of matching on a sentence::
+
+        try:
+            plan = await ctx.llm.complete(messages, schema=PLAN_SCHEMA)
+        except StructuredOutputError as e:
+            if e.kind == "response_invalid":
+                ctx.logger.warning("model missed %s: %s", e.path, e.reason)
+
+    Nothing is retried on your behalf: whether a second attempt is worth its
+    tokens is a decision for the agent, not for the runtime.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        kind: str = "response_invalid",
+        path: str = "$",
+        reason: str = "",
+    ) -> None:
+        """Report a structured-output failure.
+
+        Args:
+            message: The full, human-readable failure.
+            kind: Which of the three situations occurred.
+            path: JSON path of the offending node, ``$`` for the document.
+            reason: What was expected there, and what was found.
+        """
+        super().__init__(message)
+        self.message: str = message
+        self.kind: str = kind
+        self.path: str = path
+        self.reason: str = reason
 
 
 class SkillNotFound(AgentError):

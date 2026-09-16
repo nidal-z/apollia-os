@@ -11,8 +11,8 @@ mod stream;
 use std::sync::Arc;
 
 use convert::{
-    inject_temporal_context_into_messages, llm_err_to_py, prepend_context_blocks,
-    py_dict_to_chat_message, py_dict_to_tool_spec,
+    inject_temporal_context_into_messages, json_to_py, llm_err_to_py, prepend_context_blocks,
+    py_dict_to_chat_message, py_dict_to_tool_spec, py_object_to_json,
 };
 use stream::{emit_llm_capture, forward_stream, PyTokenStream, StreamForward};
 
@@ -197,7 +197,21 @@ impl LlmProxy {
     }
 
     /// Emits `RuntimeEvent::LlmCallStarted` if both bus and task_id are set.
-    fn emit_started(&self, backend: &str, model: &str, messages_count: u32, prompt_chars: u64) {
+    ///
+    /// `schema` is the response schema of a structured-output call, and only
+    /// its fingerprint travels: the journal records that generation was
+    /// constrained and by which schema, never the schema itself.
+    // REASON: one argument per field of the event it emits; grouping them into a
+    // struct would add a type whose only purpose is to be destructured here.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_started(
+        &self,
+        backend: &str,
+        model: &str,
+        messages_count: u32,
+        prompt_chars: u64,
+        schema: Option<&serde_json::Value>,
+    ) {
         if let (Some(bus), Some(task_id), Some(agent_id)) = (
             self.event_bus.as_ref(),
             self.task_id.as_ref(),
@@ -212,8 +226,41 @@ impl LlmProxy {
                 messages_count,
                 prompt_chars,
                 run_id: self.run_id.clone(),
+                response_schema_fingerprint: schema.map(apollia_llm::schema_fingerprint),
             });
         }
+    }
+
+    /// Read the optional `schema` keyword of a structured-output call.
+    ///
+    /// Returns the schema as JSON, or `None` when the call is free-form. The
+    /// crossing happens before the async boundary, like every other Python read
+    /// in this file.
+    fn read_schema(
+        py: Python<'_>,
+        schema: Option<PyObject>,
+    ) -> PyResult<Option<serde_json::Value>> {
+        schema
+            .as_ref()
+            .map(|obj| py_object_to_json(py, obj))
+            .transpose()
+    }
+
+    /// Turn a completion into what a structured-output call promised: the
+    /// validated value, as a native Python object.
+    ///
+    /// Validation happens here, before the value crosses back, because this is
+    /// where the schema is known. A grammar shapes generation and does not
+    /// verify it, and a remote `response_format` is a request rather than a
+    /// guarantee; without this pass an agent would act on an answer nobody
+    /// checked.
+    fn structured_result(
+        py: Python<'_>,
+        content: &str,
+        schema: &serde_json::Value,
+    ) -> PyResult<PyObject> {
+        let value = apollia_llm::parse_and_validate(content, schema).map_err(llm_err_to_py)?;
+        json_to_py(py, &value)
     }
 }
 
@@ -235,12 +282,17 @@ impl LlmProxy {
     /// `temperature`, `max_tokens`, and `seed` are optional sampling overrides;
     /// when left `None` the per-model defaults apply.
     ///
-    /// Returns a Python awaitable resolving to `LlmResponse`.
+    /// `schema` is a JSON Schema the answer must satisfy. With it, the call
+    /// returns the validated value as a native Python object instead of an
+    /// `LlmResponse`; see [`complete`][Self::complete] for the contract.
+    ///
+    /// Returns a Python awaitable resolving to `LlmResponse`, or to the
+    /// validated value when `schema` is given.
     // The parameter list mirrors the Python-facing signature (backend + sampling
     // overrides); PyO3 requires them flat, so they cannot be grouped into a struct.
     // REASON: mirrors the Python keyword signature of `ctx.llm.chat`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (system, user, *, backend = None, temperature = None, max_tokens = None, seed = None))]
+    #[pyo3(signature = (system, user, *, backend = None, temperature = None, max_tokens = None, seed = None, schema = None))]
     fn chat<'py>(
         &self,
         py: Python<'py>,
@@ -250,8 +302,15 @@ impl LlmProxy {
         temperature: Option<f32>,
         max_tokens: Option<u32>,
         seed: Option<u64>,
+        schema: Option<PyObject>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        // Charge one step against the budget before dispatch (Direct path).
+        // Synchronous crossing before the async boundary, like the messages of
+        // `complete`.
+        let response_schema = Self::read_schema(py, schema)?;
+
+        // Charge one step against the budget before dispatch (Direct path). A
+        // constrained call is one call to the model, so it costs exactly what an
+        // unconstrained one costs: one step, no more and no less.
         self.charge_step()?;
 
         // Emit LlmCallStarted before dispatch.
@@ -260,7 +319,13 @@ impl LlmProxy {
             .as_deref()
             .unwrap_or_else(|| self.router.default_name())
             .to_string();
-        self.emit_started(&backend_label, "<resolved-by-router>", 2, prompt_chars);
+        self.emit_started(
+            &backend_label,
+            "<resolved-by-router>",
+            2,
+            prompt_chars,
+            response_schema.as_ref(),
+        );
 
         let router = Arc::clone(&self.router);
         let obs = Arc::clone(&self.obs_config);
@@ -282,6 +347,7 @@ impl LlmProxy {
                 temperature,
                 max_tokens,
                 seed,
+                response_schema: response_schema.clone(),
                 ..Default::default()
             };
             let resp = router
@@ -291,6 +357,9 @@ impl LlmProxy {
             emit_llm_capture(&bus, &run_id, &capture_backend, &resp);
 
             Python::with_gil(|py| {
+                if let Some(schema) = response_schema.as_ref() {
+                    return Self::structured_result(py, &resp.content, schema);
+                }
                 let usage = PyTokenUsage {
                     prompt_tokens: resp.usage.prompt_tokens,
                     completion_tokens: resp.usage.completion_tokens,
@@ -417,10 +486,28 @@ impl LlmProxy {
     ///
     /// `temperature`, `max_tokens`, and `seed` are optional sampling overrides;
     /// when left `None` the per-model defaults apply.
+    ///
+    /// # Structured output
+    ///
+    /// `schema` is a JSON Schema the answer must satisfy. It changes three
+    /// things at once, and the three belong together:
+    ///
+    /// - generation is constrained, by a GBNF grammar on the embedded
+    ///   `llama-server` and by `response_format` on any other
+    ///   OpenAI-compatible provider;
+    /// - the answer is validated against the same schema before it crosses
+    ///   back, because a constraint shapes and does not verify;
+    /// - the awaitable resolves to the validated value as a native Python
+    ///   object, not to an `LlmResponse`: there is nothing to parse.
+    ///
+    /// A schema no grammar can express, and an answer the schema refuses, both
+    /// raise `apollia.errors.StructuredOutputError`, which carries the JSON
+    /// path of the offending node. Nothing is retried: whether a second attempt
+    /// is worth its tokens is the caller's decision, not this layer's.
     // Flat parameters mirror the Python-facing signature (see `chat`).
     // REASON: mirrors the Python keyword signature of `ctx.llm.complete`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None))]
+    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None, schema = None))]
     fn complete<'py>(
         &self,
         py: Python<'py>,
@@ -429,14 +516,18 @@ impl LlmProxy {
         temperature: Option<f32>,
         max_tokens: Option<u32>,
         seed: Option<u64>,
+        schema: Option<PyObject>,
     ) -> PyResult<Bound<'py, PyAny>> {
         // Synchronous conversion before crossing the async boundary.
         let chat_messages = messages
             .iter()
             .map(|obj| py_dict_to_chat_message(py, obj))
             .collect::<PyResult<Vec<_>>>()?;
+        let response_schema = Self::read_schema(py, schema)?;
 
-        // Charge one step against the budget before dispatch (Direct path).
+        // Charge one step against the budget before dispatch (Direct path). A
+        // constrained call is one call to the model, so it costs one step,
+        // exactly what an unconstrained one costs.
         self.charge_step()?;
 
         // Emit LlmCallStarted before dispatch.
@@ -463,6 +554,7 @@ impl LlmProxy {
             "<resolved-by-router>",
             chat_messages.len() as u32,
             prompt_chars,
+            response_schema.as_ref(),
         );
 
         let router = Arc::clone(&self.router);
@@ -486,6 +578,7 @@ impl LlmProxy {
                 // needs a longer answer passes max_tokens explicitly.
                 max_tokens: max_tokens.or(Some(4096)),
                 seed,
+                response_schema: response_schema.clone(),
                 ..Default::default()
             };
             let resp = router
@@ -495,6 +588,9 @@ impl LlmProxy {
             emit_llm_capture(&bus, &run_id, &capture_backend, &resp);
 
             Python::with_gil(|py| {
+                if let Some(schema) = response_schema.as_ref() {
+                    return Self::structured_result(py, &resp.content, schema);
+                }
                 let usage = PyTokenUsage {
                     prompt_tokens: resp.usage.prompt_tokens,
                     completion_tokens: resp.usage.completion_tokens,

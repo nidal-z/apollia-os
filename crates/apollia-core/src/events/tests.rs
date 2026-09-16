@@ -387,6 +387,7 @@ fn test_all_variants_exist_and_clone() {
             messages_count: 5,
             prompt_chars: 4321,
             run_id: None,
+            response_schema_fingerprint: None,
         },
         RuntimeEvent::ToolCallStarted {
             event_id: "01900000-0000-7000-8000-000000000001".into(),

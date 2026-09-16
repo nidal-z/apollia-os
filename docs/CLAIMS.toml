@@ -1508,3 +1508,21 @@ that it is read unconditionally. A reintroduced `if let Some(port)` would keep
 this green, because the replay resolves a symbol and never reads the value or the
 shape of the expression around it.
 """
+
+[[claim]]
+id = "llm-schema-constrains-local-generation"
+scope = "public"
+symbol = "json_schema_to_gbnf"
+status = "wired"
+proof = "crates/apollia-llm/src/backends/openai/convert.rs"
+evidence = "json_schema_to_gbnf(schema)"
+note = """
+The structured-output page says a schema constrains decoding on the embedded
+llama-server, which only holds while something turns the schema into a grammar
+and sends it. Both halves are the risk here, and the tree already carried the
+shape of the failure: `CompletionRequest.grammar` existed, `tool_specs_to_gbnf`
+filled it, and no backend read the field, so the tool grammar was built and
+dropped for as long as nobody looked. The proof is therefore the call site in
+the request builder rather than the translator itself; a translator with no
+caller would satisfy a symbol-only check and leave the sentence false.
+"""

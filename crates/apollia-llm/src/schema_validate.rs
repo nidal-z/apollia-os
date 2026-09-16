@@ -319,6 +319,27 @@ fn strip_code_fence(text: &str) -> &str {
     body.trim_end().strip_suffix("```").unwrap_or(text).trim()
 }
 
+/// Length of a schema fingerprint, in hexadecimal characters.
+///
+/// Sixteen characters is 64 bits of SHA-256. The fingerprint identifies a
+/// schema inside one machine's audit trail; it guards against nothing, so the
+/// full digest would only make the journal wider.
+const FINGERPRINT_HEX_LEN: usize = 16;
+
+/// A short, stable identifier for a schema, for the audit trail.
+///
+/// Two calls constrained by the same schema answer the same fingerprint, which
+/// is what lets a reader of the journal tell one constrained run from another
+/// without the journal ever holding the schema itself. `serde_json` orders an
+/// object's keys, so the same schema written with its members shuffled
+/// fingerprints identically.
+pub fn schema_fingerprint(schema: &Value) -> String {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(schema.to_string().as_bytes());
+    let hex: String = digest.iter().map(|b| format!("{b:02x}")).collect();
+    hex.chars().take(FINGERPRINT_HEX_LEN).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -513,5 +534,43 @@ mod parse_tests {
             crate::LlmError::StructuredOutputInvalid { path, .. } => assert_eq!(path, "$.b"),
             other => panic!("expected StructuredOutputInvalid, got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod fingerprint_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn the_same_schema_fingerprints_the_same_way_whatever_the_key_order() {
+        // GIVEN one schema written twice with its members in different orders
+        let a = json!({"type": "object", "properties": {"b": {"type": "integer"}, "a": {"type": "string"}}});
+        let b = json!({"properties": {"a": {"type": "string"}, "b": {"type": "integer"}}, "type": "object"});
+        // WHEN both are fingerprinted
+        // THEN the journal sees one schema, not two
+        assert_eq!(schema_fingerprint(&a), schema_fingerprint(&b));
+    }
+
+    #[test]
+    fn a_different_schema_fingerprints_differently() {
+        // GIVEN two schemas that differ by one property type
+        let a = json!({"type": "object", "properties": {"a": {"type": "string"}}});
+        let b = json!({"type": "object", "properties": {"a": {"type": "integer"}}});
+        // WHEN both are fingerprinted
+        // THEN they are told apart
+        assert_ne!(schema_fingerprint(&a), schema_fingerprint(&b));
+    }
+
+    #[test]
+    fn the_fingerprint_never_carries_the_schema() {
+        // GIVEN a schema holding a property name a reader could recognise
+        let schema = json!({"type": "object", "properties": {"salary": {"type": "integer"}}});
+        // WHEN it is fingerprinted
+        let fingerprint = schema_fingerprint(&schema);
+        // THEN the result is a short hexadecimal digest and nothing of the input
+        assert_eq!(fingerprint.len(), FINGERPRINT_HEX_LEN);
+        assert!(!fingerprint.contains("salary"));
+        assert!(fingerprint.chars().all(|c| c.is_ascii_hexdigit()));
     }
 }

@@ -73,6 +73,11 @@ name = "test_run_tools"
 path = "integration/test_run_tools.rs"
 
 [[test]]
+name = "test_llm_structured_output"
+path = "integration/test_llm_structured_output.rs"
+required-features = ["python-tests"]
+
+[[test]]
 name = "test_llm_agent"
 path = "integration/test_llm_agent.rs"
 required-features = ["python-tests"]

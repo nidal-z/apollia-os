@@ -9,6 +9,7 @@ from apollia.errors import (
     PayloadError,
     SchemaError,
     SkillNotFound,
+    StructuredOutputError,
 )
 from apollia.messages import on_message
 from apollia.orchestration import orchestrated
@@ -51,6 +52,7 @@ __all__ = [
     "PayloadError",
     "SchemaError",
     "SkillNotFound",
+    "StructuredOutputError",
     "TextContent",
     # Version
     "__version__",
