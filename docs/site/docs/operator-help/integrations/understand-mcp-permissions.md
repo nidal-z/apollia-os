@@ -40,7 +40,7 @@ Open **Settings, Permissions**. Four sections:
 
 A **Revoke** button on each rule. To revoke every rule of a scope at once, the **Revoke all** button asks you to pick the scope and shows how many rules it would remove, then Cancel or Revoke. It asks for no typed confirmation.
 
-The per-server approval level is not on this page: it lives in **Connections**, on the server's own **Settings** tab. It offers two choices, *Allow automatically* and *Ask me every time*. A read-only level was removed on purpose: it persisted the same byte as *Allow automatically*, so the most restrictive label produced the least protective setting.
+The per-server approval level is not on this page: it lives in **Connections**, on the server's own **Settings** tab. It offers two choices, *Allow automatically* and *Ask me every time*, and it applies to agent tasks only. A conversation does not read it: there, a call to a tool you have not authorized, for the session or by a rule, asks you first whichever choice the server carries. A read-only level was removed on purpose: it persisted the same byte as *Allow automatically*, so the most restrictive label produced the least protective setting.
 
 ![Settings, Permissions page: the permission rules stacked with a Revoke button on each row](/img/operator-help/integration-comprendre-les-permissions-mcp-2.png)
 

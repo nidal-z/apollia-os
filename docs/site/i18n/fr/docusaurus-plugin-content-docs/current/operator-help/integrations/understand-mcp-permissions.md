@@ -40,7 +40,7 @@ Ouvrez **Paramètres, Permissions**. Quatre sections :
 
 Bouton **Révoquer** sur chaque règle. Pour révoquer toutes les règles d'une portée d'un coup, le bouton **Révoquer tout** vous fait choisir la portée et affiche combien de règles seraient retirées, puis Annuler ou Révoquer. Il ne demande aucune confirmation à taper.
 
-Le niveau d'approbation par serveur n'est pas sur cette page : il se trouve dans **Connexions**, sur l'onglet **Réglages** du serveur. Il propose deux choix, *Autoriser automatiquement* et *Me demander à chaque fois*. Un niveau lecture seule a été retiré volontairement : il enregistrait le même octet que *Autoriser automatiquement*, donc le libellé le plus restrictif produisait le réglage le moins protecteur.
+Le niveau d'approbation par serveur n'est pas sur cette page : il se trouve dans **Connexions**, sur l'onglet **Réglages** du serveur. Il propose deux choix, *Autoriser automatiquement* et *Me demander à chaque fois*, et il ne s'applique qu'aux tâches d'agent. Une conversation ne le lit pas : un appel à un outil que vous n'avez pas autorisé, pour la session ou par une règle, vous est d'abord demandé, quel que soit le choix du serveur. Un niveau lecture seule a été retiré volontairement : il enregistrait le même octet que *Autoriser automatiquement*, donc le libellé le plus restrictif produisait le réglage le moins protecteur.
 
 ![Page Paramètres, Autorisations : les règles de permission empilées avec un bouton Révoquer par ligne](/img/operator-help/integration-comprendre-les-permissions-mcp-2.png)
 

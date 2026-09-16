@@ -32,7 +32,7 @@ sidebar_position: 9
 - **Transport**: `stdio`.
 - **Command**: executable to launch (for example `npx`, `uvx`, or an absolute path).
 - **Arguments**: separated by spaces (for example `-y @modelcontextprotocol/server-filesystem ~/Documents`).
-- **Require approval**: tick this if you want an HITL approval on every tool call.
+- **Require approval**: ticked by default. It applies to agent tasks: when ticked, each call an agent task makes to this server pauses the task until you approve it. In a conversation it changes nothing, see the security section below.
 
 ![Custom form on stdio transport, with the command and the arguments filled in](/img/operator-help/integration-cabler-son-propre-serveur-mcp-2.png)
 
@@ -73,7 +73,7 @@ Apollia can discover MCP servers on your local network through mDNS (service typ
 ## Security, what Apollia applies by default
 
 - **Trust level**: a manually added server carries none. The level is an overlay that only the eighteen enriched catalogue entries hold, and no code assigns a `custom` level to anything, so your server shows no badge at all. That is consistent with the last section of this page: it appears in the list without the logo, the description or the trust badge.
-- **HITL approval**: by default the tool is in *requires_approval* mode, every call asks for your validation. You can loosen this per tool on the [Understand MCP permissions](understand-mcp-permissions.md) page.
+- **HITL approval**: two places decide it, and they do not read the same setting. In an agent task, *Require approval* decides: ticked, which is the form's default, each call pauses the task until you answer; unticked, the call runs. `apollia-os mcp add` leaves it unticked unless you pass `--require-approval`. In a conversation that setting is not read: every call to a tool you have not already authorized, for the session or by a rule, asks you first. Rules are managed on the [Understand MCP permissions](understand-mcp-permissions.md) page.
 - **Roots**: Apollia advertises the capability during the handshake, and answers no `roots/list` request. No directory is declared, so roots bounds nothing today. What bounds a stdio server is the command and the arguments you gave it, which is why the filesystem path you pass in **Arguments** is the real perimeter.
 - **Sampling and elicitation**: not implemented. Apollia does not advertise these two capabilities during the handshake, so a server that supports them will not try to call back through them.
 
