@@ -53,6 +53,28 @@ pub struct ToolsConfig {
     /// Configuration of the native `web_read` tool.
     #[serde(default)]
     pub web_read: WebReadConfig,
+
+    /// Absolute path of a Python interpreter the operator chose over the
+    /// bundled one, for the `python_executor` tool and the agent virtualenvs.
+    ///
+    /// `None`, the default, means the interpreter Apollia ships with. That is
+    /// the only configuration the product is tested in, and the only one that
+    /// depends on nothing installed on the machine (principle #2). A system
+    /// interpreter is used when, and only when, it is named here.
+    ///
+    /// The path is checked before it is accepted and again before each use: it
+    /// must exist, start, and report a minor version the bundled standard
+    /// library can be read by. An interpreter that stops satisfying that, after
+    /// an upgrade or an uninstall, is dropped with a warning and the bundled
+    /// one answers instead, rather than the tool failing.
+    ///
+    /// `apollia.toml` example:
+    /// ```toml
+    /// [tools]
+    /// python_interpreter = "/opt/corp/python3.13/bin/python3"
+    /// ```
+    #[serde(default)]
+    pub python_interpreter: Option<String>,
 }
 
 impl Default for ToolsConfig {
@@ -63,6 +85,7 @@ impl Default for ToolsConfig {
             disabled: Vec::new(),
             web_search: WebSearchConfig::default(),
             web_read: WebReadConfig::default(),
+            python_interpreter: None,
         }
     }
 }

@@ -278,6 +278,7 @@ const MAX_SCHEMA_DEPTH: usize = 24;
 /// point at the exact place in the schema it passed rather than at the schema
 /// as a whole.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum GrammarError {
     /// A construct the translator cannot express as a decoding constraint.
     #[error("{path}: {construct} cannot be expressed as a grammar")]

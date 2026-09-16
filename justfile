@@ -723,6 +723,8 @@ guards:
       "scripts/check_tauri_ipc_callers.py"
       "scripts/check_tracing_messages.py"
       "scripts/check_unimported_files.py"
+      "scripts/check_windows_python_dll.py"
+      "scripts/check_windows_python_dll.py --selftest"
       "scripts/check_testid_anchors.py"
       "scripts/check_custom_event_listeners.py"
       "scripts/check_entry_doc_commands.py"

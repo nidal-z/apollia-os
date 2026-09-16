@@ -25,6 +25,11 @@ REPO_ROOT="$(cd "${DESKTOP_DIR}/../.." && pwd)"
 # Contents/Resources/ (not Contents/Resources/resources/)
 STAGING="${DESKTOP_DIR}"
 
+# Name of the interpreter's Windows shared library, tied to the bundled minor
+# version the same way `bin/python3.13` and `lib/python3.13` are elsewhere.
+# scripts/check_windows_python_dll.py reads this line.
+PYTHON_DLL_NAME="python313.dll"
+
 mkdir -p "$STAGING"
 
 # ── Step 1 - Python bundle ────────────────────────────────────────────────────
@@ -41,6 +46,38 @@ cp -R "${REPO_ROOT}/target/python-bundle/${TARGET}/python" "${STAGING}/python"
 # The rm above deletes it, which would leave the working tree dirty after every
 # desktop build. Same role runners/README.txt plays for `runners/**/*`.
 touch "${STAGING}/python/.gitkeep"
+
+# Windows only: a second copy of the interpreter's DLL, beside the executable.
+#
+# PyO3 with `auto-initialize` links against libpython rather than loading it on
+# demand, so `python313.dll` is an entry in the import table of
+# apollia-desktop.exe and the Windows loader resolves it BEFORE main. It
+# searches the executable's directory, then the system directories, then PATH.
+# Inside a Tauri bundle the resources keep their relative path, so the bundled
+# DLL lands in `python\`, which the loader never looks at: the application dies
+# on "python313.dll not found" before a line of Apollia code runs, and only a
+# machine that already has a Python 3.13 on PATH starts at all.
+#
+# macOS and Linux solve the same problem by rewriting the load path into the
+# bundle (install_name_tool, RPATH); Windows has no such rewrite, so the file
+# has to be where the loader already looks. A duplicated DLL costs a few
+# megabytes; the alternative is an application that does not start.
+#
+# `tauri.windows.conf.json` is what carries it into the package, and
+# scripts/check_windows_python_dll.py is what keeps the two in step.
+case "$TARGET" in
+    *-pc-windows-*)
+        DLL_SRC="${STAGING}/python/${PYTHON_DLL_NAME}"
+        if [[ -f "$DLL_SRC" ]]; then
+            cp "$DLL_SRC" "${STAGING}/${PYTHON_DLL_NAME}"
+            echo "    staged ${PYTHON_DLL_NAME} beside the executable (Windows loader search order)"
+        else
+            echo "error: ${PYTHON_DLL_NAME} is absent from the Python bundle at ${DLL_SRC}" >&2
+            echo "       apollia-desktop.exe would not start on a machine without its own Python" >&2
+            exit 1
+        fi
+        ;;
+esac
 
 # Executable suffix and Python layout, both target-dependent. Computed here
 # because the CLI copy below needs the suffix, and the previous code only derived

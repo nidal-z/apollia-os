@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegui-dev/tauri-v2-schema/main/tauri.conf.schema.json",
+  "bundle": {
+    "resources": [
+      "apollia-os*",
+      "runners/**/*",
+      "python/**/*",
+      "python313.dll"
+    ]
+  }
+}

@@ -151,6 +151,7 @@ Native tools: static disabling and per-tool settings.
 | `disabled` | `Vec<String>` | empty | Native tools statically disabled by the operator in `apollia.toml`. |
 | `web_search` | `WebSearchConfig` | type default | Configuration of the native `web_search` tool. |
 | `web_read` | `WebReadConfig` | type default | Configuration of the native `web_read` tool. |
+| `python_interpreter` | `Option<String>` | `None` | Absolute path of a Python interpreter the operator chose over the bundled one, for the `python_executor` tool and the agent virtualenvs. |
 
 ### `[mcp]`
 

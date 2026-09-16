@@ -274,6 +274,9 @@ impl ToolExecutor for PythonExecutor {
                 let code_str = match &e {
                     PythonExecutorError::EmptyCode => "empty_code",
                     PythonExecutorError::PythonUnavailable { .. } => "python_unavailable",
+                    PythonExecutorError::ChosenInterpreterInvalid { .. } => {
+                        "chosen_interpreter_invalid"
+                    }
                     PythonExecutorError::VenvCreationFailed(_) => "venv_creation_failed",
                     PythonExecutorError::PackageInstallFailed { .. } => "package_install_failed",
                     PythonExecutorError::InvalidPackageSpec { .. } => "invalid_package_spec",

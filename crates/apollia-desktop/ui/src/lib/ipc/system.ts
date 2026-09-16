@@ -39,3 +39,28 @@ export async function revealSessionPath(
 export async function automationScript(): Promise<AutomationBoot | null> {
   return invoke<AutomationBoot | null>("automation_script");
 }
+
+/** The Python interpreter setting, as the Advanced section shows it. */
+export interface PythonInterpreterSetting {
+  /** Absolute path chosen by the operator, or `null` for the bundled one. */
+  chosen: string | null;
+  /** Absolute path of the bundled interpreter, `null` in a dev tree. */
+  bundled: string | null;
+  /** Minor version a chosen interpreter has to report. */
+  required_minor: number;
+}
+
+/** Read the Python interpreter setting. */
+export async function getPythonInterpreter(): Promise<PythonInterpreterSetting> {
+  return invoke<PythonInterpreterSetting>("get_python_interpreter");
+}
+
+/**
+ * Choose a Python interpreter, or go back to the bundled one with `null`.
+ *
+ * The path is checked before it is written; a refusal rejects with the message
+ * naming which condition failed.
+ */
+export async function setPythonInterpreter(path: string | null): Promise<void> {
+  return invoke<void>("set_python_interpreter", { path });
+}

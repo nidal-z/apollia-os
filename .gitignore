@@ -55,6 +55,9 @@ htmlcov/
 crates/apollia-desktop/resources/
 crates/apollia-desktop/python/*
 !crates/apollia-desktop/python/.gitkeep
+# The second copy of the interpreter DLL, staged beside the executable on a
+# Windows build so the loader finds it (see bundle-cli.sh for why).
+crates/apollia-desktop/python313.dll
 crates/apollia-desktop/apollia-os
 
 # Dev-only automation harness output (screenshots + report.json)

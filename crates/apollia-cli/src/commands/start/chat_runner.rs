@@ -152,6 +152,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 web_search_config: self.tools_config.web_search.clone(),
                 web_read_config: self.tools_config.web_read.clone(),
                 governance_db_path: Some(self.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
+                python_interpreter: self.tools_config.python_interpreter.clone(),
             },
             extra_executors,
         ));

@@ -2836,7 +2836,12 @@
       "agent_install_section_title": "Installation des packages d'agents",
       "agent_install_section_desc": "Comportement par défaut lors de l'installation de packages qui déclarent des dépendances Python (pip).",
       "auto_install_python_deps_label": "Installer automatiquement les dépendances Python",
-      "auto_install_python_deps_desc": "Lorsque cette option est activée, les packages déclarant des dépendances pip sont installés directement, sans étape de confirmation. Désactivée par défaut pour garder un contrôle explicite sur chaque téléchargement depuis PyPI.",
+      "auto_install_python_deps_desc": "Lorsque cette option est activée, les paquets qui déclarent des dépendances pip sont installés directement, sans étape de confirmation. Désactivée par défaut, pour que chaque téléchargement depuis PyPI passe par un consentement explicite.",
+      "python_interpreter_label": "Interpréteur Python",
+      "python_interpreter_hint_bundled": "Les agents tournent sur l'interpréteur livré avec Apollia ({path}), qui n'exige rien d'installé sur cette machine. Nommez-en un autre par chemin absolu pour l'utiliser à la place.",
+      "python_interpreter_hint_chosen": "Les agents tournent sur cet interpréteur. Il doit exister, démarrer, et être un Python 3.{minor} : la bibliothèque standard livrée ne peut pas être lue par une autre version mineure. S'il cesse d'être valide, l'interpréteur livré reprend la main.",
+      "python_interpreter_use_bundled": "Utiliser celui livré",
+      "python_interpreter_saved": "Interpréteur Python enregistré",
       "subtitle": "Détails de l'installation et chemins de configuration."
     },
     "update": {

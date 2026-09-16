@@ -2837,6 +2837,11 @@
       "agent_install_section_desc": "Default behavior when installing agent packages that declare Python (pip) dependencies.",
       "auto_install_python_deps_label": "Auto-install Python dependencies",
       "auto_install_python_deps_desc": "When enabled, packages that declare pip dependencies are installed directly, with no confirmation step. Disabled by default so each download from PyPI requires explicit consent.",
+      "python_interpreter_label": "Python interpreter",
+      "python_interpreter_hint_bundled": "Agents run on the interpreter Apollia ships with ({path}), which needs nothing installed on this machine. Name another one by absolute path to use it instead.",
+      "python_interpreter_hint_chosen": "Agents run on this interpreter. It has to exist, start, and be a Python 3.{minor}: the bundled standard library cannot be read by another minor version. If it stops being valid, the bundled interpreter takes over.",
+      "python_interpreter_use_bundled": "Use the bundled one",
+      "python_interpreter_saved": "Python interpreter saved",
       "subtitle": "Installation details and configuration paths."
     },
     "update": {

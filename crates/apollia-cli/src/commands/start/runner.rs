@@ -150,6 +150,7 @@ impl BridgeRunner {
                 governance_db_path: Some(
                     governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
                 ),
+                python_interpreter: self.tools_config.python_interpreter.clone(),
             },
             extra_executors,
         ));
@@ -259,6 +260,7 @@ impl AgentRunner for BridgeRunner {
                     governance_db_path: Some(
                         governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
                     ),
+                    python_interpreter: tools_config.python_interpreter.clone(),
                 },
                 extra_executors,
             ));

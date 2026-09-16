@@ -95,6 +95,14 @@ pub struct NativeDispatcherConfig {
     /// those tools are not registered and the agent receives `UnknownTool` if it
     /// tries to invoke them.
     pub governance_db_path: Option<PathBuf>,
+    /// `[tools] python_interpreter`: an interpreter the operator chose over the
+    /// bundled one, by absolute path.
+    ///
+    /// `None`, the default, means the interpreter Apollia ships with, which is
+    /// the only configuration that depends on nothing installed on the machine.
+    /// A value here is checked before it is used and dropped, with a warning,
+    /// if it stops being valid.
+    pub python_interpreter: Option<String>,
 }
 
 /// Build a [`ToolDispatcher`] populated with every native tool available for
@@ -174,7 +182,11 @@ pub fn build_dispatcher_with(
     }
 
     if is_active("python_executor") {
-        match PythonExecutor::new(&cfg.agent_id, &cfg.venv_base_dir) {
+        match PythonExecutor::new_with_interpreter(
+            &cfg.agent_id,
+            &cfg.venv_base_dir,
+            cfg.python_interpreter.as_deref(),
+        ) {
             Ok(exec) => executors.push(Box::new(exec)),
             Err(e) => {
                 // Keep the tool addressable: its descriptor is advertised to
@@ -429,6 +441,7 @@ mod tests {
             web_search_config: Default::default(),
             web_read_config: Default::default(),
             governance_db_path: None,
+            python_interpreter: None,
         };
         let dispatcher = std::sync::Arc::new(build_native_dispatcher(&cfg));
         assert!(
