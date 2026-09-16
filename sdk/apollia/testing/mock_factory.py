@@ -16,7 +16,7 @@ Usage::
 from __future__ import annotations
 
 import logging
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from apollia._internal.dispatch import dispatch_message, dispatch_skill
 from apollia._internal.manifest import MANIFEST_ATTR
@@ -33,6 +33,9 @@ from apollia.testing.context import (
     MockWorkspace,
 )
 from apollia.testing.mocks import MockLlmProxy, MockMemory, MockToolProxy
+
+if TYPE_CHECKING:
+    from apollia.hitl import HitlPayload, InputResponse
 
 T = TypeVar("T")
 
@@ -70,6 +73,49 @@ class MockContext:
         self.notify = MockNotify()
         self.budget = MockBudget()
         self.logger: logging.Logger = logging.getLogger("apollia.test.agent")
+        # A first run until a test says otherwise, as in production.
+        self.is_resumed: bool = False
+        self.input_response: InputResponse | None = None
+
+    def resume_with(
+        self,
+        *,
+        approved: bool = True,
+        answer: str | float | bool | None = None,
+        reason: str | None = None,
+        payload: HitlPayload | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Put the context in the state of a task resumed from a pause.
+
+        The runtime runs a resumed agent again from the top with
+        ``ctx.is_resumed`` true and ``ctx.input_response`` set; this does the
+        same for a test, so the resume branch of a skill can be exercised
+        without a runtime::
+
+            agent, ctx = mock(MyAgent)
+            with pytest.raises(NeedHumanInput) as paused:
+                await agent.invoke_skill("pick.list")
+            ctx.resume_with(answer="b", payload=paused.value.payload)
+            result = await agent.invoke_skill("pick.list")
+
+        Args:
+            approved: The operator's decision.
+            answer: The answer to a question: a proposition id, free text or a
+                value. Leave ``None`` for an approval.
+            reason: The operator's reason, if any.
+            payload: The pause being answered, usually the ``payload`` of the
+                ``NeedHumanInput`` the first run raised.
+            context: The ``context`` that pause carried.
+        """
+        self.is_resumed = True
+        self.input_response = {
+            "approved": approved,
+            "reason": reason,
+            "answer": answer,
+            "payload": payload,
+            "context": context if context is not None else {},
+        }
 
     def log(self, level: str, message: str) -> None:
         """Compatibility shim for code that calls ``ctx.log(level, msg)``."""

@@ -131,6 +131,8 @@ async fn test_ac1_mode_direct_approve_recalls_run() {
                     reason: None,
                     context: serde_json::Value::Null,
                     responded_at: "2026-01-01T00:00:00Z".into(),
+                    answer: None,
+                    payload: None,
                 },
             )
             .expect("resolve must succeed for t-hitl-001");
@@ -204,6 +206,8 @@ async fn test_ac2_mode_direct_reject_no_second_call() {
                     reason: Some("Refus test".into()),
                     context: serde_json::Value::Null,
                     responded_at: "2026-01-01T00:00:00Z".into(),
+                    answer: None,
+                    payload: None,
                 },
             )
             .expect("resolve must succeed for t-hitl-002");

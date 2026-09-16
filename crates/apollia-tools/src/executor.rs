@@ -54,6 +54,32 @@ pub enum ToolExecutionError {
         /// Name of the tool that was blocked.
         tool_name: String,
     },
+
+    /// The call needs a human approval the task has not received yet.
+    ///
+    /// Not a failure: the task path turns it into a pause carrying `payload`,
+    /// and the call runs when the task is resumed with that exact gesture
+    /// approved. Kept typed all the way to Python so it becomes a pause rather
+    /// than a message an agent would have to recognise.
+    #[error("approval required for {gesture}")]
+    ApprovalRequired {
+        /// The gesture awaiting approval, `<server>/<tool>` for MCP.
+        gesture: String,
+        /// The sentence shown to the human.
+        prompt: String,
+        /// The `approbation` payload the pause carries.
+        payload: serde_json::Value,
+    },
+
+    /// The operator declined the approval this call paused on. The call did not
+    /// run.
+    #[error("approval declined for {gesture}")]
+    ApprovalDenied {
+        /// The declined gesture.
+        gesture: String,
+        /// The operator's reason, when one was given.
+        reason: Option<String>,
+    },
 }
 
 /// Session-level tool filter enforcing `--allowed-tools` / `--disallowed-tools`.

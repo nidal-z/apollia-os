@@ -112,6 +112,10 @@ CTX_MEMBERS_THE_PROTOCOL_DOES_NOT_PUBLISH = {
 SERVICES_WITH_NO_BRIDGE_CLASS = {
     "logger": "an alias onto logging.Logger, built by the accessor at call "
     "time; there is no #[pymethods] block to cross",
+    "is_resumed": "a boolean the bridge sets per call from the task, data "
+    "rather than a service",
+    "input_response": "a plain dict matching the InputResponse TypedDict, "
+    "built per call from the task; data rather than a service",
 }
 
 # `RuntimeContext` is not listed here: it is the root of the crossing, paired at

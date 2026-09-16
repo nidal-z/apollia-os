@@ -292,6 +292,11 @@ impl AgentRunner for BridgeRunner {
         let user_memory_write = self.user_memory_write;
         let pending_user_inputs = self.pending_user_inputs.clone();
         let mcp_handle = self.mcp_handle.clone();
+        // This run's approval state: the response the task was resumed with, if
+        // any, gates the MCP calls that need a human.
+        let mcp_task_approval =
+            apollia_mcp::task_approval::TaskApproval::new(task.input_response.clone());
+        let mcp_tools_requiring_approval = self.manifest.tools_requiring_approval.clone();
         let supports_mailbox = self.manifest.supports_mailbox;
         let mailbox_allowlist = self.manifest.mailbox_allowlist.clone();
         let mailbox_send_gated = self
@@ -345,7 +350,9 @@ impl AgentRunner for BridgeRunner {
             // through the MCP client manager. Without this, the registry
             // surfaces the tool to the agent's prompt but the dispatcher
             // returns UnknownTool at call time.
-            let mut extra_executors = build_mcp_executors(&mcp_handle).await;
+            let mut extra_executors =
+                build_mcp_executors(&mcp_handle, mcp_task_approval, mcp_tools_requiring_approval)
+                    .await;
 
             // Append the SaaS connector executors, both families, from the
             // runtime. They resolve their account lazily on each call, so a
@@ -544,11 +551,24 @@ async fn augment_allowed_tools_with_a2a(
 /// Build one `McpToolExecutor` per registered MCP tool so the agent's
 /// `ToolDispatcher` can route `mcp:<server>/<tool>` invocations through the MCP
 /// client manager. Returns an empty Vec when no MCP handle is wired.
+///
+/// Gated through the task's approval state: a call to a server declared
+/// `requires_approval`, or to a tool the manifest lists as requiring approval,
+/// pauses the task and runs once it is resumed with that call approved.
 async fn build_mcp_executors(
     mcp_handle: &Option<apollia_mcp::manager::McpClientManagerHandle>,
+    approval: apollia_mcp::task_approval::TaskApproval,
+    tools_requiring_approval: Vec<String>,
 ) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {
     match mcp_handle {
-        Some(handle) => apollia_mcp::executor::build_agent_tool_executors(handle).await,
+        Some(handle) => {
+            apollia_mcp::executor::build_task_tool_executors(
+                handle,
+                approval,
+                tools_requiring_approval,
+            )
+            .await
+        }
         None => Vec::new(),
     }
 }
@@ -601,6 +621,7 @@ impl ExecutionBackend for AIPProductionBackend {
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
+        engine = engine.with_agent_name(self.manifest.name.clone());
         if let Some(pending) = self.pending_approvals.clone() {
             engine = engine.with_pending_approvals(pending);
         }

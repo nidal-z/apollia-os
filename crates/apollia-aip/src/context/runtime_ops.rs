@@ -145,6 +145,8 @@ impl RuntimeContext {
             templates_iface,
             secrets_iface,
             wall_clock_secs: None,
+            is_resumed: false,
+            input_response: None,
         }
     }
     /// Builds a minimal context for intra-crate unit tests.
@@ -203,6 +205,8 @@ impl RuntimeContext {
             templates_iface,
             secrets_iface,
             wall_clock_secs: None,
+            is_resumed: false,
+            input_response: None,
         }
     }
     /// Injects a collected [`WorkspaceSnapshot`] into this `RuntimeContext`.

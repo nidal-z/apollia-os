@@ -187,6 +187,31 @@ def ctx_services() -> dict[str, str]:
     return out
 
 
+def mock_attributes() -> set[str]:
+    """Every attribute `MockContext.__init__` assigns, whatever the value."""
+    tree = parse(MOCK_FACTORY)
+    if tree is None:
+        return set()
+    context = classes_in(tree).get("MockContext")
+    if context is None:
+        return set()
+    names: set[str] = set()
+    for stmt in ast.walk(context):
+        targets: list[ast.expr] = []
+        if isinstance(stmt, ast.Assign):
+            targets = list(stmt.targets)
+        elif isinstance(stmt, ast.AnnAssign):
+            targets = [stmt.target]
+        for target in targets:
+            if (
+                isinstance(target, ast.Attribute)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == "self"
+            ):
+                names.add(target.attr)
+    return names
+
+
 def mock_services() -> dict[str, str]:
     """Service name to mock class name, read from `MockContext.__init__`."""
     tree = parse(MOCK_FACTORY)
@@ -388,9 +413,23 @@ def run() -> int:
     protocol_classes = collect_classes(sorted(CONTEXT_DIR.glob("*.py")))
     mock_classes = collect_classes(sorted(TESTING_DIR.glob("*.py")))
 
+    # A `Ctx` attribute whose annotation names no protocol class is data (a
+    # flag, a TypedDict), not a service: it has no methods to cross, but a mock
+    # context without it still fails every test that reads it. It is required
+    # to exist on MockContext and set aside from the method crossing.
+    assigned = mock_attributes()
+    data_members = {s: c for s, c in services.items() if c not in protocol_classes}
+    services = {s: c for s, c in services.items() if c in protocol_classes}
+    missing_data = [
+        f"ctx.{service}: published by the Ctx protocol and never assigned by "
+        "MockContext, so an agent reading it fails under test alone"
+        for service in sorted(data_members)
+        if service not in assigned and service not in SERVICES_WITHOUT_AN_APOLLIA_PROTOCOL
+    ]
     raw, paired, members = cross(services, mocks, protocol_classes, mock_classes)
+    raw.extend(missing_data)
     findings, allowed = apply_ratchet(raw)
-    findings.extend(stale_exemptions(services))
+    findings.extend(stale_exemptions({**services, **data_members}))
 
     print(f"services published by Ctx    : {len(services)}")
     print(f"services wired in MockContext: {len(mocks)}")

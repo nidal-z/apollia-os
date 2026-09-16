@@ -13,10 +13,12 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
+mod pause;
+pub use pause::ResumeErrorBody;
+use pause::{check_resume, plain};
+
 use apollia_core::token_budget::TokenBudget;
-use apollia_core::{
-    AIPInput, AIPPart, DataPart, InputResponseData, RuntimeEvent, TaskId, TaskStatus,
-};
+use apollia_core::{AIPInput, AIPPart, DataPart, RuntimeEvent, TaskId, TaskStatus};
 
 /// Request body for `POST /api/v1/tasks`.
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
@@ -30,6 +32,10 @@ pub struct SubmitTaskRequest {
     #[serde(default)]
     #[schema(value_type = Object)]
     pub run_options: apollia_core::RunOptions,
+    /// Skill to run, for an agent that declares several. Omitted, the agent's
+    /// own dispatch picks the handler as before.
+    #[serde(default)]
+    pub skill_id: Option<String>,
 }
 
 /// Response body for task operations.
@@ -126,6 +132,24 @@ pub struct TaskListItem {
     pub error: Option<String>,
     /// Structured failure code parsed from the error (e.g. `BAD_MESSAGE`).
     pub error_code: Option<String>,
+    /// Name of the agent that paused. Present only on an `input_required` task.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    /// Skill that paused. Present only on an `input_required` task that paused
+    /// from a skill.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill: Option<String>,
+    /// ISO 8601 creation timestamp. Present only on an `input_required` task.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    /// Sentence shown to the human. Present only on an `input_required` task.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+    /// The typed question or approval the task is waiting on. Present only on
+    /// an `input_required` task whose pause carries one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
+    pub payload: Option<serde_json::Value>,
 }
 
 /// Extract the `[CODE]` prefix from an error string, e.g. `[BAD_MESSAGE] ...`
@@ -190,12 +214,28 @@ pub async fn list_tasks<B: ExecutionBackend + Clone>(
             (None, None)
         };
 
+        // A paused task says what it is waiting on. Read from the repository,
+        // which holds the pause; the router only knows the status.
+        let pause = if status == TaskStatus::InputRequired {
+            match state.task_repository.as_ref() {
+                Some(repo) => repo.pending_pause(&task_id).await.ok().flatten(),
+                None => None,
+            }
+        } else {
+            None
+        };
+
         tasks.push(TaskListItem {
             task_id,
             agent_id: agent_id.to_string(),
             status: status_str,
             error,
             error_code,
+            agent: pause.as_ref().map(|p| p.agent_name.clone()),
+            skill: pause.as_ref().and_then(|p| p.skill_id.clone()),
+            created_at: pause.as_ref().map(|p| p.created_at.clone()),
+            prompt: pause.as_ref().map(|p| p.prompt.clone()),
+            payload: pause.and_then(|p| p.payload),
         });
     }
 
@@ -225,7 +265,7 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
 
     let task_id = state
         .router_handle
-        .submit_with_options(&req.agent_id, input, req.run_options)
+        .submit_skill_with_options(&req.agent_id, input, req.skill_id, req.run_options)
         .await
         .map_err(submit_error_to_response)?;
 
@@ -382,6 +422,15 @@ pub struct ResumeRequest {
     pub approved: bool,
     /// Reason for the decision, optional, mainly useful when rejecting.
     pub reason: Option<String>,
+    /// The answer to a typed question: a proposition id, free text when the
+    /// question allows it, or a value (a number for a `seuil`, a boolean for a
+    /// `confirmation`).
+    ///
+    /// Checked against the pause it answers; a mismatch is a 422
+    /// `INVALID_ANSWER`. Omitted, or `null`, for an approval and for a pause
+    /// that carries a prompt alone.
+    #[serde(default)]
+    pub answer: Option<serde_json::Value>,
 }
 
 /// Response body for `POST /api/v1/tasks/{id}/resume`.
@@ -419,6 +468,7 @@ pub struct ResumeResponse {
         (status = 200, description = "Resume recorded", body = ResumeResponse),
         (status = 404, description = "Task not found", body = crate::api::openapi::ApiErrorBody),
         (status = 409, description = "Task not awaiting input", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "The answer does not fit the pending pause", body = ResumeErrorBody),
         (status = 503, description = "HITL not configured", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -426,16 +476,14 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
     Path(task_id): Path<String>,
     State(state): State<AppState<B>>,
     Json(body): Json<ResumeRequest>,
-) -> Result<Json<ResumeResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<ResumeResponse>, (StatusCode, Json<ResumeErrorBody>)> {
     // Check that the TaskRepository is available.
     let repo = match state.task_repository.as_ref() {
         Some(r) => r,
         None => {
-            return Err((
+            return Err(plain(
                 StatusCode::SERVICE_UNAVAILABLE,
-                Json(ErrorResponse {
-                    error: "HITL not configured - task_repository absent".into(),
-                }),
+                "HITL not configured - task_repository absent".into(),
             ));
         }
     };
@@ -443,57 +491,54 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
     // Check the status via the TaskRepository.
     let db_status = repo.get_task_status(&task_id).await.map_err(|e| {
         tracing::error!(task_id = %task_id, error = %e, "task.status.read.failed");
-        (
+        plain(
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("database error: {e}"),
-            }),
+            format!("database error: {e}"),
         )
     })?;
 
     match db_status.as_deref() {
         // Task absent from the tasks table: 404.
         None => {
-            return Err((
+            return Err(plain(
                 StatusCode::NOT_FOUND,
-                Json(ErrorResponse {
-                    error: format!("task not found: {task_id}"),
-                }),
+                format!("task not found: {task_id}"),
             ));
         }
         // Task present but not in input_required: 409.
         Some(status) if status != "input_required" => {
-            return Err((
+            return Err(plain(
                 StatusCode::CONFLICT,
-                Json(ErrorResponse {
-                    error: format!(
-                        "task '{task_id}' is not in input_required status (current: {status})"
-                    ),
-                }),
+                format!("task '{task_id}' is not in input_required status (current: {status})"),
             ));
         }
         _ => {}
     }
 
-    // Build the human response with an ISO 8601 timestamp.
-    let responded_at = chrono::Utc::now().to_rfc3339();
-    let input_response = InputResponseData {
-        approved: body.approved,
-        reason: body.reason.clone(),
-        context: serde_json::Value::Object(serde_json::Map::new()),
-        responded_at,
-    };
+    // Check the answer against the pause it answers, before anything is
+    // written: a refused answer leaves the task paused and resumable.
+    let pending = repo.pending_pause(&task_id).await.map_err(|e| {
+        tracing::error!(task_id = %task_id, error = %e, "task.pause.read.failed");
+        plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("database error: {e}"),
+        )
+    })?;
+    let input_response = check_resume(
+        pending.as_ref(),
+        body.approved,
+        body.reason.clone(),
+        body.answer.clone(),
+    )?;
 
     // Durability before notification: write to the DB before the EventBus.
     repo.save_input_response(&task_id, &input_response)
         .await
         .map_err(|e| {
             tracing::error!(task_id = %task_id, error = %e, "task.input_response.save.failed");
-            (
+            plain(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: format!("failed to persist response: {e}"),
-                }),
+                format!("failed to persist response: {e}"),
             )
         })?;
 
@@ -510,14 +555,10 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
             if let Some(pending) = state.pending_approvals.as_ref() {
                 match pending.resolve(
                     &task_id,
-                    enriched_task.input_response.clone().unwrap_or(
-                        apollia_core::InputResponseData {
-                            approved: body.approved,
-                            reason: body.reason.clone(),
-                            context: serde_json::Value::Null,
-                            responded_at: chrono::Utc::now().to_rfc3339(),
-                        },
-                    ),
+                    enriched_task
+                        .input_response
+                        .clone()
+                        .unwrap_or_else(|| input_response.clone()),
                 ) {
                     Ok(()) => {
                         tracing::info!(
@@ -546,11 +587,9 @@ pub async fn resume_task<B: ExecutionBackend + Clone>(
         }
         Err(e) => {
             tracing::error!(task_id = %task_id, error = %e, "task.resume.rebuild.failed");
-            return Err((
+            return Err(plain(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: format!("failed to rebuild task for resume: {e}"),
-                }),
+                format!("failed to rebuild task for resume: {e}"),
             ));
         }
     }
@@ -1288,6 +1327,100 @@ mod tests {
             .with_state(state)
     }
 
+    // Typed pause: the answer is checked against the pending payload over HTTP
+
+    async fn post_resume(
+        router: axum::Router,
+        task_id: &str,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let req = Request::builder()
+            .method("POST")
+            .uri(format!("/api/v1/tasks/{task_id}/resume"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+        let status = resp.status();
+        (status, body_json(resp).await)
+    }
+
+    async fn paused_on_a_choice(task_id: &str) -> apollia_tools::TaskRepository {
+        let repo = open_test_repo().await;
+        let payload = serde_json::json!({
+            "genre": "choix",
+            "question": "Which list?",
+            "propositions": [{"id": "a", "libelle": "A"}, {"id": "b", "libelle": "B"}]
+        });
+        repo.save_pause(apollia_tools::PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Which list?",
+            context: &serde_json::json!({"kept": true}),
+            payload: Some(&payload),
+            agent_name: Some("list-agent"),
+            skill_id: Some("clean"),
+        })
+        .await
+        .expect("save_pause failed");
+        repo
+    }
+
+    #[tokio::test]
+    async fn test_resume_with_an_answer_naming_no_proposition_is_422() {
+        // GIVEN a task paused on a choice between `a` and `b`
+        let repo = paused_on_a_choice("t-typed-bad").await;
+        let router = resume_router_with_repo(repo.clone()).await;
+
+        // WHEN it is resumed with an id that is not proposed
+        let (status, body) = post_resume(
+            router,
+            "t-typed-bad",
+            serde_json::json!({"approved": true, "answer": "z"}),
+        )
+        .await;
+
+        // THEN the route refuses it with the typed code
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body["code"], "INVALID_ANSWER");
+        // AND the task is still paused, so the operator can answer again
+        assert!(repo
+            .pending_pause("t-typed-bad")
+            .await
+            .expect("read")
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn test_resume_with_a_matching_answer_is_recorded() {
+        // GIVEN a task paused on a choice
+        let repo = paused_on_a_choice("t-typed-ok").await;
+        let router = resume_router_with_repo(repo.clone()).await;
+
+        // WHEN it is resumed with a proposed id
+        let (status, _) = post_resume(
+            router,
+            "t-typed-ok",
+            serde_json::json!({"approved": true, "answer": "b"}),
+        )
+        .await;
+
+        // THEN it is accepted, and the rebuilt task hands the answer, the payload
+        // and the stored context to the agent
+        assert_eq!(status, StatusCode::OK);
+        let task = repo
+            .rebuild_for_resume("t-typed-ok")
+            .await
+            .expect("rebuild");
+        let response = task.input_response.expect("response");
+        assert_eq!(response.answer, Some(serde_json::json!("b")));
+        assert_eq!(response.context, serde_json::json!({"kept": true}));
+        assert_eq!(
+            response.payload.map(|p| p["genre"].clone()),
+            Some(serde_json::json!("choix"))
+        );
+    }
+
     // Valid approval: 200 OK + TaskResumed emitted on the EventBus
 
     #[tokio::test]
@@ -1295,9 +1428,17 @@ mod tests {
         // GIVEN a task in input_required status in the HITL DB
         let repo = open_test_repo().await;
         let task_id = "t-0042";
-        repo.save_input_required(task_id, None, "Confirmer ?", &serde_json::json!({}))
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(apollia_tools::PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Confirmer ?",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
 
         let router = resume_router_with_repo(repo).await;
 
@@ -1326,9 +1467,17 @@ mod tests {
         // GIVEN a task in input_required status
         let repo = open_test_repo().await;
         let task_id = "t-0043";
-        repo.save_input_required(task_id, None, "Budget OK ?", &serde_json::json!({}))
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(apollia_tools::PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Budget OK ?",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
 
         let router = resume_router_with_repo(repo).await;
 
@@ -1359,15 +1508,25 @@ mod tests {
         // GIVEN a task in working status (input_required, save_input_response, working)
         let repo = open_test_repo().await;
         let task_id = "t-0044";
-        repo.save_input_required(task_id, None, "Prompt", &serde_json::json!({}))
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(apollia_tools::PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Prompt",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
         // Transition to working via save_input_response
         let resp_data = apollia_core::InputResponseData {
             approved: true,
             reason: None,
             context: serde_json::json!({}),
             responded_at: "2026-03-09T10:00:00Z".into(),
+            answer: None,
+            payload: None,
         };
         repo.save_input_response(task_id, &resp_data)
             .await

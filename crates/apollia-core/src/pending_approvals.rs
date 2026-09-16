@@ -119,6 +119,8 @@ mod tests {
             reason: None,
             context: Value::Null,
             responded_at: "2026-01-01T00:00:00Z".into(),
+            answer: None,
+            payload: None,
         }
     }
 

@@ -92,9 +92,6 @@ BASELINE: dict[str, str] = {
     "Delete rather than wire.",
     "with_llm_router_and_reasoner@apollia-oria": "superseded: `wire_engine_with_llm` "
     "calls `with_llm_router` then `with_reasoner` separately. Delete rather than wire.",
-    "with_hitl@apollia-mcp": "dead second gate: approval is enforced by the ORIA "
-    "actor loop for orchestrated runs and by the chat dispatcher for free chat, "
-    "both of which are wired. Redundant defence nobody installs, not a hole.",
     "with_session_filter@apollia-tools": "defect, open, and the chain has no middle: "
     "`apollia run --allowed-tools` / `--disallowed-tools` build a `session_config` "
     "fragment (`commands/run.rs:868`) and push it into the AIP input payload. Nothing "

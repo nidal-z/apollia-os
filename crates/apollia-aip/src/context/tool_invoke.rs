@@ -16,7 +16,7 @@ use apollia_tools::{
 
 use apollia_core::AIPPart;
 
-use crate::context::tool_proxy::{ToolExecutor, ToolProxyError};
+use crate::context::tool_proxy::{ToolCallError, ToolExecutor, ToolProxyError};
 
 /// Extracts the original A2A `skill_id` from a tool name, supporting both
 /// the legacy `"a2a:{skill_id}"` prefix and the new
@@ -308,12 +308,21 @@ pub(crate) async fn execute_tool(
     };
 
     // 3. Execute, timed so the audit record below carries the duration
-    let exec_result = ctx.executor.execute(tool_name, input);
+    let exec_result = ctx.executor.execute_typed(tool_name, input);
     let duration = start.elapsed();
 
     let (success, error_code, stdout, stderr) = match &exec_result {
         Ok(val) => (true, None, serde_json::to_string(val).ok(), None),
-        Err(e) => (false, Some(e.clone()), None, Some(e.clone())),
+        Err(ToolCallError::Failed(e)) => (false, Some(e.clone()), None, Some(e.clone())),
+        Err(ToolCallError::ApprovalRequired { .. }) => {
+            (false, Some("approval_required".to_string()), None, None)
+        }
+        Err(ToolCallError::ApprovalDenied { reason, .. }) => (
+            false,
+            Some("approval_denied".to_string()),
+            None,
+            reason.clone(),
+        ),
     };
 
     // 4. Record audit (always, success or failure)
@@ -333,7 +342,15 @@ pub(crate) async fn execute_tool(
     );
 
     // 5. Return result
-    exec_result.map_err(ToolProxyError::ExecutionFailed)
+    exec_result.map_err(|e| match e {
+        ToolCallError::Failed(message) => ToolProxyError::ExecutionFailed(message),
+        ToolCallError::ApprovalRequired { prompt, payload } => {
+            ToolProxyError::ApprovalRequired { prompt, payload }
+        }
+        ToolCallError::ApprovalDenied { gesture, reason } => {
+            ToolProxyError::ApprovalDenied { gesture, reason }
+        }
+    })
 }
 /// Outcome fields for an audit record, grouped to keep `emit_audit_record` under 7 params.
 pub(crate) struct AuditOutcome {

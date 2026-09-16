@@ -384,6 +384,34 @@ pub(super) async fn mcp_executors_for(
 /// resolve their account lazily per call, and a machine with nothing connected
 /// answers "no Google account connected" instead of pretending the tool does
 /// not exist.
+/// The executors of [`agent_tool_executors`] for one run on the task path,
+/// with the MCP half gated through that run's approval state.
+///
+/// A call to a server declared `requires_approval`, or to a tool the manifest
+/// lists as requiring approval, pauses the task and runs once the task is
+/// resumed with that call approved. The chat path keeps the ungated set: it has
+/// its own approval flow and no task pause to turn an approval into.
+pub(super) async fn task_tool_executors(
+    mcp_handle: &Option<apollia_mcp::manager::McpClientManagerHandle>,
+    task: &apollia_core::AIPTask,
+    tools_requiring_approval: Vec<String>,
+) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {
+    let mut executors = match mcp_handle {
+        Some(handle) => {
+            apollia_mcp::executor::build_task_tool_executors(
+                handle,
+                apollia_mcp::task_approval::TaskApproval::new(task.input_response.clone()),
+                tools_requiring_approval,
+            )
+            .await
+        }
+        None => Vec::new(),
+    };
+    executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
+    executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
+    executors
+}
+
 pub(super) async fn agent_tool_executors(
     mcp_handle: &Option<apollia_mcp::manager::McpClientManagerHandle>,
 ) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {

@@ -21,6 +21,16 @@ pub struct InputRequiredData {
     /// The runtime stores it verbatim in SQLite and restores it into
     /// [`InputResponseData::context`] on resume.
     pub context: serde_json::Value,
+    /// What the pause asks for, typed: a question or an approval.
+    ///
+    /// Carried as raw JSON on the wire and parsed by
+    /// [`crate::HitlPayload::parse`] at the engine, not here. A payload that
+    /// does not parse must fail the task with a typed error naming the field;
+    /// typed here, it would instead fail the deserialisation of the whole
+    /// result, and the agent would get an opaque bridge error. `None` for a
+    /// pause that carries a prompt alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
 }
 
 /// Human response received after an `input_required` suspension.
@@ -37,6 +47,19 @@ pub struct InputResponseData {
     pub context: serde_json::Value,
     /// ISO 8601 timestamp of the human decision.
     pub responded_at: String,
+    /// The answer to a typed question: a proposition id, free text, or a value.
+    ///
+    /// Checked against [`Self::payload`] before it is accepted. `None` for an
+    /// approval, whose decision is `approved` alone, and for a prompt-only pause.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer: Option<serde_json::Value>,
+    /// The payload of the pause this response answers, as it was validated.
+    ///
+    /// Given back to the resumed agent so it knows which of its pauses it is
+    /// resuming from, and read by the MCP approval gate to match the approved
+    /// gesture against the call it lets through.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload: Option<serde_json::Value>,
 }
 
 /// State machine for an individual task, aligned with A2A TaskState.
@@ -132,8 +155,26 @@ impl AIPResult {
             input_required_data: Some(InputRequiredData {
                 prompt: prompt.to_string(),
                 context,
+                payload: None,
             }),
         }
+    }
+
+    /// Builds a result pausing on a typed question or approval.
+    ///
+    /// Same as [`Self::input_required`], with the payload the operator answers.
+    /// The payload is not checked here; the engine parses it at the pause and
+    /// fails the task on an invalid one.
+    pub fn input_required_with_payload(
+        prompt: &str,
+        context: serde_json::Value,
+        payload: serde_json::Value,
+    ) -> Self {
+        let mut result = Self::input_required(prompt, context);
+        if let Some(data) = result.input_required_data.as_mut() {
+            data.payload = Some(payload);
+        }
+        result
     }
 
     /// Builds a success result with a response text.

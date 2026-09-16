@@ -200,6 +200,9 @@ pub struct ORIAEngine {
     ///
     /// When `None`, persistence is skipped (logged warning) but execution continues.
     pub(crate) task_repository: Option<Arc<apollia_tools::TaskRepository>>,
+    /// Name of the agent this engine runs, recorded with each pause so the task
+    /// listing can say who is waiting. `None` leaves the column as it was.
+    pub(crate) agent_name: Option<String>,
     /// Memory manager for automatic episodic recording per step.
     ///
     /// Passed to [`ActorLoop`] during orchestrated execution. When `Some`, each completed
@@ -616,6 +619,8 @@ mod tests {
                         reason: None,
                         context: serde_json::Value::Null,
                         responded_at: "2026-01-01T00:00:00Z".into(),
+                        answer: None,
+                        payload: None,
                     },
                 )
                 .expect("resolve failed");
@@ -673,6 +678,8 @@ mod tests {
                         reason: None,
                         context: serde_json::Value::Null,
                         responded_at: "2026-01-01T00:00:00Z".into(),
+                        answer: None,
+                        payload: None,
                     },
                 )
                 .expect("resolve failed");
@@ -720,6 +727,8 @@ mod tests {
                         reason: Some("Too expensive".into()),
                         context: serde_json::Value::Null,
                         responded_at: "2026-01-01T00:00:00Z".into(),
+                        answer: None,
+                        payload: None,
                     },
                 )
                 .expect("resolve failed");

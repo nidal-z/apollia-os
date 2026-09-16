@@ -341,6 +341,8 @@ impl AgentChatExecutor {
             reason: None,
             context,
             responded_at: now_rfc3339(),
+            answer: None,
+            payload: None,
         });
 
         tokio::time::timeout(

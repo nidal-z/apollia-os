@@ -7,7 +7,10 @@ them into structured ``AIPResult`` dicts that the Rust runtime consumes.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from apollia.hitl import HitlPayload
 
 __all__ = [
     "AgentConfigError",
@@ -18,6 +21,7 @@ __all__ = [
     "SchemaError",
     "SkillNotFound",
     "StructuredOutputError",
+    "ToolApprovalDenied",
 ]
 
 
@@ -63,16 +67,56 @@ class NeedHumanInput(AgentError):
     task resumes.
     """
 
-    def __init__(self, prompt: str, context: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        prompt: str,
+        context: dict[str, Any] | None = None,
+        *,
+        payload: HitlPayload | None = None,
+    ) -> None:
         """Suspend the run and ask the human a question.
 
         Args:
             prompt: What the human is being asked.
-            context: State to persist verbatim and restitute on resume.
+            context: State to persist verbatim and restitute on resume, through
+                ``ctx.input_response["context"]``. The way to carry what an
+                earlier pause learned into a later one.
+            payload: A typed question or approval, see :mod:`apollia.hitl`.
+                Checked by the runtime when the agent pauses: an invalid one
+                fails the task with ``INVALID_INPUT_PAYLOAD``.
         """
         super().__init__(prompt)
         self.prompt: str = prompt
         self.context: dict[str, Any] = context if context is not None else {}
+        self.payload: HitlPayload | None = payload
+
+
+class ToolApprovalDenied(AgentError):
+    """An operator declined the approval a tool call paused on.
+
+    Raised by ``ctx.tools.call`` when the task is resumed from an approval of
+    that very call and the operator said no. The call was not executed.
+    Catch it to continue without the tool; left uncaught, the task fails.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        tool: str = "",
+        reason: str | None = None,
+    ) -> None:
+        """Report a declined tool approval.
+
+        Args:
+            message: The full, human-readable refusal.
+            tool: The gesture that was declined, ``<server>/<tool>`` for MCP.
+            reason: The operator's reason, when one was given.
+        """
+        super().__init__(message)
+        self.message: str = message
+        self.tool: str = tool
+        self.reason: str | None = reason
 
 
 class PayloadError(AgentError):

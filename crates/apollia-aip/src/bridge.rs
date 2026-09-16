@@ -168,6 +168,8 @@ impl AIPBridge {
             };
 
         let wall_clock_secs = self.wall_clock_secs.unwrap_or(DEFAULT_WALL_CLOCK_SECS);
+        let is_resumed = task.is_resumed;
+        let input_response = task.input_response.clone();
         let wall_clock = std::time::Duration::from_secs(wall_clock_secs);
 
         let blocking = tokio::task::spawn_blocking(move || {
@@ -175,6 +177,7 @@ impl AIPBridge {
                 // 1. Inject workspace snapshot, wall-clock budget and logger
                 //    wiring into the RuntimeContext before dispatch.
                 inject_runtime_context(py, &ctx, workspace_snapshot.as_ref(), wall_clock_secs);
+                inject_resume_state(py, &ctx, is_resumed, input_response);
 
                 // 2. Deserialise AIPTask into a Python dict.
                 let task_dict = json_loads(py, &task_json)
@@ -278,6 +281,24 @@ impl AIPBridge {
 ///
 /// All steps fail silently: an agent that does not depend on `ctx.workspace`,
 /// `ctx.budget` or `ctx.logger` keeps running unchanged.
+/// Hand the resume state of this call to `ctx`.
+///
+/// Written on every call, not only on a resume: the context is built once per
+/// agent and reused, so a first run after a resumed one must read `False` and
+/// `None` rather than the previous task's answer.
+fn inject_resume_state(
+    py: Python<'_>,
+    ctx: &PyObject,
+    is_resumed: bool,
+    input_response: Option<apollia_core::InputResponseData>,
+) {
+    if let Ok(ctx_bound) = ctx.bind(py).downcast::<crate::context::RuntimeContext>() {
+        let mut rc = ctx_bound.borrow_mut();
+        rc.is_resumed = is_resumed;
+        rc.input_response = input_response;
+    }
+}
+
 fn inject_runtime_context(
     py: Python<'_>,
     ctx: &PyObject,

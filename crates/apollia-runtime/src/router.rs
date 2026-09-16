@@ -203,6 +203,24 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 }
                 event = self.event_rx.recv() => {
                     match event {
+                        // A pause and its resume move the listed status, so
+                        // `GET /api/v1/tasks?status=input_required` finds the
+                        // task that is waiting. Only a live task moves: a
+                        // terminal status is never reopened by a late event.
+                        Ok(RuntimeEvent::TaskInputRequired { task_id, .. }) => {
+                            if let Some(status) = self.task_statuses.get_mut(&task_id) {
+                                if matches!(*status, TaskStatus::Working | TaskStatus::Submitted) {
+                                    *status = TaskStatus::InputRequired;
+                                }
+                            }
+                        }
+                        Ok(RuntimeEvent::TaskResumed { task_id, .. }) => {
+                            if let Some(status) = self.task_statuses.get_mut(&task_id) {
+                                if *status == TaskStatus::InputRequired {
+                                    *status = TaskStatus::Working;
+                                }
+                            }
+                        }
                         Ok(RuntimeEvent::TaskCompleted { task_id, success, output, .. }) => {
                             if let Some(status) = self.task_statuses.get_mut(&task_id) {
                                 // Do not overwrite an already-set terminal status (Canceled, Completed, Failed).
@@ -422,15 +440,18 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             .await
     }
 
-    /// Submit a root task with per-run control options (plan-gate / autonomy).
+    /// Submit a root task with per-run control options (plan-gate / autonomy),
+    /// optionally aimed at one skill.
     ///
     /// Used by the REST submit handler to forward CLI flags (`--plan`,
-    /// `--autonomy`) to the per-task engine. Equivalent to [`Self::submit`] with
-    /// no targeted skill and an empty delegation chain, plus the options.
-    pub async fn submit_with_options(
+    /// `--autonomy`) to the per-task engine. `skill_id` reaches
+    /// `AIPTask.skill_id`, so the SDK dispatches to that skill and a pause
+    /// records which skill paused.
+    pub async fn submit_skill_with_options(
         &self,
         agent_id: &str,
         input: AIPInput,
+        skill_id: Option<String>,
         run_options: RunOptions,
     ) -> Result<TaskId, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -438,7 +459,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             .send(RouterMessage::Submit {
                 agent_id: AgentId::from(agent_id),
                 input,
-                skill_id: None,
+                skill_id,
                 delegation_chain: Vec::new(),
                 run_options,
                 reply: reply_tx,
@@ -913,6 +934,74 @@ mod tests {
 
         // THEN nothing is invented
         assert!(run_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_a_paused_task_is_listed_as_input_required_until_resumed() {
+        // GIVEN an active agent and a task submitted to it
+        let (event_tx, _) = broadcast::channel(64);
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
+        let agent_id =
+            register_agent_in_state(&registry, "agent-pause", ProcessState::Active).await;
+        // The coordinator reports on a bus the router does not listen to, so its
+        // completion never reaches the router and the task stays Working.
+        let (idle_tx, _) = broadcast::channel(64);
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, idle_tx, MockBackend::success());
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+        let task_id = router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("submit");
+
+        let status_of = |router: TaskRouterHandle<MockBackend>, id: TaskId| async move {
+            router
+                .all_tasks()
+                .await
+                .expect("router alive")
+                .into_iter()
+                .find(|(t, _, _)| *t == id)
+                .map(|(_, _, s)| s)
+        };
+
+        // WHEN the engine announces a pause
+        event_tx
+            .send(RuntimeEvent::TaskInputRequired {
+                task_id: task_id.clone(),
+                prompt: "?".into(),
+                step_id: None,
+            })
+            .expect("send");
+        // THEN the router lists the task as waiting on a human
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while status_of(router.clone(), task_id.clone()).await != Some(TaskStatus::InputRequired) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "never listed as input_required"
+            );
+            tokio::task::yield_now().await;
+        }
+
+        // WHEN it is resumed
+        event_tx
+            .send(RuntimeEvent::TaskResumed {
+                task_id: task_id.clone(),
+                approved: true,
+            })
+            .expect("send");
+        // THEN it is working again
+        while status_of(router.clone(), task_id.clone()).await != Some(TaskStatus::Working) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "never back to working"
+            );
+            tokio::task::yield_now().await;
+        }
     }
 
     #[tokio::test]

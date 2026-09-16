@@ -46,6 +46,7 @@ impl ORIAEngine {
             pending_plan_gates: None,
             plan_gate_override: None,
             task_repository: None,
+            agent_name: None,
             memory_manager: None,
             plan_cache: None,
             workspace_assembler: ProjectRuntime::default_project(),
@@ -160,6 +161,11 @@ impl ORIAEngine {
     /// (logged warning: fail fast only for detectable errors).
     pub fn with_task_repository(mut self, repo: Arc<apollia_tools::TaskRepository>) -> Self {
         self.task_repository = Some(repo);
+        self
+    }
+    /// Name the agent this engine runs, recorded with each pause.
+    pub fn with_agent_name(mut self, name: impl Into<String>) -> Self {
+        self.agent_name = Some(name.into());
         self
     }
     /// Inject a [`MemoryManager`] for per-step episodic recording.

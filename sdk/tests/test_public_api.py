@@ -174,6 +174,14 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "SchemaError",
             "SkillNotFound",
             "StructuredOutputError",
+            "ToolApprovalDenied",
+        },
+        "apollia.hitl": {
+            "ApprovalPayload",
+            "HitlPayload",
+            "InputResponse",
+            "Proposition",
+            "QuestionPayload",
         },
         "apollia.types": {
             "A2AInterface",
