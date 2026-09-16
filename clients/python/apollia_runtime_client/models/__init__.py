@@ -84,6 +84,7 @@ from .reset_response import ResetResponse
 from .resilience_status_response import ResilienceStatusResponse
 from .resilience_status_response_circuit_breakers_item import ResilienceStatusResponseCircuitBreakersItem
 from .resolved_approval_response import ResolvedApprovalResponse
+from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
 from .send_message_request import SendMessageRequest
@@ -233,6 +234,7 @@ __all__ = (
     "ResilienceStatusResponse",
     "ResilienceStatusResponseCircuitBreakersItem",
     "ResolvedApprovalResponse",
+    "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",
     "SendMessageRequest",

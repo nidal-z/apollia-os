@@ -4331,6 +4331,16 @@
               }
             }
           },
+          "422": {
+            "description": "The answer does not fit the pending pause",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeErrorBody"
+                }
+              }
+            }
+          },
           "503": {
             "description": "HITL not configured",
             "content": {
@@ -7083,6 +7093,26 @@
           }
         }
       },
+      "ResumeErrorBody": {
+        "type": "object",
+        "description": "Error body of `POST /api/v1/tasks/{id}/resume`.\n\nThe historical `{error}` shape, plus a machine `code` on the refusals a\ncaller branches on. `code` is absent on the older errors, so a client that\nread `error` alone keeps working.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stable code, e.g. `INVALID_ANSWER`, when the refusal is one a caller\nis expected to handle."
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable error description."
+          }
+        }
+      },
       "ResumeRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/tasks/{id}/resume`.\n\nThe operator submits a decision (`approved`) and an optional reason.\nThe `approved` field is mandatory; omitting it produces HTTP 422.",
@@ -7090,6 +7120,9 @@
           "approved"
         ],
         "properties": {
+          "answer": {
+            "description": "The answer to a typed question: a proposition id, free text when the\nquestion allows it, or a value (a number for a `seuil`, a boolean for a\n`confirmation`).\n\nChecked against the pause it answers; a mismatch is a 422\n`INVALID_ANSWER`. Omitted, or `null`, for an approval and for a pause\nthat carries a prompt alone."
+          },
           "approved": {
             "type": "boolean",
             "description": "`true` to approve, `false` to reject."
@@ -7445,6 +7478,13 @@
           "run_options": {
             "type": "object",
             "description": "Per-run control options (plan-gate / autonomy overrides)."
+          },
+          "skill_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Skill to run, for an agent that declares several. Omitted, the agent's\nown dispatch picks the handler as before."
           }
         }
       },
@@ -7457,9 +7497,23 @@
           "status"
         ],
         "properties": {
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the agent that paused. Present only on an `input_required` task."
+          },
           "agent_id": {
             "type": "string",
             "description": "Agent that owns this task."
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 creation timestamp. Present only on an `input_required` task."
           },
           "error": {
             "type": [
@@ -7474,6 +7528,27 @@
               "null"
             ],
             "description": "Structured failure code parsed from the error (e.g. `BAD_MESSAGE`)."
+          },
+          "payload": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The typed question or approval the task is waiting on. Present only on\nan `input_required` task whose pause carries one."
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sentence shown to the human. Present only on an `input_required` task."
+          },
+          "skill": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Skill that paused. Present only on an `input_required` task that paused\nfrom a skill."
           },
           "status": {
             "type": "string",

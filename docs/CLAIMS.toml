@@ -1526,3 +1526,22 @@ dropped for as long as nobody looked. The proof is therefore the call site in
 the request builder rather than the translator itself; a translator with no
 caller would satisfy a symbol-only check and leave the sentence false.
 """
+
+[[claim]]
+id = "mcp-requires-approval-gates-task-path"
+scope = "public"
+symbol = "build_task_tool_executors"
+status = "wired"
+proof = "crates/apollia-cli/src/commands/start/chat_runner.rs"
+evidence = "apollia_mcp::executor::build_task_tool_executors("
+note = """
+The flag was documented as gating every call to a server and gated none: the
+only gate sat behind `McpToolExecutor::with_hitl`, which no production path
+called, and it waited on a key no route could resolve. The page now says a
+server declared `requires_approval` pauses the task on an approval, which holds
+only while the task-path runners build their MCP executors through
+`build_task_tool_executors` rather than the ungated `build_agent_tool_executors`.
+The proof is that call, in the helper both CLI task runners use; the desktop
+runner makes the same call in its own `build_mcp_executors`. If either runner
+goes back to the ungated builder, this claim is false and the page with it.
+"""

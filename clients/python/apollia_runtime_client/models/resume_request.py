@@ -30,10 +30,12 @@ class ResumeRequest:
         Attributes:
             approved (bool): `true` to approve, `false` to reject.
             reason (None | str | Unset): Reason for the decision, optional, mainly useful when rejecting.
+            answer (Any | Unset): The answer to a typed question: a proposition id, free text when the question allows it, or a value (a number for a `seuil`, a boolean for a `confirmation`). Omitted, or `null`, for an approval and for a prompt-only pause.
      """
 
     approved: bool
     reason: None | str | Unset = UNSET
+    answer: Any | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -50,6 +52,12 @@ class ResumeRequest:
             reason = self.reason
 
 
+        answer: Any | Unset
+        if isinstance(self.answer, Unset):
+            answer = UNSET
+        else:
+            answer = self.answer
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
@@ -58,6 +66,8 @@ class ResumeRequest:
         if reason is not UNSET:
             field_dict["reason"] = reason
 
+        if answer is not UNSET:
+            field_dict["answer"] = answer
         return field_dict
 
 
@@ -77,9 +87,19 @@ class ResumeRequest:
         reason = _parse_reason(d.pop("reason", UNSET))
 
 
+        def _parse_answer(data: object) -> Any | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(Any | Unset, data)
+
+        answer = _parse_answer(d.pop("answer", UNSET))
+
         resume_request = cls(
             approved=approved,
             reason=reason,
+            answer=answer,
         )
 
 

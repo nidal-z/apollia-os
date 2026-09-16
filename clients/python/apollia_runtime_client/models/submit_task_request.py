@@ -31,11 +31,13 @@ class SubmitTaskRequest:
             agent_id (str): Identifier of the target agent.
             input_ (SubmitTaskRequestInput): Free-form JSON input for the task.
             run_options (SubmitTaskRequestRunOptions | Unset): Per-run control options (plan-gate / autonomy overrides).
+            skill_id (None | str | Unset): Skill to run, for an agent that declares several. Omitted, the agent's own dispatch picks the handler as before.
      """
 
     agent_id: str
     input_: SubmitTaskRequestInput
     run_options: SubmitTaskRequestRunOptions | Unset = UNSET
+    skill_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -54,6 +56,12 @@ class SubmitTaskRequest:
             run_options = self.run_options.to_dict()
 
 
+        skill_id: None | str | Unset
+        if isinstance(self.skill_id, Unset):
+            skill_id = UNSET
+        else:
+            skill_id = self.skill_id
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
@@ -63,6 +71,8 @@ class SubmitTaskRequest:
         if run_options is not UNSET:
             field_dict["run_options"] = run_options
 
+        if skill_id is not UNSET:
+            field_dict["skill_id"] = skill_id
         return field_dict
 
 
@@ -89,10 +99,20 @@ class SubmitTaskRequest:
 
 
 
+        def _parse_skill_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        skill_id = _parse_skill_id(d.pop("skill_id", UNSET))
+
         submit_task_request = cls(
             agent_id=agent_id,
             input_=input_,
             run_options=run_options,
+            skill_id=skill_id,
         )
 
 

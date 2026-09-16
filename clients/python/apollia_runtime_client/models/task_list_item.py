@@ -31,6 +31,11 @@ class TaskListItem:
             error (None | str | Unset): Failure reason for a failed task (parity with `task status`); `null`
                 otherwise. Kept unconditionally so the schema is stable for automation.
             error_code (None | str | Unset): Structured failure code parsed from the error (e.g. `BAD_MESSAGE`).
+            agent (None | str | Unset): Name of the agent that paused. Present only on an `input_required` task.
+            created_at (None | str | Unset): ISO 8601 creation timestamp. Present only on an `input_required` task.
+            payload (Any | Unset): The typed question or approval the task is waiting on. Present only on an `input_required` task whose pause carries one.
+            prompt (None | str | Unset): Sentence shown to the human. Present only on an `input_required` task.
+            skill (None | str | Unset): Skill that paused. Present only on an `input_required` task that paused from a skill.
      """
 
     agent_id: str
@@ -38,6 +43,11 @@ class TaskListItem:
     task_id: str
     error: None | str | Unset = UNSET
     error_code: None | str | Unset = UNSET
+    agent: None | str | Unset = UNSET
+    created_at: None | str | Unset = UNSET
+    payload: Any | Unset = UNSET
+    prompt: None | str | Unset = UNSET
+    skill: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -64,6 +74,36 @@ class TaskListItem:
             error_code = self.error_code
 
 
+        agent: None | str | Unset
+        if isinstance(self.agent, Unset):
+            agent = UNSET
+        else:
+            agent = self.agent
+
+        created_at: None | str | Unset
+        if isinstance(self.created_at, Unset):
+            created_at = UNSET
+        else:
+            created_at = self.created_at
+
+        payload: Any | Unset
+        if isinstance(self.payload, Unset):
+            payload = UNSET
+        else:
+            payload = self.payload
+
+        prompt: None | str | Unset
+        if isinstance(self.prompt, Unset):
+            prompt = UNSET
+        else:
+            prompt = self.prompt
+
+        skill: None | str | Unset
+        if isinstance(self.skill, Unset):
+            skill = UNSET
+        else:
+            skill = self.skill
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
@@ -76,6 +116,16 @@ class TaskListItem:
         if error_code is not UNSET:
             field_dict["error_code"] = error_code
 
+        if agent is not UNSET:
+            field_dict["agent"] = agent
+        if created_at is not UNSET:
+            field_dict["created_at"] = created_at
+        if payload is not UNSET:
+            field_dict["payload"] = payload
+        if prompt is not UNSET:
+            field_dict["prompt"] = prompt
+        if skill is not UNSET:
+            field_dict["skill"] = skill
         return field_dict
 
 
@@ -109,12 +159,62 @@ class TaskListItem:
         error_code = _parse_error_code(d.pop("error_code", UNSET))
 
 
+        def _parse_agent(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        agent = _parse_agent(d.pop("agent", UNSET))
+
+        def _parse_created_at(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        created_at = _parse_created_at(d.pop("created_at", UNSET))
+
+        def _parse_payload(data: object) -> Any | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(Any | Unset, data)
+
+        payload = _parse_payload(d.pop("payload", UNSET))
+
+        def _parse_prompt(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        prompt = _parse_prompt(d.pop("prompt", UNSET))
+
+        def _parse_skill(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        skill = _parse_skill(d.pop("skill", UNSET))
+
         task_list_item = cls(
             agent_id=agent_id,
             status=status,
             task_id=task_id,
             error=error,
             error_code=error_code,
+            agent=agent,
+            created_at=created_at,
+            payload=payload,
+            prompt=prompt,
+            skill=skill,
         )
 
 

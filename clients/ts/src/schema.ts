@@ -2778,12 +2778,38 @@ export interface components {
             wait_duration_ms?: number | null;
         };
         /**
+         * @description Error body of `POST /api/v1/tasks/{id}/resume`.
+         *
+         *     The historical `{error}` shape, plus a machine `code` on the refusals a
+         *     caller branches on. `code` is absent on the older errors, so a client that
+         *     read `error` alone keeps working.
+         */
+        ResumeErrorBody: {
+            /**
+             * @description Stable code, e.g. `INVALID_ANSWER`, when the refusal is one a caller
+             *     is expected to handle.
+             */
+            code?: string | null;
+            /** @description Human-readable error description. */
+            error: string;
+        };
+        /**
          * @description Request body for `POST /api/v1/tasks/{id}/resume`.
          *
          *     The operator submits a decision (`approved`) and an optional reason.
          *     The `approved` field is mandatory; omitting it produces HTTP 422.
          */
         ResumeRequest: {
+            /**
+             * @description The answer to a typed question: a proposition id, free text when the
+             *     question allows it, or a value (a number for a `seuil`, a boolean for a
+             *     `confirmation`).
+             *
+             *     Checked against the pause it answers; a mismatch is a 422
+             *     `INVALID_ANSWER`. Omitted, or `null`, for an approval and for a pause
+             *     that carries a prompt alone.
+             */
+            answer?: unknown;
             /** @description `true` to approve, `false` to reject. */
             approved: boolean;
             /** @description Reason for the decision, optional, mainly useful when rejecting. */
@@ -2940,11 +2966,20 @@ export interface components {
             input: Record<string, never>;
             /** @description Per-run control options (plan-gate / autonomy overrides). */
             run_options?: Record<string, never>;
+            /**
+             * @description Skill to run, for an agent that declares several. Omitted, the agent's
+             *     own dispatch picks the handler as before.
+             */
+            skill_id?: string | null;
         };
         /** @description One entry in the task list. */
         TaskListItem: {
+            /** @description Name of the agent that paused. Present only on an `input_required` task. */
+            agent?: string | null;
             /** @description Agent that owns this task. */
             agent_id: string;
+            /** @description ISO 8601 creation timestamp. Present only on an `input_required` task. */
+            created_at?: string | null;
             /**
              * @description Failure reason for a failed task (parity with `task status`); `null`
              *     otherwise. Kept unconditionally so the schema is stable for automation.
@@ -2952,6 +2987,18 @@ export interface components {
             error?: string | null;
             /** @description Structured failure code parsed from the error (e.g. `BAD_MESSAGE`). */
             error_code?: string | null;
+            /**
+             * @description The typed question or approval the task is waiting on. Present only on
+             *     an `input_required` task whose pause carries one.
+             */
+            payload?: Record<string, never> | null;
+            /** @description Sentence shown to the human. Present only on an `input_required` task. */
+            prompt?: string | null;
+            /**
+             * @description Skill that paused. Present only on an `input_required` task that paused
+             *     from a skill.
+             */
+            skill?: string | null;
             /** @description Current task status. */
             status: string;
             /** @description Unique task identifier. */
@@ -6855,6 +6902,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The answer does not fit the pending pause */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResumeErrorBody"];
                 };
             };
             /** @description HITL not configured */
