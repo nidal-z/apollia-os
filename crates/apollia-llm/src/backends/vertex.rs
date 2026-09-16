@@ -347,6 +347,15 @@ impl VertexClient {
     /// - 429 to [`LlmError::RateLimit`] (retryable)
     /// - 503 to [`LlmError::ServiceUnavailable`] (retryable)
     async fn do_complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        // A structured-output call must not be answered by a backend that
+        // cannot constrain its output: the schema would be dropped in silence
+        // and the validation that follows would blame the model for a
+        // constraint nobody applied.
+        if req.response_schema.is_some() {
+            return Err(LlmError::StructuredOutputUnavailable {
+                backend: "vertex".to_string(),
+            });
+        }
         let started = Instant::now();
         let token = self.get_token().await?;
         let body = self.build_request(&req);

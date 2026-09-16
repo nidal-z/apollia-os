@@ -86,6 +86,12 @@ impl LlamaServerBackend {
             // Not set here: this backend answers `context_window` from the
             // supervisor, which owns the `-c` the process was launched with.
             context_window: None,
+            // This endpoint IS a llama.cpp server, so the `grammar` field its
+            // protocol adds is available: a structured-output call is
+            // constrained by the GBNF Apollia builds rather than by the
+            // server's own schema converter. Measured on llama-server 10092
+            // (2026-09-16): both forms are accepted on `/v1/chat/completions`.
+            llama_cpp_extensions: true,
         };
         let client = Arc::new(OpenAICompatibleClient::new(
             &cfg,

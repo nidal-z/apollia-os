@@ -31,6 +31,7 @@ mod stream;
 
 use convert::{
     build_messages, build_tools, estimate_cost_usd, map_finish_reason, map_openai_error,
+    with_structured_output,
 };
 use reasoning::{inline_reasoning, ReasoningEnvelope, WithTimings};
 use stream::{next_openai_stream_item, OpenAIStreamState};
@@ -76,6 +77,16 @@ pub struct ApiBackendConfig {
     /// nothing pretends the value was measured.
     #[serde(default)]
     pub context_window: Option<usize>,
+    /// Whether this endpoint is a llama.cpp server, which accepts the `grammar`
+    /// field its own protocol adds on top of the OpenAI one.
+    ///
+    /// Set by the embedded `llama-server` backend and by nothing else: sending
+    /// an undeclared field to a real OpenAI endpoint is a 400. It decides which
+    /// structured-output transport [`with_structured_output`] picks.
+    ///
+    /// [`with_structured_output`]: super::openai::convert::with_structured_output
+    #[serde(default)]
+    pub llama_cpp_extensions: bool,
 }
 
 impl ApiBackendConfig {
@@ -184,6 +195,9 @@ impl OpenAICompatibleClient {
         let request = builder
             .build()
             .map_err(|e| LlmError::InferenceError(format!("build request: {e}")))?;
+        // A structured-output constraint is applied here, on the serialized
+        // body, because the grammar half has no place in the typed builder.
+        let request = with_structured_output(request, &req, self.config.llama_cpp_extensions)?;
 
         // `create_byot` rather than `create`: the crate's own response type drops
         // any field it does not declare, which discards the `timings` object the
@@ -372,6 +386,7 @@ impl CompletionModel for OpenAICompatibleClient {
         // `create_stream` sets this itself; `create_stream_byot` does not, and a
         // request without it would come back as a single non-streamed body.
         request.stream = Some(true);
+        let request = with_structured_output(request, &req, self.config.llama_cpp_extensions)?;
 
         // See `do_complete`: byot recovers the `timings` object that the crate's
         // declared chunk type would drop. The engine attaches it to the final
@@ -491,6 +506,7 @@ mod tests {
             api_key_env: "APOLLIA_TEST_KEY_ABSENT_XYZ".into(),
             model: "gpt-4o-mini".into(),
             context_window: None,
+            llama_cpp_extensions: false,
         };
 
         let result = config.resolve_api_key();
@@ -560,6 +576,7 @@ mod tests {
                     api_key_env: "APOLLIA_TEST_KEY_PRESENT_XYZ".into(),
                     model: "gpt-4o-mini".into(),
                     context_window: None,
+                    llama_cpp_extensions: false,
                 };
 
                 let result = config.resolve_api_key();
@@ -642,6 +659,7 @@ mod tests {
             api_key_env: "OPENAI_API_KEY".into(),
             model: "gpt-4o-mini".into(),
             context_window: None,
+            llama_cpp_extensions: false,
         };
         let client = OpenAICompatibleClient::new(
             &config,
@@ -704,6 +722,7 @@ mod tests {
             api_key_env: "UNUSED_IN_TESTS".to_string(),
             model: "test-model".to_string(),
             context_window: None,
+            llama_cpp_extensions: false,
         }
     }
 

@@ -220,3 +220,176 @@ pub(super) fn estimate_cost_usd(
 
     Some(prompt_tokens as f64 * prompt_rate + completion_tokens as f64 * completion_rate)
 }
+/// Apply the request's structured-output constraint to a built chat request.
+///
+/// Returns the request as a JSON value, because the two constraints do not both
+/// fit the typed builder: `response_format` does, the llama.cpp `grammar`
+/// extension does not.
+///
+/// Which one is sent depends on the backend, and the split is measured rather
+/// than assumed (llama-server 10092, 2026-09-16, both forms accepted on
+/// `/v1/chat/completions`):
+///
+/// - An embedded llama-server gets the GBNF grammar this crate builds, so the
+///   constraint is the one Apollia can read, test and explain. An untranslatable
+///   schema is refused before the call rather than silently relaxed.
+/// - Every other OpenAI-compatible provider gets `response_format`, which is
+///   the only structured-output surface the protocol defines.
+///
+/// A `grammar` already on the request (the `POST /llm` route carries one) is
+/// honoured ahead of the schema: it is the more specific constraint of the two.
+pub(super) fn with_structured_output(
+    request: async_openai::types::CreateChatCompletionRequest,
+    req: &crate::types::CompletionRequest,
+    llama_cpp_extensions: bool,
+) -> Result<serde_json::Value, LlmError> {
+    let mut body = serde_json::to_value(request)
+        .map_err(|e| LlmError::InferenceError(format!("serialize request: {e}")))?;
+
+    if llama_cpp_extensions {
+        let grammar = match (&req.grammar, &req.response_schema) {
+            (Some(explicit), _) => Some(explicit.clone()),
+            (None, Some(schema)) => Some(crate::grammar::json_schema_to_gbnf(schema)?),
+            (None, None) => None,
+        };
+        if let (Some(grammar), Some(map)) = (grammar, body.as_object_mut()) {
+            map.insert("grammar".to_string(), serde_json::Value::String(grammar));
+        }
+        return Ok(body);
+    }
+
+    if let (Some(schema), Some(map)) = (&req.response_schema, body.as_object_mut()) {
+        map.insert(
+            "response_format".to_string(),
+            serde_json::json!({
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "apollia_response",
+                    "schema": crate::schema_sanitize::grammar_safe_schema(schema),
+                    "strict": true,
+                }
+            }),
+        );
+    }
+    Ok(body)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{ChatMessage, CompletionRequest};
+    use async_openai::types::CreateChatCompletionRequestArgs;
+    use serde_json::json;
+
+    fn built_request() -> async_openai::types::CreateChatCompletionRequest {
+        let messages = build_messages(&[ChatMessage::user("hello")]).expect("valid message");
+        CreateChatCompletionRequestArgs::default()
+            .model("test-model")
+            .messages(messages)
+            .build()
+            .expect("a buildable request")
+    }
+
+    fn flat_schema() -> serde_json::Value {
+        json!({
+            "type": "object",
+            "properties": {"title": {"type": "string"}},
+            "required": ["title"]
+        })
+    }
+
+    #[test]
+    fn a_llama_cpp_endpoint_receives_the_grammar() {
+        // GIVEN a structured-output request bound for an embedded llama-server
+        let req = CompletionRequest {
+            messages: vec![ChatMessage::user("hello")],
+            response_schema: Some(flat_schema()),
+            ..Default::default()
+        };
+        // WHEN the constraint is applied
+        let body = with_structured_output(built_request(), &req, true).expect("translatable");
+        // THEN the body carries the GBNF grammar, and no response_format: the
+        // constraint is the one this crate builds and tests
+        let grammar = body
+            .get("grammar")
+            .and_then(serde_json::Value::as_str)
+            .expect("a grammar field");
+        assert!(grammar.contains("\"title\""), "grammar: {grammar}");
+        assert!(body.get("response_format").is_none());
+    }
+
+    #[test]
+    fn a_plain_openai_endpoint_receives_response_format() {
+        // GIVEN the same request bound for a provider that is not llama.cpp
+        let req = CompletionRequest {
+            messages: vec![ChatMessage::user("hello")],
+            response_schema: Some(flat_schema()),
+            ..Default::default()
+        };
+        // WHEN the constraint is applied
+        let body = with_structured_output(built_request(), &req, false).expect("no grammar needed");
+        // THEN it travels as `response_format`, the only form the protocol
+        // defines, and the undeclared `grammar` field is absent: sending it to a
+        // real OpenAI endpoint is a 400
+        assert!(body.get("grammar").is_none(), "grammar must not be sent");
+        let format = body.get("response_format").expect("a response_format");
+        assert_eq!(format["type"], json!("json_schema"));
+        assert_eq!(format["json_schema"]["schema"]["type"], json!("object"));
+    }
+
+    #[test]
+    fn an_explicit_grammar_wins_over_the_schema() {
+        // GIVEN a request carrying both a grammar (as `POST /llm` allows) and a
+        // schema
+        let req = CompletionRequest {
+            messages: vec![ChatMessage::user("hello")],
+            grammar: Some("root ::= \"yes\"\n".to_string()),
+            response_schema: Some(flat_schema()),
+            ..Default::default()
+        };
+        // WHEN the constraint is applied for a llama.cpp endpoint
+        let body = with_structured_output(built_request(), &req, true).expect("translatable");
+        // THEN the explicit grammar is the one sent: it is the more specific of
+        // the two constraints
+        assert_eq!(body["grammar"], json!("root ::= \"yes\"\n"));
+    }
+
+    #[test]
+    fn an_untranslatable_schema_is_refused_before_the_call() {
+        // GIVEN a schema the grammar builder cannot express
+        let req = CompletionRequest {
+            messages: vec![ChatMessage::user("hello")],
+            response_schema: Some(json!({
+                "type": "object",
+                "properties": {"x": {"anyOf": [{"type": "string"}, {"type": "integer"}]}},
+                "required": ["x"]
+            })),
+            ..Default::default()
+        };
+        // WHEN the constraint is applied for a llama.cpp endpoint
+        let err =
+            with_structured_output(built_request(), &req, true).expect_err("anyOf has no grammar");
+        // THEN the call never leaves, and the error names the node
+        match err {
+            LlmError::StructuredOutputUnsupported { path, .. } => {
+                assert_eq!(path, "$.properties.x");
+            }
+            other => panic!("expected StructuredOutputUnsupported, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_request_without_a_schema_is_left_alone() {
+        // GIVEN an ordinary free-form request
+        let req = CompletionRequest {
+            messages: vec![ChatMessage::user("hello")],
+            ..Default::default()
+        };
+        // WHEN it passes through the same path
+        let body = with_structured_output(built_request(), &req, true).expect("nothing to apply");
+        // THEN neither constraint is added
+        assert!(body.get("grammar").is_none());
+        assert!(body.get("response_format").is_none());
+        assert_eq!(body["model"], json!("test-model"));
+    }
+}

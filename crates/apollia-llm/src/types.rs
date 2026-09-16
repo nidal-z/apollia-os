@@ -119,6 +119,19 @@ pub struct CompletionRequest {
     /// Typically produced by [`crate::grammar::tool_specs_to_gbnf`] from the
     /// active tool set.
     pub grammar: Option<String>,
+    /// JSON Schema the answer must satisfy, for a structured-output call.
+    ///
+    /// Set by `ctx.llm(schema=...)` and carried verbatim so one value serves
+    /// three purposes: the backend turns it into whatever constraint it
+    /// supports, the caller validates the answer against it, and the audit
+    /// entry fingerprints it. `None` (default) means free-form generation.
+    ///
+    /// A backend with no structured-output mode answers
+    /// [`LlmError::StructuredOutputUnavailable`] rather than dropping the
+    /// constraint: a schema silently ignored is worse than a refusal, because
+    /// the caller then validates an answer that was never constrained and
+    /// blames the model.
+    pub response_schema: Option<serde_json::Value>,
 }
 
 /// Unified inference response returned by all backends.
@@ -580,6 +593,78 @@ pub enum LlmError {
         /// Human-readable problem description.
         reason: String,
     },
+
+    /// A `response_schema` was requested of a backend that has no
+    /// structured-output mode.
+    ///
+    /// Named rather than ignored: a constraint dropped in silence turns into a
+    /// validation failure the caller attributes to the model.
+    #[error(
+        "backend '{backend}' has no structured output mode, so `schema` cannot \
+         be honoured there; use a local or OpenAI-compatible backend"
+    )]
+    StructuredOutputUnavailable {
+        /// Logical name of the backend that was asked.
+        backend: String,
+    },
+
+    /// The `response_schema` could not be turned into a decoding constraint.
+    ///
+    /// Raised before the call, so no tokens are spent on a constraint the
+    /// backend was never going to apply.
+    #[error("schema cannot constrain generation, {path}: {reason}")]
+    StructuredOutputUnsupported {
+        /// JSON path of the offending node inside the schema.
+        path: String,
+        /// What was found there.
+        reason: String,
+    },
+
+    /// The answer does not satisfy the `response_schema`.
+    ///
+    /// Carries the JSON path of the first violation, so the caller branches on
+    /// a field rather than parsing a sentence.
+    #[error("response does not match the schema, {path}: {reason}")]
+    StructuredOutputInvalid {
+        /// JSON path of the first violation inside the answer.
+        path: String,
+        /// What was expected there, and what was found.
+        reason: String,
+    },
+}
+
+impl From<crate::grammar::GrammarError> for LlmError {
+    fn from(err: crate::grammar::GrammarError) -> Self {
+        use crate::grammar::GrammarError;
+        let (path, reason) = match &err {
+            GrammarError::Unsupported { path, construct } => (
+                path.clone(),
+                format!("{construct} cannot be expressed as a grammar"),
+            ),
+            GrammarError::Untyped { path } => (
+                path.clone(),
+                "neither a `type` nor an `enum`, so nothing constrains this node".to_string(),
+            ),
+            GrammarError::RequiredUnknown { path, property } => (
+                path.clone(),
+                format!("`required` names `{property}`, which `properties` does not declare"),
+            ),
+            GrammarError::TooDeep { path, max } => (
+                path.clone(),
+                format!("schema nests deeper than {max} levels"),
+            ),
+        };
+        LlmError::StructuredOutputUnsupported { path, reason }
+    }
+}
+
+impl From<crate::schema_validate::SchemaViolation> for LlmError {
+    fn from(violation: crate::schema_validate::SchemaViolation) -> Self {
+        LlmError::StructuredOutputInvalid {
+            path: violation.path,
+            reason: violation.reason,
+        }
+    }
 }
 
 #[cfg(test)]
