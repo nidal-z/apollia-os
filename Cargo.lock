@@ -370,7 +370,6 @@ version = "0.1.0-preview"
 dependencies = [
  "apollia-aip",
  "apollia-auth",
- "apollia-connectors",
  "apollia-core",
  "apollia-llm",
  "apollia-mcp",
@@ -384,7 +383,6 @@ dependencies = [
  "apollia-workspace",
  "arboard",
  "async-trait",
- "base64 0.23.1",
  "chrono",
  "dashmap",
  "dirs 6.0.0",
