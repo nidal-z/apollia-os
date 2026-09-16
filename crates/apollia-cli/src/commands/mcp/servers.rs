@@ -12,28 +12,16 @@ use super::handle_client_error;
 pub(super) struct ServerSpec<'a> {
     pub(super) name: &'a str,
     pub(super) command: Option<&'a str>,
+    pub(super) args: &'a [String],
     pub(super) url: Option<&'a str>,
+    pub(super) transport: Option<&'a str>,
     pub(super) require_approval: bool,
 }
 
 /// `apollia-os mcp add <name>`: add an MCP server to the runtime.
 pub(super) async fn run_add(client: &RuntimeClient, spec: ServerSpec<'_>, json: bool) -> i32 {
-    let ServerSpec {
-        name,
-        command,
-        url,
-        require_approval,
-    } = spec;
-    let mut body = serde_json::json!({
-        "name": name,
-        "requires_approval": require_approval,
-    });
-    if let Some(cmd) = command {
-        body["command"] = serde_json::Value::String(cmd.to_string());
-    }
-    if let Some(u) = url {
-        body["url"] = serde_json::Value::String(u.to_string());
-    }
+    let body = add_body(&spec);
+    let name = spec.name;
 
     match client.add_mcp_server(&body).await {
         Ok(resp) => {
@@ -49,6 +37,33 @@ pub(super) async fn run_add(client: &RuntimeClient, spec: ServerSpec<'_>, json: 
         }
         Err(e) => handle_client_error(e, json),
     }
+}
+
+/// The `POST /api/v1/mcp/servers` body for `spec`.
+///
+/// Without `--transport`, a URL means `streamable-http`: the runtime otherwise
+/// reads the entry as `stdio` and refuses it for its empty command.
+pub(super) fn add_body(spec: &ServerSpec<'_>) -> serde_json::Value {
+    let mut body = serde_json::json!({
+        "name": spec.name,
+        "requires_approval": spec.require_approval,
+    });
+    if let Some(cmd) = spec.command {
+        body["command"] = serde_json::Value::String(cmd.to_string());
+    }
+    if !spec.args.is_empty() {
+        body["args"] = serde_json::json!(spec.args);
+    }
+    if let Some(u) = spec.url {
+        body["url"] = serde_json::Value::String(u.to_string());
+    }
+    let transport = spec
+        .transport
+        .or_else(|| spec.url.map(|_| "streamable-http"));
+    if let Some(t) = transport {
+        body["transport"] = serde_json::Value::String(t.to_string());
+    }
+    body
 }
 
 /// `apollia-os mcp remove <name>`: remove an MCP server from the runtime.
@@ -230,6 +245,7 @@ pub(super) async fn run_restart_server(client: &RuntimeClient, name: &str, json:
 pub(super) struct ServerPatch<'a> {
     pub(super) name: &'a str,
     pub(super) command: Option<&'a str>,
+    pub(super) args: &'a [String],
     pub(super) url: Option<&'a str>,
     pub(super) require_approval: Option<bool>,
 }
@@ -247,14 +263,15 @@ pub(super) async fn run_update_server(
     let ServerPatch {
         name,
         command,
+        args,
         url,
         require_approval,
     } = patch;
-    if command.is_none() && url.is_none() && require_approval.is_none() {
+    if command.is_none() && args.is_empty() && url.is_none() && require_approval.is_none() {
         return crate::output::emit_error(
             json,
             exit_codes::GENERAL_ERROR,
-            "provide at least one of --command, --url, --require-approval",
+            "provide at least one of --command, --arg, --url, --require-approval",
         );
     }
 
@@ -264,6 +281,9 @@ pub(super) async fn run_update_server(
             "command".to_string(),
             serde_json::Value::String(c.to_string()),
         );
+    }
+    if !args.is_empty() {
+        body.insert("args".to_string(), serde_json::json!(args));
     }
     if let Some(u) = url {
         body.insert("url".to_string(), serde_json::Value::String(u.to_string()));

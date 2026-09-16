@@ -120,20 +120,25 @@ def daemon() -> Iterator[Daemon]:
     d = Daemon(home, _free_port())
     try:
         d.start()
-        # The route rather than `apollia-os mcp add`: the CLI verb takes a command
-        # but no arguments, and this server is `python3 <script>`.
-        status, body = d.request(
-            "POST",
-            "/api/v1/mcp/servers",
-            {
-                "name": "calc",
-                "command": "python3",
-                "args": [str(MOCK_MCP)],
-                "transport": "stdio",
-                "requires_approval": True,
-            },
+        added = subprocess.run(
+            [
+                str(BINARY),
+                "--json",
+                "mcp",
+                "add",
+                "calc",
+                "--command",
+                "python3",
+                "--arg",
+                str(MOCK_MCP),
+                "--require-approval",
+            ],
+            env=d.env,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
-        assert status == 201, body
+        assert added.returncode == 0, added.stdout + added.stderr
         yield d
     finally:
         d.stop()
