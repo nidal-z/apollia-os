@@ -1,40 +1,31 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.timeline_event_type_4_type import TimelineEventType4Type
 from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
 
 T = TypeVar("T", bound="TimelineEventType4")
 
 
-
 @_attrs_define
 class TimelineEventType4:
-    """ Invocation of a native tool.
+    """Invocation of a native tool.
 
-        Attributes:
-            timestamp (str): ISO 8601 timestamp.
-            tool_name (str): Tool name.
-            truncated (bool): `true` if the data was truncated.
-            type_ (TimelineEventType4Type):
-            duration_ms (int | None | Unset): Duration in milliseconds.
-            exit_code (int | None | Unset): Process exit code (bash, python).
-            input_preview (None | str | Unset): Input preview (args_json), truncated to 300 chars.
-            output_preview (None | str | Unset): Output preview (stdout + stderr), truncated to 500 chars.
-     """
+    Attributes:
+        timestamp (str): ISO 8601 timestamp.
+        tool_name (str): Tool name.
+        truncated (bool): `true` if the data was truncated.
+        type_ (TimelineEventType4Type):
+        duration_ms (int | None | Unset): Duration in milliseconds.
+        exit_code (int | None | Unset): Process exit code (bash, python).
+        input_preview (None | str | Unset): Input preview (args_json), truncated to 300 chars.
+        output_preview (None | str | Unset): Output preview (stdout + stderr), truncated to 500 chars.
+    """
 
     timestamp: str
     tool_name: str
@@ -45,10 +36,6 @@ class TimelineEventType4:
     input_preview: None | str | Unset = UNSET
     output_preview: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         timestamp = self.timestamp
@@ -83,15 +70,16 @@ class TimelineEventType4:
         else:
             output_preview = self.output_preview
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "timestamp": timestamp,
-            "tool_name": tool_name,
-            "truncated": truncated,
-            "type": type_,
-        })
+        field_dict.update(
+            {
+                "timestamp": timestamp,
+                "tool_name": tool_name,
+                "truncated": truncated,
+                "type": type_,
+            }
+        )
         if duration_ms is not UNSET:
             field_dict["duration_ms"] = duration_ms
         if exit_code is not UNSET:
@@ -102,8 +90,6 @@ class TimelineEventType4:
             field_dict["output_preview"] = output_preview
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -116,9 +102,6 @@ class TimelineEventType4:
 
         type_ = TimelineEventType4Type(d.pop("type"))
 
-
-
-
         def _parse_duration_ms(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -127,7 +110,6 @@ class TimelineEventType4:
             return cast(int | None | Unset, data)
 
         duration_ms = _parse_duration_ms(d.pop("duration_ms", UNSET))
-
 
         def _parse_exit_code(data: object) -> int | None | Unset:
             if data is None:
@@ -138,7 +120,6 @@ class TimelineEventType4:
 
         exit_code = _parse_exit_code(d.pop("exit_code", UNSET))
 
-
         def _parse_input_preview(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -148,7 +129,6 @@ class TimelineEventType4:
 
         input_preview = _parse_input_preview(d.pop("input_preview", UNSET))
 
-
         def _parse_output_preview(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -157,7 +137,6 @@ class TimelineEventType4:
             return cast(None | str | Unset, data)
 
         output_preview = _parse_output_preview(d.pop("output_preview", UNSET))
-
 
         timeline_event_type_4 = cls(
             timestamp=timestamp,
@@ -169,7 +148,6 @@ class TimelineEventType4:
             input_preview=input_preview,
             output_preview=output_preview,
         )
-
 
         timeline_event_type_4.additional_properties = d
         return timeline_event_type_4

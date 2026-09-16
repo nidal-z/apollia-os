@@ -1,41 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="ModelInfo")
-
 
 
 @_attrs_define
 class ModelInfo:
-    """ Description of a model file on disk.
+    """Description of a model file on disk.
 
-        Attributes:
-            name (str): Model filename (e.g. `"whisper-large-v3-fr-q5_0.bin"`).
-            path (str): Full filesystem path.
-            size_bytes (int): File size in bytes.
-     """
+    Attributes:
+        name (str): Model filename (e.g. `"whisper-large-v3-fr-q5_0.bin"`).
+        path (str): Full filesystem path.
+        size_bytes (int): File size in bytes.
+    """
 
     name: str
     path: str
     size_bytes: int
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         name = self.name
@@ -44,18 +31,17 @@ class ModelInfo:
 
         size_bytes = self.size_bytes
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "name": name,
-            "path": path,
-            "size_bytes": size_bytes,
-        })
+        field_dict.update(
+            {
+                "name": name,
+                "path": path,
+                "size_bytes": size_bytes,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -71,7 +57,6 @@ class ModelInfo:
             path=path,
             size_bytes=size_bytes,
         )
-
 
         model_info.additional_properties = d
         return model_info

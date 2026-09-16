@@ -6,8 +6,16 @@
 #   bash clients/regen.sh --from-daemon  # first refresh the spec from a running daemon
 #
 # The generators are build-time only (npm / pipx), not runtime dependencies of
-# Apollia. Requires: npx (Node) for TypeScript, openapi-python-client for Python.
+# Apollia. Requires: npx (Node) for TypeScript, openapi-python-client for Python,
+# and ruff on PATH, which openapi-python-client runs over its output.
+#
+# Both generator versions are pinned. An unpinned run formats and orders the
+# output its own way, and a regeneration then carries hundreds of files of
+# style drift that hide the one operation that actually changed.
 set -euo pipefail
+
+TS_GEN_VERSION="7.13.0"
+PY_GEN_VERSION="0.29.0"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SPEC="$HERE/openapi.json"
@@ -32,14 +40,20 @@ fi
 # --- TypeScript: types via openapi-typescript ---
 echo "Generating TypeScript types -> clients/ts/src/schema.ts"
 mkdir -p "$HERE/ts/src"
-npx --yes openapi-typescript "$SPEC" -o "$HERE/ts/src/schema.ts"
+npx --yes "openapi-typescript@${TS_GEN_VERSION}" "$SPEC" -o "$HERE/ts/src/schema.ts"
 
 # --- Python: full client via openapi-python-client ---
 echo "Generating Python client -> clients/python"
-if command -v openapi-python-client >/dev/null 2>&1; then
+if command -v openapi-python-client >/dev/null 2>&1 \
+  && [ "$(openapi-python-client --version)" = "openapi-python-client version: ${PY_GEN_VERSION}" ]; then
   GEN="openapi-python-client"
 else
-  GEN="uvx openapi-python-client"
+  GEN="uvx openapi-python-client@${PY_GEN_VERSION}"
+fi
+if ! command -v ruff >/dev/null 2>&1; then
+  echo "error: ruff not found. openapi-python-client formats its output with it," >&2
+  echo "and an unformatted client differs from the committed one in every file." >&2
+  exit 1
 fi
 ( cd "$HERE/python" && rm -rf apollia_runtime_client && \
   $GEN generate --path "$SPEC" --meta none --output-path apollia_runtime_client --overwrite )

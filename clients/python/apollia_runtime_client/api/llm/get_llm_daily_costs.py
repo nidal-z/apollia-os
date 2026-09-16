@@ -75,6 +75,12 @@ def sync_detailed(
      Returns LLM costs broken down by day and backend for the requested
     time window. Used by the Observability LLM Costs chart.
 
+    Both the day of each entry and the bounds of the window are the host's
+    local calendar, not UTC: `days` counts calendar days ending today, and the
+    window opens at local midnight of the first of them. A window measured in
+    24-hour slices from `now` reaches into a day the chart draws no bar for,
+    and the spend of that fraction then shows in a total no bar carries.
+
     Args:
         days (int | Unset):
 
@@ -107,6 +113,12 @@ def sync(
      Returns LLM costs broken down by day and backend for the requested
     time window. Used by the Observability LLM Costs chart.
 
+    Both the day of each entry and the bounds of the window are the host's
+    local calendar, not UTC: `days` counts calendar days ending today, and the
+    window opens at local midnight of the first of them. A window measured in
+    24-hour slices from `now` reaches into a day the chart draws no bar for,
+    and the spend of that fraction then shows in a total no bar carries.
+
     Args:
         days (int | Unset):
 
@@ -133,6 +145,12 @@ async def asyncio_detailed(
 
      Returns LLM costs broken down by day and backend for the requested
     time window. Used by the Observability LLM Costs chart.
+
+    Both the day of each entry and the bounds of the window are the host's
+    local calendar, not UTC: `days` counts calendar days ending today, and the
+    window opens at local midnight of the first of them. A window measured in
+    24-hour slices from `now` reaches into a day the chart draws no bar for,
+    and the spend of that fraction then shows in a total no bar carries.
 
     Args:
         days (int | Unset):
@@ -163,6 +181,12 @@ async def asyncio(
 
      Returns LLM costs broken down by day and backend for the requested
     time window. Used by the Observability LLM Costs chart.
+
+    Both the day of each entry and the bounds of the window are the host's
+    local calendar, not UTC: `days` counts calendar days ending today, and the
+    window opens at local midnight of the first of them. A window measured in
+    24-hour slices from `now` reaches into a day the chart draws no bar for,
+    and the spend of that fraction then shows in a total no bar carries.
 
     Args:
         days (int | Unset):

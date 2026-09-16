@@ -1,38 +1,29 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="SidechainRow")
-
 
 
 @_attrs_define
 class SidechainRow:
-    """ Row returned by [`SidechainRepository::list_by_parent`].
+    """Row returned by [`SidechainRepository::list_by_parent`].
 
-        Attributes:
-            agent_name (str): Target agent name (or the skill_id used for resolution).
-            sidechain_n (int): Sequential delegation number for this parent (1-based).
-            status (str): Current status: `"running"`, `"completed"`, or `"failed"`.
-            completed_at (None | str | Unset): ISO 8601 timestamp when the delegation finished (`None` if still running).
-            input_summary (None | str | Unset): First 500 characters of the input.
-            output_summary (None | str | Unset): First 500 characters of the output or the error message.
-            started_at (None | str | Unset): ISO 8601 timestamp when the delegation started.
-     """
+    Attributes:
+        agent_name (str): Target agent name (or the skill_id used for resolution).
+        sidechain_n (int): Sequential delegation number for this parent (1-based).
+        status (str): Current status: `"running"`, `"completed"`, or `"failed"`.
+        completed_at (None | str | Unset): ISO 8601 timestamp when the delegation finished (`None` if still running).
+        input_summary (None | str | Unset): First 500 characters of the input.
+        output_summary (None | str | Unset): First 500 characters of the output or the error message.
+        started_at (None | str | Unset): ISO 8601 timestamp when the delegation started.
+    """
 
     agent_name: str
     sidechain_n: int
@@ -42,10 +33,6 @@ class SidechainRow:
     output_summary: None | str | Unset = UNSET
     started_at: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         agent_name = self.agent_name
@@ -78,14 +65,15 @@ class SidechainRow:
         else:
             started_at = self.started_at
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "agent_name": agent_name,
-            "sidechain_n": sidechain_n,
-            "status": status,
-        })
+        field_dict.update(
+            {
+                "agent_name": agent_name,
+                "sidechain_n": sidechain_n,
+                "status": status,
+            }
+        )
         if completed_at is not UNSET:
             field_dict["completed_at"] = completed_at
         if input_summary is not UNSET:
@@ -96,8 +84,6 @@ class SidechainRow:
             field_dict["started_at"] = started_at
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -117,7 +103,6 @@ class SidechainRow:
 
         completed_at = _parse_completed_at(d.pop("completed_at", UNSET))
 
-
         def _parse_input_summary(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -126,7 +111,6 @@ class SidechainRow:
             return cast(None | str | Unset, data)
 
         input_summary = _parse_input_summary(d.pop("input_summary", UNSET))
-
 
         def _parse_output_summary(data: object) -> None | str | Unset:
             if data is None:
@@ -137,7 +121,6 @@ class SidechainRow:
 
         output_summary = _parse_output_summary(d.pop("output_summary", UNSET))
 
-
         def _parse_started_at(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -146,7 +129,6 @@ class SidechainRow:
             return cast(None | str | Unset, data)
 
         started_at = _parse_started_at(d.pop("started_at", UNSET))
-
 
         sidechain_row = cls(
             agent_name=agent_name,
@@ -157,7 +139,6 @@ class SidechainRow:
             output_summary=output_summary,
             started_at=started_at,
         )
-
 
         sidechain_row.additional_properties = d
         return sidechain_row

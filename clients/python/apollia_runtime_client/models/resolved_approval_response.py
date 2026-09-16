@@ -1,37 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="ResolvedApprovalResponse")
-
 
 
 @_attrs_define
 class ResolvedApprovalResponse:
-    """ One resolved HITL approval entry.
+    """One resolved HITL approval entry.
 
-        Attributes:
-            agent_name (str):
-            approved (bool):
-            task_id (str):
-            reason (None | str | Unset):
-            responded_at (None | str | Unset):
-            wait_duration_ms (int | None | Unset):
-     """
+    Attributes:
+        agent_name (str):
+        approved (bool):
+        task_id (str):
+        reason (None | str | Unset):
+        responded_at (None | str | Unset):
+        wait_duration_ms (int | None | Unset):
+    """
 
     agent_name: str
     approved: bool
@@ -40,10 +31,6 @@ class ResolvedApprovalResponse:
     responded_at: None | str | Unset = UNSET
     wait_duration_ms: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         agent_name = self.agent_name
@@ -70,14 +57,15 @@ class ResolvedApprovalResponse:
         else:
             wait_duration_ms = self.wait_duration_ms
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "agent_name": agent_name,
-            "approved": approved,
-            "task_id": task_id,
-        })
+        field_dict.update(
+            {
+                "agent_name": agent_name,
+                "approved": approved,
+                "task_id": task_id,
+            }
+        )
         if reason is not UNSET:
             field_dict["reason"] = reason
         if responded_at is not UNSET:
@@ -86,8 +74,6 @@ class ResolvedApprovalResponse:
             field_dict["wait_duration_ms"] = wait_duration_ms
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -107,7 +93,6 @@ class ResolvedApprovalResponse:
 
         reason = _parse_reason(d.pop("reason", UNSET))
 
-
         def _parse_responded_at(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -116,7 +101,6 @@ class ResolvedApprovalResponse:
             return cast(None | str | Unset, data)
 
         responded_at = _parse_responded_at(d.pop("responded_at", UNSET))
-
 
         def _parse_wait_duration_ms(data: object) -> int | None | Unset:
             if data is None:
@@ -127,7 +111,6 @@ class ResolvedApprovalResponse:
 
         wait_duration_ms = _parse_wait_duration_ms(d.pop("wait_duration_ms", UNSET))
 
-
         resolved_approval_response = cls(
             agent_name=agent_name,
             approved=approved,
@@ -136,7 +119,6 @@ class ResolvedApprovalResponse:
             responded_at=responded_at,
             wait_duration_ms=wait_duration_ms,
         )
-
 
         resolved_approval_response.additional_properties = d
         return resolved_approval_response

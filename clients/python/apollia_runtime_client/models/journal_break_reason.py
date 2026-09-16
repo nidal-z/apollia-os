@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class JournalBreakReason(str, Enum):
     GLOBAL_HASH_MISMATCH = "global_hash_mismatch"
     GLOBAL_PREV_HASH_MISMATCH = "global_prev_hash_mismatch"

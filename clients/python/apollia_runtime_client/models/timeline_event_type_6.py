@@ -1,37 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.timeline_event_type_6_type import TimelineEventType6Type
 from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
 
 T = TypeVar("T", bound="TimelineEventType6")
 
 
-
 @_attrs_define
 class TimelineEventType6:
-    """ HITL resolution: the operator has responded.
+    """HITL resolution: the operator has responded.
 
-        Attributes:
-            approved (bool): `true` if approved, `false` if rejected.
-            timestamp (str): ISO 8601 timestamp of the response.
-            type_ (TimelineEventType6Type):
-            reason (None | str | Unset): Reason provided by the operator.
-            wait_ms (int | None | Unset): Wait duration in milliseconds.
-     """
+    Attributes:
+        approved (bool): `true` if approved, `false` if rejected.
+        timestamp (str): ISO 8601 timestamp of the response.
+        type_ (TimelineEventType6Type):
+        reason (None | str | Unset): Reason provided by the operator.
+        wait_ms (int | None | Unset): Wait duration in milliseconds.
+    """
 
     approved: bool
     timestamp: str
@@ -39,10 +30,6 @@ class TimelineEventType6:
     reason: None | str | Unset = UNSET
     wait_ms: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         approved = self.approved
@@ -63,22 +50,21 @@ class TimelineEventType6:
         else:
             wait_ms = self.wait_ms
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "approved": approved,
-            "timestamp": timestamp,
-            "type": type_,
-        })
+        field_dict.update(
+            {
+                "approved": approved,
+                "timestamp": timestamp,
+                "type": type_,
+            }
+        )
         if reason is not UNSET:
             field_dict["reason"] = reason
         if wait_ms is not UNSET:
             field_dict["wait_ms"] = wait_ms
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -89,9 +75,6 @@ class TimelineEventType6:
 
         type_ = TimelineEventType6Type(d.pop("type"))
 
-
-
-
         def _parse_reason(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -100,7 +83,6 @@ class TimelineEventType6:
             return cast(None | str | Unset, data)
 
         reason = _parse_reason(d.pop("reason", UNSET))
-
 
         def _parse_wait_ms(data: object) -> int | None | Unset:
             if data is None:
@@ -111,7 +93,6 @@ class TimelineEventType6:
 
         wait_ms = _parse_wait_ms(d.pop("wait_ms", UNSET))
 
-
         timeline_event_type_6 = cls(
             approved=approved,
             timestamp=timestamp,
@@ -119,7 +100,6 @@ class TimelineEventType6:
             reason=reason,
             wait_ms=wait_ms,
         )
-
 
         timeline_event_type_6.additional_properties = d
         return timeline_event_type_6

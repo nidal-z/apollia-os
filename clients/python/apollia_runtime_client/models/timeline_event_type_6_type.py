@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class TimelineEventType6Type(str, Enum):
     HITL_RESOLVED = "hitl_resolved"
 

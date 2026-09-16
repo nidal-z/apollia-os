@@ -1,34 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="UpdateChannelRequestConfigType0")
-
 
 
 @_attrs_define
 class UpdateChannelRequestConfigType0:
-    """ Type-specific configuration.
-
-     """
+    """Type-specific configuration."""
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
 
@@ -37,14 +22,10 @@ class UpdateChannelRequestConfigType0:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        update_channel_request_config_type_0 = cls(
-        )
-
+        update_channel_request_config_type_0 = cls()
 
         update_channel_request_config_type_0.additional_properties = d
         return update_channel_request_config_type_0

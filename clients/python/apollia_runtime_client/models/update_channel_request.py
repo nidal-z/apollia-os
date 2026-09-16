@@ -1,30 +1,23 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
-
-
-
+    from ..models.update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
 
 
 T = TypeVar("T", bound="UpdateChannelRequest")
 
 
-
 @_attrs_define
 class UpdateChannelRequest:
-    """ Request body for `PUT /api/v1/notifications/channels/:id`.
+    """Request body for `PUT /api/v1/notifications/channels/:id`.
 
     The `label` field uses a double `Option`:
     - absent from JSON: `None`, keep the existing label;
@@ -38,7 +31,7 @@ class UpdateChannelRequest:
             events (list[str] | None | Unset): Channel-specific event list.
             label (None | str | Unset): New label. See the struct docs for the double-Option semantics.
             min_interval_seconds (int | None | Unset): New minimum throttling interval (s). Absent keeps the existing one.
-     """
+    """
 
     channel_type: None | str | Unset = UNSET
     config: None | Unset | UpdateChannelRequestConfigType0 = UNSET
@@ -48,12 +41,9 @@ class UpdateChannelRequest:
     min_interval_seconds: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         from ..models.update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
+
         channel_type: None | str | Unset
         if isinstance(self.channel_type, Unset):
             channel_type = UNSET
@@ -80,7 +70,6 @@ class UpdateChannelRequest:
         elif isinstance(self.events, list):
             events = self.events
 
-
         else:
             events = self.events
 
@@ -96,11 +85,9 @@ class UpdateChannelRequest:
         else:
             min_interval_seconds = self.min_interval_seconds
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if channel_type is not UNSET:
             field_dict["channel_type"] = channel_type
         if config is not UNSET:
@@ -116,12 +103,12 @@ class UpdateChannelRequest:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
+
         d = dict(src_dict)
+
         def _parse_channel_type(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -130,7 +117,6 @@ class UpdateChannelRequest:
             return cast(None | str | Unset, data)
 
         channel_type = _parse_channel_type(d.pop("channel_type", UNSET))
-
 
         def _parse_config(data: object) -> None | Unset | UpdateChannelRequestConfigType0:
             if data is None:
@@ -142,15 +128,12 @@ class UpdateChannelRequest:
                     raise TypeError()
                 config_type_0 = UpdateChannelRequestConfigType0.from_dict(data)
 
-
-
                 return config_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(None | Unset | UpdateChannelRequestConfigType0, data)
 
         config = _parse_config(d.pop("config", UNSET))
-
 
         def _parse_enabled(data: object) -> bool | None | Unset:
             if data is None:
@@ -160,7 +143,6 @@ class UpdateChannelRequest:
             return cast(bool | None | Unset, data)
 
         enabled = _parse_enabled(d.pop("enabled", UNSET))
-
 
         def _parse_events(data: object) -> list[str] | None | Unset:
             if data is None:
@@ -179,7 +161,6 @@ class UpdateChannelRequest:
 
         events = _parse_events(d.pop("events", UNSET))
 
-
         def _parse_label(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -188,7 +169,6 @@ class UpdateChannelRequest:
             return cast(None | str | Unset, data)
 
         label = _parse_label(d.pop("label", UNSET))
-
 
         def _parse_min_interval_seconds(data: object) -> int | None | Unset:
             if data is None:
@@ -199,7 +179,6 @@ class UpdateChannelRequest:
 
         min_interval_seconds = _parse_min_interval_seconds(d.pop("min_interval_seconds", UNSET))
 
-
         update_channel_request = cls(
             channel_type=channel_type,
             config=config,
@@ -208,7 +187,6 @@ class UpdateChannelRequest:
             label=label,
             min_interval_seconds=min_interval_seconds,
         )
-
 
         update_channel_request.additional_properties = d
         return update_channel_request

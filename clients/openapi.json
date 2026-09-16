@@ -3712,8 +3712,13 @@
         "requestBody": {
           "description": "Updated STT configuration (SttConfigRow); fields with defaults may be omitted",
           "content": {
-            "application/json": {}
-          }
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -3822,7 +3827,7 @@
           "stt"
         ],
         "summary": "`GET /api/v1/stt/status`, return current STT engine status.",
-        "description": "Returns `200 OK` with the status when the engine is running.\nReturns `503 Service Unavailable` when the engine is absent.",
+        "description": "Returns `200 OK` with the status when the engine is running, and `200 OK`\nwith `model_loaded: false` read from the persisted configuration when it is\nabsent (disabled, model file missing, runner sidecar unavailable).\nReturns `503 Service Unavailable` only when that configuration cannot be\nread either.",
         "operationId": "stt_status",
         "responses": {
           "200": {
@@ -3869,8 +3874,27 @@
         "requestBody": {
           "description": "Multipart form with an `audio` WAV field (required) and an optional `language` hint",
           "content": {
-            "multipart/form-data": {}
-          }
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "audio"
+                ],
+                "properties": {
+                  "audio": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "WAV audio file"
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "Language hint, an ISO 639-1 code"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -5333,8 +5357,14 @@
         "requestBody": {
           "description": "Raw webhook payload, verified against the `X-Apollia-Signature` HMAC-SHA256 header",
           "content": {
-            "application/octet-stream": {}
-          }
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -7447,7 +7477,7 @@
           },
           "model_loaded": {
             "type": "boolean",
-            "description": "Whether the model is loaded and ready for inference."
+            "description": "Whether a transcription has come back from the engine since it started.\n\nThe runner sidecar loads the model on its first transcription, and the\ndaemon only checks that the model file exists before starting: a reading\nthat came back is the only proof it holds that the file is a model the\nengine can read. `false` therefore means \"configured, not yet exercised\"\nrather than \"broken\"."
           },
           "model_name": {
             "type": "string",

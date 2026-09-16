@@ -222,7 +222,7 @@ pub async fn stt_status<B: ExecutionBackend + Clone + From<DynBackend>>(
     post,
     path = "/api/v1/stt/transcribe",
     tag = "stt",
-    request_body(content_type = "multipart/form-data", description = "Multipart form with an `audio` WAV field (required) and an optional `language` hint"),
+    request_body(content = inline(crate::api::openapi::TranscribeForm), content_type = "multipart/form-data", description = "Multipart form with an `audio` WAV field (required) and an optional `language` hint"),
     responses(
         (status = 200, description = "Persisted transcription row"),
         (status = 400, description = "Missing or invalid audio", body = crate::api::openapi::ApiErrorBody),
@@ -611,7 +611,7 @@ pub async fn get_stt_config<B: ExecutionBackend + Clone + From<DynBackend>>(
     put,
     path = "/api/v1/stt/config",
     tag = "stt",
-    request_body(content_type = "application/json", description = "Updated STT configuration (SttConfigRow); fields with defaults may be omitted"),
+    request_body(content = Object, content_type = "application/json", description = "Updated STT configuration (SttConfigRow); fields with defaults may be omitted"),
     responses(
         (status = 200, description = "Updated STT configuration"),
         (status = 500, description = "Database error", body = crate::api::openapi::ApiErrorBody),

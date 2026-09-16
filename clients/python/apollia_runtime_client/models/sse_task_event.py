@@ -1,54 +1,45 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="SseTaskEvent")
-
 
 
 @_attrs_define
 class SseTaskEvent:
-    """ SSE event sent to the client.
+    """SSE event sent to the client.
 
     Serialized as a flat JSON object with an `event` field discriminating
     the event type and additional data fields depending on the variant.
 
         Attributes:
-            event (str): Event type: "step", "tool_call", "completed", "failed", "canceled", "started".
-     """
+            event (str): Event type. The seventeen values this stream emits, and no others:
+                "started", "completed", "failed", "canceled",
+                "plan_generated", "plan_approval_required", "plan_approved",
+                "plan_rejected", "plan_abandoned", "step_started", "step_completed",
+                "step_failed", "replanning", "plan_completed", "plan_failed",
+                "input_required", "resumed".
+    """
 
     event: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         event = self.event
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "event": event,
-        })
+        field_dict.update(
+            {
+                "event": event,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -58,7 +49,6 @@ class SseTaskEvent:
         sse_task_event = cls(
             event=event,
         )
-
 
         sse_task_event.additional_properties = d
         return sse_task_event

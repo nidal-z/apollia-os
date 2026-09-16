@@ -1,38 +1,30 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.llm_backend_response_config_json import LlmBackendResponseConfigJson
-
-
-
+    from ..models.llm_backend_response_config_json import LlmBackendResponseConfigJson
 
 
 T = TypeVar("T", bound="LlmBackendResponse")
 
 
-
 @_attrs_define
 class LlmBackendResponse:
-    """ Response body for a single backend.
+    """Response body for a single backend.
 
-        Attributes:
-            config_json (LlmBackendResponseConfigJson): Provider-specific configuration.
-            enabled (bool): Whether this backend is enabled.
-            is_default (bool): Whether this is the default backend.
-            model (str): Model identifier.
-            name (str): Unique backend name.
-            provider (str): Provider identifier string.
-     """
+    Attributes:
+        config_json (LlmBackendResponseConfigJson): Provider-specific configuration.
+        enabled (bool): Whether this backend is enabled.
+        is_default (bool): Whether this is the default backend.
+        model (str): Model identifier.
+        name (str): Unique backend name.
+        provider (str): Provider identifier string.
+    """
 
     config_json: LlmBackendResponseConfigJson
     enabled: bool
@@ -42,12 +34,7 @@ class LlmBackendResponse:
     provider: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.llm_backend_response_config_json import LlmBackendResponseConfigJson
         config_json = self.config_json.to_dict()
 
         enabled = self.enabled
@@ -60,30 +47,27 @@ class LlmBackendResponse:
 
         provider = self.provider
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "config_json": config_json,
-            "enabled": enabled,
-            "is_default": is_default,
-            "model": model,
-            "name": name,
-            "provider": provider,
-        })
+        field_dict.update(
+            {
+                "config_json": config_json,
+                "enabled": enabled,
+                "is_default": is_default,
+                "model": model,
+                "name": name,
+                "provider": provider,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.llm_backend_response_config_json import LlmBackendResponseConfigJson
+
         d = dict(src_dict)
         config_json = LlmBackendResponseConfigJson.from_dict(d.pop("config_json"))
-
-
-
 
         enabled = d.pop("enabled")
 
@@ -103,7 +87,6 @@ class LlmBackendResponse:
             name=name,
             provider=provider,
         )
-
 
         llm_backend_response.additional_properties = d
         return llm_backend_response

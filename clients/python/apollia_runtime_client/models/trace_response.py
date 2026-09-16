@@ -1,55 +1,41 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.trace_response_events_item import TraceResponseEventsItem
-
-
-
+    from ..models.trace_response_events_item import TraceResponseEventsItem
 
 
 T = TypeVar("T", bound="TraceResponse")
 
 
-
 @_attrs_define
 class TraceResponse:
-    """ JSON response.
+    """JSON response.
 
-        Attributes:
-            events (list[TraceResponseEventsItem]): Events ordered chronologically (UUIDv7 ASC).
-            task_id (str): Task identifier.
-            next_cursor (None | str | Unset): Cursor to pass as `?since=` on the next call to fetch the rest.
-                `None` when the current page reaches the known end.
-     """
+    Attributes:
+        events (list[TraceResponseEventsItem]): Events ordered chronologically (UUIDv7 ASC).
+        task_id (str): Task identifier.
+        next_cursor (None | str | Unset): Cursor to pass as `?since=` on the next call to fetch the rest.
+            `None` when the current page reaches the known end.
+    """
 
     events: list[TraceResponseEventsItem]
     task_id: str
     next_cursor: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.trace_response_events_item import TraceResponseEventsItem
         events = []
         for events_item_data in self.events:
             events_item = events_item_data.to_dict()
             events.append(events_item)
-
-
 
         task_id = self.task_id
 
@@ -59,33 +45,30 @@ class TraceResponse:
         else:
             next_cursor = self.next_cursor
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "events": events,
-            "task_id": task_id,
-        })
+        field_dict.update(
+            {
+                "events": events,
+                "task_id": task_id,
+            }
+        )
         if next_cursor is not UNSET:
             field_dict["next_cursor"] = next_cursor
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.trace_response_events_item import TraceResponseEventsItem
+
         d = dict(src_dict)
         events = []
         _events = d.pop("events")
-        for events_item_data in (_events):
+        for events_item_data in _events:
             events_item = TraceResponseEventsItem.from_dict(events_item_data)
 
-
-
             events.append(events_item)
-
 
         task_id = d.pop("task_id")
 
@@ -98,13 +81,11 @@ class TraceResponse:
 
         next_cursor = _parse_next_cursor(d.pop("next_cursor", UNSET))
 
-
         trace_response = cls(
             events=events,
             task_id=task_id,
             next_cursor=next_cursor,
         )
-
 
         trace_response.additional_properties = d
         return trace_response

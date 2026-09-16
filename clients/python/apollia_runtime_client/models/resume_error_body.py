@@ -1,22 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from typing import cast
-
-
 T = TypeVar("T", bound="ResumeErrorBody")
 
 
 @_attrs_define
 class ResumeErrorBody:
-    """ Error body of `POST /api/v1/tasks/{id}/resume`.
+    """Error body of `POST /api/v1/tasks/{id}/resume`.
 
     The historical `{error}` shape, plus a machine `code` on the refusals a
     caller branches on. `code` is absent on the older errors, so a client that
@@ -24,8 +21,9 @@ class ResumeErrorBody:
 
         Attributes:
             error (str): Human-readable error description.
-            code (None | str | Unset): Stable code, e.g. `INVALID_ANSWER`, when the refusal is one a caller is expected to handle.
-     """
+            code (None | str | Unset): Stable code, e.g. `INVALID_ANSWER`, when the refusal is one a caller
+                is expected to handle.
+    """
 
     error: str
     code: None | str | Unset = UNSET
@@ -42,9 +40,11 @@ class ResumeErrorBody:
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "error": error,
-        })
+        field_dict.update(
+            {
+                "error": error,
+            }
+        )
         if code is not UNSET:
             field_dict["code"] = code
 

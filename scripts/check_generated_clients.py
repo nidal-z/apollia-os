@@ -17,12 +17,12 @@ Two directions, and they are not the same defect:
              longer declares. The client is ahead, and a caller written against
              it breaks on a runtime that dropped the route.
 
-`missing` is on a descending ratchet rather than at zero. Regenerating the
-whole client today produces thousands of lines of generator drift, which is a
-change of a different nature from closing a gap, so the backlog is named here
-and can only shrink: a count above the ceiling is a defect, a count below it
-asks for the ceiling to be lowered in the same commit. `orphan` is held at
-zero, because a client ahead of its contract is never intentional.
+`missing` sits on a descending ratchet, empty today: `clients/regen.sh` pins
+both generators, so a regeneration carries only what the specification changed
+and no gap needs to wait for a quieter commit. A name added to the backlog is a
+defect unless its line says why, and a covered name still listed asks for the
+line to go in the same commit. `orphan` is held at zero, because a client ahead
+of its contract is never intentional.
 
 Three exit codes, because a missing measurement must never read as a pass:
 
@@ -46,21 +46,11 @@ REPO = Path(__file__).resolve().parent.parent
 SPEC = REPO / "clients" / "openapi.json"
 PY_API = REPO / "clients" / "python" / "apollia_runtime_client" / "api"
 
-# The operations the committed Python client does not carry, measured on
-# 2026-09-04. This list is a ratchet: it may shrink, never grow. Closing an
-# entry means regenerating that endpoint module and deleting its line here in
-# the same commit.
-MISSING_BACKLOG = frozenset(
-    {
-        "get_registry_model",
-        "handle_webhook",
-        "list_audit_journal",
-        "reload_stt_engine",
-        "search_registry",
-        "transcribe_audio",
-        "update_stt_config",
-    }
-)
+# The operations the committed Python client does not carry. The ratchet
+# reached zero on 2026-09-16, when the client was regenerated with pinned
+# generators and the three operations whose request bodies carried no schema
+# were given one. It stays a ratchet: an entry added here needs its reason.
+MISSING_BACKLOG: frozenset[str] = frozenset()
 
 
 def declared_operations(spec: dict) -> set[str]:
@@ -80,13 +70,15 @@ def client_modules(root: Path) -> set[str]:
     return {p.stem for p in root.rglob("*.py") if p.stem != "__init__"}
 
 
-def judge(declared: set[str], present: set[str]) -> list[str]:
+def judge(
+    declared: set[str], present: set[str], backlog: frozenset[str] = MISSING_BACKLOG
+) -> list[str]:
     """Return one line per defect, empty when the two sides agree."""
     defects: list[str] = []
     missing = declared - present
     orphan = present - declared
 
-    grown = sorted(missing - MISSING_BACKLOG)
+    grown = sorted(missing - backlog)
     if grown:
         defects.append(
             "missing: the specification declares "
@@ -96,7 +88,7 @@ def judge(declared: set[str], present: set[str]) -> list[str]:
             "module or state why it belongs in MISSING_BACKLOG"
         )
 
-    closed = sorted(MISSING_BACKLOG - missing)
+    closed = sorted(backlog - missing)
     if closed:
         defects.append(
             "missing: "
@@ -119,26 +111,27 @@ def judge(declared: set[str], present: set[str]) -> list[str]:
 def selftest() -> int:
     """Prove each rule fires, and that a clean set stays clean."""
     failures = 0
-    backlog = sorted(MISSING_BACKLOG)
+    # A fixture backlog, so the rules stay proven while the real one is empty.
+    fixture = frozenset({"gamma"})
 
     # A clean tree: everything covered except exactly the named backlog.
-    declared = {"alpha", "beta", *backlog}
-    if judge(declared, {"alpha", "beta"}):
+    declared = {"alpha", "beta", *fixture}
+    if judge(declared, {"alpha", "beta"}, fixture):
         print("selftest: the named backlog was reported as a defect")
         failures += 1
 
     # An operation that leaves the client is caught.
-    if not judge(declared, {"alpha"}):
+    if not judge(declared, {"alpha"}, fixture):
         print("selftest: a newly uncovered operation was not reported")
         failures += 1
 
     # An operation covered while still named in the backlog is caught.
-    if not judge(declared, {"alpha", "beta", backlog[0]}):
+    if not judge(declared, {"alpha", "beta", "gamma"}, fixture):
         print("selftest: a closed backlog entry was not reported")
         failures += 1
 
     # A module with no operation behind it is caught.
-    if not judge(declared, {"alpha", "beta", "gone_from_the_spec"}):
+    if not judge(declared, {"alpha", "beta", "gone_from_the_spec"}, fixture):
         print("selftest: an orphan module was not reported")
         failures += 1
 

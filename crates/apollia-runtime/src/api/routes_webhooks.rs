@@ -38,7 +38,7 @@ use crate::coordinator::ExecutionBackend;
     // through and the handler below authenticates the caller itself, with an
     // HMAC-SHA256 of the raw body under the per-trigger secret.
     security(()),
-    request_body(content_type = "application/octet-stream", description = "Raw webhook payload, verified against the `X-Apollia-Signature` HMAC-SHA256 header"),
+    request_body(content = inline(crate::api::openapi::RawWebhookBody), content_type = "application/octet-stream", description = "Raw webhook payload, verified against the `X-Apollia-Signature` HMAC-SHA256 header"),
     responses(
         (status = 200, description = "Webhook accepted and forwarded"),
         (status = 401, description = "Missing or invalid signature"),

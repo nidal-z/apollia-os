@@ -13,11 +13,14 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
     params["limit"] = limit
+
+    params["offset"] = offset
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -64,11 +67,13 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> Response[ApiErrorBody | AuditListResponse]:
-    """`GET /api/v1/audit?limit=N`, list the most recent tool invocations.
+    """`GET /api/v1/audit?limit=N&offset=M`, list tool invocations, newest first.
 
     Args:
         limit (int | Unset):
+        offset (int | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -80,6 +85,7 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         limit=limit,
+        offset=offset,
     )
 
     response = client.get_httpx_client().request(
@@ -93,11 +99,13 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> ApiErrorBody | AuditListResponse | None:
-    """`GET /api/v1/audit?limit=N`, list the most recent tool invocations.
+    """`GET /api/v1/audit?limit=N&offset=M`, list tool invocations, newest first.
 
     Args:
         limit (int | Unset):
+        offset (int | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -110,6 +118,7 @@ def sync(
     return sync_detailed(
         client=client,
         limit=limit,
+        offset=offset,
     ).parsed
 
 
@@ -117,11 +126,13 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> Response[ApiErrorBody | AuditListResponse]:
-    """`GET /api/v1/audit?limit=N`, list the most recent tool invocations.
+    """`GET /api/v1/audit?limit=N&offset=M`, list tool invocations, newest first.
 
     Args:
         limit (int | Unset):
+        offset (int | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -133,6 +144,7 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         limit=limit,
+        offset=offset,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -144,11 +156,13 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = UNSET,
+    offset: int | Unset = UNSET,
 ) -> ApiErrorBody | AuditListResponse | None:
-    """`GET /api/v1/audit?limit=N`, list the most recent tool invocations.
+    """`GET /api/v1/audit?limit=N&offset=M`, list tool invocations, newest first.
 
     Args:
         limit (int | Unset):
+        offset (int | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -162,5 +176,6 @@ async def asyncio(
         await asyncio_detailed(
             client=client,
             limit=limit,
+            offset=offset,
         )
     ).parsed

@@ -1,36 +1,33 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="SttStatusResponse")
-
 
 
 @_attrs_define
 class SttStatusResponse:
-    """ Response body for `GET /api/v1/stt/status`.
+    """Response body for `GET /api/v1/stt/status`.
 
-        Attributes:
-            backend_name (str): Name of the active backend (e.g. `"whisper-cpp"`).
-            cuda_enabled (bool): `true` when compiled with NVIDIA CUDA GPU acceleration.
-            enabled (bool): Whether STT is enabled in configuration.
-            metal_enabled (bool): `true` when compiled with Apple Metal GPU acceleration.
-            model_loaded (bool): Whether the model is loaded and ready for inference.
-            model_name (str): Short model name (derived from filename without extension).
-            model_path (str): Filesystem path of the loaded model.
-     """
+    Attributes:
+        backend_name (str): Name of the active backend (e.g. `"whisper-cpp"`).
+        cuda_enabled (bool): `true` when compiled with NVIDIA CUDA GPU acceleration.
+        enabled (bool): Whether STT is enabled in configuration.
+        metal_enabled (bool): `true` when compiled with Apple Metal GPU acceleration.
+        model_loaded (bool): Whether a transcription has come back from the engine since it started.
+
+            The runner sidecar loads the model on its first transcription, and the
+            daemon only checks that the model file exists before starting: a reading
+            that came back is the only proof it holds that the file is a model the
+            engine can read. `false` therefore means "configured, not yet exercised"
+            rather than "broken".
+        model_name (str): Short model name (derived from filename without extension).
+        model_path (str): Filesystem path of the loaded model.
+    """
 
     backend_name: str
     cuda_enabled: bool
@@ -40,10 +37,6 @@ class SttStatusResponse:
     model_name: str
     model_path: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         backend_name = self.backend_name
@@ -60,22 +53,21 @@ class SttStatusResponse:
 
         model_path = self.model_path
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "backend_name": backend_name,
-            "cuda_enabled": cuda_enabled,
-            "enabled": enabled,
-            "metal_enabled": metal_enabled,
-            "model_loaded": model_loaded,
-            "model_name": model_name,
-            "model_path": model_path,
-        })
+        field_dict.update(
+            {
+                "backend_name": backend_name,
+                "cuda_enabled": cuda_enabled,
+                "enabled": enabled,
+                "metal_enabled": metal_enabled,
+                "model_loaded": model_loaded,
+                "model_name": model_name,
+                "model_path": model_path,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -103,7 +95,6 @@ class SttStatusResponse:
             model_name=model_name,
             model_path=model_path,
         )
-
 
         stt_status_response.additional_properties = d
         return stt_status_response

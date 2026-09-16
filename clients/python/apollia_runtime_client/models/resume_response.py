@@ -1,26 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="ResumeResponse")
-
 
 
 @_attrs_define
 class ResumeResponse:
-    """ Response body for `POST /api/v1/tasks/{id}/resume`.
+    """Response body for `POST /api/v1/tasks/{id}/resume`.
 
     Returned with HTTP 200 when the resume is recorded successfully.
 
@@ -28,16 +19,12 @@ class ResumeResponse:
             approved (bool): Operator decision.
             status (str): New task status (`"working"` after approval or rejection).
             task_id (str): Identifier of the resumed task.
-     """
+    """
 
     approved: bool
     status: str
     task_id: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         approved = self.approved
@@ -46,18 +33,17 @@ class ResumeResponse:
 
         task_id = self.task_id
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "approved": approved,
-            "status": status,
-            "task_id": task_id,
-        })
+        field_dict.update(
+            {
+                "approved": approved,
+                "status": status,
+                "task_id": task_id,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -73,7 +59,6 @@ class ResumeResponse:
             status=status,
             task_id=task_id,
         )
-
 
         resume_response.additional_properties = d
         return resume_response

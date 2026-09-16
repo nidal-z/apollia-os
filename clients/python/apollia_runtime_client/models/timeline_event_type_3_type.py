@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class TimelineEventType3Type(str, Enum):
     LLM_CALL = "llm_call"
 

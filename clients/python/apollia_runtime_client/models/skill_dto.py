@@ -1,56 +1,42 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="SkillDto")
-
 
 
 @_attrs_define
 class SkillDto:
-    """ Abridged skill descriptor included in the agent list response.
+    """Abridged skill descriptor included in the agent list response.
 
-        Attributes:
-            id (str): Unique skill identifier (e.g. `"read-excel"`).
-            name (str): Human-readable skill name.
-     """
+    Attributes:
+        id (str): Unique skill identifier (e.g. `"read-excel"`).
+        name (str): Human-readable skill name.
+    """
 
     id: str
     name: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         id = self.id
 
         name = self.name
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "id": id,
-            "name": name,
-        })
+        field_dict.update(
+            {
+                "id": id,
+                "name": name,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -63,7 +49,6 @@ class SkillDto:
             id=id,
             name=name,
         )
-
 
         skill_dto.additional_properties = d
         return skill_dto

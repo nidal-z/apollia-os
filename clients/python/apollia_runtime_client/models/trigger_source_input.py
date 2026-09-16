@@ -1,51 +1,37 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="TriggerSourceInput")
-
 
 
 @_attrs_define
 class TriggerSourceInput:
-    """ Trigger source description used in create/update requests.
+    """Trigger source description used in create/update requests.
 
-        Attributes:
-            type_ (str): Source type: `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
-     """
+    Attributes:
+        type_ (str): Source type: `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`.
+    """
 
     type_: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         type_ = self.type_
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "type": type_,
-        })
+        field_dict.update(
+            {
+                "type": type_,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -55,7 +41,6 @@ class TriggerSourceInput:
         trigger_source_input = cls(
             type_=type_,
         )
-
 
         trigger_source_input.additional_properties = d
         return trigger_source_input

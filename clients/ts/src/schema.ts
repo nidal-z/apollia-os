@@ -1544,8 +1544,11 @@ export interface paths {
         };
         /**
          * `GET /api/v1/stt/status`, return current STT engine status.
-         * @description Returns `200 OK` with the status when the engine is running.
-         *     Returns `503 Service Unavailable` when the engine is absent.
+         * @description Returns `200 OK` with the status when the engine is running, and `200 OK`
+         *     with `model_loaded: false` read from the persisted configuration when it is
+         *     absent (disabled, model file missing, runner sidecar unavailable).
+         *     Returns `503 Service Unavailable` only when that configuration cannot be
+         *     read either.
          */
         get: operations["stt_status"];
         put?: never;
@@ -2951,7 +2954,15 @@ export interface components {
             enabled: boolean;
             /** @description `true` when compiled with Apple Metal GPU acceleration. */
             metal_enabled: boolean;
-            /** @description Whether the model is loaded and ready for inference. */
+            /**
+             * @description Whether a transcription has come back from the engine since it started.
+             *
+             *     The runner sidecar loads the model on its first transcription, and the
+             *     daemon only checks that the model file exists before starting: a reading
+             *     that came back is the only proof it holds that the file is a model the
+             *     engine can read. `false` therefore means "configured, not yet exercised"
+             *     rather than "broken".
+             */
             model_loaded: boolean;
             /** @description Short model name (derived from filename without extension). */
             model_name: string;
@@ -6399,9 +6410,9 @@ export interface operations {
             cookie?: never;
         };
         /** @description Updated STT configuration (SttConfigRow); fields with defaults may be omitted */
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -6545,9 +6556,17 @@ export interface operations {
             cookie?: never;
         };
         /** @description Multipart form with an `audio` WAV field (required) and an optional `language` hint */
-        requestBody?: {
+        requestBody: {
             content: {
-                "multipart/form-data": unknown;
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description WAV audio file
+                     */
+                    audio: string;
+                    /** @description Language hint, an ISO 639-1 code */
+                    language?: string;
+                };
             };
         };
         responses: {
@@ -7702,9 +7721,9 @@ export interface operations {
             cookie?: never;
         };
         /** @description Raw webhook payload, verified against the `X-Apollia-Signature` HMAC-SHA256 header */
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/octet-stream": unknown;
+                "application/octet-stream": string;
             };
         };
         responses: {

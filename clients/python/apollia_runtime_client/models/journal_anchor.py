@@ -1,28 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="JournalAnchor")
-
 
 
 @_attrs_define
 class JournalAnchor:
-    """ The exportable head anchor of the global chain.
+    """The exportable head anchor of the global chain.
 
     Printing and storing this off-machine is the only defense against truncation
     of the global tail once the signing key can be compromised.
@@ -32,17 +23,13 @@ class JournalAnchor:
             global_seq (int): Highest committed global sequence number.
             updated_ts (str): When the anchor was last advanced (RFC3339).
             key_id (None | str | Unset): Signing key id in force, when the journal is signed.
-     """
+    """
 
     global_hash: str
     global_seq: int
     updated_ts: str
     key_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         global_hash = self.global_hash
@@ -57,20 +44,19 @@ class JournalAnchor:
         else:
             key_id = self.key_id
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "global_hash": global_hash,
-            "global_seq": global_seq,
-            "updated_ts": updated_ts,
-        })
+        field_dict.update(
+            {
+                "global_hash": global_hash,
+                "global_seq": global_seq,
+                "updated_ts": updated_ts,
+            }
+        )
         if key_id is not UNSET:
             field_dict["key_id"] = key_id
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -90,14 +76,12 @@ class JournalAnchor:
 
         key_id = _parse_key_id(d.pop("key_id", UNSET))
 
-
         journal_anchor = cls(
             global_hash=global_hash,
             global_seq=global_seq,
             updated_ts=updated_ts,
             key_id=key_id,
         )
-
 
         journal_anchor.additional_properties = d
         return journal_anchor

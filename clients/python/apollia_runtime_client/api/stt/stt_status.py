@@ -61,8 +61,11 @@ def sync_detailed(
 ) -> Response[ApiErrorBody | SttStatusResponse]:
     """`GET /api/v1/stt/status`, return current STT engine status.
 
-     Returns `200 OK` with the status when the engine is running.
-    Returns `503 Service Unavailable` when the engine is absent.
+     Returns `200 OK` with the status when the engine is running, and `200 OK`
+    with `model_loaded: false` read from the persisted configuration when it is
+    absent (disabled, model file missing, runner sidecar unavailable).
+    Returns `503 Service Unavailable` only when that configuration cannot be
+    read either.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -87,8 +90,11 @@ def sync(
 ) -> ApiErrorBody | SttStatusResponse | None:
     """`GET /api/v1/stt/status`, return current STT engine status.
 
-     Returns `200 OK` with the status when the engine is running.
-    Returns `503 Service Unavailable` when the engine is absent.
+     Returns `200 OK` with the status when the engine is running, and `200 OK`
+    with `model_loaded: false` read from the persisted configuration when it is
+    absent (disabled, model file missing, runner sidecar unavailable).
+    Returns `503 Service Unavailable` only when that configuration cannot be
+    read either.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -109,8 +115,11 @@ async def asyncio_detailed(
 ) -> Response[ApiErrorBody | SttStatusResponse]:
     """`GET /api/v1/stt/status`, return current STT engine status.
 
-     Returns `200 OK` with the status when the engine is running.
-    Returns `503 Service Unavailable` when the engine is absent.
+     Returns `200 OK` with the status when the engine is running, and `200 OK`
+    with `model_loaded: false` read from the persisted configuration when it is
+    absent (disabled, model file missing, runner sidecar unavailable).
+    Returns `503 Service Unavailable` only when that configuration cannot be
+    read either.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -133,8 +142,11 @@ async def asyncio(
 ) -> ApiErrorBody | SttStatusResponse | None:
     """`GET /api/v1/stt/status`, return current STT engine status.
 
-     Returns `200 OK` with the status when the engine is running.
-    Returns `503 Service Unavailable` when the engine is absent.
+     Returns `200 OK` with the status when the engine is running, and `200 OK`
+    with `model_loaded: false` read from the persisted configuration when it is
+    absent (disabled, model file missing, runner sidecar unavailable).
+    Returns `503 Service Unavailable` only when that configuration cannot be
+    read either.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

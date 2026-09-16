@@ -1,42 +1,35 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.channel_response_config import ChannelResponseConfig
-
-
-
+    from ..models.channel_response_config import ChannelResponseConfig
 
 
 T = TypeVar("T", bound="ChannelResponse")
 
 
-
 @_attrs_define
 class ChannelResponse:
-    """ Full notification channel returned by the CRUD operations.
+    """Full notification channel returned by the CRUD operations.
 
-        Attributes:
-            channel_type (str): Channel type.
-            config (ChannelResponseConfig): Type-specific configuration.
-            created_at (str): Creation timestamp (ISO 8601).
-            enabled (bool): `true` if the channel is enabled.
-            id (str): Unique channel identifier.
-            min_interval_seconds (int): Minimum throttling interval, in seconds.
-            updated_at (str): Last modification timestamp (ISO 8601).
-            events (list[str] | None | Unset): Channel-specific events.
-            label (None | str | Unset): Free-form display name. `null` falls back to `id` in the UI.
-     """
+    Attributes:
+        channel_type (str): Channel type.
+        config (ChannelResponseConfig): Type-specific configuration.
+        created_at (str): Creation timestamp (ISO 8601).
+        enabled (bool): `true` if the channel is enabled.
+        id (str): Unique channel identifier.
+        min_interval_seconds (int): Minimum throttling interval, in seconds.
+        updated_at (str): Last modification timestamp (ISO 8601).
+        events (list[str] | None | Unset): Channel-specific events.
+        label (None | str | Unset): Free-form display name. `null` falls back to `id` in the UI.
+    """
 
     channel_type: str
     config: ChannelResponseConfig
@@ -49,12 +42,7 @@ class ChannelResponse:
     label: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.channel_response_config import ChannelResponseConfig
         channel_type = self.channel_type
 
         config = self.config.to_dict()
@@ -75,7 +63,6 @@ class ChannelResponse:
         elif isinstance(self.events, list):
             events = self.events
 
-
         else:
             events = self.events
 
@@ -85,18 +72,19 @@ class ChannelResponse:
         else:
             label = self.label
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "channel_type": channel_type,
-            "config": config,
-            "created_at": created_at,
-            "enabled": enabled,
-            "id": id,
-            "min_interval_seconds": min_interval_seconds,
-            "updated_at": updated_at,
-        })
+        field_dict.update(
+            {
+                "channel_type": channel_type,
+                "config": config,
+                "created_at": created_at,
+                "enabled": enabled,
+                "id": id,
+                "min_interval_seconds": min_interval_seconds,
+                "updated_at": updated_at,
+            }
+        )
         if events is not UNSET:
             field_dict["events"] = events
         if label is not UNSET:
@@ -104,18 +92,14 @@ class ChannelResponse:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.channel_response_config import ChannelResponseConfig
+
         d = dict(src_dict)
         channel_type = d.pop("channel_type")
 
         config = ChannelResponseConfig.from_dict(d.pop("config"))
-
-
-
 
         created_at = d.pop("created_at")
 
@@ -144,7 +128,6 @@ class ChannelResponse:
 
         events = _parse_events(d.pop("events", UNSET))
 
-
         def _parse_label(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -153,7 +136,6 @@ class ChannelResponse:
             return cast(None | str | Unset, data)
 
         label = _parse_label(d.pop("label", UNSET))
-
 
         channel_response = cls(
             channel_type=channel_type,
@@ -166,7 +148,6 @@ class ChannelResponse:
             events=events,
             label=label,
         )
-
 
         channel_response.additional_properties = d
         return channel_response

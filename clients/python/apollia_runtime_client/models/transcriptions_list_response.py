@@ -1,79 +1,66 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.transcriptions_list_response_transcriptions_item import TranscriptionsListResponseTranscriptionsItem
-
-
-
+    from ..models.transcriptions_list_response_transcriptions_item import (
+        TranscriptionsListResponseTranscriptionsItem,
+    )
 
 
 T = TypeVar("T", bound="TranscriptionsListResponse")
 
 
-
 @_attrs_define
 class TranscriptionsListResponse:
-    """ Response body for `GET /api/v1/stt/transcriptions`.
+    """Response body for `GET /api/v1/stt/transcriptions`.
 
-        Attributes:
-            transcriptions (list[TranscriptionsListResponseTranscriptionsItem]): List of transcription rows.
-     """
+    Attributes:
+        transcriptions (list[TranscriptionsListResponseTranscriptionsItem]): List of transcription rows.
+    """
 
     transcriptions: list[TranscriptionsListResponseTranscriptionsItem]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.transcriptions_list_response_transcriptions_item import TranscriptionsListResponseTranscriptionsItem
         transcriptions = []
         for transcriptions_item_data in self.transcriptions:
             transcriptions_item = transcriptions_item_data.to_dict()
             transcriptions.append(transcriptions_item)
 
-
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "transcriptions": transcriptions,
-        })
+        field_dict.update(
+            {
+                "transcriptions": transcriptions,
+            }
+        )
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.transcriptions_list_response_transcriptions_item import TranscriptionsListResponseTranscriptionsItem
+        from ..models.transcriptions_list_response_transcriptions_item import (
+            TranscriptionsListResponseTranscriptionsItem,
+        )
+
         d = dict(src_dict)
         transcriptions = []
         _transcriptions = d.pop("transcriptions")
-        for transcriptions_item_data in (_transcriptions):
-            transcriptions_item = TranscriptionsListResponseTranscriptionsItem.from_dict(transcriptions_item_data)
-
-
+        for transcriptions_item_data in _transcriptions:
+            transcriptions_item = TranscriptionsListResponseTranscriptionsItem.from_dict(
+                transcriptions_item_data
+            )
 
             transcriptions.append(transcriptions_item)
-
 
         transcriptions_list_response = cls(
             transcriptions=transcriptions,
         )
-
 
         transcriptions_list_response.additional_properties = d
         return transcriptions_list_response

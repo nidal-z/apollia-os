@@ -37,9 +37,11 @@ bash clients/regen.sh            # from committed clients/openapi.json
 bash clients/regen.sh --from-daemon   # refresh spec from a running daemon first
 ```
 
-## Known gaps
+## Raw request bodies
 
-Three endpoints are not generated as client methods because they take a raw
-(non-JSON-schema) request body: `PUT /api/v1/stt/config`,
-`POST /api/v1/stt/transcribe`, and `POST /webhooks/{id}`. They remain documented
-in the spec; call them directly with `httpx` if needed.
+Two operations take a body that is not JSON. `transcribe_audio` sends a
+multipart form (`audio` as a WAV file, `language` optional) and
+`handle_webhook` sends raw bytes. A webhook is authenticated by an
+`X-Apollia-Signature` HMAC-SHA256 header over those bytes rather than by the
+API token, so the caller computes the signature and sets the header with
+`Client.with_headers` before sending.
