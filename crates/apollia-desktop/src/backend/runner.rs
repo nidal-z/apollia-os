@@ -347,14 +347,13 @@ impl AgentRunner for BridgeRunner {
             // returns UnknownTool at call time.
             let mut extra_executors = build_mcp_executors(&mcp_handle).await;
 
-            // Append connector executors (Google Workspace today; Microsoft
-            // wires the same way once its executor module lands). When the
-            // AuthManager hasn't initialised yet (no OAuth flow run, fresh
-            // install), `build_google_executors` returns an empty Vec and
-            // tool calls surface the "no Google account connected" error
-            // from the executors rather than `UnknownTool`, for better UX.
-            let google_executors = crate::connectors_bridge::build_google_executors().await;
-            extra_executors.extend(google_executors);
+            // Append the SaaS connector executors, both families, from the
+            // runtime. They resolve their account lazily on each call, so a
+            // fresh install with no OAuth flow run yet still registers them and
+            // a tool call answers "no Google account connected" rather than
+            // `UnknownTool`.
+            extra_executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
+            extra_executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
 
             let dispatcher = Arc::new(build_dispatcher_with(
                 &NativeDispatcherConfig {

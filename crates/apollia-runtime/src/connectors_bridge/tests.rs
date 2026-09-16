@@ -84,3 +84,60 @@ fn delete_event_requires_confirm_phrase() {
     );
     assert_eq!(d.approval_risk_level, Some(ApprovalRiskLevel::Critical));
 }
+
+#[test]
+fn google_executors_come_from_the_runtime_not_the_interface() {
+    // GIVEN a process with no desktop: this test binary links apollia-runtime
+    // and nothing of apollia-desktop, and no Tauri context exists
+    // WHEN the Google executors are built
+    let executors = build_google_executors();
+    // THEN the set is non-empty and every executor answers to its own op id
+    assert!(
+        !executors.is_empty(),
+        "the runtime must provide the Google executors on its own"
+    );
+    let names: Vec<&str> = executors.iter().map(|e| e.name()).collect();
+    for op in ["gmail.send", "gcal.list_events", "gdrive.workspace_write"] {
+        assert!(names.contains(&op), "`{op}` has no executor in the runtime");
+    }
+}
+
+#[test]
+fn every_google_descriptor_has_a_runtime_executor() {
+    // GIVEN the descriptors registered at supervisor boot, which is what an
+    // installed agent sees in its tool catalogue
+    let descriptors = google_tool_descriptors();
+    // WHEN they are crossed with the executors the runtime builds
+    let executors = build_google_executors();
+    let names: Vec<&str> = executors.iter().map(|e| e.name()).collect();
+    // THEN no descriptor is advertised without something able to run it: that
+    // gap is what answered `UnknownTool` outside the desktop
+    let orphans: Vec<&str> = descriptors
+        .iter()
+        .map(|d| d.name.as_str())
+        .filter(|name| !names.contains(name))
+        .collect();
+    assert!(
+        orphans.is_empty(),
+        "descriptors advertised with no executor: {orphans:?}"
+    );
+}
+
+#[test]
+fn a_google_call_reaches_an_executor_with_no_desktop() {
+    // GIVEN a dispatcher holding only what the runtime supplies, which is the
+    // shape `apollia-os start` builds on a machine where no interface runs
+    let dispatcher = apollia_tools::executor::ToolDispatcher::new(build_google_executors());
+    // WHEN the tool surface is enumerated
+    let names = dispatcher.tool_names();
+    // THEN a Google op is a name the dispatcher resolves, so a call to it is
+    // executed rather than refused as unknown
+    assert!(
+        names.contains(&"gmail.send"),
+        "gmail.send must be dispatchable without the desktop"
+    );
+    assert!(
+        names.contains(&"gsheets.read_values"),
+        "the runtime set is the full one, not the twelve ops the desktop carried"
+    );
+}

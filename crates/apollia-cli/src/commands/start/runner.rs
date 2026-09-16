@@ -22,7 +22,7 @@ use apollia_tools::{
 };
 use pyo3::prelude::*;
 
-use super::chat_runner::mcp_executors_for;
+use super::chat_runner::agent_tool_executors;
 use super::llm_glue::{merge_disabled, sandbox_roots_for_agent, NoopToolInvoker, RouterModel};
 use super::open_secret_store;
 
@@ -127,7 +127,7 @@ impl BridgeRunner {
             Default::default()
         });
         let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
-        let extra_executors = mcp_executors_for(&self.mcp_handle).await;
+        let extra_executors = agent_tool_executors(&self.mcp_handle).await;
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
                 sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
@@ -235,8 +235,9 @@ impl AgentRunner for BridgeRunner {
             });
             let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
             // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
-            // routes through the MCP client manager instead of returning UnknownTool.
-            let extra_executors = mcp_executors_for(&mcp_handle).await;
+            // routes through the MCP client manager instead of returning UnknownTool,
+            // plus the SaaS connector executors.
+            let extra_executors = agent_tool_executors(&mcp_handle).await;
             let dispatcher = Arc::new(build_dispatcher_with(
                 &NativeDispatcherConfig {
                     sandbox_roots: sandbox_roots_for_agent(&trusted_paths),

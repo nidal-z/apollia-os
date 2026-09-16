@@ -132,9 +132,10 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         });
         let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
         // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
-        // routes through the MCP client manager instead of returning UnknownTool.
+        // routes through the MCP client manager instead of returning UnknownTool,
+        // plus the SaaS connector executors.
         let mcp_handle = self.mcp_handle.get().cloned().flatten();
-        let extra_executors = mcp_executors_for(&mcp_handle).await;
+        let extra_executors = agent_tool_executors(&mcp_handle).await;
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
                 sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
@@ -370,6 +371,25 @@ pub(super) async fn mcp_executors_for(
         Some(handle) => apollia_mcp::executor::build_agent_tool_executors(handle).await,
         None => Vec::new(),
     }
+}
+
+/// Every executor an agent dispatcher takes beyond the native tool set: the MCP
+/// ones, then the SaaS connectors.
+///
+/// The connector half used to be added by the desktop alone, so an agent
+/// declaring `gmail.send` received it under the interface and `UnknownTool`
+/// under `apollia-os start`. Both families now come from
+/// `apollia_runtime::connectors_bridge`, which depends on no interface: they
+/// resolve their account lazily per call, and a machine with nothing connected
+/// answers "no Google account connected" instead of pretending the tool does
+/// not exist.
+pub(super) async fn agent_tool_executors(
+    mcp_handle: &Option<apollia_mcp::manager::McpClientManagerHandle>,
+) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {
+    let mut executors = mcp_executors_for(mcp_handle).await;
+    executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
+    executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
+    executors
 }
 
 /// Fallback backend, only used when agent loading fails at start time.

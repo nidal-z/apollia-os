@@ -15,7 +15,6 @@ mod backend;
 mod bootstrap;
 mod bundled_agents;
 mod commands;
-mod connectors_bridge;
 mod events;
 pub mod i18n;
 pub mod mcp;

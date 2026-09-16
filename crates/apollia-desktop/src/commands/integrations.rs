@@ -65,9 +65,10 @@ struct FlowEntry {
     provider_config: ProviderConfig,
 }
 
-/// Lazy accessor for the process-wide [`AuthManager`]. Exposed crate-internal
-/// so the connector executor bridge (`apollia_desktop::connectors_bridge`)
-/// can resolve bearer tokens on every tool call.
+/// Lazy accessor for the process-wide [`AuthManager`]. The desktop keeps it for
+/// the consent half alone, the part that opens a browser; the executors that
+/// spend the resulting tokens live in `apollia_runtime::connectors_bridge` and
+/// reach the same OS keychain through their own singleton.
 pub(crate) async fn auth_manager() -> Result<Arc<AuthManager>, IntegrationsError> {
     AUTH_MANAGER
         .get_or_try_init(|| async {
