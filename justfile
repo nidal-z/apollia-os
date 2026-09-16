@@ -726,6 +726,8 @@ guards:
       "scripts/check_windows_python_dll.py"
       "scripts/check_windows_python_dll.py --selftest"
       "scripts/check_testid_anchors.py"
+      "scripts/check_testing_mocks.py"
+      "scripts/check_testing_mocks.py --selftest"
       "scripts/check_custom_event_listeners.py"
       "scripts/check_entry_doc_commands.py"
       "scripts/check_playwright_specs.py"

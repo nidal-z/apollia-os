@@ -16,7 +16,15 @@ For most agent tests you don't need to import from here directly - use
 
 from __future__ import annotations
 
-from typing import Any
+import json
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    # Annotation only: the same union the published protocol returns, so the
+    # mock cannot promise a narrower type than the real proxy.
+    from apollia.context.llm import StructuredValue
 
 # NOTE on `# NOSONAR S7503` markers below:
 # Every mock here implements an async Protocol defined in
@@ -108,12 +116,40 @@ class MockToolProxy:
             )
 
 
+def _as_int(value: object) -> int:
+    """A queued counter as an int, zero when absent or not a number."""
+    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
+
+
+def _as_float(value: object) -> float:
+    """A queued cost as a float, zero when absent or not a number."""
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+
+
+class MockTokenUsage:
+    """Stand-in for the ``TokenUsage`` the real response carries.
+
+    Present because the real one is: an agent that reads
+    ``response.usage.prompt_tokens`` must not meet an ``AttributeError`` only
+    under test. Queue ``{"usage": {...}}`` to give it values.
+    """
+
+    def __init__(self, data: dict[str, object] | None = None) -> None:
+        """Read the three counters out of a queued ``usage`` entry."""
+        source = data or {}
+        self.prompt_tokens: int = _as_int(source.get("prompt_tokens"))
+        self.completion_tokens: int = _as_int(source.get("completion_tokens"))
+        self.cost_usd: float = _as_float(source.get("cost_usd"))
+
+
 class MockLlmResponse:
     """Attribute-accessible wrapper for LLM response dicts.
 
-    The real ``LlmProxy`` (PyO3) returns an object with a ``.content``
-    attribute.  This wrapper bridges the gap so that both
-    ``response.content`` and ``response["text"]`` patterns work in tests.
+    The real ``LlmProxy`` (PyO3) returns an object with ``.content``,
+    ``.latency_ms`` and ``.usage``. This wrapper carries all three, so an agent
+    that reads any of them behaves the same under test as in production, and it
+    additionally supports ``response["text"]`` for the dict-style patterns older
+    tests were written in.
     """
 
     def __init__(self, data: dict[str, object]) -> None:
@@ -121,12 +157,16 @@ class MockLlmResponse:
 
         Args:
             data: The response payload. Its ``text`` or ``content`` entry
-                becomes the ``.content`` attribute.
+                becomes the ``.content`` attribute; ``latency_ms`` and ``usage``
+                are carried through with zeroed defaults.
         """
         self._data = data
         text = data.get("text") or data.get("content") or ""
         self.content: str = str(text)
         self.text: str = self.content
+        self.latency_ms: int = _as_int(data.get("latency_ms"))
+        usage = data.get("usage")
+        self.usage: MockTokenUsage = MockTokenUsage(usage if isinstance(usage, dict) else None)
 
     def get(self, key: str, default: object = None) -> object:
         """Return the raw payload entry for ``key``, or ``default``."""
@@ -139,6 +179,35 @@ class MockLlmResponse:
     def __contains__(self, key: str) -> bool:
         """Whether the raw payload holds ``key``."""
         return key in self._data
+
+
+#: JSON Schema root types, and the Python types a value of each one has.
+_ROOT_TYPES: dict[str, type | tuple[type, ...]] = {
+    "object": dict,
+    "array": list,
+    "string": str,
+    "number": (int, float),
+    "integer": int,
+    "boolean": bool,
+}
+
+
+def _matches_root_type(value: object, expected: str) -> bool:
+    """Whether ``value`` has the root type ``expected`` names.
+
+    A bool is an int in Python and is not a number in JSON Schema, so it is
+    excluded explicitly rather than by ``isinstance``. An unknown type name is
+    accepted: this is a coarse check, and refusing a keyword it does not know
+    would make it an opinion on JSON Schema, which it is not.
+    """
+    if expected == "null":
+        return value is None
+    python_type = _ROOT_TYPES.get(expected)
+    if python_type is None:
+        return True
+    if expected in {"number", "integer"} and isinstance(value, bool):
+        return False
+    return isinstance(value, python_type)
 
 
 class MockLlmProxy:
@@ -163,6 +232,9 @@ class MockLlmProxy:
         self.responses: list[dict[str, object]] = list(responses or [])
         self.call_count: int = 0
         self.prompts: list[Any] = []
+        # One entry per `complete` / `chat` call, the schema it carried or
+        # `None`. Lets a test assert the agent asked for the shape it claims to.
+        self.schemas: list[dict[str, Any] | None] = []
         # Tracking for ReAct loop unit tests. Each call to
         # ``run_tools`` appends an entry capturing the messages, tools
         # list and ``max_iterations`` the agent passed in.
@@ -170,51 +242,168 @@ class MockLlmProxy:
         self.run_tools_responses: list[str] = []
         # Each call to ``map`` records its prefix and items for assertions.
         self.map_calls: list[dict[str, Any]] = []
+        # One entry per ``stream`` call, the message list it was given.
+        self.stream_calls: list[Any] = []
 
     async def complete(  # NOSONAR S7503 - Protocol contract
         self,
         messages: list[dict[str, object]] | str,
-        **kwargs: object,
-    ) -> MockLlmResponse:
+        *,
+        backend: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        seed: int | None = None,
+        schema: dict[str, Any] | None = None,
+    ) -> MockLlmResponse | StructuredValue:
         """Consume and return the next queued response.
 
-        Returns a ``MockLlmResponse`` with both ``.content`` attribute
-        access (matching the real PyO3 ``LlmResponse``) and dict-style
-        access for backward compatibility.
+        Without ``schema`` this returns a :class:`MockLlmResponse`, which
+        carries the ``.content`` / ``.latency_ms`` / ``.usage`` of the real
+        response plus dict-style access for older tests.
+
+        With ``schema`` it returns the **value**, as the real proxy does: a
+        structured call resolves to the validated Python object, never to a
+        response wrapper. Getting that wrong is not a cosmetic difference, it is
+        a test that goes green over a return type production never produces.
 
         Raises:
             IndexError: If no more responses are available.
+            StructuredOutputError: If ``schema`` is given and the queued entry
+                cannot answer it. See :meth:`_structured_value`.
         """
+        _ = (backend, temperature, max_tokens, seed)  # sampling overrides ignored
         self.prompts.append(messages)
+        self.schemas.append(schema)
         self.call_count += 1
         if not self.responses:
             raise IndexError(
                 f"MockLlmProxy exhausted after {self.call_count} calls - "
                 "no more responses configured"
             )
-        return MockLlmResponse(self.responses.pop(0))
+        entry = self.responses.pop(0)
+        if schema is None:
+            return MockLlmResponse(entry)
+        return self._structured_value(entry, schema)
 
     async def chat(
         self,
         system: str,
         user: str,
-        backend: str | None = None,
         *,
+        backend: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
         seed: int | None = None,
-    ) -> MockLlmResponse:
+        schema: dict[str, Any] | None = None,
+    ) -> MockLlmResponse | StructuredValue:
         """Convenience wrapper matching ``LlmProxy.chat()`` signature.
 
         Accepts the sampling overrides (``temperature``, ``max_tokens``,
-        ``seed``) so tests can pass them without error; the mock ignores them,
-        delegates to ``complete()`` and returns a :class:`MockLlmResponse`.
+        ``seed``) so tests can pass them without error; the mock ignores them
+        and delegates to :meth:`complete`, ``schema`` included, so a structured
+        call through ``chat`` returns a value exactly as it does in production.
         """
-        _ = (temperature, max_tokens, seed)  # sampling overrides ignored by the mock
         return await self.complete(
             [{"role": "system", "content": system}, {"role": "user", "content": user}],
             backend=backend,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            seed=seed,
+            schema=schema,
         )
+
+    def _structured_value(
+        self, entry: dict[str, object], schema: dict[str, Any]
+    ) -> StructuredValue:
+        """The value a ``schema``-constrained call resolves to.
+
+        Two ways to queue one, and the second is the faithful one:
+
+        * ``{"value": {...}}`` hands the object over directly, which is what a
+          test wanting a given shape writes;
+        * otherwise ``content`` / ``text`` is parsed as JSON, exactly as the
+          runtime parses what the model emitted, so queuing prose reaches the
+          same ``StructuredOutputError`` an agent meets in production.
+
+        **What this does not do: validate.** The mock stands in for the backend,
+        not for the runtime's validator, which lives in Rust
+        (``apollia-llm::schema_validate``) and is the single authority on
+        whether an answer satisfies a schema. Reimplementing it here would be a
+        second copy of one rule, drifting from the first at the first keyword
+        either side learns. The root type is checked, and only that, because a
+        queued list under an ``"type": "object"`` schema is a mistake in the
+        test rather than a question about JSON Schema.
+
+        Raises:
+            StructuredOutputError: The entry is not JSON, or its root type is
+                not the one the schema declares.
+        """
+        from apollia.errors import StructuredOutputError
+
+        if "value" in entry:
+            value = entry["value"]
+        else:
+            raw = entry.get("content") or entry.get("text") or ""
+            try:
+                value = json.loads(str(raw))
+            except json.JSONDecodeError as exc:
+                raise StructuredOutputError(
+                    f"the queued response is not JSON: {exc}",
+                    kind="response_invalid",
+                    path="$",
+                    reason=str(exc),
+                ) from exc
+
+        expected = schema.get("type")
+        if isinstance(expected, str) and not _matches_root_type(value, expected):
+            raise StructuredOutputError(
+                f"the queued response is a {type(value).__name__} where the schema "
+                f"declares `{expected}`",
+                kind="response_invalid",
+                path="$",
+                reason=f"expected a {expected}",
+            )
+        # The root-type check above is all this mock claims about the value; the
+        # cast says so rather than pretending to have narrowed it.
+        return cast("StructuredValue", value)
+
+    async def stream(  # NOSONAR S7503 - Protocol contract
+        self,
+        messages: list[dict[str, object]],
+        *,
+        backend: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        seed: int | None = None,
+    ) -> AsyncIterator[str]:
+        """Simulate ``LlmProxy.stream``: an async iterator over the next answer.
+
+        Like the real one, the method itself is awaited and hands back the
+        iterator. The queued response's content is yielded word by word rather
+        than whole, so a consumer that accumulates chunks is exercised as more
+        than one chunk; the words keep their trailing space, so joining them
+        rebuilds the content exactly.
+
+        Calls are recorded in ``self.stream_calls``.
+
+        Raises:
+            IndexError: If no more responses are available.
+        """
+        _ = (backend, temperature, max_tokens, seed)  # sampling overrides ignored
+        self.stream_calls.append(messages)
+        self.call_count += 1
+        if not self.responses:
+            raise IndexError(
+                f"MockLlmProxy.stream exhausted after {self.call_count} calls - "
+                "no more responses configured"
+            )
+        content = MockLlmResponse(self.responses.pop(0)).content
+
+        async def chunks() -> AsyncIterator[str]:
+            for index, word in enumerate(content.split(" ")):
+                yield word if index == 0 else f" {word}"
+
+        return chunks()
 
     async def run_tools(  # NOSONAR S7503 - Protocol contract
         self,

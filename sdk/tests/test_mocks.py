@@ -271,3 +271,115 @@ async def test_mock_memory_search():
     # THEN only the two matching entries come back, tagged as mock results
     assert len(results) == 2
     assert all(r["source"] == "mock" for r in results)
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_proxy_schema_returns_the_value_not_a_response():
+    """A schema-constrained call resolves to the value, as the real proxy does.
+
+    This is the contract the mock got wrong: it accepted ``schema`` through
+    ``**kwargs`` and went on returning a ``MockLlmResponse``, so a test written
+    on it went green over a return type production never produces.
+    """
+    # GIVEN a mock queued with a JSON answer and a schema
+    schema = {
+        "type": "object",
+        "properties": {"title": {"type": "string"}, "count": {"type": "integer"}},
+        "required": ["title", "count"],
+    }
+    llm = MockLlmProxy([{"content": '{"title": "a report", "count": 3}'}])
+
+    # WHEN a completion asks for that schema
+    value = await llm.complete([{"role": "user", "content": "x"}], schema=schema)
+
+    # THEN the value itself comes back, subscriptable as a dict and carrying no
+    # `.content`: the shape an agent reads in production
+    assert value == {"title": "a report", "count": 3}
+    assert not hasattr(value, "content")
+    assert llm.schemas == [schema]
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_proxy_chat_accepts_a_schema():
+    """`chat` takes `schema` too, and hands back the value.
+
+    Before this, `chat` declared its parameters one by one with no `schema`, so
+    a call the runtime accepts raised TypeError under test alone.
+    """
+    # GIVEN a mock queued with a structured value
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
+    llm = MockLlmProxy([{"value": {"ok": True}}])
+
+    # WHEN chat asks for that schema
+    value = await llm.chat("system", "user", schema=schema)
+
+    # THEN the value comes back, and the schema was recorded
+    assert value == {"ok": True}
+    assert llm.schemas == [schema]
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_proxy_without_a_schema_still_returns_a_response():
+    """No schema, no change: the response wrapper is what comes back."""
+    # GIVEN a mock queued with a plain answer and its usage
+    llm = MockLlmProxy([{"content": "plain", "latency_ms": 12, "usage": {"prompt_tokens": 7}}])
+
+    # WHEN a completion asks for no schema
+    response = await llm.complete([{"role": "user", "content": "x"}])
+
+    # THEN the wrapper carries what the real LlmResponse carries, so an agent
+    # reading `.usage` does not meet an AttributeError under test alone
+    assert response.content == "plain"
+    assert response.latency_ms == 12
+    assert response.usage.prompt_tokens == 7
+    assert response.usage.cost_usd == 0.0
+    assert llm.schemas == [None]
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_proxy_prose_under_a_schema_raises_the_typed_error():
+    """Queued prose reaches the same typed error an agent meets in production."""
+    from apollia.errors import StructuredOutputError
+
+    # GIVEN a mock queued with something that is not JSON
+    llm = MockLlmProxy([{"content": "I am afraid I cannot do that"}])
+
+    # WHEN a completion asks for a schema
+    with pytest.raises(StructuredOutputError) as caught:
+        await llm.complete([{"role": "user", "content": "x"}], schema={"type": "object"})
+
+    # THEN the error carries the same fields the runtime raises
+    assert caught.value.kind == "response_invalid"
+    assert caught.value.path == "$"
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_proxy_wrong_root_type_is_named():
+    """A queued value of the wrong root type is a test mistake, and it is named."""
+    from apollia.errors import StructuredOutputError
+
+    # GIVEN a mock queued with a list under a schema declaring an object
+    llm = MockLlmProxy([{"value": ["a", "b"]}])
+
+    # WHEN a completion asks for that schema
+    with pytest.raises(StructuredOutputError) as caught:
+        await llm.complete([{"role": "user", "content": "x"}], schema={"type": "object"})
+
+    # THEN the message says which root type was declared, rather than letting the
+    # test assert on a shape the schema refuses
+    assert "object" in str(caught.value)
+
+
+@pytest.mark.asyncio
+async def test_mock_llm_proxy_stream_yields_the_queued_answer():
+    """`stream` exists and iterates, as the protocol publishes it."""
+    # GIVEN a mock queued with a multi-word answer
+    llm = MockLlmProxy([{"content": "one two three"}])
+
+    # WHEN the stream is awaited and drained
+    chunks = [chunk async for chunk in await llm.stream([{"role": "user", "content": "x"}])]
+
+    # THEN it arrived in more than one chunk, and joining them rebuilds the answer
+    assert len(chunks) > 1
+    assert "".join(chunks) == "one two three"
+    assert llm.stream_calls == [[{"role": "user", "content": "x"}]]
