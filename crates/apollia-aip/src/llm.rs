@@ -14,7 +14,7 @@ use convert::{
     inject_temporal_context_into_messages, json_to_py, llm_err_to_py, prepend_context_blocks,
     py_dict_to_chat_message, py_dict_to_tool_spec, py_object_to_json,
 };
-use stream::{emit_llm_capture, forward_stream, PyTokenStream, StreamForward};
+use stream::{emit_llm_capture, forward_stream, resolved_model_id, PyTokenStream, StreamForward};
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -319,9 +319,13 @@ impl LlmProxy {
             .as_deref()
             .unwrap_or_else(|| self.router.default_name())
             .to_string();
+        // The model the router will dispatch to, read from the backend it
+        // resolves: `complete_with_observability` calls that one backend and
+        // no other, so this is the model that answers.
+        let model_id = resolved_model_id(&self.router, backend.as_deref());
         self.emit_started(
             &backend_label,
-            "<resolved-by-router>",
+            &model_id,
             2,
             prompt_chars,
             response_schema.as_ref(),
@@ -354,7 +358,7 @@ impl LlmProxy {
                 .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                 .await
                 .map_err(llm_err_to_py)?;
-            emit_llm_capture(&bus, &run_id, &capture_backend, &resp);
+            emit_llm_capture(&bus, &run_id, &capture_backend, &model_id, &resp);
 
             Python::with_gil(|py| {
                 if let Some(schema) = response_schema.as_ref() {
@@ -549,9 +553,13 @@ impl LlmProxy {
             .as_deref()
             .unwrap_or_else(|| self.router.default_name())
             .to_string();
+        // The model the router will dispatch to, read from the backend it
+        // resolves: `complete_with_observability` calls that one backend and
+        // no other, so this is the model that answers.
+        let model_id = resolved_model_id(&self.router, backend.as_deref());
         self.emit_started(
             &backend_label,
-            "<resolved-by-router>",
+            &model_id,
             chat_messages.len() as u32,
             prompt_chars,
             response_schema.as_ref(),
@@ -585,7 +593,7 @@ impl LlmProxy {
                 .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                 .await
                 .map_err(llm_err_to_py)?;
-            emit_llm_capture(&bus, &run_id, &capture_backend, &resp);
+            emit_llm_capture(&bus, &run_id, &capture_backend, &model_id, &resp);
 
             Python::with_gil(|py| {
                 if let Some(schema) = response_schema.as_ref() {
@@ -753,18 +761,26 @@ mod tests {
         };
 
         // WHEN a capture is emitted
-        emit_llm_capture(&Some(tx), &Some(run_id.clone()), "test-backend", &resp);
+        emit_llm_capture(
+            &Some(tx),
+            &Some(run_id.clone()),
+            "test-backend",
+            "test-model",
+            &resp,
+        );
 
         // THEN an LlmResponseCaptured event carries the run_id + content
         let ev = rx.try_recv().expect("event expected");
         match ev {
             apollia_core::events::RuntimeEvent::LlmResponseCaptured {
                 run_id: rid,
+                model,
                 content,
                 completion_tokens,
                 ..
             } => {
                 assert_eq!(rid, run_id);
+                assert_eq!(model, "test-model");
                 assert_eq!(content, "hello world");
                 assert_eq!(completion_tokens, 5);
             }
@@ -792,7 +808,7 @@ mod tests {
         };
 
         // WHEN / THEN no event is emitted when run_id is absent
-        emit_llm_capture(&Some(tx), &None, "b", &resp);
+        emit_llm_capture(&Some(tx), &None, "b", "m", &resp);
         assert!(rx.try_recv().is_err(), "no event without a run_id");
     }
 
@@ -1055,5 +1071,66 @@ mod tests {
             // THEN the OpenAI spelling is the one that reaches the model
             assert_eq!(spec.parameters["title"], "from-parameters");
         });
+    }
+
+    struct NamedModel(&'static str);
+
+    #[async_trait::async_trait]
+    impl apollia_llm::CompletionModel for NamedModel {
+        async fn complete(
+            &self,
+            _req: apollia_llm::CompletionRequest,
+        ) -> Result<apollia_llm::CompletionResponse, apollia_llm::LlmError> {
+            Err(apollia_llm::LlmError::BackendUnavailable {
+                backend: self.0.to_owned(),
+                reason: "never called".to_owned(),
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: apollia_llm::CompletionRequest,
+        ) -> Result<
+            std::pin::Pin<
+                Box<
+                    dyn futures::Stream<
+                            Item = Result<apollia_llm::StreamChunk, apollia_llm::LlmError>,
+                        > + Send,
+                >,
+            >,
+            apollia_llm::LlmError,
+        > {
+            Ok(Box::pin(futures::stream::empty()))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+        fn backend_name(&self) -> &str {
+            self.0
+        }
+        fn model_id(&self) -> &str {
+            self.0
+        }
+    }
+
+    #[test]
+    fn the_journaled_model_is_the_one_the_router_resolves() {
+        // GIVEN a router with a default backend and a second, named one
+        let mut backends: std::collections::HashMap<String, Arc<dyn apollia_llm::CompletionModel>> =
+            std::collections::HashMap::new();
+        backends.insert("local".into(), Arc::new(NamedModel("qwen3-4b")));
+        backends.insert("cloud".into(), Arc::new(NamedModel("mistral-medium")));
+        let router = apollia_llm::LlmRouter::with_backends(backends, "local");
+
+        // WHEN the model of a call is resolved, with and without a backend named
+        let by_default = resolved_model_id(&router, None);
+        let named = resolved_model_id(&router, Some("cloud"));
+        let unknown = resolved_model_id(&router, Some("absent"));
+
+        // THEN each is the model of the backend that answers, never a placeholder
+        assert_eq!(by_default, "qwen3-4b");
+        assert_eq!(named, "mistral-medium");
+        assert_eq!(unknown, "");
     }
 }
