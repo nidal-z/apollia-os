@@ -110,6 +110,32 @@ async fn a_gated_call_pauses_then_runs_once_approved() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_agent_requiring_a_tool_of_a_gated_server_resolves() {
+    // GIVEN a server declared requires_approval, and a manifest requiring one of
+    // its tools without dangerous_tools_allowed, the shape the SDK produces
+    let registry = ToolRegistryHandle::start();
+    let manager = start(&registry).await;
+    let manifest: apollia_core::AgentManifest = serde_json::from_value(json!({
+        "name": "espace-writer",
+        "version": "1.0.0",
+        "description": "writes through a gated server",
+        "tools_required": ["mcp:calc/add"],
+    }))
+    .expect("a minimal manifest deserializes");
+
+    // WHEN the install-time resolution runs
+    let report = apollia_tools::resolve(&manifest, &registry, &Default::default()).await;
+
+    // THEN it resolves: the approval is held per call by the executor, not by a
+    // refusal to install
+    let report = report.expect("a gated tool must not block the install");
+    assert_eq!(report.resolved, vec!["mcp:calc/add".to_string()]);
+
+    manager.shutdown().await;
+    registry.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_declined_call_is_a_typed_refusal_and_does_not_run() {
     // GIVEN a task resumed with the gated call declined
     let registry = ToolRegistryHandle::start();

@@ -197,8 +197,14 @@ dont le `detail` liste les arguments. Approuvé, l'appel s'exécute une fois à 
 reprise ; refusé, `ctx.tools.call` lève `apollia.errors.ToolApprovalDenied`. Une
 pause levée ainsi porte un `context` vide : interceptez le `NeedHumanInput` et
 relevez-le avec votre propre `context` si le skill doit faire traverser un état.
-L'approbation ne couvre que cet appel, avec ces arguments. Les sessions de chat ne
-passent pas par cette porte.
+L'approbation ne couvre que cet appel, avec ces arguments. Un agent exécuté depuis
+une session de chat agent passe par la même porte ; l'assistant du chat libre n'y
+passe pas, il demande avant tout appel d'outil qu'on ne lui a pas autorisé.
+
+<!-- claim:mcp-gated-tool-does-not-block-install -->
+Déclarer un tel outil dans `tools_required` ne demande rien de plus : l'agent
+s'installe, et l'approbation est tenue appel par appel à l'exécution. Le
+`dangerous_tools_allowed` du manifeste n'y joue aucun rôle.
 
 ## Voir aussi
 

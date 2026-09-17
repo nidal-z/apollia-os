@@ -191,7 +191,14 @@ call runs once when the task resumes; declined, `ctx.tools.call` raises
 `apollia.errors.ToolApprovalDenied`. A pause raised this way carries an empty
 `context`: catch the `NeedHumanInput` and raise it again with your own `context` if
 the skill needs to carry state across it. The approval covers that call with those
-arguments only. Chat sessions do not go through this gate.
+arguments only. An agent run from an agent chat session goes through the same gate;
+the free chat assistant does not, it asks before every tool call it has not been
+authorized for.
+
+<!-- claim:mcp-gated-tool-does-not-block-install -->
+Declaring such a tool in `tools_required` needs nothing more: the agent installs,
+and the approval is held call by call when it runs. The manifest's
+`dangerous_tools_allowed` plays no part in it.
 
 ## Related
 

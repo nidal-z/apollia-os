@@ -78,10 +78,19 @@ impl McpClientManager {
 /// Callers in [`LoadingMode::Deferred`] skip this step entirely: schemas are not
 /// loaded at boot and the runtime exposes the synthetic `tool_search` tool
 /// instead, so the registry stays free of `mcp:` descriptors.
+///
+/// A descriptor never carries the server's `requires_approval` flag as
+/// `dangerous`. `dangerous` is the resolver's word for a tool that runs without
+/// per-call gating and so needs the manifest's `dangerous_tools_allowed`; a
+/// server that requires approval is the opposite, every call to it is held by
+/// the approval gate of the executor at run time. Marking it `dangerous`
+/// refused the install of any agent declaring such a tool, while an agent
+/// declaring a tool of an ungated server installed freely. The flag can also
+/// be toggled on a running server, which a descriptor registered once would
+/// not follow.
 pub(super) async fn register_session_tools_in_registry(
     tool_registry: &ToolRegistryHandle,
     server_name: &str,
-    requires_approval: bool,
     tags: &[String],
     session: &McpSession,
 ) {
@@ -104,13 +113,9 @@ pub(super) async fn register_session_tools_in_registry(
             },
             input_schema: tool_def.input_schema.clone(),
             output_schema: None,
-            sandbox_profile: if requires_approval {
-                SandboxProfile::Full
-            } else {
-                SandboxProfile::NetworkRestricted
-            },
+            sandbox_profile: SandboxProfile::NetworkRestricted,
             tags: tool_tags,
-            dangerous: requires_approval,
+            dangerous: false,
             is_read_only: false,
             risk_score: 3,
             approval_risk_level: None,

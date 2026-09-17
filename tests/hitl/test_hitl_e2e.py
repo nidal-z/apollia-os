@@ -65,9 +65,16 @@ class Daemon:
         self.token = ""
 
     def start(self) -> None:
+        # Eager loading puts every MCP tool descriptor in the registry, which is
+        # where install-time resolution reads it. Under the default, deferred,
+        # the descriptors never reach the registry and an agent requiring a tool
+        # of a gated server installed whatever the descriptor said, so the suite
+        # missed the refusal it now holds against.
+        (self.home / "apollia.toml").write_text('[mcp]\ntool_loading = "eager"\n')
         with self.log.open("wb") as log:
             self.process = subprocess.Popen(
                 [str(BINARY), "start", "--port", str(self.port)],
+                cwd=self.home,
                 env=self.env,
                 stdout=log,
                 stderr=subprocess.STDOUT,

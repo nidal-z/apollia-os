@@ -1544,4 +1544,23 @@ only while the task-path runners build their MCP executors through
 The proof is that call, in the helper both CLI task runners use; the desktop
 runner makes the same call in its own `build_mcp_executors`. If either runner
 goes back to the ungated builder, this claim is false and the page with it.
+The CLI chat-agent runner builds its set through the same helper since the page
+said an agent run from an agent chat session is gated too.
+"""
+
+[[claim]]
+id = "mcp-gated-tool-does-not-block-install"
+scope = "public"
+symbol = "register_session_tools_in_registry"
+status = "wired"
+proof = "crates/apollia-mcp/src/manager/views.rs"
+evidence = "dangerous: false,"
+note = """
+An MCP tool descriptor used to carry its server's `requires_approval` as
+`dangerous`, and install-time resolution refuses a `dangerous` tool unless the
+manifest sets `dangerous_tools_allowed`, which the SDK decorator does not
+expose. Under eager loading an agent requiring a tool of a gated server was
+refused with a 400, while one requiring a tool of an ungated server installed.
+The page says such an agent installs and the approval is held per call; that
+holds while the registered descriptor is not `dangerous`.
 """
