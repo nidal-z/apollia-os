@@ -303,3 +303,34 @@ def test_a_declined_mcp_call_reaches_the_agent_as_a_typed_refusal(
         "tool": "calc/add",
         "reason": "not on production",
     }
+
+
+def test_the_engine_pause_keeps_the_context_of_the_resumed_run(
+    daemon: Daemon, agent_id: str
+) -> None:
+    # GIVEN a task paused on the agent's own card, its state in the context
+    task_id = submit(daemon, agent_id, "hitl.card_then_write")
+    wait_paused(daemon, task_id, "approbation")
+
+    # WHEN the card is approved, and the resumed run makes the gated call
+    status, body = daemon.request("POST", f"/api/v1/tasks/{task_id}/resume", {"approved": True})
+    assert status == 200, body
+    deadline = time.monotonic() + DEADLINE_SECS
+    gate: dict[str, Any] = {}
+    while time.monotonic() < deadline and gate.get("payload", {}).get("geste") != "calc/add":
+        status, pending = daemon.request("GET", "/api/v1/approvals/pending")
+        assert status == 200, pending
+        gate = next((p for p in pending if p["task_id"] == task_id), {})
+        time.sleep(0.2)
+
+    # THEN the approvals list shows the engine's card, typed, and the agent's state
+    assert gate["payload"]["geste"] == "calc/add", gate
+    assert gate["skill_id"] == "hitl.card_then_write"
+    assert gate["context"] == {"records": ["r-1"], "index": 0}
+
+    # WHEN the engine's card is approved
+    status, body = daemon.request("POST", f"/api/v1/tasks/{task_id}/resume", {"approved": True})
+    assert status == 200, body
+
+    # THEN the agent resumed with its state, and the write ran once
+    assert result_data(wait_completed(daemon, task_id)) == {"record": "r-1", "mcp": "5"}

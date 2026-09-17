@@ -657,6 +657,9 @@ fn tool_proxy_error_to_py(error: ToolProxyError) -> PyErr {
                         .call_method1("loads", (payload.to_string(),))?;
                     let kwargs = pyo3::types::PyDict::new(py);
                     kwargs.set_item("payload", payload_py)?;
+                    // Marks the engine's pause, so the SDK dispatcher can keep
+                    // the resumed run's context on it rather than an empty one.
+                    kwargs.set_item("from_tool_call", true)?;
                     Ok(PyErr::from_value(class.call((prompt,), Some(&kwargs))?))
                 }
                 ToolProxyError::ApprovalDenied { gesture, reason } => {

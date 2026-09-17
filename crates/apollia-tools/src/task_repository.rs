@@ -336,6 +336,10 @@ pub struct ApprovalInfo {
     pub context: serde_json::Value,
     /// ISO 8601 suspension timestamp.
     pub suspended_at: String,
+    /// Typed payload of the pause, `None` for a prompt-only pause.
+    pub payload: Option<serde_json::Value>,
+    /// Skill that paused, when the pause came from a skill.
+    pub skill_id: Option<String>,
 }
 
 /// A pause to persist: everything the task path records when an agent stops

@@ -73,6 +73,7 @@ class NeedHumanInput(AgentError):
         context: dict[str, Any] | None = None,
         *,
         payload: HitlPayload | None = None,
+        from_tool_call: bool = False,
     ) -> None:
         """Suspend the run and ask the human a question.
 
@@ -84,11 +85,18 @@ class NeedHumanInput(AgentError):
             payload: A typed question or approval, see :mod:`apollia.hitl`.
                 Checked by the runtime when the agent pauses: an invalid one
                 fails the task with ``INVALID_INPUT_PAYLOAD``.
+            from_tool_call: Set by the runtime, never by an agent, on the pause
+                ``ctx.tools.call`` raises for a call that needs an approval.
+                Left uncaught with no ``context`` of its own, such a pause
+                keeps the context the run was resumed with, so an agent
+                resumed from its own pause does not lose its state to the
+                engine's.
         """
         super().__init__(prompt)
         self.prompt: str = prompt
         self.context: dict[str, Any] = context if context is not None else {}
         self.payload: HitlPayload | None = payload
+        self.from_tool_call: bool = from_tool_call
 
 
 class ToolApprovalDenied(AgentError):

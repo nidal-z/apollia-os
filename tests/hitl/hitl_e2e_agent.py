@@ -7,6 +7,9 @@ Two skills, one per property the end-to-end test proves:
 * ``hitl.mcp`` calls a tool on an MCP server declared ``requires_approval``. The
   call pauses the task; resumed approved, it runs; resumed declined, it raises
   ``ToolApprovalDenied``, which the skill catches and returns.
+* ``hitl.card_then_write`` raises its own card carrying its state, and once
+  approved makes the gated call without catching the engine's pause. Resumed
+  from that second pause, it must still read its state.
 """
 
 from apollia import NeedHumanInput, agent, skill
@@ -76,6 +79,26 @@ class HitlE2EAgent:
         except ToolApprovalDenied as denied:
             return {"mcp": "denied", "tool": denied.tool, "reason": denied.reason}
         return {"mcp": out["content"]}
+
+    @skill("hitl.card_then_write", description="Own card, then a gated write.")
+    async def card_then_write(self, ctx: Ctx = None) -> dict:  # type: ignore[assignment]
+        """The shape of a generated write flow: a card per record, then the write."""
+        response = ctx.input_response
+        if response is None:
+            raise NeedHumanInput(
+                "Write record r-1?",
+                {"records": ["r-1"], "index": 0},
+                payload={
+                    "genre": "approbation",
+                    "geste": "espace/write",
+                    "risque": "medium",
+                    "detail": ["r-1"],
+                },
+            )
+        state = response["context"]
+        record = state["records"][state["index"]]
+        out = await ctx.tools.call("mcp:calc/add", {"a": 2, "b": 3})
+        return {"record": record, "mcp": out["content"]}
 
 
 agent = HitlE2EAgent()

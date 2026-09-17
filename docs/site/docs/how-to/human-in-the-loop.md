@@ -121,7 +121,9 @@ apollia-os task approvals
 ```
 
 Over the API, `GET /api/v1/tasks?status=input_required` lists each waiting task
-with its `agent`, `skill`, `created_at`, `prompt` and `payload`, and
+with its `agent`, `skill`, `created_at`, `prompt` and `payload`;
+`GET /api/v1/approvals/pending` lists the same pauses with their `agent_name`,
+`skill_id`, `prompt`, `context`, `payload` and `suspended_at`. And
 `POST /api/v1/tasks/{id}/resume` takes `{"approved", "reason", "answer"}`. The
 `answer` is checked against the pending payload:
 
@@ -188,9 +190,11 @@ the agent manifest lists in `tools_requiring_approval`, gates its calls on the t
 path. A call to it from `ctx.tools.call` pauses the task on an approval whose
 `geste` is `<server>/<tool>` and whose `detail` lists the arguments. Approved, the
 call runs once when the task resumes; declined, `ctx.tools.call` raises
-`apollia.errors.ToolApprovalDenied`. A pause raised this way carries an empty
-`context`: catch the `NeedHumanInput` and raise it again with your own `context` if
-the skill needs to carry state across it. The approval covers that call with those
+`apollia.errors.ToolApprovalDenied`. A pause raised this way keeps the `context` the
+run was resumed with, so a skill resumed from its own pause reads its state again
+when it is resumed from this one; on a first run that context is empty. Catch the
+`NeedHumanInput` and raise it again with your own `context` to carry something
+else. The approval covers that call with those
 arguments only. An agent run from an agent chat session goes through the same gate;
 the free chat assistant does not, it asks before every tool call it has not been
 authorized for.

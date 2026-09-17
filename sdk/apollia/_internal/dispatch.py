@@ -23,7 +23,7 @@ from apollia._internal.manifest import (
     SKILLS_REGISTRY_ATTR,
     SkillEntry,
 )
-from apollia.errors import SkillNotFound
+from apollia.errors import NeedHumanInput, SkillNotFound
 
 __all__ = [
     "dispatch_message",
@@ -163,6 +163,27 @@ def _logger_from_ctx(ctx: object) -> logging.Logger | None:
     return None
 
 
+def _keep_resume_context(exc: BaseException, ctx: object) -> None:
+    """Give the engine's pause the context the run was resumed with.
+
+    ``ctx.tools.call`` raises :class:`NeedHumanInput` with no context when a
+    call needs an approval. An agent resumed from its own pause, with its state
+    in ``ctx.input_response["context"]``, that makes such a call and does not
+    catch the pause would otherwise be resumed from it with an empty context,
+    and restart from nothing. The context it was resumed with is its state at
+    the moment of the call, so that is what the pause keeps. A pause the agent
+    raised itself, or gave a context to, is left untouched.
+    """
+    if not isinstance(exc, NeedHumanInput) or not exc.from_tool_call or exc.context:
+        return
+    response = getattr(ctx, "input_response", None)
+    if not isinstance(response, dict):
+        return
+    context = response.get("context")
+    if isinstance(context, dict) and context:
+        exc.context = dict(context)
+
+
 async def _maybe_await(value: object) -> object:
     if inspect.iscoroutine(value):
         return await value
@@ -211,6 +232,7 @@ async def dispatch_skill(
     except BaseException as exc:
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
+        _keep_resume_context(exc, ctx)
         return from_exception(exc, logger=logger)
 
 
@@ -252,7 +274,16 @@ async def dispatch_message(
     except BaseException as exc:
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
+        _keep_resume_context(exc, ctx)
         return from_exception(exc, logger=logger)
+
+
+def _declared_skill_ids(agent_instance: object) -> list[str]:
+    """The skill ids the agent declares, in declaration order."""
+    registry = getattr(agent_instance, SKILLS_REGISTRY_ATTR, None)
+    if registry is None:
+        registry = getattr(type(agent_instance), SKILLS_REGISTRY_ATTR, {})
+    return list(registry.keys()) if isinstance(registry, dict) else []
 
 
 async def dispatch_task(
@@ -265,7 +296,12 @@ async def dispatch_task(
     1. If ``task.skill_id`` is set ⇒ :func:`dispatch_skill`.
     2. Else if the agent has an ``@on_message`` handler ⇒
        :func:`dispatch_message` with the first text part.
-    3. Else ⇒ ``AIPResult.failed("NO_HANDLER", ...)``.
+    3. Else if the agent declares exactly one ``@skill`` ⇒ that skill, with
+       the payload :func:`extract_task_payload` reads. A trigger submits a task
+       with no skill id, and an agent with a single entry point has no choice
+       to make.
+    4. Else ⇒ ``AIPResult.failed("NO_HANDLER", ...)``, naming the skills when
+       there are several to choose from.
 
     Exceptions are always trapped - the returned dict is guaranteed to
     be a valid ``AIPResult``.
@@ -285,6 +321,17 @@ async def dispatch_task(
             history = _normalize_history(task.get("history"))
             return await dispatch_message(agent_instance, message, history, ctx)
 
+        skill_ids = _declared_skill_ids(agent_instance)
+        if len(skill_ids) == 1:
+            payload = extract_task_payload(task)
+            return await dispatch_skill(agent_instance, skill_ids[0], payload, ctx)
+        if skill_ids:
+            return failed(
+                "NO_HANDLER",
+                "the task names no skill and the agent declares several: "
+                + ", ".join(skill_ids)
+                + "; submit it with a skill_id or add an @on_message handler",
+            )
         return failed(
             "NO_HANDLER",
             "agent has neither @skill nor @on_message handler for this task",
@@ -292,4 +339,5 @@ async def dispatch_task(
     except BaseException as exc:
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
+        _keep_resume_context(exc, ctx)
         return from_exception(exc, logger=logger)

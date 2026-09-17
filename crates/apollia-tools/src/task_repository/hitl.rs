@@ -479,7 +479,9 @@ impl TaskRepository {
                 "SELECT t.agent_name, \
                         COALESCE(t.input_required_prompt, ''), \
                         COALESCE(t.input_required_context, '{}'), \
-                        ta.suspended_at \
+                        ta.suspended_at, \
+                        t.input_required_payload, \
+                        t.skill_id \
                  FROM tasks t \
                  LEFT JOIN task_approvals ta ON t.task_id = ta.task_id AND ta.approved IS NULL \
                  WHERE t.task_id = ?1 AND t.status = 'input_required' \
@@ -491,7 +493,16 @@ impl TaskRepository {
                 let prompt: String = row.get(1)?;
                 let context_str: String = row.get(2)?;
                 let suspended_at: Option<String> = row.get(3)?;
-                Ok((agent_name, prompt, context_str, suspended_at))
+                let payload_str: Option<String> = row.get(4)?;
+                let skill_id: Option<String> = row.get(5)?;
+                Ok((
+                    agent_name,
+                    prompt,
+                    context_str,
+                    suspended_at,
+                    payload_str,
+                    skill_id,
+                ))
             }) {
                 Ok(row) => Some(row),
                 Err(rusqlite::Error::QueryReturnedNoRows) => None,
@@ -500,13 +511,21 @@ impl TaskRepository {
 
             match result {
                 None => Ok(None),
-                Some((agent_name, prompt, context_str, suspended_at)) => {
+                Some((agent_name, prompt, context_str, suspended_at, payload_str, skill_id)) => {
                     let context = serde_json::from_str(&context_str).unwrap_or_default();
+                    // Stored only after it parsed at the pause, so an unreadable
+                    // column is a defect of the row, not a prompt-only pause.
+                    let payload = payload_str
+                        .as_deref()
+                        .map(serde_json::from_str::<serde_json::Value>)
+                        .transpose()?;
                     Ok(Some(ApprovalInfo {
                         agent_name,
                         prompt,
                         context,
                         suspended_at: suspended_at.unwrap_or_default(),
+                        payload,
+                        skill_id,
                     }))
                 }
             }
@@ -618,6 +637,36 @@ mod typed_pause_tests {
         assert_eq!(row.payload, Some(payload));
         assert_eq!(row.context, json!({"step": 2}));
         assert!(!row.created_at.is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_pending_approval_info_carries_the_payload_and_skill() {
+        // GIVEN a typed pause from a skill
+        let repo = open_test_repo().await;
+        let payload = approbation();
+        repo.save_pause(PauseRecord {
+            task_id: "t-3",
+            step_id: None,
+            prompt: "Delete contact 42?",
+            context: &json!({"step": 1}),
+            payload: Some(&payload),
+            agent_name: Some("crm-agent"),
+            skill_id: Some("cleanup"),
+        })
+        .await
+        .expect("save");
+
+        // WHEN the approvals listing reads it
+        let info = repo
+            .get_approval_info("t-3")
+            .await
+            .expect("read")
+            .expect("pending");
+
+        // THEN the card can be drawn from it, as from the task listing
+        assert_eq!(info.payload, Some(payload));
+        assert_eq!(info.skill_id.as_deref(), Some("cleanup"));
+        assert_eq!(info.context, json!({"step": 1}));
     }
 
     #[tokio::test]

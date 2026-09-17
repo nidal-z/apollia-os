@@ -126,8 +126,10 @@ apollia-os task approvals
 ```
 
 Par l'API, `GET /api/v1/tasks?status=input_required` liste chaque tâche en attente
-avec son `agent`, son `skill`, sa date `created_at`, son `prompt` et son `payload`,
-et `POST /api/v1/tasks/{id}/resume` prend `{"approved", "reason", "answer"}`. La
+avec son `agent`, son `skill`, sa date `created_at`, son `prompt` et son `payload` ;
+`GET /api/v1/approvals/pending` liste les mêmes pauses avec leur `agent_name`, leur
+`skill_id`, leur `prompt`, leur `context`, leur `payload` et leur `suspended_at`. Et
+`POST /api/v1/tasks/{id}/resume` prend `{"approved", "reason", "answer"}`. La
 réponse `answer` est vérifiée contre le payload en attente :
 
 - un `choix`, une `source` ou une `definition` prend l'`id` d'une proposition, ou
@@ -195,8 +197,10 @@ ses appels à une porte sur le chemin des tâches. Un appel depuis `ctx.tools.ca
 met la tâche en pause sur une approbation dont le `geste` est `<serveur>/<outil>` et
 dont le `detail` liste les arguments. Approuvé, l'appel s'exécute une fois à la
 reprise ; refusé, `ctx.tools.call` lève `apollia.errors.ToolApprovalDenied`. Une
-pause levée ainsi porte un `context` vide : interceptez le `NeedHumanInput` et
-relevez-le avec votre propre `context` si le skill doit faire traverser un état.
+pause levée ainsi garde le `context` avec lequel l'exécution a repris : un skill
+repris depuis sa propre pause relit son état quand il reprend depuis celle-ci ; à
+une première exécution, ce contexte est vide. Interceptez le `NeedHumanInput` et
+relevez-le avec votre propre `context` pour faire traverser autre chose.
 L'approbation ne couvre que cet appel, avec ces arguments. Un agent exécuté depuis
 une session de chat agent passe par la même porte ; l'assistant du chat libre n'y
 passe pas, il demande avant tout appel d'outil qu'on ne lui a pas autorisé.

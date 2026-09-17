@@ -452,6 +452,93 @@ async def test_dispatch_task_no_handler() -> None:
     assert result["error"]["code"] == "NO_HANDLER"
 
 
+@pytest.mark.asyncio
+async def test_dispatch_task_without_skill_id_reaches_the_only_skill() -> None:
+    # GIVEN an agent whose single entry point is a skill, and a task naming no
+    # skill, the way a trigger submits one
+    def handler(self: Any, path: str) -> str:
+        return f"r:{path}"
+
+    agent = _build_agent_with_skill(
+        handler_name="handler",
+        handler=handler,
+        skill_id="parse",
+        input_schema={
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+            "additionalProperties": False,
+        },
+    )
+    task = {"input": {"parts": [{"type": "data", "data": {"path": "a"}}]}}
+    # WHEN the task is dispatched
+    result = await dispatch_task(agent, task, _Ctx())
+    # THEN the only skill runs rather than NO_HANDLER
+    assert result["status"] == "completed"
+    assert result["output"][0]["text"] == "r:a"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_task_without_skill_id_names_the_skills_to_choose_from() -> None:
+    # GIVEN an agent with two skills and no message handler
+    def handler(self: Any) -> str:
+        return "x"
+
+    agent = _build_agent_with_skill(
+        handler_name="handler",
+        handler=handler,
+        skill_id="first",
+        input_schema={"type": "object", "properties": {}},
+    )
+    registry = dict(getattr(agent, SKILLS_REGISTRY_ATTR))
+    registry["second"] = registry["first"]
+    setattr(agent, SKILLS_REGISTRY_ATTR, registry)
+    task = {"input": {"parts": []}}
+    # WHEN a task naming no skill is dispatched
+    result = await dispatch_task(agent, task, _Ctx())
+    # THEN it fails on NO_HANDLER and says which skills it could have been
+    assert result["error"]["code"] == "NO_HANDLER"
+    assert "first, second" in result["error"]["message"]
+
+
+class _ResumedCtx:
+    """A ctx resumed from the agent's own pause, its state in the context."""
+
+    logger = None
+
+    def __init__(self) -> None:
+        self.input_response = {"approved": True, "context": {"records": ["r-1"], "index": 0}}
+
+
+@pytest.mark.asyncio
+async def test_the_engine_pause_keeps_the_resumed_context() -> None:
+    # GIVEN a resumed run whose tool call raises the engine's approval pause
+    class Agent:
+        def handle(self, message: str, history: list[dict[str, Any]], ctx: Any) -> str:
+            raise NeedHumanInput("Approve calc/add", from_tool_call=True)
+
+    setattr(Agent, ON_MESSAGE_HANDLER_ATTR, "handle")
+    # WHEN the pause escapes the handler
+    result = await dispatch_message(Agent(), "go", None, _ResumedCtx())
+    # THEN the task pauses with the state the run was resumed with
+    assert result["status"] == "input_required"
+    assert result["input_required_data"]["context"] == {"records": ["r-1"], "index": 0}
+
+
+@pytest.mark.asyncio
+async def test_a_pause_the_agent_raises_keeps_its_own_context() -> None:
+    # GIVEN a resumed run whose handler raises its own pause, with no context
+    class Agent:
+        def handle(self, message: str, history: list[dict[str, Any]], ctx: Any) -> str:
+            raise NeedHumanInput("Anything else?")
+
+    setattr(Agent, ON_MESSAGE_HANDLER_ATTR, "handle")
+    # WHEN the pause escapes the handler
+    result = await dispatch_message(Agent(), "go", None, _ResumedCtx())
+    # THEN nothing is added: the agent chose that context
+    assert result["input_required_data"]["context"] == {}
+
+
 # ────────────────────── enriched error surfaces ──────────────────────
 
 
