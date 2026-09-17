@@ -168,8 +168,7 @@ impl ToolExecutor for McpToolExecutor {
     /// MCP session, and runs once the task is resumed with it approved.
     ///
     /// Routes the call through [`McpClientManagerHandle::call_tool`] and
-    /// converts the [`ToolCallResult`] into a JSON object of the form
-    /// `{"content": "…"}` where the value is all text parts joined with `"\n"`.
+    /// converts the [`ToolCallResult`] with [`tool_output`].
     ///
     /// # Errors
     ///
@@ -208,9 +207,24 @@ impl ToolExecutor for McpToolExecutor {
                 });
             }
 
-            let content = extract_text_parts(&result.content);
-            Ok(serde_json::json!({ "content": content }))
+            Ok(tool_output(&result))
         })
+    }
+}
+
+/// What an agent receives from a successful MCP tool call.
+///
+/// `{"content": "…"}`, every text part joined with `"\n"`, and, when the server
+/// sent a structured result, `"structured"` holding it as the server built it.
+/// An agent reading an object used to parse the JSON text of `content` back;
+/// `content` stays as it was, so an agent written against it is unchanged.
+///
+/// [`ToolCallResult`]: crate::protocol::ToolCallResult
+pub(crate) fn tool_output(result: &crate::protocol::ToolCallResult) -> Value {
+    let content = extract_text_parts(&result.content);
+    match &result.structured_content {
+        Some(structured) => serde_json::json!({ "content": content, "structured": structured }),
+        None => serde_json::json!({ "content": content }),
     }
 }
 
@@ -283,6 +297,38 @@ async fn build_executors(
 mod tests {
     use super::*;
     use crate::protocol::ToolCallContent;
+
+    #[test]
+    fn a_structured_result_reaches_the_agent_as_an_object() {
+        // GIVEN a result carrying structuredContent and its text serialization
+        let result: crate::protocol::ToolCallResult = serde_json::from_value(serde_json::json!({
+            "content": [{"type": "text", "text": "{\"lignes\": [{\"id\": \"d-1\"}]}"}],
+            "structuredContent": {"lignes": [{"id": "d-1"}]}
+        }))
+        .unwrap();
+
+        // WHEN it is turned into the agent's output
+        let output = tool_output(&result);
+
+        // THEN the object is there as the server built it, and the text is unchanged
+        assert_eq!(output["structured"]["lignes"][0]["id"], "d-1");
+        assert_eq!(output["content"], "{\"lignes\": [{\"id\": \"d-1\"}]}");
+    }
+
+    #[test]
+    fn a_text_only_result_keeps_its_historical_shape() {
+        // GIVEN a result with text parts and no structuredContent
+        let result: crate::protocol::ToolCallResult = serde_json::from_value(serde_json::json!({
+            "content": [{"type": "text", "text": "5"}]
+        }))
+        .unwrap();
+
+        // WHEN it is turned into the agent's output
+        let output = tool_output(&result);
+
+        // THEN it is exactly `{"content": "5"}`
+        assert_eq!(output, serde_json::json!({"content": "5"}));
+    }
 
     #[test]
     fn parse_tool_name_valid() {
