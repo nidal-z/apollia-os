@@ -172,14 +172,7 @@ pub async fn start_model_download(
     let dest_dir = request
         .dest_dir
         .as_deref()
-        .map(|d| {
-            if d.starts_with("~/") {
-                let home = apollia_core::paths::home_string().unwrap_or_default();
-                PathBuf::from(format!("{}{}", home, &d[1..]))
-            } else {
-                PathBuf::from(d)
-            }
-        })
+        .map(expand_tilde)
         .unwrap_or_else(|| {
             let home = apollia_core::paths::home_dir_or_temp();
             apollia_core::paths::data_dir_under(home).join("models")
@@ -498,4 +491,52 @@ fn import_model_file_inner(
 
     tracing::info!(dest = %dest.display(), "model.file.imported");
     Ok(dest.display().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // GIVEN a tilde-relative destination, as a download request could carry,
+    //       under a substituted home directory
+    // WHEN it is expanded
+    // THEN it lands under that home, joined through `PathBuf` rather than
+    //      string concatenation, so the platform separator is never lost or
+    //      duplicated
+    #[test]
+    fn test_expand_tilde_joins_under_home() {
+        let _guard = crate::commands::home_env_lock();
+        let previous = std::env::var_os("HOME");
+        // SAFETY: test-only mutation of a process env var, serialised by the
+        // guard above and undone below.
+        unsafe {
+            std::env::set_var("HOME", "/home/tester");
+        }
+
+        let expanded = expand_tilde("~/.apollia/models");
+
+        // SAFETY: same guard, restoring the value observed on entry.
+        unsafe {
+            match previous {
+                Some(value) => std::env::set_var("HOME", value),
+                None => std::env::remove_var("HOME"),
+            }
+        }
+
+        assert_eq!(expanded, PathBuf::from("/home/tester/.apollia/models"));
+    }
+
+    // GIVEN an absolute destination the operator picked via the folder dialog
+    // WHEN it is expanded
+    // THEN it passes through unchanged: the folder picker never returns a
+    //      tilde-prefixed path, and nothing here should second-guess it
+    #[test]
+    fn test_expand_tilde_leaves_an_absolute_path_untouched() {
+        let absolute = if cfg!(windows) {
+            "D:\\Models"
+        } else {
+            "/mnt/models"
+        };
+        assert_eq!(expand_tilde(absolute), PathBuf::from(absolute));
+    }
 }
