@@ -369,6 +369,24 @@
   justify-content: center;
 }
 
+/* Download destination */
+.ai-setup .dest-dir-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  font-size: var(--text-caption);
+}
+
+.ai-setup .dest-dir-label {
+  color: hsl(var(--muted-foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
 /* Alt row */
 .ai-setup .alt-row {
   display: flex;

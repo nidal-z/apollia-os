@@ -108,6 +108,8 @@ export interface DownloadRequest {
   filename: string;
   hf_token: string | null;
   repo_id: string | null;
+  /** Destination directory. Defaults to `~/.apollia/models` when absent. */
+  dest_dir?: string | null;
 }
 
 // ── Installed models ──────────────────────────────────────────────────────

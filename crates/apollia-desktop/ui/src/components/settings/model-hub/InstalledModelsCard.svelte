@@ -19,9 +19,12 @@
     models: InstalledModel[];
     loading: boolean;
     onRequestDelete: (model: InstalledModel) => void;
+    /** `null` means new downloads land in the backend's own default (`~/.apollia/models`). */
+    destDir: string | null;
+    onChooseDestDir: () => void;
   }
 
-  let { models, loading, onRequestDelete }: Props = $props();
+  let { models, loading, onRequestDelete, destDir, onChooseDestDir }: Props = $props();
 
   const totalBytes = $derived(models.reduce((sum, m) => sum + m.size_bytes, 0));
 </script>
@@ -39,6 +42,17 @@
       </span>
     {/if}
   {/snippet}
+
+  <div class="flex items-center gap-2 pb-2 text-caption text-muted-foreground" data-testid="model-hub-dest-dir-row">
+    <span class="min-w-0 truncate">
+      {destDir
+        ? $t("settings.model_hub.installed.dest_dir_custom", { values: { path: destDir } })
+        : $t("settings.model_hub.installed.dest_dir_default")}
+    </span>
+    <Button variant="ghost" size="sm" class="shrink-0" onclick={onChooseDestDir} data-testid="model-hub-dest-dir-change">
+      {$t("settings.model_hub.installed.dest_dir_change")}
+    </Button>
+  </div>
 
   {#if loading}
     <div class="flex items-center gap-2 text-body-sm text-muted-foreground">

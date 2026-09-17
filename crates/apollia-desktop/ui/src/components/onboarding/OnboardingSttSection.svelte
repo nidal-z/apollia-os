@@ -80,6 +80,19 @@
   let sttDownloadingModel = $state<CuratedSttModel | null>(null);
   let sttDownloadError = $state<string | null>(null);
 
+  // `null` keeps the backend's own default (`~/.apollia/models`); a masterised
+  // Windows profile with a constrained `C:` drive is the reason this exists.
+  let destDir = $state<string | null>(null);
+
+  async function chooseDestDir(): Promise<void> {
+    const selected = await openFilePicker({
+      directory: true,
+      defaultPath: destDir ?? (await pickModelsDir()),
+    });
+    if (!selected) return;
+    destDir = typeof selected === "string" ? selected : (selected as { path: string }).path;
+  }
+
   // ── STT hotkey + live test ────────────────────────────────────────────
   // Reads the current config (the hotkey persisted in system.db), lets the
   // operator set it from the keyboard, and tests the pipeline live without
@@ -390,6 +403,7 @@
       sttDownloadId = await startModelDownload({
         url: model.url,
         filename: model.filename,
+        dest_dir: destDir,
       });
     } catch (err: unknown) {
       sttDownloadError = err instanceof Error ? err.message : String(err);
@@ -473,6 +487,17 @@
       >
         <Upload size={12} strokeWidth={2} />
         {$t("onboarding.ai_setup.load_model")}
+      </Button>
+    </div>
+
+    <div class="dest-dir-row" data-testid="stt-dest-dir-row">
+      <span class="dest-dir-label">
+        {destDir
+          ? $t("onboarding.ai_setup.dest_dir_custom", { values: { path: destDir } })
+          : $t("onboarding.ai_setup.dest_dir_default")}
+      </span>
+      <Button variant="ghost" size="sm" class="inline-link" onclick={chooseDestDir} data-testid="stt-dest-dir-change">
+        {$t("onboarding.ai_setup.dest_dir_change")}
       </Button>
     </div>
   {/if}

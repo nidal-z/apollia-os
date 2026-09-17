@@ -2699,7 +2699,10 @@
         "delete_title": "Supprimer le modèle ?",
         "delete_message": "Supprimer définitivement « {name} » du disque ? Cette action est irréversible.",
         "deleted_toast": "Modèle « {name} » supprimé",
-        "help": "Fichiers présents dans votre dossier de modèles local."
+        "help": "Fichiers présents dans votre dossier de modèles local.",
+        "dest_dir_default": "Nouveaux téléchargements dans ~/.apollia/models",
+        "dest_dir_custom": "Nouveaux téléchargements dans {path}",
+        "dest_dir_change": "Changer…"
       },
       "hardware": {
         "label": "Votre matériel",
@@ -3162,6 +3165,9 @@
       "rescan": "re-scanner",
       "load_model": "Charger un modèle",
       "load_model_title": "Choisir un fichier modèle",
+      "dest_dir_default": "Dossier par défaut (~/.apollia/models)",
+      "dest_dir_custom": "Dossier : {path}",
+      "dest_dir_change": "Changer…",
       "cancel_download": "Annuler le téléchargement",
       "search_placeholder": "Rechercher un modèle GGUF sur HuggingFace…",
       "search": "Rechercher",

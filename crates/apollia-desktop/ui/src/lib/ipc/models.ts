@@ -67,6 +67,8 @@ export interface ModelDownloadRequest {
   url: string;
   filename: string;
   repo_id?: string | null;
+  /** Destination directory. Defaults to `~/.apollia/models` when absent. */
+  dest_dir?: string | null;
 }
 
 /** Loose STT config shape: patched field-by-field, never fully retyped here. */

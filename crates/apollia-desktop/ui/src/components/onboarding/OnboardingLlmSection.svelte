@@ -76,6 +76,10 @@
   let llmDownloadingModel = $state<CuratedLlmModel | HfFile | null>(null);
   let llmDownloadError = $state<string | null>(null);
 
+  // `null` keeps the backend's own default (`~/.apollia/models`); a masterised
+  // Windows profile with a constrained `C:` drive is the reason this exists.
+  let destDir = $state<string | null>(null);
+
   let showSearch = $state(false);
   let searchQuery = $state("");
   let searchLoading = $state(false);
@@ -210,6 +214,15 @@
     }
   }
 
+  async function chooseDestDir(): Promise<void> {
+    const selected = await openFilePicker({
+      directory: true,
+      defaultPath: destDir ?? (await pickModelsDir()),
+    });
+    if (!selected) return;
+    destDir = typeof selected === "string" ? selected : (selected as { path: string }).path;
+  }
+
   async function downloadLlmModel(model: CuratedLlmModel): Promise<void> {
     if (llmDownloadId) return;
     llmDownloadError = null;
@@ -220,6 +233,7 @@
         url: model.url,
         filename: model.filename,
         repo_id: extractHfRepoId(model.url),
+        dest_dir: destDir,
       });
     } catch (err: unknown) {
       llmDownloadError = err instanceof Error ? err.message : String(err);
@@ -281,6 +295,7 @@
         url: file.download_url,
         filename: file.filename,
         repo_id: expandedDetail?.repo_id ?? extractHfRepoId(file.download_url),
+        dest_dir: destDir,
       });
       showSearch = false;
     } catch (err: unknown) {
@@ -364,6 +379,17 @@
       >
         <Upload size={12} strokeWidth={2} />
         {$t("onboarding.ai_setup.load_model")}
+      </Button>
+    </div>
+
+    <div class="dest-dir-row" data-testid="llm-dest-dir-row">
+      <span class="dest-dir-label">
+        {destDir
+          ? $t("onboarding.ai_setup.dest_dir_custom", { values: { path: destDir } })
+          : $t("onboarding.ai_setup.dest_dir_default")}
+      </span>
+      <Button variant="ghost" size="sm" class="inline-link" onclick={chooseDestDir} data-testid="llm-dest-dir-change">
+        {$t("onboarding.ai_setup.dest_dir_change")}
       </Button>
     </div>
 

@@ -10,6 +10,8 @@
   import { onMount, onDestroy } from "svelte";
   import { t } from "svelte-i18n";
   import type { UnlistenFn } from "@tauri-apps/api/event";
+  import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
+  import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
   import { addToast } from "$lib/components/ui/toast";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { reportError } from "$lib/errors/reportError";
@@ -79,6 +81,10 @@
   let installedLoading = $state(true);
   let deleteTarget = $state<InstalledModel | null>(null);
   let deleting = $state(false);
+
+  // `null` keeps the backend's own default (`~/.apollia/models`); a masterised
+  // Windows profile with a constrained `C:` drive is the reason this exists.
+  let destDir = $state<string | null>(null);
 
   let unlisten: UnlistenFn | null = null;
 
@@ -191,6 +197,19 @@
     }
   }
 
+  async function defaultModelsDir(): Promise<string> {
+    return pathJoin(await homeDir(), ".apollia", "models");
+  }
+
+  async function chooseDestDir(): Promise<void> {
+    const selected = await openFilePicker({
+      directory: true,
+      defaultPath: destDir ?? (await defaultModelsDir()),
+    });
+    if (!selected) return;
+    destDir = typeof selected === "string" ? selected : (selected as { path: string }).path;
+  }
+
   async function startDownload(file: HfFile): Promise<void> {
     const card = modelDetail ?? searchResults.find((m) => m.repo_id === expandedModel);
     if (card?.gated && !hfToken) {
@@ -203,6 +222,7 @@
         filename: file.filename,
         hf_token: hfToken || null,
         repo_id: card?.repo_id ?? null,
+        dest_dir: destDir,
       });
       addToast($t("settings.model_hub.downloads.downloading_toast", { values: { filename: file.filename } }), "info");
     } catch (e) {
@@ -263,6 +283,8 @@
     models={installedModels}
     loading={installedLoading}
     onRequestDelete={(m) => (deleteTarget = m)}
+    {destDir}
+    onChooseDestDir={chooseDestDir}
   />
 
   {#if downloadList.length > 0}

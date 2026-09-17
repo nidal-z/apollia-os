@@ -2699,7 +2699,10 @@
         "delete_title": "Delete model?",
         "delete_message": "Permanently delete ''{name}'' from disk? This cannot be undone.",
         "deleted_toast": "Model ''{name}'' deleted",
-        "help": "Files present in your local models directory."
+        "help": "Files present in your local models directory.",
+        "dest_dir_default": "New downloads go to ~/.apollia/models",
+        "dest_dir_custom": "New downloads go to {path}",
+        "dest_dir_change": "Change…"
       },
       "hardware": {
         "label": "Your hardware",
@@ -3162,6 +3165,9 @@
       "rescan": "re-scan",
       "load_model": "Load a model",
       "load_model_title": "Choose a model file",
+      "dest_dir_default": "Default folder (~/.apollia/models)",
+      "dest_dir_custom": "Folder: {path}",
+      "dest_dir_change": "Change…",
       "cancel_download": "Cancel download",
       "search_placeholder": "Search for a GGUF model on HuggingFace…",
       "search": "Search",
