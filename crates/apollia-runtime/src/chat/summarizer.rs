@@ -21,7 +21,11 @@ Focus on:
 2. Important context established
 3. Unresolved questions or pending items
 
-Do not include greetings or small talk. Be factual and precise.";
+Write in the past tense, as a factual record of what already happened. This
+summary is later shown to a different conversation as background only; never
+phrase it as a plan, a next step, or an instruction, and never restate a tool
+call as something to redo. Do not include greetings or small talk. Be factual
+and precise.";
 
 /// Errors that can occur during conversation summarization.
 #[derive(Debug, thiserror::Error)]

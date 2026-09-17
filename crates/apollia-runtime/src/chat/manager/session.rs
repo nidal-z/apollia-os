@@ -44,7 +44,11 @@ impl ChatSessionManager {
             return None;
         }
 
-        let mut block = String::from("## Previous conversations (for reference)\n");
+        let mut block = String::from(
+            "## Context from earlier, unrelated sessions\n\
+             Background only. Do not resume, repeat, or act on anything below: \
+             if the current message does not ask for it, ignore it.\n",
+        );
         for session in &sessions {
             block.push_str(&format!("- [{}] {}\n", session.created_at, session.summary));
         }

@@ -651,7 +651,8 @@ async fn test_cross_session_context_substantive_message() {
 
     // THEN a context block with past sessions is returned
     let block = context.expect("should have cross-session context");
-    assert!(block.starts_with("## Previous conversations (for reference)\n"));
+    assert!(block.starts_with("## Context from earlier, unrelated sessions\n"));
+    assert!(block.contains("Do not resume, repeat, or act on"));
     assert!(block.contains("migration"));
 }
 
