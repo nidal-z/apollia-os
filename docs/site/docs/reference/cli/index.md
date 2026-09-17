@@ -1141,6 +1141,7 @@ Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), 
 * `--offset <OFFSET>` - Number of entries to skip, newest first. Page through with it
 
   Default value: `0`
+* `--agent <AGENT>` - Keep the runs of this agent's tasks only. Repeat it for several agents
 
 
 

@@ -2662,11 +2662,23 @@ export interface components {
             /** @description Confirmation flag. */
             ok: boolean;
         };
-        /** @description One pending HITL approval entry. */
+        /**
+         * @description One pending HITL approval entry.
+         *
+         *     Carries the same pause as a `GET /api/v1/tasks?status=input_required` item,
+         *     typed payload included, so a card can be drawn from either list.
+         */
         PendingApprovalResponse: {
             agent_name: string;
             context?: Record<string, never> | null;
+            /**
+             * @description Typed question or approval of the pause, `null` for a prompt-only pause.
+             *     The body of `POST /api/v1/tasks/{id}/resume` answers it.
+             */
+            payload?: Record<string, never> | null;
             prompt: string;
+            /** @description Skill that paused, when the pause came from a skill. */
+            skill_id?: string | null;
             suspended_at: string;
             task_id: string;
         };
@@ -3892,6 +3904,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of entries to skip, newest first (default 0). Page through the journal by advancing it. */
                 offset?: number;
+                /** @description Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included. */
+                agents?: string;
             };
             header?: never;
             path?: never;
@@ -3908,7 +3922,7 @@ export interface operations {
                     "application/json": components["schemas"]["AuditJournalPageResponse"];
                 };
             };
-            /** @description Audit journal not configured */
+            /** @description Audit journal not configured, or `agents` given with no task repository to resolve them */
             503: {
                 headers: {
                     [name: string]: unknown;

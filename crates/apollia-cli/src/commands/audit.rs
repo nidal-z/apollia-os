@@ -43,6 +43,10 @@ pub enum AuditCommand {
         /// Number of entries to skip, newest first. Page through with it.
         #[arg(long, default_value_t = 0)]
         offset: u32,
+        /// Keep the runs of this agent's tasks only. Repeat it for several
+        /// agents.
+        #[arg(long = "agent", value_name = "AGENT")]
+        agents: Vec<String>,
     },
     /// Display audit statistics.
     Stats,
@@ -109,9 +113,11 @@ pub async fn run(cmd: &AuditCommand, socket: Option<PathBuf>, json: bool) -> i32
 
     match cmd {
         AuditCommand::List { limit } => run_list(&client, *limit, json).await,
-        AuditCommand::Journal { limit, offset } => {
-            run_journal(&client, *limit, *offset, json).await
-        }
+        AuditCommand::Journal {
+            limit,
+            offset,
+            agents,
+        } => run_journal(&client, *limit, *offset, agents, json).await,
         AuditCommand::Stats => run_stats(&client, json).await,
         AuditCommand::Export { output, limit } => {
             run_export(&client, output.as_deref(), *limit, json).await

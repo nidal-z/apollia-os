@@ -64,6 +64,16 @@ whether the entry carries a signature. A single tool call appears as two entries
 one when it starts and one when it completes, because the journal records events
 rather than invocations.
 
+The journal holds every run of the instance. To page through the runs of some
+agents only, name them; over the API the same filter is
+`GET /api/v1/audit/journal?agents=<agent>,<agent>`. A run belongs to an agent
+through the task that started it, so a chat turn, which starts no task, is never
+in a filtered page:
+
+```sh
+apollia-os audit journal --agent flux-quotes --agent flux-invoices --limit 20
+```
+
 To take the tool-invocation trail out for archival or external review:
 
 ```sh

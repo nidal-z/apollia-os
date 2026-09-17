@@ -72,6 +72,7 @@ from .models_list_response import ModelsListResponse
 from .ok_response import OkResponse
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
+from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
 from .ping_request import PingRequest
 from .ping_response import PingResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
@@ -229,6 +230,7 @@ __all__ = (
     "OkResponse",
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
+    "PendingApprovalResponsePayloadType0",
     "PingRequest",
     "PingResponse",
     "PlanCacheStatsResponse",

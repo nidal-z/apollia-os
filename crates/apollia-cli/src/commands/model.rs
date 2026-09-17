@@ -352,7 +352,7 @@ fn run_delete(name: &str, confirm: bool, json: bool) -> i32 {
 }
 
 /// Minimal percent-encode for the query string.
-fn urlencode(s: &str) -> String {
+pub(crate) fn urlencode(s: &str) -> String {
     s.bytes()
         .map(|b| {
             if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {

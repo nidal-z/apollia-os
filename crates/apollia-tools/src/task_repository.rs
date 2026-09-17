@@ -441,6 +441,35 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_run_ids_for_agents_follow_the_named_agents_only() {
+        // GIVEN tasks of three agents, one of them without a run
+        let (repo, _path) = open_test_repo().await;
+        for (task, agent, run) in [
+            ("t-1", "flux-a", Some("run-1")),
+            ("t-2", "flux-b", Some("run-2")),
+            ("t-3", "other", Some("run-3")),
+            ("t-4", "flux-a", None),
+        ] {
+            if let Some(run) = run {
+                repo.set_run_id(task, run).await.expect("set_run_id failed");
+            }
+            repo.set_agent_name(task, agent)
+                .await
+                .expect("set_agent_name failed");
+        }
+
+        // WHEN the runs of flux-a and flux-b are asked for
+        let mut runs = repo
+            .run_ids_for_agents(&["flux-a".to_string(), "flux-b".to_string()])
+            .await
+            .expect("run_ids_for_agents failed");
+        runs.sort();
+
+        // THEN only their runs come back, and a task with no run adds nothing
+        assert_eq!(runs, vec!["run-1".to_string(), "run-2".to_string()]);
+    }
+
     // Input persisted at submission (not truncated)
 
     #[tokio::test]

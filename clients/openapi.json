@@ -731,6 +731,15 @@
               "format": "int32",
               "minimum": 0
             }
+          },
+          {
+            "name": "agents",
+            "in": "query",
+            "description": "Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -745,7 +754,7 @@
             }
           },
           "503": {
-            "description": "Audit journal not configured",
+            "description": "Audit journal not configured, or `agents` given with no task repository to resolve them",
             "content": {
               "application/json": {
                 "schema": {
@@ -6857,7 +6866,7 @@
       },
       "PendingApprovalResponse": {
         "type": "object",
-        "description": "One pending HITL approval entry.",
+        "description": "One pending HITL approval entry.\n\nCarries the same pause as a `GET /api/v1/tasks?status=input_required` item,\ntyped payload included, so a card can be drawn from either list.",
         "required": [
           "task_id",
           "agent_name",
@@ -6874,8 +6883,22 @@
               "null"
             ]
           },
+          "payload": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Typed question or approval of the pause, `null` for a prompt-only pause.\nThe body of `POST /api/v1/tasks/{id}/resume` answers it."
+          },
           "prompt": {
             "type": "string"
+          },
+          "skill_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Skill that paused, when the pause came from a skill."
           },
           "suspended_at": {
             "type": "string"

@@ -64,6 +64,37 @@ impl TaskRepository {
         .await
         .map_err(|e| TaskRepoError::Internal(e.to_string()))?
     }
+    /// The run ids of the tasks of `agents`, newest task first.
+    ///
+    /// The audit journal knows runs, not agents; this is the link the task
+    /// table holds between the two. A task that never started a run has none
+    /// and is skipped.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TaskRepoError::Sqlite`] on a SQLite error.
+    pub async fn run_ids_for_agents(
+        &self,
+        agents: &[String],
+    ) -> Result<Vec<String>, TaskRepoError> {
+        let path = self.db_path.clone();
+        let agents_json = serde_json::to_string(agents)?;
+
+        tokio::task::spawn_blocking(move || -> Result<Vec<String>, TaskRepoError> {
+            let conn = open_conn(&path)?;
+            let mut stmt = conn.prepare(
+                "SELECT run_id FROM tasks \
+                 WHERE run_id IS NOT NULL \
+                   AND agent_name IN (SELECT value FROM json_each(?1)) \
+                 GROUP BY run_id \
+                 ORDER BY MAX(created_at) DESC",
+            )?;
+            let rows = stmt.query_map(params![agents_json], |row| row.get::<_, String>(0))?;
+            Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+        })
+        .await
+        .map_err(|e| TaskRepoError::Internal(e.to_string()))?
+    }
     /// Updates the agent name for a task.
     ///
     /// Called by the coordinator just after `save_input` to set the

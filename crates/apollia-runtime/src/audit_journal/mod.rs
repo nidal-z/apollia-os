@@ -451,6 +451,33 @@ mod tests {
         tokio::fs::remove_file(&path).await.ok();
     }
 
+    // A page narrowed to some runs holds theirs only, still newest first
+    #[tokio::test]
+    async fn test_query_page_of_runs_keeps_only_those_runs() {
+        // GIVEN entries of three runs, interleaved
+        let (handle, path) = open_temp().await;
+        for run in ["run-a", "run-b", "run-c", "run-a", "run-b"] {
+            handle.append(draft(
+                run,
+                JournalEntryKind::ToolCallStarted,
+                serde_json::json!({}),
+            ));
+        }
+
+        // WHEN a page is read for run-a and run-c, and for no run at all
+        let page = handle
+            .query_page_of_runs(vec!["run-a".into(), "run-c".into()], 10, 0)
+            .await;
+        let none = handle.query_page_of_runs(Vec::new(), 10, 0).await;
+
+        // THEN run-b is absent, the order is the global one, and no run is no entry
+        let runs: Vec<&str> = page.iter().map(|e| e.run_id.as_str()).collect();
+        assert_eq!(runs, vec!["run-a", "run-c", "run-a"]);
+        assert!(none.is_empty());
+        handle.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
+    }
+
     // An empty journal answers a page rather than failing
     #[tokio::test]
     async fn test_query_page_on_empty_journal_is_empty() {

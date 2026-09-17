@@ -160,12 +160,39 @@ impl AuditJournalHandle {
     /// This is the only read of the journal that does not require a run id
     /// up front: `query_run` answers a run that the caller already knows.
     pub async fn query_page(&self, limit: usize, offset: usize) -> Vec<JournalEntry> {
+        self.page(limit, offset, None).await
+    }
+
+    /// Return one page of the entries of `runs`, newest global position first.
+    ///
+    /// The instance journal holds every run of every agent; a caller that
+    /// follows some agents only pages through theirs instead of walking pages
+    /// that belong to others. An empty `runs` answers an empty page.
+    pub async fn query_page_of_runs(
+        &self,
+        runs: Vec<String>,
+        limit: usize,
+        offset: usize,
+    ) -> Vec<JournalEntry> {
+        if runs.is_empty() {
+            return Vec::new();
+        }
+        self.page(limit, offset, Some(runs)).await
+    }
+
+    async fn page(
+        &self,
+        limit: usize,
+        offset: usize,
+        runs: Option<Vec<String>>,
+    ) -> Vec<JournalEntry> {
         let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
         if self
             .sender
             .send(JournalMessage::QueryPage {
                 limit,
                 offset,
+                runs,
                 reply: reply_tx,
             })
             .await

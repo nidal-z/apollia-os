@@ -48,6 +48,20 @@ fn default_limit() -> u32 {
     20
 }
 
+/// Query parameters of `GET /api/v1/audit/journal`.
+#[derive(Debug, Deserialize)]
+pub struct JournalPageQuery {
+    /// Maximum number of entries to return (default 20, capped at 500).
+    #[serde(default = "default_limit")]
+    pub limit: u32,
+    /// How many entries to skip, newest first. Defaults to 0.
+    #[serde(default)]
+    pub offset: u32,
+    /// Comma-separated agent names. When set, the page holds the runs of those
+    /// agents' tasks only.
+    pub agents: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
 // Response types
 // ---------------------------------------------------------------------------
@@ -372,15 +386,16 @@ pub struct AuditJournalPageResponse {
     params(
         ("limit" = Option<u32>, Query, description = "Maximum number of entries to return (default 20, capped at 500)"),
         ("offset" = Option<u32>, Query, description = "Number of entries to skip, newest first (default 0). Page through the journal by advancing it."),
+        ("agents" = Option<String>, Query, description = "Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included."),
     ),
     responses(
         (status = 200, description = "A page of hash-chained journal entries", body = AuditJournalPageResponse),
-        (status = 503, description = "Audit journal not configured", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Audit journal not configured, or `agents` given with no task repository to resolve them", body = crate::api::openapi::ApiErrorBody),
     )
 )]
 pub async fn list_audit_journal<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
-    Query(params): Query<AuditListQuery>,
+    Query(params): Query<JournalPageQuery>,
 ) -> Result<Json<AuditJournalPageResponse>, (StatusCode, Json<ErrorResponse>)> {
     let handle = state.audit_journal.as_ref().ok_or_else(|| {
         (
@@ -394,7 +409,37 @@ pub async fn list_audit_journal<B: ExecutionBackend + Clone>(
     // Same page ceiling as the trail: it bounds one request, not the reachable
     // history, which `offset` walks past.
     let limit = params.limit.min(500) as usize;
-    let entries = handle.query_page(limit, params.offset as usize).await;
+    let offset = params.offset as usize;
+    let agents: Vec<String> = params
+        .agents
+        .as_deref()
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|a| !a.is_empty())
+        .map(str::to_owned)
+        .collect();
+    let entries = if agents.is_empty() {
+        handle.query_page(limit, offset).await
+    } else {
+        let repo = state.task_repository.as_ref().ok_or_else(|| {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: "task repository not available to resolve agents".to_string(),
+                }),
+            )
+        })?;
+        let runs = repo.run_ids_for_agents(&agents).await.map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("failed to resolve the runs of the agents: {e}"),
+                }),
+            )
+        })?;
+        handle.query_page_of_runs(runs, limit, offset).await
+    };
     let count = entries.len();
 
     Ok(Json(AuditJournalPageResponse { entries, count }))
@@ -899,6 +944,49 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["count"].as_u64().unwrap(), 2);
         assert_eq!(json["entries"][0]["run_id"].as_str().unwrap(), "run-2");
+        assert_eq!(json["entries"][1]["run_id"].as_str().unwrap(), "run-1");
+    }
+
+    // GET /api/v1/audit/journal?agents= pages the runs of those agents only
+    #[tokio::test]
+    async fn test_list_audit_journal_filters_by_agents() {
+        // GIVEN three runs journaled, each the run of a task of a different agent
+        use crate::audit_journal::{JournalEntryDraft, JournalEntryKind};
+        let journal = open_temp_journal().await;
+        let db = std::env::temp_dir().join(format!("apollia_jf_{}.db", uuid::Uuid::new_v4()));
+        let repo = apollia_tools::TaskRepository::open(&db).await.unwrap();
+        for (task, agent, run) in [
+            ("t-1", "flux-quotes", "run-1"),
+            ("t-2", "flux-other-space", "run-2"),
+            ("t-3", "flux-invoices", "run-3"),
+        ] {
+            repo.set_run_id(task, run).await.unwrap();
+            repo.set_agent_name(task, agent).await.unwrap();
+            journal.append(JournalEntryDraft {
+                run_id: run.to_string(),
+                ts: "2026-01-01T00:00:00Z".to_string(),
+                kind: JournalEntryKind::ToolCallStarted,
+                payload: serde_json::json!({ "tool_name": "bash" }),
+            });
+        }
+        let mut state = test_app_state_with_audit(None);
+        state.audit_journal = Some(journal);
+        state.task_repository = Some(Arc::new(repo));
+        let router = APIServer::build_router_for_test(state);
+
+        // WHEN the page is asked for two of the agents
+        let req = Request::builder()
+            .uri("/api/v1/audit/journal?agents=flux-quotes,flux-invoices")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN only their runs are in it, newest first
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 8192).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["count"].as_u64().unwrap(), 2);
+        assert_eq!(json["entries"][0]["run_id"].as_str().unwrap(), "run-3");
         assert_eq!(json["entries"][1]["run_id"].as_str().unwrap(), "run-1");
     }
 

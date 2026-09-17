@@ -14,6 +14,7 @@ def _get_kwargs(
     *,
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
+    agents: str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -21,6 +22,8 @@ def _get_kwargs(
     params["limit"] = limit
 
     params["offset"] = offset
+
+    params["agents"] = agents
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -68,6 +71,7 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
+    agents: str | Unset = UNSET,
 ) -> Response[ApiErrorBody | AuditJournalPageResponse]:
     """`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
     across every run.
@@ -80,6 +84,7 @@ def sync_detailed(
     Args:
         limit (int | Unset):
         offset (int | Unset):
+        agents (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -92,6 +97,7 @@ def sync_detailed(
     kwargs = _get_kwargs(
         limit=limit,
         offset=offset,
+        agents=agents,
     )
 
     response = client.get_httpx_client().request(
@@ -106,6 +112,7 @@ def sync(
     client: AuthenticatedClient | Client,
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
+    agents: str | Unset = UNSET,
 ) -> ApiErrorBody | AuditJournalPageResponse | None:
     """`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
     across every run.
@@ -118,6 +125,7 @@ def sync(
     Args:
         limit (int | Unset):
         offset (int | Unset):
+        agents (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -131,6 +139,7 @@ def sync(
         client=client,
         limit=limit,
         offset=offset,
+        agents=agents,
     ).parsed
 
 
@@ -139,6 +148,7 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
+    agents: str | Unset = UNSET,
 ) -> Response[ApiErrorBody | AuditJournalPageResponse]:
     """`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
     across every run.
@@ -151,6 +161,7 @@ async def asyncio_detailed(
     Args:
         limit (int | Unset):
         offset (int | Unset):
+        agents (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -163,6 +174,7 @@ async def asyncio_detailed(
     kwargs = _get_kwargs(
         limit=limit,
         offset=offset,
+        agents=agents,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -175,6 +187,7 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     limit: int | Unset = UNSET,
     offset: int | Unset = UNSET,
+    agents: str | Unset = UNSET,
 ) -> ApiErrorBody | AuditJournalPageResponse | None:
     """`GET /api/v1/audit/journal?limit=N&offset=M`, a page of the chained journal
     across every run.
@@ -187,6 +200,7 @@ async def asyncio(
     Args:
         limit (int | Unset):
         offset (int | Unset):
+        agents (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -201,5 +215,6 @@ async def asyncio(
             client=client,
             limit=limit,
             offset=offset,
+            agents=agents,
         )
     ).parsed
