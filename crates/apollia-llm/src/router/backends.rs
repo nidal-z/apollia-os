@@ -398,7 +398,8 @@ pub(super) async fn resolve_context_window(
 pub(super) async fn probe_ollama_context_window(base_url: &str, model: &str) -> Option<usize> {
     let root = base_url.trim_end_matches('/');
     let root = root.strip_suffix("/v1").unwrap_or(root);
-    let client = crate::http_client::build_llm_http_client(std::time::Duration::from_secs(5));
+    let client =
+        crate::http_client::build_llm_http_client(std::time::Duration::from_secs(5), base_url);
     let body: serde_json::Value = client
         .get(format!("{root}/api/ps"))
         .send()

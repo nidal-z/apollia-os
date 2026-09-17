@@ -165,7 +165,7 @@ impl AnthropicClient {
         idle_timeout: std::time::Duration,
     ) -> Self {
         Self {
-            client: crate::http_client::build_llm_http_client(idle_timeout),
+            client: crate::http_client::build_llm_http_client(idle_timeout, &config.api_url),
             config: config.clone(),
             api_key,
             pricing_table: pricing::default_pricing(),

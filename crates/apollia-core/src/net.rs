@@ -127,6 +127,36 @@ pub fn assert_public_str(url: &str) -> Result<(), SsrfError> {
     assert_public(&parsed)
 }
 
+/// True when `url`'s host is this machine itself: a loopback IP address or
+/// the name `localhost`.
+///
+/// A system-configured proxy can never route to a loopback destination, so a
+/// client that trusts it there turns a healthy local backend (the embedded
+/// `llama-server`, a local Ollama) into a silent connect failure on any
+/// network that requires a proxy for everything else. Narrower than
+/// [`assert_public`] on purpose: a private LAN address is a real destination
+/// a proxy might legitimately need to reach, so only "this machine" is
+/// exempted, not every internal range.
+pub fn is_loopback_host(url: &url::Url) -> bool {
+    match url.host() {
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        Some(url::Host::Domain(name)) => name.eq_ignore_ascii_case("localhost"),
+        None => false,
+    }
+}
+
+/// [`is_loopback_host`] for a call site that carries a configured string and
+/// has no other reason to depend on the `url` crate. A string that does not
+/// parse is treated as not loopback, which only means the request still goes
+/// through the configured proxy; it fails to connect regardless of that
+/// choice, since it is not a valid URL to begin with.
+pub fn is_loopback_host_str(url: &str) -> bool {
+    url::Url::parse(url)
+        .map(|u| is_loopback_host(&u))
+        .unwrap_or(false)
+}
+
 /// Redirect-chain cap applied when a call site does not pick its own. Mirrors
 /// reqwest's own default of 10 hops.
 pub const DEFAULT_MAX_REDIRECTS: usize = 10;
@@ -400,6 +430,44 @@ mod tests {
             // THEN each is refused
             assert!(matches!(err, SsrfError::PrivateAddress(_)), "{host}");
         }
+    }
+
+    #[test]
+    fn is_loopback_host_matches_the_embedded_backends() {
+        // GIVEN the exact base URLs the embedded llama-server and the default
+        // Ollama backend use
+        for host in [
+            "http://127.0.0.1:8420/v1",
+            "http://localhost:11434/v1",
+            "http://LOCALHOST:11434/v1",
+            "http://[::1]:11434/v1",
+        ] {
+            // WHEN classified
+            // THEN each is recognised as this machine
+            assert!(is_loopback_host(&parse(host)), "{host}");
+        }
+    }
+
+    #[test]
+    fn is_loopback_host_rejects_a_real_remote_destination() {
+        // GIVEN a public API host and a private-LAN one (a proxy might
+        // legitimately need to reach either)
+        for host in ["https://api.openai.com/v1", "http://192.168.1.20:11434/v1"] {
+            // WHEN classified
+            // THEN neither is treated as this machine
+            assert!(!is_loopback_host(&parse(host)), "{host}");
+        }
+    }
+
+    #[test]
+    fn is_loopback_host_str_agrees_with_the_parsed_form() {
+        // GIVEN a loopback URL, a remote one, and a string that is not a URL
+        // WHEN classified through the string-based helper
+        // THEN it matches the parsed-form answer, and an unparseable string is
+        //      not loopback rather than panicking
+        assert!(is_loopback_host_str("http://127.0.0.1:8420/v1"));
+        assert!(!is_loopback_host_str("https://api.openai.com/v1"));
+        assert!(!is_loopback_host_str("not a url"));
     }
 
     #[test]

@@ -143,8 +143,9 @@ impl OpenAICompatibleClient {
             .with_api_key(api_key)
             .with_api_base(config.api_url.clone());
         Self {
-            client: Client::with_config(openai_config)
-                .with_http_client(crate::http_client::build_llm_http_client(idle_timeout)),
+            client: Client::with_config(openai_config).with_http_client(
+                crate::http_client::build_llm_http_client(idle_timeout, &config.api_url),
+            ),
             config: config.clone(),
             retry_policy: RetryPolicy::default(),
             cancel,
