@@ -32,7 +32,7 @@ sidebar_position: 9
 - **Transport** : `stdio`.
 - **Commande** : exécutable à lancer (par exemple `npx`, `uvx`, ou un chemin absolu).
 - **Arguments** : séparés par des espaces (par exemple `-y @modelcontextprotocol/server-filesystem ~/Documents`).
-- **Exiger approbation** : cochez si vous voulez une approbation HITL à chaque appel d'outil.
+- **Exiger approbation** : coché par défaut. Il s'applique aux tâches d'agent : coché, chaque appel qu'une tâche d'agent fait à ce serveur suspend la tâche jusqu'à votre approbation. Dans une conversation il ne change rien, voir la section sécurité plus bas.
 
 ![Formulaire Personnalisé en transport stdio, avec la commande et les arguments remplis](/img/operator-help/integration-cabler-son-propre-serveur-mcp-2.png)
 
@@ -73,7 +73,7 @@ Apollia peut découvrir des serveurs MCP sur votre réseau local via mDNS (servi
 ## Sécurité, ce qu'Apollia applique par défaut
 
 - **Trust level** : un serveur ajouté à la main n'en porte aucun. Le niveau est une surcouche que seules les dix-huit entrées enrichies du catalogue portent, et aucun code n'attribue de niveau `custom` à quoi que ce soit : votre serveur n'affiche donc aucun badge. C'est cohérent avec la dernière section de cette page, où il apparaît dans la liste sans logo, sans description et sans badge de confiance.
-- **Approbation HITL** : par défaut, l'outil est en mode *requires_approval*, chaque appel demande votre validation. Vous pouvez assouplir par outil dans la page [Comprendre les permissions MCP](understand-mcp-permissions.md).
+- **Approbation HITL** : deux endroits en décident, et ils ne lisent pas le même réglage. Dans une tâche d'agent, *Exiger approbation* décide : coché, ce qui est le défaut du formulaire, chaque appel suspend la tâche jusqu'à votre réponse ; décoché, l'appel s'exécute. `apollia-os mcp add` le laisse décoché sauf si vous passez `--require-approval`. Dans une conversation ce réglage n'est pas lu : tout appel à un outil que vous n'avez pas déjà autorisé, pour la session ou par une règle, vous est d'abord demandé. Les règles se gèrent dans la page [Comprendre les permissions MCP](understand-mcp-permissions.md).
 - **Roots** : Apollia annonce la capacité pendant la poignée de main, et ne répond à aucune requête `roots/list`. Aucun répertoire n'est déclaré : roots ne borne donc rien aujourd'hui. Ce qui borne un serveur stdio, c'est la commande et les arguments que vous lui avez donnés, et c'est pourquoi le chemin passé dans **Arguments** est le vrai périmètre.
 - **Sampling et elicitation** : non implémentés. Apollia n'annonce pas ces deux capacités pendant la poignée de main, si bien qu'un serveur qui les supporte n'essaiera pas de rappeler par ce biais.
 

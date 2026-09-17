@@ -321,6 +321,7 @@ pub fn map_event(event: &RuntimeEvent) -> Option<JournalEntryDraft> {
             backend,
             model,
             messages_count,
+            response_schema_fingerprint,
             ..
         } => Some(draft(
             run_id.as_str().to_string(),
@@ -329,6 +330,11 @@ pub fn map_event(event: &RuntimeEvent) -> Option<JournalEntryDraft> {
                 "backend": backend,
                 "model": model,
                 "messages_count": messages_count,
+                // Present only on a structured-output call, and the fingerprint
+                // rather than the schema: the trail records that generation was
+                // constrained and by which schema, without storing caller data.
+                "constrained_output": response_schema_fingerprint.is_some(),
+                "response_schema_fingerprint": response_schema_fingerprint,
             }),
         )),
         RuntimeEvent::LlmCallCompleted {

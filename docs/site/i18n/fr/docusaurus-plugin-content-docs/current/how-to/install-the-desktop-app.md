@@ -168,6 +168,34 @@ l'application elle-même : le parcours d'accueil le propose, et Réglages,
 Model Hub fait de même par la suite. Déposer un fichier `.gguf` à la main dans
 `~/.apollia/models/` fonctionne aussi, avant ou après le parcours d'accueil.
 
+## L'interpréteur Python sur lequel tournent les agents
+
+Apollia est livré avec son propre Python 3.13, et c'est lui qui fait tourner les
+agents : rien n'a besoin d'être installé sur la machine, et aucun droit
+d'administrateur n'est requis. Les interpréteurs déjà présents sur la machine ne
+sont pas consultés, quelle que soit leur version.
+
+Si votre environnement en exige un autre, nommez-le dans Réglages, Avancé, ou
+dans `apollia.toml` :
+
+```toml
+[tools]
+python_interpreter = "/opt/corp/python3.13/bin/python3"
+```
+
+Il est vérifié avant d'être accepté : il doit exister, démarrer, et être un
+Python 3.13, car la bibliothèque standard livrée avec Apollia ne peut pas être
+lue par une autre version mineure. S'il cesse ensuite de satisfaire à cela,
+après une mise à jour ou une désinstallation, l'interpréteur livré reprend la
+main et le journal dit pourquoi, plutôt que de laisser les outils de l'agent en
+échec.
+
+La même clé s'écrit depuis un terminal, avec la même vérification :
+
+```sh
+apollia-os config set tools.python_interpreter /opt/corp/python3.13/bin/python3
+```
+
 ## Où l'application stocke vos données
 
 Tout ce que l'application conserve se trouve dans un unique répertoire de

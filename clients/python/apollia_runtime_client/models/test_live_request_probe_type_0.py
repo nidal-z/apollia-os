@@ -1,34 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="TestLiveRequestProbeType0")
-
 
 
 @_attrs_define
 class TestLiveRequestProbeType0:
-    """ Read-only probe declared for this connector, when any.
-
-     """
+    """Read-only probe declared for this connector, when any."""
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
 
@@ -37,14 +22,10 @@ class TestLiveRequestProbeType0:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        test_live_request_probe_type_0 = cls(
-        )
-
+        test_live_request_probe_type_0 = cls()
 
         test_live_request_probe_type_0.additional_properties = d
         return test_live_request_probe_type_0

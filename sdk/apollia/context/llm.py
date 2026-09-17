@@ -12,6 +12,13 @@ if TYPE_CHECKING:
     from apollia.types import MapItemResult
 
 
+#: What a ``schema``-constrained call hands back: the validated JSON value, as
+#: whatever Python object the schema's root type describes. A schema rooted on
+#: ``object`` yields a dict, one rooted on an enumeration of strings yields a
+#: str, and ``{"type": "null"}`` yields None.
+StructuredValue = dict[str, Any] | list[Any] | str | int | float | bool | None
+
+
 @runtime_checkable
 class TokenUsage(Protocol):
     """Token usage stats for an LLM call."""
@@ -42,6 +49,18 @@ class LlmProxy(Protocol):
     system-plus-user case, :meth:`map` for a batch sharing one prefix,
     :meth:`stream` for token iteration, :meth:`run_tools` for the built-in
     tool loop.  Stream cleanup propagates cancellation to the Rust backend.
+
+    :meth:`complete` and :meth:`chat` take an optional ``schema``: a JSON
+    Schema the answer must satisfy. The call then returns the validated value
+    itself, so an agent that needs structure never parses a string::
+
+        REPORT = {
+            "type": "object",
+            "properties": {"title": {"type": "string"}, "count": {"type": "integer"}},
+            "required": ["title", "count"],
+        }
+        report = await ctx.llm.complete(messages, schema=REPORT)
+        ctx.logger.info("%s: %d", report["title"], report["count"])
     """
 
     @property
@@ -57,7 +76,8 @@ class LlmProxy(Protocol):
         temperature: float | None = None,
         max_tokens: int | None = None,
         seed: int | None = None,
-    ) -> LlmResponse:
+        schema: dict[str, Any] | None = None,
+    ) -> LlmResponse | StructuredValue:
         """Run a single-shot completion over a message list.
 
         Args:
@@ -67,9 +87,24 @@ class LlmProxy(Protocol):
             max_tokens: Cap on generated tokens, or None for the backend default.
             seed: Sampling seed, for reproducible output where the backend
                 supports it.
+            schema: JSON Schema the answer must satisfy, or None for free-form
+                generation. With it the call constrains generation, validates
+                what comes back against the same schema, and returns the
+                validated value rather than an :class:`LlmResponse`. Supported
+                subset: ``object`` and ``array`` nested freely, ``string``,
+                ``number``, ``integer``, ``boolean``, ``null``, ``enum``,
+                ``required``. ``anyOf``, ``oneOf``, ``allOf`` and ``$ref`` are
+                refused by name.
 
         Returns:
-            The completed response, with its content, latency and usage.
+            The completed response, with its content, latency and usage; or the
+            validated value, as a plain Python object, when ``schema`` is given.
+
+        Raises:
+            StructuredOutputError: The schema cannot constrain generation, the
+                backend has no structured output mode, or the answer does not
+                satisfy the schema. Carries the JSON path of the offending node.
+                Nothing is retried on your behalf.
         """
         ...
 
@@ -82,7 +117,8 @@ class LlmProxy(Protocol):
         temperature: float | None = None,
         max_tokens: int | None = None,
         seed: int | None = None,
-    ) -> LlmResponse:
+        schema: dict[str, Any] | None = None,
+    ) -> LlmResponse | StructuredValue:
         """Run a completion over a system and a user message.
 
         Convenience wrapper over :meth:`complete` for the common two-message
@@ -96,9 +132,15 @@ class LlmProxy(Protocol):
             max_tokens: Cap on generated tokens, or None for the backend default.
             seed: Sampling seed, for reproducible output where the backend
                 supports it.
+            schema: JSON Schema the answer must satisfy, or None for free-form
+                generation. Same contract as :meth:`complete`.
 
         Returns:
-            The completed response, with its content, latency and usage.
+            The completed response, with its content, latency and usage; or the
+            validated value, as a plain Python object, when ``schema`` is given.
+
+        Raises:
+            StructuredOutputError: Same three situations as :meth:`complete`.
         """
         ...
 

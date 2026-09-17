@@ -1,4 +1,4 @@
-""" Contains all the data models used in inputs/outputs """
+"""Contains all the data models used in inputs/outputs"""
 
 from .a2a_agent_dto import A2AAgentDto
 from .a2a_agents_response import A2AAgentsResponse
@@ -72,6 +72,7 @@ from .models_list_response import ModelsListResponse
 from .ok_response import OkResponse
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
+from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
 from .ping_request import PingRequest
 from .ping_response import PingResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
@@ -82,8 +83,11 @@ from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
 from .reset_response import ResetResponse
 from .resilience_status_response import ResilienceStatusResponse
-from .resilience_status_response_circuit_breakers_item import ResilienceStatusResponseCircuitBreakersItem
+from .resilience_status_response_circuit_breakers_item import (
+    ResilienceStatusResponseCircuitBreakersItem,
+)
 from .resolved_approval_response import ResolvedApprovalResponse
+from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
 from .send_message_request import SendMessageRequest
@@ -105,6 +109,7 @@ from .submit_task_request import SubmitTaskRequest
 from .submit_task_request_input import SubmitTaskRequestInput
 from .submit_task_request_run_options import SubmitTaskRequestRunOptions
 from .task_list_item import TaskListItem
+from .task_list_item_payload_type_0 import TaskListItemPayloadType0
 from .task_list_response import TaskListResponse
 from .task_response import TaskResponse
 from .task_response_result_type_0 import TaskResponseResultType0
@@ -135,8 +140,11 @@ from .tool_list_response import ToolListResponse
 from .tool_list_response_tools_item import ToolListResponseToolsItem
 from .trace_response import TraceResponse
 from .trace_response_events_item import TraceResponseEventsItem
+from .transcribe_audio_body import TranscribeAudioBody
 from .transcriptions_list_response import TranscriptionsListResponse
-from .transcriptions_list_response_transcriptions_item import TranscriptionsListResponseTranscriptionsItem
+from .transcriptions_list_response_transcriptions_item import (
+    TranscriptionsListResponseTranscriptionsItem,
+)
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
 from .trigger_source_input import TriggerSourceInput
@@ -144,6 +152,7 @@ from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
 from .update_llm_backend_request import UpdateLlmBackendRequest
 from .update_llm_backend_request_config_json import UpdateLlmBackendRequestConfigJson
+from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
 from .verify_chain_report import VerifyChainReport
 from .verify_journal_report import VerifyJournalReport
@@ -221,6 +230,7 @@ __all__ = (
     "OkResponse",
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
+    "PendingApprovalResponsePayloadType0",
     "PingRequest",
     "PingResponse",
     "PlanCacheStatsResponse",
@@ -233,6 +243,7 @@ __all__ = (
     "ResilienceStatusResponse",
     "ResilienceStatusResponseCircuitBreakersItem",
     "ResolvedApprovalResponse",
+    "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",
     "SendMessageRequest",
@@ -254,6 +265,7 @@ __all__ = (
     "SubmitTaskRequestInput",
     "SubmitTaskRequestRunOptions",
     "TaskListItem",
+    "TaskListItemPayloadType0",
     "TaskListResponse",
     "TaskResponse",
     "TaskResponseResultType0",
@@ -284,6 +296,7 @@ __all__ = (
     "ToolListResponseToolsItem",
     "TraceResponse",
     "TraceResponseEventsItem",
+    "TranscribeAudioBody",
     "TranscriptionsListResponse",
     "TranscriptionsListResponseTranscriptionsItem",
     "TriggerDefinitionResponse",
@@ -293,6 +306,7 @@ __all__ = (
     "UpdateChannelRequestConfigType0",
     "UpdateLlmBackendRequest",
     "UpdateLlmBackendRequestConfigJson",
+    "UpdateSttConfigBody",
     "UpdateTriggerRequest",
     "VerifyChainReport",
     "VerifyJournalReport",

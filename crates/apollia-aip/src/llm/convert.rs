@@ -272,7 +272,91 @@ pub(super) fn py_dict_to_tool_spec(py: Python<'_>, obj: &PyObject) -> PyResult<T
         parameters,
     })
 }
-/// Maps an [`LlmError`] to a `PyRuntimeError`.
+/// Maps an [`LlmError`] to the Python exception an agent catches.
+///
+/// The structured-output failures get a typed exception carrying its fields;
+/// everything else stays a `PyRuntimeError` with its message.
 pub(super) fn llm_err_to_py(e: LlmError) -> PyErr {
-    PyRuntimeError::new_err(e.to_string())
+    match &e {
+        LlmError::StructuredOutputInvalid { path, reason } => {
+            structured_output_error("response_invalid", path, reason, &e.to_string())
+        }
+        LlmError::StructuredOutputUnsupported { path, reason } => {
+            structured_output_error("schema_unsupported", path, reason, &e.to_string())
+        }
+        LlmError::StructuredOutputUnavailable { backend } => structured_output_error(
+            "backend_unsupported",
+            "$",
+            &format!("backend `{backend}` has no structured output mode"),
+            &e.to_string(),
+        ),
+        _ => PyRuntimeError::new_err(e.to_string()),
+    }
+}
+
+/// Build `apollia.errors.StructuredOutputError`, the SDK exception an agent
+/// branches on.
+///
+/// The class lives in Python because that is where it is caught, and an agent
+/// writes `except StructuredOutputError as e: e.path`. It is reached by import
+/// rather than declared here, on the same pattern as the logger bridge.
+///
+/// When the import fails, which means the SDK is not on the path of this
+/// interpreter, the failure degrades to a `PyRuntimeError` carrying the same
+/// message. Losing the type is bad; replacing a real LLM failure with an import
+/// error would be worse, because it would name the wrong problem.
+fn structured_output_error(kind: &str, path: &str, reason: &str, message: &str) -> PyErr {
+    Python::with_gil(|py| {
+        let build = || -> PyResult<PyErr> {
+            let errors = py.import("apollia.errors")?;
+            let class = errors.getattr("StructuredOutputError")?;
+            let kwargs = pyo3::types::PyDict::new(py);
+            kwargs.set_item("kind", kind)?;
+            kwargs.set_item("path", path)?;
+            kwargs.set_item("reason", reason)?;
+            let instance = class.call((message,), Some(&kwargs))?;
+            Ok(PyErr::from_value(instance))
+        };
+        match build() {
+            Ok(err) => err,
+            Err(import_failure) => {
+                tracing::warn!(
+                    error = %import_failure,
+                    detail = "the failure degrades to RuntimeError",
+                    "llm.structured_output.error_class.unreachable"
+                );
+                PyRuntimeError::new_err(message.to_string())
+            }
+        }
+    })
+}
+
+/// Read a Python object as a JSON value, through `json.dumps`.
+///
+/// The same crossing `py_dict_to_tool_spec` uses for a tool's `parameters`: it
+/// accepts any JSON-serializable Python object rather than dictionaries alone,
+/// and it fails with the interpreter's own message, which names the member that
+/// could not be serialized.
+pub(super) fn py_object_to_json(py: Python<'_>, obj: &PyObject) -> PyResult<serde_json::Value> {
+    let json_mod = py
+        .import("json")
+        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+    let dumped: String = json_mod
+        .call_method1("dumps", (obj,))?
+        .extract()
+        .map_err(|e| PyRuntimeError::new_err(format!("extract failed: {e}")))?;
+    serde_json::from_str(&dumped)
+        .map_err(|e| PyValueError::new_err(format!("not a JSON value: {e}")))
+}
+
+/// Hand a JSON value back to Python as a native object, through `json.loads`.
+///
+/// The reverse crossing: an agent that asked for a schema gets a dictionary, a
+/// list or a scalar, never a string it has to parse itself.
+pub(super) fn json_to_py(py: Python<'_>, value: &serde_json::Value) -> PyResult<PyObject> {
+    let json_mod = py
+        .import("json")
+        .map_err(|e| PyRuntimeError::new_err(format!("import json: {e}")))?;
+    let loaded = json_mod.call_method1("loads", (value.to_string(),))?;
+    Ok(loaded.unbind())
 }

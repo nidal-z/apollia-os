@@ -22,7 +22,7 @@ use apollia_tools::{
 };
 use pyo3::prelude::*;
 
-use super::chat_runner::mcp_executors_for;
+use super::chat_runner::task_tool_executors;
 use super::llm_glue::{merge_disabled, sandbox_roots_for_agent, NoopToolInvoker, RouterModel};
 use super::open_secret_store;
 
@@ -127,7 +127,12 @@ impl BridgeRunner {
             Default::default()
         });
         let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
-        let extra_executors = mcp_executors_for(&self.mcp_handle).await;
+        let extra_executors = task_tool_executors(
+            &self.mcp_handle,
+            task,
+            self.manifest.tools_requiring_approval.clone(),
+        )
+        .await;
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
                 sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
@@ -150,6 +155,7 @@ impl BridgeRunner {
                 governance_db_path: Some(
                     governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
                 ),
+                python_interpreter: self.tools_config.python_interpreter.clone(),
             },
             extra_executors,
         ));
@@ -187,6 +193,8 @@ impl AgentRunner for BridgeRunner {
         let audit_trail = self.audit_trail.clone();
         let memory_namespace = self.memory_namespace.clone();
         let memory_config = self.manifest.memory_config.clone();
+        let tools_requiring_approval = self.manifest.tools_requiring_approval.clone();
+        let task_for_gate = task.clone();
         let memory_base_dir = self.memory_base_dir.clone();
         let a2a_invoker = self.a2a_invoker.clone();
         let tools_config = self.tools_config.clone();
@@ -235,8 +243,10 @@ impl AgentRunner for BridgeRunner {
             });
             let disabled_tools = merge_disabled(&tools_config.disabled, snapshot.disabled_tools);
             // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
-            // routes through the MCP client manager instead of returning UnknownTool.
-            let extra_executors = mcp_executors_for(&mcp_handle).await;
+            // routes through the MCP client manager instead of returning UnknownTool,
+            // plus the SaaS connector executors.
+            let extra_executors =
+                task_tool_executors(&mcp_handle, &task_for_gate, tools_requiring_approval).await;
             let dispatcher = Arc::new(build_dispatcher_with(
                 &NativeDispatcherConfig {
                     sandbox_roots: sandbox_roots_for_agent(&trusted_paths),
@@ -258,6 +268,7 @@ impl AgentRunner for BridgeRunner {
                     governance_db_path: Some(
                         governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
                     ),
+                    python_interpreter: tools_config.python_interpreter.clone(),
                 },
                 extra_executors,
             ));

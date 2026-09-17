@@ -1,34 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="InjectMessageBodyPayload")
-
 
 
 @_attrs_define
 class InjectMessageBodyPayload:
-    """ Arbitrary JSON payload to deliver to the agent's inbox.
-
-     """
+    """Arbitrary JSON payload to deliver to the agent's inbox."""
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
 
@@ -37,14 +22,10 @@ class InjectMessageBodyPayload:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        inject_message_body_payload = cls(
-        )
-
+        inject_message_body_payload = cls()
 
         inject_message_body_payload.additional_properties = d
         return inject_message_body_payload

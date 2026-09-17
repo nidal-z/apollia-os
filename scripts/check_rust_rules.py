@@ -315,7 +315,7 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-triggers/src/definition_repository.rs": 1,
     "crates/apollia-triggers/src/engine.rs": 2,
     "crates/apollia-triggers/src/sources/cron.rs": 1,
-    "crates/apollia-triggers/src/sources/file_watch.rs": 8,
+    "crates/apollia-triggers/src/sources/file_watch.rs": 3,
     "crates/apollia-triggers/src/sources/interval.rs": 1,
     "crates/apollia-triggers/src/sources/mod.rs": 1,
     "crates/apollia-triggers/src/sources/oneshot.rs": 2,

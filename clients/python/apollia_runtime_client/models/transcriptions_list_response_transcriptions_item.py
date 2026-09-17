@@ -1,33 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="TranscriptionsListResponseTranscriptionsItem")
-
 
 
 @_attrs_define
 class TranscriptionsListResponseTranscriptionsItem:
-    """
-     """
+    """ """
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
 
@@ -36,14 +22,10 @@ class TranscriptionsListResponseTranscriptionsItem:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        transcriptions_list_response_transcriptions_item = cls(
-        )
-
+        transcriptions_list_response_transcriptions_item = cls()
 
         transcriptions_list_response_transcriptions_item.additional_properties = d
         return transcriptions_list_response_transcriptions_item

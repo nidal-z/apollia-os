@@ -132,9 +132,15 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
         });
         let disabled_tools = merge_disabled(&self.tools_config.disabled, snapshot.disabled_tools);
         // Inject one MCP executor per registered tool so `ctx.tools.call("mcp:...")`
-        // routes through the MCP client manager instead of returning UnknownTool.
+        // routes through the MCP client manager instead of returning UnknownTool,
+        // gated like the task path, plus the SaaS connector executors.
         let mcp_handle = self.mcp_handle.get().cloned().flatten();
-        let extra_executors = mcp_executors_for(&mcp_handle).await;
+        let extra_executors = task_tool_executors(
+            &mcp_handle,
+            &task,
+            manifest.tools_requiring_approval.clone(),
+        )
+        .await;
         let dispatcher = Arc::new(build_dispatcher_with(
             &NativeDispatcherConfig {
                 sandbox_roots: sandbox_roots_for_agent(&self.trusted_paths),
@@ -151,6 +157,7 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 web_search_config: self.tools_config.web_search.clone(),
                 web_read_config: self.tools_config.web_read.clone(),
                 governance_db_path: Some(self.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
+                python_interpreter: self.tools_config.python_interpreter.clone(),
             },
             extra_executors,
         ));
@@ -356,20 +363,43 @@ pub(super) fn build_user_context_from_repo(
     Some(map)
 }
 
-/// Build MCP tool executors for an agent dispatcher, or an empty `Vec` when no
-/// MCP handle is wired.
+/// Every executor an agent dispatcher takes beyond the native tool set: the MCP
+/// ones, gated through the run's approval state, then the SaaS connectors.
 ///
-/// Delegates to the canonical `apollia_mcp` assembly so the CLI standalone-agent
-/// path stays in lockstep with the chat and desktop dispatchers. Without this,
-/// the registry surfaces `mcp:<server>/<tool>` to the agent but the dispatcher
-/// returns `UnknownTool` at call time.
-pub(super) async fn mcp_executors_for(
+/// Both the task path and the chat-agent path build their set here. A call to a
+/// server declared `requires_approval`, or to a tool the manifest lists as
+/// requiring approval, ends the run in `input_required` with an `approbation`
+/// payload, and runs once the agent is resumed with that call approved: through
+/// the task pause on the task path, through the chat approval card on the
+/// chat-agent path. The chat-agent path used to take an ungated set, so an agent
+/// run from a conversation called such a server with no approval at all.
+///
+/// The connector half used to be added by the desktop alone, so an agent
+/// declaring `gmail.send` received it under the interface and `UnknownTool`
+/// under `apollia-os start`. Both families now come from
+/// `apollia_runtime::connectors_bridge`, which depends on no interface: they
+/// resolve their account lazily per call, and a machine with nothing connected
+/// answers "no Google account connected" instead of pretending the tool does
+/// not exist.
+pub(super) async fn task_tool_executors(
     mcp_handle: &Option<apollia_mcp::manager::McpClientManagerHandle>,
+    task: &apollia_core::AIPTask,
+    tools_requiring_approval: Vec<String>,
 ) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {
-    match mcp_handle {
-        Some(handle) => apollia_mcp::executor::build_agent_tool_executors(handle).await,
+    let mut executors = match mcp_handle {
+        Some(handle) => {
+            apollia_mcp::executor::build_task_tool_executors(
+                handle,
+                apollia_mcp::task_approval::TaskApproval::new(task.input_response.clone()),
+                tools_requiring_approval,
+            )
+            .await
+        }
         None => Vec::new(),
-    }
+    };
+    executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
+    executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
+    executors
 }
 
 /// Fallback backend, only used when agent loading fails at start time.

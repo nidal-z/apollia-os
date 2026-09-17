@@ -1,36 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="CreateSessionRequest")
-
 
 
 @_attrs_define
 class CreateSessionRequest:
-    """ Request body for `POST /api/v1/sessions`.
+    """Request body for `POST /api/v1/sessions`.
 
-        Attributes:
-            mode (str): Session mode: `"libre"` or `"agent"`.
-            agent_name (None | str | Unset): Agent name (required when `mode == "agent"`).
-            project_id (None | str | Unset): Project to link this session to.
-            system_prompt (None | str | Unset): Custom system prompt.
-            tools (list[str] | Unset): List of tool names available in this session.
-     """
+    Attributes:
+        mode (str): Session mode: `"libre"` or `"agent"`.
+        agent_name (None | str | Unset): Agent name (required when `mode == "agent"`).
+        project_id (None | str | Unset): Project to link this session to.
+        system_prompt (None | str | Unset): Custom system prompt.
+        tools (list[str] | Unset): List of tool names available in this session.
+    """
 
     mode: str
     agent_name: None | str | Unset = UNSET
@@ -38,10 +29,6 @@ class CreateSessionRequest:
     system_prompt: None | str | Unset = UNSET
     tools: list[str] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         mode = self.mode
@@ -68,14 +55,13 @@ class CreateSessionRequest:
         if not isinstance(self.tools, Unset):
             tools = self.tools
 
-
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "mode": mode,
-        })
+        field_dict.update(
+            {
+                "mode": mode,
+            }
+        )
         if agent_name is not UNSET:
             field_dict["agent_name"] = agent_name
         if project_id is not UNSET:
@@ -86,8 +72,6 @@ class CreateSessionRequest:
             field_dict["tools"] = tools
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -103,7 +87,6 @@ class CreateSessionRequest:
 
         agent_name = _parse_agent_name(d.pop("agent_name", UNSET))
 
-
         def _parse_project_id(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -112,7 +95,6 @@ class CreateSessionRequest:
             return cast(None | str | Unset, data)
 
         project_id = _parse_project_id(d.pop("project_id", UNSET))
-
 
         def _parse_system_prompt(data: object) -> None | str | Unset:
             if data is None:
@@ -123,9 +105,7 @@ class CreateSessionRequest:
 
         system_prompt = _parse_system_prompt(d.pop("system_prompt", UNSET))
 
-
         tools = cast(list[str], d.pop("tools", UNSET))
-
 
         create_session_request = cls(
             mode=mode,
@@ -134,7 +114,6 @@ class CreateSessionRequest:
             system_prompt=system_prompt,
             tools=tools,
         )
-
 
         create_session_request.additional_properties = d
         return create_session_request

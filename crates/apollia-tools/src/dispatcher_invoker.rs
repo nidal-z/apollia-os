@@ -65,6 +65,15 @@ fn format_dispatch_error(err: &ToolExecutionError) -> String {
         ToolExecutionError::ExecutionFailed { code, message } => {
             format!("{code}: {message}")
         }
+        // The chat path has no task pause to turn these into, so they read as
+        // what they mean for a conversation: the call did not run.
+        ToolExecutionError::ApprovalRequired { gesture, .. } => {
+            format!("approval_required: {gesture} needs a human approval before it can run")
+        }
+        ToolExecutionError::ApprovalDenied { gesture, reason } => match reason {
+            Some(reason) => format!("approval_denied: {gesture} was declined: {reason}"),
+            None => format!("approval_denied: {gesture} was declined"),
+        },
     }
 }
 

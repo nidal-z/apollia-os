@@ -16,13 +16,22 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
 /// One pending HITL approval entry.
+///
+/// Carries the same pause as a `GET /api/v1/tasks?status=input_required` item,
+/// typed payload included, so a card can be drawn from either list.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PendingApprovalResponse {
     pub task_id: String,
     pub agent_name: String,
+    /// Skill that paused, when the pause came from a skill.
+    pub skill_id: Option<String>,
     pub prompt: String,
     #[schema(value_type = Option<Object>)]
     pub context: Option<serde_json::Value>,
+    /// Typed question or approval of the pause, `null` for a prompt-only pause.
+    /// The body of `POST /api/v1/tasks/{id}/resume` answers it.
+    #[schema(value_type = Option<Object>)]
+    pub payload: Option<serde_json::Value>,
     pub suspended_at: String,
 }
 
@@ -83,23 +92,29 @@ pub async fn list_pending_approvals<B: ExecutionBackend + Clone>(
                 Ok(Some(info)) => PendingApprovalResponse {
                     task_id,
                     agent_name: info.agent_name,
+                    skill_id: info.skill_id,
                     prompt: info.prompt,
                     context: Some(info.context),
+                    payload: info.payload,
                     suspended_at: info.suspended_at,
                 },
                 _ => PendingApprovalResponse {
                     task_id,
                     agent_name: String::new(),
+                    skill_id: None,
                     prompt: String::new(),
                     context: None,
+                    payload: None,
                     suspended_at: String::new(),
                 },
             },
             None => PendingApprovalResponse {
                 task_id,
                 agent_name: String::new(),
+                skill_id: None,
                 prompt: String::new(),
                 context: None,
+                payload: None,
                 suspended_at: String::new(),
             },
         };

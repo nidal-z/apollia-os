@@ -349,6 +349,7 @@ mod tests {
                 > = Box::pin(async move {
                     Ok(A2aDelegateResult {
                         task_id: "task-a2a".to_string(),
+                        run_id: None,
                         agent_name: "pdf-worker".to_string(),
                         output: format!("processed {skill_id}"),
                     })

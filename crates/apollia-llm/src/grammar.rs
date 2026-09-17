@@ -1,21 +1,29 @@
-//! GBNF grammar generation from tool JSON schemas.
+//! GBNF grammar generation from JSON schemas.
 //!
-//! Produces a GBNF grammar that constrains a local model to emit only
-//! syntactically valid tool calls: a top-level object with a `"name"` in the
-//! allowed tool set and an `"arguments"` object whose properties follow each
-//! tool's declared schema. The output is consumed by the runner backend, which
-//! prepends a grammar sampler stage to the decoding chain.
+//! Two entry points, and they differ in what they do with a construct they
+//! cannot express.
 //!
-//! # Supported schema subset
+//! [`tool_specs_to_gbnf`] constrains a local model to emit a syntactically
+//! valid tool call: a top-level object with a `"name"` in the allowed tool set
+//! and an `"arguments"` object following that tool's declared schema. It
+//! degrades an unsupported construct to a free JSON value with a
+//! `tracing::warn` naming the field, because a tool call that loses one
+//! argument's shape is still a usable tool call.
+//!
+//! [`json_schema_to_gbnf`] constrains the answer itself, for
+//! `ctx.llm(schema=...)`. A response schema has no such slack, so it answers
+//! [`GrammarError`] rather than a grammar that does not say what the caller
+//! asked. Its supported subset is wider (nested objects, arrays of objects) and
+//! its refusals are explicit.
+//!
+//! # Subset shared by both
 //!
 //! - `"type": "object"` with `"properties"` (typed per property)
 //! - property types `"string"`, `"number"`, `"integer"`, `"boolean"`
-//! - `"type": "array"` with `"items"` of a scalar type
-//! - `"enum"` on string properties
+//! - `"type": "array"` with `"items"`
+//! - `"enum"`
 //!
-//! Unsupported constructs (`oneOf`, `anyOf`, `allOf`, `$ref`, nested objects,
-//! non-scalar arrays) degrade to a free JSON value for that property, with a
-//! `tracing::warn` event naming the field. They never panic.
+//! Neither ever panics.
 
 use serde_json::Value;
 
@@ -255,6 +263,271 @@ fn lit(s: &str) -> String {
     out
 }
 
+// ─── A bare JSON Schema, for `ctx.llm(schema=...)` ───────────────────────────
+
+/// Deepest schema nesting the translator will walk.
+///
+/// A JSON Schema carries no cycles once `$ref` is refused, so the walk always
+/// terminates; the cap exists so a pathological schema answers an error instead
+/// of exhausting the stack.
+const MAX_SCHEMA_DEPTH: usize = 24;
+
+/// Why a JSON Schema could not be turned into a GBNF grammar.
+///
+/// Every variant names the JSON path of the offending node, so the caller can
+/// point at the exact place in the schema it passed rather than at the schema
+/// as a whole.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum GrammarError {
+    /// A construct the translator cannot express as a decoding constraint.
+    #[error("{path}: {construct} cannot be expressed as a grammar")]
+    Unsupported {
+        /// JSON path of the node, e.g. `$.properties.items.items`.
+        path: String,
+        /// What was found there.
+        construct: String,
+    },
+
+    /// A node declares neither `type` nor `enum`, so nothing constrains it.
+    #[error("{path}: neither a `type` nor an `enum`, so nothing constrains this node")]
+    Untyped {
+        /// JSON path of the node.
+        path: String,
+    },
+
+    /// `required` names a property that `properties` does not declare.
+    #[error("{path}: `required` names `{property}`, which `properties` does not declare")]
+    RequiredUnknown {
+        /// JSON path of the owning object node.
+        path: String,
+        /// The name that has no declaration.
+        property: String,
+    },
+
+    /// The schema nests deeper than [`MAX_SCHEMA_DEPTH`].
+    #[error("{path}: schema nests deeper than {max} levels")]
+    TooDeep {
+        /// JSON path reached when the cap was hit.
+        path: String,
+        /// The cap.
+        max: usize,
+    },
+}
+
+/// Translate a JSON Schema into a GBNF grammar constraining a model to emit one
+/// value of that schema, and nothing else.
+///
+/// This is the `ctx.llm(schema=...)` counterpart of [`tool_specs_to_gbnf`]. The
+/// difference is the contract: the tool path degrades an unsupported construct
+/// to a free JSON value, because a tool call that loses one argument's shape is
+/// still a usable tool call. A response schema has no such slack, so an
+/// untranslatable construct answers [`GrammarError`] and the caller decides.
+///
+/// # Supported subset
+///
+/// `object` with `properties` (nested freely), `array` with `items` (nested
+/// freely), `string`, `number`, `integer`, `boolean`, `null`, and `enum` on any
+/// of them. `required` is honoured. `oneOf`, `anyOf`, `allOf`, `not` and `$ref`
+/// are refused by name.
+///
+/// # The property the grammar holds
+///
+/// Everything the grammar admits, the schema admits. The reverse is not
+/// promised, and two places make it narrower on purpose:
+///
+/// - Properties are emitted in declaration order. JSON object members are
+///   unordered, so a valid document with them shuffled is refused by the
+///   grammar while the schema accepts it.
+/// - An object that declares properties but requires none emits its first
+///   declared property as mandatory, because a grammar alternative that can
+///   match the empty string in the middle of a member list is ambiguous. The
+///   emitted member is declared, so the result stays valid.
+///
+/// Narrower is the safe direction: the validation pass that follows reads the
+/// schema, not the grammar, so a shape the grammar cannot produce is a shape
+/// that never has to be rejected.
+///
+/// # Errors
+///
+/// [`GrammarError`], naming the JSON path of the node that could not be
+/// translated.
+pub fn json_schema_to_gbnf(schema: &Value) -> Result<String, GrammarError> {
+    refuse_combinators(schema, "$")?;
+    let normalized = crate::schema_sanitize::grammar_safe_schema(schema);
+    let root = render_node(&normalized, "$", 0)?;
+    Ok(format!("root ::= {root}\n{SHARED_RULES}\n"))
+}
+
+/// Walk the schema as the caller wrote it and refuse the combinators by name.
+///
+/// Runs before normalization because the sanitizer collapses a combinator node
+/// to its description alone: after it, the node reads as untyped and the error
+/// would name a symptom instead of `anyOf`.
+fn refuse_combinators(node: &Value, path: &str) -> Result<(), GrammarError> {
+    match node {
+        Value::Object(map) => {
+            for key in ["oneOf", "anyOf", "allOf", "not", "$ref"] {
+                if map.contains_key(key) {
+                    return Err(GrammarError::Unsupported {
+                        path: path.to_string(),
+                        construct: key.to_string(),
+                    });
+                }
+            }
+            for (key, child) in map {
+                // `enum`, `const`, `default` and `examples` hold data, not
+                // sub-schemas: a member named `$ref` inside an `enum` is a
+                // string the model may emit, not a reference to resolve.
+                if matches!(key.as_str(), "enum" | "const" | "default" | "examples") {
+                    continue;
+                }
+                refuse_combinators(child, &format!("{path}.{key}"))?;
+            }
+            Ok(())
+        }
+        Value::Array(items) => {
+            for (index, child) in items.iter().enumerate() {
+                refuse_combinators(child, &format!("{path}[{index}]"))?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Render one schema node as a GBNF fragment.
+fn render_node(node: &Value, path: &str, depth: usize) -> Result<String, GrammarError> {
+    if depth > MAX_SCHEMA_DEPTH {
+        return Err(GrammarError::TooDeep {
+            path: path.to_string(),
+            max: MAX_SCHEMA_DEPTH,
+        });
+    }
+    let map = node.as_object().ok_or_else(|| GrammarError::Untyped {
+        path: path.to_string(),
+    })?;
+
+    if let Some(values) = map.get("enum").and_then(Value::as_array) {
+        if values.is_empty() {
+            return Err(GrammarError::Unsupported {
+                path: path.to_string(),
+                construct: "an empty `enum`".to_string(),
+            });
+        }
+        let alts: Vec<String> = values.iter().map(json_literal).collect();
+        return Ok(format!("( {} )", alts.join(" | ")));
+    }
+
+    match map.get("type").and_then(Value::as_str) {
+        Some("string") => Ok("str".to_string()),
+        Some("integer") => Ok("int".to_string()),
+        Some("number") => Ok("number".to_string()),
+        Some("boolean") => Ok("bool".to_string()),
+        Some("null") => Ok(lit("null")),
+        Some("array") => {
+            let items = map.get("items").ok_or_else(|| GrammarError::Unsupported {
+                path: path.to_string(),
+                construct: "an `array` with no `items`".to_string(),
+            })?;
+            let item = render_node(items, &format!("{path}.items"), depth + 1)?;
+            Ok(format!(
+                "{} ws ( {item} ( ws {} ws {item} )* )? ws {}",
+                lit("["),
+                lit(","),
+                lit("]"),
+            ))
+        }
+        Some("object") => render_object(map, path, depth),
+        Some(other) => Err(GrammarError::Unsupported {
+            path: path.to_string(),
+            construct: format!("the type `{other}`"),
+        }),
+        None => Err(GrammarError::Untyped {
+            path: path.to_string(),
+        }),
+    }
+}
+
+/// Render an `object` node: its members in declaration order, the required ones
+/// mandatory and the rest optional.
+fn render_object(
+    map: &serde_json::Map<String, Value>,
+    path: &str,
+    depth: usize,
+) -> Result<String, GrammarError> {
+    let props = match map.get("properties").and_then(Value::as_object) {
+        Some(props) if !props.is_empty() => props,
+        // An object with no declared property constrains nothing beyond being an
+        // object, which the shared `object` rule already says.
+        _ => return Ok("object".to_string()),
+    };
+
+    let required: Vec<&str> = map
+        .get("required")
+        .and_then(Value::as_array)
+        .map(|names| names.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    for name in &required {
+        if !props.contains_key(*name) {
+            return Err(GrammarError::RequiredUnknown {
+                path: path.to_string(),
+                property: (*name).to_string(),
+            });
+        }
+    }
+
+    // Declaration order is what the grammar emits; `required` only decides which
+    // members are mandatory. When nothing is required, the first declared member
+    // is promoted (see the function doc of `json_schema_to_gbnf`).
+    let mut members: Vec<(String, bool)> = props
+        .keys()
+        .map(|name| (name.clone(), required.contains(&name.as_str())))
+        .collect();
+    if !members.iter().any(|(_, is_required)| *is_required) {
+        if let Some(first) = members.first_mut() {
+            first.1 = true;
+        }
+    }
+    // Mandatory members first, so every optional one can carry its own leading
+    // comma and still be droppable independently.
+    members.sort_by_key(|(_, is_required)| !*is_required);
+
+    let mut rendered = Vec::with_capacity(members.len());
+    for (name, is_required) in &members {
+        let schema = props.get(name).unwrap_or(&Value::Null);
+        let value = render_node(schema, &format!("{path}.properties.{name}"), depth + 1)?;
+        let member = format!("{} ws {} ws {value}", json_key(name), lit(":"));
+        rendered.push((member, *is_required));
+    }
+
+    let mut out = format!("{} ws", lit("{"));
+    let mut first_emitted = false;
+    for (member, is_required) in rendered {
+        if !first_emitted {
+            out.push_str(&format!(" {member}"));
+            first_emitted = true;
+        } else if is_required {
+            out.push_str(&format!(" ws {} ws {member}", lit(",")));
+        } else {
+            out.push_str(&format!(" ( ws {} ws {member} )?", lit(",")));
+        }
+    }
+    out.push_str(&format!(" ws {}", lit("}")));
+    Ok(out)
+}
+
+/// Render a JSON value as the GBNF literal matching its serialized form.
+///
+/// Used for `enum` members, which may be of any JSON type: a string enum needs
+/// its quotes, a number enum must not gain any.
+fn json_literal(value: &Value) -> String {
+    match value {
+        Value::String(s) => format!("{} {} {}", lit("\""), lit(s), lit("\"")),
+        other => lit(&other.to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -436,5 +709,220 @@ mod tests {
         // THEN only the two enum values are allowed for that field
         assert!(gbnf.contains("\"json\""), "enum value json missing");
         assert!(gbnf.contains("\"text\""), "enum value text missing");
+    }
+}
+
+#[cfg(test)]
+mod schema_grammar_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_flat_object_constrains_each_property() {
+        // GIVEN a flat object schema with a string and an integer, both required
+        let schema = json!({
+            "type": "object",
+            "properties": {"title": {"type": "string"}, "count": {"type": "integer"}},
+            "required": ["title", "count"]
+        });
+        // WHEN translating it
+        let gbnf = json_schema_to_gbnf(&schema).expect("a flat object is translatable");
+        // THEN the root rule names both keys and binds each to its own scalar rule
+        let root = gbnf
+            .lines()
+            .find(|l| l.starts_with("root ::="))
+            .expect("a root rule");
+        assert!(root.contains("\"title\""), "title key absent: {root}");
+        assert!(root.contains("\"count\""), "count key absent: {root}");
+        assert!(root.contains("str"), "the string property is not typed");
+        assert!(root.contains("int"), "the integer property is not typed");
+    }
+
+    #[test]
+    fn test_array_of_objects_is_translated_not_degraded() {
+        // GIVEN the shape the tool path degrades: an array whose items are objects
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {"label": {"type": "string"}},
+                        "required": ["label"]
+                    }
+                }
+            },
+            "required": ["rows"]
+        });
+        // WHEN translating it
+        let gbnf = json_schema_to_gbnf(&schema).expect("an array of objects is translatable");
+        // THEN the item's own key is in the grammar, so the items are typed
+        // rather than collapsed to the free `value` rule
+        let root = gbnf
+            .lines()
+            .find(|l| l.starts_with("root ::="))
+            .expect("a root rule");
+        assert!(root.contains("\"rows\""), "rows key absent");
+        assert!(root.contains("\"label\""), "the nested object was degraded");
+    }
+
+    #[test]
+    fn test_string_enumeration_admits_only_its_members() {
+        // GIVEN a top-level enumeration of strings
+        let schema = json!({"type": "string", "enum": ["low", "medium", "high"]});
+        // WHEN translating it
+        let gbnf = json_schema_to_gbnf(&schema).expect("an enumeration is translatable");
+        // THEN the three members are the alternatives, and no free string rule
+        // is used at the root
+        let root = gbnf
+            .lines()
+            .find(|l| l.starts_with("root ::="))
+            .expect("a root rule");
+        for member in ["low", "medium", "high"] {
+            assert!(root.contains(member), "enum member `{member}` absent");
+        }
+        assert!(
+            !root.split_whitespace().any(|token| token == "str"),
+            "an enumeration must not fall back to the free string rule: {root}"
+        );
+    }
+
+    #[test]
+    fn test_combinator_is_refused_by_name_with_its_path() {
+        // GIVEN a schema whose nested property uses `anyOf`
+        let schema = json!({
+            "type": "object",
+            "properties": {"x": {"anyOf": [{"type": "string"}, {"type": "integer"}]}},
+            "required": ["x"]
+        });
+        // WHEN translating it
+        let err = json_schema_to_gbnf(&schema).expect_err("anyOf must be refused");
+        // THEN the error is typed, names the construct and points at the node
+        assert_eq!(
+            err,
+            GrammarError::Unsupported {
+                path: "$.properties.x".to_string(),
+                construct: "anyOf".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_ref_is_refused_rather_than_silently_freed() {
+        // GIVEN a schema using `$ref`, which the sanitizer collapses to a free value
+        let schema = json!({
+            "type": "object",
+            "properties": {"y": {"$ref": "#/$defs/Y"}},
+            "$defs": {"Y": {"type": "string"}}
+        });
+        // WHEN translating it
+        let err = json_schema_to_gbnf(&schema).expect_err("a $ref must be refused");
+        // THEN it is named rather than turned into an unconstrained property
+        assert!(
+            matches!(&err, GrammarError::Unsupported { construct, .. } if construct == "$ref"),
+            "expected a $ref refusal, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_untyped_node_is_refused() {
+        // GIVEN a property with neither a type nor an enumeration
+        let schema = json!({
+            "type": "object",
+            "properties": {"free": {"description": "anything"}},
+            "required": ["free"]
+        });
+        // WHEN translating it
+        let err = json_schema_to_gbnf(&schema).expect_err("an untyped node must be refused");
+        // THEN the path names the property
+        assert_eq!(
+            err,
+            GrammarError::Untyped {
+                path: "$.properties.free".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_required_naming_an_undeclared_property_is_refused() {
+        // GIVEN a schema requiring a property it never declares
+        let schema = json!({
+            "type": "object",
+            "properties": {"a": {"type": "string"}},
+            "required": ["a", "b"]
+        });
+        // WHEN translating it
+        let err = json_schema_to_gbnf(&schema).expect_err("the dangling name must be refused");
+        // THEN the offending name is in the error
+        assert_eq!(
+            err,
+            GrammarError::RequiredUnknown {
+                path: "$".to_string(),
+                property: "b".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_optional_members_stay_droppable() {
+        // GIVEN one required property and one optional one
+        let schema = json!({
+            "type": "object",
+            "properties": {"a": {"type": "string"}, "b": {"type": "integer"}},
+            "required": ["a"]
+        });
+        // WHEN translating it
+        let gbnf = json_schema_to_gbnf(&schema).expect("translatable");
+        let root = gbnf
+            .lines()
+            .find(|l| l.starts_with("root ::="))
+            .expect("a root rule");
+        // THEN the optional member carries its own comma inside an optional
+        // group, so an answer may omit it
+        assert!(
+            root.contains("( ws \",\" ws \"\\\"\" \"b\""),
+            "the optional member is not droppable: {root}"
+        );
+    }
+
+    #[test]
+    fn test_a_schema_requiring_nothing_still_emits_one_member() {
+        // GIVEN an object that declares two properties and requires neither
+        let schema = json!({
+            "type": "object",
+            "properties": {"a": {"type": "string"}, "b": {"type": "integer"}}
+        });
+        // WHEN translating it
+        let gbnf = json_schema_to_gbnf(&schema).expect("translatable");
+        let root = gbnf
+            .lines()
+            .find(|l| l.starts_with("root ::="))
+            .expect("a root rule");
+        // THEN the first declared member is mandatory, which keeps the rule
+        // unambiguous while staying valid against the schema
+        assert!(root.contains("\"a\""), "the promoted member is absent");
+        assert!(
+            !root.contains("( ws \",\" ws \"\\\"\" \"a\""),
+            "the promoted member must not stay optional: {root}"
+        );
+    }
+
+    #[test]
+    fn test_enum_of_numbers_keeps_them_unquoted() {
+        // GIVEN an enumeration of integers
+        let schema = json!({"type": "integer", "enum": [1, 2, 3]});
+        // WHEN translating it
+        let gbnf = json_schema_to_gbnf(&schema).expect("translatable");
+        let root = gbnf
+            .lines()
+            .find(|l| l.starts_with("root ::="))
+            .expect("a root rule");
+        // THEN the members are bare literals, not quoted strings
+        assert!(root.contains("\"1\""), "the literal 1 is absent: {root}");
+        assert!(
+            !root.contains("\"\\\"\" \"1\""),
+            "a numeric member must not be quoted as a string: {root}"
+        );
     }
 }

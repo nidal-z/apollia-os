@@ -56,7 +56,6 @@ impl McpClientManagerHandle {
 
         for config in configs {
             let server_name = config.name.clone();
-            let requires_approval = config.requires_approval;
             let tags = config.tags.clone();
 
             match McpSession::start_with_mode(config, Some(&DefaultMcpSecretResolver), loading_mode)
@@ -76,7 +75,6 @@ impl McpClientManagerHandle {
                         register_session_tools_in_registry(
                             tool_registry,
                             &server_name,
-                            requires_approval,
                             &tags,
                             &session,
                         )

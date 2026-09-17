@@ -65,15 +65,30 @@ pub(super) async fn run_show(client: &RuntimeClient, arg: &str, json: bool) -> i
     exit_codes::SUCCESS
 }
 
+/// The page URI, with the agents filter when any agent is named.
+fn journal_page_uri(limit: u32, offset: u32, agents: &[String]) -> String {
+    let mut uri = format!("/api/v1/audit/journal?limit={limit}&offset={offset}");
+    if !agents.is_empty() {
+        let encoded: Vec<String> = agents
+            .iter()
+            .map(|a| crate::commands::model::urlencode(a))
+            .collect();
+        uri.push_str("&agents=");
+        uri.push_str(&encoded.join(","));
+    }
+    uri
+}
+
 /// `apollia-os audit journal`: print a page of the chained journal across every
-/// run, newest global position first.
+/// run, or across the runs of `agents`' tasks, newest global position first.
 pub(super) async fn run_journal(
     client: &RuntimeClient,
     limit: u32,
     offset: u32,
+    agents: &[String],
     json: bool,
 ) -> i32 {
-    let uri = format!("/api/v1/audit/journal?limit={limit}&offset={offset}");
+    let uri = journal_page_uri(limit, offset, agents);
     let resp = match client.get(&uri).await {
         Ok(r) => r,
         Err(e) => return handle_error(e, json),
@@ -191,4 +206,27 @@ pub(super) async fn resolve_task_to_run(client: &RuntimeClient, id: &str) -> Opt
     body.get("run_id")
         .and_then(|v| v.as_str())
         .map(String::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_page_uri_names_the_agents_only_when_there_are_some() {
+        // GIVEN no agent, then two agents
+        let none: Vec<String> = Vec::new();
+        let two = vec!["flux-quotes".to_string(), "flux invoices".to_string()];
+
+        // WHEN the page URIs are built
+        let all = journal_page_uri(20, 0, &none);
+        let filtered = journal_page_uri(20, 40, &two);
+
+        // THEN the filter appears only for named agents, each one encoded
+        assert_eq!(all, "/api/v1/audit/journal?limit=20&offset=0");
+        assert_eq!(
+            filtered,
+            "/api/v1/audit/journal?limit=20&offset=40&agents=flux-quotes,flux%20invoices"
+        );
+    }
 }

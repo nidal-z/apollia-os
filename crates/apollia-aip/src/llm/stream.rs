@@ -14,6 +14,18 @@ use apollia_core::events::EventBusSender;
 use apollia_llm::types::{ChatMessage, CompletionRequest, LlmError, StreamChunk};
 use apollia_llm::{router::ObservabilityConfig, LlmRouter};
 
+/// The model identifier of the backend `backend` names, or of the default one.
+///
+/// Empty when the router holds no such backend: the call then fails before any
+/// model answers, and an empty string says so rather than a placeholder that
+/// reads like a model name.
+pub(super) fn resolved_model_id(router: &LlmRouter, backend: Option<&str>) -> String {
+    router
+        .get(backend)
+        .map(|b| b.model_id().to_owned())
+        .unwrap_or_default()
+}
+
 /// Emit `LlmResponseCaptured` so a task-mode LLM completion is journaled (the
 /// audit journal only captures completions carrying a `run_id`), enabling
 /// `audit replay` and putting the model's output in the tamper-evident trail,
@@ -22,6 +34,7 @@ pub(super) fn emit_llm_capture(
     bus: &Option<EventBusSender>,
     run_id: &Option<apollia_core::events::RunId>,
     backend: &str,
+    model: &str,
     resp: &apollia_llm::types::CompletionResponse,
 ) {
     let (Some(bus), Some(run_id)) = (bus.as_ref(), run_id.as_ref()) else {
@@ -35,7 +48,7 @@ pub(super) fn emit_llm_capture(
     let _ = bus.send(apollia_core::events::RuntimeEvent::LlmResponseCaptured {
         run_id: run_id.clone(),
         backend: backend.to_string(),
-        model: String::new(),
+        model: model.to_string(),
         content: resp.content.clone(),
         tool_calls,
         prompt_tokens: resp.usage.prompt_tokens,

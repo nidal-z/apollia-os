@@ -7,6 +7,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.api_error_body import ApiErrorBody
+from ...models.resume_error_body import ResumeErrorBody
 from ...models.resume_request import ResumeRequest
 from ...models.resume_response import ResumeResponse
 from ...types import Response
@@ -36,7 +37,7 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> ApiErrorBody | ResumeResponse | None:
+) -> ApiErrorBody | ResumeErrorBody | ResumeResponse | None:
     if response.status_code == 200:
         response_200 = ResumeResponse.from_dict(response.json())
 
@@ -52,6 +53,11 @@ def _parse_response(
 
         return response_409
 
+    if response.status_code == 422:
+        response_422 = ResumeErrorBody.from_dict(response.json())
+
+        return response_422
+
     if response.status_code == 503:
         response_503 = ApiErrorBody.from_dict(response.json())
 
@@ -65,7 +71,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[ApiErrorBody | ResumeResponse]:
+) -> Response[ApiErrorBody | ResumeErrorBody | ResumeResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -79,7 +85,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: ResumeRequest,
-) -> Response[ApiErrorBody | ResumeResponse]:
+) -> Response[ApiErrorBody | ResumeErrorBody | ResumeResponse]:
     """Handler for `POST /api/v1/tasks/{id}/resume`.
 
      Validates that the task is in `input_required` status, persists the human
@@ -105,7 +111,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ApiErrorBody | ResumeResponse]
+        Response[ApiErrorBody | ResumeErrorBody | ResumeResponse]
     """
 
     kwargs = _get_kwargs(
@@ -125,7 +131,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     body: ResumeRequest,
-) -> ApiErrorBody | ResumeResponse | None:
+) -> ApiErrorBody | ResumeErrorBody | ResumeResponse | None:
     """Handler for `POST /api/v1/tasks/{id}/resume`.
 
      Validates that the task is in `input_required` status, persists the human
@@ -151,7 +157,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ApiErrorBody | ResumeResponse
+        ApiErrorBody | ResumeErrorBody | ResumeResponse
     """
 
     return sync_detailed(
@@ -166,7 +172,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: ResumeRequest,
-) -> Response[ApiErrorBody | ResumeResponse]:
+) -> Response[ApiErrorBody | ResumeErrorBody | ResumeResponse]:
     """Handler for `POST /api/v1/tasks/{id}/resume`.
 
      Validates that the task is in `input_required` status, persists the human
@@ -192,7 +198,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[ApiErrorBody | ResumeResponse]
+        Response[ApiErrorBody | ResumeErrorBody | ResumeResponse]
     """
 
     kwargs = _get_kwargs(
@@ -210,7 +216,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     body: ResumeRequest,
-) -> ApiErrorBody | ResumeResponse | None:
+) -> ApiErrorBody | ResumeErrorBody | ResumeResponse | None:
     """Handler for `POST /api/v1/tasks/{id}/resume`.
 
      Validates that the task is in `input_required` status, persists the human
@@ -236,7 +242,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        ApiErrorBody | ResumeResponse
+        ApiErrorBody | ResumeErrorBody | ResumeResponse
     """
 
     return (

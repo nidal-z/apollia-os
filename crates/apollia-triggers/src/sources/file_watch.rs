@@ -47,6 +47,19 @@ impl FileWatchTrigger {
     /// The `Watcher` is dropped automatically, freeing OS resources (inotify/kqueue).
     /// Returns a `JoinHandle<()>` for abort during hot reload.
     pub fn spawn(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> JoinHandle<()> {
+        Self::spawn_with_ready(def, tx, None)
+    }
+
+    /// [`Self::spawn`], signalling `ready` once the path is under watch.
+    ///
+    /// A change made before the watch is registered is never reported, so a
+    /// caller that writes right after spawning waits on this rather than on a
+    /// delay that a loaded machine can outlast.
+    fn spawn_with_ready(
+        def: TriggerDefinition,
+        tx: mpsc::Sender<TriggerEvent>,
+        ready: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> JoinHandle<()> {
         tokio::spawn(async move {
             // Extract path and recursive from the source.
             let (raw_path, recursive) = match &def.source {
@@ -99,6 +112,10 @@ impl FileWatchTrigger {
                     "trigger.file_watch.path.failed"
                 );
                 return;
+            }
+            if let Some(ready) = ready {
+                // The receiver may have given up waiting; the watch goes on regardless.
+                ready.send(()).ok();
             }
 
             // Sync-to-async bridge: spawn_blocking so we do not block the Tokio
@@ -184,7 +201,7 @@ fn forward_event(
     let Some(payload) = map_notify_event(event, ctx.source) else {
         return false;
     };
-    if is_duplicate_file_event(&payload, dedup) {
+    if is_duplicate_file_event(&payload, dedup, std::time::Instant::now()) {
         return false;
     }
     let trigger_event = TriggerEvent {
@@ -201,9 +218,12 @@ fn forward_event(
 ///
 /// Returns `true` if the payload is a recent duplicate (to be ignored). Updates
 /// the deduplication map and bounds it to 10s for the `File` payloads kept.
+/// `now` is the instant the event is handled, passed in so the window can be
+/// tested without waiting it out.
 fn is_duplicate_file_event(
     payload: &TriggerPayload,
     dedup: &mut std::collections::HashMap<std::path::PathBuf, std::time::Instant>,
+    now: std::time::Instant,
 ) -> bool {
     let TriggerPayload::File {
         path: ref file_path,
@@ -212,11 +232,9 @@ fn is_duplicate_file_event(
     else {
         return false;
     };
-    let now = std::time::Instant::now();
-    if dedup
-        .get(file_path)
-        .is_some_and(|last| last.elapsed() < std::time::Duration::from_secs(1))
-    {
+    if dedup.get(file_path).is_some_and(|last| {
+        now.saturating_duration_since(*last) < std::time::Duration::from_secs(1)
+    }) {
         tracing::debug!(
             path = %file_path.display(),
             "trigger.file_watch.event.deduplicated"
@@ -225,7 +243,7 @@ fn is_duplicate_file_event(
     }
     dedup.insert(file_path.clone(), now);
     // Keep the map bounded: prune entries older than 10s.
-    dedup.retain(|_, t| t.elapsed() < std::time::Duration::from_secs(10));
+    dedup.retain(|_, t| now.saturating_duration_since(*t) < std::time::Duration::from_secs(10));
     false
 }
 
@@ -374,6 +392,19 @@ mod tests {
         }
     }
 
+    /// Spawns the watcher and returns once the directory is under watch.
+    async fn spawn_watching(
+        def: TriggerDefinition,
+        tx: mpsc::Sender<TriggerEvent>,
+    ) -> JoinHandle<()> {
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let handle = FileWatchTrigger::spawn_with_ready(def, tx, Some(ready_tx));
+        ready_rx
+            .await
+            .expect("the watcher stopped before registering its path");
+        handle
+    }
+
     // --- detection of a created file -------------------------------------
 
     #[tokio::test]
@@ -382,15 +413,14 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = make_file_watch_def(dir.path(), vec![FileEventKind::Create]);
-        let _handle = FileWatchTrigger::spawn(def, tx);
-        // Wait for the watcher to be ready.
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _handle = spawn_watching(def, tx).await;
 
         // WHEN
         std::fs::write(dir.path().join("facture.pdf"), b"content").unwrap();
 
-        // THEN
-        let event = tokio::time::timeout(std::time::Duration::from_secs(2), rx.recv())
+        // THEN the event arrives. The ceiling only bounds a watcher that never
+        // reports; a loaded machine delivered it after more than two seconds.
+        let event = tokio::time::timeout(std::time::Duration::from_secs(30), rx.recv())
             .await
             .expect("timeout waiting for TriggerEvent")
             .expect("channel closed unexpectedly");
@@ -414,8 +444,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let (tx, mut rx) = tokio::sync::mpsc::channel(10);
         let def = make_file_watch_def(dir.path(), vec![FileEventKind::Create]);
-        let _handle = FileWatchTrigger::spawn(def, tx);
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let _handle = spawn_watching(def, tx).await;
 
         // Create a file to ensure the watcher is active. Then drain every event
         // generated by the write (the kqueue backend may emit several events:
@@ -795,47 +824,63 @@ mod tests {
         );
     }
 
-    // --- deduplication logged at debug -----------------------------------
+    // --- deduplication window ---------------------------------------------
 
-    #[tokio::test]
-    async fn test_deduplicated_events_logged_debug() {
-        // GIVEN an active watcher on a directory
-        let dir = TempDir::new().unwrap();
-        let (tx, mut rx) = tokio::sync::mpsc::channel(10);
-        let def = TriggerDefinition {
-            id: "dedup-test".into(),
-            agent: "dedup-agent".into(),
-            enabled: true,
-            on_busy: OnBusyPolicy::Queue { max_depth: 10 },
-            source: TriggerSourceConfig::FileWatch {
-                path: dir.path().to_path_buf(),
-                events: vec![FileEventKind::Any],
-                recursive: false,
-                follow_symlinks: false,
-                exclude_patterns: vec![],
-            },
-            input_template: InputTemplate("{{filename}}".into()),
-        };
-        let _handle = FileWatchTrigger::spawn(def, tx);
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-
-        // WHEN creating then quickly rewriting the same file (< 1s apart)
-        let file = dir.path().join("report.pdf");
-        std::fs::write(&file, b"first write").unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        std::fs::write(&file, b"second write").unwrap();
-
-        // Wait for the deduplication window (1s) plus margin.
-        tokio::time::sleep(std::time::Duration::from_millis(1300)).await;
-
-        // THEN at most 1 event propagated within the deduplication window
-        let mut count = 0;
-        while rx.try_recv().is_ok() {
-            count += 1;
+    fn file_payload(path: &str) -> TriggerPayload {
+        TriggerPayload::File {
+            path: PathBuf::from(path),
+            filename: "report.pdf".into(),
+            size_bytes: 0,
+            event_kind: FileEventKind::Create,
         }
-        assert!(
-            count <= 1,
-            "deduplicated writes must result in at most 1 event within the debounce window, got {count}"
+    }
+
+    #[test]
+    fn test_second_event_on_a_path_within_one_second_is_a_duplicate() {
+        // GIVEN a first event on report.pdf, handled at t0
+        let mut dedup = std::collections::HashMap::new();
+        let t0 = std::time::Instant::now();
+        let report = file_payload("/watched/report.pdf");
+        assert!(!is_duplicate_file_event(&report, &mut dedup, t0));
+
+        // WHEN the same path fires again 50 ms later, and another path at the same instant
+        let again = is_duplicate_file_event(
+            &report,
+            &mut dedup,
+            t0 + std::time::Duration::from_millis(50),
         );
+        let other = is_duplicate_file_event(
+            &file_payload("/watched/other.pdf"),
+            &mut dedup,
+            t0 + std::time::Duration::from_millis(50),
+        );
+
+        // THEN only the repeat on the same path is suppressed
+        assert!(again, "a repeat inside the window must be suppressed");
+        assert!(!other, "another path is not a duplicate");
+    }
+
+    #[test]
+    fn test_event_after_the_window_fires_again() {
+        // GIVEN a first event on report.pdf, handled at t0
+        let mut dedup = std::collections::HashMap::new();
+        let t0 = std::time::Instant::now();
+        let report = file_payload("/watched/report.pdf");
+        assert!(!is_duplicate_file_event(&report, &mut dedup, t0));
+
+        // WHEN the same path fires 1.1 s later
+        let later = is_duplicate_file_event(
+            &report,
+            &mut dedup,
+            t0 + std::time::Duration::from_millis(1100),
+        );
+
+        // THEN it is forwarded, and the window restarts from that event
+        assert!(!later, "an event past the window must be forwarded");
+        assert!(is_duplicate_file_event(
+            &report,
+            &mut dedup,
+            t0 + std::time::Duration::from_millis(1200),
+        ));
     }
 }

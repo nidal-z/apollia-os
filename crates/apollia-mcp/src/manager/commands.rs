@@ -29,15 +29,7 @@ impl McpClientManager {
             return;
         }
         let tags = session.config().tags.clone();
-        let requires_approval = session.requires_approval();
-        register_session_tools_in_registry(
-            &self.tool_registry,
-            server_name,
-            requires_approval,
-            &tags,
-            session,
-        )
-        .await;
+        register_session_tools_in_registry(&self.tool_registry, server_name, &tags, session).await;
     }
     /// Spawn a new session for `config`, register its tools, and insert it into the map.
     ///

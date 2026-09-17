@@ -1720,6 +1720,8 @@ mod tests {
                     reason: Some("test cleanup".into()),
                     context: serde_json::Value::Null,
                     responded_at: "2026-01-01T00:00:00Z".into(),
+                    answer: None,
+                    payload: None,
                 },
             );
         };
@@ -1795,6 +1797,8 @@ mod tests {
                         reason: None,
                         context: serde_json::Value::Null,
                         responded_at: "2026-01-01T00:00:00Z".into(),
+                        answer: None,
+                        payload: None,
                     },
                 )
                 .expect("resolve must succeed");
@@ -1901,6 +1905,8 @@ mod tests {
                         reason: Some("Email not approved".into()),
                         context: serde_json::Value::Null,
                         responded_at: "2026-01-01T00:00:00Z".into(),
+                        answer: None,
+                        payload: None,
                     },
                 )
                 .expect("resolve must succeed");

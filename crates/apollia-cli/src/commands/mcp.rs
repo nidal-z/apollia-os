@@ -103,13 +103,20 @@ pub enum McpCommand {
     Add {
         /// Unique server name.
         name: String,
-        /// Command to launch (stdio transport) or URL (HTTP/SSE transport).
+        /// Executable to launch (stdio transport), without its arguments.
         #[arg(long)]
         command: Option<String>,
+        /// One argument passed to `--command`. Repeat it, in order, for each
+        /// argument: `--command npx --arg -y --arg @scope/server`.
+        #[arg(long = "arg", value_name = "ARG", allow_hyphen_values = true)]
+        args: Vec<String>,
         /// HTTP/SSE connection URL.
         #[arg(long)]
         url: Option<String>,
-        /// Require HITL approval for every tool call.
+        /// Transport. Defaults to `streamable-http` with `--url`, `stdio` otherwise.
+        #[arg(long, value_parser = ["stdio", "streamable-http", "sse"])]
+        transport: Option<String>,
+        /// Require HITL approval for every tool call an agent task makes.
         #[arg(long)]
         require_approval: bool,
     },
@@ -143,14 +150,18 @@ pub enum McpCommand {
 
     /// Update the raw configuration of an existing MCP server.
     ///
-    /// At least one of `--command`, `--url`, or `--require-approval` must
-    /// be supplied. Fields that are omitted keep their previous value.
+    /// At least one of `--command`, `--arg`, `--url`, or `--require-approval`
+    /// must be supplied. Fields that are omitted keep their previous value.
     Update {
         /// Server name.
         name: String,
         /// New stdio command (stdio transport).
         #[arg(long)]
         command: Option<String>,
+        /// New argument list for the command, one `--arg` per argument. Given
+        /// once or more, it replaces the stored list whole.
+        #[arg(long = "arg", value_name = "ARG", allow_hyphen_values = true)]
+        args: Vec<String>,
         /// New HTTP/SSE URL.
         #[arg(long)]
         url: Option<String>,
@@ -319,7 +330,9 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
         McpCommand::Add {
             name,
             command,
+            args,
             url,
+            transport,
             require_approval,
         } => {
             let client = make_runtime_client(socket);
@@ -328,7 +341,9 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
                 ServerSpec {
                     name,
                     command: command.as_deref(),
+                    args,
                     url: url.as_deref(),
+                    transport: transport.as_deref(),
                     require_approval: *require_approval,
                 },
                 json,
@@ -359,6 +374,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
         McpCommand::Update {
             name,
             command,
+            args,
             url,
             require_approval,
         } => {
@@ -368,6 +384,7 @@ pub async fn run(command: &McpCommand, socket: Option<PathBuf>, json: bool) -> i
                 ServerPatch {
                     name,
                     command: command.as_deref(),
+                    args,
                     url: url.as_deref(),
                     require_approval: *require_approval,
                 },
@@ -426,29 +443,34 @@ mod tests {
 
     #[test]
     fn test_mcp_add_parses() {
-        // GIVEN "add code-tools --command 'npx @modelcontextprotocol/server-filesystem'"
+        // GIVEN "add code-tools --command npx --arg -y --arg @modelcontextprotocol/server-filesystem"
         // WHEN
         let cli = TestCli::parse_from([
             "apollia-os",
             "add",
             "code-tools",
             "--command",
-            "npx @modelcontextprotocol/server-filesystem",
+            "npx",
+            "--arg",
+            "-y",
+            "--arg",
+            "@modelcontextprotocol/server-filesystem",
         ]);
-        // THEN McpCommand::Add with the expected fields
+        // THEN McpCommand::Add carries the executable and its arguments apart, in order
         match &cli.command {
             McpCommand::Add {
                 name,
                 command,
+                args,
                 url,
+                transport,
                 require_approval,
             } => {
                 assert_eq!(name, "code-tools");
-                assert_eq!(
-                    command.as_deref(),
-                    Some("npx @modelcontextprotocol/server-filesystem")
-                );
+                assert_eq!(command.as_deref(), Some("npx"));
+                assert_eq!(args, &["-y", "@modelcontextprotocol/server-filesystem"]);
                 assert!(url.is_none());
+                assert!(transport.is_none());
                 assert!(!require_approval);
             }
             other => panic!("expected Add, got {other:?}"),
@@ -478,6 +500,86 @@ mod tests {
                 assert!(require_approval);
             }
             other => panic!("expected Add, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_mcp_add_body_carries_args_and_infers_the_transport() {
+        // GIVEN a stdio spec with arguments and a URL spec without a transport
+        let args = vec!["server.py".to_owned(), "--verbose".to_owned()];
+        let stdio = servers::ServerSpec {
+            name: "local",
+            command: Some("python3"),
+            args: &args,
+            url: None,
+            transport: None,
+            require_approval: true,
+        };
+        let remote = servers::ServerSpec {
+            name: "remote",
+            command: None,
+            args: &[],
+            url: Some("https://mcp.example.com/mcp"),
+            transport: None,
+            require_approval: false,
+        };
+
+        // WHEN the request bodies are built
+        let stdio_body = servers::add_body(&stdio);
+        let remote_body = servers::add_body(&remote);
+
+        // THEN the stdio body lists the arguments and leaves the transport to its default
+        assert_eq!(stdio_body["command"], "python3");
+        assert_eq!(
+            stdio_body["args"],
+            serde_json::json!(["server.py", "--verbose"])
+        );
+        assert!(stdio_body.get("transport").is_none());
+        assert_eq!(stdio_body["requires_approval"], true);
+        // THEN the URL body is streamable-http and carries no argument list
+        assert_eq!(remote_body["transport"], "streamable-http");
+        assert!(remote_body.get("args").is_none());
+    }
+
+    #[test]
+    fn test_mcp_add_explicit_transport_wins_over_inference() {
+        // GIVEN a URL spec that names the sse transport
+        let spec = servers::ServerSpec {
+            name: "legacy",
+            command: None,
+            args: &[],
+            url: Some("http://localhost:9000/sse"),
+            transport: Some("sse"),
+            require_approval: false,
+        };
+
+        // WHEN the request body is built
+        let body = servers::add_body(&spec);
+
+        // THEN the named transport is kept
+        assert_eq!(body["transport"], "sse");
+    }
+
+    #[test]
+    fn test_mcp_update_args_parse() {
+        // GIVEN "update local --arg server.py --arg --port=9"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "update",
+            "local",
+            "--arg",
+            "server.py",
+            "--arg",
+            "--port=9",
+        ]);
+        // THEN Update carries the new argument list, in order
+        match &cli.command {
+            McpCommand::Update { name, args, .. } => {
+                assert_eq!(name, "local");
+                assert_eq!(args, &["server.py", "--port=9"]);
+            }
+            other => panic!("expected Update, got {other:?}"),
         }
     }
 
@@ -548,11 +650,13 @@ mod tests {
             McpCommand::Update {
                 name,
                 command,
+                args,
                 url,
                 require_approval,
             } => {
                 assert_eq!(name, "code-tools");
                 assert!(command.is_none());
+                assert!(args.is_empty());
                 assert_eq!(url.as_deref(), Some("http://localhost:9090"));
                 assert!(require_approval.is_none());
             }

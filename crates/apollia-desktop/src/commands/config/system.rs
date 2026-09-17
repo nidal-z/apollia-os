@@ -331,3 +331,113 @@ mod tests {
         assert_eq!(infer_quantization("some-random-model"), "q4_k_m");
     }
 }
+
+/// The Python interpreter setting, as the Advanced section shows it.
+#[derive(Debug, Serialize)]
+pub struct PythonInterpreterSetting {
+    /// The absolute path in `[tools] python_interpreter`, or `None` when the
+    /// bundled interpreter is in use.
+    pub chosen: Option<String>,
+    /// Absolute path of the bundled interpreter, when this process knows it.
+    ///
+    /// `None` in a development tree, where no bundle is staged. The panel says
+    /// so rather than naming a path that does not exist.
+    pub bundled: Option<String>,
+    /// Minor version the bundled standard library requires of any chosen
+    /// interpreter, so the panel can state the condition before it is failed.
+    pub required_minor: u32,
+}
+
+/// Returns the Python interpreter setting for the Advanced section of Settings.
+#[tauri::command]
+pub async fn get_python_interpreter() -> Result<PythonInterpreterSetting, String> {
+    let chosen = read_config_tools_python_interpreter().await;
+    Ok(PythonInterpreterSetting {
+        chosen,
+        bundled: apollia_tools::tools::python_discovery::bundled_interpreter()
+            .map(|p| p.display().to_string()),
+        required_minor: apollia_tools::tools::python_discovery::BUNDLED_PYTHON_MINOR,
+    })
+}
+
+/// Chooses a Python interpreter, or returns to the bundled one.
+///
+/// `path` names an interpreter by absolute path; `None`, or a blank string,
+/// removes the setting and returns to the interpreter Apollia ships with, which
+/// is the configuration that depends on nothing installed on the machine.
+///
+/// The path is checked before it is written: it has to exist, start, and report
+/// a minor version the bundled standard library can be read by. A refusal comes
+/// back as the message to show, naming which of the three conditions failed.
+/// The change applies to the agents started after it.
+#[tauri::command]
+pub async fn set_python_interpreter(path: Option<String>) -> Result<(), String> {
+    let chosen = path.map(|p| p.trim().to_string()).filter(|p| !p.is_empty());
+
+    if let Some(candidate) = chosen.as_deref() {
+        apollia_tools::tools::python_discovery::validate_chosen_interpreter(std::path::Path::new(
+            candidate,
+        ))
+        .map_err(|e| e.to_string())?;
+    }
+
+    let config_path = default_config_path();
+    if let Some(parent) = config_path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("failed to create config directory: {e}"))?;
+    }
+    let mut doc = if config_path.exists() {
+        tokio::fs::read_to_string(&config_path)
+            .await
+            .map_err(|e| format!("failed to read {}: {e}", config_path.display()))?
+            .parse::<toml_edit::DocumentMut>()
+            .map_err(|e| format!("failed to parse {}: {e}", config_path.display()))?
+    } else {
+        toml_edit::DocumentMut::new()
+    };
+
+    let tools = doc
+        .entry("tools")
+        .or_insert_with(|| toml_edit::Item::Table(toml_edit::Table::new()));
+    if tools.as_table_mut().is_none() {
+        *tools = toml_edit::Item::Table(toml_edit::Table::new());
+    }
+    if let Some(table) = tools.as_table_mut() {
+        match chosen.as_deref() {
+            Some(candidate) => table["python_interpreter"] = toml_edit::value(candidate),
+            // Removed rather than blanked: an absent key and the default are the
+            // same thing, and a blank string in the file reads as a setting
+            // somebody meant.
+            None => {
+                table.remove("python_interpreter");
+            }
+        }
+    }
+
+    tokio::fs::write(&config_path, doc.to_string())
+        .await
+        .map_err(|e| format!("failed to write {}: {e}", config_path.display()))?;
+
+    tracing::info!(
+        chosen = chosen.as_deref().unwrap_or("<bundled>"),
+        "python.interpreter.setting_saved"
+    );
+    Ok(())
+}
+
+/// Read `[tools] python_interpreter` out of `apollia.toml`.
+///
+/// `None` when the file is absent, unreadable, or does not carry the key, which
+/// are all the same answer: the bundled interpreter is in use.
+async fn read_config_tools_python_interpreter() -> Option<String> {
+    let path = default_config_path();
+    let content = tokio::fs::read_to_string(&path).await.ok()?;
+    let parsed: toml::Value = content.parse().ok()?;
+    parsed
+        .get("tools")?
+        .get("python_interpreter")?
+        .as_str()
+        .map(str::to_string)
+        .filter(|s| !s.trim().is_empty())
+}

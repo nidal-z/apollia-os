@@ -171,6 +171,20 @@ repos:
         files: '^(Cargo\.toml|crates/[^/]+/Cargo\.toml|tests/Cargo\.toml|scripts/check_crate_lints\.py)$'
         pass_filenames: false
 
+      - id: check-testing-mocks
+        name: the testing mocks answer the calls their protocol publishes
+        entry: python3 scripts/check_testing_mocks.py
+        language: system
+        files: '^(sdk/apollia/(types\.py|context/.+\.py|testing/.+\.py)|scripts/check_testing_mocks\.py)$'
+        pass_filenames: false
+
+      - id: check-windows-python-dll
+        name: the Windows package carries python313.dll beside the executable
+        entry: python3 scripts/check_windows_python_dll.py
+        language: system
+        files: '^(crates/apollia-desktop/tauri(\.windows)?\.conf\.json|crates/apollia-desktop/scripts/bundle-cli\.sh|scripts/check_windows_python_dll\.py)$'
+        pass_filenames: false
+
       - id: check-subprocess-window
         name: no console window on spawned subprocesses
         entry: python3 scripts/check_subprocess_window.py

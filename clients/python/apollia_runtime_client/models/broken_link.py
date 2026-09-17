@@ -1,65 +1,49 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.broken_link_reason import BrokenLinkReason
-
-
-
-
-
 
 T = TypeVar("T", bound="BrokenLink")
 
 
-
 @_attrs_define
 class BrokenLink:
-    """ The first broken link found while walking a chain.
+    """The first broken link found while walking a chain.
 
-        Attributes:
-            reason (BrokenLinkReason): Reason a chain link failed verification.
-            seq (int): Sequence number of the offending entry.
-     """
+    Attributes:
+        reason (BrokenLinkReason): Reason a chain link failed verification.
+        seq (int): Sequence number of the offending entry.
+    """
 
     reason: BrokenLinkReason
     seq: int
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         reason = self.reason.value
 
         seq = self.seq
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "reason": reason,
-            "seq": seq,
-        })
+        field_dict.update(
+            {
+                "reason": reason,
+                "seq": seq,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
         reason = BrokenLinkReason(d.pop("reason"))
-
-
-
 
         seq = d.pop("seq")
 
@@ -67,7 +51,6 @@ class BrokenLink:
             reason=reason,
             seq=seq,
         )
-
 
         broken_link.additional_properties = d
         return broken_link

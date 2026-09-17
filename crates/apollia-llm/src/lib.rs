@@ -28,8 +28,8 @@ pub mod repository;
 pub mod retry;
 pub mod router;
 pub mod routing_level;
-#[cfg(feature = "cloud")]
 pub(crate) mod schema_sanitize;
+pub mod schema_validate;
 pub mod token_budget;
 pub mod tool_helper;
 pub mod tool_performance_hints;
@@ -50,7 +50,7 @@ pub use apollia_core::config::LlmRoutingConfig;
 pub use downloader::{
     DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
 };
-pub use grammar::tool_specs_to_gbnf;
+pub use grammar::{json_schema_to_gbnf, tool_specs_to_gbnf, GrammarError};
 pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
 #[cfg(feature = "cloud")]
 pub use hf_registry::{
@@ -64,6 +64,9 @@ pub use repository::{
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
 pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
 pub use routing_level::{EscalationSignal, LlmRoutingLevel};
+pub use schema_validate::{
+    parse_and_validate, schema_fingerprint, validate_against_schema, SchemaViolation,
+};
 pub use token_budget::SessionBudgetTracker;
 pub use tool_helper::{StepBudgetView, ToolCallHelper, ToolInvoker};
 pub use types::{

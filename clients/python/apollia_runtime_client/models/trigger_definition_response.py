@@ -1,42 +1,37 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
-
-
-
+    from ..models.trigger_definition_response_source_config import (
+        TriggerDefinitionResponseSourceConfig,
+    )
 
 
 T = TypeVar("T", bound="TriggerDefinitionResponse")
 
 
-
 @_attrs_define
 class TriggerDefinitionResponse:
-    """ Response for CRUD operations returning a full definition.
+    """Response for CRUD operations returning a full definition.
 
-        Attributes:
-            created_at (str): Creation timestamp (ISO 8601).
-            enabled (bool): Whether the trigger is active.
-            id (str): Unique trigger identifier.
-            on_busy (str): Policy when the agent is busy.
-            source_config (TriggerDefinitionResponseSourceConfig): Source JSON configuration.
-            source_type (str): Source type.
-            updated_at (str): Last-modified timestamp (ISO 8601).
-            agent (None | str | Unset): Target agent.
-            input_template (None | str | Unset): Input message template.
-     """
+    Attributes:
+        created_at (str): Creation timestamp (ISO 8601).
+        enabled (bool): Whether the trigger is active.
+        id (str): Unique trigger identifier.
+        on_busy (str): Policy when the agent is busy.
+        source_config (TriggerDefinitionResponseSourceConfig): Source JSON configuration.
+        source_type (str): Source type.
+        updated_at (str): Last-modified timestamp (ISO 8601).
+        agent (None | str | Unset): Target agent.
+        input_template (None | str | Unset): Input message template.
+    """
 
     created_at: str
     enabled: bool
@@ -49,12 +44,7 @@ class TriggerDefinitionResponse:
     input_template: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
         created_at = self.created_at
 
         enabled = self.enabled
@@ -81,18 +71,19 @@ class TriggerDefinitionResponse:
         else:
             input_template = self.input_template
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "created_at": created_at,
-            "enabled": enabled,
-            "id": id,
-            "on_busy": on_busy,
-            "source_config": source_config,
-            "source_type": source_type,
-            "updated_at": updated_at,
-        })
+        field_dict.update(
+            {
+                "created_at": created_at,
+                "enabled": enabled,
+                "id": id,
+                "on_busy": on_busy,
+                "source_config": source_config,
+                "source_type": source_type,
+                "updated_at": updated_at,
+            }
+        )
         if agent is not UNSET:
             field_dict["agent"] = agent
         if input_template is not UNSET:
@@ -100,11 +91,12 @@ class TriggerDefinitionResponse:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
+        from ..models.trigger_definition_response_source_config import (
+            TriggerDefinitionResponseSourceConfig,
+        )
+
         d = dict(src_dict)
         created_at = d.pop("created_at")
 
@@ -115,9 +107,6 @@ class TriggerDefinitionResponse:
         on_busy = d.pop("on_busy")
 
         source_config = TriggerDefinitionResponseSourceConfig.from_dict(d.pop("source_config"))
-
-
-
 
         source_type = d.pop("source_type")
 
@@ -132,7 +121,6 @@ class TriggerDefinitionResponse:
 
         agent = _parse_agent(d.pop("agent", UNSET))
 
-
         def _parse_input_template(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -141,7 +129,6 @@ class TriggerDefinitionResponse:
             return cast(None | str | Unset, data)
 
         input_template = _parse_input_template(d.pop("input_template", UNSET))
-
 
         trigger_definition_response = cls(
             created_at=created_at,
@@ -154,7 +141,6 @@ class TriggerDefinitionResponse:
             agent=agent,
             input_template=input_template,
         )
-
 
         trigger_definition_response.additional_properties = d
         return trigger_definition_response

@@ -77,3 +77,68 @@ impl ReasoningEnvelope {
             .filter(|s| !s.is_empty())
     }
 }
+/// Pick the answer of a call whose decoding was constrained.
+///
+/// A grammar constrains the whole generation, thinking phase included, so on a
+/// reasoning model there is no thinking to separate: everything the model
+/// emitted is the answer. Measured on llama-server 10092 with a Qwen3.6 MoE
+/// (2026-09-16): a grammar-constrained call comes back with `content` empty and
+/// the constrained value in `reasoning_content`, because the template opens on
+/// the reasoning channel and the grammar is what the model can emit there.
+///
+/// So the two fields are read as one, and neither is wrapped in `<think>`: the
+/// caller asked for a value and the tags would make it unparseable. Content
+/// wins when it carries something, since a server that splits nothing puts the
+/// answer there.
+pub(super) fn constrained_content(reasoning: Option<String>, content: String) -> String {
+    if !content.trim().is_empty() {
+        return content;
+    }
+    reasoning.unwrap_or(content)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unconstrained_reasoning_is_inlined_as_tags() {
+        // GIVEN a server that split the reasoning out of an ordinary call
+        // WHEN the two are merged
+        let merged = inline_reasoning(Some("weighing".into()), "the answer".into());
+        // THEN the reasoning is re-inlined where the chat pipeline expects it
+        assert_eq!(merged, "<think>weighing</think>the answer");
+    }
+
+    #[test]
+    fn a_constrained_answer_in_the_reasoning_channel_is_the_answer() {
+        // GIVEN a grammar-constrained call on a reasoning model: the whole
+        // generation is the value, and this server put it in `reasoning_content`
+        // with an empty `content`
+        // WHEN the answer is resolved
+        let answer = constrained_content(Some("{\"a\": 1}".into()), String::new());
+        // THEN the value comes back as it was generated, with no `<think>` tags
+        // that would make it unparseable
+        assert_eq!(answer, "{\"a\": 1}");
+    }
+
+    #[test]
+    fn a_constrained_answer_in_content_wins_over_the_reasoning() {
+        // GIVEN a server that put the constrained value in `content` and some
+        // preamble in the reasoning field
+        // WHEN the answer is resolved
+        let answer = constrained_content(Some("preamble".into()), "{\"a\": 1}".into());
+        // THEN the content is the answer, and the preamble is dropped rather
+        // than prepended to a value the caller is about to parse
+        assert_eq!(answer, "{\"a\": 1}");
+    }
+
+    #[test]
+    fn a_constrained_call_with_neither_field_yields_the_empty_string() {
+        // GIVEN a response carrying nothing at all
+        // WHEN the answer is resolved
+        let answer = constrained_content(None, String::new());
+        // THEN the caller gets an empty answer to refuse, not a panic
+        assert!(answer.is_empty());
+    }
+}

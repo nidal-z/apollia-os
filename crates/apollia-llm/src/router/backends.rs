@@ -327,6 +327,10 @@ pub(super) async fn instantiate_cloud_backend(
         api_key_env: String::new(), // key already resolved
         model: cfg.model.clone(),
         context_window,
+        // A configured provider is reached over the plain OpenAI protocol. The
+        // embedded llama-server never comes through here: `LlamaCpp` is routed
+        // to its own backend above, and that is where the extension is declared.
+        llama_cpp_extensions: false,
     };
 
     let idle_timeout = extract_idle_timeout(cfg);

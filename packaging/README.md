@@ -124,3 +124,55 @@ patchelf --print-rpath target/release/apollia-desktop
 Si c'est `/opt/homebrew/...` ou `/Users/...`, c'est que le patch d'avant
 scellement n'a pas tourné ou a échoué. Relancer le build, ou
 `crates/apollia-desktop/scripts/patch-prebundle-libpython.sh` à la main.
+
+## Windows : pourquoi `python313.dll` est dupliquée à la racine du paquet
+
+Constat d'un utilisateur réel, poste Windows masterisé sans droits
+d'administrateur, avec un Python 3.14 déjà installé : l'installeur passe, puis
+Apollia Desktop refuse de démarrer sur `python313.dll` introuvable.
+
+Hypothèse confirmée, et voici la mesure, faite sur ce dépôt.
+
+`pyo3` est pris avec `auto-initialize` (`Cargo.toml`), ce qui **lie** le binaire
+à libpython au lieu de la charger à la demande :
+
+```bash
+$ otool -L target/debug/apollia-os | grep python
+	@executable_path/../Resources/python/lib/libpython3.13.dylib
+$ otool -l target/debug/apollia-os | grep -A 3 LC_LOAD_DYLIB | grep python
+	name @executable_path/../Resources/python/lib/libpython3.13.dylib
+```
+
+`LC_LOAD_DYLIB` est une dépendance résolue **avant `main`**. Sous Windows, la
+même configuration met `python313.dll` dans la table d'importation de
+`apollia-desktop.exe`, et le chargeur cherche, dans l'ordre : le répertoire de
+l'exécutable, les répertoires système, puis le `PATH`.
+
+Or le paquet déclare l'interpréteur en ressource Tauri sous `python/**/*`, et
+une ressource conserve son chemin relatif : la DLL est installée dans
+`<install>\python\python313.dll`, un répertoire que le chargeur ne consulte
+jamais. macOS et Linux échappent au problème parce que l'empaquetage réécrit le
+chemin de chargement dans le bundle (`install_name_tool`, RPATH) ; Windows n'a
+pas d'équivalent. Et le `PATH` que `setup_bundled_python`
+(`crates/apollia-desktop/src/bootstrap.rs`) préfixe s'exécute dans `main`, donc
+trop tard : il sert les interpréteurs lancés en sous-processus, pas celui-ci.
+
+Vérification que rien ne corrigeait cela :
+
+```bash
+$ git grep -n 'python313.dll' -- . | grep -v '^docs/internal'
+# avant ce correctif : uniquement des commentaires et le lanceur CLI .bat
+```
+
+L'archive CLI, elle, n'a jamais eu le défaut : son étape d'assemblage aplatit
+`python/*` à la racine de l'archive, donc la DLL se trouve déjà à côté de
+`apollia-os.exe`.
+
+Le correctif : `crates/apollia-desktop/scripts/bundle-cli.sh` dépose une seconde
+copie de la DLL à côté de l'exécutable sur une cible Windows, et
+`tauri.windows.conf.json` la déclare en ressource racine. La garde
+`scripts/check_windows_python_dll.py` tient les deux moitiés, et sait aussi
+juger un paquet construit (`--package <dossier>`).
+
+**Ce correctif n'est pas vérifié.** Il l'est le jour où le `.exe` est installé
+sur un poste Windows sans droits d'administrateur et que l'application démarre.

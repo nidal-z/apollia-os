@@ -7,7 +7,10 @@ them into structured ``AIPResult`` dicts that the Rust runtime consumes.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from apollia.hitl import HitlPayload
 
 __all__ = [
     "AgentConfigError",
@@ -17,6 +20,8 @@ __all__ = [
     "PayloadError",
     "SchemaError",
     "SkillNotFound",
+    "StructuredOutputError",
+    "ToolApprovalDenied",
 ]
 
 
@@ -62,16 +67,64 @@ class NeedHumanInput(AgentError):
     task resumes.
     """
 
-    def __init__(self, prompt: str, context: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        prompt: str,
+        context: dict[str, Any] | None = None,
+        *,
+        payload: HitlPayload | None = None,
+        from_tool_call: bool = False,
+    ) -> None:
         """Suspend the run and ask the human a question.
 
         Args:
             prompt: What the human is being asked.
-            context: State to persist verbatim and restitute on resume.
+            context: State to persist verbatim and restitute on resume, through
+                ``ctx.input_response["context"]``. The way to carry what an
+                earlier pause learned into a later one.
+            payload: A typed question or approval, see :mod:`apollia.hitl`.
+                Checked by the runtime when the agent pauses: an invalid one
+                fails the task with ``INVALID_INPUT_PAYLOAD``.
+            from_tool_call: Set by the runtime, never by an agent, on the pause
+                ``ctx.tools.call`` raises for a call that needs an approval.
+                Left uncaught with no ``context`` of its own, such a pause
+                keeps the context the run was resumed with, so an agent
+                resumed from its own pause does not lose its state to the
+                engine's.
         """
         super().__init__(prompt)
         self.prompt: str = prompt
         self.context: dict[str, Any] = context if context is not None else {}
+        self.payload: HitlPayload | None = payload
+        self.from_tool_call: bool = from_tool_call
+
+
+class ToolApprovalDenied(AgentError):
+    """An operator declined the approval a tool call paused on.
+
+    Raised by ``ctx.tools.call`` when the task is resumed from an approval of
+    that very call and the operator said no. The call was not executed.
+    Catch it to continue without the tool; left uncaught, the task fails.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        tool: str = "",
+        reason: str | None = None,
+    ) -> None:
+        """Report a declined tool approval.
+
+        Args:
+            message: The full, human-readable refusal.
+            tool: The gesture that was declined, ``<server>/<tool>`` for MCP.
+            reason: The operator's reason, when one was given.
+        """
+        super().__init__(message)
+        self.message: str = message
+        self.tool: str = tool
+        self.reason: str | None = reason
 
 
 class PayloadError(AgentError):
@@ -102,6 +155,55 @@ class PayloadError(AgentError):
 
 class SchemaError(AgentError):
     """A handler signature could not be inferred to a valid JSON Schema."""
+
+
+class StructuredOutputError(AgentError):
+    """A ``ctx.llm`` call with a ``schema`` could not deliver a valid value.
+
+    Raised by the bridge, never constructed by an agent. Three situations reach
+    it, told apart by :attr:`kind`:
+
+    - ``"schema_unsupported"``: the schema cannot be turned into a decoding
+      constraint (``anyOf``, ``$ref``, an untyped node). Raised before the
+      model is called, so no tokens were spent.
+    - ``"backend_unsupported"``: the resolved backend has no structured output
+      mode. The constraint is refused rather than dropped in silence.
+    - ``"response_invalid"``: the answer came back and the schema refuses it.
+
+    :attr:`path` is the JSON path of the offending node, so a caller branches on
+    a field instead of matching on a sentence::
+
+        try:
+            plan = await ctx.llm.complete(messages, schema=PLAN_SCHEMA)
+        except StructuredOutputError as e:
+            if e.kind == "response_invalid":
+                ctx.logger.warning("model missed %s: %s", e.path, e.reason)
+
+    Nothing is retried on your behalf: whether a second attempt is worth its
+    tokens is a decision for the agent, not for the runtime.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        kind: str = "response_invalid",
+        path: str = "$",
+        reason: str = "",
+    ) -> None:
+        """Report a structured-output failure.
+
+        Args:
+            message: The full, human-readable failure.
+            kind: Which of the three situations occurred.
+            path: JSON path of the offending node, ``$`` for the document.
+            reason: What was expected there, and what was found.
+        """
+        super().__init__(message)
+        self.message: str = message
+        self.kind: str = kind
+        self.path: str = path
+        self.reason: str = reason
 
 
 class SkillNotFound(AgentError):

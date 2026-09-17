@@ -1,39 +1,26 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="PingRequest")
-
 
 
 @_attrs_define
 class PingRequest:
-    """ Request body for `POST /api/v1/llm/ping`.
+    """Request body for `POST /api/v1/llm/ping`.
 
-        Attributes:
-            backend (None | str | Unset): Backend name to ping; uses the router default if `null` or omitted.
-     """
+    Attributes:
+        backend (None | str | Unset): Backend name to ping; uses the router default if `null` or omitted.
+    """
 
     backend: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         backend: None | str | Unset
@@ -42,21 +29,18 @@ class PingRequest:
         else:
             backend = self.backend
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if backend is not UNSET:
             field_dict["backend"] = backend
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+
         def _parse_backend(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -66,11 +50,9 @@ class PingRequest:
 
         backend = _parse_backend(d.pop("backend", UNSET))
 
-
         ping_request = cls(
             backend=backend,
         )
-
 
         ping_request.additional_properties = d
         return ping_request

@@ -97,6 +97,14 @@ pub enum A2aError {
 pub struct A2aDelegateResult {
     /// Identifier of the task executed by the Worker Agent.
     pub task_id: String,
+    /// The run that task journals under, when the delegation went through the
+    /// task router.
+    ///
+    /// Distinct from `task_id`, and it is the key of
+    /// `GET /api/v1/audit/journal/{run_id}`: a caller given only the task id
+    /// looks the journal up under an identifier nothing is stored under.
+    /// `None` for a delegate that does not submit through the router.
+    pub run_id: Option<String>,
     /// Name of the Worker Agent that handled the delegation.
     pub agent_name: String,
     /// Text output produced by the Worker Agent.
@@ -383,6 +391,15 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
         })?;
 
     let task_id_str = task_id.to_string();
+    // Asked right after the submission, before the wait: the router records the
+    // run before it replies, and a task that then times out or fails still has
+    // a journal worth pointing at.
+    let run_id = router
+        .get_run_id(&task_id_str)
+        .await
+        .ok()
+        .flatten()
+        .map(|r| r.to_string());
     info!(task_id = %task_id_str, agent = %agent_name, "a2a.task.submitted");
 
     // 6. Wait for TaskCompleted with a timeout via the EventBus.
@@ -447,6 +464,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
 
     Ok(A2aDelegateResult {
         task_id: task_id_str,
+        run_id,
         agent_name,
         output,
     })

@@ -53,6 +53,7 @@ fn dispatcher_config(
         web_search_config: WebSearchConfig::default(),
         web_read_config: WebReadConfig::default(),
         governance_db_path: None,
+        python_interpreter: None,
     }
 }
 

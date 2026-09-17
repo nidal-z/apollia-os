@@ -34,6 +34,47 @@ pub enum ToolProxyError {
     /// The tool execution failed.
     #[error("tool execution failed: {0}")]
     ExecutionFailed(String),
+
+    /// The call needs a human approval the task has not received yet. Becomes
+    /// `apollia.errors.NeedHumanInput` in Python, so the task pauses.
+    #[error("approval required: {prompt}")]
+    ApprovalRequired {
+        /// Sentence shown to the human.
+        prompt: String,
+        /// The `approbation` payload the pause carries.
+        payload: serde_json::Value,
+    },
+
+    /// The operator declined the approval this call paused on. Becomes
+    /// `apollia.errors.ToolApprovalDenied` in Python.
+    #[error("approval declined for {gesture}")]
+    ApprovalDenied {
+        /// The declined gesture.
+        gesture: String,
+        /// The operator's reason, when one was given.
+        reason: Option<String>,
+    },
+}
+
+/// A tool call's failure, with the two approval outcomes kept typed.
+#[derive(Debug, Clone)]
+pub enum ToolCallError {
+    /// Any other failure, as text.
+    Failed(String),
+    /// The call needs an approval first.
+    ApprovalRequired {
+        /// Sentence shown to the human.
+        prompt: String,
+        /// The `approbation` payload.
+        payload: serde_json::Value,
+    },
+    /// The operator declined the call.
+    ApprovalDenied {
+        /// The declined gesture.
+        gesture: String,
+        /// The operator's reason.
+        reason: Option<String>,
+    },
 }
 /// Trait abstracting tool execution for testability.
 ///
@@ -46,6 +87,21 @@ pub trait ToolExecutor: Send + Sync {
         tool_name: &str,
         input: serde_json::Value,
     ) -> Result<serde_json::Value, String>;
+
+    /// Executes the named tool, keeping an approval outcome typed.
+    ///
+    /// The default reads every failure as text, which is right for an executor
+    /// that never gates. An executor that can answer an approval outcome
+    /// overrides it, so that outcome reaches the agent as a pause or a typed
+    /// refusal rather than as a message to recognise.
+    fn execute_typed(
+        &self,
+        tool_name: &str,
+        input: serde_json::Value,
+    ) -> Result<serde_json::Value, ToolCallError> {
+        self.execute(tool_name, input)
+            .map_err(ToolCallError::Failed)
+    }
 }
 /// Sync adapter that exposes an `apollia_tools::ToolDispatcher` through the
 /// [`ToolExecutor`] trait consumed by [`ToolProxy`].
@@ -78,6 +134,28 @@ impl ToolExecutor for DispatcherExecutor {
             tokio::runtime::Handle::current()
                 .block_on(async move { dispatcher.dispatch(&name, input).await })
                 .map_err(|e| e.to_string())
+        })
+    }
+
+    fn execute_typed(
+        &self,
+        tool_name: &str,
+        input: serde_json::Value,
+    ) -> Result<serde_json::Value, ToolCallError> {
+        let dispatcher = Arc::clone(&self.dispatcher);
+        let name = tool_name.to_string();
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current()
+                .block_on(async move { dispatcher.dispatch(&name, input).await })
+                .map_err(|e| match e {
+                    apollia_tools::ToolExecutionError::ApprovalRequired {
+                        prompt, payload, ..
+                    } => ToolCallError::ApprovalRequired { prompt, payload },
+                    apollia_tools::ToolExecutionError::ApprovalDenied { gesture, reason } => {
+                        ToolCallError::ApprovalDenied { gesture, reason }
+                    }
+                    other => ToolCallError::Failed(other.to_string()),
+                })
         })
     }
 }
@@ -310,7 +388,7 @@ impl ToolProxy {
 
             match result {
                 Ok(value) => json_value_to_py(&value),
-                Err(e) => Err(PyRuntimeError::new_err(e.to_string())),
+                Err(e) => Err(tool_proxy_error_to_py(e)),
             }
         })
     }
@@ -557,4 +635,52 @@ impl ToolProxy {
         budget.increment_tool_calls();
         None
     }
+}
+
+/// The Python exception a failed tool call raises.
+///
+/// The two approval outcomes become the SDK's own exceptions, reached by import
+/// as `StructuredOutputError` is: `NeedHumanInput`, which the SDK dispatch turns
+/// into a pause when the agent does not catch it, and `ToolApprovalDenied`.
+/// Anything else stays a `RuntimeError`. If the SDK cannot be imported the
+/// failure degrades to a `RuntimeError` carrying the same message, rather than
+/// replacing the tool's outcome with an import error.
+fn tool_proxy_error_to_py(error: ToolProxyError) -> PyErr {
+    let message = error.to_string();
+    Python::with_gil(|py| {
+        let build = || -> PyResult<PyErr> {
+            match &error {
+                ToolProxyError::ApprovalRequired { prompt, payload } => {
+                    let class = py.import("apollia.errors")?.getattr("NeedHumanInput")?;
+                    let payload_py = py
+                        .import("json")?
+                        .call_method1("loads", (payload.to_string(),))?;
+                    let kwargs = pyo3::types::PyDict::new(py);
+                    kwargs.set_item("payload", payload_py)?;
+                    // Marks the engine's pause, so the SDK dispatcher can keep
+                    // the resumed run's context on it rather than an empty one.
+                    kwargs.set_item("from_tool_call", true)?;
+                    Ok(PyErr::from_value(class.call((prompt,), Some(&kwargs))?))
+                }
+                ToolProxyError::ApprovalDenied { gesture, reason } => {
+                    let class = py.import("apollia.errors")?.getattr("ToolApprovalDenied")?;
+                    let kwargs = pyo3::types::PyDict::new(py);
+                    kwargs.set_item("tool", gesture)?;
+                    kwargs.set_item("reason", reason.clone())?;
+                    Ok(PyErr::from_value(
+                        class.call((message.clone(),), Some(&kwargs))?,
+                    ))
+                }
+                _ => Ok(PyRuntimeError::new_err(message.clone())),
+            }
+        };
+        build().unwrap_or_else(|import_failure| {
+            tracing::warn!(
+                error = %import_failure,
+                detail = "the failure degrades to RuntimeError",
+                "tool.call.error_class.unreachable"
+            );
+            PyRuntimeError::new_err(message.clone())
+        })
+    })
 }

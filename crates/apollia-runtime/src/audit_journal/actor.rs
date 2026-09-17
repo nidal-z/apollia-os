@@ -118,10 +118,12 @@ pub(crate) enum JournalMessage {
         run_id: String,
         reply: tokio::sync::oneshot::Sender<Vec<JournalEntry>>,
     },
-    /// Return a page of entries across every run, newest global position first.
+    /// Return a page of entries across every run, newest global position first,
+    /// or across the listed runs only when `runs` is set.
     QueryPage {
         limit: usize,
         offset: usize,
+        runs: Option<Vec<String>>,
         reply: tokio::sync::oneshot::Sender<Vec<JournalEntry>>,
     },
     /// Return the last hash of a run, if any.
@@ -237,9 +239,12 @@ impl JournalActor {
                 JournalMessage::QueryPage {
                     limit,
                     offset,
+                    runs,
                     reply,
                 } => {
-                    let rows = self.query_page(limit, offset).unwrap_or_default();
+                    let rows = self
+                        .query_page(limit, offset, runs.as_deref())
+                        .unwrap_or_default();
                     let _ = reply.send(rows);
                 }
                 JournalMessage::LastHash { run_id, reply } => {
@@ -554,22 +559,37 @@ impl JournalActor {
     /// `global_seq`. SQLite sorts NULLs last under `DESC`, so they land at the
     /// tail rather than disappearing: a listing that silently dropped rows would
     /// be worse than one that orders them by a fallback key.
+    ///
+    /// `runs` narrows the page to those runs, passed as one JSON array so the
+    /// statement does not grow with the number of runs.
     fn query_page(
         &self,
         limit: usize,
         offset: usize,
+        runs: Option<&[String]>,
     ) -> Result<Vec<JournalEntry>, AuditJournalError> {
+        let runs_json = match runs {
+            Some(runs) => Some(
+                serde_json::to_string(runs)
+                    .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?,
+            ),
+            None => None,
+        };
         let mut stmt = self
             .conn
             .prepare(
                 "SELECT seq, run_id, ts, kind, payload, prev_hash, hash, signature, signing_key_id \
                  FROM audit_journal_entries \
+                 WHERE ?3 IS NULL OR run_id IN (SELECT value FROM json_each(?3)) \
                  ORDER BY global_seq DESC, run_id ASC, seq DESC \
                  LIMIT ?1 OFFSET ?2",
             )
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
         let rows = stmt
-            .query_map(rusqlite::params![limit as i64, offset as i64], row_to_entry)
+            .query_map(
+                rusqlite::params![limit as i64, offset as i64, runs_json],
+                row_to_entry,
+            )
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))?;
         rows.collect::<rusqlite::Result<Vec<_>>>()
             .map_err(|e| AuditJournalError::Sqlite(e.to_string()))

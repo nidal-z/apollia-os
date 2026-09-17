@@ -21,6 +21,7 @@ pub mod context;
 pub mod decision_point;
 pub mod error_analysis;
 pub mod events;
+pub mod hitl_payload;
 pub mod hitl_request;
 pub mod llm_backend;
 pub mod manifest;
@@ -68,6 +69,10 @@ pub use error_analysis::{ErrorAnalysis, ErrorCategory};
 pub use events::{
     resilient, subscribe_resilient, AgentId, EventBusSender, FilesystemPreview, Received,
     ResilientReceiver, RunId, RuntimeEvent, TaskId, ToolCallRationale,
+};
+pub use hitl_payload::{
+    AnswerError, Approbation, HitlPayload, PayloadError, Proposition, Question, QuestionGenre,
+    Risque,
 };
 pub use hitl_request::{HitlRequest, ImpactLevel, RiskAnalysis};
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};

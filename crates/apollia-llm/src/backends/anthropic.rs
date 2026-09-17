@@ -267,6 +267,15 @@ impl AnthropicClient {
     /// - 400 to [`LlmError::BadRequest`]
     /// - other >= 400 to [`LlmError::HttpError`]
     async fn do_complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        // A structured-output call must not be answered by a backend that
+        // cannot constrain its output: the schema would be dropped in silence
+        // and the validation that follows would blame the model for a
+        // constraint nobody applied.
+        if req.response_schema.is_some() {
+            return Err(LlmError::StructuredOutputUnavailable {
+                backend: self.config.name.clone(),
+            });
+        }
         let started = Instant::now();
         let body = self.build_request(&req, false);
         let model = body.model.clone();
@@ -592,6 +601,7 @@ mod tests {
                 api_key_env: "APOLLIA_ANT_TEST_KEY".into(),
                 model: "claude-haiku-4-5-20251001".into(),
                 context_window: None,
+                llama_cpp_extensions: false,
             };
 
             let client = AnthropicClient::new(

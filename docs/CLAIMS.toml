@@ -1508,3 +1508,59 @@ that it is read unconditionally. A reintroduced `if let Some(port)` would keep
 this green, because the replay resolves a symbol and never reads the value or the
 shape of the expression around it.
 """
+
+[[claim]]
+id = "llm-schema-constrains-local-generation"
+scope = "public"
+symbol = "json_schema_to_gbnf"
+status = "wired"
+proof = "crates/apollia-llm/src/backends/openai/convert.rs"
+evidence = "json_schema_to_gbnf(schema)"
+note = """
+The structured-output page says a schema constrains decoding on the embedded
+llama-server, which only holds while something turns the schema into a grammar
+and sends it. Both halves are the risk here, and the tree already carried the
+shape of the failure: `CompletionRequest.grammar` existed, `tool_specs_to_gbnf`
+filled it, and no backend read the field, so the tool grammar was built and
+dropped for as long as nobody looked. The proof is therefore the call site in
+the request builder rather than the translator itself; a translator with no
+caller would satisfy a symbol-only check and leave the sentence false.
+"""
+
+[[claim]]
+id = "mcp-requires-approval-gates-task-path"
+scope = "public"
+symbol = "build_task_tool_executors"
+status = "wired"
+proof = "crates/apollia-cli/src/commands/start/chat_runner.rs"
+evidence = "apollia_mcp::executor::build_task_tool_executors("
+note = """
+The flag was documented as gating every call to a server and gated none: the
+only gate sat behind `McpToolExecutor::with_hitl`, which no production path
+called, and it waited on a key no route could resolve. The page now says a
+server declared `requires_approval` pauses the task on an approval, which holds
+only while the task-path runners build their MCP executors through
+`build_task_tool_executors` rather than the ungated `build_agent_tool_executors`.
+The proof is that call, in the helper both CLI task runners use; the desktop
+runner makes the same call in its own `build_mcp_executors`. If either runner
+goes back to the ungated builder, this claim is false and the page with it.
+The CLI chat-agent runner builds its set through the same helper since the page
+said an agent run from an agent chat session is gated too.
+"""
+
+[[claim]]
+id = "mcp-gated-tool-does-not-block-install"
+scope = "public"
+symbol = "register_session_tools_in_registry"
+status = "wired"
+proof = "crates/apollia-mcp/src/manager/views.rs"
+evidence = "dangerous: false,"
+note = """
+An MCP tool descriptor used to carry its server's `requires_approval` as
+`dangerous`, and install-time resolution refuses a `dangerous` tool unless the
+manifest sets `dangerous_tools_allowed`, which the SDK decorator does not
+expose. Under eager loading an agent requiring a tool of a gated server was
+refused with a 400, while one requiring a tool of an ungated server installed.
+The page says such an agent installs and the approval is held per call; that
+holds while the registered descriptor is not `dangerous`.
+"""

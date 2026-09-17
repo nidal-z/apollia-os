@@ -295,6 +295,11 @@ FRENCH_DATA: dict[str, int] = {
     "scripts/check_release_artifacts.py": 1,
     # parser: French words the code matches on, or folds
     "agents/system/onboarding-agent/agent.py": 36,
+    # The typed-pause payload keys are the product's wire vocabulary (`genre`,
+    # `libelle`, `autre`...): the parser and the TypedDict declaring them match on
+    # those names. Only `autre` is a word the detector knows.
+    "crates/apollia-core/src/hitl_payload.rs": 3,
+    "sdk/apollia/hitl.py": 1,
     "crates/apollia-cli/src/commands/chat_stream.rs": 3,
     "crates/apollia-cli/src/commands/chat_stream/classify.rs": 1,
     "crates/apollia-cli/src/commands/run.rs": 2,
@@ -325,6 +330,7 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-desktop/src/commands/chat/title.rs": 17,
     # fixture: French user text, or a multi-byte character, a test feeds to the
     # code under test
+    "tests/hitl/hitl_e2e_agent.py": 1,
     "crates/apollia-cli/src/commands/mod.rs": 2,
     "crates/apollia-core/src/observability.rs": 1,
     "crates/apollia-core/src/utils.rs": 2,

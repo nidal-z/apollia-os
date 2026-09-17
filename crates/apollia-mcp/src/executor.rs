@@ -9,20 +9,19 @@
 //! Supervisor) that need to decompose a `"mcp:{server}/{tool}"` identifier into its
 //! constituent parts before constructing an executor.
 //!
-//! ## HITL gate
+//! ## Approval gate
 //!
-//! Call [`McpToolExecutor::with_hitl`] to enable the Human-in-the-Loop approval gate.
-//! When enabled, [`ToolExecutor::execute`] suspends before routing to the MCP session
-//! if either the server-level or agent-level approval flag is active.
+//! On the task path, call [`McpToolExecutor::with_task_approval`] (or build the
+//! set with [`build_task_tool_executors`]). A call to a server declared
+//! `requires_approval`, or to a tool the agent lists as requiring approval, then
+//! pauses the task on an `approbation` payload and runs once the task resumes
+//! with that call approved; see [`crate::task_approval`]. Without it, no call is
+//! gated: the chat path, which has its own approval flow, builds its executors
+//! that way.
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
-};
 
-use apollia_core::PendingApprovals;
 use serde_json::Value;
 
 use apollia_tools::executor::{ToolExecutionError, ToolExecutor};
@@ -39,9 +38,10 @@ use crate::protocol::extract_text_parts;
 /// returned by [`ToolExecutor::name`], enabling exact-match routing in the
 /// [`ToolDispatcher`].
 ///
-/// Construct via [`McpToolExecutor::new`]. Chain [`McpToolExecutor::with_hitl`] to
-/// enable the HITL approval gate. Use [`McpToolExecutor::parse_tool_name`] to split
-/// a composite name before calling the constructor.
+/// Construct via [`McpToolExecutor::new`]. Chain
+/// [`McpToolExecutor::with_task_approval`] on the task path to gate calls that
+/// need a human. Use [`McpToolExecutor::parse_tool_name`] to split a composite
+/// name before calling the constructor.
 ///
 /// [`ToolDispatcher`]: apollia_tools::executor::ToolDispatcher
 pub struct McpToolExecutor {
@@ -50,30 +50,21 @@ pub struct McpToolExecutor {
     full_name: String,
     server_name: String,
     tool_name: String,
-    /// HITL approval registry. `None` means the gate is disabled and all calls
-    /// proceed immediately.
-    pending_approvals: Option<Arc<PendingApprovals>>,
-    /// Agent-level tools that require human approval before execution.
-    ///
-    /// Populated from `AgentManifest::tools_requiring_approval` at construction time
-    /// via [`with_hitl`].
-    ///
-    /// [`with_hitl`]: McpToolExecutor::with_hitl
+    /// The approval state of the task this executor serves. `None` means no
+    /// call is gated.
+    task_approval: Option<crate::task_approval::TaskApproval>,
+    /// Tools the agent's manifest lists as requiring approval, gated like a
+    /// server declared `requires_approval`.
     tools_requiring_approval: Vec<String>,
-    /// Monotonic counter used to generate a unique key per `execute()` invocation.
-    ///
-    /// Ensures concurrent calls to the same tool produce distinct approval keys in
-    /// [`PendingApprovals`].
-    call_counter: AtomicU64,
 }
 
 impl McpToolExecutor {
     /// Create a new executor bound to `server_name` and `tool_name`.
     ///
     /// The resulting [`ToolExecutor::name`] will be `"mcp:{server_name}/{tool_name}"`.
-    /// HITL is disabled by default; call [`with_hitl`] to enable it.
+    /// No call is gated until [`with_task_approval`] is chained.
     ///
-    /// [`with_hitl`]: McpToolExecutor::with_hitl
+    /// [`with_task_approval`]: McpToolExecutor::with_task_approval
     pub fn new(
         mcp_manager: McpClientManagerHandle,
         server_name: impl Into<String>,
@@ -87,29 +78,22 @@ impl McpToolExecutor {
             full_name,
             server_name,
             tool_name,
-            pending_approvals: None,
+            task_approval: None,
             tools_requiring_approval: Vec::new(),
-            call_counter: AtomicU64::new(0),
         }
     }
 
-    /// Enable the HITL approval gate for this executor.
+    /// Gate this executor's calls through the task's approval state.
     ///
-    /// When enabled, [`execute`] will suspend before routing to the MCP session if
-    /// the server-level flag (`requires_approval` in `mcp.toml`) or the agent-level
-    /// list (`tools_requiring_approval` in the agent manifest) indicates that this
-    /// tool requires human approval.
-    ///
-    /// `tools_requiring_approval` should be taken from `AgentManifest::tools_requiring_approval`
-    /// and passed verbatim; the gate checks whether `self.full_name` appears in the list.
-    ///
-    /// [`execute`]: ToolExecutor::execute
-    pub fn with_hitl(
+    /// `tools_requiring_approval` is the agent manifest's list, passed verbatim;
+    /// the gate checks whether this executor's full name appears in it, beside
+    /// the server-level `requires_approval` flag.
+    pub fn with_task_approval(
         mut self,
-        pending_approvals: Arc<PendingApprovals>,
+        approval: crate::task_approval::TaskApproval,
         tools_requiring_approval: Vec<String>,
     ) -> Self {
-        self.pending_approvals = Some(pending_approvals);
+        self.task_approval = Some(approval);
         self.tools_requiring_approval = tools_requiring_approval;
         self
     }
@@ -129,65 +113,42 @@ impl McpToolExecutor {
         Some((server, tool))
     }
 
-    /// Check if HITL approval is required and suspend execution until resolved.
+    /// Apply the approval gate to one call.
     ///
-    /// Two gates are evaluated:
-    /// 1. **Server-level**: the MCP server has `requires_approval = true` in `mcp.toml`.
-    /// 2. **Agent-level**: the tool's full name appears in `tools_requiring_approval`.
-    ///
-    /// If either fires, a unique key is registered in `pending_approvals` and the call
-    /// blocks until a human resolves it. A rejection returns
-    /// [`ToolExecutionError::ExecutionFailed`] with code `"hitl_rejected"`.
-    async fn check_hitl_gate(&self, pending: &PendingApprovals) -> Result<(), ToolExecutionError> {
+    /// Returns `Ok(())` when the call may run, and the typed error that becomes
+    /// a pause or a refusal otherwise.
+    async fn check_task_approval(
+        &self,
+        approval: &crate::task_approval::TaskApproval,
+        input: &Value,
+    ) -> Result<(), ToolExecutionError> {
         let server_requires = self
             .mcp_manager
             .server_requires_approval(&self.server_name)
             .await;
         let agent_requires = self.tools_requiring_approval.contains(&self.full_name);
-
         if !server_requires && !agent_requires {
             return Ok(());
         }
 
-        let call_id = self.call_counter.fetch_add(1, Ordering::Relaxed);
-        let approval_key = format!("{}:{}", self.full_name, call_id);
-
-        let reason = if server_requires {
-            format!(
-                "MCP server '{}' requires approval for all tools",
-                self.server_name
-            )
-        } else {
-            format!("Agent requires approval for tool '{}'", self.full_name)
-        };
-
-        tracing::info!(
-            tool = %self.full_name,
-            approval_key = %approval_key,
-            %reason,
-            reason = "a human approval is pending",
-            "mcp.tool.call.suspended"
-        );
-
-        let rx = pending.register(&approval_key);
-        let response = rx.await.map_err(|_| ToolExecutionError::ExecutionFailed {
-            code: "hitl_channel_closed".to_string(),
-            message: format!("HITL approval channel closed for tool '{}'", self.full_name),
-        })?;
-
-        if response.approved {
-            tracing::info!(
-                tool = %self.full_name,
-                approval_key = %approval_key,
-                "mcp.tool.call.approved"
-            );
-            Ok(())
-        } else {
-            let reject_reason = response.reason.unwrap_or_default();
-            Err(ToolExecutionError::ExecutionFailed {
-                code: "hitl_rejected".to_string(),
-                message: format!("HITL approval rejected: {}", reject_reason),
-            })
+        let gesture = format!("{}/{}", self.server_name, self.tool_name);
+        match crate::task_approval::decide(&gesture, input, approval) {
+            crate::task_approval::GateDecision::Run => {
+                tracing::info!(tool = %self.full_name, "mcp.tool.call.approved");
+                Ok(())
+            }
+            crate::task_approval::GateDecision::Require { prompt, payload } => {
+                tracing::info!(tool = %self.full_name, "mcp.tool.call.approval_required");
+                Err(ToolExecutionError::ApprovalRequired {
+                    gesture,
+                    prompt,
+                    payload,
+                })
+            }
+            crate::task_approval::GateDecision::Deny { reason } => {
+                tracing::info!(tool = %self.full_name, "mcp.tool.call.declined");
+                Err(ToolExecutionError::ApprovalDenied { gesture, reason })
+            }
         }
     }
 }
@@ -202,31 +163,31 @@ impl ToolExecutor for McpToolExecutor {
 
     /// Execute the bound MCP tool with `input` as the argument payload.
     ///
-    /// When a HITL gate is configured (via [`with_hitl`]), the call suspends before
-    /// routing to the MCP session until a human approves or rejects it.
+    /// When an approval gate is configured (via [`with_task_approval`]), a call
+    /// that needs a human is refused with a typed error before it reaches the
+    /// MCP session, and runs once the task is resumed with it approved.
     ///
     /// Routes the call through [`McpClientManagerHandle::call_tool`] and
-    /// converts the [`ToolCallResult`] into a JSON object of the form
-    /// `{"content": "…"}` where the value is all text parts joined with `"\n"`.
+    /// converts the [`ToolCallResult`] with [`tool_output`].
     ///
     /// # Errors
     ///
-    /// - [`ToolExecutionError::ExecutionFailed`] with code `"hitl_rejected"` when the
-    ///   HITL gate is active and the human rejects the approval request.
-    /// - [`ToolExecutionError::ExecutionFailed`] with code `"hitl_channel_closed"` when
-    ///   the approval channel is dropped before a decision is received.
+    /// - [`ToolExecutionError::ApprovalRequired`] when the call needs an approval
+    ///   the task has not received.
+    /// - [`ToolExecutionError::ApprovalDenied`] when the task was resumed with
+    ///   this call declined.
     /// - [`ToolExecutionError::ExecutionFailed`] when the MCP session returns an
     ///   error, or when the `ToolCallResult` itself carries `is_error = true`.
     ///
-    /// [`with_hitl`]: McpToolExecutor::with_hitl
+    /// [`with_task_approval`]: McpToolExecutor::with_task_approval
     /// [`ToolCallResult`]: crate::protocol::ToolCallResult
     fn execute(
         &self,
         input: Value,
     ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
         Box::pin(async move {
-            if let Some(pending) = &self.pending_approvals {
-                self.check_hitl_gate(pending).await?;
+            if let Some(approval) = &self.task_approval {
+                self.check_task_approval(approval, &input).await?;
             }
 
             let result = self
@@ -246,9 +207,24 @@ impl ToolExecutor for McpToolExecutor {
                 });
             }
 
-            let content = extract_text_parts(&result.content);
-            Ok(serde_json::json!({ "content": content }))
+            Ok(tool_output(&result))
         })
+    }
+}
+
+/// What an agent receives from a successful MCP tool call.
+///
+/// `{"content": "…"}`, every text part joined with `"\n"`, and, when the server
+/// sent a structured result, `"structured"` holding it as the server built it.
+/// An agent reading an object used to parse the JSON text of `content` back;
+/// `content` stays as it was, so an agent written against it is unchanged.
+///
+/// [`ToolCallResult`]: crate::protocol::ToolCallResult
+pub(crate) fn tool_output(result: &crate::protocol::ToolCallResult) -> Value {
+    let content = extract_text_parts(&result.content);
+    match &result.structured_content {
+        Some(structured) => serde_json::json!({ "content": content, "structured": structured }),
+        None => serde_json::json!({ "content": content }),
     }
 }
 
@@ -271,6 +247,28 @@ impl ToolExecutor for McpToolExecutor {
 pub async fn build_agent_tool_executors(
     handle: &McpClientManagerHandle,
 ) -> Vec<Box<dyn ToolExecutor>> {
+    build_executors(handle, None, Vec::new()).await
+}
+
+/// Build the agent-facing MCP executors for one task on the task path, gated
+/// through that task's approval state.
+///
+/// Same set as [`build_agent_tool_executors`]. Every tool executor shares
+/// `approval`, so an approval received on resume is consumed by the one call it
+/// approved, whichever executor makes it.
+pub async fn build_task_tool_executors(
+    handle: &McpClientManagerHandle,
+    approval: crate::task_approval::TaskApproval,
+    tools_requiring_approval: Vec<String>,
+) -> Vec<Box<dyn ToolExecutor>> {
+    build_executors(handle, Some(approval), tools_requiring_approval).await
+}
+
+async fn build_executors(
+    handle: &McpClientManagerHandle,
+    approval: Option<crate::task_approval::TaskApproval>,
+    tools_requiring_approval: Vec<String>,
+) -> Vec<Box<dyn ToolExecutor>> {
     let mut execs: Vec<Box<dyn ToolExecutor>> =
         crate::mcp_resources::build_mcp_resource_executors(&Some(handle.clone()));
     for status in handle.status().await {
@@ -281,11 +279,13 @@ pub async fn build_agent_tool_executors(
             continue;
         };
         for tool in detail.tools {
-            execs.push(Box::new(McpToolExecutor::new(
-                handle.clone(),
-                status.name.clone(),
-                tool.local_name,
-            )));
+            let executor =
+                McpToolExecutor::new(handle.clone(), status.name.clone(), tool.local_name);
+            let executor = match approval.as_ref() {
+                Some(a) => executor.with_task_approval(a.clone(), tools_requiring_approval.clone()),
+                None => executor,
+            };
+            execs.push(Box::new(executor));
         }
     }
     execs
@@ -297,6 +297,38 @@ pub async fn build_agent_tool_executors(
 mod tests {
     use super::*;
     use crate::protocol::ToolCallContent;
+
+    #[test]
+    fn a_structured_result_reaches_the_agent_as_an_object() {
+        // GIVEN a result carrying structuredContent and its text serialization
+        let result: crate::protocol::ToolCallResult = serde_json::from_value(serde_json::json!({
+            "content": [{"type": "text", "text": "{\"lignes\": [{\"id\": \"d-1\"}]}"}],
+            "structuredContent": {"lignes": [{"id": "d-1"}]}
+        }))
+        .unwrap();
+
+        // WHEN it is turned into the agent's output
+        let output = tool_output(&result);
+
+        // THEN the object is there as the server built it, and the text is unchanged
+        assert_eq!(output["structured"]["lignes"][0]["id"], "d-1");
+        assert_eq!(output["content"], "{\"lignes\": [{\"id\": \"d-1\"}]}");
+    }
+
+    #[test]
+    fn a_text_only_result_keeps_its_historical_shape() {
+        // GIVEN a result with text parts and no structuredContent
+        let result: crate::protocol::ToolCallResult = serde_json::from_value(serde_json::json!({
+            "content": [{"type": "text", "text": "5"}]
+        }))
+        .unwrap();
+
+        // WHEN it is turned into the agent's output
+        let output = tool_output(&result);
+
+        // THEN it is exactly `{"content": "5"}`
+        assert_eq!(output, serde_json::json!({"content": "5"}));
+    }
 
     #[test]
     fn parse_tool_name_valid() {
@@ -449,102 +481,6 @@ mod tests {
         };
         // WHEN / THEN the flag is set
         assert!(config.requires_approval);
-    }
-
-    #[test]
-    fn agent_level_tools_requiring_approval_lookup() {
-        // GIVEN a list of tools that require approval
-        let tools_requiring: Vec<String> = vec![
-            "mcp:notion/create_page".to_string(),
-            "mcp:notion/delete_page".to_string(),
-        ];
-        // WHEN searching for a specific tool
-        let requires = tools_requiring.contains(&"mcp:notion/create_page".to_string());
-        // THEN it is found
-        assert!(requires);
-    }
-
-    #[test]
-    fn agent_level_tools_requiring_approval_absent_tool() {
-        // GIVEN a list of tools that require approval
-        let tools_requiring: Vec<String> = vec!["mcp:notion/create_page".to_string()];
-        // WHEN searching for a tool not in the list
-        let requires = tools_requiring.contains(&"mcp:notion/search_pages".to_string());
-        // THEN it is not found
-        assert!(!requires);
-    }
-
-    #[test]
-    fn hitl_rejection_error_format() {
-        // GIVEN a rejected approval
-        let error = ToolExecutionError::ExecutionFailed {
-            code: "hitl_rejected".to_string(),
-            message: "HITL approval rejected: user declined".to_string(),
-        };
-        // WHEN the error is rendered for the operator
-        // THEN the display output is descriptive
-        assert!(error.to_string().contains("HITL approval rejected"));
-        assert!(error.to_string().contains("user declined"));
-    }
-
-    #[tokio::test]
-    async fn hitl_gate_approve_unblocks_execution() {
-        // GIVEN a PendingApprovals registry
-        use apollia_core::{InputResponseData, PendingApprovals};
-        use std::sync::Arc;
-
-        let pending = Arc::new(PendingApprovals::new());
-        let approval_key = "mcp:notion/create_page:0";
-
-        // Register the approval before the gate fires
-        let rx = pending.register(approval_key);
-
-        // WHEN the gate is resolved as approved
-        pending
-            .resolve(
-                approval_key,
-                InputResponseData {
-                    approved: true,
-                    reason: None,
-                    context: serde_json::Value::Null,
-                    responded_at: "2026-01-01T00:00:00Z".to_string(),
-                },
-            )
-            .expect("resolve must succeed");
-
-        // THEN the receiver yields approved=true
-        let response = rx.await.expect("channel must not close");
-        assert!(response.approved);
-    }
-
-    #[tokio::test]
-    async fn hitl_gate_reject_yields_reason() {
-        // GIVEN a PendingApprovals registry
-        use apollia_core::{InputResponseData, PendingApprovals};
-        use std::sync::Arc;
-
-        let pending = Arc::new(PendingApprovals::new());
-        let approval_key = "mcp:notion/delete_page:0";
-
-        let rx = pending.register(approval_key);
-
-        // WHEN the gate is resolved as rejected with a reason
-        pending
-            .resolve(
-                approval_key,
-                InputResponseData {
-                    approved: false,
-                    reason: Some("Too destructive".to_string()),
-                    context: serde_json::Value::Null,
-                    responded_at: "2026-01-01T00:00:00Z".to_string(),
-                },
-            )
-            .expect("resolve must succeed");
-
-        // THEN the receiver yields approved=false with the reason preserved
-        let response = rx.await.expect("channel must not close");
-        assert!(!response.approved);
-        assert_eq!(response.reason.as_deref(), Some("Too destructive"));
     }
 
     #[tokio::test]

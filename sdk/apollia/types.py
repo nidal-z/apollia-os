@@ -30,6 +30,7 @@ from apollia.context.stt import SttInterface
 from apollia.context.templates import TemplatesInterface
 from apollia.context.tools import ToolProxy
 from apollia.context.workspace import WorkspaceContext
+from apollia.hitl import ApprovalPayload, InputResponse, QuestionPayload
 
 # ──────────────────────────────────────────────────────────────────────
 # Multi-modal content (Vision API typing)
@@ -202,6 +203,11 @@ class Ctx(Protocol):
     stt: SttInterface
     notify: NotifyInterface
     budget: BudgetView
+    #: ``True`` when this run resumes a task that paused on a human.
+    is_resumed: bool
+    #: The operator's response to the pause being resumed, ``None`` on a first
+    #: run. See :mod:`apollia.hitl`.
+    input_response: InputResponse | None
 
     # NOTE: ReAct lives as a free function `apollia.react(ctx, ...)`,
     # not on the Ctx protocol. Keeping it off the Ctx surface avoids a
@@ -234,6 +240,7 @@ class AIPResult:
     input_prompt: str | None = None
     input_context: dict[str, Any] | None = None
     data: dict[str, Any] = field(default_factory=dict)
+    input_payload: dict[str, Any] | None = None
 
     @staticmethod
     def completed(text: str, data: dict[str, Any] | None = None) -> "AIPResult":
@@ -246,9 +253,24 @@ class AIPResult:
         return AIPResult(status="failed", error_code=code, error_message=message)
 
     @staticmethod
-    def input_required(prompt: str, context: dict[str, Any] | None = None) -> "AIPResult":
-        """Create an input-required result (HITL)."""
-        return AIPResult(status="input_required", input_prompt=prompt, input_context=context)
+    def input_required(
+        prompt: str,
+        context: dict[str, Any] | None = None,
+        payload: QuestionPayload | ApprovalPayload | None = None,
+    ) -> "AIPResult":
+        """Create an input-required result (HITL).
+
+        Args:
+            prompt: What the human is asked.
+            context: State given back verbatim on resume.
+            payload: A typed question or approval, see :mod:`apollia.hitl`.
+        """
+        return AIPResult(
+            status="input_required",
+            input_prompt=prompt,
+            input_context=context,
+            input_payload=dict(payload) if payload is not None else None,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dict for runtime consumption.
@@ -267,6 +289,8 @@ class AIPResult:
             result["input_prompt"] = self.input_prompt
         if self.input_context is not None:
             result["input_context"] = self.input_context
+        if self.input_payload is not None:
+            result["input_payload"] = self.input_payload
         if self.data:
             result["data"] = self.data
         return result

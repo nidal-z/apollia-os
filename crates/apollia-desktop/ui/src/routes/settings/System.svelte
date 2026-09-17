@@ -22,6 +22,8 @@
     Download,
   } from "lucide-svelte";
   import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
+  import { FormField } from "$lib/components/ui/form-field";
   import { Spinner } from "$lib/components/ui/progress";
   import { ErrorBanner } from "$lib/components/operator";
   import { addToast } from "$lib/components/ui/toast";
@@ -39,8 +41,51 @@
     settingsLoaders,
   } from "$lib/stores/settings";
   import { agentInstallPrefs, setAutoInstallPythonDeps } from "$lib/stores/agentInstallPrefs";
-  import { installCli, uninstallCli } from "$lib/ipc/system";
+  import {
+    installCli,
+    uninstallCli,
+    getPythonInterpreter,
+    setPythonInterpreter,
+    type PythonInterpreterSetting,
+  } from "$lib/ipc/system";
   import type { CliStatus } from "$lib/types";
+
+  let pythonSetting = $state<PythonInterpreterSetting | null>(null);
+  let pythonDraft = $state("");
+  let pythonSaving = $state(false);
+  let pythonError = $state<string | null>(null);
+
+  /** Read the interpreter setting and reset the field to what is stored. */
+  async function loadPythonInterpreter(): Promise<void> {
+    try {
+      pythonSetting = await getPythonInterpreter();
+      pythonDraft = pythonSetting.chosen ?? "";
+      pythonError = null;
+    } catch (e) {
+      pythonError = String(e);
+    }
+  }
+
+  /**
+   * Write the interpreter setting, or clear it when the field is blank.
+   *
+   * The refusal comes from the backend, which is the only place that can run
+   * the candidate and read its version; it is shown as it arrives, because it
+   * already names which of the three conditions failed.
+   */
+  async function savePythonInterpreter(path: string | null): Promise<void> {
+    pythonSaving = true;
+    pythonError = null;
+    try {
+      await setPythonInterpreter(path);
+      await loadPythonInterpreter();
+      addToast($t("settings.system.python_interpreter_saved"), "success");
+    } catch (e) {
+      pythonError = String(e);
+    } finally {
+      pythonSaving = false;
+    }
+  }
 
   let cliActionLoading = $state(false);
   let cliError = $state<HumanizedError | null>(null);
@@ -104,6 +149,7 @@
     void settingsLoaders.securityPosture();
     void settingsLoaders.cliStatus();
     void settingsLoaders.config();
+    void loadPythonInterpreter();
     tickHandle = setInterval(() => {
       now = new Date();
     }, 15000);
@@ -256,6 +302,54 @@
         onChange={setAutoInstallPythonDeps}
         data-testid="auto-install-python-deps-toggle"
       />
+
+      {#if pythonSetting}
+        <FormField
+          id="python-interpreter"
+          label={$t("settings.system.python_interpreter_label")}
+          hint={pythonSetting.chosen
+            ? $t("settings.system.python_interpreter_hint_chosen", {
+                values: { minor: pythonSetting.required_minor },
+              })
+            : $t("settings.system.python_interpreter_hint_bundled", {
+                values: {
+                  path: pythonSetting.bundled ?? $t("settings.system_python_not_found"),
+                },
+              })}
+          error={pythonError ?? undefined}
+          data-testid="python-interpreter-field"
+        >
+          <div class="flex items-center gap-2">
+            <Input
+              id="python-interpreter"
+              bind:value={pythonDraft}
+              placeholder={pythonSetting.bundled ?? "/usr/local/bin/python3.13"}
+              disabled={pythonSaving}
+              data-testid="python-interpreter-input"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              loading={pythonSaving}
+              onclick={() => savePythonInterpreter(pythonDraft.trim() || null)}
+              data-testid="python-interpreter-save-btn"
+            >
+              {$t("common.save")}
+            </Button>
+            {#if pythonSetting.chosen}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={pythonSaving}
+                onclick={() => savePythonInterpreter(null)}
+                data-testid="python-interpreter-reset-btn"
+              >
+                {$t("settings.system.python_interpreter_use_bundled")}
+              </Button>
+            {/if}
+          </div>
+        </FormField>
+      {/if}
     </SettingsSection>
 
     <UpdateCheckPanel />

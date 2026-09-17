@@ -72,6 +72,11 @@ pub struct PythonExecutor {
     python_bin: PathBuf,
     /// The system interpreter discovered at construction time, used to build
     /// the virtualenv (`<system_python> -m venv`).
+    ///
+    /// Resolved once at construction by
+    /// [`crate::tools::python_discovery::resolve_interpreter`]: the chosen one,
+    /// else the bundled one, else a system probe. The field keeps its name
+    /// because what it holds is still "the interpreter outside the venv".
     system_python: crate::tools::python_discovery::PythonCommand,
     /// Set once the virtualenv is known to exist. Guards the on-demand
     /// creation in [`PythonExecutor::run`] so concurrent invocations run
@@ -119,6 +124,22 @@ pub enum PythonExecutorError {
     PythonUnavailable {
         /// The candidate commands probed, in order.
         tried: String,
+    },
+    /// The interpreter named in `[tools] python_interpreter` cannot be used.
+    ///
+    /// Raised when the setting is written, so a bad value is refused at the
+    /// point it is entered rather than at the point an agent runs. At use time
+    /// the same check only warns: the bundled interpreter answers instead.
+    #[error(
+        "the Python interpreter chosen in `[tools] python_interpreter` cannot be \
+         used: {path} ({reason}). Remove the setting to go back to the \
+         interpreter Apollia bundles, which needs nothing installed."
+    )]
+    ChosenInterpreterInvalid {
+        /// The path the operator named.
+        path: String,
+        /// Which of the three conditions it failed.
+        reason: String,
     },
     /// The system Python `-m venv` failed to create the virtualenv.
     #[error("failed to create virtualenv: {0}")]
@@ -380,23 +401,44 @@ pub fn validate_package_spec(package: &str) -> Result<(), PythonExecutorError> {
 }
 
 impl PythonExecutor {
-    /// Creates a `PythonExecutor` for the given agent.
+    /// Creates a `PythonExecutor` for the given agent, on the bundled
+    /// interpreter.
     ///
-    /// Locates a working system Python 3 via
-    /// [`crate::tools::python_discovery::locate_system_python`] (per-platform
-    /// candidate order, Microsoft Store stub rejected). Does **not** create
-    /// the virtualenv: an agent declaring packages gets it from
-    /// [`setup_venv`][Self::setup_venv] at `INITIALIZING`, and any other caller
-    /// gets it from the first [`run`][Self::run].
+    /// Equivalent to [`new_with_interpreter`][Self::new_with_interpreter] with
+    /// no operator choice, which is what every caller that has not read
+    /// `apollia.toml` should pass.
     ///
     /// # Errors
     ///
-    /// Returns [`PythonExecutorError::PythonUnavailable`] when no probed
-    /// candidate is a working Python 3; the message names what was tried and
-    /// how to install one.
+    /// Same as [`new_with_interpreter`][Self::new_with_interpreter].
     pub fn new(agent_id: &str, venv_base_dir: &Path) -> Result<Self, PythonExecutorError> {
-        // Fail fast: locate the system interpreter at construction time.
-        let system_python = crate::tools::python_discovery::locate_system_python()?;
+        Self::new_with_interpreter(agent_id, venv_base_dir, None)
+    }
+
+    /// Creates a `PythonExecutor` for the given agent.
+    ///
+    /// `chosen` is `[tools] python_interpreter` from `apollia.toml`. It is the
+    /// only way a system interpreter is used: without it the bundled one
+    /// answers, which is the configuration that depends on nothing installed on
+    /// the machine. See [`crate::tools::python_discovery`] for the full order
+    /// and why it is that way.
+    ///
+    /// Does **not** create the virtualenv: an agent declaring packages gets it
+    /// from [`setup_venv`][Self::setup_venv] at `INITIALIZING`, and any other
+    /// caller gets it from the first [`run`][Self::run].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PythonExecutorError::PythonUnavailable`] when there is no
+    /// bundled interpreter and no system one either; the message names what was
+    /// tried and how to install one.
+    pub fn new_with_interpreter(
+        agent_id: &str,
+        venv_base_dir: &Path,
+        chosen: Option<&str>,
+    ) -> Result<Self, PythonExecutorError> {
+        // Fail fast: resolve the interpreter at construction time.
+        let resolved = crate::tools::python_discovery::resolve_interpreter(chosen)?;
 
         let venv_path = venv_base_dir
             .join(venv_dir_component(agent_id))
@@ -407,7 +449,7 @@ impl PythonExecutor {
             agent_id: agent_id.to_string(),
             venv_path,
             python_bin,
-            system_python,
+            system_python: resolved.command,
             venv_ready: tokio::sync::OnceCell::new(),
         })
     }

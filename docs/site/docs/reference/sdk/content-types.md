@@ -1,5 +1,5 @@
 ---
-sidebar_position: 16
+sidebar_position: 18
 title: Content types and helpers
 ---
 <!-- GENERATED FILE. Do not edit; regenerate with docs/site/regen.sh. -->
@@ -126,6 +126,7 @@ cases:
 | `input_prompt` | `str \| None` | `None` |
 | `input_context` | `dict[str, Any] \| None` | `None` |
 | `data` | `dict[str, Any]` | `field(default_factory=dict)` |
+| `input_payload` | `dict[str, Any] \| None` | `None` |
 
 #### `completed`
 
@@ -146,10 +147,15 @@ Create a failure result.
 #### `input_required`
 
 ```python
-def input_required(prompt: str, context: dict[str, Any] | None=None) -> 'AIPResult'
+def input_required(prompt: str, context: dict[str, Any] | None=None, payload: QuestionPayload | ApprovalPayload | None=None) -> 'AIPResult'
 ```
 
 Create an input-required result (HITL).
+
+Args:
+    prompt: What the human is asked.
+    context: State given back verbatim on resume.
+    payload: A typed question or approval, see `apollia.hitl`.
 
 #### `to_dict`
 

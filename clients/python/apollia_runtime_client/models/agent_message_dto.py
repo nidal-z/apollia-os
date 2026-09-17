@@ -1,36 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.agent_message_dto_payload import AgentMessageDtoPayload
-
-
-
+    from ..models.agent_message_dto_payload import AgentMessageDtoPayload
 
 
 T = TypeVar("T", bound="AgentMessageDto")
 
 
-
 @_attrs_define
 class AgentMessageDto:
-    """ DTO for a single agent message.
+    """DTO for a single agent message.
 
-        Attributes:
-            from_agent (str): Name of the sending agent.
-            payload (AgentMessageDtoPayload): Arbitrary JSON payload.
-            sent_at (str): Timestamp (RFC 3339).
-            to_agent (str): Name of the receiving agent.
-     """
+    Attributes:
+        from_agent (str): Name of the sending agent.
+        payload (AgentMessageDtoPayload): Arbitrary JSON payload.
+        sent_at (str): Timestamp (RFC 3339).
+        to_agent (str): Name of the receiving agent.
+    """
 
     from_agent: str
     payload: AgentMessageDtoPayload
@@ -38,12 +30,7 @@ class AgentMessageDto:
     to_agent: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.agent_message_dto_payload import AgentMessageDtoPayload
         from_agent = self.from_agent
 
         payload = self.payload.to_dict()
@@ -52,30 +39,27 @@ class AgentMessageDto:
 
         to_agent = self.to_agent
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "from_agent": from_agent,
-            "payload": payload,
-            "sent_at": sent_at,
-            "to_agent": to_agent,
-        })
+        field_dict.update(
+            {
+                "from_agent": from_agent,
+                "payload": payload,
+                "sent_at": sent_at,
+                "to_agent": to_agent,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_message_dto_payload import AgentMessageDtoPayload
+
         d = dict(src_dict)
         from_agent = d.pop("from_agent")
 
         payload = AgentMessageDtoPayload.from_dict(d.pop("payload"))
-
-
-
 
         sent_at = d.pop("sent_at")
 
@@ -87,7 +71,6 @@ class AgentMessageDto:
             sent_at=sent_at,
             to_agent=to_agent,
         )
-
 
         agent_message_dto.additional_properties = d
         return agent_message_dto

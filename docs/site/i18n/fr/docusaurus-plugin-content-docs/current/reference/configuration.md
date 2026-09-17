@@ -157,6 +157,7 @@ Outils natifs : désactivation statique et réglages par outil.
 | `disabled` | `Vec<String>` | vide | Outils natifs désactivés statiquement par l'opérateur dans `apollia.toml`. |
 | `web_search` | `WebSearchConfig` | défaut du type | Configuration de l'outil natif `web_search`. |
 | `web_read` | `WebReadConfig` | défaut du type | Configuration de l'outil natif `web_read`. |
+| `python_interpreter` | `Option<String>` | `None` | Chemin absolu d'un interpréteur Python que l'opérateur a choisi à la place de celui livré, pour l'outil `python_executor` et les environnements virtuels des agents. |
 
 ### `[mcp]`
 

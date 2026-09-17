@@ -1,40 +1,33 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.create_channel_request_config import CreateChannelRequestConfig
-
-
-
+    from ..models.create_channel_request_config import CreateChannelRequestConfig
 
 
 T = TypeVar("T", bound="CreateChannelRequest")
 
 
-
 @_attrs_define
 class CreateChannelRequest:
-    """ Request body for `POST /api/v1/notifications/channels`.
+    """Request body for `POST /api/v1/notifications/channels`.
 
-        Attributes:
-            channel_type (str): Channel type: `"desktop"` or `"webhook"`.
-            config (CreateChannelRequestConfig): Type-specific configuration (e.g. `{"url": "..."}` for webhook).
-            id (str): Unique channel identifier.
-            enabled (bool | None | Unset): Whether the channel is active (default: `true`).
-            events (list[str] | None | Unset): Channel-specific event list. `null` uses the global events.
-            label (None | str | Unset): Free-form display name. `None` falls back to `id` in the UI.
-            min_interval_seconds (int | Unset): Minimum throttling interval, in seconds. Default: `0` (none).
-     """
+    Attributes:
+        channel_type (str): Channel type: `"desktop"` or `"webhook"`.
+        config (CreateChannelRequestConfig): Type-specific configuration (e.g. `{"url": "..."}` for webhook).
+        id (str): Unique channel identifier.
+        enabled (bool | None | Unset): Whether the channel is active (default: `true`).
+        events (list[str] | None | Unset): Channel-specific event list. `null` uses the global events.
+        label (None | str | Unset): Free-form display name. `None` falls back to `id` in the UI.
+        min_interval_seconds (int | Unset): Minimum throttling interval, in seconds. Default: `0` (none).
+    """
 
     channel_type: str
     config: CreateChannelRequestConfig
@@ -45,12 +38,7 @@ class CreateChannelRequest:
     min_interval_seconds: int | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.create_channel_request_config import CreateChannelRequestConfig
         channel_type = self.channel_type
 
         config = self.config.to_dict()
@@ -69,7 +57,6 @@ class CreateChannelRequest:
         elif isinstance(self.events, list):
             events = self.events
 
-
         else:
             events = self.events
 
@@ -81,14 +68,15 @@ class CreateChannelRequest:
 
         min_interval_seconds = self.min_interval_seconds
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "channel_type": channel_type,
-            "config": config,
-            "id": id,
-        })
+        field_dict.update(
+            {
+                "channel_type": channel_type,
+                "config": config,
+                "id": id,
+            }
+        )
         if enabled is not UNSET:
             field_dict["enabled"] = enabled
         if events is not UNSET:
@@ -100,18 +88,14 @@ class CreateChannelRequest:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.create_channel_request_config import CreateChannelRequestConfig
+
         d = dict(src_dict)
         channel_type = d.pop("channel_type")
 
         config = CreateChannelRequestConfig.from_dict(d.pop("config"))
-
-
-
 
         id = d.pop("id")
 
@@ -123,7 +107,6 @@ class CreateChannelRequest:
             return cast(bool | None | Unset, data)
 
         enabled = _parse_enabled(d.pop("enabled", UNSET))
-
 
         def _parse_events(data: object) -> list[str] | None | Unset:
             if data is None:
@@ -142,7 +125,6 @@ class CreateChannelRequest:
 
         events = _parse_events(d.pop("events", UNSET))
 
-
         def _parse_label(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -151,7 +133,6 @@ class CreateChannelRequest:
             return cast(None | str | Unset, data)
 
         label = _parse_label(d.pop("label", UNSET))
-
 
         min_interval_seconds = d.pop("min_interval_seconds", UNSET)
 
@@ -164,7 +145,6 @@ class CreateChannelRequest:
             label=label,
             min_interval_seconds=min_interval_seconds,
         )
-
 
         create_channel_request.additional_properties = d
         return create_channel_request

@@ -441,13 +441,42 @@ fn test_cli_parses_audit_journal_with_page() {
     ]);
     // THEN both paging arguments override their defaults
     let Commands::Audit {
-        command: AuditCommand::Journal { limit, offset },
+        command:
+            AuditCommand::Journal {
+                limit,
+                offset,
+                agents,
+            },
     } = cli.command
     else {
         panic!("expected audit journal");
     };
     assert_eq!(limit, 5);
     assert_eq!(offset, 10);
+    assert!(agents.is_empty());
+}
+
+#[test]
+fn test_cli_parses_audit_journal_with_agents() {
+    // GIVEN "apollia-os audit journal --agent flux-quotes --agent flux-invoices"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "audit",
+        "journal",
+        "--agent",
+        "flux-quotes",
+        "--agent",
+        "flux-invoices",
+    ]);
+    // THEN both agents are carried, in order
+    let Commands::Audit {
+        command: AuditCommand::Journal { agents, .. },
+    } = cli.command
+    else {
+        panic!("expected audit journal");
+    };
+    assert_eq!(agents, vec!["flux-quotes", "flux-invoices"]);
 }
 
 #[test]

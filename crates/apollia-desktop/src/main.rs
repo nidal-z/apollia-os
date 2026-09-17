@@ -15,7 +15,6 @@ mod backend;
 mod bootstrap;
 mod bundled_agents;
 mod commands;
-mod connectors_bridge;
 mod events;
 pub mod i18n;
 pub mod mcp;
@@ -551,6 +550,8 @@ fn main() {
             commands::config::lifecycle::mark_onboarded,
             commands::config::system::get_system_info,
             commands::config::system::get_security_posture,
+            commands::config::system::get_python_interpreter,
+            commands::config::system::set_python_interpreter,
             commands::config::system::setup_local_llm,
             commands::tools::list_tools,
             commands::tools::describe_tool,

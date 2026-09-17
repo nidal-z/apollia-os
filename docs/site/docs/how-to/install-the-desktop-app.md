@@ -158,6 +158,32 @@ run fully local inference, download a GGUF from within the app: onboarding offer
 it, and Settings, Model Hub does the same afterwards. Dropping a `.gguf` file
 into `~/.apollia/models/` by hand also works, before or after onboarding.
 
+## The Python interpreter agents run on
+
+Apollia ships with its own Python 3.13, and that is what agents run on: nothing
+has to be installed on the machine, and no administrator rights are needed. The
+interpreters already on the machine are not consulted, whatever their version.
+
+If your environment requires a different one, name it in Settings, Advanced, or
+in `apollia.toml`:
+
+```toml
+[tools]
+python_interpreter = "/opt/corp/python3.13/bin/python3"
+```
+
+It is checked before it is accepted: it has to exist, start, and be a Python
+3.13, because the standard library that ships with Apollia cannot be read by
+another minor version. If it later stops satisfying that, after an upgrade or an
+uninstall, the bundled interpreter takes over and the log says why, rather than
+the agent's tools failing.
+
+The same key is writable from a shell, with the same check:
+
+```sh
+apollia-os config set tools.python_interpreter /opt/corp/python3.13/bin/python3
+```
+
 ## Where the app stores your data
 
 Everything the app persists lives under a single directory in your home folder:

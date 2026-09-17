@@ -91,6 +91,26 @@ pub enum ConfigCommand {
     },
 }
 
+/// Check a value that names something outside the configuration file.
+///
+/// Most settings are checked by parsing the document, which says nothing about
+/// a path that has to exist on this machine. The one key in that class today is
+/// `tools.python_interpreter`.
+///
+/// # Errors
+///
+/// The message to show the operator, already explaining what to do about it.
+fn validate_value_against_the_machine(key: &str, value: &str) -> Result<(), String> {
+    if key != "tools.python_interpreter" {
+        return Ok(());
+    }
+    if value.trim().is_empty() {
+        return Ok(());
+    }
+    apollia_tools::tools::python_discovery::validate_chosen_interpreter(Path::new(value))
+        .map_err(|e| e.to_string())
+}
+
 /// Entry point for `apollia-os config <verb>`.
 pub fn run(cmd: &ConfigCommand, json: bool) -> i32 {
     match cmd {
@@ -304,6 +324,16 @@ fn run_set(key: &str, value_str: &str, file: Option<&Path>, json: bool) -> i32 {
             emit_error(format!("invalid config value for '{key}': {e}"), json);
             return exit_codes::GENERAL_ERROR;
         }
+    }
+
+    // A few values name something outside the file, and a shape check says
+    // nothing about them. An interpreter that does not exist, does not start,
+    // or reads a standard library it cannot, is refused here rather than at the
+    // point an agent runs: the operator is the one who can fix it, and they are
+    // in front of the terminal right now.
+    if let Err(e) = validate_value_against_the_machine(key, value_str) {
+        emit_error(e, json);
+        return exit_codes::GENERAL_ERROR;
     }
 
     if let Err(e) = std::fs::write(&path, doc.to_string()) {

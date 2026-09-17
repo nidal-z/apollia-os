@@ -566,6 +566,11 @@ cli-build:
 cli-e2e-runtime:
     APOLLIA_REQUIRE_RUNTIME=1 APOLLIA_TEST_MODEL_GGUF=/nonexistent-apollia-e2e.gguf bash tests/cli/cli-e2e.sh
 
+# Typed pauses on the task path, end to end: builds the daemon, then drives it
+# over HTTP on a throwaway HOME (question, approval, gated MCP call). No model.
+hitl-e2e: cli-build
+    PYTHONPATH=sdk python3 -m pytest tests/hitl/test_hitl_e2e.py -q -p no:cacheprovider
+
 # CLI E2E suite, all three tracks: Track 3 loads the given GGUF read-only.
 cli-e2e-model gguf:
     APOLLIA_REQUIRE_RUNTIME=1 APOLLIA_TEST_MODEL_GGUF="{{gguf}}" bash tests/cli/cli-e2e.sh
@@ -723,7 +728,11 @@ guards:
       "scripts/check_tauri_ipc_callers.py"
       "scripts/check_tracing_messages.py"
       "scripts/check_unimported_files.py"
+      "scripts/check_windows_python_dll.py"
+      "scripts/check_windows_python_dll.py --selftest"
       "scripts/check_testid_anchors.py"
+      "scripts/check_testing_mocks.py"
+      "scripts/check_testing_mocks.py --selftest"
       "scripts/check_custom_event_listeners.py"
       "scripts/check_entry_doc_commands.py"
       "scripts/check_playwright_specs.py"

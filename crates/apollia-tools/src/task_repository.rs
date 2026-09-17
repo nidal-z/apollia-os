@@ -336,6 +336,47 @@ pub struct ApprovalInfo {
     pub context: serde_json::Value,
     /// ISO 8601 suspension timestamp.
     pub suspended_at: String,
+    /// Typed payload of the pause, `None` for a prompt-only pause.
+    pub payload: Option<serde_json::Value>,
+    /// Skill that paused, when the pause came from a skill.
+    pub skill_id: Option<String>,
+}
+
+/// A pause to persist: everything the task path records when an agent stops
+/// on a human.
+#[derive(Debug, Clone, Copy)]
+pub struct PauseRecord<'a> {
+    /// The paused task.
+    pub task_id: &'a str,
+    /// The orchestrated step, `None` on the direct path.
+    pub step_id: Option<&'a str>,
+    /// The sentence shown to the human.
+    pub prompt: &'a str,
+    /// The agent's own state, given back verbatim on resume.
+    pub context: &'a serde_json::Value,
+    /// The typed payload, already parsed and checked by the caller.
+    pub payload: Option<&'a serde_json::Value>,
+    /// The agent that paused.
+    pub agent_name: Option<&'a str>,
+    /// The skill that paused.
+    pub skill_id: Option<&'a str>,
+}
+
+/// A paused task as the task listing shows it.
+#[derive(Debug, Clone)]
+pub struct PausedTaskRow {
+    /// Agent that paused.
+    pub agent_name: String,
+    /// Skill that paused, when the pause came from a skill.
+    pub skill_id: Option<String>,
+    /// ISO 8601 creation timestamp of the task row.
+    pub created_at: String,
+    /// Sentence shown to the human.
+    pub prompt: String,
+    /// Typed payload, `None` for a prompt-only pause.
+    pub payload: Option<serde_json::Value>,
+    /// The agent's context, given back verbatim on resume.
+    pub context: serde_json::Value,
 }
 
 /// Row of a resolved approval, read from `task_approvals`.
@@ -398,6 +439,35 @@ mod tests {
                 .expect("get_run_id failed"),
             None
         );
+    }
+
+    #[tokio::test]
+    async fn test_run_ids_for_agents_follow_the_named_agents_only() {
+        // GIVEN tasks of three agents, one of them without a run
+        let (repo, _path) = open_test_repo().await;
+        for (task, agent, run) in [
+            ("t-1", "flux-a", Some("run-1")),
+            ("t-2", "flux-b", Some("run-2")),
+            ("t-3", "other", Some("run-3")),
+            ("t-4", "flux-a", None),
+        ] {
+            if let Some(run) = run {
+                repo.set_run_id(task, run).await.expect("set_run_id failed");
+            }
+            repo.set_agent_name(task, agent)
+                .await
+                .expect("set_agent_name failed");
+        }
+
+        // WHEN the runs of flux-a and flux-b are asked for
+        let mut runs = repo
+            .run_ids_for_agents(&["flux-a".to_string(), "flux-b".to_string()])
+            .await
+            .expect("run_ids_for_agents failed");
+        runs.sort();
+
+        // THEN only their runs come back, and a task with no run adds nothing
+        assert_eq!(runs, vec!["run-1".to_string(), "run-2".to_string()]);
     }
 
     // Input persisted at submission (not truncated)
@@ -719,9 +789,17 @@ mod tests {
         let task_id = "t-hitl-002";
         let context = serde_json::json!({"montant": 12_500});
 
-        repo.save_input_required(task_id, None, "Confirmer l'envoi ?", &context)
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Confirmer l'envoi ?",
+            context: &context,
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
 
         // WHEN save_input_response() is called with approved=true
         let response = InputResponseData {
@@ -729,6 +807,8 @@ mod tests {
             reason: None,
             context: context.clone(),
             responded_at: "2026-03-09T10:00:00Z".into(),
+            answer: None,
+            payload: None,
         };
         repo.save_input_response(task_id, &response)
             .await
@@ -785,15 +865,25 @@ mod tests {
         let task_id = "t-resume-003";
         let context = serde_json::json!({"devis": 42});
 
-        repo.save_input_required(task_id, None, "Confirmer ?", &context)
-            .await
-            .unwrap();
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Confirmer ?",
+            context: &context,
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .unwrap();
 
         let response = InputResponseData {
             approved: true,
             reason: None,
             context: context.clone(),
             responded_at: "2026-03-09T11:00:00Z".into(),
+            answer: None,
+            payload: None,
         };
         repo.save_input_response(task_id, &response).await.unwrap();
 
@@ -822,9 +912,17 @@ mod tests {
         // GIVEN a persisted task with an approval row
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-delete-001";
-        repo.save_input_required(task_id, None, "confirm?", &serde_json::json!({}))
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "confirm?",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
 
         // WHEN the task is hard-deleted
         let removed = repo.delete_task(task_id).await.expect("delete_task failed");
@@ -859,9 +957,17 @@ mod tests {
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-expired-004";
 
-        repo.save_input_required(task_id, None, "check", &serde_json::json!({}))
-            .await
-            .unwrap();
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "check",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .unwrap();
 
         // Direct manipulation: push input_required_at back by 25h
         tokio::task::spawn_blocking({
@@ -901,9 +1007,17 @@ mod tests {
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-recent-005";
 
-        repo.save_input_required(task_id, None, "check", &serde_json::json!({}))
-            .await
-            .unwrap();
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "check",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .unwrap();
 
         // WHEN find_input_required_older_than(24h)
         let expired = repo
@@ -927,9 +1041,17 @@ mod tests {
         // GIVEN a TaskRepository with a pending approval
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-131-1";
-        repo.save_input_required(task_id, None, "Confirmer ?", &serde_json::json!({}))
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Confirmer ?",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
 
         // WHEN save_suspended_at is called
         repo.save_suspended_at(task_id, None, "2026-03-13T14:30:00.000Z")
@@ -959,9 +1081,17 @@ mod tests {
         // GIVEN an approval with suspended_at set
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-131-2";
-        repo.save_input_required(task_id, None, "Budget OK ?", &serde_json::json!({}))
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Budget OK ?",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
         repo.save_suspended_at(task_id, None, "2026-03-13T14:30:00.000Z")
             .await
             .expect("save_suspended_at failed");
@@ -972,6 +1102,8 @@ mod tests {
             reason: None,
             context: serde_json::json!({}),
             responded_at: "2026-03-13T14:35:00.000Z".into(),
+            answer: None,
+            payload: None,
         };
         repo.save_input_response(task_id, &response)
             .await
@@ -1000,9 +1132,17 @@ mod tests {
         // GIVEN suspended_at = 14:30:00, responded_at = 14:35:00
         let (repo, db_path) = open_test_repo().await;
         let task_id = "t-131-3";
-        repo.save_input_required(task_id, None, "Valider ?", &serde_json::json!({}))
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Valider ?",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
         repo.save_suspended_at(task_id, None, "2026-03-13T14:30:00.000Z")
             .await
             .expect("save_suspended_at failed");
@@ -1013,6 +1153,8 @@ mod tests {
             reason: None,
             context: serde_json::json!({}),
             responded_at: "2026-03-13T14:35:00.000Z".into(),
+            answer: None,
+            payload: None,
         };
         repo.save_input_response(task_id, &response)
             .await
@@ -1073,9 +1215,17 @@ mod tests {
         let task_id = "t-141-resolved";
         let context = serde_json::json!({"montant": 5000});
 
-        repo.save_input_required(task_id, None, "Approve the payment?", &context)
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Approve the payment?",
+            context: &context,
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
 
         repo.save_suspended_at(task_id, None, "2099-01-01T10:00:00.000Z")
             .await
@@ -1086,6 +1236,8 @@ mod tests {
             reason: None,
             context,
             responded_at: "2099-01-01T10:05:00.000Z".to_string(),
+            answer: None,
+            payload: None,
         };
         repo.save_input_response(task_id, &response)
             .await
@@ -1110,9 +1262,17 @@ mod tests {
         let (repo, _db_path) = open_test_repo().await;
         let task_id = "t-141-pending";
 
-        repo.save_input_required(task_id, None, "Pending", &serde_json::json!({}))
-            .await
-            .expect("save_input_required failed");
+        repo.save_pause(PauseRecord {
+            task_id,
+            step_id: None,
+            prompt: "Pending",
+            context: &serde_json::json!({}),
+            payload: None,
+            agent_name: None,
+            skill_id: None,
+        })
+        .await
+        .expect("save_pause failed");
 
         repo.save_suspended_at(task_id, None, "2026-03-13T10:00:00.000Z")
             .await

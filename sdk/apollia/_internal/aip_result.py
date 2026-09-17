@@ -24,7 +24,7 @@ from __future__ import annotations
 import base64
 import dataclasses
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from apollia.errors import (
     AgentConfigError,
@@ -38,6 +38,8 @@ from apollia.errors import (
 if TYPE_CHECKING:
     import logging
     from collections.abc import Callable
+
+    from apollia.types import AIPResult as LegacyAIPResult
 
 __all__ = [
     "completed",
@@ -112,18 +114,26 @@ def failed(
 def input_required(
     prompt: str,
     context: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build an ``input_required`` AIPResult dict (HITL suspend)."""
+    """Build an ``input_required`` AIPResult dict (HITL suspend).
+
+    ``payload`` is included only when given, so a prompt-only pause keeps the
+    exact shape it always had.
+    """
+    data: dict[str, Any] = {
+        "prompt": prompt,
+        "context": context if context is not None else {},
+    }
+    if payload is not None:
+        data["payload"] = dict(payload)
     return {
         "task_id": "",
         "status": "input_required",
         "output": [],
         "error": None,
         "artifacts": [],
-        "input_required_data": {
-            "prompt": prompt,
-            "context": context if context is not None else {},
-        },
+        "input_required_data": data,
     }
 
 
@@ -140,9 +150,21 @@ def from_handler_return(value: object) -> dict[str, Any]:
     - anything else → completed(text=str(value))
 
     Always returns a valid AIPResult dict in the canonical Rust shape.
+
+    An :class:`apollia.types.AIPResult` instance is converted by its status
+    rather than serialised as data: it is a dataclass, and read as one it turned
+    ``AIPResult.input_required(...)`` into a *completed* task carrying the pause
+    as data, so the public factory never paused anything.
     """
     if value is None:
         return completed()
+
+    # Local import: apollia.types imports the ctx protocols, which must not
+    # import this dispatch module back.
+    from apollia.types import AIPResult as LegacyAIPResult
+
+    if isinstance(value, LegacyAIPResult):
+        return _from_legacy_result(value)
 
     if isinstance(value, str):
         return completed(text=value)
@@ -174,6 +196,19 @@ def from_handler_return(value: object) -> dict[str, Any]:
         return completed(text=str(value))
 
     return completed(text=str(value))
+
+
+def _from_legacy_result(value: LegacyAIPResult) -> dict[str, Any]:
+    """Convert an :class:`apollia.types.AIPResult` by what its status means."""
+    if value.status == "input_required":
+        return input_required(
+            value.input_prompt or "",
+            value.input_context,
+            value.input_payload,
+        )
+    if value.status == "failed":
+        return failed(value.error_code or "EXECUTION_FAILED", value.error_message or "")
+    return completed(text=value.text or "", data=value.data or None)
 
 
 def _payload_error_details(exc: PayloadError) -> dict[str, Any] | None:
@@ -209,7 +244,10 @@ def _from_skill_not_found(exc: SkillNotFound) -> dict[str, Any]:
 # Ordered: first match wins, so subclasses must appear before parents.
 _EXCEPTION_DISPATCH: tuple[tuple[type, Callable[[Any], dict[str, Any]]], ...] = (
     (DomainError, lambda exc: failed(exc.code, exc.message, exc.details)),
-    (NeedHumanInput, lambda exc: input_required(exc.prompt, exc.context)),
+    (
+        NeedHumanInput,
+        lambda exc: input_required(exc.prompt, exc.context, cast("Any", exc.payload)),
+    ),
     (PayloadError, _from_payload_error),
     (SchemaError, lambda exc: failed("SCHEMA_ERROR", str(exc))),
     (SkillNotFound, _from_skill_not_found),

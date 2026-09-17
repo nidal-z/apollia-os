@@ -353,7 +353,13 @@ impl BuiltInChatAgent {
             let _ = self.event_bus.send(RuntimeEvent::LlmResponseCaptured {
                 run_id: run_id.clone(),
                 backend: self.llm_router.default_name().to_string(),
-                model: String::new(),
+                // The turn streams through the default backend (`None` above),
+                // so its model is the one that answered.
+                model: self
+                    .llm_router
+                    .get(None)
+                    .map(|b| b.model_id().to_owned())
+                    .unwrap_or_default(),
                 content: accumulated_text.clone(),
                 tool_calls: captured_tool_calls,
                 prompt_tokens: chunk_usage.prompt_tokens,

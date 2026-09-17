@@ -105,7 +105,7 @@ def test_ctx_is_runtime_checkable() -> None:
 
 
 class _CompleteCtxMock:
-    """A bare-bones object exposing all 14 ``Ctx`` attributes."""
+    """A bare-bones object exposing every ``Ctx`` attribute."""
 
     def __init__(self) -> None:
         self.llm: Any = MagicMock()
@@ -123,6 +123,8 @@ class _CompleteCtxMock:
         self.stt: Any = MagicMock()
         self.notify: Any = MagicMock()
         self.budget: Any = MagicMock()
+        self.is_resumed: bool = False
+        self.input_response: Any = None
 
 
 class _IncompleteCtxMock:

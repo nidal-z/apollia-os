@@ -77,8 +77,8 @@ pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
 pub use task_repository::{
-    ApprovalInfo, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail, TaskRepoError,
-    TaskRepository,
+    ApprovalInfo, PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow,
+    TaskDetail, TaskRepoError, TaskRepository,
 };
 pub use tool_registry::{
     load_governance_snapshot, CredentialEntry, GovernanceSnapshot, ToolCredentialStore,

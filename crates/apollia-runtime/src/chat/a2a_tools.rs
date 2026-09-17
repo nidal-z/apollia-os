@@ -442,6 +442,7 @@ mod tests {
                 Box::pin(async move {
                     Ok(A2aDelegateResult {
                         task_id: "t1".into(),
+                        run_id: None,
                         agent_name: "excel-worker".into(),
                         output,
                     })

@@ -331,6 +331,13 @@ impl AgentChatExecutor {
             .as_ref()
             .map(|d| d.context.clone())
             .unwrap_or(serde_json::Value::Null);
+        // The pause's payload goes back with the approval. An executor gate
+        // matches the approval to the call it paused on through this payload;
+        // without it the resumed call is paused again and the approval is lost.
+        let payload = original_result
+            .input_required_data
+            .as_ref()
+            .and_then(|d| d.payload.clone());
 
         let mut resume_task = session_to_task(session, user_message);
         resume_task.message_id = Some(message_id.to_string());
@@ -341,6 +348,8 @@ impl AgentChatExecutor {
             reason: None,
             context,
             responded_at: now_rfc3339(),
+            answer: None,
+            payload,
         });
 
         tokio::time::timeout(
@@ -986,6 +995,63 @@ mod tests {
         // THEN content is the resumed agent's output
         assert_eq!(response.content, "resumed successfully");
         assert!(response.newly_authorized.is_empty());
+    }
+
+    /// Runner whose one tool call goes through the MCP task approval gate, the
+    /// way a gated executor answers inside a real agent run.
+    struct GatedCallRunner;
+
+    #[async_trait::async_trait]
+    impl ChatAgentRunner for GatedCallRunner {
+        async fn run_agent(&self, _name: &str, task: AIPTask) -> Result<AIPResult, String> {
+            let input = serde_json::json!({"page": "notes", "text": "hello"});
+            let approval = apollia_mcp::task_approval::TaskApproval::new(task.input_response);
+            match apollia_mcp::task_approval::decide("espace-write/write_page", &input, &approval) {
+                apollia_mcp::task_approval::GateDecision::Run => {
+                    Ok(AIPResult::completed("page written"))
+                }
+                apollia_mcp::task_approval::GateDecision::Require { prompt, payload } => Ok(
+                    AIPResult::input_required_with_payload(&prompt, serde_json::json!({}), payload),
+                ),
+                apollia_mcp::task_approval::GateDecision::Deny { .. } => {
+                    Ok(AIPResult::failed("DENIED", "call denied"))
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chat_approval_runs_the_gated_call_it_approved() {
+        // GIVEN an agent whose call to a server requiring approval pauses on the gate
+        let runner = Arc::new(GatedCallRunner);
+        let (event_tx, _event_rx) = tokio::sync::broadcast::channel(128);
+        let executor = AgentChatExecutor::new(runner, event_tx);
+        let session = test_session("espace-agent");
+        let approvals = PendingChatApprovals::new();
+        let sid = session.id.clone();
+        let approvals_clone = approvals.clone();
+        tokio::spawn(async move {
+            let key = format!("{sid}::msg-gated::agent_action");
+            poll_until(Duration::from_secs(5), || {
+                approvals_clone.resolve(&key, ToolDecision::Accept)
+            })
+            .await;
+        });
+
+        // WHEN the operator accepts the approval card
+        let response = executor
+            .execute(AgentChatRequest {
+                session: &session,
+                user_message: "write the page",
+                message_id: "msg-gated",
+                authorized_tools: &HashSet::new(),
+                pending_approvals: &approvals,
+            })
+            .await
+            .expect("should succeed after approval");
+
+        // THEN the resumed run carries the pause's payload, so the gate runs the call
+        assert_eq!(response.content, "page written");
     }
 
     #[tokio::test]

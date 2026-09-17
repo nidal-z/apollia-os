@@ -69,6 +69,16 @@ dans la chaîne de celle-ci, et si l'entrée porte une signature. Un même appel
 d'outil apparaît en deux entrées, une au démarrage et une à la fin, parce que le
 journal enregistre des événements et non des invocations.
 
+Le journal tient toutes les exécutions de l'instance. Pour ne parcourir que
+celles de certains agents, nommez-les ; par l'API, le même filtre est
+`GET /api/v1/audit/journal?agents=<agent>,<agent>`. Une exécution appartient à un
+agent par la tâche qui l'a lancée, si bien qu'un tour de chat, qui ne lance aucune
+tâche, n'est jamais dans une page filtrée :
+
+```sh
+apollia-os audit journal --agent flux-quotes --agent flux-invoices --limit 20
+```
+
 Pour extraire la piste d'invocations d'outils à des fins d'archivage ou de revue
 externe :
 

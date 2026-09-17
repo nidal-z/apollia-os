@@ -13,13 +13,13 @@ use rusqlite::Connection;
 use apollia_core::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `hitl.db`.
-pub const HITL_SCHEMA_VERSION: u32 = 1;
+pub const HITL_SCHEMA_VERSION: u32 = 2;
 
 /// Numbered migration steps of `hitl.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`HITL_SCHEMA_VERSION`].
-pub const HITL_MIGRATIONS: &[Migration] = &[migrate_v1];
+pub const HITL_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -71,6 +71,34 @@ fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
         );
         CREATE INDEX IF NOT EXISTS idx_notif_logs_sent_at ON notification_logs(sent_at);",
     )
+}
+
+/// v2: typed pauses on the task path.
+///
+/// A pause used to persist a prompt and a context; a typed pause also carries
+/// the payload it asks for, the answer it received, and the skill and agent
+/// that paused, which is what `GET /api/v1/tasks?status=input_required` lists.
+/// Every column is nullable, so a task paused before this version keeps
+/// reading as a prompt-only pause.
+fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
+    add_column_if_missing(
+        conn,
+        "ALTER TABLE tasks ADD COLUMN input_required_payload TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "ALTER TABLE tasks ADD COLUMN input_response_answer TEXT",
+    )?;
+    add_column_if_missing(conn, "ALTER TABLE tasks ADD COLUMN skill_id TEXT")?;
+    add_column_if_missing(
+        conn,
+        "ALTER TABLE task_approvals ADD COLUMN payload_json TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "ALTER TABLE task_approvals ADD COLUMN answer_json TEXT",
+    )?;
+    Ok(())
 }
 
 /// Opens the file's schema at the current version, or refuses it.

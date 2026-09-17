@@ -75,6 +75,7 @@ def test_all_is_exactly_the_published_surface() -> None:
         "PayloadError",
         "SchemaError",
         "SkillNotFound",
+        "StructuredOutputError",
         # Ctx Protocol surface
         "Ctx",
         "MapItemResult",
@@ -172,6 +173,15 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "PayloadError",
             "SchemaError",
             "SkillNotFound",
+            "StructuredOutputError",
+            "ToolApprovalDenied",
+        },
+        "apollia.hitl": {
+            "ApprovalPayload",
+            "HitlPayload",
+            "InputResponse",
+            "Proposition",
+            "QuestionPayload",
         },
         "apollia.types": {
             "A2AInterface",

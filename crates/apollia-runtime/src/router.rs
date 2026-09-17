@@ -62,6 +62,16 @@ enum RouterMessage<B: ExecutionBackend> {
         reply: oneshot::Sender<Option<TaskStatus>>,
     },
     /// Get the output text of a finished task.
+    /// The run a submitted task journals under.
+    ///
+    /// A task and its run are two identifiers, minted separately at submission:
+    /// the chained audit journal is keyed by the run, not by the task, so a
+    /// caller holding only a `task_id` cannot reach the journal of the work it
+    /// started. This is how it asks.
+    GetRunId {
+        task_id: TaskId,
+        reply: oneshot::Sender<Option<RunId>>,
+    },
     GetOutput {
         task_id: TaskId,
         reply: oneshot::Sender<Option<String>>,
@@ -108,6 +118,11 @@ struct TaskRouter<B: ExecutionBackend> {
     task_agents: HashMap<TaskId, AgentId>,
     /// Output text stored when TaskCompleted is received (for GET /api/v1/tasks/:id).
     task_outputs: HashMap<TaskId, String>,
+    /// The run each task journals under, recorded at submission.
+    ///
+    /// Same lifetime as `task_statuses` and `task_agents`: filled when the task
+    /// is dispatched, kept for the router's life.
+    task_runs: HashMap<TaskId, RunId>,
     /// Latest session budget snapshot, updated on each TokenBudgetUpdated event.
     latest_budget: Option<TokenBudget>,
 }
@@ -131,6 +146,9 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                         RouterMessage::GetStatus { task_id, reply } => {
                             let status = self.task_statuses.get(&task_id).cloned();
                             let _ = reply.send(status);
+                        }
+                        RouterMessage::GetRunId { task_id, reply } => {
+                            let _ = reply.send(self.task_runs.get(&task_id).cloned());
                         }
                         RouterMessage::GetOutput { task_id, reply } => {
                             let output = self.task_outputs.get(&task_id).cloned();
@@ -185,6 +203,24 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                 }
                 event = self.event_rx.recv() => {
                     match event {
+                        // A pause and its resume move the listed status, so
+                        // `GET /api/v1/tasks?status=input_required` finds the
+                        // task that is waiting. Only a live task moves: a
+                        // terminal status is never reopened by a late event.
+                        Ok(RuntimeEvent::TaskInputRequired { task_id, .. }) => {
+                            if let Some(status) = self.task_statuses.get_mut(&task_id) {
+                                if matches!(*status, TaskStatus::Working | TaskStatus::Submitted) {
+                                    *status = TaskStatus::InputRequired;
+                                }
+                            }
+                        }
+                        Ok(RuntimeEvent::TaskResumed { task_id, .. }) => {
+                            if let Some(status) = self.task_statuses.get_mut(&task_id) {
+                                if *status == TaskStatus::InputRequired {
+                                    *status = TaskStatus::Working;
+                                }
+                            }
+                        }
                         Ok(RuntimeEvent::TaskCompleted { task_id, success, output, .. }) => {
                             if let Some(status) = self.task_statuses.get_mut(&task_id) {
                                 // Do not overwrite an already-set terminal status (Canceled, Completed, Failed).
@@ -295,6 +331,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         // journaled (the audit journal only appends events carrying a run_id),
         // making the run verifiable via `audit verify`.
         let task_id = TaskId::new_v4();
+        let run_id = RunId::new();
         let task = AIPTask {
             task_id: task_id.to_string(),
             context_id: format!("ctx-{}", agent_id),
@@ -304,7 +341,7 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             timeout_seconds: None,
             delegation_chain,
             run_options,
-            run_id: Some(RunId::new()),
+            run_id: Some(run_id.clone()),
             ..AIPTask::default()
         };
 
@@ -322,6 +359,9 @@ impl<B: ExecutionBackend> TaskRouter<B> {
         self.task_statuses
             .insert(task_id.clone(), TaskStatus::Working);
         self.task_agents.insert(task_id.clone(), agent_id.clone());
+        // Recorded before the reply goes out, so a caller that asks for the run
+        // right after `submit` returns always finds it.
+        self.task_runs.insert(task_id.clone(), run_id);
 
         info!(task_id = %task_id, agent_id = %agent_id, "task.dispatched");
         Ok(task_id)
@@ -383,6 +423,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             coordinators: HashMap::new(),
             task_statuses: HashMap::new(),
             task_agents: HashMap::new(),
+            task_runs: HashMap::new(),
             task_outputs: HashMap::new(),
             latest_budget: None,
         };
@@ -399,15 +440,18 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             .await
     }
 
-    /// Submit a root task with per-run control options (plan-gate / autonomy).
+    /// Submit a root task with per-run control options (plan-gate / autonomy),
+    /// optionally aimed at one skill.
     ///
     /// Used by the REST submit handler to forward CLI flags (`--plan`,
-    /// `--autonomy`) to the per-task engine. Equivalent to [`Self::submit`] with
-    /// no targeted skill and an empty delegation chain, plus the options.
-    pub async fn submit_with_options(
+    /// `--autonomy`) to the per-task engine. `skill_id` reaches
+    /// `AIPTask.skill_id`, so the SDK dispatches to that skill and a pause
+    /// records which skill paused.
+    pub async fn submit_skill_with_options(
         &self,
         agent_id: &str,
         input: AIPInput,
+        skill_id: Option<String>,
         run_options: RunOptions,
     ) -> Result<TaskId, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -415,7 +459,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             .send(RouterMessage::Submit {
                 agent_id: AgentId::from(agent_id),
                 input,
-                skill_id: None,
+                skill_id,
                 delegation_chain: Vec::new(),
                 run_options,
                 reply: reply_tx,
@@ -458,6 +502,22 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(RouterMessage::GetStatus {
+                task_id: TaskId::from(task_id),
+                reply: reply_tx,
+            })
+            .await
+            .map_err(|_| SubmitError::ActorDead)?;
+        reply_rx.await.map_err(|_| SubmitError::ActorDead)
+    }
+
+    /// The run a submitted task journals under, when the router knows the task.
+    ///
+    /// `GET /api/v1/audit/journal/{run_id}` is keyed by this, not by the task
+    /// id: the two are separate identifiers minted together at submission.
+    pub async fn get_run_id(&self, task_id: &str) -> Result<Option<RunId>, SubmitError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(RouterMessage::GetRunId {
                 task_id: TaskId::from(task_id),
                 reply: reply_tx,
             })
@@ -785,6 +845,163 @@ mod tests {
             uuid::Uuid::parse_str(task_id.as_str()).is_ok(),
             "task_id should be a valid UUID"
         );
+    }
+
+    /// Backend that records the run id stamped on the task it receives.
+    ///
+    /// That run id is the one every tool and LLM event of the task carries, so
+    /// it is the key the chained journal stores the task under.
+    struct RunCapturingBackend {
+        seen: std::sync::Arc<std::sync::Mutex<Option<RunId>>>,
+    }
+
+    impl ExecutionBackend for RunCapturingBackend {
+        fn execute(
+            &self,
+            task: AIPTask,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+        {
+            if let Ok(mut slot) = self.seen.lock() {
+                *slot = task.run_id.clone();
+            }
+            Box::pin(async move { Ok(AIPResult::completed("ok")) })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_run_id_answers_the_run_the_task_journals_under() {
+        // GIVEN an active agent whose backend records the run id of the task it runs
+        let (event_tx, _) = broadcast::channel(64);
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router: TaskRouterHandle<RunCapturingBackend> =
+            TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
+        let agent_id = register_agent_in_state(&registry, "agent-run", ProcessState::Active).await;
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let coordinator = ExecutionCoordinator::new(
+            agent_id.clone(),
+            1,
+            event_tx,
+            RunCapturingBackend { seen: seen.clone() },
+        );
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+
+        // WHEN a task is submitted and its run id is asked for straight away
+        let task_id = router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("submit");
+        let run_id = router
+            .get_run_id(task_id.as_str())
+            .await
+            .expect("router alive")
+            .expect("the router records the run before it replies");
+
+        // THEN the run id is not the task id: the two are separate identifiers,
+        // which is why a caller holding the task id alone could not reach the
+        // journal
+        assert_ne!(run_id.to_string(), task_id.to_string());
+
+        // AND it is the very run id stamped on the task the backend executed,
+        // the one its events carry and the journal is keyed by
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let stamped = loop {
+            let current = seen.lock().ok().and_then(|slot| slot.clone());
+            if let Some(stamped) = current {
+                break stamped;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the backend never ran"
+            );
+            tokio::task::yield_now().await;
+        };
+        assert_eq!(run_id, stamped);
+    }
+
+    #[tokio::test]
+    async fn test_get_run_id_of_an_unknown_task_is_none() {
+        // GIVEN a router that never saw the task
+        let (router, _registry, _rx) = setup_test_env().await;
+
+        // WHEN its run id is asked for
+        let run_id = router
+            .get_run_id("no-such-task")
+            .await
+            .expect("router alive");
+
+        // THEN nothing is invented
+        assert!(run_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_a_paused_task_is_listed_as_input_required_until_resumed() {
+        // GIVEN an active agent and a task submitted to it
+        let (event_tx, _) = broadcast::channel(64);
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router: TaskRouterHandle<MockBackend> =
+            TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
+        let agent_id =
+            register_agent_in_state(&registry, "agent-pause", ProcessState::Active).await;
+        // The coordinator reports on a bus the router does not listen to, so its
+        // completion never reaches the router and the task stays Working.
+        let (idle_tx, _) = broadcast::channel(64);
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, idle_tx, MockBackend::success());
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+        let task_id = router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("submit");
+
+        let status_of = |router: TaskRouterHandle<MockBackend>, id: TaskId| async move {
+            router
+                .all_tasks()
+                .await
+                .expect("router alive")
+                .into_iter()
+                .find(|(t, _, _)| *t == id)
+                .map(|(_, _, s)| s)
+        };
+
+        // WHEN the engine announces a pause
+        event_tx
+            .send(RuntimeEvent::TaskInputRequired {
+                task_id: task_id.clone(),
+                prompt: "?".into(),
+                step_id: None,
+            })
+            .expect("send");
+        // THEN the router lists the task as waiting on a human
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while status_of(router.clone(), task_id.clone()).await != Some(TaskStatus::InputRequired) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "never listed as input_required"
+            );
+            tokio::task::yield_now().await;
+        }
+
+        // WHEN it is resumed
+        event_tx
+            .send(RuntimeEvent::TaskResumed {
+                task_id: task_id.clone(),
+                approved: true,
+            })
+            .expect("send");
+        // THEN it is working again
+        while status_of(router.clone(), task_id.clone()).await != Some(TaskStatus::Working) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "never back to working"
+            );
+            tokio::task::yield_now().await;
+        }
     }
 
     #[tokio::test]

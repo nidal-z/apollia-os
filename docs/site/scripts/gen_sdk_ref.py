@@ -57,6 +57,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SDK_ROOT = REPO_ROOT / "sdk" / "apollia"
 TYPES_PY = SDK_ROOT / "types.py"
 CONTEXT_DIR = SDK_ROOT / "context"
+HITL_PY = SDK_ROOT / "hitl.py"
 OUT_DIR = REPO_ROOT / "docs" / "site" / "docs" / "reference" / "sdk"
 BRIDGE_ROOT = REPO_ROOT / "crates" / "apollia-aip" / "src"
 
@@ -76,6 +77,11 @@ from declared_sources import Source  # noqa: E402
 SOURCES = [
     Source("sdk/apollia/types.py", "class Ctx", why="the ordered service list"),
     Source("sdk/apollia/context", why="one page per service protocol"),
+    Source(
+        "sdk/apollia/hitl.py",
+        "class InputResponse",
+        why="the shape of ctx.input_response, a data member rather than a service",
+    ),
     Source("crates/apollia-aip/src", why="the bridge half of the contract"),
     Source("scripts/check_ctx_contract.py", "def cross(", why="the crossing engine"),
     Source(
@@ -368,6 +374,29 @@ def module_alias(module: ast.Module, name: str) -> str | None:
     return None
 
 
+def member_comment(source: str, class_name: str, attr: str) -> str:
+    """The ``#:`` comment written above ``attr`` in ``class_name``, joined.
+
+    A data member of ``Ctx`` (a flag, a response) has no protocol docstring to
+    publish; its description is the ``#:`` comment above its annotation, which
+    ``ast`` drops, so it is read from the source lines.
+    """
+    lines = source.splitlines()
+    in_class = False
+    for index, line in enumerate(lines):
+        if line.startswith(f"class {class_name}"):
+            in_class = True
+            continue
+        if in_class and line.strip().startswith(f"{attr}:"):
+            comment: list[str] = []
+            back = index - 1
+            while back >= 0 and lines[back].strip().startswith("#:"):
+                comment.insert(0, lines[back].strip()[2:].strip())
+                back -= 1
+            return " ".join(comment)
+    return ""
+
+
 def base_type(annotation: str) -> str:
     """The protocol class an annotation names, `| None` set aside.
 
@@ -499,7 +528,25 @@ def main() -> int:
                 if mod_doc:
                     body_parts.append(mod_doc.strip())
             else:
-                body_parts.append(f"Service type: `{annotation}` (source not resolved).")
+                # A data member: a flag or a response the bridge sets per call,
+                # not a service with methods. Published with its own comment
+                # and, when its type is a TypedDict of `apollia.hitl`, with the
+                # fields an agent reads.
+                comment = member_comment(TYPES_PY.read_text(encoding="utf-8"), "Ctx", attr)
+                hitl_classes = {c.name: c for c in public_classes(parse_module(HITL_PY))}
+                data_class = hitl_classes.get(type_name)
+                origin = " (from `apollia.hitl`)" if data_class is not None else ""
+                body_parts.append(f"Data member: `{annotation}`{origin}.")
+                if crossing.detached.get(attr):
+                    body_parts.append("")
+                    body_parts.append(attachment_sentence(attr, always_absent))
+                if comment:
+                    body_parts.append("")
+                    body_parts.append(comment)
+                    doc_summary[attr] = first_line(comment)
+                if data_class is not None:
+                    body_parts.append("")
+                    body_parts.append(render_class(data_class))
         page = write_page(
             f"{attr}.md",
             {"sidebar_position": position, "title": f"ctx.{attr}"},

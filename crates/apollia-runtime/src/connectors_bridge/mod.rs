@@ -2,17 +2,23 @@
 //! into [`ToolDescriptor`]s the agent runtime can register at boot.
 //!
 //! Descriptors are STATIC metadata, they make the LLM aware that the tool
-//! exists and what it accepts. The actual EXECUTION is plugged in by
-//! `apollia-desktop` (which owns the `AuthManager` singleton and the live
-//! `GoogleConnector` instance) at dispatcher-build time, via a parallel
-//! `connectors_bridge` module that produces [`ToolExecutor`] implementations
-//! sharing the same operation IDs.
+//! exists and what it accepts. The executors that run them live here too, one
+//! per operation id, built by [`build_google_executors`] and
+//! [`build_microsoft_executors`].
 //!
-//! Splitting the descriptor side (runtime) from the executor side (desktop)
-//! avoids a cyclic dependency on `apollia-desktop` from within the runtime
-//! while still letting the supervisor register the tool names at startup so
-//! agents see them in their tool catalogue regardless of when (or whether) a
-//! Google account is connected.
+//! Both halves are in the runtime on purpose. The Google executors used to sit
+//! in `apollia-desktop`, because they reached the `AuthManager` through a
+//! Tauri-dependent accessor; `apollia-auth` depends on no interface, so the
+//! dependency was never real, and the cost of it was: an installed agent
+//! declaring `gmail.send` received the tool under the desktop and `UnknownTool`
+//! under `apollia-os start`. The desktop now keeps only the consent half, the
+//! part that opens a browser, and the executors reach the same OS keychain
+//! through the `OnceCell` singletons below.
+//!
+//! An account is resolved lazily on each call, so the descriptors are
+//! registered at supervisor boot regardless of when, or whether, an account is
+//! connected; a call with none answers a clear message rather than a missing
+//! tool.
 
 use std::sync::Arc;
 

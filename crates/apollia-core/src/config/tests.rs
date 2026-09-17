@@ -782,6 +782,7 @@ fn test_tools_config_below_min_fails() {
         disabled: Vec::new(),
         web_search: WebSearchConfig::default(),
         web_read: WebReadConfig::default(),
+        python_interpreter: None,
     };
     // WHEN
     let result = cfg.validate();
@@ -801,6 +802,7 @@ fn test_tools_config_above_max_fails() {
         disabled: Vec::new(),
         web_search: WebSearchConfig::default(),
         web_read: WebReadConfig::default(),
+        python_interpreter: None,
     };
     // WHEN
     let result = cfg.validate();

@@ -1,38 +1,31 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.trigger_source_input import TriggerSourceInput
-
-
-
+    from ..models.trigger_source_input import TriggerSourceInput
 
 
 T = TypeVar("T", bound="UpdateTriggerRequest")
 
 
-
 @_attrs_define
 class UpdateTriggerRequest:
-    """ Request body for `PUT /api/v1/triggers/:id`, trigger update.
+    """Request body for `PUT /api/v1/triggers/:id`, trigger update.
 
-        Attributes:
-            source (TriggerSourceInput): Trigger source description used in create/update requests.
-            agent (None | str | Unset): Target agent.
-            enabled (bool | None | Unset): Whether the trigger is active.
-            input_template (None | str | Unset): Input message template.
-            on_busy (None | str | Unset): Policy when the agent is busy.
-     """
+    Attributes:
+        source (TriggerSourceInput): Trigger source description used in create/update requests.
+        agent (None | str | Unset): Target agent.
+        enabled (bool | None | Unset): Whether the trigger is active.
+        input_template (None | str | Unset): Input message template.
+        on_busy (None | str | Unset): Policy when the agent is busy.
+    """
 
     source: TriggerSourceInput
     agent: None | str | Unset = UNSET
@@ -41,12 +34,7 @@ class UpdateTriggerRequest:
     on_busy: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.trigger_source_input import TriggerSourceInput
         source = self.source.to_dict()
 
         agent: None | str | Unset
@@ -73,12 +61,13 @@ class UpdateTriggerRequest:
         else:
             on_busy = self.on_busy
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "source": source,
-        })
+        field_dict.update(
+            {
+                "source": source,
+            }
+        )
         if agent is not UNSET:
             field_dict["agent"] = agent
         if enabled is not UNSET:
@@ -90,16 +79,12 @@ class UpdateTriggerRequest:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.trigger_source_input import TriggerSourceInput
+
         d = dict(src_dict)
         source = TriggerSourceInput.from_dict(d.pop("source"))
-
-
-
 
         def _parse_agent(data: object) -> None | str | Unset:
             if data is None:
@@ -110,7 +95,6 @@ class UpdateTriggerRequest:
 
         agent = _parse_agent(d.pop("agent", UNSET))
 
-
         def _parse_enabled(data: object) -> bool | None | Unset:
             if data is None:
                 return data
@@ -119,7 +103,6 @@ class UpdateTriggerRequest:
             return cast(bool | None | Unset, data)
 
         enabled = _parse_enabled(d.pop("enabled", UNSET))
-
 
         def _parse_input_template(data: object) -> None | str | Unset:
             if data is None:
@@ -130,7 +113,6 @@ class UpdateTriggerRequest:
 
         input_template = _parse_input_template(d.pop("input_template", UNSET))
 
-
         def _parse_on_busy(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -140,7 +122,6 @@ class UpdateTriggerRequest:
 
         on_busy = _parse_on_busy(d.pop("on_busy", UNSET))
 
-
         update_trigger_request = cls(
             source=source,
             agent=agent,
@@ -148,7 +129,6 @@ class UpdateTriggerRequest:
             input_template=input_template,
             on_busy=on_busy,
         )
-
 
         update_trigger_request.additional_properties = d
         return update_trigger_request

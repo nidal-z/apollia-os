@@ -241,6 +241,8 @@ async fn test_ac3_orchestrated_tool_suspend_approve_resume() {
                     reason: None,
                     context: serde_json::Value::Null,
                     responded_at: "2026-01-01T00:00:00Z".into(),
+                    answer: None,
+                    payload: None,
                 },
             )
             .expect("resolve s2 must succeed");
@@ -401,6 +403,8 @@ async fn test_ac4_orchestrated_tool_reject_stops_plan() {
                     reason: Some("invalid recipient".into()),
                     context: serde_json::Value::Null,
                     responded_at: "2026-01-01T00:00:00Z".into(),
+                    answer: None,
+                    payload: None,
                 },
             )
             .expect("resolve s2 (reject) must succeed");

@@ -1544,8 +1544,11 @@ export interface paths {
         };
         /**
          * `GET /api/v1/stt/status`, return current STT engine status.
-         * @description Returns `200 OK` with the status when the engine is running.
-         *     Returns `503 Service Unavailable` when the engine is absent.
+         * @description Returns `200 OK` with the status when the engine is running, and `200 OK`
+         *     with `model_loaded: false` read from the persisted configuration when it is
+         *     absent (disabled, model file missing, runner sidecar unavailable).
+         *     Returns `503 Service Unavailable` only when that configuration cannot be
+         *     read either.
          */
         get: operations["stt_status"];
         put?: never;
@@ -2063,6 +2066,15 @@ export interface components {
             duration_ms: number;
             /** @description AIP result returned by the Worker Agent. */
             result: Record<string, never>;
+            /**
+             * @description The run the invoked task journals under, the key of
+             *     `GET /api/v1/audit/journal/{run_id}`.
+             *
+             *     Not the same identifier as `result.task_id`: both are minted at
+             *     submission and the journal is stored under this one. `null` only when
+             *     the invocation did not go through the task router.
+             */
+            run_id?: string | null;
             /** @description Identifier of the invoked skill. */
             skill_id: string;
         };
@@ -2090,6 +2102,16 @@ export interface components {
             agent_name: string;
             /** @description Text output produced by the Worker Agent. */
             output: string;
+            /**
+             * @description The run that task journals under, when the delegation went through the
+             *     task router.
+             *
+             *     Distinct from `task_id`, and it is the key of
+             *     `GET /api/v1/audit/journal/{run_id}`: a caller given only the task id
+             *     looks the journal up under an identifier nothing is stored under.
+             *     `None` for a delegate that does not submit through the router.
+             */
+            run_id?: string | null;
             /** @description Identifier of the task executed by the Worker Agent. */
             task_id: string;
         };
@@ -2640,11 +2662,23 @@ export interface components {
             /** @description Confirmation flag. */
             ok: boolean;
         };
-        /** @description One pending HITL approval entry. */
+        /**
+         * @description One pending HITL approval entry.
+         *
+         *     Carries the same pause as a `GET /api/v1/tasks?status=input_required` item,
+         *     typed payload included, so a card can be drawn from either list.
+         */
         PendingApprovalResponse: {
             agent_name: string;
             context?: Record<string, never> | null;
+            /**
+             * @description Typed question or approval of the pause, `null` for a prompt-only pause.
+             *     The body of `POST /api/v1/tasks/{id}/resume` answers it.
+             */
+            payload?: Record<string, never> | null;
             prompt: string;
+            /** @description Skill that paused, when the pause came from a skill. */
+            skill_id?: string | null;
             suspended_at: string;
             task_id: string;
         };
@@ -2759,12 +2793,38 @@ export interface components {
             wait_duration_ms?: number | null;
         };
         /**
+         * @description Error body of `POST /api/v1/tasks/{id}/resume`.
+         *
+         *     The historical `{error}` shape, plus a machine `code` on the refusals a
+         *     caller branches on. `code` is absent on the older errors, so a client that
+         *     read `error` alone keeps working.
+         */
+        ResumeErrorBody: {
+            /**
+             * @description Stable code, e.g. `INVALID_ANSWER`, when the refusal is one a caller
+             *     is expected to handle.
+             */
+            code?: string | null;
+            /** @description Human-readable error description. */
+            error: string;
+        };
+        /**
          * @description Request body for `POST /api/v1/tasks/{id}/resume`.
          *
          *     The operator submits a decision (`approved`) and an optional reason.
          *     The `approved` field is mandatory; omitting it produces HTTP 422.
          */
         ResumeRequest: {
+            /**
+             * @description The answer to a typed question: a proposition id, free text when the
+             *     question allows it, or a value (a number for a `seuil`, a boolean for a
+             *     `confirmation`).
+             *
+             *     Checked against the pause it answers; a mismatch is a 422
+             *     `INVALID_ANSWER`. Omitted, or `null`, for an approval and for a pause
+             *     that carries a prompt alone.
+             */
+            answer?: unknown;
             /** @description `true` to approve, `false` to reject. */
             approved: boolean;
             /** @description Reason for the decision, optional, mainly useful when rejecting. */
@@ -2906,7 +2966,15 @@ export interface components {
             enabled: boolean;
             /** @description `true` when compiled with Apple Metal GPU acceleration. */
             metal_enabled: boolean;
-            /** @description Whether the model is loaded and ready for inference. */
+            /**
+             * @description Whether a transcription has come back from the engine since it started.
+             *
+             *     The runner sidecar loads the model on its first transcription, and the
+             *     daemon only checks that the model file exists before starting: a reading
+             *     that came back is the only proof it holds that the file is a model the
+             *     engine can read. `false` therefore means "configured, not yet exercised"
+             *     rather than "broken".
+             */
             model_loaded: boolean;
             /** @description Short model name (derived from filename without extension). */
             model_name: string;
@@ -2921,11 +2989,20 @@ export interface components {
             input: Record<string, never>;
             /** @description Per-run control options (plan-gate / autonomy overrides). */
             run_options?: Record<string, never>;
+            /**
+             * @description Skill to run, for an agent that declares several. Omitted, the agent's
+             *     own dispatch picks the handler as before.
+             */
+            skill_id?: string | null;
         };
         /** @description One entry in the task list. */
         TaskListItem: {
+            /** @description Name of the agent that paused. Present only on an `input_required` task. */
+            agent?: string | null;
             /** @description Agent that owns this task. */
             agent_id: string;
+            /** @description ISO 8601 creation timestamp. Present only on an `input_required` task. */
+            created_at?: string | null;
             /**
              * @description Failure reason for a failed task (parity with `task status`); `null`
              *     otherwise. Kept unconditionally so the schema is stable for automation.
@@ -2933,6 +3010,18 @@ export interface components {
             error?: string | null;
             /** @description Structured failure code parsed from the error (e.g. `BAD_MESSAGE`). */
             error_code?: string | null;
+            /**
+             * @description The typed question or approval the task is waiting on. Present only on
+             *     an `input_required` task whose pause carries one.
+             */
+            payload?: Record<string, never> | null;
+            /** @description Sentence shown to the human. Present only on an `input_required` task. */
+            prompt?: string | null;
+            /**
+             * @description Skill that paused. Present only on an `input_required` task that paused
+             *     from a skill.
+             */
+            skill?: string | null;
             /** @description Current task status. */
             status: string;
             /** @description Unique task identifier. */
@@ -3815,6 +3904,8 @@ export interface operations {
                 limit?: number;
                 /** @description Number of entries to skip, newest first (default 0). Page through the journal by advancing it. */
                 offset?: number;
+                /** @description Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included. */
+                agents?: string;
             };
             header?: never;
             path?: never;
@@ -3831,7 +3922,7 @@ export interface operations {
                     "application/json": components["schemas"]["AuditJournalPageResponse"];
                 };
             };
-            /** @description Audit journal not configured */
+            /** @description Audit journal not configured, or `agents` given with no task repository to resolve them */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -6333,9 +6424,9 @@ export interface operations {
             cookie?: never;
         };
         /** @description Updated STT configuration (SttConfigRow); fields with defaults may be omitted */
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": unknown;
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -6479,9 +6570,17 @@ export interface operations {
             cookie?: never;
         };
         /** @description Multipart form with an `audio` WAV field (required) and an optional `language` hint */
-        requestBody?: {
+        requestBody: {
             content: {
-                "multipart/form-data": unknown;
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description WAV audio file
+                     */
+                    audio: string;
+                    /** @description Language hint, an ISO 639-1 code */
+                    language?: string;
+                };
             };
         };
         responses: {
@@ -6836,6 +6935,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The answer does not fit the pending pause */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResumeErrorBody"];
                 };
             };
             /** @description HITL not configured */
@@ -7627,9 +7735,9 @@ export interface operations {
             cookie?: never;
         };
         /** @description Raw webhook payload, verified against the `X-Apollia-Signature` HMAC-SHA256 header */
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/octet-stream": unknown;
+                "application/octet-stream": string;
             };
         };
         responses: {

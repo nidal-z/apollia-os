@@ -1141,6 +1141,7 @@ Unlike `audit list` (the tool-invocation trail) and `audit show RUN` (one run), 
 * `--offset <OFFSET>` - Number of entries to skip, newest first. Page through with it
 
   Default value: `0`
+* `--agent <AGENT>` - Keep the runs of this agent's tasks only. Repeat it for several agents
 
 
 
@@ -2653,9 +2654,14 @@ Register a new MCP server with the runtime (persisted in the config)
 
 ###### **Options:**
 
-* `--command <COMMAND>` - Command to launch (stdio transport) or URL (HTTP/SSE transport)
+* `--command <COMMAND>` - Executable to launch (stdio transport), without its arguments
+* `--arg <ARG>` - One argument passed to `--command`. Repeat it, in order, for each argument: `--command npx --arg -y --arg @scope/server`
 * `--url <URL>` - HTTP/SSE connection URL
-* `--require-approval` - Require HITL approval for every tool call
+* `--transport <TRANSPORT>` - Transport. Defaults to `streamable-http` with `--url`, `stdio` otherwise
+
+  Possible values: `stdio`, `streamable-http`, `sse`
+
+* `--require-approval` - Require HITL approval for every tool call an agent task makes
 
 
 
@@ -2715,7 +2721,7 @@ Restart an MCP server
 
 Update the raw configuration of an existing MCP server.
 
-At least one of `--command`, `--url`, or `--require-approval` must be supplied. Fields that are omitted keep their previous value.
+At least one of `--command`, `--arg`, `--url`, or `--require-approval` must be supplied. Fields that are omitted keep their previous value.
 
 **Usage:** `apollia-os mcp update [OPTIONS] <NAME>`
 
@@ -2726,6 +2732,7 @@ At least one of `--command`, `--url`, or `--require-approval` must be supplied. 
 ###### **Options:**
 
 * `--command <COMMAND>` - New stdio command (stdio transport)
+* `--arg <ARG>` - New argument list for the command, one `--arg` per argument. Given once or more, it replaces the stored list whole
 * `--url <URL>` - New HTTP/SSE URL
 * `--require-approval <BOOL>` - Enable / disable the HITL approval lock
 

@@ -39,7 +39,17 @@ class ToolProxy(Protocol):
             input: Payload, validated against the tool input schema.
 
         Returns:
-            The tool output, matching its declared output schema.
+            The tool output, matching its declared output schema. An MCP
+            tool returns ``{"content": "<text>"}``, every text part joined,
+            plus ``"structured"`` holding the object itself when the server
+            sends a structured result, so an object never has to be parsed
+            back from ``content``.
+
+        Raises:
+            NeedHumanInput: The call needs an approval, the server is
+                declared ``requires_approval``. Left uncaught, the task
+                pauses on it and keeps the context the run was resumed with.
+            ToolApprovalDenied: The task was resumed with this call declined.
         """
         ...
 

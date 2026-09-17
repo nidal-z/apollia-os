@@ -731,6 +731,15 @@
               "format": "int32",
               "minimum": 0
             }
+          },
+          {
+            "name": "agents",
+            "in": "query",
+            "description": "Comma-separated agent names. When set, only the runs of those agents' tasks are paged, so a caller following some agents does not walk the pages of every other one. A run with no task, such as a chat turn, is never included.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -745,7 +754,7 @@
             }
           },
           "503": {
-            "description": "Audit journal not configured",
+            "description": "Audit journal not configured, or `agents` given with no task repository to resolve them",
             "content": {
               "application/json": {
                 "schema": {
@@ -3712,8 +3721,13 @@
         "requestBody": {
           "description": "Updated STT configuration (SttConfigRow); fields with defaults may be omitted",
           "content": {
-            "application/json": {}
-          }
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -3822,7 +3836,7 @@
           "stt"
         ],
         "summary": "`GET /api/v1/stt/status`, return current STT engine status.",
-        "description": "Returns `200 OK` with the status when the engine is running.\nReturns `503 Service Unavailable` when the engine is absent.",
+        "description": "Returns `200 OK` with the status when the engine is running, and `200 OK`\nwith `model_loaded: false` read from the persisted configuration when it is\nabsent (disabled, model file missing, runner sidecar unavailable).\nReturns `503 Service Unavailable` only when that configuration cannot be\nread either.",
         "operationId": "stt_status",
         "responses": {
           "200": {
@@ -3869,8 +3883,27 @@
         "requestBody": {
           "description": "Multipart form with an `audio` WAV field (required) and an optional `language` hint",
           "content": {
-            "multipart/form-data": {}
-          }
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "audio"
+                ],
+                "properties": {
+                  "audio": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "WAV audio file"
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "Language hint, an ISO 639-1 code"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -4327,6 +4360,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The answer does not fit the pending pause",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumeErrorBody"
                 }
               }
             }
@@ -5323,8 +5366,14 @@
         "requestBody": {
           "description": "Raw webhook payload, verified against the `X-Apollia-Signature` HMAC-SHA256 header",
           "content": {
-            "application/octet-stream": {}
-          }
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -5374,6 +5423,13 @@
           "result": {
             "type": "object",
             "description": "AIP result returned by the Worker Agent."
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run the invoked task journals under, the key of\n`GET /api/v1/audit/journal/{run_id}`.\n\nNot the same identifier as `result.task_id`: both are minted at\nsubmission and the journal is stored under this one. `null` only when\nthe invocation did not go through the task router."
           },
           "skill_id": {
             "type": "string",
@@ -5449,6 +5505,13 @@
           "output": {
             "type": "string",
             "description": "Text output produced by the Worker Agent."
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run that task journals under, when the delegation went through the\ntask router.\n\nDistinct from `task_id`, and it is the key of\n`GET /api/v1/audit/journal/{run_id}`: a caller given only the task id\nlooks the journal up under an identifier nothing is stored under.\n`None` for a delegate that does not submit through the router."
           },
           "task_id": {
             "type": "string",
@@ -6803,7 +6866,7 @@
       },
       "PendingApprovalResponse": {
         "type": "object",
-        "description": "One pending HITL approval entry.",
+        "description": "One pending HITL approval entry.\n\nCarries the same pause as a `GET /api/v1/tasks?status=input_required` item,\ntyped payload included, so a card can be drawn from either list.",
         "required": [
           "task_id",
           "agent_name",
@@ -6820,8 +6883,22 @@
               "null"
             ]
           },
+          "payload": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Typed question or approval of the pause, `null` for a prompt-only pause.\nThe body of `POST /api/v1/tasks/{id}/resume` answers it."
+          },
           "prompt": {
             "type": "string"
+          },
+          "skill_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Skill that paused, when the pause came from a skill."
           },
           "suspended_at": {
             "type": "string"
@@ -7069,6 +7146,26 @@
           }
         }
       },
+      "ResumeErrorBody": {
+        "type": "object",
+        "description": "Error body of `POST /api/v1/tasks/{id}/resume`.\n\nThe historical `{error}` shape, plus a machine `code` on the refusals a\ncaller branches on. `code` is absent on the older errors, so a client that\nread `error` alone keeps working.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stable code, e.g. `INVALID_ANSWER`, when the refusal is one a caller\nis expected to handle."
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable error description."
+          }
+        }
+      },
       "ResumeRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/tasks/{id}/resume`.\n\nThe operator submits a decision (`approved`) and an optional reason.\nThe `approved` field is mandatory; omitting it produces HTTP 422.",
@@ -7076,6 +7173,9 @@
           "approved"
         ],
         "properties": {
+          "answer": {
+            "description": "The answer to a typed question: a proposition id, free text when the\nquestion allows it, or a value (a number for a `seuil`, a boolean for a\n`confirmation`).\n\nChecked against the pause it answers; a mismatch is a 422\n`INVALID_ANSWER`. Omitted, or `null`, for an approval and for a pause\nthat carries a prompt alone."
+          },
           "approved": {
             "type": "boolean",
             "description": "`true` to approve, `false` to reject."
@@ -7400,7 +7500,7 @@
           },
           "model_loaded": {
             "type": "boolean",
-            "description": "Whether the model is loaded and ready for inference."
+            "description": "Whether a transcription has come back from the engine since it started.\n\nThe runner sidecar loads the model on its first transcription, and the\ndaemon only checks that the model file exists before starting: a reading\nthat came back is the only proof it holds that the file is a model the\nengine can read. `false` therefore means \"configured, not yet exercised\"\nrather than \"broken\"."
           },
           "model_name": {
             "type": "string",
@@ -7431,6 +7531,13 @@
           "run_options": {
             "type": "object",
             "description": "Per-run control options (plan-gate / autonomy overrides)."
+          },
+          "skill_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Skill to run, for an agent that declares several. Omitted, the agent's\nown dispatch picks the handler as before."
           }
         }
       },
@@ -7443,9 +7550,23 @@
           "status"
         ],
         "properties": {
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the agent that paused. Present only on an `input_required` task."
+          },
           "agent_id": {
             "type": "string",
             "description": "Agent that owns this task."
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 creation timestamp. Present only on an `input_required` task."
           },
           "error": {
             "type": [
@@ -7460,6 +7581,27 @@
               "null"
             ],
             "description": "Structured failure code parsed from the error (e.g. `BAD_MESSAGE`)."
+          },
+          "payload": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The typed question or approval the task is waiting on. Present only on\nan `input_required` task whose pause carries one."
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sentence shown to the human. Present only on an `input_required` task."
+          },
+          "skill": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Skill that paused. Present only on an `input_required` task that paused\nfrom a skill."
           },
           "status": {
             "type": "string",

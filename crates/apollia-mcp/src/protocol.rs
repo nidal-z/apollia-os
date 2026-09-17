@@ -192,6 +192,12 @@ pub struct ToolCallResult {
     /// `true` if the tool itself reported an error condition.
     #[serde(rename = "isError")]
     pub is_error: Option<bool>,
+    /// The structured result, when the server declares one (MCP 2025-06-18).
+    ///
+    /// A server that returns an object sends it here and, for older clients,
+    /// its serialization as a text part of `content`.
+    #[serde(default, rename = "structuredContent")]
+    pub structured_content: Option<serde_json::Value>,
 }
 
 /// A single content item in a `tools/call` result.

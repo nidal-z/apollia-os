@@ -50,6 +50,7 @@ impl ExecutionBackend for AIPProductionBackend {
 
         // Build a per-task ORIAEngine wired with HITL components.
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());
+        engine = engine.with_agent_name(self.manifest.name.clone());
         if let Some(pending) = self.pending_approvals.clone() {
             engine = engine.with_pending_approvals(pending);
         }

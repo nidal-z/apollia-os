@@ -21,7 +21,9 @@
 
 use axum::Json;
 use serde::Serialize;
+use utoipa::openapi::schema::{KnownFormat, ObjectBuilder, Schema, SchemaFormat, Type};
 use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
+use utoipa::openapi::RefOr;
 use utoipa::{Modify, OpenApi, ToSchema};
 
 /// Name of the single security scheme the contract declares.
@@ -73,6 +75,52 @@ pub struct ApiErrorBody {
     /// Human-readable error description.
     pub error: String,
 }
+
+/// Request body of `POST /api/v1/stt/transcribe`: a multipart form.
+///
+/// The handler reads the parts off axum's `Multipart` stream, so no Rust type
+/// carries the form and the schema is written by hand. Without one, the Python
+/// generator skips the operation and the client offers no way to call it.
+pub enum TranscribeForm {}
+
+impl utoipa::PartialSchema for TranscribeForm {
+    fn schema() -> RefOr<Schema> {
+        ObjectBuilder::new()
+            .property(
+                "audio",
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .format(Some(SchemaFormat::KnownFormat(KnownFormat::Binary)))
+                    .description(Some("WAV audio file")),
+            )
+            .required("audio")
+            .property(
+                "language",
+                ObjectBuilder::new()
+                    .schema_type(Type::String)
+                    .description(Some("Language hint, an ISO 639-1 code")),
+            )
+            .into()
+    }
+}
+
+impl ToSchema for TranscribeForm {}
+
+/// Request body of `POST /webhooks/{id}`: the raw bytes the HMAC is computed on.
+///
+/// The handler takes `Bytes`, which carries no schema of its own.
+pub enum RawWebhookBody {}
+
+impl utoipa::PartialSchema for RawWebhookBody {
+    fn schema() -> RefOr<Schema> {
+        ObjectBuilder::new()
+            .schema_type(Type::String)
+            .format(Some(SchemaFormat::KnownFormat(KnownFormat::Binary)))
+            .into()
+    }
+}
+
+impl ToSchema for RawWebhookBody {}
 
 /// The generated OpenAPI document for the `/api/v1` driving contract.
 ///

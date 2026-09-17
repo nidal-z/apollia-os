@@ -1,51 +1,37 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="SseMailboxEvent")
-
 
 
 @_attrs_define
 class SseMailboxEvent:
-    """ SSE frame emitted by the mailbox observation stream.
+    """SSE frame emitted by the mailbox observation stream.
 
-        Attributes:
-            event (str): Event kind: `sent`, `delivered`, `acked`, `dropped`, or `guard`.
-     """
+    Attributes:
+        event (str): Event kind: `sent`, `delivered`, `acked`, `dropped`, or `guard`.
+    """
 
     event: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         event = self.event
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "event": event,
-        })
+        field_dict.update(
+            {
+                "event": event,
+            }
+        )
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -55,7 +41,6 @@ class SseMailboxEvent:
         sse_mailbox_event = cls(
             event=event,
         )
-
 
         sse_mailbox_event.additional_properties = d
         return sse_mailbox_event

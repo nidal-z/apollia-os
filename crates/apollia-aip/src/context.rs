@@ -192,6 +192,17 @@ pub struct RuntimeContext {
     /// a deadline), the getter returns `None` and the agent should infer that
     /// no time constraint is applied.
     pub(crate) wall_clock_secs: Option<u64>,
+
+    /// Whether the run this context serves resumes a paused task.
+    ///
+    /// Set per call by the bridge from `AIPTask::is_resumed`, like
+    /// `wall_clock_secs`: the context is built once, the task changes on each
+    /// resume.
+    pub(crate) is_resumed: bool,
+
+    /// The operator's response to the pause being resumed, set per call by the
+    /// bridge from `AIPTask::input_response`. `None` on a first run.
+    pub(crate) input_response: Option<apollia_core::InputResponseData>,
 }
 
 impl RuntimeContext {}
@@ -329,6 +340,38 @@ impl RuntimeContext {
     #[getter]
     fn agent_name(&self) -> String {
         self.agent_name.clone()
+    }
+
+    /// Whether this run resumes a task that paused on a human.
+    ///
+    /// Python property `ctx.is_resumed`.
+    #[getter]
+    fn is_resumed(&self) -> bool {
+        self.is_resumed
+    }
+
+    /// The operator's response to the pause being resumed.
+    ///
+    /// Python property `ctx.input_response`: a dict with `approved`, `reason`,
+    /// `answer`, `payload` and `context`, or `None` on a first run. A dict
+    /// rather than a class so it matches the `InputResponse` TypedDict an agent
+    /// annotates it with.
+    ///
+    /// ctx-attachment: optional, a first run has no response to give
+    #[getter]
+    fn input_response<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let Some(response) = self.input_response.as_ref() else {
+            return Ok(py.None().into_bound(py));
+        };
+        let value = serde_json::json!({
+            "approved": response.approved,
+            "reason": response.reason,
+            "answer": response.answer,
+            "payload": response.payload,
+            "context": response.context,
+        });
+        let json = py.import("json")?;
+        json.call_method1("loads", (value.to_string(),))
     }
 
     // Getters for the nested surfaces.
@@ -1742,6 +1785,7 @@ mod tool_proxy_a2a_tests {
                 > = Box::pin(async move {
                     Ok(A2aDelegateResult {
                         task_id: "task-a2a".to_string(),
+                        run_id: None,
                         agent_name: "excel-worker".to_string(),
                         output: format!("processed {skill_id}"),
                     })

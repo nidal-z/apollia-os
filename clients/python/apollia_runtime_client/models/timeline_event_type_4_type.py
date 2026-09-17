@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class TimelineEventType4Type(str, Enum):
     TOOL_CALL = "tool_call"
 
