@@ -203,3 +203,8 @@ tests/cli/report/
 # back, and a run must leave the tree clean.
 /tmp/
 /notes/
+
+# Upstream sources fetched by scripts/gen_llama_support.py to derive the
+# llama.cpp support tables. Regenerable, and not ours to carry: the prose
+# rules apply to what we write, not to a vendored copy of llama.cpp.
+.cache/

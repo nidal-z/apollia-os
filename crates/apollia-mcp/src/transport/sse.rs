@@ -74,7 +74,8 @@ impl SseTransport {
     ) -> Result<Self, TransportError> {
         // Same reading as the streamable-http transport: the SSE endpoint is
         // operator-declared and frequently local.
-        let client = apollia_core::net::configured_endpoint_client_builder()
+        let sse_url: String = sse_url.into();
+        let client = apollia_core::net::configured_endpoint_client_builder_for(&sse_url)
             .build()
             .map_err(|e| TransportError::Io(e.to_string()))?;
 
@@ -82,7 +83,6 @@ impl SseTransport {
         let (endpoint_tx, endpoint_rx) = watch::channel::<Option<String>>(None);
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let auth = Arc::new(auth_headers);
-        let sse_url: String = sse_url.into();
 
         tokio::spawn(sse_listener(
             SseListenerCtx {

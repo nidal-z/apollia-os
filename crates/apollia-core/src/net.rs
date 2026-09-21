@@ -260,8 +260,46 @@ pub fn configured_endpoint_client_builder() -> reqwest::ClientBuilder {
 pub fn configured_endpoint_client_builder_with_redirects(
     max_redirects: usize,
 ) -> reqwest::ClientBuilder {
-    reqwest::Client::builder().redirect(reqwest::redirect::Policy::limited(max_redirects))
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::limited(max_redirects))
+        .resolve_to_addrs("localhost", &LOCALHOST_ADDRS)
 }
+
+/// [`configured_endpoint_client_builder`] for an endpoint whose URL is known:
+/// a loopback destination bypasses any system-configured proxy.
+///
+/// A proxy can never reach this machine's own loopback. On Windows the proxy
+/// comes from the user's Internet Settings, whose bypass list usually names
+/// `localhost` and not `127.0.0.1`, so the same local backend answered under
+/// one spelling and timed out under the other. Every call site that knows the
+/// URL it will call goes through here instead of deciding for itself.
+pub fn configured_endpoint_client_builder_for(url: &str) -> reqwest::ClientBuilder {
+    if is_loopback_host_str(url) {
+        loopback_client_builder()
+    } else {
+        configured_endpoint_client_builder()
+    }
+}
+
+/// A [`configured_endpoint_client_builder`] that never uses a proxy, for a
+/// child process the runtime spawned and reaches on `127.0.0.1` by
+/// construction (the embedded `llama-server`, the STT runner).
+pub fn loopback_client_builder() -> reqwest::ClientBuilder {
+    configured_endpoint_client_builder().no_proxy()
+}
+
+/// What the name `localhost` resolves to for a configured endpoint: IPv4
+/// first, IPv6 as the fallback.
+///
+/// The OS resolver decides the order otherwise, and on Windows it can answer
+/// `::1` first, or only. Ollama and the embedded `llama-server` bind
+/// `127.0.0.1` by default, so an endpoint written `http://localhost:11434`
+/// then failed to connect while `http://127.0.0.1:11434` worked. The port is
+/// the URL's own: reqwest replaces the `0` here with it.
+const LOCALHOST_ADDRS: [std::net::SocketAddr; 2] = [
+    std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 0),
+    std::net::SocketAddr::new(std::net::IpAddr::V6(std::net::Ipv6Addr::LOCALHOST), 0),
+];
 
 /// The same builder with an explicit hop cap.
 ///
@@ -612,6 +650,47 @@ mod tests {
             .send()
             .await
             .expect("send request")
+    }
+
+    #[tokio::test]
+    async fn configured_endpoint_reaches_an_ipv4_only_backend_named_localhost() {
+        // GIVEN a backend bound to 127.0.0.1 only, as Ollama and llama-server are
+        let url = serve_once(b"ok".to_vec()).await;
+        let by_name = url.replace("127.0.0.1", "localhost");
+        // WHEN the endpoint is reached by the name `localhost`
+        let response = fetch(&by_name).await;
+        // THEN it connects, whatever order the OS resolver would have answered
+        assert!(response.status().is_success());
+    }
+
+    #[test]
+    fn loopback_urls_get_a_client_that_ignores_the_system_proxy() {
+        // GIVEN a system proxy that cannot reach loopback
+        // WHEN a client is built for a loopback URL, in either spelling, and
+        //      for a remote one
+        // THEN all three builders are accepted, and only the remote keeps the
+        //      proxy: the exemption is observable through the URL classifier
+        for url in ["http://127.0.0.1:8420/v1", "http://localhost:11434/v1"] {
+            assert!(is_loopback_host_str(url), "{url}");
+            assert!(configured_endpoint_client_builder_for(url).build().is_ok());
+        }
+        assert!(!is_loopback_host_str("https://api.openai.com/v1"));
+        assert!(
+            configured_endpoint_client_builder_for("https://api.openai.com/v1")
+                .build()
+                .is_ok()
+        );
+        assert!(loopback_client_builder().build().is_ok());
+    }
+
+    #[test]
+    fn localhost_is_pinned_to_ipv4_first() {
+        // GIVEN the addresses a configured endpoint resolves `localhost` to
+        // WHEN they are read in order
+        // THEN IPv4 leads and IPv6 follows, both loopback
+        assert!(LOCALHOST_ADDRS[0].is_ipv4());
+        assert!(LOCALHOST_ADDRS[1].is_ipv6());
+        assert!(LOCALHOST_ADDRS.iter().all(|a| a.ip().is_loopback()));
     }
 
     #[tokio::test]

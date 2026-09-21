@@ -9,6 +9,119 @@ This project follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 Nothing yet. Every change made so far lands in the initial preview below.
 
+## [0.2.0-preview] - Unreleased
+
+Changes since `0.1.0-preview`: schema-constrained LLM output, typed
+human-in-the-loop pauses, and the defects found by driving those paths against a
+real daemon. The date and the tag land when the release is published.
+
+The version is a minor bump: the preview adds public surface (`schema=` on
+`ctx.llm`, the typed pause and its answer, new API parameters and CLI flags) and
+moves `hitl.db` to schema v2. Nothing is removed from the public API.
+
+### Added
+
+- `ctx.llm.complete(..., schema=...)` and `ctx.llm.chat(..., schema=...)`
+  constrain generation, validate the answer against the same JSON Schema, and
+  resolve to the validated value as a native Python object. A failure raises
+  `apollia.errors.StructuredOutputError`, which carries the JSON path of the
+  offending node and a `kind`: the schema cannot become a constraint, the
+  backend has no structured output mode, or the answer is refused. Nothing is
+  retried. A constrained call charges one step against the `StepBudget`, and the
+  journal records that generation was constrained and a fingerprint of the
+  schema, never the schema. `MockLlmProxy` in `apollia.testing` accepts
+  `schema=` and returns the value, and gains `stream`.
+- In `apollia-llm`, `json_schema_to_gbnf`, `schema_validate` and
+  `CompletionRequest.response_schema`. The embedded llama-server receives GBNF,
+  every other OpenAI-compatible provider receives `response_format`, and a
+  backend with no structured mode (Anthropic, Vertex) answers
+  `StructuredOutputUnavailable` instead of dropping the constraint in silence.
+  On a reasoning model a constrained call reads `reasoning_content` and
+  `content` as one channel.
+- Typed pauses. An agent pauses on a question (`genre`: `choix`, `source`,
+  `seuil`, `definition`, `confirmation`, with propositions) or on an approval of
+  a named `geste` with its `risque` (`apollia_core::HitlPayload`). It reads the
+  answer through `ctx.is_resumed` and `ctx.input_response` (`approved`,
+  `reason`, `answer`, `payload`, `context`) and can pause several times in one
+  task. `NeedHumanInput` and `AIPResult.input_required` take a `payload` typed
+  by `apollia.hitl`. An invalid payload fails the task with
+  `INVALID_INPUT_PAYLOAD`.
+- `POST /api/v1/tasks/{id}/resume` takes `answer`, checked against the pending
+  payload (422 `INVALID_ANSWER` leaves the task paused). `POST /api/v1/tasks`
+  takes an optional `skill_id`. `GET /api/v1/tasks` finds `input_required` tasks
+  and lists agent, skill, `created_at`, prompt and payload, and
+  `GET /api/v1/approvals/pending` carries `payload` and `skill_id`.
+  `just hitl-e2e` proves the path on a real daemon.
+- A structured MCP tool result reaches the agent with a `structured` key holding
+  the object as the server built it; `content` is unchanged.
+- `GET /api/v1/audit/journal?agents=<name>,<name>` and `apollia-os audit journal
+  --agent` narrow the journal to the runs of those agents.
+- `A2AInvocationResult` carries `run_id`, the key the chained journal keeps an
+  invocation under.
+- `apollia-os mcp add` and `mcp update` take a repeatable `--arg` for the
+  command's arguments, and `--transport`. A URL alone means `streamable-http`.
+- Desktop: the operator chooses the model download folder, in onboarding (LLM
+  and STT) and in the Model Hub, for machines whose default `~/.apollia/models`
+  drive has no room.
+
+### Changed
+
+- The interpreter agents run on is the bundled one on all three systems. A
+  system interpreter is used only when the operator names it in
+  `[tools] python_interpreter`, checked by `apollia-os config set` and by the
+  Advanced settings page: it must exist, start and report the bundled minor
+  version, or it is dropped with a warning.
+- A declined pause that carries a payload resumes the agent with `approved:
+  false`; a prompt-only pause keeps failing with `REJECTED`. `hitl.db` goes to
+  schema v2.
+- The Google connector executors moved from `apollia-desktop` to
+  `apollia-runtime`, next to the Microsoft ones; the desktop keeps the consent
+  half that opens a browser.
+- The Python API client covers every operation the spec declares, including
+  `list_audit_journal`, the registry reads and the STT reload. `regen.sh` pins
+  both generator versions and refuses to run without `ruff`.
+- Documentation: the human-in-the-loop how-to (both locales) and the SDK
+  reference describe the typed pause; the MCP pages and the connection wizard
+  say the per-server approval level governs agent tasks, not chat.
+- The file-watch trigger tests wait for the watch to be registered instead of a
+  fixed delay.
+
+### Fixed
+
+- Apollia Desktop failed to start on Windows with `python313.dll` not found when
+  another Python was installed and the user had no administrator rights. The DLL
+  is now staged beside the executable. Not declared fixed until an installation
+  on such a machine confirms it.
+- A configured system proxy no longer swallows requests to loopback backends.
+  The embedded llama-server, a local Ollama, the STT runner and local MCP servers
+  failed with a silent transport error on networks that require a proxy, and the
+  llama-server startup health check went through the proxy too, so the engine
+  reported `did not become healthy within 180s` while it was running. On
+  Windows the proxy bypass list usually names `localhost` and not `127.0.0.1`,
+  which is why one spelling worked and the other timed out.
+- The name `localhost` in an endpoint the operator configured resolves to IPv4
+  first, then IPv6, instead of following the OS resolver order. On Windows a
+  local Ollama, which binds `127.0.0.1`, was unreachable under
+  `http://localhost:11434`. The Ollama default is now `http://127.0.0.1:11434/v1`
+  in the CLI, the router and the desktop form.
+- An MCP server declared `requires_approval` gated no call on the task path; it
+  now pauses on an approval naming `<server>/<tool>`, runs once when approved and
+  raises `ToolApprovalDenied` when declined. An agent requiring a tool of such a
+  server now installs (`POST /api/v1/agents` answered 400) and every run of it is
+  gated, including the CLI chat-agent runner.
+- A task with no `skill_id` reached only `@on_message`, so an agent whose one
+  entry point is a `@skill` failed `NO_HANDLER` when a trigger fired it. A lone
+  skill is now reached.
+- `AIPResult.input_required` returned from a skill paused nothing.
+- `POST /api/v1/a2a/invoke` answered `result.task_id: ""`.
+- A journaled `ctx.llm` call and the chat agent loop named
+  `<resolved-by-router>` or an empty model instead of the model that answered.
+- A Google connector declared by an installed agent (`gmail.send`) answered
+  `UnknownTool` under `apollia-os start`.
+- The block that injects past session summaries into the first message of a free
+  chat is framed as background not to act on, after a local model re-issued a
+  stale tool call from an unrelated session.
+
 ## [0.1.0-preview] - Unreleased
 
 Initial public preview. Local-first Rust runtime for autonomous AI agents,
@@ -176,4 +289,5 @@ cycle, before anything was published.
 - Private vulnerability reporting via GitHub Security Advisories.
 
 [Unreleased]: https://github.com/Apollia-OS/apollia-os/commits/main
+[0.2.0-preview]: https://github.com/Apollia-OS/apollia-os/releases/tag/v0.2.0-preview
 [0.1.0-preview]: https://github.com/Apollia-OS/apollia-os/releases/tag/v0.1.0-preview

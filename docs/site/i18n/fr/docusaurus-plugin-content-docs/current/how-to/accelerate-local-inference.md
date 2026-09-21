@@ -80,7 +80,9 @@ varier le débit se situent en amont de lui :
   mixture-of-experts (MoE) n'active qu'une fraction de ses paramètres par token,
   ce qui lui permet de dépasser un modèle dense de qualité comparable à la fois
   en vitesse et en débit par lot. Préférez une quantization qui laisse de la
-  marge pour le cache KV.
+  marge pour le cache KV. `apollia-os model recommend` classe les candidats pour
+  cette machine, avec la mémoire que chacun demande et le nombre de ses couches
+  qui tiennent sur le GPU.
 - **Servir un seul modèle par processus serveur.** Le moteur charge un modèle
   GGUF mono-fichier. Changer le backend par défaut change le modèle que le
   daemon sert.
@@ -100,7 +102,7 @@ les dans l'environnement de ce qui lance le daemon.
 | Variable | Défaut | Ce qu'elle fait |
 |---|---|---|
 | `APOLLIA_LLAMA_N_CTX` | `32768` | Fenêtre de contexte en tokens. La valeur par défaut est fixe, elle n'est pas lue dans le modèle. |
-| `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Couches déportées vers le GPU ; `0` force le CPU. |
+| `APOLLIA_LLAMA_N_GPU_LAYERS` | calculé, sinon `999` | Couches déportées vers le GPU ; `0` force le CPU. Non définie, la valeur est calculée pour chaque modèle sur un GPU dédié (voir plus bas). |
 | `APOLLIA_LLAMA_N_BATCH` | défaut du moteur | Taille de batch logique. |
 | `APOLLIA_LLAMA_N_UBATCH` | défaut du moteur | Taille du micro-batch physique. |
 | `APOLLIA_LLAMA_N_PARALLEL` | `1` | Slots de décodage servis simultanément. |
@@ -115,6 +117,21 @@ les dans l'environnement de ce qui lance le daemon.
 
 Augmenter `N_PARALLEL` est ce qui transforme le batching continu en véritable
 concurrence : avec le défaut d'un seul slot, les requêtes s'empilent.
+
+<!-- claim:llama-server-ngl-planned -->
+
+Quand `APOLLIA_LLAMA_N_GPU_LAYERS` n'est pas définie et que la machine a une
+carte graphique dotée de sa propre mémoire, le daemon ne demande plus toutes les
+couches. Il lit l'en-tête du fichier du modèle, retire de la mémoire de la carte
+le cache de contexte et le contexte graphique, et déporte autant de couches que
+le reste en contient ; les autres tournent sur le processeur. Demander toutes
+les couches sur une carte trop petite pour le modèle faisait échouer
+l'allocation du moteur au lieu de placer ce qui tenait. Le journal rapporte la
+décision sous `llama.server.ngl.planned`, avec `n_gpu_layers` rapporté à
+`total_layers`. Sur Apple Silicon, où le processeur et le GPU partagent une même
+mémoire, et sur une machine où aucun GPU n'a été détecté, le daemon transmet
+toujours `999` : toutes les couches vont sur un GPU à mémoire partagée, et sans
+GPU le moteur ignore la valeur. Définir la variable l'emporte toujours.
 
 Pour vérifier qu'un modèle a bien chargé sur l'accélérateur, lisez le journal
 du daemon au démarrage suivant du moteur : `llama.server.offload` porte le

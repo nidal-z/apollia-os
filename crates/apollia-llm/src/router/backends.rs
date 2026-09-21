@@ -311,7 +311,7 @@ pub(super) async fn instantiate_cloud_backend(
     let default_url = match provider {
         LlmProvider::OpenAi => "https://api.openai.com/v1",
         LlmProvider::Mistral => "https://api.mistral.ai/v1",
-        LlmProvider::Ollama => "http://localhost:11434/v1",
+        LlmProvider::Ollama => "http://127.0.0.1:11434/v1",
         LlmProvider::Anthropic => "https://api.anthropic.com",
         LlmProvider::LlamaCpp => {
             unreachable!("LlamaCpp is handled before reaching instantiate_cloud_backend (sidecar runner path)")

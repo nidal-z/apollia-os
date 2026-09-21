@@ -272,7 +272,7 @@ pub(super) fn build_config_json(args: BuildConfigArgs<'_>) -> serde_json::Value 
             cfg.insert(
                 "base_url".into(),
                 serde_json::Value::String(
-                    base_url.unwrap_or("http://localhost:11434/v1").to_string(),
+                    base_url.unwrap_or("http://127.0.0.1:11434/v1").to_string(),
                 ),
             );
         }

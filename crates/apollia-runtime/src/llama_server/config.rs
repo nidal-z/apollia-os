@@ -69,7 +69,9 @@ use std::str::FromStr;
 const HOST: &str = "127.0.0.1";
 
 const ENV_N_CTX: &str = "APOLLIA_LLAMA_N_CTX";
-const ENV_N_GPU_LAYERS: &str = "APOLLIA_LLAMA_N_GPU_LAYERS";
+/// Read by `ngl::apply_offload_plan` too, which leaves the offload count alone
+/// when the operator has set it.
+pub(crate) const ENV_N_GPU_LAYERS: &str = "APOLLIA_LLAMA_N_GPU_LAYERS";
 const ENV_N_BATCH: &str = "APOLLIA_LLAMA_N_BATCH";
 const ENV_N_UBATCH: &str = "APOLLIA_LLAMA_N_UBATCH";
 const ENV_N_PARALLEL: &str = "APOLLIA_LLAMA_N_PARALLEL";

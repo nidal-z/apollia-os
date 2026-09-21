@@ -30,6 +30,18 @@ pub enum ModelCommand {
     },
     /// Report the runtime's detected hardware profile (RAM, CPU, GPU).
     Hardware,
+    /// Rank the models this machine should run.
+    Recommend {
+        /// Maximum number of recommendations to show.
+        #[arg(long, default_value_t = 5)]
+        limit: usize,
+        /// Context window the memory estimate is sized against, in tokens.
+        ///
+        /// Defaults to what the runtime launches with. Lower it to see the
+        /// larger models that then fit.
+        #[arg(long)]
+        n_ctx: Option<u32>,
+    },
     /// Remove a local model file from `~/.apollia/models/`.
     Delete {
         /// File name relative to the models directory.
@@ -146,6 +158,9 @@ pub async fn run(cmd: &ModelCommand, socket: Option<PathBuf>, json: bool) -> i32
         ModelCommand::Search { query, limit } => run_search(socket, query, *limit, json).await,
         ModelCommand::Show { repo } => run_show(socket, repo, json).await,
         ModelCommand::Hardware => run_hardware(socket, json).await,
+        ModelCommand::Recommend { limit, n_ctx } => {
+            run_recommend(socket, *limit, *n_ctx, json).await
+        }
         ModelCommand::Delete { name, confirm } => run_delete(name, *confirm, json),
     }
 }
@@ -236,6 +251,138 @@ async fn run_hardware(socket: Option<PathBuf>, json: bool) -> i32 {
 
 /// Pretty-prints a hardware summary, falling back to the raw body if it does
 /// not parse as JSON.
+/// Lines of the `model recommend` table, apart from printing them.
+///
+/// Separated from the command so the shape can be asserted without a runtime:
+/// the interesting part is what a recommendation reduces to on one line, not
+/// the HTTP call that produced it.
+fn recommend_lines(body: &str) -> Vec<String> {
+    let Ok(payload) = serde_json::from_str::<serde_json::Value>(body) else {
+        return vec!["  (unreadable response)".to_owned()];
+    };
+    let models = payload
+        .get("models")
+        .and_then(|m| m.as_array())
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+
+    if models.is_empty() {
+        return vec!["  no model in the catalogue fits this machine".to_owned()];
+    }
+
+    let mut out = Vec::new();
+    for (index, model) in models.iter().enumerate() {
+        let label = model
+            .get("family_label")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let params = model
+            .get("params_b")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or_default();
+        let needs = model
+            .get("estimate")
+            .and_then(|e| e.get("total_gb"))
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or_default();
+        let badge = model
+            .get("badge")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let repo = model
+            .get("file")
+            .and_then(|f| f.get("repo_id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let quant = model.get("quant").and_then(|v| v.as_str()).unwrap_or("-");
+
+        // The first entry is the one the desktop would preselect, so it is
+        // marked here too rather than leaving the reader to infer it.
+        let marker = if index == 0 { "*" } else { " " };
+        out.push(format!(
+            "{marker} {label} {params:.0}B {quant}  {needs:.1} GB  {badge}  {repo}"
+        ));
+
+        // Where the layers land decides the speed far more than the size does,
+        // so a split placement is reported rather than left in the JSON.
+        if let Some(offload) = model.get("offload") {
+            let on_gpu = offload
+                .get("n_gpu_layers")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0);
+            let total = offload
+                .get("total_layers")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0);
+            let whole = offload
+                .get("fully_offloaded")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            if on_gpu > 0 && !whole {
+                out.push(format!(
+                    "      {on_gpu}/{total} layers on the GPU, the rest on the CPU"
+                ));
+            }
+        }
+
+        if let Some(caveats) = model.get("verdict").and_then(|v| v.get("caveats")) {
+            for caveat in caveats.as_array().map(Vec::as_slice).unwrap_or_default() {
+                if let Some(kind) = caveat.get("kind").and_then(|v| v.as_str()) {
+                    out.push(format!("      caveat: {kind}"));
+                }
+            }
+        }
+    }
+    out
+}
+
+async fn run_recommend(
+    socket: Option<PathBuf>,
+    limit: usize,
+    n_ctx: Option<u32>,
+    json: bool,
+) -> i32 {
+    let socket = socket.unwrap_or_else(crate::client::default_socket_path);
+    let client = crate::client::RuntimeClient::new(socket);
+
+    let mut path = format!("/api/v1/llm/recommend?limit={limit}");
+    if let Some(n_ctx) = n_ctx {
+        path.push_str(&format!("&n_ctx={n_ctx}"));
+    }
+
+    match client.get(&path).await {
+        Ok(resp) if resp.status < 400 => {
+            if json {
+                println!("{}", resp.body);
+            } else {
+                for line in recommend_lines(&resp.body) {
+                    println!("{line}");
+                }
+            }
+            exit_codes::SUCCESS
+        }
+        // The catalogue is fetched live, so an unreachable Hub is a runtime
+        // condition rather than a bad request, and it gets its own exit code so
+        // a script can tell "could not look" from "nothing fits".
+        Ok(resp) if resp.status == 503 => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "huggingface unreachable: the model catalogue could not be fetched",
+        ),
+        Ok(resp) => crate::output::emit_error(
+            json,
+            exit_codes::GENERAL_ERROR,
+            &format!("HTTP {}: {}", resp.status, resp.body),
+        ),
+        Err(crate::client::ClientError::ConnectionRefused) => crate::output::emit_error(
+            json,
+            exit_codes::RUNTIME_ERROR,
+            "runtime not started (connection refused)",
+        ),
+        Err(e) => crate::output::emit_client_error(json, &e),
+    }
+}
+
 fn render_hardware_text(body: &str) {
     for line in hardware_lines(body) {
         println!("{line}");
@@ -1013,5 +1160,79 @@ mod tests {
 
         // THEN the raw body is handed back untouched rather than swallowed
         assert_eq!(lines, vec!["not json at all".to_string()]);
+    }
+
+    #[test]
+    fn recommend_lines_mark_the_default_choice_and_name_the_real_cost() {
+        // GIVEN a response holding two ranked models
+        let body = serde_json::json!({
+            "models": [
+                {
+                    "family_label": "Qwen3",
+                    "params_b": 14.0,
+                    "badge": "might_fit",
+                    "estimate": { "total_gb": 13.82 },
+                    "file": { "repo_id": "Qwen/Qwen3-14B-GGUF" },
+                    "verdict": { "status": "supported" }
+                },
+                {
+                    "family_label": "Qwen3",
+                    "params_b": 8.0,
+                    "badge": "fits",
+                    "estimate": { "total_gb": 7.1 },
+                    "file": { "repo_id": "Qwen/Qwen3-8B-GGUF" },
+                    "verdict": { "status": "supported" }
+                }
+            ]
+        })
+        .to_string();
+
+        // WHEN the table is rendered
+        let lines = recommend_lines(&body);
+
+        // THEN the head carries the marker the desktop would preselect, and
+        // each row names the whole footprint rather than the download size
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].starts_with("* Qwen3 14B"));
+        assert!(lines[0].contains("13.8 GB"));
+        assert!(lines[1].starts_with("  Qwen3 8B"));
+    }
+
+    #[test]
+    fn recommend_lines_surface_a_caveat_under_its_model() {
+        // GIVEN a model that carries a caveat
+        let body = serde_json::json!({
+            "models": [{
+                "family_label": "Qwen3",
+                "params_b": 4.0,
+                "badge": "fits",
+                "estimate": { "total_gb": 3.2 },
+                "file": { "repo_id": "other/Qwen3-4B-GGUF" },
+                "verdict": { "status": "caveats", "caveats": [{ "kind": "no_chat_template" }] }
+            }]
+        })
+        .to_string();
+
+        // WHEN the table is rendered
+        let lines = recommend_lines(&body);
+
+        // THEN the caveat is its own indented line, so it is not mistaken for
+        // part of the model's name
+        assert_eq!(lines.len(), 2);
+        assert!(lines[1].contains("caveat: no_chat_template"));
+    }
+
+    #[test]
+    fn recommend_lines_say_so_when_nothing_fits() {
+        // GIVEN a successful response holding no models
+        let body = serde_json::json!({ "models": [] }).to_string();
+
+        // WHEN the table is rendered
+        let lines = recommend_lines(&body);
+
+        // THEN it says nothing fits, rather than printing an empty table the
+        // reader would take for a failure
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("no model"));
     }
 }

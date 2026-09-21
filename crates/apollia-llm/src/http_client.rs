@@ -60,25 +60,23 @@ pub fn build_llm_http_client(idle_timeout: Duration, api_url: &str) -> reqwest::
     // The LLM endpoint is the one the operator configured, and a self-hosted
     // llama-server or Ollama on loopback is the default case, so the
     // public-destination policy is deliberately not applied here.
-    let mut builder = apollia_core::net::configured_endpoint_client_builder()
+    apollia_core::net::configured_endpoint_client_builder_for(api_url)
         .connect_timeout(CONNECT_TIMEOUT)
-        .read_timeout(idle);
-    if apollia_core::net::is_loopback_host_str(api_url) {
-        builder = builder.no_proxy();
-    }
-    builder.build().unwrap_or_else(|e| {
-        tracing::warn!(
-            error = %e,
-            detail = "falling back to an unbounded client",
-            "llm.http_client.build.failed"
-        );
-        // SAFETY: policy-equivalent fallback. `Client::new()` carries
-        // reqwest's default `Policy::limited(10)`, which is exactly what
-        // `configured_endpoint_client_builder` sets, so the degraded client
-        // loses the timeouts and nothing else. Rebuilding through the
-        // helper here would fail for the same reason the first build did.
-        reqwest::Client::new()
-    })
+        .read_timeout(idle)
+        .build()
+        .unwrap_or_else(|e| {
+            tracing::warn!(
+                error = %e,
+                detail = "falling back to an unbounded client",
+                "llm.http_client.build.failed"
+            );
+            // SAFETY: policy-equivalent fallback. `Client::new()` carries
+            // reqwest's default `Policy::limited(10)`, which is exactly what
+            // `configured_endpoint_client_builder` sets, so the degraded client
+            // loses the timeouts and nothing else. Rebuilding through the
+            // helper here would fail for the same reason the first build did.
+            reqwest::Client::new()
+        })
 }
 
 /// Reads an idle timeout expressed in seconds, ignoring absent or absurd values.

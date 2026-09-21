@@ -806,7 +806,7 @@ mod tests {
         // /chat/completions to it, and Ollama serves that route under /v1.
         // Without the suffix every completion returns 404.
         let cfg = ollama_config(None);
-        assert_eq!(cfg["base_url"], "http://localhost:11434/v1");
+        assert_eq!(cfg["base_url"], "http://127.0.0.1:11434/v1");
     }
 
     #[test]

@@ -71,7 +71,7 @@ impl RunnerClient {
         // A fresh connection per call is negligible on loopback.
         // The runner is a child process on loopback, so the
         // public-destination policy is deliberately not applied.
-        let http = apollia_core::net::configured_endpoint_client_builder()
+        let http = apollia_core::net::loopback_client_builder()
             .connect_timeout(Duration::from_secs(5))
             .pool_max_idle_per_host(0)
             .build()

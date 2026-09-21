@@ -3,6 +3,7 @@
 //! - `GET /api/v1/llm/hardware`                 , hardware profile (RAM, CPU, GPU)
 //! - `GET /api/v1/llm/registry/search`          , search HuggingFace GGUF models
 //! - `GET /api/v1/llm/registry/model/:org/:repo`, model metadata + file list
+//! - `GET /api/v1/llm/recommend`                 , models ranked for this machine
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -56,6 +57,18 @@ pub struct SearchQuery {
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub error: String,
+}
+
+/// Query for `GET /api/v1/llm/recommend`.
+#[derive(Debug, Deserialize)]
+pub struct RecommendQuery {
+    /// Maximum number of recommendations to return.
+    pub limit: Option<usize>,
+    /// Context window the key/value cache is sized against. Defaults to what
+    /// the runtime itself launches `llama-server` with.
+    pub n_ctx: Option<u32>,
+    /// HuggingFace token, for gated repositories.
+    pub hf_token: Option<String>,
 }
 
 // ─────────────────────────────────────────────
@@ -191,6 +204,94 @@ pub async fn get_registry_model<B: ExecutionBackend + Clone>(
     Ok(Json(serde_json::to_value(card).unwrap_or_default()))
 }
 
+/// `GET /api/v1/llm/recommend?limit=...&n_ctx=...`
+///
+/// Ranks the models this machine should run: plans against the embedded
+/// generation table, resolves the survivors on HuggingFace, reads each
+/// finalist's GGUF header over a range request, and orders what is left.
+///
+/// Answers `503` when the Hub cannot be reached, which is deliberately not the
+/// same as an empty `200`. The catalogue is fetched live, so no network means
+/// no catalogue; reporting that as "no models fit" would be a different and
+/// false claim about the operator's machine.
+#[cfg(feature = "cloud")]
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/recommend",
+    tag = "model_hub",
+    params(
+        ("limit" = Option<usize>, Query, description = "Maximum number of recommendations"),
+        ("n_ctx" = Option<u32>, Query, description = "Context window the cache is sized against"),
+        ("hf_token" = Option<String>, Query, description = "HuggingFace token for gated models"),
+    ),
+    responses(
+        (status = 200, description = "Models ranked for this machine, best first"),
+        (status = 503, description = "HuggingFace unreachable, so there is no catalogue to rank", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn recommend_models<B: ExecutionBackend + Clone>(
+    State(_state): State<AppState<B>>,
+    Query(params): Query<RecommendQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
+    use apollia_llm::recommend::{
+        resolve, FamilyManifest, ResolveError, ResolveOptions, RuntimeShape,
+    };
+
+    let profile = tokio::task::spawn_blocking(apollia_llm::hardware::detect)
+        .await
+        .unwrap_or_else(|_| apollia_llm::hardware::detect());
+
+    let manifest = FamilyManifest::embedded().map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: format!("the shipped model table is invalid: {e}"),
+            }),
+        )
+    })?;
+
+    let mut options = ResolveOptions {
+        hf_token: params.hf_token,
+        ..ResolveOptions::default()
+    };
+    if let Some(n_ctx) = params.n_ctx {
+        options.shape = RuntimeShape {
+            n_ctx,
+            ..RuntimeShape::default()
+        };
+    }
+
+    let models = match resolve(&manifest, &profile, &options).await {
+        Ok(models) => models,
+        Err(ResolveError::HubUnreachable(detail)) => {
+            return Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ErrorResponse {
+                    error: format!("huggingface unreachable: {detail}"),
+                }),
+            ));
+        }
+        Err(err) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: err.to_string(),
+                }),
+            ));
+        }
+    };
+
+    let mut models = models;
+    if let Some(limit) = params.limit {
+        models.truncate(limit.max(1));
+    }
+
+    Ok(Json(serde_json::json!({
+        "models": models,
+        "hardware": HardwareResponse::from(profile),
+    })))
+}
+
 // ─────────────────────────────────────────────
 // Router
 // ─────────────────────────────────────────────
@@ -205,7 +306,8 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route(
             "/api/v1/llm/registry/model/:org/:repo",
             get(get_registry_model::<B>),
-        );
+        )
+        .route("/api/v1/llm/recommend", get(recommend_models::<B>));
 
     router
 }

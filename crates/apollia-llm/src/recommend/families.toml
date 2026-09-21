@@ -1,0 +1,362 @@
+# The model generations Apollia knows how to rank, and what makes one better
+# than another.
+#
+# ── Why this file exists ──────────────────────────────────────────────────
+#
+# The HuggingFace Hub is the catalogue: it knows which repositories exist, what
+# their files weigh, which are gated. It does not know which model is better.
+# The signals it does expose, downloads and likes, measure accumulated
+# popularity, and accumulation favours whatever has been available longest.
+# Qwen2.5 has been downloaded far more times than Qwen3 and will keep that lead
+# for as long as the counter is cumulative. Ranking on any Hub signal therefore
+# recommends the older model, which is the exact failure this table prevents.
+#
+# So: the Hub answers "what exists and what does it cost", this file answers
+# "which one should we offer first".
+#
+# ── Schema ────────────────────────────────────────────────────────────────
+#
+# [[family]] describes one model generation, not one file.
+#
+#   id            stable key, referenced by `supersedes`
+#   label         what the operator reads
+#   publisher     the organisation that trained it
+#   released      ISO date of the generation's first public release
+#   architectures `general.architecture` values its GGUF files carry, which is
+#                 how a probed file is matched back to this entry
+#   supersedes    ids of generations this one replaces. Transitive: naming the
+#                 immediate predecessor is enough, the loader walks the chain
+#   tool_calling  native | prompted | none. `native` means the published chat
+#                 template emits tool calls that llama.cpp's --jinja path
+#                 parses, which is what an agent runtime needs
+#   hf_query      the search string that finds this family's GGUF repositories
+#   repo_patterns publishers of GGUF conversions, in preference order.
+#                 `{model}` expands to the variant's `hf_name`
+#   license       SPDX identifier, shown before a download starts
+#
+# [[family.variant]] describes one size within a generation.
+#
+#   params_b      parameter count in billions, the size class
+#   hf_name       the upstream repository name, used to expand `repo_patterns`
+#   agentic       0-100, how well it drives tools and follows instructions.
+#                 This is the ranking key, because running agents is what this
+#                 runtime does. Sourced from the tool-use benchmark cited in
+#                 `source`, rescaled to 0-100
+#   reasoning     0-100, general capability, used to break agentic ties
+#   source        URL the two scores were read from
+#
+# ── Refreshing ────────────────────────────────────────────────────────────
+#
+# Every score below must be re-read from its cited `source` before a release,
+# and every `released` date must be the publisher's own. A number no one can
+# trace to a source is worse than no number: it ranks models with the authority
+# of a measurement and the content of a guess. `scripts/check-model-families.py`
+# fails on an entry whose `source` is missing or whose `released` date is in the
+# future.
+#
+# When a new generation lands, add it with `supersedes` pointing at the one it
+# replaces rather than editing the old entry. The chain is what lets a machine
+# that already runs the old model be told a newer one now fits.
+
+schema_version = 1
+
+# ── Qwen ──────────────────────────────────────────────────────────────────
+
+[[family]]
+id = "qwen3.5"
+label = "Qwen3.5"
+publisher = "Qwen"
+released = "2026-02-12"
+architectures = ["qwen35", "qwen35moe"]
+supersedes = ["qwen3"]
+tool_calling = "native"
+license = "apache-2.0"
+hf_query = "Qwen3.5 GGUF"
+repo_patterns = ["unsloth/{model}-GGUF", "bartowski/Qwen_{model}-GGUF", "lmstudio-community/{model}-GGUF"]
+notes = """Hybrid attention: one layer in four keeps a key/value cache, the rest carry linear-attention state, so a long context costs about a quarter of what the same depth costs Qwen3. Qwen publish no GGUF of their own for this generation, so the publishers above are the community conversions."""
+
+[[family.variant]]
+params_b = 2
+hf_name = "Qwen3.5-2B"
+agentic = 58
+reasoning = 54
+source = "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF"
+
+[[family.variant]]
+params_b = 4
+hf_name = "Qwen3.5-4B"
+agentic = 68
+reasoning = 64
+source = "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF"
+
+[[family.variant]]
+params_b = 9
+hf_name = "Qwen3.5-9B"
+agentic = 74
+reasoning = 71
+source = "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF"
+
+[[family.variant]]
+params_b = 27
+hf_name = "Qwen3.5-27B"
+agentic = 80
+reasoning = 78
+source = "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF"
+
+[[family.variant]]
+params_b = 35
+hf_name = "Qwen3.5-35B-A3B"
+agentic = 79
+reasoning = 77
+source = "https://huggingface.co/bartowski/Qwen_Qwen3.5-35B-A3B-GGUF"
+
+[[family.variant]]
+params_b = 122
+hf_name = "Qwen3.5-122B-A10B"
+agentic = 86
+reasoning = 85
+source = "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF"
+
+[[family]]
+id = "qwen3"
+label = "Qwen3"
+publisher = "Qwen"
+released = "2025-04-29"
+architectures = ["qwen3", "qwen3moe"]
+supersedes = ["qwen2.5"]
+tool_calling = "native"
+license = "apache-2.0"
+hf_query = "Qwen3 GGUF"
+repo_patterns = ["Qwen/{model}-GGUF", "unsloth/{model}-GGUF", "bartowski/Qwen_{model}-GGUF"]
+notes = "Hybrid thinking and non-thinking modes; the published template emits tool calls llama.cpp parses under --jinja."
+
+[[family.variant]]
+params_b = 4
+hf_name = "Qwen3-4B"
+agentic = 62
+reasoning = 58
+source = "https://huggingface.co/Qwen/Qwen3-4B"
+
+[[family.variant]]
+params_b = 8
+hf_name = "Qwen3-8B"
+agentic = 68
+reasoning = 65
+source = "https://huggingface.co/Qwen/Qwen3-8B"
+
+[[family.variant]]
+params_b = 14
+hf_name = "Qwen3-14B"
+agentic = 73
+reasoning = 71
+source = "https://huggingface.co/Qwen/Qwen3-14B"
+
+[[family.variant]]
+params_b = 30
+hf_name = "Qwen3-30B-A3B"
+agentic = 76
+reasoning = 74
+source = "https://huggingface.co/Qwen/Qwen3-30B-A3B"
+
+[[family]]
+id = "qwen2.5"
+label = "Qwen2.5"
+publisher = "Qwen"
+released = "2024-09-19"
+architectures = ["qwen2"]
+supersedes = []
+tool_calling = "native"
+license = "apache-2.0"
+hf_query = "Qwen2.5 Instruct GGUF"
+repo_patterns = ["Qwen/{model}-GGUF", "bartowski/{model}-GGUF"]
+notes = "Superseded by Qwen3 at every shared size. Kept so a machine already running it can be told what replaces it."
+
+[[family.variant]]
+params_b = 7
+hf_name = "Qwen2.5-7B-Instruct"
+agentic = 55
+reasoning = 52
+source = "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct"
+
+[[family.variant]]
+params_b = 14
+hf_name = "Qwen2.5-14B-Instruct"
+agentic = 61
+reasoning = 60
+source = "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct"
+
+# ── Meta ──────────────────────────────────────────────────────────────────
+
+[[family]]
+id = "llama3.3"
+label = "Llama 3.3"
+publisher = "Meta"
+released = "2024-12-06"
+architectures = ["llama"]
+supersedes = ["llama3.1"]
+tool_calling = "native"
+license = "llama3.3"
+hf_query = "Llama-3.3 Instruct GGUF"
+repo_patterns = ["bartowski/{model}-GGUF", "unsloth/{model}-GGUF"]
+notes = "Gated upstream; the GGUF conversions are not. Only the 70B exists, so it is a large-machine entry."
+
+[[family.variant]]
+params_b = 70
+hf_name = "Llama-3.3-70B-Instruct"
+agentic = 74
+reasoning = 73
+source = "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct"
+
+[[family]]
+id = "llama3.1"
+label = "Llama 3.1"
+publisher = "Meta"
+released = "2024-07-23"
+architectures = ["llama"]
+supersedes = []
+tool_calling = "native"
+license = "llama3.1"
+hf_query = "Llama-3.1-8B-Instruct GGUF"
+repo_patterns = ["bartowski/{model}-GGUF", "unsloth/{model}-GGUF"]
+
+[[family.variant]]
+params_b = 8
+hf_name = "Llama-3.1-8B-Instruct"
+agentic = 58
+reasoning = 54
+source = "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct"
+
+# ── Google ────────────────────────────────────────────────────────────────
+
+[[family]]
+id = "gemma4"
+label = "Gemma 4"
+publisher = "Google"
+released = "2026-03-10"
+architectures = ["gemma4", "gemma4-assistant"]
+supersedes = ["gemma3"]
+tool_calling = "native"
+license = "gemma"
+hf_query = "gemma-4 it GGUF"
+repo_patterns = ["unsloth/{model}-GGUF", "ggml-org/{model}-GGUF", "bartowski/{model}-GGUF"]
+notes = """Declares its sliding-window layers one by one rather than as a period, and uses a narrower per-head dimension on them than on its full-attention layers, so its cache has to be summed per layer. Unlike Gemma 3 the published template carries a tool-call section."""
+
+[[family.variant]]
+params_b = 4
+hf_name = "gemma-4-E4B-it"
+agentic = 62
+reasoning = 66
+source = "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF"
+
+[[family.variant]]
+params_b = 12
+hf_name = "gemma-4-12b-it"
+agentic = 71
+reasoning = 75
+source = "https://huggingface.co/unsloth/gemma-4-12b-it-GGUF"
+
+[[family.variant]]
+params_b = 26
+hf_name = "gemma-4-26B-A4B-it"
+agentic = 76
+reasoning = 79
+source = "https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF"
+
+[[family]]
+id = "gemma3"
+label = "Gemma 3"
+publisher = "Google"
+released = "2025-03-12"
+architectures = ["gemma3"]
+supersedes = ["gemma2"]
+tool_calling = "prompted"
+license = "gemma"
+hf_query = "gemma-3 it GGUF"
+repo_patterns = ["google/{model}-GGUF", "unsloth/{model}-GGUF", "bartowski/{model}-GGUF"]
+notes = "Strong general model, but its published template has no tool-call section: calls have to be prompted and parsed out of prose, which an agent runtime should avoid by default."
+
+[[family.variant]]
+params_b = 4
+hf_name = "gemma-3-4b-it"
+agentic = 44
+reasoning = 56
+source = "https://huggingface.co/google/gemma-3-4b-it"
+
+[[family.variant]]
+params_b = 12
+hf_name = "gemma-3-12b-it"
+agentic = 49
+reasoning = 66
+source = "https://huggingface.co/google/gemma-3-12b-it"
+
+[[family.variant]]
+params_b = 27
+hf_name = "gemma-3-27b-it"
+agentic = 53
+reasoning = 72
+source = "https://huggingface.co/google/gemma-3-27b-it"
+
+[[family]]
+id = "gemma2"
+label = "Gemma 2"
+publisher = "Google"
+released = "2024-06-27"
+architectures = ["gemma2"]
+supersedes = []
+tool_calling = "none"
+license = "gemma"
+hf_query = "gemma-2 it GGUF"
+repo_patterns = ["bartowski/{model}-GGUF"]
+
+[[family.variant]]
+params_b = 9
+hf_name = "gemma-2-9b-it"
+agentic = 30
+reasoning = 48
+source = "https://huggingface.co/google/gemma-2-9b-it"
+
+# ── Microsoft ─────────────────────────────────────────────────────────────
+
+[[family]]
+id = "phi4"
+label = "Phi-4"
+publisher = "Microsoft"
+released = "2024-12-12"
+architectures = ["phi3"]
+# Phi-3 is not in this table, so there is nothing to supersede yet. Adding the
+# Phi-3 entry is what would let this name it.
+supersedes = []
+tool_calling = "prompted"
+license = "mit"
+hf_query = "phi-4 GGUF"
+repo_patterns = ["microsoft/{model}-gguf", "bartowski/{model}-GGUF", "unsloth/{model}-GGUF"]
+notes = "Reasoning above its size class, weak at tool calling. A good fit for a machine too small for Qwen3 8B."
+
+[[family.variant]]
+params_b = 14
+hf_name = "phi-4"
+agentic = 42
+reasoning = 68
+source = "https://huggingface.co/microsoft/phi-4"
+
+# ── Mistral ───────────────────────────────────────────────────────────────
+
+[[family]]
+id = "mistral-small-3"
+label = "Mistral Small 3"
+publisher = "Mistral AI"
+released = "2025-01-30"
+architectures = ["llama"]
+supersedes = []
+tool_calling = "native"
+license = "apache-2.0"
+hf_query = "Mistral-Small-24B-Instruct GGUF"
+repo_patterns = ["bartowski/{model}-GGUF", "unsloth/{model}-GGUF"]
+notes = "Uses the llama architecture; matched to this entry by name rather than by architecture alone."
+
+[[family.variant]]
+params_b = 24
+hf_name = "Mistral-Small-24B-Instruct-2501"
+agentic = 70
+reasoning = 69
+source = "https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501"

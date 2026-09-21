@@ -1,21 +1,20 @@
 /**
- * The models onboarding offers, and the rules that pick among them.
+ * The speech models onboarding offers, and the rule that picks among them.
  *
- * Both lists are filtered by the RAM the probe reported, so a machine is never
+ * The list is filtered by the RAM the probe reported, so a machine is never
  * offered weights it cannot hold. A probe that has not answered yet offers
  * everything rather than nothing: the operator can still read the sizes.
+ *
+ * The language models used to live here too, as four pinned HuggingFace URLs
+ * filtered on installed RAM. They are resolved at runtime now: see
+ * `apollia_llm::recommend`, which ranks against the hardware budget, the
+ * generation table and the GGUF header rather than against a hardcoded list.
+ * Whisper stays here because its catalogue is five files from one publisher
+ * that have not changed in two years, which is a list, not a decision.
  */
 import type { SystemInfo } from "$lib/ipc/models";
 
 // ─── Types ────────────────────────────────────────────────────────────────
-
-export interface CuratedLlmModel {
-  name: string;
-  filename: string;
-  url: string;
-  size_label: string;
-  ram_required: number;
-}
 
 export interface CuratedSttModel {
   name: string;
@@ -28,40 +27,8 @@ export interface CuratedSttModel {
   lang_key: string;
 }
 
-// ─── Curated catalogs ─────────────────────────────────────────────────────
-// Qwen3 (April 2025): native tool calling via llama.cpp jinja templates.
+// ─── Curated catalog ──────────────────────────────────────────────────────
 // Whisper turbo-q5 is the sweet spot: pruned from large-v3, 6× faster.
-
-export const CURATED_LLM_MODELS: CuratedLlmModel[] = [
-  {
-    name: "Qwen3 4B",
-    filename: "Qwen3-4B-Q4_K_M.gguf",
-    url: "https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
-    size_label: "2.5 GB",
-    ram_required: 4,
-  },
-  {
-    name: "Qwen3 8B",
-    filename: "Qwen3-8B-Q4_K_M.gguf",
-    url: "https://huggingface.co/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf",
-    size_label: "4.7 GB",
-    ram_required: 8,
-  },
-  {
-    name: "Qwen3 14B",
-    filename: "Qwen3-14B-Q4_K_M.gguf",
-    url: "https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf",
-    size_label: "8.4 GB",
-    ram_required: 16,
-  },
-  {
-    name: "Qwen3 30B-A3B",
-    filename: "Qwen3-30B-A3B-Q4_K_M.gguf",
-    url: "https://huggingface.co/Qwen/Qwen3-30B-A3B-GGUF/resolve/main/Qwen3-30B-A3B-Q4_K_M.gguf",
-    size_label: "18.6 GB",
-    ram_required: 24,
-  },
-];
 
 export const CURATED_STT_MODELS: CuratedSttModel[] = [
   {

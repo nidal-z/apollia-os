@@ -37,6 +37,35 @@ sidebar_position: 5
 
 8. The disk space used by all your models is displayed at the bottom of the page. To free space, click **Delete** on any model already downloaded.
 
+## Models suggested during onboarding
+
+<!-- claim:onboarding-recommends-for-hardware -->
+
+During onboarding, the **Recommended models** list is not a fixed list. Apollia
+measures your machine (its memory, and whether its graphics card has memory of
+its own or shares it, as on a Mac), asks HuggingFace which files exist for the
+model generations it knows, and reads the first megabytes of each candidate to
+check that the bundled engine can load it and call tools with it. The list is
+then ranked for your machine: the same model can come first on a Mac and
+further down on a PC with a small graphics card.
+
+Each row says why it is there: the memory it needs, split between the model and
+its conversation memory, how it is compressed (for example `Q4_K_M`), and
+whether it runs entirely on your graphics card.
+
+- **Tight fit:** the model fits, with little room left for other applications.
+- **N of M layers on your GPU, the rest on the CPU:** part of the model runs on
+  the processor, which is much slower. A smaller model may answer faster.
+- **No tools:** the model can chat but cannot run agents.
+- **Could not reach HuggingFace:** the list is fetched live, so without a
+  connection there is nothing to suggest. Import a model file you already have,
+  or use a cloud provider, and try again later.
+- **No curated model fits this machine:** use a cloud provider, or import a
+  smaller model from disk.
+
+The same ranking is available from the command line, with the daemon running:
+`apollia-os model recommend`.
+
 ## Verification
 
 For a GGUF model, open a new chat, select your local model in the backend picker, and send a message: the answer arrives without an internet connection. For a Whisper model, follow the [Enable voice dictation](../chat/enable-voice-dictation.md) page.

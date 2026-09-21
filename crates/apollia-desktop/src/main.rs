@@ -493,6 +493,7 @@ fn main() {
             commands::llm::reload_llm,
             commands::llm::reload_llm_from_db,
             commands::model_hub::get_hardware_profile,
+            commands::recommend::recommend_models,
             commands::model_hub::search_hf_models,
             commands::model_hub::get_hf_model,
             commands::model_hub::start_model_download,

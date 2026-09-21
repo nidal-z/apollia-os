@@ -1714,6 +1714,63 @@
         }
       }
     },
+    "/api/v1/llm/recommend": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/recommend?limit=...&n_ctx=...`",
+        "description": "Ranks the models this machine should run: plans against the embedded\ngeneration table, resolves the survivors on HuggingFace, reads each\nfinalist's GGUF header over a range request, and orders what is left.\n\nAnswers `503` when the Hub cannot be reached, which is deliberately not the\nsame as an empty `200`. The catalogue is fetched live, so no network means\nno catalogue; reporting that as \"no models fit\" would be a different and\nfalse claim about the operator's machine.",
+        "operationId": "recommend_models",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of recommendations",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "n_ctx",
+            "in": "query",
+            "description": "Context window the cache is sized against",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "hf_token",
+            "in": "query",
+            "description": "HuggingFace token for gated models",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Models ranked for this machine, best first"
+          },
+          "503": {
+            "description": "HuggingFace unreachable, so there is no catalogue to rank",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/registry/model/{org}/{repo}": {
       "get": {
         "tags": [

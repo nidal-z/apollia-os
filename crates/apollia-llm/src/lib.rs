@@ -15,6 +15,7 @@
 
 pub mod backends;
 pub mod downloader;
+pub mod gguf_probe;
 pub mod grammar;
 pub mod hardware;
 pub mod hf_registry;
@@ -24,6 +25,7 @@ pub mod meta;
 pub mod meta_orchestrator;
 pub mod model_defaults;
 pub mod pricing;
+pub mod recommend;
 pub mod repository;
 pub mod retry;
 pub mod router;
@@ -50,6 +52,9 @@ pub use apollia_core::config::LlmRoutingConfig;
 pub use downloader::{
     DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
 };
+pub use gguf_probe::{parse_header, GgufHeaderFacts, GgufParseError};
+#[cfg(feature = "cloud")]
+pub use gguf_probe::{probe_url, GgufProbeError, ProbeDepth};
 pub use grammar::{json_schema_to_gbnf, tool_specs_to_gbnf, GrammarError};
 pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
 #[cfg(feature = "cloud")]
@@ -57,6 +62,12 @@ pub use hf_registry::{
     CompatIssue, GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache,
     HfRegistryClient, HfSearchFilter, SearchPage,
 };
+pub use recommend::{
+    assess as assess_gguf, rank as rank_models, Blocker, Caveat, FamilyManifest, FileCandidate,
+    MemoryEstimate, Reason, Recommendation, RuntimeShape, Verdict,
+};
+#[cfg(feature = "cloud")]
+pub use recommend::{resolve as resolve_recommendations, ResolveError, ResolveOptions};
 pub use repository::{
     spawn_subscriber as spawn_llm_subscriber, LlmCallRecord, LlmCallRepository, LlmCostSummary,
     LlmDailyCostSummary, LlmRepositoryError,

@@ -127,7 +127,8 @@ that introduces it and update this file.
 
 Emitted by `llama.server.spawn.config`, once per embedded `llama-server`
 launch. Each field is the resolved value of one launch parameter, after the
-`APOLLIA_LLAMA_` environment overrides have been applied. An optional
+`APOLLIA_LLAMA_` environment overrides and, for `n_gpu_layers`, the offload
+plan have been applied. An optional
 parameter left unset reads `unset`, meaning the flag is not passed and the
 engine's own default applies.
 
@@ -137,7 +138,7 @@ engine's own default applies.
 | `model` | `&str` | path of the loaded `.gguf` file |
 | `port` | `u16` | loopback port the server binds |
 | `n_ctx` | `u32` | context window in tokens (`-c`) |
-| `n_gpu_layers` | `i32` | layers offloaded to the GPU (`-ngl`) |
+| `n_gpu_layers` | `i32` | layers offloaded to the GPU (`-ngl`): the environment override when set, else the planned count on a discrete GPU, else `999` |
 | `n_batch` | `&str` | logical batch size (`-b`), or `unset` |
 | `n_ubatch` | `&str` | physical micro-batch size (`-ub`), or `unset` |
 | `n_parallel` | `&str` | server slot count (`-np`), or `unset` |
@@ -151,6 +152,36 @@ engine's own default applies.
 
 `args` is the provenance record: a performance measurement is only comparable
 to another when both quote the exact launch line that produced them.
+
+`llama.server.ngl.planned` precedes it when the daemon chose the offload count
+itself, which is on a discrete GPU with `APOLLIA_LLAMA_N_GPU_LAYERS` unset.
+`llama.server.ngl.probe_failed` (debug, `model`, `error`) reports a header that
+could not be read, in which case the configured value is kept.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `model` | `&str` | path of the `.gguf` file |
+| `n_gpu_layers` | `u32` | layers the plan places on the GPU |
+| `total_layers` | `u32` | layers the model has |
+| `fully_offloaded` | `bool` | whether every layer fits the GPU |
+
+### Model recommendation
+
+Emitted by `apollia_llm::recommend` and the GGUF header probe while onboarding
+or `model recommend` ranks models. All are `debug` except where noted.
+
+| Event | Fields | Meaning |
+|---|---|---|
+| `recommend.plan.ready` (info) | `planned`, `budget_gb` | candidates kept after the offline planning pass |
+| `recommend.locate.resolved` | `model`, `repo`, `file` | the file chosen for one candidate |
+| `recommend.locate.repo_failed` | `repo`, `error` | a publisher that did not answer |
+| `recommend.locate.no_publisher` | `model` | no publisher carried a usable file |
+| `gguf.probe.fetched` | `url`, `depth`, `bytes_read`, `honoured_range` | a header range read |
+| `gguf.probe.parsed` | `url`, `architecture`, `tokenizer_pre`, `has_chat_template`, `truncated` | what the header said |
+| `recommend.probe.failed` | `file`, `error` | a header that could not be read |
+| `recommend.ready` (info) | `recommended`, `top` | the ranked list, and the family at its head |
+| `recommend.hub.unreachable` (warn) | `detail` | no publisher answered, so there is no catalogue |
+| `recommend.manifest.invalid` (error) | `error` | the shipped generation table failed to load |
 
 ### Completion timings
 

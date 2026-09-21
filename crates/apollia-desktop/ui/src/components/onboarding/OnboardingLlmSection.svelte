@@ -16,6 +16,7 @@
     getHfModel,
     importModelFile,
     reloadLlm,
+    recommendModels,
     scanForGgufModels,
     searchHfModels,
     setupLocalLlm,
@@ -24,6 +25,8 @@
     type GgufModelInfo,
     type HfFile,
     type HfModelCard,
+    type RecommendOutcome,
+    type RecommendedModel,
     type SystemInfo,
   } from "$lib/ipc/models";
   import {
@@ -45,11 +48,15 @@
   import { llmBackends } from "$lib/stores/sse";
   import { llmSectionView, runLlmConfiguration } from "./aiSetupRules";
   import {
-    CURATED_LLM_MODELS,
-    modelsFitting,
-    largestFitting,
-    type CuratedLlmModel,
-  } from "./onboardingCatalogs";
+    defaultChoice,
+    memoryLabel,
+    modelDisplayName,
+    needsOffloadWarning,
+    primaryReason,
+    rowCaveats,
+    sizeLabel,
+    supportsToolCalling,
+  } from "./onboardingRecommendations";
   import { dlBytes, dlPct, dlSpeed, hfFileLabelKey, pickModelsDir } from "./onboardingFormat";
   import "./onboarding-hf-search.css";
 
@@ -73,7 +80,7 @@
 
   let llmDownloadId = $state<string | null>(null);
   let llmDownloadProgress = $state<DownloadProgress | null>(null);
-  let llmDownloadingModel = $state<CuratedLlmModel | HfFile | null>(null);
+  let llmDownloadingModel = $state<{ filename: string } | HfFile | null>(null);
   let llmDownloadError = $state<string | null>(null);
 
   // `null` keeps the backend's own default (`~/.apollia/models`); a masterised
@@ -89,12 +96,22 @@
   let expandedDetail = $state<HfModelCard | null>(null);
   let expandLoading = $state(false);
 
-  const availableLlmModels = $derived(modelsFitting(CURATED_LLM_MODELS, sysInfo));
-  const recommendedLlm = $derived(largestFitting(CURATED_LLM_MODELS, sysInfo, 1));
+  // The catalogue is fetched live, so the step has four states rather than a
+  // list: still measuring, ranked, HuggingFace unreachable, and reachable but
+  // nothing fits. The last two look identical to a component that only ever
+  // receives an array, and they call for opposite advice.
+  let recommendation = $state<RecommendOutcome | null>(null);
+  let recommendLoading = $state(false);
+
+  const recommendedModels = $derived(
+    recommendation?.status === "ok" ? recommendation.models : [],
+  );
+  const topRecommendation = $derived(defaultChoice(recommendedModels));
   const llmView = $derived(llmSectionView(ggufModels.length, llmSuccess));
 
   $effect(() => {
     void loadData();
+    void loadRecommendations();
   });
 
   $effect(() => {
@@ -132,6 +149,32 @@
       unlisten?.();
     };
   });
+
+  async function loadRecommendations(): Promise<void> {
+    if (recommendLoading) return;
+    recommendLoading = true;
+    try {
+      recommendation = await recommendModels();
+    } catch (err: unknown) {
+      // The command only fails when the hardware probe itself does. Treated as
+      // "could not look" rather than "nothing fits", for the same reason the
+      // backend keeps those two outcomes apart.
+      recommendation = {
+        status: "unreachable",
+        detail: err instanceof Error ? err.message : String(err),
+        hardware: {
+          total_ram_gb: sysInfo?.total_ram_gb ?? 0,
+          available_ram_gb: sysInfo?.available_ram_gb ?? 0,
+          cpu_model: "",
+          cpu_cores: 0,
+          memory_budget_gb: 0,
+          accelerator: { kind: "none" },
+        },
+      };
+    } finally {
+      recommendLoading = false;
+    }
+  }
 
   async function loadData(): Promise<void> {
     try {
@@ -223,16 +266,19 @@
     destDir = typeof selected === "string" ? selected : (selected as { path: string }).path;
   }
 
-  async function downloadLlmModel(model: CuratedLlmModel): Promise<void> {
+  async function downloadLlmModel(model: RecommendedModel): Promise<void> {
     if (llmDownloadId) return;
     llmDownloadError = null;
     llmDownloadProgress = null;
-    llmDownloadingModel = model;
+    llmDownloadingModel = { filename: model.file.filename };
     try {
       llmDownloadId = await startModelDownload({
-        url: model.url,
-        filename: model.filename,
-        repo_id: extractHfRepoId(model.url),
+        url: model.file.download_url,
+        filename: model.file.filename,
+        // The repository is known from the resolution rather than parsed back
+        // out of the URL, so the downloader can fetch the publisher's own
+        // generation_config.json afterwards.
+        repo_id: model.file.repo_id || extractHfRepoId(model.file.download_url),
         dest_dir: destDir,
       });
     } catch (err: unknown) {
@@ -397,9 +443,7 @@
       <div class="download-block" data-testid="llm-download-progress">
         <div class="dl-header">
           <span class="dl-filename">
-            {"filename" in (llmDownloadingModel ?? {})
-              ? (llmDownloadingModel as CuratedLlmModel | HfFile).filename
-              : "…"}
+            {llmDownloadingModel?.filename ?? "…"}
           </span>
           <Button variant="ghost" size="sm" class="btn-cancel-dl" onclick={cancelLlmDownload} aria-label={$t("onboarding.ai_setup.cancel_download")}>
             <X size={12} strokeWidth={2} />
@@ -504,23 +548,87 @@
       {/if}
     {:else}
       <div class="curated-divider"><span>{$t("onboarding.ai_setup.recommended_models")}</span></div>
-      <ul class="model-list" data-testid="curated-llm-list">
-        {#each availableLlmModels as model (model.filename)}
-          <li>
-            <button type="button" class="model-row" onclick={() => downloadLlmModel(model)} data-testid="curated-llm-row">
-              <div class="model-icon"><Download size={12} strokeWidth={1.75} /></div>
-              <div class="model-info">
-                <span class="model-name">{model.name}</span>
-                <span class="model-meta">{model.size_label}</span>
-              </div>
-              {#if model.filename === recommendedLlm?.filename}
-                <span class="badge-recommended">{$t("onboarding.ai_setup.recommended")}</span>
-              {/if}
-              <ChevronRight size={13} class="text-muted-foreground/50" />
-            </button>
-          </li>
-        {/each}
-      </ul>
+
+      {#if recommendLoading}
+        <div class="recommend-state" data-testid="llm-recommend-loading">
+          <Spinner size={14} />
+          <span>{$t("onboarding.ai_setup.recommend_loading")}</span>
+        </div>
+      {:else if recommendation?.status === "unreachable"}
+        <div class="recommend-state recommend-state-warn" data-testid="llm-recommend-unreachable">
+          <AlertCircle size={13} strokeWidth={1.75} />
+          <div class="recommend-state-text">
+            <span class="recommend-state-title">{$t("onboarding.ai_setup.recommend_unreachable_title")}</span>
+            <span class="recommend-state-body">{$t("onboarding.ai_setup.recommend_unreachable_body")}</span>
+          </div>
+          <Button variant="ghost" size="sm" onclick={() => void loadRecommendations()} data-testid="llm-recommend-retry">
+            {$t("onboarding.ai_setup.recommend_retry")}
+          </Button>
+        </div>
+      {:else if recommendation?.status === "empty"}
+        <div class="recommend-state recommend-state-warn" data-testid="llm-recommend-empty">
+          <AlertCircle size={13} strokeWidth={1.75} />
+          <div class="recommend-state-text">
+            <span class="recommend-state-title">{$t("onboarding.ai_setup.recommend_empty_title")}</span>
+            <span class="recommend-state-body">{$t("onboarding.ai_setup.recommend_empty_body")}</span>
+          </div>
+        </div>
+      {:else}
+        <ul class="model-list" data-testid="curated-llm-list">
+          {#each recommendedModels as model (model.file.download_url)}
+            {@const reason = primaryReason(model)}
+            {@const memory = memoryLabel(model)}
+            {@const caveats = rowCaveats(model)}
+            <li>
+              <button type="button" class="model-row" onclick={() => downloadLlmModel(model)} data-testid="curated-llm-row">
+                <div class="model-icon"><Download size={12} strokeWidth={1.75} /></div>
+                <div class="model-info">
+                  <span class="model-name">
+                    {modelDisplayName(model)}
+                    {#if model.quant}<span class="model-quant">{model.quant}</span>{/if}
+                  </span>
+                  <span class="model-meta">
+                    {sizeLabel(model.file.size_bytes)} · {$t(memory.key, { values: memory.values })}
+                  </span>
+                  {#if reason}
+                    <span class="model-reason">{$t(reason.key, { values: reason.values })}</span>
+                  {/if}
+                  {#each caveats as caveat (caveat.key)}
+                    <span class="model-caveat">{$t(caveat.key, { values: caveat.values })}</span>
+                  {/each}
+                </div>
+                {#if needsOffloadWarning(model)}
+                  <span class="badge-no-tools">
+                    {$t("onboarding.ai_setup.reason_partial_offload", {
+                      values: {
+                        gpu: model.offload.n_gpu_layers,
+                        total: model.offload.total_layers,
+                      },
+                    })}
+                  </span>
+                {/if}
+                {#if !supportsToolCalling(model)}
+                  <span class="badge-no-tools">{$t("onboarding.ai_setup.no_tool_calling_badge")}</span>
+                {/if}
+                {#if model.file.download_url === topRecommendation?.file.download_url}
+                  <span class="badge-recommended">{$t("onboarding.ai_setup.recommended")}</span>
+                {/if}
+                <ChevronRight size={13} class="text-muted-foreground/50" />
+              </button>
+            </li>
+          {/each}
+        </ul>
+        {#if recommendation?.status === "ok" && recommendation.hardware.cpu_model}
+          <p class="recommend-measured" data-testid="llm-recommend-measured">
+            {$t("onboarding.ai_setup.recommend_measured_on", {
+              values: {
+                cpu: recommendation.hardware.cpu_model,
+                budget: recommendation.hardware.memory_budget_gb.toFixed(1),
+              },
+            })}
+          </p>
+        {/if}
+      {/if}
       <div class="alt-row">
         <Button variant="ghost" size="sm" class="btn-search-hf" onclick={() => { showSearch = true; searchResults = []; }}>
           <Search size={11} strokeWidth={2} />

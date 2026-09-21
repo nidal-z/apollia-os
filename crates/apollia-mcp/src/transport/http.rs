@@ -72,7 +72,8 @@ impl StreamableHttpTransport {
         // An MCP server is an endpoint the operator declared, and a local one
         // is the common case, so the public-destination policy would refuse the
         // normal configuration. The hop cap still applies.
-        let client = apollia_core::net::configured_endpoint_client_builder()
+        let url: String = url.into();
+        let client = apollia_core::net::configured_endpoint_client_builder_for(&url)
             .build()
             .map_err(|e| TransportError::Io(e.to_string()))?;
 
@@ -80,7 +81,7 @@ impl StreamableHttpTransport {
 
         Ok(Self {
             client,
-            url: url.into(),
+            url,
             session_id: Mutex::new(None),
             auth_headers,
             timeout,

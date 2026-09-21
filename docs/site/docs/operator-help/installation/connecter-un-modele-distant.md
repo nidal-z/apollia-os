@@ -82,7 +82,7 @@ Apollia applies prompt caching on the Anthropic side automatically.
 
 ## Remote Ollama
 
-- **Endpoint**: `http://<host>:11434/v1` for a remote server, or `http://localhost:11434/v1` if Ollama runs on your machine.
+- **Endpoint**: `http://<host>:11434/v1` for a remote server, or `http://127.0.0.1:11434/v1` if Ollama runs on your machine.
 - **API Key**: optional (useful if you have a reverse proxy with authentication).
 - **Service prerequisite**: `ollama serve` must be running on the target host.
 - **Models**: see `ollama list` on the host. Examples: `llama3.1:8b`, `qwen2.5:14b`.

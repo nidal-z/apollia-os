@@ -212,6 +212,86 @@
   background: hsl(var(--secondary) / 0.12);
 }
 
+/* Recommendations
+   ---------------
+   The rows carry more than a name and a size now: why the model was chosen,
+   and anything the header probe could not establish. A caveat is styled apart
+   from a reason on purpose, since a caution set in the same colour as a
+   selling point reads as one. */
+
+/* The compression format sits beside the name, because two rows can otherwise
+   be the same model at different precisions and read as duplicates. */
+.ai-setup .model-quant {
+  margin-left: 0.35rem;
+  font-size: var(--text-micro-sm);
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.ai-setup .model-reason {
+  font-size: var(--text-caption);
+  color: hsl(var(--primary));
+}
+
+.ai-setup .model-caveat {
+  font-size: var(--text-caption);
+  color: hsl(var(--warning));
+}
+
+.ai-setup .badge-no-tools {
+  font-size: var(--text-micro-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.6);
+  padding: 0.18rem 0.4rem;
+  border-radius: 99px;
+  flex-shrink: 0;
+}
+
+/* The three states that are not a list: measuring, HuggingFace unreachable,
+   and reachable with nothing that fits. */
+.ai-setup .recommend-state {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  font-size: var(--text-caption);
+  color: hsl(var(--muted-foreground));
+}
+
+.ai-setup .recommend-state-warn {
+  border-color: hsl(var(--warning) / 0.4);
+  background: hsl(var(--warning) / 0.06);
+  align-items: flex-start;
+}
+
+.ai-setup .recommend-state-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-setup .recommend-state-title {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.ai-setup .recommend-state-body {
+  line-height: 1.45;
+}
+
+.ai-setup .recommend-measured {
+  margin-top: 0.4rem;
+  font-size: var(--text-micro-sm);
+  color: hsl(var(--muted-foreground));
+}
+
 /* Success */
 .ai-setup .success-row {
   display: flex;

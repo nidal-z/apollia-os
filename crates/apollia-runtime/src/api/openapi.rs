@@ -247,6 +247,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_llm::backends::reload_llm_router,
         crate::api::routes_model_hub::get_hardware,
         crate::api::routes_model_hub::search_registry,
+        crate::api::routes_model_hub::recommend_models,
         crate::api::routes_model_hub::get_registry_model,
         crate::api::routes_resilience::list_breakers,
         crate::api::routes_resilience::get_breaker,

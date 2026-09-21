@@ -59,7 +59,7 @@ export const PROVIDER_DEFAULT_ENDPOINT: Partial<Record<LlmProvider, string>> = {
   openai: "https://api.openai.com/v1",
   mistral: "https://api.mistral.ai/v1",
   anthropic: "https://api.anthropic.com",
-  ollama: "http://localhost:11434/v1",
+  ollama: "http://127.0.0.1:11434/v1",
 };
 
 /** Every value the prefill is allowed to overwrite: empty, or another provider's default. */

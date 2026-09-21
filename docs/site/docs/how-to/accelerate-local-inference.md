@@ -74,6 +74,8 @@ that move throughput are upstream of it:
   activates only a fraction of its parameters per token, so it can beat a dense
   model of similar quality on both speed and batch throughput. Prefer a
   quantization that leaves headroom for the KV cache.
+  `apollia-os model recommend` ranks candidates for this machine, with the
+  memory each one needs and how many of its layers reach the GPU.
 - **Serve one model per server process.** The engine loads a single-file GGUF
   model. Switching the default backend switches which model the daemon serves.
 - **Provision the slots before expecting concurrency.** Continuous batching is
@@ -91,7 +93,7 @@ launches the daemon.
 | Variable | Default | What it does |
 |---|---|---|
 | `APOLLIA_LLAMA_N_CTX` | `32768` | Context window in tokens. The default is a fixed value, not read from the model. |
-| `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Layers offloaded to the GPU; `0` forces CPU. |
+| `APOLLIA_LLAMA_N_GPU_LAYERS` | planned, else `999` | Layers offloaded to the GPU; `0` forces CPU. Left unset, the count is planned per model on a discrete GPU (below). |
 | `APOLLIA_LLAMA_N_BATCH` | engine default | Logical batch size. |
 | `APOLLIA_LLAMA_N_UBATCH` | engine default | Physical micro-batch size. |
 | `APOLLIA_LLAMA_N_PARALLEL` | `1` | Decode slots served concurrently. |
@@ -106,6 +108,20 @@ launches the daemon.
 
 Raising `N_PARALLEL` is what turns continuous batching into real concurrency: at
 the default of one slot, requests queue.
+
+<!-- claim:llama-server-ngl-planned -->
+
+When `APOLLIA_LLAMA_N_GPU_LAYERS` is unset and the machine has a graphics card
+with memory of its own, the daemon no longer asks for every layer. It reads the
+header of the model file, takes the context cache and the graphics context off
+the card's memory, and offloads as many layers as the remainder holds; the rest
+run on the processor. Asking for every layer on a card too small for the model
+made the engine fail to allocate instead of placing what it could. The journal
+reports the decision as `llama.server.ngl.planned`, with `n_gpu_layers` against
+`total_layers`. On Apple Silicon, where the processor and the GPU share one
+memory, and on a machine where no GPU was detected, the daemon still passes
+`999`: every layer belongs on a shared-memory GPU, and with no GPU the engine
+ignores the value. Setting the variable always wins.
 
 To check that a model really loaded on the accelerator, read the daemon's
 journal at the next engine start: `llama.server.offload` carries the layers

@@ -666,6 +666,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/recommend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/llm/recommend?limit=...&n_ctx=...`
+         * @description Ranks the models this machine should run: plans against the embedded
+         *     generation table, resolves the survivors on HuggingFace, reads each
+         *     finalist's GGUF header over a range request, and orders what is left.
+         *
+         *     Answers `503` when the Hub cannot be reached, which is deliberately not the
+         *     same as an empty `200`. The catalogue is fetched live, so no network means
+         *     no catalogue; reporting that as "no models fit" would be a different and
+         *     false claim about the operator's machine.
+         */
+        get: operations["recommend_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/registry/model/{org}/{repo}": {
         parameters: {
             query?: never;
@@ -4712,6 +4739,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PingResponse"];
+                };
+            };
+        };
+    };
+    recommend_models: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of recommendations */
+                limit?: number;
+                /** @description Context window the cache is sized against */
+                n_ctx?: number;
+                /** @description HuggingFace token for gated models */
+                hf_token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Models ranked for this machine, best first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description HuggingFace unreachable, so there is no catalogue to rank */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };

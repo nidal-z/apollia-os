@@ -111,7 +111,7 @@ linux-check arch="x86":
 #                                 question at one crate's build cost
 
 # Run the workspace suites on Linux, from a machine that is not Linux.
-linux-test arch="arm" *scope:
+linux-test arch="arm" *scope="":
     bash scripts/linux-check.sh {{arch}} test {{scope}}
 
 # Groups are cumulative and there is no default: `just worktree-prep` lists them

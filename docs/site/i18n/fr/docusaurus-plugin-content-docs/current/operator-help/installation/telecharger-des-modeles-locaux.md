@@ -37,6 +37,38 @@ sidebar_position: 5
 
 8. L'espace disque utilisé par tous vos modèles est affiché en bas de la page. Pour libérer de la place, cliquez sur **Supprimer** sur n'importe quel modèle déjà téléchargé.
 
+## Modèles proposés pendant l'onboarding
+
+<!-- claim:onboarding-recommends-for-hardware -->
+
+Pendant l'onboarding, la liste **Modèles recommandés** n'est pas une liste
+figée. Apollia mesure votre machine (sa mémoire, et si sa carte graphique a sa
+propre mémoire ou la partage, comme sur un Mac), demande à HuggingFace quels
+fichiers existent pour les générations de modèles qu'il connaît, et lit les
+premiers mégaoctets de chaque candidat pour vérifier que le moteur embarqué peut
+le charger et lui faire appeler des outils. La liste est ensuite classée pour
+votre machine : le même modèle peut arriver en tête sur un Mac et plus bas sur
+un PC doté d'une petite carte graphique.
+
+Chaque ligne dit pourquoi elle est là : la mémoire qu'il faut, répartie entre le
+modèle et sa mémoire de conversation, la façon dont il est compressé (par
+exemple `Q4_K_M`), et s'il tourne entièrement sur votre carte graphique.
+
+- **Tient de justesse :** le modèle tient, avec peu de place pour les autres
+  applications.
+- **N couches sur M sur votre GPU, le reste sur le processeur :** une partie du
+  modèle tourne sur le processeur, ce qui est bien plus lent. Un modèle plus
+  petit peut répondre plus vite.
+- **Sans outils :** le modèle peut discuter mais ne peut pas exécuter d'agents.
+- **HuggingFace injoignable :** la liste est récupérée en direct, donc sans
+  connexion il n'y a rien à proposer. Importez un fichier de modèle que vous
+  avez déjà, ou utilisez un fournisseur cloud, et réessayez plus tard.
+- **Aucun modèle sélectionné ne tient sur cette machine :** utilisez un
+  fournisseur cloud, ou importez un modèle plus petit depuis le disque.
+
+Le même classement est disponible en ligne de commande, daemon lancé :
+`apollia-os model recommend`.
+
 ## Vérification
 
 Pour un modèle GGUF, ouvrez un nouveau chat, sélectionnez votre modèle local dans le sélecteur de backend, et envoyez un message : la réponse arrive sans connexion internet. Pour un modèle Whisper, suivez la page [Activer la dictée vocale](../chat/enable-voice-dictation.md).

@@ -29,7 +29,7 @@ tune and why.
 | `APOLLIA_LLAMA_SERVER_BIN` | the engine bundled with the artifact | Absolute path to a `llama-server` binary, which takes precedence over the bundled one. The way to run a build of your own, a CUDA build on Linux among them. |
 | `APOLLIA_LLAMA_MAX_LOADED` | `1` | How many models may stay resident at once. Each extra resident model holds its weights in memory until it is unloaded, so raising the ceiling is an explicit act. A zero or unparseable value keeps the default. |
 | `APOLLIA_LLAMA_N_CTX` | `32768` | Context window in tokens. The default is a fixed value, not read from the model. |
-| `APOLLIA_LLAMA_N_GPU_LAYERS` | `999` | Layers offloaded to the GPU; `0` forces CPU. |
+| `APOLLIA_LLAMA_N_GPU_LAYERS` | planned, else `999` | Layers offloaded to the GPU; `0` forces CPU. Left unset, the daemon plans the count from the model file on a discrete GPU, and passes `999` on Apple Silicon or with no GPU. |
 | `APOLLIA_LLAMA_N_BATCH` | engine default | Logical batch size. |
 | `APOLLIA_LLAMA_N_UBATCH` | engine default | Physical micro-batch size. |
 | `APOLLIA_LLAMA_N_PARALLEL` | `1` | Decode slots served concurrently. |

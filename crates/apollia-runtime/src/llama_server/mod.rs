@@ -19,6 +19,7 @@
 
 mod config;
 mod engine_facts;
+mod ngl;
 
 pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError};
 
@@ -425,6 +426,11 @@ impl LlamaServerSupervisor {
     async fn spawn_instance(&self, model_path: String) -> Result<String, LlamaServerError> {
         let mut config = resolve_env_overrides(&*self.config.lock().await, env_getter);
         config.model_path = model_path;
+
+        // The count is planned from the model and the machine on a discrete
+        // accelerator; see `ngl` for why the literal 999 was wrong there.
+        ngl::apply_offload_plan(&mut config);
+
         let port = pick_free_port()?;
         let args = build_args(&config, port);
 
@@ -518,7 +524,7 @@ impl LlamaServerSupervisor {
     ) -> Result<(), LlamaServerError> {
         let url = format!("http://127.0.0.1:{port}/health");
         // The embedded llama-server answers on loopback by construction.
-        let client = apollia_core::net::configured_endpoint_client_builder()
+        let client = apollia_core::net::loopback_client_builder()
             .timeout(Duration::from_secs(2))
             .build()
             .map_err(|e| LlamaServerError::ExitedDuringStartup(format!("http client: {e}")))?;

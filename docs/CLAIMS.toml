@@ -589,6 +589,38 @@ sentence were true and the conclusion was wrong.
 """
 
 [[claim]]
+id = "llama-server-ngl-planned"
+scope = "public"
+symbol = "plan_gpu_layers"
+status = "wired"
+proof = "crates/apollia-runtime/src/llama_server/mod.rs"
+evidence = "llama.server.ngl.planned"
+note = """
+The engine used to be launched with a literal `-ngl 999` whatever the model and
+the card. On a discrete GPU smaller than the model the engine then failed to
+allocate instead of placing what fitted, so a machine with 12 GB of video memory
+and 64 GB of system memory could run nothing larger than its card. The count is
+now planned from the model header on a discrete GPU, left at 999 on unified
+memory and on a machine with no GPU, and the environment variable still wins.
+"""
+
+[[claim]]
+id = "onboarding-recommends-for-hardware"
+scope = "public"
+symbol = "recommend_models"
+status = "wired"
+proof = "crates/apollia-desktop/src/commands/recommend.rs"
+evidence = "HubUnreachable"
+note = """
+Onboarding offered four pinned HuggingFace URLs filtered on installed RAM. The
+list is now resolved live, ranked against the machine's memory layout, and
+checked against the GGUF header of each file before it is offered. The page
+also states the one consequence of a live catalogue an operator meets first:
+with no network there is no list, which is a different state from "nothing
+fits" and is reported as one.
+"""
+
+[[claim]]
 id = "tool-sandbox-covers-child-processes-only"
 scope = "public"
 symbol = "SandboxRoot"

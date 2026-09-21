@@ -201,7 +201,7 @@ describe("endpoint prefill", () => {
     // GIVEN the OpenAI-compatible client appends /chat/completions to the base
     // WHEN Ollama is selected
     // THEN the default already carries /v1, otherwise every call 404s
-    expect(PROVIDER_DEFAULT_ENDPOINT.ollama).toBe("http://localhost:11434/v1");
+    expect(PROVIDER_DEFAULT_ENDPOINT.ollama).toBe("http://127.0.0.1:11434/v1");
   });
 
   it("gives Anthropic a base WITHOUT /v1", () => {
@@ -216,7 +216,7 @@ describe("endpoint prefill", () => {
     // GIVEN a form with no endpoint yet
     // WHEN a remote provider is picked
     // THEN its default lands in the field
-    expect(endpointForProvider("ollama", "")).toBe("http://localhost:11434/v1");
+    expect(endpointForProvider("ollama", "")).toBe("http://127.0.0.1:11434/v1");
     expect(endpointForProvider("mistral", "   ")).toBe("https://api.mistral.ai/v1");
   });
 
@@ -234,7 +234,7 @@ describe("endpoint prefill", () => {
     // WHEN the provider changes
     // THEN the stale default is replaced rather than carried over
     expect(endpointForProvider("ollama", "https://api.openai.com/v1")).toBe(
-      "http://localhost:11434/v1",
+      "http://127.0.0.1:11434/v1",
     );
   });
 
