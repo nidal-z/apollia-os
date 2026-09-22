@@ -101,6 +101,48 @@ impl ApiBackendConfig {
     }
 }
 
+/// Narrow a seed onto the signed range the OpenAI protocol declares.
+///
+/// The wire field is a signed integer and [`CompletionRequest::seed`] is
+/// unsigned, so a seed above `i64::MAX` has no wire spelling. Keeping the low 63
+/// bits is total and injective on everything below that bound, which is every
+/// seed a caller writes by hand, and it never maps two usable seeds onto one.
+/// Clamping would have done exactly that.
+fn narrow_seed(seed: u64) -> i64 {
+    (seed & (i64::MAX as u64)) as i64
+}
+
+/// Build the request common to the completion and the streaming path.
+///
+/// Both carry the same messages, tools and sampling settings; only the stream
+/// options and the structured-output transport differ, and those are applied by
+/// the caller. Shared so a sampling field cannot be honoured on one path and
+/// dropped on the other, which is how `seed` came to reach neither.
+fn sampling_builder(
+    req: &CompletionRequest,
+    model: &str,
+) -> Result<CreateChatCompletionRequestArgs, LlmError> {
+    let messages = build_messages(&req.messages)?;
+    let tools = build_tools(&req.tools);
+
+    let mut builder = CreateChatCompletionRequestArgs::default();
+    builder.model(model).messages(messages);
+
+    if !tools.is_empty() {
+        builder.tools(tools);
+    }
+    if let Some(temp) = req.temperature {
+        builder.temperature(temp);
+    }
+    if let Some(max_tokens) = req.max_tokens {
+        builder.max_tokens(max_tokens);
+    }
+    if let Some(seed) = req.seed {
+        builder.seed(narrow_seed(seed));
+    }
+    Ok(builder)
+}
+
 /// HTTP client for any OpenAI-compatible backend.
 ///
 /// Built via [`OpenAICompatibleClient::new`] with an [`ApiBackendConfig`] and a
@@ -177,23 +219,7 @@ impl OpenAICompatibleClient {
             .unwrap_or(&self.config.model)
             .to_owned();
 
-        let messages = build_messages(&req.messages)?;
-        let tools = build_tools(&req.tools);
-
-        let mut builder = CreateChatCompletionRequestArgs::default();
-        builder.model(&model).messages(messages);
-
-        if !tools.is_empty() {
-            builder.tools(tools);
-        }
-        if let Some(temp) = req.temperature {
-            builder.temperature(temp);
-        }
-        if let Some(max_tokens) = req.max_tokens {
-            builder.max_tokens(max_tokens);
-        }
-
-        let request = builder
+        let request = sampling_builder(&req, &model)?
             .build()
             .map_err(|e| LlmError::InferenceError(format!("build request: {e}")))?;
         // A structured-output constraint is applied here, on the serialized
@@ -365,21 +391,7 @@ impl CompletionModel for OpenAICompatibleClient {
             .unwrap_or(&self.config.model)
             .to_owned();
 
-        let messages = build_messages(&req.messages)?;
-        let tools = build_tools(&req.tools);
-
-        let mut builder = CreateChatCompletionRequestArgs::default();
-        builder.model(&model).messages(messages);
-
-        if !tools.is_empty() {
-            builder.tools(tools);
-        }
-        if let Some(temp) = req.temperature {
-            builder.temperature(temp);
-        }
-        if let Some(max_tokens) = req.max_tokens {
-            builder.max_tokens(max_tokens);
-        }
+        let mut builder = sampling_builder(&req, &model)?;
         // Ask the server for a terminal usage chunk so token accounting is not
         // lost on the streaming path. OpenAI-compatible servers (including the
         // embedded llama-server) append a final chunk with empty `choices` and a
@@ -472,6 +484,13 @@ impl CompletionModel for OpenAICompatibleClient {
         true
     }
 
+    /// Return `true`: `seed` is a field of the OpenAI chat protocol, and it is
+    /// written into every request that carries one. The embedded llama-server
+    /// reads it too, which is what makes a local call replayable.
+    fn carries_seed(&self) -> bool {
+        true
+    }
+
     /// Report the configured context window, when the operator or the router
     /// established one.
     ///
@@ -502,6 +521,87 @@ mod tests {
     use super::stream::next_emittable_text;
     use super::*;
     use crate::types::FinishReason;
+
+    /// Build the body both transport paths send, from a bare request.
+    fn built_body(req: &CompletionRequest) -> serde_json::Value {
+        let request = sampling_builder(req, "test-model")
+            .expect("a buildable request")
+            .build()
+            .expect("a buildable request");
+        serde_json::to_value(request).expect("a serializable request")
+    }
+
+    #[test]
+    fn a_requested_seed_reaches_the_request_body() {
+        // GIVEN a call asking for a reproducible answer, the way
+        // `ctx.llm.complete(seed=1)` does
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("hello")],
+            seed: Some(1),
+            temperature: Some(0.0),
+            ..Default::default()
+        };
+
+        // WHEN the request is built
+        let body = built_body(&req);
+
+        // THEN the seed is a field of what the server receives, where it used
+        // to be read off the request and never written
+        assert_eq!(body["seed"], serde_json::json!(1));
+        assert_eq!(body["temperature"], serde_json::json!(0.0));
+    }
+
+    #[test]
+    fn a_call_without_a_seed_sends_no_seed_field() {
+        // GIVEN an ordinary call that asks for nothing reproducible
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("hello")],
+            ..Default::default()
+        };
+
+        // WHEN the request is built
+        let body = built_body(&req);
+
+        // THEN the field is absent rather than sent as a null, which some
+        // OpenAI-compatible servers refuse with a 400
+        assert!(body.get("seed").is_none_or(serde_json::Value::is_null));
+    }
+
+    #[test]
+    fn a_seed_above_the_signed_range_stays_distinct_from_its_neighbours() {
+        // GIVEN two seeds past `i64::MAX`, which the wire field cannot spell
+        // WHEN they are narrowed
+        let a = narrow_seed(u64::MAX);
+        let b = narrow_seed(u64::MAX - 1);
+
+        // THEN both are representable and still tell each other apart, where
+        // clamping would have collapsed them onto one value
+        assert_ne!(a, b);
+        assert!(a >= 0 && b >= 0);
+        // AND a seed inside the range is untouched
+        assert_eq!(narrow_seed(42), 42);
+    }
+
+    #[test]
+    fn the_backend_declares_that_it_carries_a_seed() {
+        // GIVEN the OpenAI-compatible client, which every remote provider and
+        // the embedded llama-server are reached through
+        let config = ApiBackendConfig {
+            name: "probe".into(),
+            api_url: "http://127.0.0.1:1/v1".into(),
+            api_key_env: String::new(),
+            model: "test-model".into(),
+            context_window: None,
+            llama_cpp_extensions: false,
+        };
+        let client =
+            OpenAICompatibleClient::new(&config, "sk-no-key".to_owned(), CancellationToken::new());
+
+        // WHEN its capabilities are read
+        // THEN it says a seed reaches the server, so `GET /llm/status` can tell
+        // a caller which backends a seeded call means anything on
+        assert!(client.carries_seed());
+    }
 
     // GIVEN an ApiBackendConfig whose api_key_env is not set in the environment
     // WHEN resolve_api_key() is called

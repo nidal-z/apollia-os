@@ -51,6 +51,18 @@ impl LlmRouter {
             tracing::trace!(prompt = ?req.messages, "llm.request.prompt");
         }
 
+        // A seed the backend cannot carry is dropped on the way out, and the
+        // caller then reads two different answers to the same seeded call as a
+        // non-deterministic model. Say so where it happens.
+        if req.seed.is_some() && !backend.carries_seed() {
+            tracing::warn!(
+                backend = %backend_key,
+                model = %backend.model_id(),
+                detail = "this backend has no seed field, so the call is not reproducible",
+                "llm.seed.dropped"
+            );
+        }
+
         let started = Instant::now();
         let response = match backend.complete(req).await {
             Ok(response) => response,

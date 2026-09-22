@@ -148,6 +148,13 @@ impl CompletionModel for LlamaServerBackend {
         true
     }
 
+    /// Return `true`: the request is built by the OpenAI-compatible client this
+    /// backend wraps, which writes `seed` into the body, and `llama-server`
+    /// reads it.
+    fn carries_seed(&self) -> bool {
+        true
+    }
+
     fn backend_name(&self) -> &str {
         &self.backend_name
     }

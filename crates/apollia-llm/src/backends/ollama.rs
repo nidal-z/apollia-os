@@ -264,6 +264,12 @@ impl CompletionModel for OllamaClient {
         true
     }
 
+    /// Return `true`: the seed travels in `options.seed`, which the native
+    /// Ollama API reads (see `wire::request_body`).
+    fn carries_seed(&self) -> bool {
+        true
+    }
+
     fn backend_name(&self) -> &str {
         &self.config.name
     }

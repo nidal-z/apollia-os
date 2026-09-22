@@ -154,6 +154,7 @@ impl LlmRouter {
                 name: b.backend_name().to_string(),
                 model_id: b.model_id().to_string(),
                 available: b.is_available(),
+                carries_seed: b.carries_seed(),
             })
             .collect()
     }

@@ -43,6 +43,22 @@ pub trait CompletionModel: Send + Sync {
         false
     }
 
+    /// Whether a [`CompletionRequest::seed`] reaches the inference server.
+    ///
+    /// `false` (the default) means the field is dropped on the way out, so two
+    /// calls carrying the same seed are free to answer differently. It is
+    /// reported on [`BackendInfo`] and logged at call time rather than left for
+    /// the caller to discover: a seed silently dropped turns a backend
+    /// limitation into what reads like a non-deterministic model.
+    ///
+    /// Carrying the seed is not a promise of reproducibility. A server is free
+    /// to answer differently on the same seed (continuous batching, a changed
+    /// model build, a pooled fleet), which is why this says what the engine
+    /// sends rather than what the provider guarantees.
+    fn carries_seed(&self) -> bool {
+        false
+    }
+
     /// Maximum context window of the loaded model, in tokens, when known.
     ///
     /// Lets the router size context compaction to the real model window instead
@@ -420,6 +436,11 @@ pub struct BackendInfo {
     pub model_id: String,
     /// `true` if the backend is ready to accept requests.
     pub available: bool,
+    /// `true` if a request seed reaches the inference server.
+    ///
+    /// See [`CompletionModel::carries_seed`]. `false` says the engine cannot
+    /// make a call on this backend reproducible, whatever the caller asks.
+    pub carries_seed: bool,
 }
 
 /// Unified errors for the `apollia-llm` crate.
