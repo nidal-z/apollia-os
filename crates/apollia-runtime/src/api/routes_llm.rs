@@ -96,6 +96,20 @@ pub struct ChatRequest {
     pub prompt: String,
     /// Backend to use; falls back to the router default if omitted.
     pub backend: Option<String>,
+    /// JSON Schema the answer must satisfy, or `null` for free-form generation.
+    ///
+    /// Same contract as `ctx.llm(schema=...)`: the backend turns it into
+    /// whatever decoding constraint it supports, the answer is validated
+    /// against it, and the validated value comes back in `value`.
+    #[serde(default)]
+    #[schema(value_type = Option<Object>)]
+    pub schema: Option<serde_json::Value>,
+    /// Sampling temperature; the backend default when omitted.
+    #[serde(default)]
+    pub temperature: Option<f32>,
+    /// Sampling seed, for a reproducible answer on a backend that carries one.
+    #[serde(default)]
+    pub seed: Option<u64>,
 }
 
 /// Response body for `POST /api/v1/llm/chat` and `POST /api/v1/llm/complete`.
@@ -109,6 +123,13 @@ pub struct ChatResponse {
     pub usage: TokenUsageResponse,
     /// Total round-trip latency in milliseconds.
     pub latency_ms: u64,
+    /// The answer validated against the requested `schema`.
+    ///
+    /// Absent on a free-form call. Present whenever `schema` was given, since a
+    /// call that could not satisfy it answers an error rather than a body.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
+    pub value: Option<serde_json::Value>,
 }
 
 /// A single message in a multi-turn conversation request.
@@ -132,6 +153,20 @@ pub struct CompleteRequest {
     /// Optional GBNF grammar constraining the decoding (local backends).
     #[serde(default)]
     pub grammar: Option<String>,
+    /// JSON Schema the answer must satisfy, or `null` for free-form generation.
+    ///
+    /// A `grammar` already on the request wins over it, being the more specific
+    /// constraint of the two; the answer is validated against the schema either
+    /// way and comes back in `value`.
+    #[serde(default)]
+    #[schema(value_type = Option<Object>)]
+    pub schema: Option<serde_json::Value>,
+    /// Sampling temperature; the backend default when omitted.
+    #[serde(default)]
+    pub temperature: Option<f32>,
+    /// Sampling seed, for a reproducible answer on a backend that carries one.
+    #[serde(default)]
+    pub seed: Option<u64>,
 }
 
 // ─────────────────────────────────────────────
@@ -286,8 +321,12 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
     })?;
 
     let backend_name = req.backend.as_deref();
+    let response_schema = req.schema.clone();
     let completion_req = CompletionRequest {
         messages: vec![ChatMessage::user(req.prompt)],
+        temperature: req.temperature,
+        seed: req.seed,
+        response_schema: response_schema.clone(),
         ..Default::default()
     };
     let obs = ObservabilityConfig::default();
@@ -303,12 +342,9 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
             &obs,
         )
         .await
-        .map_err(|e| {
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(serde_json::json!({"error": e.to_string()})),
-            )
-        })?;
+        .map_err(llm_error_response)?;
+
+    let value = validated_value(&response.content, response_schema.as_ref())?;
 
     Ok(Json(ChatResponse {
         content: response.content,
@@ -319,7 +355,50 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
             cost_usd: response.usage.cost_usd,
         },
         latency_ms: response.latency_ms,
+        value,
     }))
+}
+
+/// Map an [`apollia_llm::LlmError`] onto the status the caller can act on.
+///
+/// A structured-output failure is the caller's to fix, not the backend's to
+/// retry: a schema no grammar can express and an answer the schema refuses are
+/// both 422, where an unreachable backend stays 503. Collapsing the three into
+/// one status is what made a malformed schema look like an outage.
+fn llm_error_response(err: apollia_llm::LlmError) -> (StatusCode, Json<serde_json::Value>) {
+    use apollia_llm::LlmError;
+    let status = match &err {
+        LlmError::StructuredOutputUnavailable { .. }
+        | LlmError::StructuredOutputUnsupported { .. }
+        | LlmError::StructuredOutputInvalid { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+        _ => StatusCode::SERVICE_UNAVAILABLE,
+    };
+    let mut body = serde_json::json!({"error": err.to_string()});
+    if let LlmError::StructuredOutputUnsupported { path, .. }
+    | LlmError::StructuredOutputInvalid { path, .. } = &err
+    {
+        if let Some(map) = body.as_object_mut() {
+            map.insert("path".to_string(), serde_json::Value::String(path.clone()));
+        }
+    }
+    (status, Json(body))
+}
+
+/// Validate `content` against `schema`, when one was asked for.
+///
+/// Returns `None` on a free-form call, so the response body carries no `value`
+/// key at all rather than a null the caller would have to tell apart from a
+/// validated `null`.
+fn validated_value(
+    content: &str,
+    schema: Option<&serde_json::Value>,
+) -> Result<Option<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let Some(schema) = schema else {
+        return Ok(None);
+    };
+    apollia_llm::parse_and_validate(content, schema)
+        .map(Some)
+        .map_err(llm_error_response)
 }
 
 /// Handler for `POST /api/v1/llm/complete`.
@@ -379,9 +458,13 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
         messages.push(msg);
     }
 
+    let response_schema = req.schema.clone();
     let completion_req = CompletionRequest {
         messages,
         grammar: req.grammar,
+        temperature: req.temperature,
+        seed: req.seed,
+        response_schema: response_schema.clone(),
         ..Default::default()
     };
     let obs = ObservabilityConfig::default();
@@ -398,12 +481,9 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
             &obs,
         )
         .await
-        .map_err(|e| {
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(serde_json::json!({"error": e.to_string()})),
-            )
-        })?;
+        .map_err(llm_error_response)?;
+
+    let value = validated_value(&response.content, response_schema.as_ref())?;
 
     Ok(Json(ChatResponse {
         content: response.content,
@@ -414,6 +494,7 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
             cost_usd: response.usage.cost_usd,
         },
         latency_ms: response.latency_ms,
+        value,
     }))
 }
 
@@ -546,6 +627,195 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
         }
+    }
+
+    /// A backend that answers one fixed text, whatever it is asked.
+    ///
+    /// Enough to check what the route does with the answer, which is the half
+    /// the schema keyword changed: the constraint itself is applied by the real
+    /// backends and covered where they are.
+    struct FixedAnswerModel {
+        answer: String,
+    }
+
+    #[async_trait::async_trait]
+    impl apollia_llm::CompletionModel for FixedAnswerModel {
+        async fn complete(
+            &self,
+            _req: apollia_llm::CompletionRequest,
+        ) -> Result<apollia_llm::CompletionResponse, apollia_llm::LlmError> {
+            Ok(apollia_llm::CompletionResponse {
+                content: self.answer.clone(),
+                tool_calls: Vec::new(),
+                usage: apollia_llm::TokenUsage::default(),
+                finish_reason: apollia_llm::FinishReason::Stop,
+                latency_ms: 1,
+                ttft_ms: None,
+                engine_timings: None,
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: apollia_llm::CompletionRequest,
+        ) -> Result<
+            Pin<
+                Box<
+                    dyn futures::Stream<
+                            Item = Result<apollia_llm::StreamChunk, apollia_llm::LlmError>,
+                        > + Send,
+                >,
+            >,
+            apollia_llm::LlmError,
+        > {
+            Err(apollia_llm::LlmError::InferenceError("not used".into()))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &str {
+            "fixed"
+        }
+
+        fn model_id(&self) -> &str {
+            "fixed-model"
+        }
+    }
+
+    /// An app state whose router answers `answer` on the backend `fixed`.
+    async fn state_answering(answer: &str) -> AppState<MockBackend> {
+        let state = test_app_state_no_llm();
+        let model: Arc<dyn apollia_llm::CompletionModel> = Arc::new(FixedAnswerModel {
+            answer: answer.to_owned(),
+        });
+        let mut backends = std::collections::HashMap::new();
+        backends.insert("fixed".to_owned(), model);
+        *state.llm_router.write().await =
+            Some(Arc::new(LlmRouter::with_backends(backends, "fixed")));
+        state
+    }
+
+    /// Send one `POST /api/v1/llm/chat` and read back its status and body.
+    async fn post_chat(
+        state: AppState<MockBackend>,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let app_router = llm_routes::<MockBackend>().with_state(state);
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/llm/chat")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = app_router.oneshot(req).await.expect("request failed");
+        let status = resp.status();
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .expect("read body");
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_schema_on_chat_comes_back_as_a_validated_value() {
+        // GIVEN a backend answering the object a caller asked for, and the
+        // schema that answer has to satisfy. The route used to drop the schema
+        // on the floor: it was not a field of its request type, so serde
+        // discarded it and the caller validated an answer nobody constrained.
+        let state = state_answering("{\"title\": \"Facture\", \"count\": 3}").await;
+
+        // WHEN the schema travels with the prompt
+        let (status, json) = post_chat(
+            state,
+            serde_json::json!({
+                "prompt": "le titre et le nombre de lignes",
+                "backend": "fixed",
+                "schema": {
+                    "type": "object",
+                    "properties": {"title": {"type": "string"}, "count": {"type": "integer"}},
+                    "required": ["title", "count"]
+                }
+            }),
+        )
+        .await;
+
+        // THEN the caller gets the validated value, not a string to parse
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["value"]["title"], "Facture");
+        assert_eq!(json["value"]["count"], 3);
+    }
+
+    #[tokio::test]
+    async fn a_reasoning_prefix_no_longer_makes_a_constrained_answer_unreadable() {
+        // GIVEN a reasoning model whose thinking is inlined ahead of the value,
+        // which is what a server with no template-aware parser hands back
+        let state =
+            state_answering("<think>the user wants a label</think>{\"title\": \"Facture\"}").await;
+
+        // WHEN the same constrained call is made
+        let (status, json) = post_chat(
+            state,
+            serde_json::json!({
+                "prompt": "le titre",
+                "backend": "fixed",
+                "schema": {"type": "object", "properties": {"title": {"type": "string"}}}
+            }),
+        )
+        .await;
+
+        // THEN the value is read, where the caller used to get "the answer is
+        // not JSON" over text the model never meant as its answer
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["value"]["title"], "Facture");
+    }
+
+    #[tokio::test]
+    async fn an_answer_the_schema_refuses_is_a_422_naming_the_path() {
+        // GIVEN an answer that is JSON but misses a required property
+        let state = state_answering("{\"title\": \"Facture\"}").await;
+
+        // WHEN it is checked against the schema that was asked for
+        let (status, json) = post_chat(
+            state,
+            serde_json::json!({
+                "prompt": "le titre et le nombre de lignes",
+                "backend": "fixed",
+                "schema": {
+                    "type": "object",
+                    "properties": {"title": {"type": "string"}, "count": {"type": "integer"}},
+                    "required": ["title", "count"]
+                }
+            }),
+        )
+        .await;
+
+        // THEN the caller gets the field it has to branch on, and a status that
+        // says the request is the thing to fix rather than the backend
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(json["path"], "$.count");
+    }
+
+    #[tokio::test]
+    async fn a_free_form_call_carries_no_value_key_at_all() {
+        // GIVEN a call that asks for no schema
+        let state = state_answering("une phrase libre").await;
+
+        // WHEN it is made
+        let (status, json) = post_chat(
+            state,
+            serde_json::json!({"prompt": "bonjour", "backend": "fixed"}),
+        )
+        .await;
+
+        // THEN nothing about the response changed, so an existing caller reads
+        // exactly what it read before
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["content"], "une phrase libre");
+        assert!(json.get("value").is_none());
     }
 
     // GIVEN an AppState with llm_router = None
