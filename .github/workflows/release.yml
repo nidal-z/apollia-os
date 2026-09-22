@@ -1926,6 +1926,28 @@ jobs:
           COSIGN_YES: "true"
         run: |
           shopt -s nullglob
+          # Each call fetches its own ambient OIDC token from GitHub's Actions
+          # endpoint, and this loop makes 40+ such calls back to back. That
+          # endpoint occasionally answers a burst of requests with a
+          # non-JSON body ("invalid character '<x>' looking for beginning of
+          # value" out of cosign, whatever the first byte of the error page
+          # happens to be), which is transient, not a real credential
+          # failure: the surrounding calls in the same run succeed. Retried
+          # five times with a short backoff rather than failing the whole,
+          # expensive multi-platform job on one flaked token fetch.
+          sign_with_retry() {
+            local f="$1" attempt
+            for attempt in 1 2 3 4 5; do
+              if cosign sign-blob --yes --bundle "$f.cosign.bundle" "$f"; then
+                return 0
+              fi
+              echo "::warning::cosign sign-blob failed for $f (attempt $attempt/5), retrying" >&2
+              rm -f "$f.cosign.bundle"
+              sleep "$((attempt * 5))"
+            done
+            echo "::error::cosign sign-blob failed for $f after 5 attempts" >&2
+            return 1
+          }
           # The publication list, plus the inventory and its detached
           # signature, which are written after it and are published too.
           # Walking artifacts/ instead signed twelve build inputs the release
@@ -1934,11 +1956,11 @@ jobs:
           while IFS= read -r name; do
             f="artifacts/$name"
             [ -f "$f" ] || continue
-            cosign sign-blob --yes --bundle "$f.cosign.bundle" "$f"
+            sign_with_retry "$f"
           done < "$RUNNER_TEMP/published.txt"
           for f in artifacts/SHA256SUMS artifacts/SHA256SUMS.asc; do
             [ -f "$f" ] || continue
-            cosign sign-blob --yes --bundle "$f.cosign.bundle" "$f"
+            sign_with_retry "$f"
           done
 
       # ── SLSA build provenance attestation over the binaries + SBOMs ─────────
