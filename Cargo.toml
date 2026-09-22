@@ -201,7 +201,7 @@ semver    = "1"
 scopeguard = "1"
 
 # --- mDNS service discovery (apollia-mcp) ---
-mdns-sd = "0.20"
+mdns-sd = "0.21"
 
 # --- Triggers (apollia-triggers) ---
 chrono = { version = "0.4", features = ["serde"] }
