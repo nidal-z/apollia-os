@@ -3,7 +3,7 @@
 
 [agent]
 name = "onboarding-agent"
-version = "0.1.0-preview"
+version = "0.2.0-preview"
 description = "First user contact - two-phase calibration: the four Tier 1 facts, then profile enrichment"
 license = "MIT OR Apache-2.0"
 authors = ["Nidal Zoumita <contact@apollia.fr>"]
@@ -26,7 +26,7 @@ dangerous_tools_allowed = false
 
 [agent.runtime]
 python = ">=3.10"
-apollia_sdk = "==0.1.0-preview"
+apollia_sdk = "==0.2.0-preview"
 
 [agent.dependencies]
 packages = []

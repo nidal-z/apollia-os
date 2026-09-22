@@ -103,8 +103,8 @@ fn is_missing_manifest(err: &UpdaterError) -> bool {
 pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult, String> {
     // Displayed, not compared. `app.package_info().version` carries the
     // `tauri.conf.json` value, which differs on purpose: WiX rejects a
-    // non-numeric pre-release identifier, so the bundle is stamped `0.1.0-1`
-    // while the product is `0.1.0-preview`. The plugin keeps comparing against
+    // non-numeric pre-release identifier, so the bundle is stamped `0.2.0-1`
+    // while the product is `0.2.0-preview`. The plugin keeps comparing against
     // its own value; showing it here would put two versions in front of the
     // operator, one on this panel and another on the About screen.
     //
@@ -115,7 +115,7 @@ pub async fn check_for_update(app: tauri::AppHandle) -> Result<UpdateCheckResult
     // That step must stamp the `tauri.conf.json` version, never the git tag:
     // a manifest carrying the tag would read as permanently newer than the
     // installed build, because SemVer ranks a numeric pre-release identifier
-    // below an alphanumeric one, so `0.1.0-1` sorts below `0.1.0-preview`.
+    // below an alphanumeric one, so `0.2.0-1` sorts below `0.2.0-preview`.
     let current_version = env!("CARGO_PKG_VERSION").to_string();
 
     // Self-update needs a signing key: the plugin verifies the downloaded

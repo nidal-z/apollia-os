@@ -11,7 +11,7 @@ use super::default_config_path;
 /// System information shown in the Advanced section of Settings.
 #[derive(Debug, Serialize)]
 pub struct SystemInfo {
-    /// Apollia OS version (e.g. `"0.1.0-preview"`). The About screen reads the
+    /// Apollia OS version (e.g. `"0.2.0-preview"`). The About screen reads the
     /// pre-release suffix from it to label the release channel.
     pub version: String,
     /// Operating system and architecture (e.g. `"macos aarch64"`).

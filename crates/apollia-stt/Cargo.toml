@@ -1,6 +1,6 @@
 [package]
 name = "apollia-stt"
-version = "0.1.0-preview"
+version = "0.2.0-preview"
 edition.workspace = true
 rust-version.workspace = true
 description = "Apollia OS Speech-to-Text traits, types and repository (the whisper engine lives in the apollia-runner sidecar)"

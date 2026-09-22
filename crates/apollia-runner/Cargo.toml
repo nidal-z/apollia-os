@@ -1,6 +1,6 @@
 [package]
 name = "apollia-runner"
-version = "0.1.0-preview"
+version = "0.2.0-preview"
 edition.workspace = true
 rust-version.workspace = true
 description = "Apollia OS sidecar runner for local speech-to-text (STT) inference"

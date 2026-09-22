@@ -50,11 +50,11 @@ tels que le bundler les écrit :
 <!-- release-artifacts:begin - genere depuis packaging/artifacts.json par docs/site/regen.sh ; ne pas editer a la main -->
 | Plateforme | Fichiers sur la page de release |
 |---|---|
-| macOS (Apple Silicon) | `Apollia-OS_0.1.0-1_aarch64.dmg` |
-| Linux (x86-64) | `Apollia-OS_0.1.0-1_amd64.AppImage`, `Apollia-OS_0.1.0-1_amd64.deb` |
-| Windows (x86-64) | `Apollia-OS_0.1.0-1_x64_en-US.msi`, `Apollia-OS_0.1.0-1_x64-setup.exe` |
-| Linux (x86-64), moteur CUDA | `Apollia-OS_0.1.0-1_amd64-cuda.deb` |
-| Windows (x86-64), moteur CUDA | `Apollia-OS_0.1.0-1_x64_en-US-cuda.msi`, `Apollia-OS_0.1.0-1_x64-setup-cuda.exe` |
+| macOS (Apple Silicon) | `Apollia-OS_0.2.0-1_aarch64.dmg` |
+| Linux (x86-64) | `Apollia-OS_0.2.0-1_amd64.AppImage`, `Apollia-OS_0.2.0-1_amd64.deb` |
+| Windows (x86-64) | `Apollia-OS_0.2.0-1_x64_en-US.msi`, `Apollia-OS_0.2.0-1_x64-setup.exe` |
+| Linux (x86-64), moteur CUDA | `Apollia-OS_0.2.0-1_amd64-cuda.deb` |
+| Windows (x86-64), moteur CUDA | `Apollia-OS_0.2.0-1_x64_en-US-cuda.msi`, `Apollia-OS_0.2.0-1_x64-setup-cuda.exe` |
 <!-- release-artifacts:end -->
 
 Chaque release fournit également un fichier `SHA256SUMS`. Pour vérifier que

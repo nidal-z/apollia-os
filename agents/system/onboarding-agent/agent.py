@@ -1145,7 +1145,7 @@ _SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
 
 @agent(
     name="onboarding-agent",
-    version="0.1.0-preview",
+    version="0.2.0-preview",
     description=(
         "First user contact - two-phase calibration: the four Tier 1 facts, then profile enrichment"
     ),

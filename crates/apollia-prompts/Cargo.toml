@@ -1,6 +1,6 @@
 [package]
 name = "apollia-prompts"
-version = "0.1.0-preview"
+version = "0.2.0-preview"
 edition.workspace = true
 rust-version.workspace = true
 description = "Apollia OS - single source of truth for system-prompt blocks and their composition (chat, ORIA, critic)"

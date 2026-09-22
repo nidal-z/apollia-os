@@ -124,7 +124,7 @@ def test_version():
     from apollia import __version__
 
     # THEN it matches the product version this SDK ships with
-    assert __version__ == "0.1.0-preview"
+    assert __version__ == "0.2.0-preview"
 
 
 def test_new_public_api_exports():
