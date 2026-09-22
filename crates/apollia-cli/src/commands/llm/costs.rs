@@ -394,7 +394,13 @@ mod tests {
 
     #[test]
     fn cost_threshold_file_is_the_one_the_runtime_reads() {
-        // GIVEN no explicit --config override on `llm costs`
+        // GIVEN no explicit --config override on `llm costs`, and HOME held
+        // under the shared lock so a `doctor` test on another thread cannot
+        // resolve it against a fake HOME mid-swap while it mutates its own.
+        // `blocking_lock` is safe here: this is a plain `#[test]`, never
+        // polled on a tokio runtime thread.
+        let _guard = crate::commands::HOME_ENV_LOCK.blocking_lock();
+
         // WHEN the threshold path is resolved
         let costs_path = resolve_apollia_toml(None);
 

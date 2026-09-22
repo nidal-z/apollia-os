@@ -51,6 +51,22 @@ mod truncate_tests {
     }
 }
 
+/// Process-wide lock for tests that read or write the `HOME` env var.
+///
+/// `HOME` is a process global, and the test harness runs the whole binary's
+/// tests on a shared thread pool. `doctor` fakes one to probe a clean-home
+/// run, holding it across an `.await`, so this is a `tokio::sync::Mutex`
+/// rather than a `std` one: a plain sync `#[test]` locks it with
+/// [`tokio::sync::Mutex::blocking_lock`] (safe off a runtime thread, which a
+/// bare `#[test]` always is), an async one with `.lock().await`. `llm::costs`
+/// reads the resolved config path twice in the same test and asserts the two
+/// calls agree, which a `doctor` test running on another thread mid-mutation
+/// can make untrue for no reason either call is wrong. Every site that sets
+/// or reads `HOME` for a test takes this guard for the whole duration of its
+/// assertions, and restores the previous value before dropping it.
+#[cfg(test)]
+pub(crate) static HOME_ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 pub mod a2a;
 pub mod agent;
 pub mod audit;
