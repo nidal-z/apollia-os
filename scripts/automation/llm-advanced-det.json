@@ -121,7 +121,7 @@
     },
     {
       "kind": "fill",
-      "testid": "llm-dialog-context-size",
+      "testid": "llm-dialog-context-window",
       "text": "8192"
     },
     {
