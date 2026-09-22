@@ -164,4 +164,3 @@ describe("Gemma 4 reasoning markers", () => {
     expect(normaliseReasoningMarkers("Hello there.")).toBe("Hello there.");
   });
 });
-
