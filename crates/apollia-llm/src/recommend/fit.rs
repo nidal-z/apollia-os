@@ -543,7 +543,10 @@ mod tests {
     #[test]
     fn gemma3_holds_most_layers_at_the_sliding_window() {
         // GIVEN Gemma 3 4B and the runtime's own launch settings
-        let layout = cache_layout(&gemma3_4b(), &RuntimeShape::default()).expect("a layout");
+        let facts = gemma3_4b();
+
+        // WHEN its cache layout is computed
+        let layout = cache_layout(&facts, &RuntimeShape::default()).expect("a layout");
 
         // THEN 29 of 34 layers hold a padded 1536-cell window and 5 hold the
         // full context, exactly as the engine allocates them

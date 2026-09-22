@@ -63,6 +63,41 @@ moves `hitl.db` to schema v2. Nothing is removed from the public API.
 - Desktop: the operator chooses the model download folder, in onboarding (LLM
   and STT) and in the Model Hub, for machines whose default `~/.apollia/models`
   drive has no room.
+- Model recommendations measured against the machine. Onboarding, `GET
+  /api/v1/llm/recommend` and `apollia-os model recommend` rank live
+  HuggingFace files instead of a hardcoded list. A curated table
+  (`families.toml`) names the generations, which one supersedes which, and a
+  capability score per size; a newer generation is never ranked below one it
+  supersedes. Each candidate's GGUF header is read by range request (a few
+  hundred KiB, stopping at the end of the header) to check that the bundled
+  llama.cpp loads its architecture and pre-tokenizer, from tables generated
+  against the pinned engine tag (`scripts/gen_llama_support.py --check` runs as
+  a pre-commit hook). Memory is estimated per layer, the way the engine
+  allocates it: sliding-window, hybrid and recurrent layers, per-layer KV heads.
+  The planner searches quantisations (not only `Q4_K_M`), judges a mixture of
+  experts by the share it reads per token, and ranks by estimated throughput on
+  unified memory, a discrete card with partial offload, or the processor alone.
+- The embedded engine is launched with an `-ngl` planned from the same model on
+  a discrete card, so a model larger than the card runs split instead of failing
+  to load. `APOLLIA_LLAMA_N_GPU_LAYERS` still wins.
+- The context window is chosen in onboarding and in the backend settings
+  (**Context window**), stored as `config_json.context_window`, and honoured
+  everywhere: the embedded engine launches each model with that window (one
+  process per model and window), Ollama is asked for it on every call, and
+  compaction and the context gauge are sized against it.
+  `APOLLIA_LLAMA_N_CTX` still wins over a backend's value. A window larger than
+  the model's training length (read from its GGUF header, or from Ollama's
+  `/api/show`) is capped at it, and the recommendation row says so.
+- A tool call whose arguments do not fit the tool's schema (a missing required
+  parameter, a misnamed one, a string for a list, a value outside an enum) does
+  not run: the model gets every problem at once and the tool's usage card, its
+  parameters with types, allowed values and descriptions. The check tolerates
+  what executors accept (`"30"` for an integer). A call repeated verbatim a
+  third time in one turn is answered with a reminder instead of running.
+- A native Ollama client (`/api/chat`) replaces the OpenAI-compatible path for
+  Ollama backends. It sends `options.num_ctx`, separates a thinking model's
+  reasoning, and carries tool calls with object arguments. A stored `.../v1`
+  endpoint keeps working.
 
 ### Changed
 
@@ -85,6 +120,31 @@ moves `hitl.db` to schema v2. Nothing is removed from the public API.
   say the per-server approval level governs agent tasks, not chat.
 - The file-watch trigger tests wait for the watch to be registered instead of a
   fixed delay.
+- The recommendation rows name the memory they are measured against: a model
+  that runs entirely on a discrete card is graded against the card's video
+  memory, a model too large for it is reported as a split between video memory
+  and system RAM (never as a comfortable fit), and the line under the list names
+  RAM and video memory separately. The memory figure includes the engine's own
+  buffers. A model estimated below four tokens per second is withheld while a
+  faster one fits. The "no pre-tokenizer" caveat is raised only for BPE
+  vocabularies, the one kind the engine reads the field for.
+- Connector tools (Google, Microsoft) are advertised to the chat model only
+  while that connector has an account, checked on every turn. On a fresh
+  session they were about 9000 of the 13400 tokens of a first call.
+- The embedded llama-server runs with `--reasoning-format auto`, so a template
+  that opens its own reasoning channel (Gemma 4) is parsed by the engine.
+- Choosing another model during onboarding updates the `local` backend instead
+  of leaving the first one wired.
+- The assisted-tier system prompt no longer carries the Google chaining rules on
+  every call; the Google tool descriptions already hold them, and are sent only
+  while an account is connected.
+- CI and CodeQL run on pushes to `develop` too, and CodeQL can be dispatched by
+  hand. The Rust test job frees the runner's unused SDKs and builds with line
+  tables only, after it ran out of disk. Release build artifacts are kept seven
+  days instead of thirty, which had filled the artifact quota.
+- `rustls` 0.23.45 (RUSTSEC-2026-0285) and `devalue` 5.9.4 (GHSA-9rgm-9g3h-6x36).
+- The three runtime tests that exercise a Unix socket are Unix-only, so the
+  runtime test suite compiles on Windows.
 
 ### Fixed
 
@@ -121,8 +181,30 @@ moves `hitl.db` to schema v2. Nothing is removed from the public API.
 - The block that injects past session summaries into the first message of a free
   chat is framed as background not to act on, after a local model re-issued a
   stale tool call from an unrelated session.
+- The onboarding recommendation step loaded forever: an effect re-ran the full
+  HuggingFace resolution each time the previous one finished. It now runs once,
+  under a 90 s deadline, and the answer is cached for ten minutes.
+- An Ollama backend ran at Ollama's own default window (4096 tokens on a 16 GB
+  card) whatever Apollia believed: the OpenAI-compatible endpoint has no field
+  for it, and Ollama cut longer prompts from the front without an error. The
+  model lost its system prompt, its tools and then the conversation, and
+  Apollia compacted on every turn.
+- The settings dialog's context size was written to a key nothing read, and the
+  HuggingFace auto-fill put `max_new_tokens` in it. The field is now the context
+  window, and a row saved with the old key is honoured.
+- Gemma 4 reasoning (`<|channel>thought ... <channel|>`) was shown as answer
+  text, and an unmatched closing marker leaked into the chat.
+- Compaction could summarise away the turn being answered, injected its summary
+  as a fake user message, and kept a thinking model's reasoning in the summary.
+  The current turn is protected, the summary goes to the system prompt as
+  background, and reasoning is stripped.
+- The context gauge summed every call of a turn; it now shows the last call's
+  tokens against the window.
+- Parsing an automation request could panic on text holding a character whose
+  lowercase form is longer (`İ`), found by the `parse_automation` fuzz target.
+- `apollia-os model recommend` had no parsing test and no end-to-end invocation.
 
-## [0.1.0-preview] - Unreleased
+## [0.1.0-preview]
 
 Initial public preview. Local-first Rust runtime for autonomous AI agents,
 single-maintainer. The date and the tag land when the release is published.
@@ -289,5 +371,5 @@ cycle, before anything was published.
 - Private vulnerability reporting via GitHub Security Advisories.
 
 [Unreleased]: https://github.com/Apollia-OS/apollia-os/commits/main
-[0.2.0-preview]: https://github.com/Apollia-OS/apollia-os/releases/tag/v0.2.0-preview
+[0.2.0-preview]: https://github.com/Apollia-OS/apollia-os/compare/v0.1.0-preview...main
 [0.1.0-preview]: https://github.com/Apollia-OS/apollia-os/releases/tag/v0.1.0-preview

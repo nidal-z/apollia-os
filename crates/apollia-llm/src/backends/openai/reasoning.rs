@@ -37,11 +37,10 @@ pub(super) struct ReasoningChoice {
 }
 /// Reasoning a server streams beside the content instead of inside it.
 ///
-/// The embedded `llama-server` runs with `--reasoning-format none`, so a
-/// reasoning model's thoughts stay inline in `content` as `<think>` tags, which
-/// is what the chat pipeline parses. Other OpenAI-compatible servers split them
-/// out instead: Ollama uses `reasoning`, vLLM and DeepSeek use
-/// `reasoning_content`. A client that reads only `content` drops them entirely,
+/// The chat pipeline parses reasoning inline, as `<think>` tags in `content`.
+/// Most servers split it out instead: the embedded `llama-server` (run with
+/// `--reasoning-format auto`, so its template-aware parser does the split) and
+/// vLLM and DeepSeek use `reasoning_content`, Ollama uses `reasoning`. A client that reads only `content` drops them entirely,
 /// which on a reasoning model means the user watches an empty screen for the
 /// whole thinking phase and the pipeline sees no reasoning at all.
 ///

@@ -14,6 +14,7 @@
 //! regardless of which feature is enabled.
 
 pub mod backends;
+pub mod context_window;
 pub mod downloader;
 pub mod gguf_probe;
 pub mod grammar;
@@ -25,6 +26,7 @@ pub mod meta;
 pub mod meta_orchestrator;
 pub mod model_defaults;
 pub mod pricing;
+pub mod reasoning_markers;
 pub mod recommend;
 pub mod repository;
 pub mod retry;

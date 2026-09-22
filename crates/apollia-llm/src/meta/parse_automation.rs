@@ -341,7 +341,12 @@ fn match_agent(folded: &str, known: &[String]) -> Option<AgentMatch> {
 
 /// Extracts a payload after "de " or "to " ("... demande de résumer mes specs").
 fn extract_payload(original: &str) -> Option<String> {
-    let lower = original.to_lowercase();
+    // ASCII folding only: the separators are ASCII, and an offset found in the
+    // folded text must slice the original. `to_lowercase` changes the byte
+    // length of some characters (`İ` becomes two code points), which moved the
+    // offset inside a character and panicked on the slice below, as the
+    // `parse_automation` fuzz target found.
+    let lower = original.to_ascii_lowercase();
     for sep in [" de ", " to ", " : ", ": "] {
         if let Some(idx) = lower.find(sep) {
             let rest = original[idx + sep.len()..].trim();
@@ -549,6 +554,19 @@ fn humanize_interval_en(seconds: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_character_that_lengthens_when_lowercased_does_not_panic() {
+        // GIVEN text where `İ` (two bytes, three once lowercased) precedes a
+        // separator, which shifted a full-Unicode offset inside a character
+        let text = "İİİ rappelle-moi de relire mes notes";
+
+        // WHEN the payload is extracted
+        let payload = extract_payload(text);
+
+        // THEN it is the text after the separator, cut on a character boundary
+        assert_eq!(payload.as_deref(), Some("relire mes notes"));
+    }
     use chrono::TimeZone;
 
     fn now() -> DateTime<Utc> {

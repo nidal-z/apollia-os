@@ -96,10 +96,14 @@ pub enum Caveat {
         missing: Vec<String>,
     },
 
-    /// The header declared no pre-tokenizer.
+    /// A byte-level BPE tokenizer declared no pre-tokenizer.
     ///
     /// Legacy conversions predate the field. The engine falls back to its
     /// default, which is usually right and occasionally tokenises subtly wrong.
+    /// Only raised for BPE (`tokenizer.ggml.model = "gpt2"`), the one family
+    /// the engine consults the field for: a SentencePiece model such as Gemma
+    /// has no pre-tokenizer to declare, and flagging it only taught operators
+    /// to ignore the caveat.
     NoPreTokenizer,
 }
 
@@ -214,6 +218,11 @@ pub fn assess(file_name: &str, facts: &GgufHeaderFacts) -> Verdict {
         }
         Some(_) => {}
         None if facts.truncated => {}
+        // llama.cpp reads `tokenizer.ggml.pre` only for BPE vocabularies.
+        None if facts
+            .tokenizer_model
+            .as_deref()
+            .is_some_and(|model| model != "gpt2") => {}
         None => caveats.push(Caveat::NoPreTokenizer),
     }
 
@@ -295,6 +304,35 @@ mod tests {
         assert!(blockers
             .iter()
             .any(|b| matches!(b, Blocker::NotGenerative { .. })));
+    }
+
+    #[test]
+    fn a_missing_pre_tokenizer_matters_only_for_bpe() {
+        // GIVEN two headers without a pre-tokenizer, one SentencePiece (as
+        // Gemma ships) and one byte-level BPE
+        let mut spm = GgufHeaderFacts {
+            version: 3,
+            architecture: Some("gemma3".to_owned()),
+            tokenizer_model: Some("llama".to_owned()),
+            has_chat_template: true,
+            block_count: Some(34),
+            ..GgufHeaderFacts::default()
+        };
+        let mut bpe = spm.clone();
+        bpe.architecture = Some("qwen3".to_owned());
+        bpe.tokenizer_model = Some("gpt2".to_owned());
+        spm.tokenizer_pre = None;
+        bpe.tokenizer_pre = None;
+
+        // WHEN both are assessed
+        let spm_caveats = assess("gemma.gguf", &spm);
+        let bpe_caveats = assess("qwen.gguf", &bpe);
+
+        // THEN only the BPE one carries the caveat, since the engine never
+        // reads the field for a SentencePiece vocabulary
+        let has = |v: &Verdict| matches!(v, Verdict::Caveats { caveats } if caveats.contains(&Caveat::NoPreTokenizer));
+        assert!(!has(&spm_caveats));
+        assert!(has(&bpe_caveats));
     }
 
     #[test]

@@ -64,6 +64,10 @@ pub enum LlamaServerError {
 /// model therefore means a second process, not a reconfiguration of this one.
 struct Instance {
     model_path: String,
+    /// Context window (`-c`) this process was launched with. Part of the
+    /// instance's identity: a backend asking for another window for the same
+    /// model needs another launch, not this process.
+    n_ctx: u32,
     port: u16,
     child: Child,
     /// Value of the supervisor's tick when this instance was last requested.
@@ -139,10 +143,13 @@ const SUPERVISION_POLL: Duration = Duration::from_secs(2);
 /// `Arc` by the runtime so the supervision task can respawn a dead child.
 pub struct LlamaServerSupervisor {
     bin_path: PathBuf,
-    /// Context window the server is launched with (`-c`), reported to the router
-    /// as the model's usable window so it can size compaction. Immutable: every
-    /// (re)spawn uses the same value.
+    /// Default context window (`-c`), for a backend that asks for none. Already
+    /// resolved against `APOLLIA_LLAMA_N_CTX`.
     n_ctx: u32,
+    /// Whether `APOLLIA_LLAMA_N_CTX` is set. An operator who pinned the window
+    /// in the environment has said what they want, and it wins over what a
+    /// backend asks for.
+    n_ctx_pinned: bool,
     /// How many models may stay resident simultaneously. At least one.
     max_loaded: usize,
     /// Launch configuration shared by every instance. Its `model_path` is a
@@ -177,9 +184,11 @@ impl LlamaServerSupervisor {
         // agree.
         let n_ctx = resolve_env_overrides(&config, env_getter).n_ctx;
         let max_loaded = resolve_max_loaded(env_getter);
+        let n_ctx_pinned = env_getter(config::ENV_N_CTX).is_some();
         Ok(Arc::new(Self {
             bin_path,
             n_ctx,
+            n_ctx_pinned,
             max_loaded,
             config: Arc::new(Mutex::new(config)),
             instances: Arc::new(Mutex::new(Vec::new())),
@@ -189,9 +198,23 @@ impl LlamaServerSupervisor {
         }))
     }
 
-    /// Context window (`-c`) the server is launched with, in tokens.
+    /// Default context window (`-c`), in tokens, for a backend that sets none.
     pub fn n_ctx(&self) -> u32 {
         self.n_ctx
+    }
+
+    /// The window a backend asking for `requested` is actually launched with.
+    ///
+    /// The backend's own `context_window` (chosen at onboarding or in the
+    /// settings) wins over the default; `APOLLIA_LLAMA_N_CTX` wins over both.
+    /// Reported to the router by the backend, so compaction and the context
+    /// gauge are sized against the window the process really has.
+    #[must_use]
+    pub fn effective_n_ctx(&self, requested: Option<u32>) -> u32 {
+        if self.n_ctx_pinned {
+            return self.n_ctx;
+        }
+        requested.filter(|n| *n > 0).unwrap_or(self.n_ctx)
     }
 
     /// Number of models kept resident at once.
@@ -216,21 +239,28 @@ impl LlamaServerSupervisor {
     ///
     /// [`LlamaServerError`] when the process cannot be spawned or never becomes
     /// healthy.
-    pub async fn ensure_model(&self, model_path: String) -> Result<String, LlamaServerError> {
+    pub async fn ensure_model(
+        &self,
+        model_path: String,
+        n_ctx: Option<u32>,
+    ) -> Result<String, LlamaServerError> {
+        let n_ctx = self.effective_n_ctx(n_ctx);
         let _guard = self.respawn_lock.lock().await;
-        if let Some(url) = self.touch_live_instance(&model_path).await {
+        if let Some(url) = self.touch_live_instance(&model_path, n_ctx).await {
             return Ok(url);
         }
         self.evict_until_below_ceiling().await;
-        self.spawn_instance(model_path).await
+        self.spawn_instance(model_path, n_ctx).await
     }
 
     /// Return the base URL of a live instance for `model_path`, marking it as
     /// just used. Drops an instance whose process has died, so the caller
     /// respawns instead of handing out a dead port.
-    async fn touch_live_instance(&self, model_path: &str) -> Option<String> {
+    async fn touch_live_instance(&self, model_path: &str, n_ctx: u32) -> Option<String> {
         let mut instances = self.instances.lock().await;
-        let idx = instances.iter().position(|i| i.model_path == model_path)?;
+        let idx = instances
+            .iter()
+            .position(|i| i.model_path == model_path && i.n_ctx == n_ctx)?;
         if !instances[idx].is_running() {
             let dead = instances.remove(idx);
             tracing::warn!(model = %dead.model_path, port = dead.port, "llama.server.instance.dead");
@@ -282,7 +312,7 @@ impl LlamaServerSupervisor {
             // not succeeded yet. Carried across iterations so a failure is
             // retried under backoff instead of being forgotten, which is what
             // keeps an endpoint alive between two requests.
-            let mut owed: Vec<String> = Vec::new();
+            let mut owed: Vec<(String, u32)> = Vec::new();
 
             loop {
                 if *self.shutting_down.lock().await {
@@ -294,14 +324,14 @@ impl LlamaServerSupervisor {
                 // launches llama-server without a `-m`. An evicted model is
                 // absent from this list on purpose: it was stopped deliberately
                 // and must not come back on its own.
-                for (model_path, reason) in self.take_dead_instances().await {
+                for (model_path, n_ctx, reason) in self.take_dead_instances().await {
                     tracing::error!(
                         model = %model_path,
                         reason = %reason,
                         "llama.server.exited"
                     );
-                    if !owed.contains(&model_path) {
-                        owed.push(model_path);
+                    if !owed.contains(&(model_path.clone(), n_ctx)) {
+                        owed.push((model_path, n_ctx));
                     }
                 }
 
@@ -319,13 +349,13 @@ impl LlamaServerSupervisor {
                 // Serialise with ensure_model so two spawns never race.
                 let _guard = self.respawn_lock.lock().await;
                 let mut still_owed = Vec::new();
-                for model_path in owed.drain(..) {
+                for (model_path, n_ctx) in owed.drain(..) {
                     // A caller may have re-requested this model while we waited
                     // for the lock, in which case it is live again.
-                    if self.touch_live_instance(&model_path).await.is_some() {
+                    if self.touch_live_instance(&model_path, n_ctx).await.is_some() {
                         continue;
                     }
-                    match self.spawn_instance(model_path.clone()).await {
+                    match self.spawn_instance(model_path.clone(), n_ctx).await {
                         Ok(_) => tracing::info!(model = %model_path, "llama.server.respawned"),
                         Err(e) => {
                             tracing::error!(
@@ -333,7 +363,7 @@ impl LlamaServerSupervisor {
                                 error = %e,
                                 "llama.server.respawn.failed"
                             );
-                            still_owed.push(model_path);
+                            still_owed.push((model_path, n_ctx));
                         }
                     }
                 }
@@ -356,6 +386,7 @@ impl LlamaServerSupervisor {
         Self {
             bin_path: PathBuf::from("/nonexistent/llama-server"),
             n_ctx: 32_768,
+            n_ctx_pinned: false,
             max_loaded: 1,
             config: Arc::new(Mutex::new(LlamaServerConfig::default())),
             instances: Arc::new(Mutex::new(Vec::new())),
@@ -380,6 +411,7 @@ impl LlamaServerSupervisor {
         Arc::new(Self {
             bin_path: std::path::PathBuf::from("/nonexistent/llama-server"),
             n_ctx: 32_768,
+            n_ctx_pinned: false,
             max_loaded: 1,
             config: Arc::new(Mutex::new(LlamaServerConfig::default())),
             instances: Arc::new(Mutex::new(Vec::new())),
@@ -401,17 +433,25 @@ impl LlamaServerSupervisor {
 
     /// Remove every instance whose process has exited, returning what they were
     /// serving and why they are gone, so the caller can respawn them.
-    async fn take_dead_instances(&self) -> Vec<(String, String)> {
+    async fn take_dead_instances(&self) -> Vec<(String, u32, String)> {
         let mut instances = self.instances.lock().await;
         let mut dead = Vec::new();
         instances.retain_mut(|instance| match instance.child.try_wait() {
             Ok(None) => true,
             Ok(Some(status)) => {
-                dead.push((instance.model_path.clone(), status.to_string()));
+                dead.push((
+                    instance.model_path.clone(),
+                    instance.n_ctx,
+                    status.to_string(),
+                ));
                 false
             }
             Err(e) => {
-                dead.push((instance.model_path.clone(), format!("try_wait failed: {e}")));
+                dead.push((
+                    instance.model_path.clone(),
+                    instance.n_ctx,
+                    format!("try_wait failed: {e}"),
+                ));
                 false
             }
         });
@@ -423,9 +463,16 @@ impl LlamaServerSupervisor {
     /// Picks a free loopback port, resolves the `APOLLIA_LLAMA_` overrides onto
     /// the stored configuration, launches, drains the logs into tracing, and
     /// polls `/health`. Returns the base URL that serves the model.
-    async fn spawn_instance(&self, model_path: String) -> Result<String, LlamaServerError> {
+    async fn spawn_instance(
+        &self,
+        model_path: String,
+        n_ctx: u32,
+    ) -> Result<String, LlamaServerError> {
         let mut config = resolve_env_overrides(&*self.config.lock().await, env_getter);
         config.model_path = model_path;
+        // Already resolved by `effective_n_ctx`: the environment, then the
+        // backend's own window, then the default.
+        config.n_ctx = n_ctx;
 
         // The count is planned from the model and the machine on a discrete
         // accelerator; see `ngl` for why the literal 999 was wrong there.
@@ -505,6 +552,7 @@ impl LlamaServerSupervisor {
 
         let instance = Instance {
             model_path: config.model_path,
+            n_ctx: config.n_ctx,
             port,
             child,
             last_used: self.next_tick(),
@@ -688,6 +736,7 @@ mod tests {
         LlamaServerSupervisor {
             bin_path: PathBuf::from("/nonexistent/llama-server"),
             n_ctx: 32_768,
+            n_ctx_pinned: false,
             max_loaded,
             config: Arc::new(Mutex::new(LlamaServerConfig::default())),
             instances: Arc::new(Mutex::new(Vec::new())),
@@ -706,6 +755,7 @@ mod tests {
             .expect("spawning sleep must succeed");
         Instance {
             model_path: model.to_owned(),
+            n_ctx: sup.n_ctx(),
             port,
             child,
             last_used: sup.next_tick(),
@@ -751,7 +801,7 @@ mod tests {
         let instance = live_instance(&sup, "/models/a.gguf", 9001).await;
         sup.instances.lock().await.push(instance);
 
-        let url = sup.touch_live_instance("/models/a.gguf").await;
+        let url = sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
 
         assert_eq!(url.as_deref(), Some("http://127.0.0.1:9001/v1"));
         assert_eq!(sup.instances.lock().await.len(), 1);
@@ -769,7 +819,7 @@ mod tests {
         sup.instances.lock().await.push(a);
         sup.instances.lock().await.push(b);
         // Re-request A, making B the least recently used.
-        sup.touch_live_instance("/models/a.gguf").await;
+        sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
 
         sup.evict_until_below_ceiling().await;
 
@@ -805,7 +855,7 @@ mod tests {
         instance.child.wait().await.expect("wait must succeed");
         sup.instances.lock().await.push(instance);
 
-        let url = sup.touch_live_instance("/models/a.gguf").await;
+        let url = sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
 
         assert!(url.is_none());
         assert!(sup.instances.lock().await.is_empty());

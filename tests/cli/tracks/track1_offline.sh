@@ -283,6 +283,9 @@ check_exit   "chat --list (off) → 2"   2  "$BIN" --socket "$OFFSOCK" chat --li
 check_exit   "stop (off) → 2"          2  "$BIN" --socket "$OFFSOCK" stop
 check_exit   "onboard (off) → 2"       2  "$BIN" --socket "$OFFSOCK" onboard
 check_exit   "model search (off) → 2"  2  "$BIN" --socket "$OFFSOCK" model search whisper
+# The ranking is computed by the daemon (hardware probe, live HuggingFace
+# listing), so with the daemon off the refusal is the deterministic path.
+check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model recommend
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
@@ -299,6 +302,7 @@ section "A.14 un-exercised variants"
 skip "chat (interactive REPL turn)"   "covered in Track 3 via pty capture"
 skip "update (live GitHub check)"     "outbound HTTPS to api.github.com; the lock refusal is asserted above"
 skip "model search (live HF query)"   "outbound HTTPS to huggingface.co; the daemon-off refusal is asserted above"
+skip "model recommend (live ranking)" "outbound HTTPS to huggingface.co; the daemon-off refusal is asserted above"
 skip "stt model download (real download)" "whisper model HF download (~1 GB); the already-present path is asserted above"
 skip "agent install <git-url>"        "git clone over network; file install is asserted in Track 2"
 skip "mcp oauth login (browser flow)" "AS authorize URL + browser callback; the unconfigured refusal is asserted above"

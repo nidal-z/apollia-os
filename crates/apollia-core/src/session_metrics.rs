@@ -154,10 +154,15 @@ impl SessionMetrics {
             self.tokens_out = self.tokens_out.saturating_add(u64::from(completion_tokens));
             self.tokens_cached = self.tokens_cached.saturating_add(u64::from(cached_tokens));
         }
-        // Quick estimate: context_window_used is approximately non-meta
-        // tokens_in + tokens_out. The ContextManager can correct it via
-        // `set_context_window_used`.
-        self.context_window_used = self.tokens_in.saturating_add(self.tokens_out);
+        // The window holds the latest call's prompt and its answer, not the
+        // sum of every call: a ReAct turn re-sends the whole prompt on each
+        // iteration, so summing counted the same history once per iteration
+        // and the occupancy passed 100% on a conversation that fit. A meta
+        // call runs against its own short prompt and says nothing about the
+        // conversation's window, so it leaves the figure alone.
+        if !is_meta {
+            self.context_window_used = total;
+        }
     }
 
     /// Updates `context_window_used` from an authoritative measurement.
@@ -277,8 +282,9 @@ mod tests {
         assert_eq!(m.tokens_out, 130);
         assert_eq!(m.tokens_cached, 90);
         assert_eq!(m.tokens_meta, 0);
-        // AND context_window_used = tokens_in + tokens_out
-        assert_eq!(m.context_window_used, 430);
+        // AND the window occupancy is the latest call's prompt and answer, not
+        // the sum, since each call re-sends the history the previous one held
+        assert_eq!(m.context_window_used, 280);
     }
 
     #[test]

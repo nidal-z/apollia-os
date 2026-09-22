@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseStream, isThinking, answerText } from "./streamParser";
+import { parseStream, isThinking, answerText, normaliseReasoningMarkers } from "./streamParser";
 
 describe("parseStream", () => {
   it("returns an empty array for empty input", () => {
@@ -129,3 +129,39 @@ describe("answerText", () => {
     }
   });
 });
+
+describe("Gemma 4 reasoning markers", () => {
+  it("parses a thought channel as thinking rather than as the answer", () => {
+    // GIVEN the reply reported from a Gemma 4 model, markers inline
+    const raw =
+      "<|channel>thought The user just typed test. <channel|>I'm here. How can I help you today?";
+
+    // WHEN it is parsed
+    const blocks = parseStream(raw);
+
+    // THEN the reasoning is a thinking block and the answer carries no marker
+    expect(blocks[0].type).toBe("thinking");
+    expect(answerText(blocks)).toBe("I'm here. How can I help you today?");
+  });
+
+  it("treats text before an orphan closing marker as reasoning", () => {
+    // GIVEN the turn after a tool result, whose opening marker the template
+    // placed in the prompt
+    const raw = "three files listed<channel|>You have three files.";
+
+    // WHEN it is parsed
+    const blocks = parseStream(raw);
+
+    // THEN the prefix is reasoning and only the answer is shown
+    expect(blocks[0]).toMatchObject({ type: "thinking", content: "three files listed", closed: true });
+    expect(answerText(blocks)).toBe("You have three files.");
+  });
+
+  it("leaves a plain answer untouched", () => {
+    // GIVEN a reply with no reasoning at all
+    // WHEN it is normalised
+    // THEN nothing changes
+    expect(normaliseReasoningMarkers("Hello there.")).toBe("Hello there.");
+  });
+});
+

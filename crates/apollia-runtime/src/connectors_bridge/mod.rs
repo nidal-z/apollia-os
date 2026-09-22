@@ -27,6 +27,7 @@ use apollia_connectors::google::GoogleConnector;
 use serde_json::Value;
 use tokio::sync::OnceCell;
 
+pub mod availability;
 mod descriptors;
 mod google;
 mod microsoft;

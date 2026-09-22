@@ -33,7 +33,7 @@ function baseForm(overrides: Partial<BackendFormState> = {}): BackendFormState {
     topK: null,
     topP: null,
     repeatPenalty: null,
-    contextSize: null,
+    contextWindow: null,
     ...overrides,
   };
 }

@@ -1590,7 +1590,7 @@ Create a new LLM backend.
   Default value: `600`
 * `--context-window <TOKENS>` - Usable context window of this backend, in tokens.
 
-   Sizes conversation compaction. A self-hosted OpenAI-compatible server does not report its window, and Ollama sizes its own from the machine's memory, so without this the runtime falls back to a generic limit that can exceed what the server actually loaded. Ollama backends are probed automatically when the model is loaded; set this to pin the value.
+   Sizes conversation compaction. A self-hosted OpenAI-compatible server does not report its window, so without this the runtime falls back to a generic limit that can exceed what the server loaded. On an Ollama backend this is the window requested from Ollama on every call; left unset, 32768 tokens or the model's trained length if shorter, rather than Ollama's own memory-based default.
 * `--disabled` - Create the backend disabled
 * `--default` - Mark this backend as the default (only one at a time)
 

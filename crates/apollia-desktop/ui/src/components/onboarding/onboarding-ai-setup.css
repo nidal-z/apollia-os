@@ -467,6 +467,20 @@
   max-width: 60%;
 }
 
+/* Context window */
+.ai-setup .context-window-select {
+  width: auto;
+  min-width: 5.5rem;
+}
+
+.ai-setup .context-window-hint {
+  display: block;
+  margin: 0.2rem auto 0;
+  max-width: 34rem;
+  white-space: normal;
+  text-align: center;
+}
+
 /* Alt row */
 .ai-setup .alt-row {
   display: flex;

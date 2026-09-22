@@ -392,12 +392,49 @@ async fn probe_one(
     }
 }
 
-/// Produce the ranked recommendations for one machine.
+/// Longest a whole resolution may take before it gives up.
+///
+/// Every request inside it already has its own timeout, but a slow link walks
+/// several of them in turn, and onboarding is a screen an operator watches. Past
+/// this the answer is "could not look", which offers the paths that need no
+/// network, rather than a spinner with no end.
+pub const RESOLVE_DEADLINE: std::time::Duration = std::time::Duration::from_secs(90);
+
+/// Produce the ranked recommendations for one machine, within
+/// [`RESOLVE_DEADLINE`].
 ///
 /// # Errors
 /// [`ResolveError::HubUnreachable`] when no publisher could be reached at all,
-/// which a caller should surface as "no catalogue" rather than as "no models".
+/// or when the deadline passed first. A caller should surface both as "no
+/// catalogue" rather than as "no models".
 pub async fn resolve(
+    manifest: &FamilyManifest,
+    profile: &HardwareProfile,
+    options: &ResolveOptions,
+) -> Result<Vec<Recommendation>, ResolveError> {
+    match tokio::time::timeout(
+        RESOLVE_DEADLINE,
+        resolve_unbounded(manifest, profile, options),
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(_) => {
+            event!(
+                Level::WARN,
+                deadline_secs = RESOLVE_DEADLINE.as_secs(),
+                "recommend.deadline.exceeded"
+            );
+            Err(ResolveError::HubUnreachable(format!(
+                "no answer within {} seconds",
+                RESOLVE_DEADLINE.as_secs()
+            )))
+        }
+    }
+}
+
+/// [`resolve`] without the deadline.
+async fn resolve_unbounded(
     manifest: &FamilyManifest,
     profile: &HardwareProfile,
     options: &ResolveOptions,

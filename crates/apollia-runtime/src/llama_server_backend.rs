@@ -32,6 +32,10 @@ pub struct LlamaServerBackend {
     backend_name: String,
     model_id: String,
     model_path: String,
+    /// The window this backend asks the supervisor for: its `context_window`
+    /// setting, or the supervisor's default, capped at the model's training
+    /// length. `None` only when neither the setting nor the header is known.
+    n_ctx: Option<u32>,
     /// Own cancellation token: the router builds its factory-provided backends
     /// outside its own token's scope, and local inference cancellation is
     /// best-effort (the supervisor can kill the process).
@@ -48,12 +52,22 @@ impl LlamaServerBackend {
         backend_name: String,
         model_id: String,
         model_path: String,
+        n_ctx: Option<u32>,
     ) -> Arc<Self> {
+        let model_path = expand_home(&model_path);
+        let n_ctx = match trained_context(&model_path) {
+            Some(trained) => Some(apollia_llm::context_window::cap_at_trained(
+                n_ctx.unwrap_or_else(|| supervisor.n_ctx()),
+                Some(trained),
+            )),
+            None => n_ctx,
+        };
         Arc::new(Self {
             supervisor,
             backend_name,
             model_id,
-            model_path: expand_home(&model_path),
+            model_path,
+            n_ctx,
             cancel: CancellationToken::new(),
             client: Mutex::new(None),
         })
@@ -64,7 +78,7 @@ impl LlamaServerBackend {
     async fn ready_client(&self) -> Result<Arc<OpenAICompatibleClient>, LlmError> {
         let base = self
             .supervisor
-            .ensure_model(self.model_path.clone())
+            .ensure_model(self.model_path.clone(), self.n_ctx)
             .await
             .map_err(|e| LlmError::BackendUnavailable {
                 backend: self.backend_name.clone(),
@@ -143,10 +157,11 @@ impl CompletionModel for LlamaServerBackend {
     }
 
     fn context_window(&self) -> Option<usize> {
-        // The server is launched with `-c n_ctx`, so this is the usable window.
-        // Reporting it lets the router size context compaction and avoid sending
-        // a prompt that overflows the server (a hard 400 from llama-server).
-        Some(self.supervisor.n_ctx() as usize)
+        // The server is launched with `-c` set to exactly this, so this is the
+        // usable window. Reporting it lets the router size context compaction
+        // and the context gauge, and avoid sending a prompt that overflows the
+        // server (a hard 400 from llama-server).
+        Some(self.supervisor.effective_n_ctx(self.n_ctx) as usize)
     }
 }
 
@@ -165,13 +180,34 @@ pub fn llama_server_override(
             return None;
         }
         let supervisor = supervisor.clone()?;
+        // The window chosen at onboarding or in the settings, stored on the
+        // backend like every other provider's.
+        let n_ctx = apollia_llm::context_window::configured(&cfg.config_json);
         Some(LlamaServerBackend::new(
             supervisor,
             cfg.name.clone(),
             cfg.name.clone(),
             cfg.model.clone(),
+            n_ctx,
         ) as Arc<dyn CompletionModel>)
     }
+}
+
+/// The training length the model's GGUF header declares, read from its first
+/// mebibyte, where the architecture keys sit ahead of the tokenizer arrays.
+///
+/// `None` for a file that cannot be read or does not say; the window is then
+/// left as configured, and llama-server reports an overflow in its own log.
+fn trained_context(model_path: &str) -> Option<u64> {
+    let facts = apollia_llm::gguf_probe::probe_file(
+        std::path::Path::new(model_path),
+        apollia_llm::gguf_probe::SCREEN_BYTES,
+    )
+    .ok()?;
+    if let Some(trained) = facts.context_length {
+        tracing::debug!(model = %model_path, trained, "llama.server.trained_context");
+    }
+    facts.context_length
 }
 
 /// Expand a leading `~/` to `$HOME/` so a model path stored with a tilde becomes

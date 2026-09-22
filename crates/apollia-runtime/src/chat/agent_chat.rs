@@ -495,6 +495,8 @@ fn build_response(content: String, newly_authorized: Vec<String>) -> ChatAgentRe
 
 /// Extracts the content of `<think>...</think>` blocks from reasoning models.
 fn extract_think_blocks(text: &str) -> Option<String> {
+    let normalised = apollia_llm::reasoning_markers::normalise_reasoning_markers(text);
+    let text = normalised.as_ref();
     let mut blocks = Vec::new();
     let mut cursor = 0;
     while let Some(start) = text[cursor..].find("<think>") {
@@ -522,6 +524,8 @@ fn extract_think_blocks(text: &str) -> Option<String> {
 
 /// Strips `<think>...</think>` blocks from the content.
 fn strip_think_blocks(text: &str) -> String {
+    let normalised = apollia_llm::reasoning_markers::normalise_reasoning_markers(text);
+    let text = normalised.as_ref();
     let mut result = String::with_capacity(text.len());
     let mut cursor = 0;
     while let Some(start) = text[cursor..].find("<think>") {

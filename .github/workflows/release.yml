@@ -20,6 +20,12 @@
 #
 # Wall clock, cold: 35 to 40 min; warm cache: about 20 min.
 
+# Artifact retention: the build jobs' uploads are consumed by the publish job
+# of the same run, which attaches them to the GitHub Release, so they are kept
+# a week, enough to re-run a failed publish. At 30 days the desktop bundles
+# alone held some 50 GB and hit the account's artifact quota, which then
+# failed every upload of every workflow, CI included.
+
 name: Release
 
 on:
@@ -500,7 +506,7 @@ jobs:
             target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.cdx.json
             target/${{ matrix.triple }}/bundle/apollia-os-${{ matrix.preset }}.spdx.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7 # see "Artifact retention" at the top
 
   # ────────────────────────────────────────────────────────────────────────────
   # llama-server with CUDA for Linux, built here because upstream ships none.
@@ -932,7 +938,7 @@ jobs:
             target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.cdx.json
             target/aarch64-apple-darwin/release/bundle/dmg/apollia-desktop-macos-arm64.spdx.json
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7 # see "Artifact retention" at the top
 
   # ────────────────────────────────────────────────────────────────────────────
   # Desktop bundle Tauri - Linux x86_64 (.deb + .AppImage)
@@ -1132,7 +1138,7 @@ jobs:
           name: apollia-desktop-linux-x86_64
           path: target/x86_64-unknown-linux-gnu/release/bundle/dist/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7 # see "Artifact retention" at the top
 
   # ────────────────────────────────────────────────────────────────────────────
   # Desktop bundle Tauri - Windows x86_64 (.msi + .exe NSIS)
@@ -1311,7 +1317,7 @@ jobs:
           name: apollia-desktop-windows-x86_64
           path: target/x86_64-pc-windows-msvc/release/bundle/dist/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7 # see "Artifact retention" at the top
 
 
   desktop-linux-cuda:
@@ -1484,7 +1490,7 @@ jobs:
           name: apollia-desktop-linux-cuda-x86_64
           path: target/x86_64-unknown-linux-gnu/release/bundle/dist/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7 # see "Artifact retention" at the top
 
   # ────────────────────────────────────────────────────────────────────────────
   # Desktop bundle Tauri - Windows x86_64 (.msi + .exe NSIS)
@@ -1677,7 +1683,7 @@ jobs:
           name: apollia-desktop-windows-cuda-x86_64
           path: target/x86_64-pc-windows-msvc/release/bundle/dist/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7 # see "Artifact retention" at the top
 
   # ────────────────────────────────────────────────────────────────────────────
   # Aggregation → GitHub Release draft (tag push uniquement)

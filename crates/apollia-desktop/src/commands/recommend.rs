@@ -37,7 +37,7 @@ pub struct RecommendParams {
 }
 
 /// The answer, with the two failure modes kept apart from the success.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum RecommendOutcome {
     /// Models were found, best first.
@@ -71,6 +71,35 @@ pub enum RecommendOutcome {
 /// Most recommendations anyone needs to see at once.
 const MAX_LIMIT: usize = 10;
 
+/// How long a ranked list is reused before the Hub is asked again.
+///
+/// Onboarding remounts the step whenever the operator goes back and forth, and
+/// each mount used to pay for a whole resolution. The catalogue does not move
+/// on that scale, and the hardware does not move at all.
+const CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// The last successful answer, keyed by the context window it was sized for.
+///
+/// Only a ranked list is kept. An unreachable Hub is exactly the answer worth
+/// asking again, so it is never cached.
+static LAST_ANSWER: std::sync::Mutex<Option<(std::time::Instant, u32, RecommendOutcome)>> =
+    std::sync::Mutex::new(None);
+
+fn cached(n_ctx: u32) -> Option<RecommendOutcome> {
+    let guard = LAST_ANSWER.lock().ok()?;
+    let (at, key, outcome) = guard.as_ref()?;
+    (*key == n_ctx && at.elapsed() < CACHE_TTL).then(|| outcome.clone())
+}
+
+fn remember(n_ctx: u32, outcome: &RecommendOutcome) {
+    if !matches!(outcome, RecommendOutcome::Ok { .. }) {
+        return;
+    }
+    if let Ok(mut guard) = LAST_ANSWER.lock() {
+        *guard = Some((std::time::Instant::now(), n_ctx, outcome.clone()));
+    }
+}
+
 /// Rank the models this machine should be offered.
 ///
 /// Probes the hardware, plans against the embedded generation table, resolves
@@ -83,6 +112,11 @@ const MAX_LIMIT: usize = 10;
 /// including an unreachable Hub, comes back as a [`RecommendOutcome`] variant.
 #[tauri::command]
 pub async fn recommend_models(params: RecommendParams) -> Result<RecommendOutcome, String> {
+    let cache_key = params.n_ctx.unwrap_or(0);
+    if let Some(outcome) = cached(cache_key) {
+        return Ok(truncated(outcome, params.limit));
+    }
+
     let profile = tokio::task::spawn_blocking(detect_hardware)
         .await
         .map_err(|e| format!("hardware detection failed: {e}"))?;
@@ -112,15 +146,28 @@ pub async fn recommend_models(params: RecommendParams) -> Result<RecommendOutcom
     match resolve(&manifest, &profile, &options).await {
         Ok(models) if models.is_empty() => Ok(RecommendOutcome::Empty { hardware }),
         Ok(models) => {
-            let limit = params.limit.unwrap_or(MAX_LIMIT).clamp(1, MAX_LIMIT);
-            let mut models = models;
-            models.truncate(limit);
-            Ok(RecommendOutcome::Ok { models, hardware })
+            let outcome = RecommendOutcome::Ok { models, hardware };
+            remember(cache_key, &outcome);
+            Ok(truncated(outcome, params.limit))
         }
         Err(ResolveError::HubUnreachable(detail)) => {
             event!(Level::WARN, detail = %detail, "recommend.hub.unreachable");
             Ok(RecommendOutcome::Unreachable { detail, hardware })
         }
         Err(err) => Err(err.to_string()),
+    }
+}
+
+/// Cut a ranked list to what the caller asked for.
+fn truncated(outcome: RecommendOutcome, limit: Option<usize>) -> RecommendOutcome {
+    match outcome {
+        RecommendOutcome::Ok {
+            mut models,
+            hardware,
+        } => {
+            models.truncate(limit.unwrap_or(MAX_LIMIT).clamp(1, MAX_LIMIT));
+            RecommendOutcome::Ok { models, hardware }
+        }
+        other => other,
     }
 }

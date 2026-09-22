@@ -44,8 +44,35 @@ function findNextTag(src: string, from: number): NextTag | null {
   return best;
 }
 
-export function parseStream(text: string): StreamBlock[] {
-  if (!text) return [];
+/**
+ * Rewrite reasoning markers other than `<think>` into `<think>`, mirroring
+ * `apollia_runtime::chat::reasoning_markers` so the live stream and the stored
+ * reply agree.
+ *
+ * Gemma 4 spells its reasoning `<|channel>thought ... <channel|>`. A backend
+ * that passed it through as text put the model's private reasoning on screen
+ * as the answer, markers included. After a tool result that template opens the
+ * channel in the prompt, so only the closing marker arrives: a closing tag with
+ * no opening before it means everything ahead of it was reasoning.
+ */
+export function normaliseReasoningMarkers(text: string): string {
+  let out = text;
+  if (out.includes("<|channel>") || out.includes("<channel|>")) {
+    out = out
+      .split("<|channel>thought").join("<think>")
+      .split("<|channel>").join("<think>")
+      .split("<channel|>").join("</think>");
+  }
+  const close = out.indexOf("</think>");
+  if (close !== -1 && !out.slice(0, close).includes("<think>")) {
+    out = `<think>${out}`;
+  }
+  return out;
+}
+
+export function parseStream(raw: string): StreamBlock[] {
+  if (!raw) return [];
+  const text = normaliseReasoningMarkers(raw);
 
   const result: StreamBlock[] = [];
   let cursor = 0;

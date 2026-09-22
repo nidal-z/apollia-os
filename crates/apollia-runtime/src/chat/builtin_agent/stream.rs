@@ -158,6 +158,8 @@ impl BuiltInChatAgent {
     /// Returns the concatenated thinking text if any blocks are found, or `None`.
     /// Called before [`strip_think_blocks`] to capture reasoning for metadata.
     pub(in crate::chat::builtin_agent) fn extract_think_blocks(text: &str) -> Option<String> {
+        let normalised = apollia_llm::reasoning_markers::normalise_reasoning_markers(text);
+        let text = normalised.as_ref();
         let tag_open = "<think>";
         let tag_close = "</think>";
         let mut blocks = Vec::new();
@@ -194,6 +196,8 @@ impl BuiltInChatAgent {
     /// returning the final content to the user. This prevents thinking tokens from
     /// polluting the context window across turns.
     pub(in crate::chat::builtin_agent) fn strip_think_blocks(text: &str) -> String {
+        let normalised = apollia_llm::reasoning_markers::normalise_reasoning_markers(text);
+        let text = normalised.as_ref();
         let tag_open = "<think>";
         let tag_close = "</think>";
         let mut result = String::with_capacity(text.len());

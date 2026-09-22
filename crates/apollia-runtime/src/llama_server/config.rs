@@ -7,7 +7,7 @@
 //!
 //! ```text
 //! -m <model> -ngl 999 -c 32768 -np 1 -cb --flash-attn on --jinja
-//! --reasoning-format none -lv 4 --host 127.0.0.1 --port <port>
+//! --reasoning-format auto -lv 4 --host 127.0.0.1 --port <port>
 //! ```
 //!
 //! `-lv 4` is the one flag that line did not carry. At the engine's default
@@ -24,10 +24,23 @@
 //!
 //! Two flags stay hardcoded in [`build_args`] rather than becoming fields.
 //! `--jinja` selects the tool-calling template path, and `--reasoning-format
-//! none` keeps reasoning inline as `<think>` tags in the content stream, which
-//! the whole chat pipeline is built to parse. Neither is performance-relevant,
-//! and overriding the second silently discards every reasoning model's thoughts.
-//! `extra_args` is the escape hatch if either genuinely needs to move.
+//! auto` lets the engine split reasoning out with the parser that matches the
+//! loaded template. The OpenAI client re-inlines that field as `<think>` tags,
+//! which is the shape the whole chat pipeline parses.
+//!
+//! `none` was the value until 2026-09-22, when it was left over from before the
+//! client read the separate field. It passed every family's own markers through
+//! as text, and Gemma 4 does not spell them `<think>`: its reasoning reached the
+//! chat as `<|channel>thought ... <channel|>` and was shown as the answer. After
+//! a tool result that template opens the channel in the prompt, so the output
+//! carries only the closing marker, and no text parser can recover where the
+//! reasoning began. Only the engine, which rendered the prompt, knows.
+//! Measured with the bundled 10092 build and Gemma 4 12B: both the first turn
+//! and the turn after a tool result come back with the reasoning separated and
+//! no marker left in the content, streamed or not.
+//!
+//! Neither flag is performance-relevant. `extra_args` is the escape hatch if
+//! either genuinely needs to move.
 //!
 //! # Environment overrides
 //!
@@ -68,7 +81,7 @@ use std::str::FromStr;
 /// unauthenticated inference endpoint.
 const HOST: &str = "127.0.0.1";
 
-const ENV_N_CTX: &str = "APOLLIA_LLAMA_N_CTX";
+pub(crate) const ENV_N_CTX: &str = "APOLLIA_LLAMA_N_CTX";
 /// Read by `ngl::apply_offload_plan` too, which leaves the offload count alone
 /// when the operator has set it.
 pub(crate) const ENV_N_GPU_LAYERS: &str = "APOLLIA_LLAMA_N_GPU_LAYERS";
@@ -252,7 +265,7 @@ pub(crate) fn build_args(config: &LlamaServerConfig, port: u16) -> Vec<String> {
 
     args.push("--jinja".to_owned());
     args.push("--reasoning-format".to_owned());
-    args.push("none".to_owned());
+    args.push("auto".to_owned());
     if let Some(v) = config.log_verbosity {
         args.push("-lv".to_owned());
         args.push(v.to_string());
@@ -410,7 +423,7 @@ mod tests {
             "on",
             "--jinja",
             "--reasoning-format",
-            "none",
+            "auto",
             "-lv",
             "4",
             "--host",
@@ -817,7 +830,7 @@ mod tests {
             "on",
             "--jinja",
             "--reasoning-format",
-            "none",
+            "auto",
             "-lv",
             "4",
             "--host",

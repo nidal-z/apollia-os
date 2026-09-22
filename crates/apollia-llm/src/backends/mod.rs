@@ -12,6 +12,9 @@
 pub mod anthropic;
 
 #[cfg(feature = "cloud")]
+pub mod ollama;
+
+#[cfg(feature = "cloud")]
 pub mod openai;
 
 #[cfg(feature = "cloud")]

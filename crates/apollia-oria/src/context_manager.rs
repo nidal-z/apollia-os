@@ -10,13 +10,35 @@
 //! maybe_compact(&messages, &llm)
 //!   |-- tier 1: offload oversized tool results to disk (when a store is set)
 //!   |-- count_tokens / context_limit < threshold  ->  returns messages unchanged
+//!   |-- nothing before the current turn  ->  returns messages unchanged
 //!   |-- tier 2: keep the last K messages verbatim, summarize the older middle
-//!   |     `-- under the limit now  ->  returns [system, summary, recent K...]
-//!   `-- tier 3: still over  ->  replace everything by a single global summary
+//!   |     `-- under the limit now  ->  returns [system+summary, recent K...]
+//!   `-- tier 3: summarize everything before the current turn
+//!         `-- returns [system+summary, current turn...]
 //! ```
 //!
-//! On an LLM failure during synthesis, a fallback text is used, so a transient
-//! error never crashes the loop.
+//! # What compaction never touches
+//!
+//! The **current turn**, which is the last user message and everything after
+//! it (the assistant's tool calls and their results within that turn), is kept
+//! verbatim at every tier. An earlier version collapsed the whole history into
+//! one summary at tier 3, the user's latest message included, and inserted that
+//! summary as a user message. On a fresh session over a small window (an Ollama
+//! model loaded at 4096 tokens, where the system prompt and the tool schemas
+//! alone cross the threshold) the model never saw the request: it received a
+//! "summary" of it, answered the summary, and the operator watched it reason
+//! about summarizing a conversation instead of listing a folder.
+//!
+//! So a history with nothing before the current turn is not compacted at all:
+//! there is nothing a summary could save, and the overflow is reported instead.
+//!
+//! The summary is appended to the system prompt as background rather than
+//! inserted as a user message. That frames it as context rather than a request,
+//! and it keeps the roles alternating, which some chat templates enforce.
+//!
+//! The summarizer's own reasoning is stripped from its answer, and a failed
+//! summary leaves a plain note saying earlier exchanges were removed, never a
+//! placeholder the model could mistake for something the user said.
 
 use std::sync::Arc;
 
@@ -164,69 +186,75 @@ impl ContextManager {
             return (messages, false);
         }
 
+        // Everything from the current turn onward is kept verbatim at every tier.
+        let turn_start = current_turn_start(&messages);
+        if turn_start <= 1 {
+            // Nothing before the current turn: the system prompt, the tools and
+            // the request alone cross the threshold. A summary cannot help, and
+            // replacing the request with one is what made the model answer a
+            // summary instead of the operator.
+            tracing::warn!(
+                context_limit = limit,
+                reserve_tokens = reserve_tokens,
+                detail =
+                    "the system prompt, the tools and the current turn alone exceed the window",
+                "context.compact.nothing_to_summarize"
+            );
+            return (messages, false);
+        }
+
         // Tier 2: keep the recent tail verbatim, summarize the older middle.
-        let compacted = self.compact_graduated(&messages, llm).await;
+        let compacted = self.compact_graduated(&messages, turn_start, llm).await;
         if !over_threshold(&compacted) {
             return (compacted, true);
         }
 
-        // Tier 3: collapse the whole history into a single global summary.
-        let summary = self.summarize(&messages, llm).await;
-        let fallback = vec![
-            messages[0].clone(),
-            ChatMessage {
-                role: Role::User,
-                content: MessageContent::Text(format!(
-                    "[Summary of the previous conversation]\n\n{}",
-                    summary
-                )),
-                cache_control: None,
-            },
-        ];
+        // Tier 3: summarize everything before the current turn, keep the turn.
+        let summary = self.summarize(&messages[1..turn_start], llm).await;
+        let mut fallback = Vec::with_capacity(1 + messages.len() - turn_start);
+        fallback.push(with_background(
+            &messages[0],
+            "Summary of the earlier conversation",
+            &summary,
+        ));
+        fallback.extend_from_slice(&messages[turn_start..]);
 
         (fallback, true)
     }
 
     /// Tier-2 compaction: preserve the system prompt and the last
-    /// `recent_verbatim_count` messages verbatim, replacing the older middle with
-    /// a single summary message.
+    /// `recent_verbatim_count` messages verbatim, folding a summary of the older
+    /// middle into the system prompt.
     ///
-    /// Returns the messages unchanged when there are not enough older messages to
-    /// be worth summarizing (`len <= recent_verbatim_count + 1`).
+    /// The verbatim tail always reaches back at least to `turn_start`, so the
+    /// current turn is never summarized whatever the count says. Returns the
+    /// messages unchanged when there is nothing older to summarize.
     async fn compact_graduated(
         &self,
         messages: &[ChatMessage],
+        turn_start: usize,
         llm: &LlmRouter,
     ) -> Vec<ChatMessage> {
         let total = messages.len();
-        if total <= self.recent_verbatim_count + 1 {
+        let recent_start = total
+            .saturating_sub(self.recent_verbatim_count)
+            .min(turn_start)
+            .max(1);
+        if recent_start <= 1 {
             return messages.to_vec();
         }
 
-        let recent_start = total - self.recent_verbatim_count;
-        let system = &messages[0];
-        let old_messages = &messages[1..recent_start];
-        let recent_messages = &messages[recent_start..];
+        let old_summary = self
+            .summarize_partial(&messages[1..recent_start], llm)
+            .await;
 
-        let old_summary = if old_messages.is_empty() {
-            String::new()
-        } else {
-            self.summarize_partial(old_messages, llm).await
-        };
-
-        let mut result = Vec::with_capacity(2 + recent_messages.len());
-        result.push(system.clone());
-        if !old_summary.is_empty() {
-            result.push(ChatMessage {
-                role: Role::User,
-                content: MessageContent::Text(format!(
-                    "[Summary of the earlier exchanges]\n\n{}",
-                    old_summary
-                )),
-                cache_control: None,
-            });
-        }
-        result.extend_from_slice(recent_messages);
+        let mut result = Vec::with_capacity(1 + total - recent_start);
+        result.push(with_background(
+            &messages[0],
+            "Summary of the earlier exchanges",
+            &old_summary,
+        ));
+        result.extend_from_slice(&messages[recent_start..]);
         result
     }
 
@@ -354,7 +382,20 @@ impl ContextManager {
             })
             .await
         {
-            Ok(resp) => truncate_on_char_boundary(resp.content, self.summary_max_chars),
+            Ok(resp) => {
+                // A reasoning model thinks before it summarizes, and its thoughts
+                // arrive inline. Kept, they became the "summary": the next turn
+                // then read the summarizer musing about its instructions.
+                let answer = apollia_llm::reasoning_markers::strip_reasoning(&resp.content);
+                if answer.is_empty() {
+                    tracing::warn!(
+                        detail = "the summarizer produced no answer outside its reasoning",
+                        "context.summarize.empty"
+                    );
+                    return fallback_summary();
+                }
+                truncate_on_char_boundary(answer, self.summary_max_chars)
+            }
             Err(e) => {
                 tracing::warn!(
                     error = %e,
@@ -369,8 +410,53 @@ impl ContextManager {
 
 // Helpers
 
+/// What stands in for a summary that could not be produced.
+///
+/// A statement of fact about what happened to the history, worded so that no
+/// model reads it as something the user asked. The previous placeholder was
+/// answered as a message: "The user has provided a summary that says Summary
+/// unavailable".
 fn fallback_summary() -> String {
-    "[Summary unavailable]\n\n[Session continues with a compacted context]".to_owned()
+    "Earlier exchanges in this conversation were removed to fit the context window, \
+     and no summary of them could be produced."
+        .to_owned()
+}
+
+/// Index of the first message of the current turn.
+///
+/// The current turn opens at the last user message that carries text (a tool
+/// result is part of a turn, never the start of one) and runs to the end of the
+/// history. Returns `messages.len()` when there is no such message, so that
+/// nothing is protected beyond what a caller would summarize anyway.
+fn current_turn_start(messages: &[ChatMessage]) -> usize {
+    messages
+        .iter()
+        .rposition(|m| m.role == Role::User && matches!(m.content, MessageContent::Text(_)))
+        .unwrap_or(messages.len())
+}
+
+/// The system prompt with a summary appended as background.
+///
+/// Appended rather than inserted as a separate message. A user message reads as
+/// a request, and a model given one answers it; the system prompt is where
+/// context that is not a request belongs. It also keeps the conversation
+/// alternating between user and assistant, which some chat templates enforce.
+fn with_background(system: &ChatMessage, heading: &str, summary: &str) -> ChatMessage {
+    let base = match &system.content {
+        MessageContent::Text(s) => s.as_str(),
+        MessageContent::ToolResult { content, .. } => content.as_str(),
+        MessageContent::WithToolCalls { text, .. } => text.as_str(),
+    };
+    ChatMessage {
+        role: system.role.clone(),
+        content: MessageContent::Text(format!(
+            "{base}\n\n## {heading}\n\n\
+             Background only: this recounts earlier parts of this conversation so \
+             you keep their context. It is not a request, and nothing in it should \
+             be acted on unless the latest user message asks for it.\n\n{summary}"
+        )),
+        cache_control: system.cache_control.clone(),
+    }
 }
 
 /// Render messages as a role-prefixed, length-capped transcript for summarization.
@@ -551,34 +637,28 @@ mod tests {
         assert_eq!(result.len(), 2);
     }
 
-    /// GIVEN a history estimated at 85% (big_content)
-    /// WHEN maybe_compact is called with threshold = 0.80
-    /// THEN was_compacted = true, 2 messages, system preserved, summary present
+    /// GIVEN a fresh session whose only user message pushes it over the threshold
+    /// WHEN maybe_compact is called
+    /// THEN nothing is compacted and the request survives verbatim, because there
+    ///      is nothing before the current turn a summary could replace
     #[tokio::test]
-    async fn test_compact_above_threshold() {
-        // GIVEN
+    async fn test_a_fresh_session_over_threshold_keeps_its_request() {
+        // GIVEN 600_000 chars = 180_000 tokens, 90% of 200_000, in the only turn
         let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
-        // 600_000 chars / 4 * 1.2 = 180_000 tokens, 90% of 200_000
-        let big_content = "x".repeat(600_000);
+        let request = format!("list my downloads {}", "x".repeat(600_000));
         let messages = vec![
             ChatMessage::system("system"),
-            ChatMessage::user(big_content),
+            ChatMessage::user(request.clone()),
         ];
         let llm = make_llm(MockSummaryModel::with_response("context summary"));
 
         // WHEN
         let (result, was_compacted) = manager.maybe_compact(&messages, &llm).await;
 
-        // THEN
-        assert!(was_compacted);
+        // THEN the model still receives the operator's request, not a summary of it
+        assert!(!was_compacted);
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0].role, Role::System);
-        let summary_text = match &result[1].content {
-            MessageContent::Text(s) => s.as_str(),
-            _ => panic!("expected Text"),
-        };
-        assert!(summary_text.contains("[Summary of the previous conversation]"));
-        assert!(summary_text.contains("context summary"));
+        assert_eq!(message_text(&result[1]), request);
     }
 
     /// GIVEN a history at ~60% of the window (under the 0.80 threshold on its own)
@@ -587,11 +667,14 @@ mod tests {
     /// THEN compaction fires, whereas the zero-reserve path leaves it untouched
     #[tokio::test]
     async fn test_reserve_triggers_compaction_below_message_threshold() {
-        // GIVEN 400_000 chars / 4 * 1.2 = 120_000 tokens = 60% of 200_000.
-        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
+        // GIVEN 400_000 chars / 4 * 1.2 = 120_000 tokens = 60% of 200_000, in an
+        // earlier turn, followed by the current one
+        let manager = ContextManager::new(0.80, 4000, 1, None, 8000);
         let messages = vec![
             ChatMessage::system("system"),
             ChatMessage::user("x".repeat(400_000)),
+            ChatMessage::assistant("done"),
+            ChatMessage::user("latest"),
         ];
         let llm = make_llm(MockSummaryModel::with_response("summary"));
 
@@ -622,30 +705,34 @@ mod tests {
         assert_eq!(tokens, 1200);
     }
 
-    /// GIVEN an empty LlmRouter (no backend)
+    /// GIVEN an empty LlmRouter (no backend) and an earlier turn to compact
     /// WHEN maybe_compact is called on a history above the threshold
-    /// THEN was_compacted = true, summary = fallback text
+    /// THEN the earlier turn is replaced by a plain note in the system prompt, and
+    ///      the current request is still the last message
     #[tokio::test]
     async fn test_fallback_when_no_backend() {
         // GIVEN
-        let manager = ContextManager::new(0.80, 4000, 8, None, 8000);
-        let big_content = "x".repeat(600_000);
+        let manager = ContextManager::new(0.80, 4000, 1, None, 8000);
         let messages = vec![
             ChatMessage::system("system"),
-            ChatMessage::user(big_content),
+            ChatMessage::user("x".repeat(600_000)),
+            ChatMessage::assistant("ok"),
+            ChatMessage::user("latest request"),
         ];
         let llm = LlmRouter::empty();
 
         // WHEN
         let (result, was_compacted) = manager.maybe_compact(&messages, &llm).await;
 
-        // THEN
+        // THEN no placeholder a model could answer as if the user had said it
         assert!(was_compacted);
-        let summary_text = match &result[1].content {
-            MessageContent::Text(s) => s.as_str(),
-            _ => panic!("expected Text"),
-        };
-        assert!(summary_text.contains("[Summary unavailable]"));
+        let system = message_text(&result[0]);
+        assert!(system.contains("were removed to fit the context window"));
+        assert!(!system.contains("[Summary unavailable]"));
+        assert_eq!(
+            message_text(result.last().expect("a message")),
+            "latest request"
+        );
     }
 
     /// GIVEN empty messages
@@ -669,8 +756,8 @@ mod tests {
 
     /// GIVEN a 20-message history above threshold and recent_verbatim_count = 6
     /// WHEN maybe_compact is called
-    /// THEN the system prompt and the last 6 messages are preserved verbatim and
-    ///      the older middle is replaced by a single summary message
+    /// THEN the last 6 messages are preserved verbatim and a summary of the older
+    ///      middle is folded into the system prompt as background
     #[tokio::test]
     async fn test_tier2_keeps_recent_verbatim_and_summarizes_old() {
         // GIVEN
@@ -691,22 +778,24 @@ mod tests {
 
         // THEN
         assert!(was_compacted);
-        assert_eq!(result.len(), 8); // system + summary + 6 recent
+        assert_eq!(result.len(), 7); // system with its background + 6 recent
         assert_eq!(result[0].role, Role::System);
-        assert_eq!(message_text(&result[0]), "system prompt");
-        let summary_text = message_text(&result[1]);
-        assert!(summary_text.contains("[Summary of the earlier exchanges]"));
-        assert!(summary_text.contains("compact summary"));
+        let system = message_text(&result[0]);
+        assert!(system.starts_with("system prompt"));
+        assert!(system.contains("Summary of the earlier exchanges"));
+        assert!(system.contains("Background only"));
+        assert!(system.contains("compact summary"));
         for i in 0..6 {
-            assert_eq!(message_text(&result[2 + i]), format!("recent message {i}"));
+            assert_eq!(message_text(&result[1 + i]), format!("recent message {i}"));
         }
     }
 
     /// GIVEN a history whose recent tail alone still exceeds the threshold
     /// WHEN maybe_compact is called
-    /// THEN tier 3 collapses everything to [system, global summary]
+    /// THEN tier 3 summarizes everything before the current turn and keeps the
+    ///      current turn verbatim
     #[tokio::test]
-    async fn test_tier3_fallback_when_tier2_insufficient() {
+    async fn test_tier3_keeps_the_current_turn_when_tier2_is_insufficient() {
         // GIVEN
         let manager = ContextManager::new(0.80, 4000, 6, None, 8000);
         let mut messages = vec![ChatMessage::system("system")];
@@ -719,13 +808,76 @@ mod tests {
         // WHEN
         let (result, was_compacted) = manager.maybe_compact(&messages, &llm).await;
 
-        // THEN
+        // THEN [system with its background, the current request]
         assert!(was_compacted);
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].role, Role::System);
-        let summary_text = message_text(&result[1]);
-        assert!(summary_text.contains("[Summary of the previous conversation]"));
-        assert!(summary_text.contains("global summary"));
+        let system = message_text(&result[0]);
+        assert!(system.contains("Summary of the earlier conversation"));
+        assert!(system.contains("global summary"));
+        assert_eq!(result[1].role, Role::User);
+        assert!(message_text(&result[1]).ends_with(" 9"));
+    }
+
+    /// GIVEN a current turn that already holds a tool call and its result
+    /// WHEN the history is compacted
+    /// THEN the whole turn survives, not just the user message that opened it
+    #[tokio::test]
+    async fn test_the_current_turn_keeps_its_tool_exchange() {
+        // GIVEN
+        let manager = ContextManager::new(0.80, 4000, 1, None, 8000);
+        let call = apollia_llm::types::ToolCall {
+            id: "c1".into(),
+            name: "fs.read_dir".into(),
+            arguments: serde_json::json!({ "path": "Downloads" }),
+        };
+        let messages = vec![
+            ChatMessage::system("system"),
+            ChatMessage::user("x".repeat(600_000)),
+            ChatMessage::assistant("ok"),
+            ChatMessage::user("list my downloads"),
+            ChatMessage::assistant_with_calls("", std::slice::from_ref(&call)),
+            ChatMessage::tool_result("c1", "report.pdf"),
+        ];
+        let llm = make_llm(MockSummaryModel::with_response("summary"));
+
+        // WHEN
+        let (result, was_compacted) = manager.maybe_compact(&messages, &llm).await;
+
+        // THEN
+        assert!(was_compacted);
+        assert_eq!(result.len(), 4);
+        assert_eq!(message_text(&result[1]), "list my downloads");
+        assert!(matches!(
+            result[3].content,
+            MessageContent::ToolResult { .. }
+        ));
+    }
+
+    /// GIVEN a summarizer that reasons before it answers, inline
+    /// WHEN it produces the summary
+    /// THEN only its answer reaches the system prompt, never its reasoning
+    #[tokio::test]
+    async fn test_the_summary_is_stripped_of_the_summarizers_reasoning() {
+        // GIVEN
+        let manager = ContextManager::new(0.80, 4000, 1, None, 8000);
+        let messages = vec![
+            ChatMessage::system("system"),
+            ChatMessage::user("x".repeat(600_000)),
+            ChatMessage::assistant("ok"),
+            ChatMessage::user("latest"),
+        ];
+        let llm = make_llm(MockSummaryModel::with_response(
+            "<think>Analyze the request: summarize the history</think>The operator asked for X.",
+        ));
+
+        // WHEN
+        let (result, _) = manager.maybe_compact(&messages, &llm).await;
+
+        // THEN
+        let system = message_text(&result[0]);
+        assert!(system.contains("The operator asked for X."));
+        assert!(!system.contains("Analyze the request"));
     }
 
     /// GIVEN a history that drops below threshold once its big tool result is offloaded

@@ -78,16 +78,24 @@ export type SttConfig = Record<string, unknown>;
 
 /** Why a recommendation sits where it does. Rendered by the i18n layer. */
 export type RecommendReason =
-  | { reason: "fits_comfortably"; needs_gb: number; budget_gb: number }
-  | { reason: "tight"; needs_gb: number; budget_gb: number }
+  | { reason: "fits_comfortably"; needs_gb: number; budget_gb: number; pool: MemoryPool }
+  | { reason: "tight"; needs_gb: number; budget_gb: number; pool: MemoryPool }
+  | { reason: "split_across_memory"; gpu_gb: number; vram_gb: number; system_gb: number }
   | { reason: "native_tool_calling" }
   | { reason: "supersedes_generation"; replaces: string }
+  | { reason: "trained_context"; tokens: number; asked_tokens: number }
   | { reason: "reduced_context"; tokens: number; default_tokens: number }
   | { reason: "fully_accelerated"; layers: number }
   | { reason: "partial_offload"; gpu_layers: number; total_layers: number }
   | { reason: "sparse_mixture"; active_percent: number }
   | { reason: "quantisation"; format: string; retained_percent: number }
   | { reason: "caveat"; caveat: RecommendCaveat };
+
+/**
+ * The memory a model runs from: a discrete card's own memory, one pool shared
+ * with the processor (Apple Silicon), or system memory.
+ */
+export type MemoryPool = "gpu" | "unified" | "system";
 
 /** Something established about a file that the operator should know. */
 export type RecommendCaveat =
@@ -212,8 +220,15 @@ export async function scanForWhisperModels(): Promise<WhisperModelInfo[]> {
 
 // ── LLM setup ────────────────────────────────────────────────────────────────
 
-export async function setupLocalLlm(ggufPath: string): Promise<void> {
-  return invoke<void>("setup_local_llm", { ggufPath });
+/**
+ * Wire a GGUF file as the `local` backend. `contextWindow` is stored as the
+ * backend's `context_window`; `null` keeps the stored value or the default.
+ */
+export async function setupLocalLlm(
+  ggufPath: string,
+  contextWindow: number | null = null,
+): Promise<void> {
+  return invoke<void>("setup_local_llm", { ggufPath, contextWindow });
 }
 
 export async function reloadLlm(): Promise<void> {

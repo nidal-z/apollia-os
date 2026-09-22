@@ -883,6 +883,8 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
+    // A Unix socket, so Unix only; the rest of the suite runs on Windows too.
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_tcp_port_none_serves_unix_only() {
         // GIVEN a config with no TCP port (embedded local-trust default)
@@ -1175,6 +1177,8 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
+    // A Unix socket, so Unix only; the rest of the suite runs on Windows too.
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_unix_socket_listener_binds_successfully() {
         // GIVEN a temporary socket path
@@ -1244,6 +1248,8 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
+    // A Unix socket, so Unix only; the rest of the suite runs on Windows too.
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_stale_socket_cleanup() {
         // GIVEN an existing (stale) socket file
@@ -1379,6 +1385,7 @@ mod tests {
     }
 
     /// Helper: send HTTP GET /api/v1/health via Unix socket and return the JSON body.
+    #[cfg(unix)]
     async fn http_get_via_unix(path: &std::path::Path) -> String {
         let stream = tokio::net::UnixStream::connect(path)
             .await

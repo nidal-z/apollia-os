@@ -108,11 +108,21 @@ pub struct SetupLlmResult {
 /// Copies the model into `~/.apollia/models/`, registers it as a backend
 /// in `system.db`, and returns the path for confirmation.
 ///
-/// This is a first-launch helper. The backend is inserted as `"local"` and
-/// marked as default if no backend with that name already exists.
+/// This is a first-launch helper. The backend is saved as `"local"`: inserted
+/// as the default when no backend has that name, otherwise pointed at the new
+/// file with its other settings and default flag kept, so choosing another
+/// model during onboarding really switches engines.
+///
+/// `context_window` is the window chosen at onboarding, stored as
+/// `config_json.context_window`, the key the engine is launched with and the
+/// router sizes compaction against. `None` leaves the stored value, or the
+/// runtime default, in place.
 /// Call `reload_llm_from_db` afterwards to make the router available immediately.
 #[tauri::command]
-pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String> {
+pub async fn setup_local_llm(
+    gguf_path: String,
+    context_window: Option<u32>,
+) -> Result<SetupLlmResult, String> {
     let source = PathBuf::from(&gguf_path);
 
     // Validate the file exists and is a .gguf
@@ -155,7 +165,7 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
 
     let model_path_str = format!("~/.apollia/models/{file_name}");
 
-    // Insert backend into system.db; idempotent (skips if "local" already exists).
+    // Upsert the "local" backend in system.db.
     // LlmBackendRepository is !Send, so DB work runs in spawn_blocking.
     let db_path = default_config_path()
         .parent()
@@ -173,26 +183,18 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
     tokio::task::spawn_blocking(move || {
         let repo = LlmBackendRepository::open(&db_path)
             .map_err(|e| format!("failed to open system.db: {e}"))?;
-        if repo
+        let existing = repo
             .find_by_name("local")
-            .map_err(|e| format!("failed to query system.db: {e}"))?
-            .is_none()
-        {
-            let config = LlmBackendConfig {
-                name: "local".to_string(),
-                provider: LlmProvider::LlamaCpp,
-                model: model_for_db.clone(),
-                config_json: serde_json::json!({
-                    "model_path": model_for_db,
-                    "device": device,
-                    "quantization": quant_for_db,
-                }),
-                enabled: true,
-                is_default: true,
-            };
-            repo.save(&config)
-                .map_err(|e| format!("failed to save LLM backend to system.db: {e}"))?;
-        }
+            .map_err(|e| format!("failed to query system.db: {e}"))?;
+        let config = local_backend(
+            existing,
+            &model_for_db,
+            &device,
+            &quant_for_db,
+            context_window,
+        );
+        repo.save(&config)
+            .map_err(|e| format!("failed to save LLM backend to system.db: {e}"))?;
         Ok::<_, String>(())
     })
     .await
@@ -208,6 +210,44 @@ pub async fn setup_local_llm(gguf_path: String) -> Result<SetupLlmResult, String
         model_path: dest.display().to_string(),
         quantization,
     })
+}
+
+/// The `"local"` backend row for a model chosen at onboarding.
+///
+/// A fresh row is the default. An existing one keeps its flags and every
+/// setting the operator added (sampling, device), and takes the new model, its
+/// quantisation and, when one was chosen, the new window. A row stored with the
+/// legacy `context_size` key converges on `context_window`.
+fn local_backend(
+    existing: Option<LlmBackendConfig>,
+    model_path: &str,
+    device: &str,
+    quantization: &str,
+    context_window: Option<u32>,
+) -> LlmBackendConfig {
+    let mut config = existing.unwrap_or_else(|| LlmBackendConfig {
+        name: "local".to_string(),
+        provider: LlmProvider::LlamaCpp,
+        model: String::new(),
+        config_json: serde_json::json!({ "device": device }),
+        enabled: true,
+        is_default: true,
+    });
+    config.provider = LlmProvider::LlamaCpp;
+    config.model = model_path.to_owned();
+    if !config.config_json.is_object() {
+        config.config_json = serde_json::json!({ "device": device });
+    }
+    if let Some(obj) = config.config_json.as_object_mut() {
+        obj.insert("model_path".into(), model_path.into());
+        obj.insert("quantization".into(), quantization.into());
+        obj.remove("model_paths");
+        if let Some(n) = context_window.filter(|n| *n > 0) {
+            obj.insert("context_window".into(), n.into());
+            obj.remove("context_size");
+        }
+    }
+    config
 }
 
 /// Infers the quantization type from a GGUF filename.
@@ -232,6 +272,62 @@ fn infer_quantization(stem: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_first_local_model_becomes_the_default_with_its_window() {
+        // GIVEN no "local" backend yet
+        // WHEN a model is chosen at onboarding with a 16k window
+        let cfg = local_backend(
+            None,
+            "~/.apollia/models/a.gguf",
+            "cpu",
+            "q4_k_m",
+            Some(16_384),
+        );
+
+        // THEN the row is the default and carries the window under the key the
+        // runtime reads
+        assert!(cfg.is_default);
+        assert_eq!(cfg.model, "~/.apollia/models/a.gguf");
+        assert_eq!(cfg.config_json["context_window"], 16_384);
+        assert_eq!(cfg.config_json["model_path"], "~/.apollia/models/a.gguf");
+    }
+
+    #[test]
+    fn choosing_another_model_updates_the_existing_row() {
+        // GIVEN a "local" backend the operator already tuned, not the default,
+        // stored with the legacy window key
+        let existing = LlmBackendConfig {
+            name: "local".into(),
+            provider: LlmProvider::LlamaCpp,
+            model: "~/.apollia/models/old.gguf".into(),
+            config_json: serde_json::json!({
+                "model_path": "~/.apollia/models/old.gguf",
+                "temperature": 0.4,
+                "context_size": 8192,
+            }),
+            enabled: true,
+            is_default: false,
+        };
+
+        // WHEN another model is chosen with a new window
+        let cfg = local_backend(
+            Some(existing),
+            "~/.apollia/models/new.gguf",
+            "cpu",
+            "q8_0",
+            Some(65_536),
+        );
+
+        // THEN the row points at the new file, keeps its settings and flags, and
+        // the window converges on the canonical key
+        assert_eq!(cfg.model, "~/.apollia/models/new.gguf");
+        assert_eq!(cfg.config_json["model_path"], "~/.apollia/models/new.gguf");
+        assert_eq!(cfg.config_json["temperature"], 0.4);
+        assert_eq!(cfg.config_json["context_window"], 65_536);
+        assert!(cfg.config_json.get("context_size").is_none());
+        assert!(!cfg.is_default);
+    }
 
     // Deliberately not a `#[tokio::test]`. The home guard is a `std` mutex, and
     // holding one across an await point is denied workspace-wide, for the usual

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { RecommendedModel } from "$lib/ipc/models";
+import type { HardwareProfileView, RecommendedModel } from "$lib/ipc/models";
 import {
   caveatLabel,
   defaultChoice,
+  measuredLabel,
   memoryLabel,
   modelDisplayName,
   needsOffloadWarning,
@@ -102,10 +103,16 @@ describe("memoryLabel", () => {
     // WHEN the memory line is built
     const label = memoryLabel(m);
 
-    // THEN the total, the weights and the cache are all interpolated, because
-    // the download size alone cannot explain why the fit is tight
+    // THEN the total, the weights, the cache and the engine's own buffers are
+    // all interpolated, because the download size alone cannot explain why the
+    // fit is tight, and the parts have to add up to the total shown
     expect(label.key).toBe("onboarding.ai_setup.memory_breakdown");
-    expect(label.values).toEqual({ total: "13.8", weights: "8.4", cache: "5.0" });
+    expect(label.values).toEqual({
+      total: "13.8",
+      weights: "8.4",
+      cache: "5.0",
+      overhead: "0.4",
+    });
   });
 
   it("marks an unmeasured cache as an approximation", () => {
@@ -123,10 +130,13 @@ describe("reasonLabel", () => {
   it("maps every reason the backend can send", () => {
     // GIVEN one of each reason variant
     const reasons: Parameters<typeof reasonLabel>[0][] = [
-      { reason: "fits_comfortably", needs_gb: 3.2, budget_gb: 24 },
-      { reason: "tight", needs_gb: 13.8, budget_gb: 16 },
+      { reason: "fits_comfortably", needs_gb: 3.2, budget_gb: 24, pool: "gpu" },
+      { reason: "fits_comfortably", needs_gb: 3.2, budget_gb: 48, pool: "unified" },
+      { reason: "tight", needs_gb: 13.8, budget_gb: 16, pool: "system" },
+      { reason: "split_across_memory", gpu_gb: 15.1, vram_gb: 16, system_gb: 3.2 },
       { reason: "native_tool_calling" },
       { reason: "supersedes_generation", replaces: "Qwen2.5" },
+      { reason: "trained_context", tokens: 8192, asked_tokens: 65536 },
       { reason: "reduced_context", tokens: 20480, default_tokens: 32768 },
       { reason: "fully_accelerated", layers: 40 },
       { reason: "partial_offload", gpu_layers: 21, total_layers: 48 },
@@ -290,5 +300,45 @@ describe("quantisation and placement reasons", () => {
     // THEN the counts are carried through, which is what an operator can
     // compare against a smaller model that would fit entirely
     expect(label.values).toEqual({ gpu: 21, total: 48 });
+  });
+});
+
+describe("measuredLabel", () => {
+  const hardware = (accelerator: HardwareProfileView["accelerator"]): HardwareProfileView => ({
+    total_ram_gb: 63.9,
+    available_ram_gb: 40,
+    cpu_model: "AMD Ryzen 9 5950X",
+    cpu_cores: 16,
+    memory_budget_gb: 16,
+    accelerator,
+  });
+
+  it("names system memory and video memory separately on a discrete card", () => {
+    // GIVEN a desktop with 64 GB of RAM and a 16 GB card
+    const label = measuredLabel(
+      hardware({ kind: "cuda", device_name: "RTX 4080", vram_gb: 16 }),
+    );
+
+    // WHEN the line is built
+    // THEN both memories appear with their own figure, never a single
+    // "usable" number that reads as the whole machine
+    expect(label.key).toBe("onboarding.ai_setup.recommend_measured_on_gpu");
+    expect(label.values).toEqual({
+      cpu: "AMD Ryzen 9 5950X",
+      ram: "64",
+      gpu: "RTX 4080",
+      vram: "16",
+    });
+  });
+
+  it("speaks of unified memory on Apple Silicon and of RAM alone without a card", () => {
+    // GIVEN a Mac and a processor-only machine
+    const mac = measuredLabel(hardware({ kind: "apple_silicon", chip: "M4 Max", vram_gb: 64 }));
+    const cpu = measuredLabel(hardware({ kind: "none" }));
+
+    // WHEN the lines are built
+    // THEN each names the memory it actually has
+    expect(mac.key).toBe("onboarding.ai_setup.recommend_measured_on_unified");
+    expect(cpu.key).toBe("onboarding.ai_setup.recommend_measured_on");
   });
 });

@@ -50,15 +50,33 @@ le charger et lui faire appeler des outils. La liste est ensuite classée pour
 votre machine : le même modèle peut arriver en tête sur un Mac et plus bas sur
 un PC doté d'une petite carte graphique.
 
-Chaque ligne dit pourquoi elle est là : la mémoire qu'il faut, répartie entre le
-modèle et sa mémoire de conversation, la façon dont il est compressé (par
-exemple `Q4_K_M`), et s'il tourne entièrement sur votre carte graphique.
+Au-dessus de la liste, **Fenêtre de contexte** règle la part d'une
+conversation que le modèle garde en mémoire (32k tokens par défaut). Une fenêtre
+plus grande demande plus de mémoire, donc la liste est recalculée quand vous la
+changez, et le modèle choisi est configuré avec cette fenêtre. Vous pouvez la
+modifier plus tard dans les **Réglages**, sur le backend du modèle, à la ligne
+**Fenêtre de contexte** ; le moteur, la compaction automatique et la jauge
+**Ctx** la suivent tous. Un modèle entraîné sur une fenêtre plus courte tourne
+à la sienne : au-delà, il lit des positions sur lesquelles il n'a jamais été
+entraîné, et ses réponses se dégradent. La ligne le signale alors.
 
-- **Tient de justesse :** le modèle tient, avec peu de place pour les autres
-  applications.
-- **N couches sur M sur votre GPU, le reste sur le processeur :** une partie du
-  modèle tourne sur le processeur, ce qui est bien plus lent. Un modèle plus
-  petit peut répondre plus vite.
+Chaque ligne dit pourquoi elle est là : la mémoire qu'il faut, répartie entre le
+modèle lui-même, sa mémoire de conversation et le moteur, la façon dont il est
+compressé (par exemple `Q4_K_M`), et la mémoire depuis laquelle il tourne. Sur
+un PC doté d'une carte graphique, c'est soit la mémoire vidéo de la carte, soit,
+pour un modèle trop grand pour elle, un partage entre mémoire vidéo et RAM
+système. La ligne sous la liste nomme les deux mémoires séparément.
+
+- **Tourne entièrement sur ton GPU :** le cas le plus rapide, mesuré par
+  rapport à la seule mémoire vidéo de la carte.
+- **Tient de justesse** ou **avec peu de marge :** le modèle tient, avec peu de
+  place pour les autres applications.
+- **Trop grand pour ton GPU seul :** une partie du modèle est en RAM système,
+  bien plus lente. Un modèle plus petit peut répondre plus vite.
+- **N couches sur M sur votre GPU, le reste sur le processeur :** le même
+  partage, compté en couches.
+- Un modèle qui générerait moins d'environ quatre tokens par seconde sur votre
+  machine n'est pas proposé, sauf si rien de plus rapide ne tient.
 - **Sans outils :** le modèle peut discuter mais ne peut pas exécuter d'agents.
 - **HuggingFace injoignable :** la liste est récupérée en direct, donc sans
   connexion il n'y a rien à proposer. Importez un fichier de modèle que vous

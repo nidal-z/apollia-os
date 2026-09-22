@@ -356,7 +356,7 @@ fn suggest_tool_name(name: &str, candidates: &[&str]) -> Option<String> {
 /// Levenshtein edit distance between two strings (insertions, deletions,
 /// substitutions), over Unicode scalar values. Used only for short tool names,
 /// so the simple two-row dynamic-programming table is more than fast enough.
-fn levenshtein(a: &str, b: &str) -> usize {
+pub(in crate::chat::builtin_agent) fn levenshtein(a: &str, b: &str) -> usize {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();
     if a.is_empty() {
@@ -385,8 +385,15 @@ pub(in crate::chat::builtin_agent) async fn build_tool_specs(
     tool_search_limit: usize,
 ) -> Vec<ToolSpec> {
     let deferred = mcp_index.is_some();
+    // A connector's tools are only worth their schema while its account is
+    // connected: see `connectors_bridge::availability` for what advertising all
+    // of them cost. Asked per turn, so a newly connected account counts at once.
+    let connected = crate::connectors_bridge::availability::connected_providers().await;
     let mut specs = Vec::with_capacity(available_tools.len());
     for name in available_tools {
+        if !crate::connectors_bridge::availability::is_advertisable(name, &connected) {
+            continue;
+        }
         // Deferred MCP tools are advertised from the index below, never from
         // the registry, which holds no `mcp:` descriptor in that mode anyway.
         // Skipping here keeps a stale registry entry from producing a duplicate

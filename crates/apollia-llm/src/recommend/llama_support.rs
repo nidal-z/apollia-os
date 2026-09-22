@@ -519,12 +519,6 @@ impl SlidingWindow {
             il % self.n_pattern < self.n_pattern - 1
         }
     }
-
-    /// How many of `n_layer` layers attend to the short window.
-    #[must_use]
-    pub fn sliding_layers(&self, n_layer: u32) -> u32 {
-        (0..n_layer).filter(|il| self.layer_slides(*il)).count() as u32
-    }
 }
 
 impl HybridAttention {
@@ -537,17 +531,23 @@ impl HybridAttention {
     pub fn layer_has_cache(&self, il: u32) -> bool {
         self.full_attention_interval != 0 && (il + 1).is_multiple_of(self.full_attention_interval)
     }
-
-    /// How many of `n_layer` layers keep a real cache.
-    #[must_use]
-    pub fn cached_layers(&self, n_layer: u32) -> u32 {
-        (0..n_layer).filter(|il| self.layer_has_cache(*il)).count() as u32
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// How many of `n_layer` layers attend to the short window.
+    fn sliding_layers(window: &SlidingWindow, n_layer: u32) -> u32 {
+        (0..n_layer).filter(|il| window.layer_slides(*il)).count() as u32
+    }
+
+    /// How many of `n_layer` layers keep a real cache.
+    fn cached_layers(hybrid: &HybridAttention, n_layer: u32) -> u32 {
+        (0..n_layer)
+            .filter(|il| hybrid.layer_has_cache(*il))
+            .count() as u32
+    }
 
     #[test]
     fn the_two_architecture_lists_do_not_overlap() {
@@ -595,7 +595,7 @@ mod tests {
         // THEN five are dense and twenty-nine slide, which is what turns a
         // 5.3 GB cache estimate into a 0.8 GB one
         assert_eq!(window.n_pattern, 6);
-        assert_eq!(window.sliding_layers(34), 29);
+        assert_eq!(sliding_layers(&window, 34), 29);
         assert!(window.layer_slides(0));
         assert!(!window.layer_slides(5));
         assert!(window.layer_slides(6));
@@ -619,8 +619,8 @@ mod tests {
 
         // WHEN a stack of layers is classified
         // THEN zero means every layer slides and one means no layer does
-        assert_eq!(all.sliding_layers(32), 32);
-        assert_eq!(none.sliding_layers(32), 0);
+        assert_eq!(sliding_layers(&all, 32), 32);
+        assert_eq!(sliding_layers(&none, 32), 0);
     }
 
     #[test]
@@ -650,7 +650,7 @@ mod tests {
         // THEN eight keep a cache, so its context costs a quarter of what a
         // dense model of the same depth would reserve
         assert_eq!(hybrid.full_attention_interval, 4);
-        assert_eq!(hybrid.cached_layers(32), 8);
+        assert_eq!(cached_layers(&hybrid, 32), 8);
         assert!(hybrid.layer_has_cache(3));
         assert!(!hybrid.layer_has_cache(0));
     }

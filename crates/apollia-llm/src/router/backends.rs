@@ -20,6 +20,8 @@ use crate::types::{CompletionModel, CompletionRequest, CompletionResponse, LlmEr
 #[cfg(feature = "cloud")]
 use crate::backends::anthropic::AnthropicClient;
 #[cfg(feature = "cloud")]
+use crate::backends::ollama::{OllamaClient, OllamaConfig};
+#[cfg(feature = "cloud")]
 use crate::backends::openai::{ApiBackendConfig, OpenAICompatibleClient};
 #[cfg(feature = "cloud")]
 use crate::backends::vertex::VertexClient;
@@ -319,7 +321,33 @@ pub(super) async fn instantiate_cloud_backend(
     };
 
     let base_url = extract_base_url(cfg, default_url);
-    let context_window = resolve_context_window(cfg, provider, &base_url).await;
+    let idle_timeout = extract_idle_timeout(cfg);
+
+    // Ollama is reached through its native API, the only one that lets the
+    // client choose the context window. See `backends::ollama`.
+    if matches!(provider, LlmProvider::Ollama) {
+        let root = OllamaConfig::root_of(&base_url);
+        let num_ctx =
+            OllamaClient::num_ctx(&root, &cfg.model, configured_context_window(cfg)).await;
+        tracing::info!(
+            backend = %cfg.name,
+            model = %cfg.model,
+            num_ctx = num_ctx,
+            "llm.ollama.num_ctx"
+        );
+        return Ok(Arc::new(OllamaClient::new(
+            OllamaConfig {
+                name: cfg.name.clone(),
+                root,
+                model: cfg.model.clone(),
+                num_ctx,
+            },
+            cancel,
+            idle_timeout,
+        )) as Arc<dyn CompletionModel>);
+    }
+
+    let context_window = resolve_context_window(cfg);
 
     let api_cfg = ApiBackendConfig {
         name: cfg.name.clone(),
@@ -332,8 +360,6 @@ pub(super) async fn instantiate_cloud_backend(
         // to its own backend above, and that is where the extension is declared.
         llama_cpp_extensions: false,
     };
-
-    let idle_timeout = extract_idle_timeout(cfg);
 
     if matches!(provider, LlmProvider::Anthropic) {
         return Ok(Arc::new(AnthropicClient::with_idle_timeout(
@@ -352,88 +378,25 @@ pub(super) async fn instantiate_cloud_backend(
         idle_timeout,
     )) as Arc<dyn CompletionModel>)
 }
-/// Establish the usable context window of a self-hosted OpenAI-compatible
-/// backend, so the router sizes compaction against the real window.
-///
-/// Order: the operator's `config_json["context_window"]` wins, because it is the
-/// only value that survives the server being down. Otherwise an Ollama backend
-/// is asked directly, since it is the one provider in this set that both
-/// auto-sizes its window from the machine's memory and exposes the resolved
-/// figure. Everything else stays `None`, which the router reads as unknown.
-///
-/// Never fails the build: a backend whose window cannot be established is still
-/// usable, it just falls back to the generic limit.
+/// The context window an operator pinned in `config_json["context_window"]`.
 #[cfg(feature = "cloud")]
-pub(super) async fn resolve_context_window(
-    cfg: &LlmBackendConfig,
-    provider: &LlmProvider,
-    base_url: &str,
-) -> Option<usize> {
-    if let Some(configured) = cfg
-        .config_json
-        .get("context_window")
-        .and_then(|v| v.as_u64())
-        .filter(|v| *v > 0)
-    {
-        return Some(configured as usize);
-    }
-    if !matches!(provider, LlmProvider::Ollama) {
-        return None;
-    }
-    let probed = probe_ollama_context_window(base_url, &cfg.model).await;
-    if probed.is_none() {
-        tracing::warn!(
-            backend = %cfg.name,
-            model = %cfg.model,
-            "llm.context_window.unknown"
-        );
-    }
-    probed
+pub(super) fn configured_context_window(cfg: &LlmBackendConfig) -> Option<u32> {
+    crate::context_window::configured(&cfg.config_json)
 }
-/// Ask a running Ollama server what window it actually loaded the model with.
-///
-/// `/api/ps` reports the loaded window, which is the only authoritative source:
-/// Ollama sizes it from available memory when `OLLAMA_CONTEXT_LENGTH` is unset,
-/// so neither the model's trained length nor any local default predicts it. A
-/// model that is not currently loaded yields nothing, deliberately: reporting
-/// its trained length instead would over-state the window on exactly the small
-/// machines where overflowing it is a real risk.
-#[cfg(feature = "cloud")]
-pub(super) async fn probe_ollama_context_window(base_url: &str, model: &str) -> Option<usize> {
-    let root = base_url.trim_end_matches('/');
-    let root = root.strip_suffix("/v1").unwrap_or(root);
-    let client =
-        crate::http_client::build_llm_http_client(std::time::Duration::from_secs(5), base_url);
-    let body: serde_json::Value = client
-        .get(format!("{root}/api/ps"))
-        .send()
-        .await
-        .ok()?
-        .json()
-        .await
-        .ok()?;
 
-    ollama_context_from_ps(&body, model)
-}
-/// Read the loaded window of `model` out of an Ollama `/api/ps` body.
+/// Establish the usable context window of an OpenAI-compatible backend, so the
+/// router sizes compaction against the real window.
 ///
-/// Split from the request so the shape of the answer is tested without a
-/// server.
+/// The OpenAI protocol has no way to ask, so this is the operator's configured
+/// figure or `None`, which the router reads as unknown. Ollama used to be asked
+/// here through `/api/ps`, which reported the window a model happened to be
+/// loaded with: 4096 tokens under Ollama's memory-based default, and nothing at
+/// all when the model was not loaded, so the same backend flipped between an
+/// assumed 200000 and a real 4096 depending on timing. Ollama now goes through
+/// its native client, which chooses the window instead of discovering it.
 #[cfg(feature = "cloud")]
-pub(super) fn ollama_context_from_ps(body: &serde_json::Value, model: &str) -> Option<usize> {
-    body.get("models")?.as_array()?.iter().find_map(|m| {
-        let name = m.get("name").or_else(|| m.get("model"))?.as_str()?;
-        // Ollama reports the fully qualified tag; a backend configured without
-        // one refers to `:latest`.
-        let matches = name == model
-            || name
-                .strip_suffix(":latest")
-                .is_some_and(|base| base == model);
-        matches
-            .then(|| m.get("context_length")?.as_u64())
-            .flatten()
-            .map(|v| v as usize)
-    })
+pub(super) fn resolve_context_window(cfg: &LlmBackendConfig) -> Option<usize> {
+    configured_context_window(cfg).map(|v| v as usize)
 }
 /// Reads how long a backend may stay silent before the call is abandoned.
 ///

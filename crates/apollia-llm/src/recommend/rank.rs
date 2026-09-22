@@ -30,6 +30,23 @@
 //! rather than of the model, which is why the same list ranks differently on a
 //! Mac and on a desktop with a 12 GB card.
 //!
+//! # Which memory a verdict is about
+//!
+//! A machine with a discrete card has two pools, and "fits" means something
+//! different in each. A model that runs entirely on the card is graded against
+//! the card. A model that spills into system memory is not graded at all: it is
+//! reported as a split, with how much lands on each side, because calling a
+//! model that runs a sixth of its layers on the processor a comfortable fit
+//! against the sum of both pools told the operator the opposite of what they
+//! would experience. Every reason that carries a figure names its pool.
+//!
+//! # Too slow to offer
+//!
+//! A model that generates below [`MIN_TOKENS_PER_SECOND`] is dropped rather
+//! than ranked low, unless nothing faster fits: a 70B that fits across both
+//! pools and answers at one token a second is a model an operator waits on, not
+//! one they use.
+//!
 //! # The one absolute rule
 //!
 //! A generation that some other fitting candidate supersedes is demoted below
@@ -71,19 +88,33 @@ pub struct FileCandidate {
 #[serde(tag = "reason", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum Reason {
-    /// Fits comfortably in what the machine can hold.
+    /// Fits comfortably in one memory pool.
     FitsComfortably {
         /// Estimated total footprint in gibibytes.
         needs_gb: f64,
-        /// What the machine can hold, in gibibytes.
+        /// What that pool can hold, in gibibytes.
         budget_gb: f64,
+        /// The pool the model runs from.
+        pool: MemoryPool,
     },
-    /// Within reach, but without much room.
+    /// Fits one memory pool, without much room.
     Tight {
         /// Estimated total footprint in gibibytes.
         needs_gb: f64,
-        /// What the machine can hold, in gibibytes.
+        /// What that pool can hold, in gibibytes.
         budget_gb: f64,
+        /// The pool the model runs from.
+        pool: MemoryPool,
+    },
+    /// Too large for the card alone: part runs from the card, the rest from
+    /// system memory, at the speed of the slower side.
+    SplitAcrossMemory {
+        /// Gibibytes placed on the card, weights and context cache.
+        gpu_gb: f64,
+        /// The card's memory, in gibibytes.
+        vram_gb: f64,
+        /// Gibibytes of weights left in system memory.
+        system_gb: f64,
     },
     /// The template emits tool calls the runtime parses natively.
     NativeToolCalling,
@@ -91,6 +122,15 @@ pub enum Reason {
     SupersedesGeneration {
         /// The label of the generation it replaces.
         replaces: String,
+    },
+    /// The model was trained on a shorter window than the one asked, and runs
+    /// at its own: the engine would accept more, but past its training length
+    /// a model reads positions it was never fitted to.
+    TrainedContext {
+        /// Tokens the model was trained on, and will run at.
+        tokens: u32,
+        /// Tokens that were asked for.
+        asked_tokens: u32,
     },
     /// It fits, but only at a context shorter than the runtime's default.
     ReducedContext {
@@ -130,6 +170,18 @@ pub enum Reason {
     },
 }
 
+/// The memory a model runs from, so a figure is never read against the wrong one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryPool {
+    /// A discrete card's own memory.
+    Gpu,
+    /// One pool shared by processor and accelerator, as on Apple Silicon.
+    Unified,
+    /// System memory, read by the processor.
+    System,
+}
+
 /// A candidate with its verdict, its cost, its placement and its rank.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Recommendation {
@@ -147,7 +199,8 @@ pub struct Recommendation {
     pub verdict: Verdict,
     /// Where the memory goes.
     pub estimate: MemoryEstimate,
-    /// The fit grade against everything the machine can hold.
+    /// The fit grade against the pool the model runs from. A model split
+    /// between a card and system memory is never better than `MightFit`.
     pub badge: CompatibilityBadge,
     /// The longest context that fits, when that is below the default.
     pub max_context: Option<u32>,
@@ -197,6 +250,13 @@ const SPEED_WEIGHT: f64 = 8.0;
 const SPEED_BONUS_CEILING: f64 = 4.0;
 const SPEED_PENALTY_FLOOR: f64 = -20.0;
 
+/// Estimated generation speed below which a model is not offered, in tokens
+/// per second, as long as something faster fits.
+///
+/// Around a slow reading pace. Below it an answer of a few paragraphs takes
+/// minutes, and an agent that chains tool calls takes far longer.
+pub const MIN_TOKENS_PER_SECOND: f64 = 4.0;
+
 /// One candidate paired with the table entry it was matched to.
 pub struct Matched<'m> {
     /// The file from the Hub.
@@ -217,6 +277,60 @@ fn grade_against(total_gb: f64, capacity_gb: f64) -> CompatibilityBadge {
         CompatibilityBadge::MightFit
     } else {
         CompatibilityBadge::TooLarge
+    }
+}
+
+/// Where a model runs, judged against that pool alone.
+///
+/// Returns the grade and the reason that states it. The gate against
+/// everything the machine can hold has already passed.
+fn placement(
+    architecture: MemoryArchitecture,
+    estimate: &MemoryEstimate,
+    offload: &OffloadPlan,
+    capacity_gb: f64,
+) -> (CompatibilityBadge, Reason) {
+    let needs_gb = estimate.total_gb;
+    let within = |pool: MemoryPool, budget_gb: f64| {
+        // Never `TooLarge` here: the model passed the gate, and the placement
+        // only says how much room it leaves.
+        if needs_gb < budget_gb * 0.70 {
+            (
+                CompatibilityBadge::Fits,
+                Reason::FitsComfortably {
+                    needs_gb,
+                    budget_gb,
+                    pool,
+                },
+            )
+        } else {
+            (
+                CompatibilityBadge::MightFit,
+                Reason::Tight {
+                    needs_gb,
+                    budget_gb,
+                    pool,
+                },
+            )
+        }
+    };
+    match architecture {
+        MemoryArchitecture::Unified { .. } => within(MemoryPool::Unified, capacity_gb),
+        MemoryArchitecture::HostOnly { .. } => within(MemoryPool::System, capacity_gb),
+        MemoryArchitecture::Discrete { vram_gb, .. } if offload.fully_offloaded => {
+            within(MemoryPool::Gpu, vram_gb)
+        }
+        MemoryArchitecture::Discrete { host_gb, .. } if offload.n_gpu_layers == 0 => {
+            within(MemoryPool::System, host_gb)
+        }
+        MemoryArchitecture::Discrete { vram_gb, .. } => (
+            CompatibilityBadge::MightFit,
+            Reason::SplitAcrossMemory {
+                gpu_gb: offload.device_gb,
+                vram_gb,
+                system_gb: offload.host_gb,
+            },
+        ),
     }
 }
 
@@ -241,7 +355,7 @@ pub fn rank(
     candidates: Vec<Matched<'_>>,
     manifest: &FamilyManifest,
     profile: &HardwareProfile,
-    shape: &RuntimeShape,
+    asked: &RuntimeShape,
 ) -> Vec<Recommendation> {
     let architecture = MemoryArchitecture::of(profile);
     let accelerated = architecture.uses_accelerator();
@@ -257,9 +371,15 @@ pub fn rank(
             continue;
         }
 
+        // Each model is sized at the window it will actually run at, which is
+        // the asked one capped at its training length, the same cap the engine
+        // applies when it is launched.
+        let shape = &RuntimeShape {
+            n_ctx: crate::context_window::cap_at_trained(asked.n_ctx, m.facts.context_length),
+            ..*asked
+        };
         let estimate = estimate_memory(m.file.size_bytes, &m.facts, shape, accelerated);
-        let badge = grade_against(estimate.total_gb, capacity_gb);
-        if badge == CompatibilityBadge::TooLarge {
+        if grade_against(estimate.total_gb, capacity_gb) == CompatibilityBadge::TooLarge {
             continue;
         }
 
@@ -271,6 +391,7 @@ pub fn rank(
         let quality = base * quant.map_or(1.0, |q| q.quality);
 
         let offload = plan_offload(m.file.size_bytes, &m.facts, profile, shape);
+        let (badge, fit_reason) = placement(architecture, &estimate, &offload, capacity_gb);
         let max_context = max_context_for(m.file.size_bytes, &m.facts, shape, profile, accelerated)
             .filter(|ctx| *ctx < shape.n_ctx);
 
@@ -290,15 +411,14 @@ pub fn rank(
 
         let reasons = build_reasons(ReasonInput {
             verdict: &verdict,
-            estimate: &estimate,
-            badge,
-            capacity_gb,
+            fit_reason,
             family: m.family,
             facts: &m.facts,
             offload: &offload,
             quant,
             max_context,
             shape,
+            asked_tokens: asked.n_ctx,
         });
 
         kept.push(Recommendation {
@@ -315,6 +435,15 @@ pub fn rank(
             score,
             reasons,
         });
+    }
+
+    // Only when something fast enough remains: on a machine where nothing
+    // reaches the floor, the fastest of the slow is still the honest answer.
+    if kept
+        .iter()
+        .any(|r| r.offload.tokens_per_second >= MIN_TOKENS_PER_SECOND)
+    {
+        kept.retain(|r| r.offload.tokens_per_second >= MIN_TOKENS_PER_SECOND);
     }
 
     demote_superseded(&mut kept, manifest);
@@ -379,44 +508,30 @@ fn demote_superseded(kept: &mut [Recommendation], manifest: &FamilyManifest) {
 /// Everything a reason list is derived from.
 struct ReasonInput<'a> {
     verdict: &'a Verdict,
-    estimate: &'a MemoryEstimate,
-    badge: CompatibilityBadge,
-    capacity_gb: f64,
+    fit_reason: Reason,
     family: &'a Family,
     facts: &'a GgufHeaderFacts,
     offload: &'a OffloadPlan,
     quant: Option<&'static quant::Quant>,
     max_context: Option<u32>,
     shape: &'a RuntimeShape,
+    asked_tokens: u32,
 }
 
 fn build_reasons(input: ReasonInput<'_>) -> Vec<Reason> {
     let ReasonInput {
         verdict,
-        estimate,
-        badge,
-        capacity_gb,
+        fit_reason,
         family,
         facts,
         offload,
         quant,
         max_context,
         shape,
+        asked_tokens,
     } = input;
 
-    let mut reasons = Vec::new();
-
-    match badge {
-        CompatibilityBadge::Fits => reasons.push(Reason::FitsComfortably {
-            needs_gb: estimate.total_gb,
-            budget_gb: capacity_gb,
-        }),
-        CompatibilityBadge::MightFit => reasons.push(Reason::Tight {
-            needs_gb: estimate.total_gb,
-            budget_gb: capacity_gb,
-        }),
-        CompatibilityBadge::TooLarge => {}
-    }
+    let mut reasons = vec![fit_reason];
 
     if verdict.supports_tool_calling() && family.tool_calling == ToolCalling::Native {
         reasons.push(Reason::NativeToolCalling);
@@ -446,6 +561,13 @@ fn build_reasons(input: ReasonInput<'_>) -> Vec<Reason> {
         reasons.push(Reason::Quantisation {
             format: q.name.to_owned(),
             retained_percent: (q.quality * 100.0).round() as u32,
+        });
+    }
+
+    if shape.n_ctx < asked_tokens {
+        reasons.push(Reason::TrainedContext {
+            tokens: shape.n_ctx,
+            asked_tokens,
         });
     }
 
@@ -545,6 +667,157 @@ mod tests {
             .iter()
             .find(|v| (v.params_b - params_b).abs() < f64::EPSILON)
             .expect("the variant is in the table")
+    }
+
+    #[test]
+    fn a_model_that_spills_off_the_card_is_reported_as_a_split() {
+        // GIVEN a 14B that does not fit an 8 GB card but fits the machine
+        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let qwen3 = manifest.family("qwen3").expect("qwen3");
+        let candidates = vec![Matched {
+            file: file("Qwen/Qwen3-14B-GGUF", "Qwen3-14B-Q4_K_M.gguf", 8.4),
+            facts: facts("qwen3", 40, 8, 5120),
+            family: qwen3,
+            variant: variant_of(qwen3, 14.0),
+        }];
+
+        // WHEN it is ranked on that machine
+        let ranked = rank(
+            candidates,
+            &manifest,
+            &cuda(8.0, 64.0),
+            &RuntimeShape::default(),
+        );
+
+        // THEN it is never called comfortable, and its first reason states how
+        // much lands on the card and how much in system memory, not a figure
+        // measured against both pools added together
+        assert_eq!(ranked.len(), 1);
+        assert_eq!(ranked[0].badge, CompatibilityBadge::MightFit);
+        match &ranked[0].reasons[0] {
+            Reason::SplitAcrossMemory {
+                gpu_gb,
+                vram_gb,
+                system_gb,
+            } => {
+                assert!(*gpu_gb <= *vram_gb);
+                assert!(*system_gb > 0.0);
+            }
+            other => panic!("expected a split, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_model_that_fits_the_card_is_graded_against_the_card() {
+        // GIVEN an 8B on a 24 GB card in a machine with 64 GB of memory
+        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let qwen3 = manifest.family("qwen3").expect("qwen3");
+        let candidates = vec![Matched {
+            file: file("Qwen/Qwen3-8B-GGUF", "Qwen3-8B-Q4_K_M.gguf", 4.7),
+            facts: facts("qwen3", 36, 8, 4096),
+            family: qwen3,
+            variant: variant_of(qwen3, 8.0),
+        }];
+
+        // WHEN it is ranked
+        let ranked = rank(
+            candidates,
+            &manifest,
+            &cuda(24.0, 64.0),
+            &RuntimeShape::default(),
+        );
+
+        // THEN the budget it is measured against is the card, not the card
+        // plus system memory
+        match &ranked[0].reasons[0] {
+            Reason::FitsComfortably {
+                budget_gb, pool, ..
+            } => {
+                assert_eq!(*pool, MemoryPool::Gpu);
+                assert!((*budget_gb - 24.0).abs() < f64::EPSILON);
+            }
+            other => panic!("expected a comfortable fit on the card, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_model_too_slow_to_use_is_dropped_when_a_faster_one_fits() {
+        // GIVEN a 14B at Q8_0 and a 4B at Q4_K_M on a processor-only machine,
+        // where the 14B generates at about three tokens a second
+        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let qwen3 = manifest.family("qwen3").expect("qwen3");
+        let slow = || Matched {
+            file: file("Qwen/Qwen3-14B-GGUF", "Qwen3-14B-Q8_0.gguf", 14.6),
+            facts: facts("qwen3", 40, 8, 5120),
+            family: qwen3,
+            variant: variant_of(qwen3, 14.0),
+        };
+        let fast = Matched {
+            file: file("Qwen/Qwen3-4B-GGUF", "Qwen3-4B-Q4_K_M.gguf", 2.5),
+            facts: facts("qwen3", 36, 8, 2560),
+            family: qwen3,
+            variant: variant_of(qwen3, 4.0),
+        };
+
+        // WHEN both are ranked, and then the slow one alone
+        let both = rank(
+            vec![slow(), fast],
+            &manifest,
+            &host(40.0),
+            &RuntimeShape::default(),
+        );
+        let alone = rank(
+            vec![slow()],
+            &manifest,
+            &host(40.0),
+            &RuntimeShape::default(),
+        );
+
+        // THEN the slow one is withheld while something usable fits, and kept
+        // when it is all the machine can run
+        assert_eq!(both.len(), 1);
+        assert!(both[0].offload.tokens_per_second >= MIN_TOKENS_PER_SECOND);
+        assert_eq!(alone.len(), 1);
+        assert!(alone[0].offload.tokens_per_second < MIN_TOKENS_PER_SECOND);
+    }
+
+    #[test]
+    fn a_model_trained_on_less_than_the_asked_window_is_sized_at_its_own() {
+        // GIVEN an 8B trained on 8192 tokens, and a 64k window asked
+        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let qwen3 = manifest.family("qwen3").expect("qwen3");
+        let mut short = facts("qwen3", 36, 8, 4096);
+        short.context_length = Some(8_192);
+        let asked = RuntimeShape {
+            n_ctx: 65_536,
+            ..RuntimeShape::default()
+        };
+        let candidate = || Matched {
+            file: file("Qwen/Qwen3-8B-GGUF", "Qwen3-8B-Q4_K_M.gguf", 4.7),
+            facts: short.clone(),
+            family: qwen3,
+            variant: variant_of(qwen3, 8.0),
+        };
+
+        // WHEN it is ranked at that window and at its own
+        let capped = rank(vec![candidate()], &manifest, &host(40.0), &asked);
+        let own = rank(
+            vec![candidate()],
+            &manifest,
+            &host(40.0),
+            &RuntimeShape {
+                n_ctx: 8_192,
+                ..RuntimeShape::default()
+            },
+        );
+
+        // THEN its cache is the one it will really allocate, and the row says
+        // it runs at 8k rather than at the 64k asked
+        assert!((capped[0].estimate.kv_cache_gb - own[0].estimate.kv_cache_gb).abs() < 1e-9);
+        assert!(capped[0].reasons.contains(&Reason::TrainedContext {
+            tokens: 8_192,
+            asked_tokens: 65_536,
+        }));
     }
 
     #[test]

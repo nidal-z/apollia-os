@@ -898,8 +898,8 @@ mod tests {
         assert_eq!(chunk.reasoning.as_deref(), Some("step"));
     }
 
-    // GIVEN a chunk from a server that inlines its reasoning (the embedded
-    // llama-server with --reasoning-format none)
+    // GIVEN a chunk from a server that inlines its reasoning (any server run
+    // without a reasoning parser, such as llama-server with --reasoning-format none)
     // WHEN it is deserialized
     // THEN no separate reasoning is reported and the content is untouched, so
     // the inlining below never fires and cannot double-wrap

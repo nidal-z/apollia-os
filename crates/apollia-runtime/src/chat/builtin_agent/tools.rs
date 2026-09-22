@@ -78,15 +78,35 @@ impl BuiltInChatAgent {
         // so the slow invocations overlap while results are applied in order.
         // Unknown tools (absent from the registry, e.g. hardcoded-false MCP specs)
         // are treated as write, the conservative default.
+        //
+        // The same lookup checks each call's arguments against the tool's
+        // schema: a call that cannot be right does not run, and the model gets
+        // the tool's usage card instead (see `tool_guide`). Tools absent from
+        // the registry are not checked here.
         let mut read_only: Vec<bool> = Vec::with_capacity(effective_calls.len());
+        let mut malformed: Vec<Option<String>> = Vec::with_capacity(effective_calls.len());
         for call in effective_calls.iter() {
-            let ro = self
-                .tool_registry
-                .describe(&call.name)
-                .await
-                .map(|d| d.is_read_only)
-                .unwrap_or(false);
-            read_only.push(ro);
+            let descriptor = self.tool_registry.describe(&call.name).await;
+            read_only.push(descriptor.as_ref().is_some_and(|d| d.is_read_only));
+            // A call repeated verbatim past the allowance is answered the same
+            // way, with a reminder in place of a result it has already seen.
+            let repeated = super::tool_guide::repeated_call_reminder(
+                &call.name,
+                &call.arguments,
+                acc.all_tool_calls
+                    .iter()
+                    .map(|r| (r.tool_name.as_str(), &r.input)),
+            );
+            malformed.push(repeated.or_else(|| {
+                descriptor.and_then(|d| {
+                    super::tool_guide::invalid_arguments_guide(
+                        &call.name,
+                        &d.description,
+                        &d.input_schema,
+                        &call.arguments,
+                    )
+                })
+            }));
         }
 
         // Plan-mode hard gate: before a plan is approved, refuse execution tools.
@@ -150,6 +170,7 @@ impl BuiltInChatAgent {
                 .filter(|&i| {
                     i < allowed_calls
                         && denied[i].is_none()
+                        && malformed[i].is_none()
                         && !rewritten_by_hook[i]
                         && read_only[i]
                         && acc.authorized.contains(&effective_calls[i].name)
@@ -236,6 +257,28 @@ impl BuiltInChatAgent {
                     session_id = %session_id,
                     "hook.pretooluse.deny"
                 );
+                continue;
+            }
+            // A call whose arguments cannot be right is answered with the
+            // tool's usage card instead of running, and a call repeated verbatim
+            // past the allowance with a reminder. Either counts as a failure, so
+            // a model that keeps getting it wrong reaches the escalation path.
+            if let Some(guide) = &malformed[i] {
+                llm_messages.push(LlmChatMessage::tool_result(&call.id, guide));
+                acc.all_tool_calls.push(ToolCallRecord {
+                    tool_name: call.name.clone(),
+                    input: call.arguments.clone(),
+                    output: Some(guide.clone()),
+                    status: ToolCallStatus::Failed,
+                    rationale: None,
+                    retry_attempts: Vec::new(),
+                });
+                tracing::info!(
+                    tool_name = %call.name,
+                    session_id = %session_id,
+                    "chat.tool.call.not_run"
+                );
+                *consecutive_tool_failures = next_failure_count(*consecutive_tool_failures, true);
                 continue;
             }
             let (failed, executed) = match (call.name.as_str(), self.todo.as_ref()) {

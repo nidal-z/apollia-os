@@ -62,6 +62,7 @@ mod prompt;
 mod react_loop;
 mod response;
 mod stream;
+mod tool_guide;
 mod tools;
 
 pub(in crate::chat::builtin_agent) use helpers::{

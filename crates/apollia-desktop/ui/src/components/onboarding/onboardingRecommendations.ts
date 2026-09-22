@@ -12,6 +12,8 @@
  * worth testing without mounting anything.
  */
 import type {
+  HardwareProfileView,
+  MemoryPool,
   RecommendCaveat,
   RecommendReason,
   RecommendedModel,
@@ -66,8 +68,9 @@ export function sizeLabel(bytes: number): string {
  * than a comfortable one, and an operator who sees only the download size has
  * no way to understand why.
  *
- * An unmeasured cache is labelled as an approximation instead of being shown
- * with the same authority as a measured one.
+ * The engine's own buffers are named too, so the three parts add up to the
+ * total the row shows. An unmeasured cache is labelled as an approximation
+ * instead of being shown with the same authority as a measured one.
  */
 export function memoryLabel(model: RecommendedModel): Localisable {
   const { estimate } = model;
@@ -79,7 +82,42 @@ export function memoryLabel(model: RecommendedModel): Localisable {
       total: estimate.total_gb.toFixed(1),
       weights: estimate.weights_gb.toFixed(1),
       cache: estimate.kv_cache_gb.toFixed(1),
+      overhead: estimate.overhead_gb.toFixed(1),
     },
+  };
+}
+
+/**
+ * The line saying what the recommendations were measured on.
+ *
+ * Names each memory with its own figure: system memory, and the card's video
+ * memory when there is one. A single "usable" figure read as the machine's
+ * whole memory when it was only the card's.
+ */
+export function measuredLabel(hardware: HardwareProfileView): Localisable {
+  const ram = hardware.total_ram_gb.toFixed(0);
+  const { accelerator } = hardware;
+  const vram = typeof accelerator.vram_gb === "number" ? accelerator.vram_gb : 0;
+  if (accelerator.kind === "apple_silicon") {
+    return {
+      key: "onboarding.ai_setup.recommend_measured_on_unified",
+      values: { chip: String(accelerator.chip ?? hardware.cpu_model), ram },
+    };
+  }
+  if ((accelerator.kind === "cuda" || accelerator.kind === "generic") && vram > 0) {
+    return {
+      key: "onboarding.ai_setup.recommend_measured_on_gpu",
+      values: {
+        cpu: hardware.cpu_model,
+        ram,
+        gpu: String(accelerator.device_name ?? ""),
+        vram: vram.toFixed(0),
+      },
+    };
+  }
+  return {
+    key: "onboarding.ai_setup.recommend_measured_on",
+    values: { cpu: hardware.cpu_model, ram },
   };
 }
 
@@ -103,12 +141,27 @@ export function caveatLabel(caveat: RecommendCaveat): Localisable {
   }
 }
 
+/**
+ * One sentence per memory pool, spelled out rather than built from the pool's
+ * name so every key stays greppable and the catalogue guard can see it read.
+ */
+const FITS_KEY: Record<MemoryPool, string> = {
+  gpu: "onboarding.ai_setup.reason_fits_gpu",
+  unified: "onboarding.ai_setup.reason_fits_unified",
+  system: "onboarding.ai_setup.reason_fits_system",
+};
+const TIGHT_KEY: Record<MemoryPool, string> = {
+  gpu: "onboarding.ai_setup.reason_tight_gpu",
+  unified: "onboarding.ai_setup.reason_tight_unified",
+  system: "onboarding.ai_setup.reason_tight_system",
+};
+
 /** Map one reason to the sentence that explains it. */
 export function reasonLabel(reason: RecommendReason): Localisable {
   switch (reason.reason) {
     case "fits_comfortably":
       return {
-        key: "onboarding.ai_setup.reason_fits",
+        key: FITS_KEY[reason.pool],
         values: {
           needs: reason.needs_gb.toFixed(1),
           budget: reason.budget_gb.toFixed(1),
@@ -116,10 +169,19 @@ export function reasonLabel(reason: RecommendReason): Localisable {
       };
     case "tight":
       return {
-        key: "onboarding.ai_setup.reason_tight",
+        key: TIGHT_KEY[reason.pool],
         values: {
           needs: reason.needs_gb.toFixed(1),
           budget: reason.budget_gb.toFixed(1),
+        },
+      };
+    case "split_across_memory":
+      return {
+        key: "onboarding.ai_setup.reason_split",
+        values: {
+          gpu: reason.gpu_gb.toFixed(1),
+          vram: reason.vram_gb.toFixed(0),
+          system: reason.system_gb.toFixed(1),
         },
       };
     case "native_tool_calling":
@@ -128,6 +190,14 @@ export function reasonLabel(reason: RecommendReason): Localisable {
       return {
         key: "onboarding.ai_setup.reason_supersedes",
         values: { replaces: reason.replaces },
+      };
+    case "trained_context":
+      return {
+        key: "onboarding.ai_setup.reason_trained_context",
+        values: {
+          tokens: Math.round(reason.tokens / 1024),
+          asked: Math.round(reason.asked_tokens / 1024),
+        },
       };
     case "reduced_context":
       return {

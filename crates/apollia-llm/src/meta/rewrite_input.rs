@@ -180,10 +180,10 @@ fn build_work_context_block(ctx: &WorkContext) -> Option<String> {
 /// raw model response.
 ///
 /// The composer receives this text verbatim, so a reasoning block that survives
-/// here lands in the operator's input field in place of the rewrite. The local
-/// engine is driven with `--reasoning-format none`, which keeps reasoning
-/// inline in the content stream rather than in a separate field, so stripping
-/// is the consumer's job.
+/// here lands in the operator's input field in place of the rewrite. Every
+/// backend reaches this point with reasoning inline: servers that split it into
+/// a separate field have it re-inlined as `<think>` by the client, and servers
+/// that never split it leave it in the content. Stripping is the consumer's job.
 ///
 /// Three shapes are handled:
 /// - Paired block (`<think>...</think>Rewrite`): the block is dropped.

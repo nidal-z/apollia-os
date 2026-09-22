@@ -24,7 +24,12 @@ export interface BackendFormState {
   topK: number | null;
   topP: number | null;
   repeatPenalty: number | null;
-  contextSize: number | null;
+  /**
+   * Context window in tokens, stored as `config_json.context_window`: the
+   * window the engine is launched with and the one compaction and the context
+   * gauge are sized against. `null` keeps the runtime default.
+   */
+  contextWindow: number | null;
 }
 
 export interface ValidationErrors {
@@ -175,7 +180,11 @@ export function buildConfigJson(state: BackendFormState): Record<string, unknown
   if (state.topK !== null) base.top_k = state.topK;
   if (state.topP !== null) base.top_p = state.topP;
   if (state.repeatPenalty !== null) base.repeat_penalty = state.repeatPenalty;
-  if (state.contextSize !== null) base.context_size = state.contextSize;
+  // `context_window` is the key the runtime reads. Earlier builds wrote
+  // `context_size`, which nothing read; drop it so a saved row converges.
+  delete base.context_size;
+  if (state.contextWindow !== null) base.context_window = state.contextWindow;
+  else delete base.context_window;
   return base;
 }
 
@@ -199,7 +208,7 @@ export function seedFrom(b: LlmBackendConfig | null): BackendFormState {
       topK: null,
       topP: null,
       repeatPenalty: null,
-      contextSize: null,
+      contextWindow: null,
     };
   }
   const cfg = (b.config_json ?? {}) as Record<string, unknown>;
@@ -223,6 +232,7 @@ export function seedFrom(b: LlmBackendConfig | null): BackendFormState {
   delete rest.top_p;
   delete rest.repeat_penalty;
   delete rest.context_size;
+  delete rest.context_window;
   // model_path / model_paths are managed via form.model - never round-trip via extraJson
   delete rest.model_path;
   delete rest.model_paths;
@@ -240,7 +250,7 @@ export function seedFrom(b: LlmBackendConfig | null): BackendFormState {
     topK: numOrNull(cfg.top_k),
     topP: numOrNull(cfg.top_p),
     repeatPenalty: numOrNull(cfg.repeat_penalty),
-    contextSize: numOrNull(cfg.context_size),
+    contextWindow: numOrNull(cfg.context_window) ?? numOrNull(cfg.context_size),
   };
 }
 

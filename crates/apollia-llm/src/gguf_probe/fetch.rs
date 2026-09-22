@@ -99,7 +99,7 @@ pub async fn probe_url(
     }
     let honoured_range = status == reqwest::StatusCode::PARTIAL_CONTENT;
 
-    let bytes = read_up_to(resp, budget).await?;
+    let bytes = read_header_prefix(resp, budget).await?;
 
     event!(
         Level::DEBUG,
@@ -125,30 +125,95 @@ pub async fn probe_url(
     Ok(facts)
 }
 
-/// Read at most `limit` bytes of a body, keeping what arrived.
+/// First size at which the buffered prefix is tried as a complete header.
+const FIRST_CHECKPOINT: usize = 256 * 1024;
+
+/// Read the opening of a body until the GGUF header in it is complete, or until
+/// `limit` bytes have arrived, whichever comes first.
+///
+/// The budget is a ceiling, not a target. A confirming probe budgets 24 MiB to
+/// clear the largest vocabularies, but most headers end within a few; reading
+/// the whole budget anyway made onboarding pull over a hundred megabytes through
+/// the operator's connection before it could show a list. The prefix is parsed
+/// at doubling checkpoints and the stream is dropped as soon as every declared
+/// key/value pair has been walked.
 ///
 /// Deliberately not `apollia_core::net::read_capped_bytes`, which refuses a
 /// body that crosses its cap. Here crossing the cap is the expected case: the
-/// file is gigabytes and the probe wants only its opening. Stopping the stream
-/// and keeping the prefix is the whole point.
-async fn read_up_to(
+/// file is gigabytes and the probe wants only its opening.
+async fn read_header_prefix(
     mut response: reqwest::Response,
     limit: u64,
 ) -> Result<Vec<u8>, GgufProbeError> {
     let cap = usize::try_from(limit).unwrap_or(usize::MAX);
     let mut buf: Vec<u8> = Vec::new();
+    let mut next_check = FIRST_CHECKPOINT.min(cap);
     while buf.len() < cap {
+        // SAFETY: bounded read by construction. `read_capped_*` refuses a body
+        // past its cap, and past the cap is the expected case here: the file
+        // is gigabytes and only its opening is wanted. The loop stops at `cap`.
         let chunk = match response.chunk().await {
             Ok(Some(chunk)) => chunk,
             Ok(None) => break,
             Err(e) => return Err(GgufProbeError::Body(e.to_string())),
         };
         let room = cap - buf.len();
-        if chunk.len() >= room {
-            buf.extend_from_slice(&chunk[..room]);
-            break;
+        buf.extend_from_slice(&chunk[..chunk.len().min(room)]);
+
+        if buf.len() >= next_check {
+            if header_is_complete(&buf) {
+                break;
+            }
+            next_check = next_check.saturating_mul(2).min(cap);
         }
-        buf.extend_from_slice(&chunk);
     }
     Ok(buf)
+}
+
+/// Whether `prefix` already holds every key/value pair its header declares.
+///
+/// A parse error is not "complete": the caller keeps reading, and the final
+/// parse on the whole prefix reports the error properly.
+fn header_is_complete(prefix: &[u8]) -> bool {
+    parse_header(prefix).is_ok_and(|facts| facts.is_complete())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_short_prefix_is_not_mistaken_for_a_complete_header() {
+        // GIVEN the first bytes of a header that declares more pairs than it holds
+        let mut bytes = b"GGUF".to_vec();
+        bytes.extend_from_slice(&3u32.to_le_bytes());
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&5u64.to_le_bytes());
+
+        // WHEN completeness is asked
+        // THEN the answer is no, so the reader keeps going rather than stopping
+        // on a header it has not finished
+        assert!(!header_is_complete(&bytes));
+    }
+
+    #[test]
+    fn a_header_with_every_declared_pair_is_complete() {
+        // GIVEN a header that declares no pairs at all
+        let mut bytes = b"GGUF".to_vec();
+        bytes.extend_from_slice(&3u32.to_le_bytes());
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+
+        // WHEN completeness is asked
+        // THEN it is complete, which is what lets the stream be dropped early
+        assert!(header_is_complete(&bytes));
+    }
+
+    #[test]
+    fn bytes_that_are_not_gguf_never_end_the_read_early() {
+        // GIVEN a buffer that is not a GGUF header at all
+        // WHEN completeness is asked
+        // THEN the answer is no; the final parse is what reports the error
+        assert!(!header_is_complete(b"<html>not a model</html>"));
+    }
 }

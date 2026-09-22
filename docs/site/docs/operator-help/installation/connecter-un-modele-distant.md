@@ -86,6 +86,7 @@ Apollia applies prompt caching on the Anthropic side automatically.
 - **API Key**: optional (useful if you have a reverse proxy with authentication).
 - **Service prerequisite**: `ollama serve` must be running on the target host.
 - **Models**: see `ollama list` on the host. Examples: `llama3.1:8b`, `qwen2.5:14b`.
+- **Context window**: Apollia talks to Ollama through its native API and asks for 32768 tokens on every call, or the model's trained length when that is shorter. Ollama's own default, sized from video memory (4096 tokens below 24 GB), therefore no longer applies, and a long system prompt or a large tool list is no longer cut off. Set **Context window** on the backend to ask for another size. An endpoint ending in `/v1` still works.
 
 For a GGUF model managed directly by Apollia through its embedded engine (without an Ollama daemon), see [Download local models](telecharger-des-modeles-locaux.md).
 

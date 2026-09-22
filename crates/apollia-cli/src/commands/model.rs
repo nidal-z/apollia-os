@@ -772,6 +772,29 @@ mod tests {
     }
 
     #[test]
+    fn parses_recommend_with_its_defaults_and_its_flags() {
+        // GIVEN "model recommend" bare, and with both of its flags
+        // WHEN clap parses each argument line
+        let bare = TestCli::parse_from(["x", "recommend"]);
+        let tuned = TestCli::parse_from(["x", "recommend", "--limit", "3", "--n-ctx", "16384"]);
+        // THEN the bare form keeps five rows and the runtime's window, and the
+        // flags reach the command as given
+        match (bare.cmd, tuned.cmd) {
+            (
+                ModelCommand::Recommend { limit, n_ctx },
+                ModelCommand::Recommend {
+                    limit: tuned_limit,
+                    n_ctx: tuned_ctx,
+                },
+            ) => {
+                assert_eq!((limit, n_ctx), (5, None));
+                assert_eq!((tuned_limit, tuned_ctx), (3, Some(16_384)));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
     fn parses_delete_with_confirm() {
         // GIVEN a model delete carrying --confirm
         // WHEN clap parses the argument line

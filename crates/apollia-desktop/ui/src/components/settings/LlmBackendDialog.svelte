@@ -17,6 +17,7 @@
     type ValidationErrors,
   } from "./llmBackendForm";
   import type { LlmBackendConfig } from "$lib/types";
+  import { contextWindowChoices, formatContextWindow } from "$lib/contextWindow";
   import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
   import { t } from "svelte-i18n";
   import { FolderOpen, ScanSearch, Info, Check, Sparkles } from "lucide-svelte";
@@ -242,7 +243,6 @@
       if (gc.top_k !== undefined) form.topK = gc.top_k;
       if (gc.top_p !== undefined) form.topP = gc.top_p;
       if (gc.repetition_penalty !== undefined) form.repeatPenalty = gc.repetition_penalty;
-      if (gc.max_new_tokens !== undefined) form.contextSize = gc.max_new_tokens;
       hfFillResult = { ok: true, message: $t("settings.llm_dialog.hf_filled") };
     } catch (err) {
       hfFillResult = {
@@ -460,6 +460,33 @@
       {/if}
     </FormField>
 
+    <!-- Context window: outside "Advanced" because it decides how much of a
+         conversation the model holds, and the runtime honours it everywhere. -->
+    {#if form.provider === "llama-cpp" || form.provider === "ollama"}
+      <FormField
+        id="llm-context-window"
+        label={$t("settings.llm_dialog.field_context_window")}
+      >
+        <Select
+          id="llm-context-window"
+          value={form.contextWindow === null ? "" : String(form.contextWindow)}
+          onchange={(e) => {
+            const v = (e.currentTarget as HTMLSelectElement).value;
+            form.contextWindow = v === "" ? null : Number(v);
+          }}
+          data-testid="llm-dialog-context-window"
+        >
+          <option value="">{$t("settings.llm_dialog.context_window_default")}</option>
+          {#each contextWindowChoices(form.contextWindow) as n (n)}
+            <option value={String(n)}>{formatContextWindow(n)}</option>
+          {/each}
+        </Select>
+        <p class="mt-1 text-caption text-muted-foreground/70">
+          {$t("settings.llm_dialog.context_window_hint")}
+        </p>
+      </FormField>
+    {/if}
+
     <!-- Advanced collapsible -->
     <div class="rounded-md border border-border/60">
       <Button variant="ghost" size="sm"
@@ -561,26 +588,6 @@
                     form.repeatPenalty = Number.isFinite(v) ? v : null;
                   }}
                   data-testid="llm-dialog-repeat-penalty"
-                />
-              </FormField>
-              <FormField
-                id="llm-context-size"
-                label={$t("settings.llm_dialog.field_context_size")}
-                labelClass="font-normal"
-              >
-                <Input
-                  id="llm-context-size"
-                  type="number"
-                  min="512"
-                  step="512"
-                  placeholder="-"
-                  class="flex h-9 w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                  value={form.contextSize ?? ""}
-                  oninput={(e) => {
-                    const v = (e.currentTarget as HTMLInputElement).valueAsNumber;
-                    form.contextSize = Number.isFinite(v) ? Math.round(v) : null;
-                  }}
-                  data-testid="llm-dialog-context-size"
                 />
               </FormField>
             </div>

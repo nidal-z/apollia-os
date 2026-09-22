@@ -226,19 +226,6 @@ impl FamilyManifest {
         self.generation_depth.get(id).copied().unwrap_or(0)
     }
 
-    /// Families whose GGUF files carry this `general.architecture`.
-    ///
-    /// Several generations can share one architecture: Llama 3.1 and Mistral
-    /// Small 3 both report `llama`. Callers disambiguate with the repository
-    /// name, which is why this returns every match rather than the first.
-    #[must_use]
-    pub fn families_for_architecture(&self, architecture: &str) -> Vec<&Family> {
-        self.families
-            .iter()
-            .filter(|f| f.architectures.iter().any(|a| a == architecture))
-            .collect()
-    }
-
     /// Whether some family in the table supersedes `id`.
     #[must_use]
     pub fn is_superseded(&self, id: &str) -> bool {
@@ -387,11 +374,15 @@ mod tests {
         // report the llama architecture
         let manifest = FamilyManifest::embedded().expect("the shipped table must be valid");
 
-        // WHEN the architecture is looked up
-        let matches = manifest.families_for_architecture("llama");
+        // WHEN the families declaring it are gathered
+        let matches: Vec<&Family> = manifest
+            .families()
+            .iter()
+            .filter(|f| f.architectures.iter().any(|a| a == "llama"))
+            .collect();
 
-        // THEN every generation carrying it comes back, so the caller can
-        // disambiguate by repository name instead of taking the first
+        // THEN there are several, which is why a file is matched to its
+        // generation by repository name and never by architecture alone
         assert!(
             matches.len() > 1,
             "expected several families on the llama architecture"

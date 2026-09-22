@@ -7,6 +7,7 @@
   navigation; this component holds everything about language engines.
 -->
 <script lang="ts">
+  import { onMount } from "svelte";
   import { get } from "svelte/store";
   import { t } from "svelte-i18n";
   import { listen } from "@tauri-apps/api/event";
@@ -45,10 +46,17 @@
   import { Spinner, ProgressBar } from "$lib/components/ui/progress";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import { Select } from "$lib/components/ui/select";
+  import {
+    CONTEXT_WINDOW_CHOICES,
+    DEFAULT_CONTEXT_WINDOW,
+    formatContextWindow,
+  } from "$lib/contextWindow";
   import { llmBackends } from "$lib/stores/sse";
   import { llmSectionView, runLlmConfiguration } from "./aiSetupRules";
   import {
     defaultChoice,
+    measuredLabel,
     memoryLabel,
     modelDisplayName,
     needsOffloadWarning,
@@ -102,6 +110,14 @@
   // receives an array, and they call for opposite advice.
   let recommendation = $state<RecommendOutcome | null>(null);
   let recommendLoading = $state(false);
+  // Bumped by every request, so an answer computed for a window the operator
+  // has since changed is dropped instead of shown.
+  let recommendRequest = 0;
+
+  // The window the engine will be launched with. It sizes the cache the
+  // recommender reserves, so it is chosen here, before a model, and stored on
+  // the backend the step wires.
+  let contextWindow = $state(String(DEFAULT_CONTEXT_WINDOW));
 
   const recommendedModels = $derived(
     recommendation?.status === "ok" ? recommendation.models : [],
@@ -109,7 +125,12 @@
   const topRecommendation = $derived(defaultChoice(recommendedModels));
   const llmView = $derived(llmSectionView(ggufModels.length, llmSuccess));
 
-  $effect(() => {
+  // Once, on mount, and deliberately not an `$effect`. `loadRecommendations`
+  // reads `recommendLoading` before its first await, which an effect records as
+  // a dependency: every completed request flipped it back to false, re-ran the
+  // effect, and started a full HuggingFace resolution again. The spinner never
+  // settled, which is what an operator saw as an analysis that loaded forever.
+  onMount(() => {
     void loadData();
     void loadRecommendations();
   });
@@ -151,11 +172,14 @@
   });
 
   async function loadRecommendations(): Promise<void> {
-    if (recommendLoading) return;
+    const request = ++recommendRequest;
     recommendLoading = true;
     try {
-      recommendation = await recommendModels();
+      const outcome = await recommendModels({ n_ctx: Number(contextWindow) });
+      if (request !== recommendRequest) return;
+      recommendation = outcome;
     } catch (err: unknown) {
+      if (request !== recommendRequest) return;
       // The command only fails when the hardware probe itself does. Treated as
       // "could not look" rather than "nothing fits", for the same reason the
       // backend keeps those two outcomes apart.
@@ -172,7 +196,21 @@
         },
       };
     } finally {
-      recommendLoading = false;
+      if (request === recommendRequest) recommendLoading = false;
+    }
+  }
+
+  async function onContextWindowChange(): Promise<void> {
+    void loadRecommendations();
+    // An engine already wired in this step takes the new window at once,
+    // rather than the one it was set up with a moment ago.
+    if (llmSuccess && selectedGguf && !llmConfiguring) {
+      try {
+        await setupLocalLlm(selectedGguf.path, Number(contextWindow));
+        await reloadLlm();
+      } catch (err: unknown) {
+        llmError = err instanceof Error ? err.message : String(err);
+      }
     }
   }
 
@@ -200,7 +238,7 @@
       },
       model.path,
       async (path) => {
-        await setupLocalLlm(path);
+        await setupLocalLlm(path, Number(contextWindow));
         await reloadLlm();
       },
       (next) => {
@@ -428,6 +466,25 @@
       </Button>
     </div>
 
+    <div class="dest-dir-row" data-testid="llm-context-window-row">
+      <label class="dest-dir-label" for="onboarding-context-window">
+        {$t("onboarding.ai_setup.context_window_label")}
+      </label>
+      <Select
+        id="onboarding-context-window"
+        size="sm"
+        class="context-window-select"
+        bind:value={contextWindow}
+        onchange={() => void onContextWindowChange()}
+        data-testid="llm-context-window"
+      >
+        {#each CONTEXT_WINDOW_CHOICES as n (n)}
+          <option value={String(n)}>{formatContextWindow(n)}</option>
+        {/each}
+      </Select>
+    </div>
+    <p class="dest-dir-label context-window-hint">{$t("onboarding.ai_setup.context_window_hint")}</p>
+
     <div class="dest-dir-row" data-testid="llm-dest-dir-row">
       <span class="dest-dir-label">
         {destDir
@@ -619,13 +676,9 @@
           {/each}
         </ul>
         {#if recommendation?.status === "ok" && recommendation.hardware.cpu_model}
+          {@const measured = measuredLabel(recommendation.hardware)}
           <p class="recommend-measured" data-testid="llm-recommend-measured">
-            {$t("onboarding.ai_setup.recommend_measured_on", {
-              values: {
-                cpu: recommendation.hardware.cpu_model,
-                budget: recommendation.hardware.memory_budget_gb.toFixed(1),
-              },
-            })}
+            {$t(measured.key, { values: measured.values })}
           </p>
         {/if}
       {/if}

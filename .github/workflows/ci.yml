@@ -1,7 +1,9 @@
 # CI, continuous validation.
 #
-# Runs on every push to main and every PR. Goal: keep main green, and catch
-# the regressions within 15 min of feedback.
+# Runs on every push to main and develop, and on every PR. Goal: keep both
+# branches green, and catch the regressions within 15 min of feedback. develop
+# is where work lands before a release merges it into main, so a red develop
+# found only at merge time is a release blocked on work nobody remembers.
 #
 # What is NOT here:
 #   - Build and release artifacts -> release.yml (on a v* tag)
@@ -11,7 +13,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
   workflow_dispatch:
 
@@ -133,7 +135,23 @@ jobs:
     name: Rust Tests
     needs: clippy
     runs-on: ubuntu-latest
+    # The workspace's test binaries, with full debug info, outgrew the ~14 GB a
+    # hosted runner leaves free: the job died with "No space left on device"
+    # while the runner was writing its own log. Line tables keep file and line
+    # in a backtrace, which is all a failing test report reads, at a fraction
+    # of the size.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
     steps:
+      # The image ships SDKs this job never touches (Android, .NET, GHC, the
+      # CodeQL bundle): about 20 GB handed back before the first compile.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+            /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: dtolnay/rust-toolchain@eac0f66a48bc4b70a10b9acd4c4e930f835d95ff # 1.95.0
         with:
