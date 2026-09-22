@@ -6,6 +6,7 @@
 //! structured result.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tracing::info;
@@ -13,7 +14,10 @@ use tracing::info;
 use apollia_core::{A2AConfig, ProcessState, RuntimeEvent};
 
 use crate::a2a::telemetry::{make_excerpt, A2AStepProvenance, InvocationRecord, TelemetryHandle};
-use crate::a2a::{check_compatibility, make_delegate_fn, A2aDelegateFn, DEFAULT_A2A_MAX_HOPS};
+use crate::a2a::{
+    check_compatibility, make_delegate_fn, A2aDelegateFn, ClientInvocation, InvocationAliases,
+    DEFAULT_A2A_MAX_HOPS,
+};
 use crate::coordinator::ExecutionBackend;
 use crate::eventbus::EventBusSender;
 use crate::registry::{AgentEntry, AgentRegistryHandle};
@@ -50,6 +54,12 @@ pub struct A2AInvoker {
     sidechain_logger: Option<crate::a2a::sidechain::SidechainLogger>,
     /// A2A telemetry store, `None` if per-skill observability is disabled.
     telemetry: Option<TelemetryHandle>,
+    /// Client-chosen invocation names, bound to their tasks while they run.
+    ///
+    /// Held here rather than in the API state because this is the layer that
+    /// knows when an invocation starts and ends; the task routes read it to
+    /// resolve a name a caller cancels by. See [`crate::a2a::aliases`].
+    aliases: Arc<InvocationAliases>,
 }
 
 impl A2AInvoker {
@@ -79,7 +89,17 @@ impl A2AInvoker {
             config,
             sidechain_logger: None,
             telemetry: None,
+            aliases: Arc::new(InvocationAliases::default()),
         }
+    }
+
+    /// The registry of client-chosen invocation names bound to live tasks.
+    ///
+    /// Read by `DELETE /api/v1/tasks/{id}` so a caller can cancel an invocation
+    /// by the name it chose, which is the only name it holds before the
+    /// synchronous invoke answers.
+    pub fn aliases(&self) -> &Arc<InvocationAliases> {
+        &self.aliases
     }
 
     /// Attaches a [`SidechainLogger`] to this invoker for delegation traceability.
@@ -142,6 +162,7 @@ impl A2AInvoker {
             a2a_depth,
             timeout,
             chain_deadline,
+            invocation_id,
         } = request;
         // Guard 1: recursion depth.
         if a2a_depth >= self.config.max_depth {
@@ -307,6 +328,10 @@ impl A2AInvoker {
             effective_timeout_secs,
             Vec::new(),
             apollia_core::AgentId::from(caller),
+            invocation_id.map(|id| ClientInvocation {
+                id: id.to_string(),
+                aliases: Arc::clone(&self.aliases),
+            }),
         )
         .await;
         let duration_ms = start.elapsed().as_millis() as u64;
@@ -599,6 +624,7 @@ impl A2AInvoker {
             config,
             sidechain_logger: None,
             telemetry: None,
+            aliases: Arc::new(InvocationAliases::default()),
         }
     }
 }
@@ -673,7 +699,8 @@ mod tests {
              _input: serde_json::Value,
              _timeout: u64,
              _chain: Vec<apollia_core::AgentId>,
-             _caller: apollia_core::AgentId| {
+             _caller: apollia_core::AgentId,
+             _invocation: Option<crate::a2a::ClientInvocation>| {
                 let fut: Pin<
                     Box<
                         dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
@@ -692,7 +719,8 @@ mod tests {
                   _input: serde_json::Value,
                   _timeout: u64,
                   _chain: Vec<apollia_core::AgentId>,
-                  _caller: apollia_core::AgentId| {
+                  _caller: apollia_core::AgentId,
+                  _invocation: Option<crate::a2a::ClientInvocation>| {
                 let out = output.clone();
                 let fut: Pin<
                     Box<
@@ -718,7 +746,8 @@ mod tests {
              _input: serde_json::Value,
              _timeout: u64,
              _chain: Vec<apollia_core::AgentId>,
-             _caller: apollia_core::AgentId| {
+             _caller: apollia_core::AgentId,
+             _invocation: Option<crate::a2a::ClientInvocation>| {
                 let fut: Pin<
                     Box<
                         dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
@@ -921,6 +950,7 @@ mod tests {
                 a2a_depth: 0,
                 timeout: None,
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await;
 
@@ -999,6 +1029,7 @@ mod tests {
                 a2a_depth: 0,
                 timeout: None,
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await;
 
@@ -1042,6 +1073,7 @@ mod tests {
                 a2a_depth: 0,
                 timeout: None,
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await
             .expect("invoke failed");
@@ -1081,6 +1113,134 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_client_named_invocation_is_cancellable_while_it_runs() {
+        // GIVEN a worker whose delegation is slow enough to be cancelled, and
+        // an invocation the client named itself, which is the only handle it
+        // holds before this synchronous call answers
+        let (bus_tx, _bus_rx) = EventBus::new();
+        let registry = AgentRegistry::spawn(bus_tx.clone());
+        let agent_id = registry
+            .register(make_a2a_manifest("excel-worker", &["read-excel"]))
+            .await
+            .expect("register failed");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .expect("update state failed");
+        let delegate: A2aDelegateFn = Arc::new(
+            |_skill_id: String,
+             _input: serde_json::Value,
+             _timeout: u64,
+             _chain: Vec<apollia_core::AgentId>,
+             _caller: apollia_core::AgentId,
+             invocation: Option<crate::a2a::ClientInvocation>| {
+                let fut: Pin<
+                    Box<
+                        dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
+                            + Send,
+                    >,
+                > = Box::pin(async move {
+                    // The production delegate binds the name here, right after
+                    // the router accepted the task and well before the answer.
+                    let inv = invocation.expect("the client named this invocation");
+                    assert!(inv.aliases.bind(&inv.id, "task-7f3a"));
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    inv.aliases.release(&inv.id);
+                    Err(LowLevelA2aError::Canceled {
+                        task_id: "task-7f3a".to_string(),
+                    })
+                });
+                fut
+            },
+        );
+        let invoker = Arc::new(A2AInvoker::new_for_test(
+            registry,
+            delegate,
+            bus_tx,
+            A2AConfig::default(),
+        ));
+
+        // WHEN the invocation is under way and a canceller reads the name
+        let probe = Arc::clone(&invoker);
+        let observed = tokio::spawn(async move {
+            for _ in 0..50 {
+                if let Some(task) = probe.aliases().resolve("import-42") {
+                    return Some(task);
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            None
+        });
+
+        let result = invoker
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "api",
+                a2a_depth: 0,
+                timeout: None,
+                chain_deadline: None,
+                invocation_id: Some("import-42"),
+            })
+            .await;
+
+        // THEN the task was reachable by the client's own name while the call
+        // was still running, which is what `DELETE /api/v1/tasks/{id}` needs
+        assert_eq!(
+            observed.await.expect("the probe ran").as_deref(),
+            Some("task-7f3a")
+        );
+        // AND the cancellation comes back as its own error rather than as a
+        // worker failure, so the caller tells its own decision apart from a
+        // defect
+        assert!(
+            matches!(&result, Err(A2AError::Canceled { task_id }) if task_id == "task-7f3a"),
+            "expected a cancellation, got {result:?}"
+        );
+        // AND the name is free again, so it can never cancel a later task
+        assert!(invoker.aliases().is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_unnamed_invocation_binds_nothing() {
+        // GIVEN an ordinary invocation, the way every agent-to-agent call is
+        let (bus_tx, _bus_rx) = EventBus::new();
+        let registry = AgentRegistry::spawn(bus_tx.clone());
+        let agent_id = registry
+            .register(make_a2a_manifest("excel-worker", &["read-excel"]))
+            .await
+            .expect("register failed");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .expect("update state failed");
+        let invoker = A2AInvoker::new_for_test(
+            registry,
+            make_ok_delegate("{}"),
+            bus_tx,
+            A2AConfig::default(),
+        );
+
+        // WHEN it runs to completion without a client name
+        invoker
+            .invoke(A2AInvokeRequest {
+                skill_id: "read-excel",
+                input: serde_json::json!({}),
+                caller: "director",
+                a2a_depth: 0,
+                timeout: None,
+                chain_deadline: None,
+                invocation_id: None,
+            })
+            .await
+            .expect("invoke failed");
+
+        // THEN the registry stays empty: a call nobody named costs nothing to
+        // hold, and leaves nothing a later DELETE could resolve
+        assert!(invoker.aliases().is_empty());
+    }
+
+    #[tokio::test]
     async fn test_invoke_hands_back_the_task_and_the_run_it_journals_under() {
         // GIVEN a worker whose delegation reports the task it ran and that task's
         // run, as the production delegate does once it has asked the router
@@ -1099,7 +1259,8 @@ mod tests {
              _input: serde_json::Value,
              _timeout: u64,
              _chain: Vec<apollia_core::AgentId>,
-             _caller: apollia_core::AgentId| {
+             _caller: apollia_core::AgentId,
+             _invocation: Option<crate::a2a::ClientInvocation>| {
                 let fut: Pin<
                     Box<
                         dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
@@ -1127,6 +1288,7 @@ mod tests {
                 a2a_depth: 0,
                 timeout: None,
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await
             .expect("invoke failed");
@@ -1174,6 +1336,7 @@ mod tests {
                 a2a_depth: 0,
                 timeout: Some(Duration::from_secs(1)),
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await;
 
@@ -1383,7 +1546,8 @@ mod a2a_guard_tests {
                   _input: serde_json::Value,
                   _timeout: u64,
                   _chain: Vec<apollia_core::AgentId>,
-                  _caller: apollia_core::AgentId| {
+                  _caller: apollia_core::AgentId,
+                  _invocation: Option<crate::a2a::ClientInvocation>| {
                 let fut: Pin<
                     Box<
                         dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
@@ -1440,6 +1604,7 @@ mod a2a_guard_tests {
                 a2a_depth: 2,
                 timeout: None,
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await;
 
@@ -1479,6 +1644,7 @@ mod a2a_guard_tests {
                 a2a_depth: 1,
                 timeout: None,
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await;
 
@@ -1505,6 +1671,7 @@ mod a2a_guard_tests {
                 a2a_depth: 0,
                 timeout: None,
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await;
 
@@ -1537,6 +1704,7 @@ mod a2a_guard_tests {
                 a2a_depth: 0,
                 timeout: None,
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await;
 
@@ -1564,6 +1732,7 @@ mod a2a_guard_tests {
                 a2a_depth: 0,
                 timeout: None,
                 chain_deadline: Some(past_deadline),
+                invocation_id: None,
             })
             .await;
 
@@ -1596,6 +1765,7 @@ mod a2a_guard_tests {
                 a2a_depth: 1,
                 timeout: None,
                 chain_deadline: None,
+                invocation_id: None,
             })
             .await;
 

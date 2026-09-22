@@ -179,6 +179,7 @@ pub async fn delegate<B: ExecutionBackend + Clone>(
         skill_id: &req.skill_id,
         input_payload: req.input,
         timeout_secs,
+        invocation: None,
         parent_chain: &[],
         current_agent: &rest_caller,
         max_hops: DEFAULT_A2A_MAX_HOPS,
@@ -217,6 +218,19 @@ pub struct InvokeRequest {
     /// Invocation timeout in seconds (default: 120).
     #[serde(default)]
     pub timeout_secs: Option<u64>,
+    /// A name the client chooses for this invocation, so it can cancel it.
+    ///
+    /// This route is synchronous and answers only once the worker has
+    /// finished, so the task id it returns arrives too late to cancel
+    /// anything. A name supplied here is bound to the task as soon as the task
+    /// is submitted, and `DELETE /api/v1/tasks/{id}` accepts it in place of the
+    /// task id until this call returns. The invocation then answers `409` with
+    /// a cancellation error instead of running to its timeout.
+    ///
+    /// A name already held by another live invocation is not bound; the call
+    /// runs normally and the journal says so (`a2a.invocation_id.taken`).
+    #[serde(default)]
+    pub invocation_id: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,6 +294,7 @@ pub async fn list_a2a_skills<B: ExecutionBackend + Clone>(
         (status = 200, description = "Invocation result", body = crate::a2a::invoker::A2AInvocationResult),
         (status = 404, description = "Skill not found", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "A2A invoker not initialized or agent not active", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "Invocation cancelled through its client-supplied id", body = crate::api::openapi::ApiErrorBody),
         (status = 504, description = "Invocation timed out", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -310,6 +325,7 @@ pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
             a2a_depth: 0,
             timeout,
             chain_deadline: None,
+            invocation_id: req.invocation_id.as_deref(),
         })
         .await
         .map(Json)
@@ -414,6 +430,7 @@ fn a2a_err_response(err: A2aError) -> (StatusCode, Json<A2aErrorResponse>) {
         A2aError::AmbiguousSkill { .. } => StatusCode::CONFLICT,
         A2aError::Timeout { .. } => StatusCode::GATEWAY_TIMEOUT,
         A2aError::WorkerFailed { .. } => StatusCode::BAD_GATEWAY,
+        A2aError::Canceled { .. } => StatusCode::CONFLICT,
         A2aError::Registry(_) | A2aError::RouterDead => StatusCode::INTERNAL_SERVER_ERROR,
         A2aError::CycleDetected { .. } | A2aError::MaxHopsExceeded { .. } => {
             StatusCode::UNPROCESSABLE_ENTITY
@@ -438,6 +455,7 @@ fn a2a_invoker_err_response(err: A2AError) -> (StatusCode, Json<A2aErrorResponse
         A2AError::Timeout { .. } => StatusCode::GATEWAY_TIMEOUT,
         A2AError::ExecutionFailed { .. } => StatusCode::BAD_GATEWAY,
         A2AError::RegistryError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        A2AError::Canceled { .. } => StatusCode::CONFLICT,
         A2AError::MaxDepthExceeded { .. }
         | A2AError::SelfInvocation { .. }
         | A2AError::ChainTimeoutExceeded { .. } => StatusCode::TOO_MANY_REQUESTS,

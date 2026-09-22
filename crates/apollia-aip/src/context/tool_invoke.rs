@@ -70,6 +70,9 @@ pub(crate) async fn invoke_a2a_tool(
             a2a_depth: ctx.a2a_depth.saturating_add(1),
             timeout: None,
             chain_deadline: ctx.chain_deadline,
+            // An agent cancels through its own task, never through a name an
+            // external client chose for an invocation it does not see.
+            invocation_id: None,
         })
         .await
         .map_err(|e| ToolProxyError::ExecutionFailed(e.to_string()))?;

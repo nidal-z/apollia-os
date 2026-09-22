@@ -5,12 +5,14 @@
 //! delegation function [`A2aDelegateFn`], the [`make_delegate_fn`] factory, and
 //! the high-level orchestrator [`invoker::A2AInvoker`].
 
+pub mod aliases;
 pub mod compatibility;
 pub mod invoker;
 pub mod sidechain;
 pub mod telemetry;
 pub mod tools_provider;
 
+pub use aliases::InvocationAliases;
 pub use compatibility::{check_compatibility, A2ACompatibilityWarning, CompatSeverity, SemVer};
 pub use telemetry::{
     A2ASkillTelemetry, A2AStepProvenance, InvocationRecord, TelemetryHandle, TelemetryStore,
@@ -77,6 +79,16 @@ pub enum A2aError {
     WorkerFailed {
         /// Reason for the failure.
         reason: String,
+    },
+    /// The task was cancelled while the delegation was waiting for it.
+    ///
+    /// Distinct from [`Self::WorkerFailed`], which it used to be reported as:
+    /// a caller that cancelled its own invocation must be able to tell its own
+    /// decision apart from a worker that broke.
+    #[error("invocation cancelled (task {task_id})")]
+    Canceled {
+        /// Identifier of the task that was cancelled.
+        task_id: String,
     },
     /// The target agent is already in the delegation chain: cycle detected.
     #[error("A2A cycle: agent {agent_id} already in delegation chain")]
@@ -271,10 +283,26 @@ pub type A2aDelegateFn = Arc<
             u64,
             Vec<AgentId>,
             AgentId,
+            Option<ClientInvocation>,
         ) -> Pin<Box<dyn Future<Output = Result<A2aDelegateResult, A2aError>> + Send>>
         + Send
         + Sync,
 >;
+
+/// The name a client gave an invocation, and where to publish its task id.
+///
+/// Carried down to the submission because that is the first moment the task id
+/// exists and the last moment before the caller is made to wait for an answer.
+/// `None` on every delegation that no external client named, which is every
+/// agent-to-agent call: an agent cancels through its own task, not through a
+/// name it never chose. See [`crate::a2a::aliases`].
+#[derive(Clone)]
+pub struct ClientInvocation {
+    /// The identifier the client chose.
+    pub id: String,
+    /// Registry the binding is published in, and released from.
+    pub aliases: Arc<InvocationAliases>,
+}
 
 /// Builds a concrete [`A2aDelegateFn`] from runtime handles.
 ///
@@ -297,7 +325,8 @@ where
               input_payload: serde_json::Value,
               timeout_secs: u64,
               parent_chain: Vec<AgentId>,
-              current_agent: AgentId| {
+              current_agent: AgentId,
+              invocation: Option<ClientInvocation>| {
             let registry = registry.clone();
             let router = router.clone();
             let event_bus = event_bus.clone();
@@ -312,11 +341,54 @@ where
                     parent_chain: &parent_chain,
                     current_agent: &current_agent,
                     max_hops,
+                    invocation: invocation.as_ref(),
                 })
                 .await
             })
         },
     )
+}
+
+/// Holds a client name bound to a task for the life of one invocation.
+///
+/// A guard rather than a pair of calls: the delegation returns from a dozen
+/// places, and a name left bound behind one of them would let a later `DELETE`
+/// cancel whichever task inherited it.
+struct AliasBinding<'a> {
+    invocation: &'a ClientInvocation,
+    /// Whether this guard is the one holding the name. `false` when another
+    /// live invocation already held it, and the guard then releases nothing:
+    /// dropping someone else's binding would hand their cancellation handle to
+    /// no one.
+    owned: bool,
+}
+
+impl<'a> AliasBinding<'a> {
+    /// Bind `invocation`'s name to `task_id` until the guard is dropped.
+    ///
+    /// A name already live is refused by the registry, and the refusal is
+    /// logged rather than raised: the invocation itself is valid, it is only
+    /// the cancellation handle that the caller does not get.
+    fn hold(invocation: &'a ClientInvocation, task_id: &str) -> Self {
+        let owned = invocation.aliases.bind(&invocation.id, task_id);
+        if !owned {
+            tracing::warn!(
+                invocation_id = %invocation.id,
+                task_id = %task_id,
+                detail = "another live invocation already holds this name, so this one cannot be cancelled by it",
+                "a2a.invocation_id.taken"
+            );
+        }
+        Self { invocation, owned }
+    }
+}
+
+impl Drop for AliasBinding<'_> {
+    fn drop(&mut self) {
+        if self.owned {
+            self.invocation.aliases.release(&self.invocation.id);
+        }
+    }
 }
 
 /// Default hop limit for the A2A delegation chain.
@@ -334,6 +406,9 @@ pub(crate) struct DelegateInner<'a, B: ExecutionBackend + Clone> {
     pub parent_chain: &'a [AgentId],
     pub current_agent: &'a AgentId,
     pub max_hops: usize,
+    /// The name an external client can cancel this invocation by, when it gave
+    /// one. `None` for an agent-to-agent delegation.
+    pub invocation: Option<&'a ClientInvocation>,
 }
 
 /// A2A delegation logic, callable from the REST handler and from the
@@ -351,6 +426,7 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
         parent_chain,
         current_agent,
         max_hops,
+        invocation,
     } = args;
     // 1. Resolve skill_id to an agent from the registry.
     let entries = registry.list_agents().await?;
@@ -391,6 +467,11 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
         })?;
 
     let task_id_str = task_id.to_string();
+    // Bound before the wait, for the same reason the run id is read here: this
+    // is the first moment the task id exists, and the caller is about to be
+    // made to wait for an answer it may no longer want. Released below on every
+    // path out, so the name never outlives the call.
+    let _binding = invocation.map(|inv| AliasBinding::hold(inv, &task_id_str));
     // Asked right after the submission, before the wait: the router records the
     // run before it replies, and a task that then times out or fails still has
     // a journal worth pointing at.
@@ -428,8 +509,8 @@ pub(crate) async fn delegate_inner<B: ExecutionBackend + Clone>(
                 Some(Received::Event(RuntimeEvent::TaskCanceled {
                     task_id: canceled_id,
                 })) if canceled_id.to_string() == task_id_str => {
-                    return Err(A2aError::WorkerFailed {
-                        reason: "worker agent task was canceled".to_string(),
+                    return Err(A2aError::Canceled {
+                        task_id: canceled_id.to_string(),
                     });
                 }
                 // The lag rule has already logged and resubscribed. This

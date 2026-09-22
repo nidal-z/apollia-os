@@ -101,6 +101,17 @@ pub enum A2AError {
         timeout_secs: u64,
     },
 
+    /// The task was cancelled while the invocation was waiting for it.
+    ///
+    /// Kept apart from [`Self::ExecutionFailed`], which it used to be reported
+    /// as: a caller that cancelled its own invocation must be able to tell its
+    /// own decision apart from a worker that broke.
+    #[error("invocation cancelled (task {task_id})")]
+    Canceled {
+        /// Identifier of the task that was cancelled.
+        task_id: String,
+    },
+
     /// The Worker Agent returned a failure result.
     #[error("agent '{agent_name}' execution failed: {message}")]
     ExecutionFailed {
@@ -247,6 +258,10 @@ pub struct A2AInvokeRequest<'a> {
     pub a2a_depth: u32,
     pub timeout: Option<Duration>,
     pub chain_deadline: Option<Instant>,
+    /// The name an external client chose for this invocation, so it can cancel
+    /// it before the synchronous call answers. `None` for every agent-to-agent
+    /// invocation, which cancels through its own task instead.
+    pub invocation_id: Option<&'a str>,
 }
 
 /// Converts an [`AgentEntry`] into an [`A2AAgentCard`].
@@ -292,6 +307,7 @@ pub(super) fn map_delegate_err(
             agent_name: agent_name.to_string(),
             message: reason,
         },
+        crate::a2a::A2aError::Canceled { task_id } => A2AError::Canceled { task_id },
         other => A2AError::RegistryError(other.to_string()),
     }
 }

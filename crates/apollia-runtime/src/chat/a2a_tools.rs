@@ -253,6 +253,7 @@ impl ToolInvoker for CompositeToolInvoker {
                     a2a_depth: 0,
                     timeout: Some(CHAT_A2A_TIMEOUT),
                     chain_deadline: None,
+                    invocation_id: None,
                 })
                 .await;
 
@@ -437,7 +438,8 @@ mod tests {
                   _input: serde_json::Value,
                   _timeout: u64,
                   _chain: Vec<apollia_core::AgentId>,
-                  _caller: apollia_core::AgentId| {
+                  _caller: apollia_core::AgentId,
+                  _invocation: Option<crate::a2a::ClientInvocation>| {
                 let output = output.clone();
                 Box::pin(async move {
                     Ok(A2aDelegateResult {
@@ -457,7 +459,8 @@ mod tests {
                   _input: serde_json::Value,
                   _timeout: u64,
                   _chain: Vec<apollia_core::AgentId>,
-                  _caller: apollia_core::AgentId| {
+                  _caller: apollia_core::AgentId,
+                  _invocation: Option<crate::a2a::ClientInvocation>| {
                 Box::pin(async move {
                     Err(A2aError::WorkerFailed {
                         reason: "agent crashed".to_string(),
@@ -473,7 +476,8 @@ mod tests {
                   _input: serde_json::Value,
                   _timeout: u64,
                   _chain: Vec<apollia_core::AgentId>,
-                  _caller: apollia_core::AgentId| {
+                  _caller: apollia_core::AgentId,
+                  _invocation: Option<crate::a2a::ClientInvocation>| {
                 Box::pin(async move {
                     Err(A2aError::WorkerFailed {
                         reason: "[PAYLOAD_ERROR] Unexpected field 'max_chars'. \

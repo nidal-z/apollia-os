@@ -177,6 +177,7 @@ async fn test_full_a2a_routing_success() {
             a2a_depth: 0,
             timeout: None,
             chain_deadline: None,
+            invocation_id: None,
         })
         .await;
 
@@ -221,6 +222,7 @@ async fn test_skill_not_found_lists_available() {
             a2a_depth: 0,
             timeout: None,
             chain_deadline: None,
+            invocation_id: None,
         })
         .await;
 
@@ -264,6 +266,7 @@ async fn test_degraded_agent_rejected() {
             a2a_depth: 0,
             timeout: None,
             chain_deadline: None,
+            invocation_id: None,
         })
         .await;
 
@@ -302,6 +305,7 @@ async fn test_timeout_respected() {
             a2a_depth: 0,
             timeout: Some(Duration::from_millis(500)),
             chain_deadline: None,
+            invocation_id: None,
         })
         .await;
 
@@ -380,6 +384,7 @@ async fn test_events_emitted() {
             a2a_depth: 0,
             timeout: None,
             chain_deadline: None,
+            invocation_id: None,
         })
         .await
         .expect("the invocation must succeed");

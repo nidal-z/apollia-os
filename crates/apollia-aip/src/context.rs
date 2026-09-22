@@ -1779,7 +1779,8 @@ mod tool_proxy_a2a_tests {
              _input: serde_json::Value,
              _timeout: u64,
              _chain: Vec<apollia_core::AgentId>,
-             _caller: apollia_core::AgentId| {
+             _caller: apollia_core::AgentId,
+             _invocation: Option<apollia_runtime::a2a::ClientInvocation>| {
                 let fut: Pin<
                     Box<dyn Future<Output = Result<A2aDelegateResult, LowLevelA2aError>> + Send>,
                 > = Box::pin(async move {

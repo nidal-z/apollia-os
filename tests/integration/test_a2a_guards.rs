@@ -181,6 +181,7 @@ async fn test_max_depth_blocks_deep_recursion() {
             a2a_depth: 2,
             timeout: None,
             chain_deadline: None,
+            invocation_id: None,
         })
         .await;
 
@@ -224,6 +225,7 @@ async fn test_self_invocation_blocked() {
             a2a_depth: 0,
             timeout: None,
             chain_deadline: None,
+            invocation_id: None,
         })
         .await;
 
@@ -259,6 +261,7 @@ async fn test_chain_timeout_propagated() {
             a2a_depth: 0,
             timeout: None,
             chain_deadline: Some(expired_deadline),
+            invocation_id: None,
         })
         .await;
 
@@ -301,6 +304,7 @@ async fn test_guard_event_emitted() {
             a2a_depth: 1,
             timeout: None,
             chain_deadline: None,
+            invocation_id: None,
         })
         .await;
 

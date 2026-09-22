@@ -368,11 +368,20 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
 /// Handler for `DELETE /api/v1/tasks/{id}`.
 ///
 /// Cancels a running task. Returns 404 if the task does not exist.
+///
+/// `id` is a task id, or the `invocation_id` a client gave a synchronous
+/// `POST /api/v1/a2a/invoke` that is still running. The second form exists
+/// because that route answers only once the worker has finished, so its task id
+/// reaches the caller too late to cancel anything; the name the caller chose is
+/// bound to the task from the moment it is submitted. A name that resolves wins
+/// over a task of the same spelling, which costs nothing: task ids are UUIDs
+/// and a client that picks one as its own name gets the task it meant either
+/// way.
 #[utoipa::path(
     delete,
     path = "/api/v1/tasks/{id}",
     tag = "tasks",
-    params(("id" = String, Path, description = "Task id")),
+    params(("id" = String, Path, description = "Task id, or a live invocation_id")),
     responses(
         (status = 200, description = "Task cancelled", body = TaskResponse),
         (status = 404, description = "Task not found", body = crate::api::openapi::ApiErrorBody),
@@ -382,6 +391,12 @@ pub async fn cancel_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(task_id): Path<String>,
 ) -> Result<Json<TaskResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let task_id = state
+        .a2a_invoker
+        .as_ref()
+        .and_then(|invoker| invoker.aliases().resolve(&task_id))
+        .unwrap_or(task_id);
+
     let status = state
         .router_handle
         .cancel(&task_id)
@@ -1027,6 +1042,14 @@ mod tests {
 
     /// Build a test environment with a never-completing backend, for cancel tests.
     async fn test_router_with_blocking_agent() -> (Router, String) {
+        let (router, agent_id, _) = test_router_with_blocking_agent_and_invoker().await;
+        (router, agent_id)
+    }
+
+    /// The same environment, with the A2A invoker whose alias registry
+    /// `cancel_task` resolves a client-supplied invocation id through.
+    async fn test_router_with_blocking_agent_and_invoker(
+    ) -> (Router, String, std::sync::Arc<crate::a2a::A2AInvoker>) {
         let (event_tx, _) = broadcast::channel::<RuntimeEvent>(64);
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<NeverMockBackend> =
@@ -1047,6 +1070,13 @@ mod tests {
             .register_coordinator(agent_id.clone(), coordinator)
             .await
             .expect("register coordinator failed");
+
+        let a2a_invoker = std::sync::Arc::new(crate::a2a::A2AInvoker::new(
+            registry_handle.clone(),
+            router_handle.clone(),
+            event_tx.clone(),
+            apollia_core::A2AConfig::default(),
+        ));
 
         let state = AppState {
             router_handle,
@@ -1081,7 +1111,7 @@ mod tests {
             mcp_server_repo: None,
             llm_backend_repo: None,
             stt_config_repo: None,
-            a2a_invoker: None,
+            a2a_invoker: Some(std::sync::Arc::clone(&a2a_invoker)),
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
@@ -1094,7 +1124,7 @@ mod tests {
             )
             .with_state(state);
 
-        (router, agent_id.to_string())
+        (router, agent_id.to_string(), a2a_invoker)
     }
 
     async fn body_json(resp: axum::response::Response) -> serde_json::Value {
@@ -1266,6 +1296,63 @@ mod tests {
         let json = body_json(resp).await;
         assert_eq!(json["task_id"], task_id);
         assert_eq!(json["status"], "canceled");
+    }
+
+    #[tokio::test]
+    async fn cancelling_by_a_client_invocation_id_reaches_the_task_it_names() {
+        // GIVEN a task running on a blocking backend, and the client-chosen
+        // name a synchronous `POST /a2a/invoke` bound to it. The name is the
+        // only handle the caller holds: that route answers after the worker,
+        // so its task id arrives too late to cancel anything.
+        let (router, agent_id, invoker) = test_router_with_blocking_agent_and_invoker().await;
+
+        let body = serde_json::json!({
+            "agent_id": agent_id,
+            "input": {"prompt": "Read the import"}
+        });
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/tasks")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let resp = router.clone().oneshot(req).await.expect("request failed");
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
+        let submit_json = body_json(resp).await;
+        let task_id = submit_json["task_id"].as_str().expect("task_id").to_owned();
+        assert!(invoker.aliases().bind("import-42", &task_id));
+
+        // WHEN the caller deletes the invocation by the name it chose
+        let req = Request::builder()
+            .method("DELETE")
+            .uri("/api/v1/tasks/import-42")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN the task behind the name is the one that got cancelled
+        assert_eq!(resp.status(), StatusCode::OK);
+        let json = body_json(resp).await;
+        assert_eq!(json["task_id"], task_id);
+        assert_eq!(json["status"], "canceled");
+    }
+
+    #[tokio::test]
+    async fn cancelling_by_an_unbound_name_is_still_a_404() {
+        // GIVEN an environment where no invocation holds that name
+        let (router, _agent_id, _invoker) = test_router_with_blocking_agent_and_invoker().await;
+
+        // WHEN a name nobody bound is deleted
+        let req = Request::builder()
+            .method("DELETE")
+            .uri("/api/v1/tasks/import-42")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = router.oneshot(req).await.expect("request failed");
+
+        // THEN the route reads it as a task id and reports it missing, rather
+        // than inventing a task or answering 200 on nothing
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
 
     // ResumeHandler tests, POST /api/v1/tasks/{id}/resume
