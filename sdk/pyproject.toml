@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 name = "apollia-sdk"
 # Tracks the Apollia OS product version: the SDK ships with the runtime and has
 # no release cycle of its own. PEP 440 normalises "-preview" to "rc0", so the
-# built wheel is apollia_sdk-0.1.0rc0; the string here is the one the git tag,
+# built wheel is apollia_sdk-0.2.0rc0; the string here is the one the git tag,
 # the changelog and `apollia.__version__` all use.
 version = "0.2.0-preview"
 description = "Python SDK for Apollia OS agent development"

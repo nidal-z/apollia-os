@@ -31,7 +31,7 @@ from apollia.types import (
 
 # REASON: the SDK ships with the runtime and carries the product version, not a
 # lifecycle of its own. PEP 440 normalises the "-preview" suffix to "rc0" in the
-# built distribution metadata, so `pip show apollia-sdk` reports 0.1.0rc0 while
+# built distribution metadata, so `pip show apollia-sdk` reports 0.2.0rc0 while
 # this string stays the human-facing one used by the tag and the changelog.
 __version__ = "0.2.0-preview"
 
