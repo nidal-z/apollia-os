@@ -288,21 +288,37 @@ fn check_bounds(
 /// from a remote provider sometimes does, and refusing a well-formed value over
 /// three backticks would be a defect of this layer rather than of the model.
 ///
+/// A reasoning block is tolerated too, and only as a second attempt. A reasoning
+/// model reached through a server with no template-aware parser inlines its
+/// thinking as `<think>...</think>` ahead of the answer, so the caller of a
+/// constrained call received "the answer is not JSON" over text the model never
+/// meant as its answer. Reading the raw text first keeps a value that happens to
+/// contain those characters intact: stripping only ever runs on text that has
+/// already failed to parse.
+///
 /// # Errors
 ///
 /// - [`LlmError::StructuredOutputInvalid`] with the path `$` when the answer is
-///   not JSON at all.
+///   not JSON at all, reasoning stripped or not. The error reported is the one
+///   from the raw text, since that is what the backend actually sent.
 /// - [`LlmError::StructuredOutputInvalid`] with the path of the first violation
 ///   when it is JSON that the schema refuses.
 pub fn parse_and_validate(content: &str, schema: &Value) -> Result<Value, crate::LlmError> {
-    let text = strip_code_fence(content.trim());
-    let value: Value =
-        serde_json::from_str(text).map_err(|e| crate::LlmError::StructuredOutputInvalid {
-            path: "$".to_string(),
-            reason: format!("the answer is not JSON: {e}"),
-        })?;
+    let value = read_json(content).or_else(|raw_err| {
+        let stripped = crate::reasoning_markers::strip_reasoning(content);
+        read_json(&stripped).map_err(|_| raw_err)
+    })?;
     validate_against_schema(&value, schema)?;
     Ok(value)
+}
+
+/// Read `content` as one JSON value, tolerating whitespace and a code fence.
+fn read_json(content: &str) -> Result<Value, crate::LlmError> {
+    let text = strip_code_fence(content.trim());
+    serde_json::from_str(text).map_err(|e| crate::LlmError::StructuredOutputInvalid {
+        path: "$".to_string(),
+        reason: format!("the answer is not JSON: {e}"),
+    })
 }
 
 /// Return the body of a fenced code block, or the text unchanged.
@@ -513,6 +529,59 @@ mod parse_tests {
         let err = parse_and_validate("I am afraid I cannot do that", &schema)
             .expect_err("prose is not an object");
         // THEN the error is typed and points at the document itself
+        assert!(
+            matches!(&err, crate::LlmError::StructuredOutputInvalid { path, .. } if path == "$"),
+            "expected a root violation, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn reads_an_answer_a_reasoning_model_prefixed_with_its_thinking() {
+        // GIVEN a constrained call answered by a reasoning model reached
+        // through a server with no template-aware parser, so the thinking is
+        // inlined ahead of the value instead of being split out
+        let schema = json!({"type": "object", "properties": {"a": {"type": "string"}}});
+        let raw = "<think>the user wants a label</think>{\"a\": \"x\"}";
+        // WHEN it is parsed and validated
+        let value = parse_and_validate(raw, &schema).expect("the value is there, behind the block");
+        // THEN the reasoning is not mistaken for the answer
+        assert_eq!(value, json!({"a": "x"}));
+    }
+
+    #[test]
+    fn reads_an_answer_whose_opening_think_tag_the_template_prefilled() {
+        // GIVEN the same model on a template that opens the block in the
+        // prompt, so only the closing marker reaches the answer
+        let schema = json!({"type": "object", "properties": {"a": {"type": "string"}}});
+        // WHEN it is parsed and validated
+        let value = parse_and_validate("weighing it</think>{\"a\": \"x\"}", &schema)
+            .expect("an orphan closing marker is still a reasoning block");
+        // THEN the answer is read all the same
+        assert_eq!(value, json!({"a": "x"}));
+    }
+
+    #[test]
+    fn a_json_string_holding_the_marker_is_read_before_any_stripping() {
+        // GIVEN a well-formed answer whose own value carries the characters the
+        // stripper looks for
+        let schema = json!({"type": "object", "properties": {"a": {"type": "string"}}});
+        // WHEN it is parsed and validated
+        let value = parse_and_validate("{\"a\": \"<think>kept</think>\"}", &schema)
+            .expect("a parsable answer is never rewritten");
+        // THEN the value crosses untouched, because stripping only runs on text
+        // that already failed to parse
+        assert_eq!(value, json!({"a": "<think>kept</think>"}));
+    }
+
+    #[test]
+    fn prose_wrapped_in_a_reasoning_block_still_reports_the_raw_failure() {
+        // GIVEN an answer that is reasoning and nothing else
+        let schema = json!({"type": "object"});
+        // WHEN it is parsed
+        let err = parse_and_validate("<think>I cannot do that</think>", &schema)
+            .expect_err("there is no value behind the block");
+        // THEN the caller still gets the root violation, not a second error
+        // about text the backend never sent
         assert!(
             matches!(&err, crate::LlmError::StructuredOutputInvalid { path, .. } if path == "$"),
             "expected a root violation, got {err:?}"
