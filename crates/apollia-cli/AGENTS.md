@@ -13,7 +13,7 @@ releases.
 ## 1. Command shape
 
 Every command is `apollia-os <noun> <verb> [args]`, except the bare-verb
-whitelist below. The tree carries 199 leaves today; read it with
+whitelist below. The tree carries 200 leaves today; read it with
 `apollia-os --help` recursively, never from memory.
 
 **Verb taxonomy.** Every leaf's last token belongs to one of the categories
@@ -29,7 +29,7 @@ the same commit as the command.
 | relationship | `add`, `remove`, `link` |
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
-| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `hardware`, `schema`, `anchor`, `inspect`, `trace`, `version`, `digest` |
+| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `hardware`, `recommend`, `schema`, `anchor`, `inspect`, `trace`, `version`, `digest` |
 | action | `run`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
