@@ -85,6 +85,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_hooks::list_hooks;
     use crate::api::routes_llm::llm_routes;
     use crate::api::routes_mcp::mcp_router;
+    use crate::api::routes_mcp_registry::mcp_registry_router;
     use crate::api::routes_messages::{inject_agent_message, list_agent_messages, stream_mailbox};
     use crate::api::routes_model_hub::model_hub_routes;
     use crate::api::routes_notifications::logs::notification_logs;
@@ -262,6 +263,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route("/api/v1/stt/reload", post(reload_stt_engine::<B>))
         // MCP routes
         .merge(mcp_router::<B>())
+        .merge(mcp_registry_router::<B>())
         // Native connector consent routes
         .merge(connectors_router::<B>())
         .with_state(state)

@@ -884,6 +884,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp/registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/mcp/registry`: the servers the MCP registry lists, the latest
+         *     version of each, in the registry's own shape.
+         */
+        get: operations["list_registry_servers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/mcp/registry/server": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/mcp/registry/server?name=`: one registry entry, its latest
+         *     version, read from the same catalogue as the listing.
+         */
+        get: operations["get_registry_server"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp/resources": {
         parameters: {
             query?: never;
@@ -5312,6 +5352,100 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_registry_servers: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Keyword forwarded to the registry. A search always asks the network;
+                 *     without one, a fresh cache answers.
+                 */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registry entries, latest version per server; from the cache when the registry is unreachable */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The registry answered something unreadable and no cache covers it */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The registry is unreachable and no cache exists */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_registry_server: {
+        parameters: {
+            query: {
+                /**
+                 * @description Registry name of the server, e.g. `io.github.owner/server`. A query
+                 *     parameter rather than a path segment, because registry names carry a
+                 *     slash.
+                 */
+                name: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The registry entry */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No server of that name in the registry */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The registry answered something unreadable and no cache covers it */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The registry is unreachable and no cache exists */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
             };
         };
     };

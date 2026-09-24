@@ -2207,6 +2207,106 @@
         }
       }
     },
+    "/api/v1/mcp/registry": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "`GET /api/v1/mcp/registry`: the servers the MCP registry lists, the latest\nversion of each, in the registry's own shape.",
+        "operationId": "list_registry_servers",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Keyword forwarded to the registry. A search always asks the network;\nwithout one, a fresh cache answers.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Registry entries, latest version per server; from the cache when the registry is unreachable"
+          },
+          "502": {
+            "description": "The registry answered something unreadable and no cache covers it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The registry is unreachable and no cache exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/registry/server": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "`GET /api/v1/mcp/registry/server?name=`: one registry entry, its latest\nversion, read from the same catalogue as the listing.",
+        "operationId": "get_registry_server",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Registry name of the server, e.g. `io.github.owner/server`. A query\nparameter rather than a path segment, because registry names carry a\nslash.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The registry entry"
+          },
+          "404": {
+            "description": "No server of that name in the registry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The registry answered something unreadable and no cache covers it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The registry is unreachable and no cache exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mcp/resources": {
       "get": {
         "tags": [

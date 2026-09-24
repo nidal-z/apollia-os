@@ -160,6 +160,20 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             live_probed: false,
         },
         UnreachedOp {
+            id: "list_registry_servers",
+            method: Method::GET,
+            path: "/api/v1/mcp/registry",
+            absent_method: Method::DELETE,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "get_registry_server",
+            method: Method::GET,
+            path: "/api/v1/mcp/registry/server?name=io.example.probe/server",
+            absent_method: Method::DELETE,
+            live_probed: true,
+        },
+        UnreachedOp {
             id: "start_connector_consent",
             method: Method::POST,
             path: "/api/v1/connectors/oauth/start",
@@ -193,6 +207,26 @@ fn unreached_ops() -> Vec<UnreachedOp> {
 /// Why `list_connector_accounts` carries no live probe.
 const KEYCHAIN_PROBE_EXCLUSION: &str = "list_connector_accounts reads every provider's \
 account index from the OS keychain, so a live probe would read the real one";
+
+/// Seed `data_dir` with a fresh registry cache holding one server, so the
+/// registry routes answer from it and never reach the network.
+fn seed_registry_cache(data_dir: &std::path::Path) {
+    let cache = serde_json::json!([{
+        "server": {
+            "name": "io.example.probe/server",
+            "title": "Probe",
+            "description": "A server the census seeds",
+            "version": "1.0.0",
+            "repository": null,
+            "websiteUrl": null,
+            "packages": null,
+            "icons": null
+        },
+        "_meta": null
+    }]);
+    std::fs::write(data_dir.join("mcp-registry.json"), cache.to_string())
+        .expect("seed registry cache");
+}
 
 // ── Test fixtures ────────────────────────────────────────────────────────
 
@@ -322,13 +356,14 @@ fn json_of(bytes: &[u8]) -> serde_json::Value {
 #[tokio::test]
 async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
     // GIVEN the operations no CLI leaf addresses, and the router the daemon
-    // actually serves
+    // actually serves, over a data directory whose registry cache is fresh
     let dir = tempfile::tempdir().expect("temp dir");
+    seed_registry_cache(dir.path());
     let ops = unreached_ops();
     assert_eq!(
         ops.len(),
-        18,
-        "the census must carry the eighteen operations the coverage table lists"
+        20,
+        "the census must carry the twenty operations the coverage table lists"
     );
 
     // WHEN each is probed with a method its route does not declare
@@ -377,13 +412,13 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
         bound += 1;
     }
     assert_eq!(
-        bound, 15,
-        "the method binding of fifteen operations must be probed"
+        bound, 17,
+        "the method binding of seventeen operations must be probed"
     );
 }
 
 #[tokio::test]
-async fn test_fifteen_of_the_eighteen_operations_carry_a_live_probe() {
+async fn test_seventeen_of_the_twenty_operations_carry_a_live_probe() {
     // GIVEN the census table, which records which operations a live probe
     // invokes the handler of
     let ops = unreached_ops();
@@ -400,7 +435,7 @@ async fn test_fifteen_of_the_eighteen_operations_carry_a_live_probe() {
     // is the one whose handler reads the process home rather than the state's
     // data directory
     assert_eq!(
-        live, 15,
+        live, 17,
         "live probe count changed without the table saying so"
     );
     // Three exclusions, and they are not the same kind. `get_task_timeline`
@@ -790,6 +825,46 @@ async fn test_sidechains_answers_503_without_the_a2a_invoker() {
     // the 404 a task with no delegation gets
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(json_of(&body)["error"].is_string());
+}
+
+#[tokio::test]
+async fn test_registry_routes_answer_from_the_cache_without_the_network() {
+    // GIVEN a data directory whose registry cache is fresh and holds one server
+    let dir = tempfile::tempdir().expect("temp dir");
+    seed_registry_cache(dir.path());
+    let router = APIServer::build_router_for_test(base_state(dir.path()));
+
+    // WHEN the catalogue is listed, then that server and an unknown one are read
+    let (list_status, list_body) = call(
+        router.clone(),
+        Method::GET,
+        "/api/v1/mcp/registry",
+        Body::empty(),
+    )
+    .await;
+    let (one_status, one_body) = call(
+        router.clone(),
+        Method::GET,
+        "/api/v1/mcp/registry/server?name=io.example.probe%2Fserver",
+        Body::empty(),
+    )
+    .await;
+    let (missing_status, _) = call(
+        router,
+        Method::GET,
+        "/api/v1/mcp/registry/server?name=io.example.probe%2Fabsent",
+        Body::empty(),
+    )
+    .await;
+
+    // THEN the listing and the detail are the cached entry, and an unknown name is not found
+    assert_eq!(list_status, StatusCode::OK);
+    let list = json_of(&list_body);
+    assert_eq!(list.as_array().map(Vec::len), Some(1));
+    assert_eq!(list[0]["server"]["name"], "io.example.probe/server");
+    assert_eq!(one_status, StatusCode::OK);
+    assert_eq!(json_of(&one_body)["server"]["title"], "Probe");
+    assert_eq!(missing_status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

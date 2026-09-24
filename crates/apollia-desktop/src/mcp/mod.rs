@@ -6,8 +6,11 @@
 
 pub mod enrichments;
 pub mod overrides;
-pub mod registry_client;
 pub mod secret_store;
+
+/// The registry client lives in `apollia-mcp`, shared with the runtime's
+/// `/api/v1/mcp/registry` routes; the desktop reads it under its old path.
+pub use apollia_mcp::registry as registry_client;
 
 pub use enrichments::{
     find_enrichment, load_builtin_enrichments, ConnectorEnrichment, CostKind, CostModel, TrustLevel,

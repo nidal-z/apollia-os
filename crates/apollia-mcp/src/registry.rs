@@ -3,6 +3,11 @@
 //! Fetches the catalogue of available MCP servers from the official registry
 //! with automatic pagination, keyword search, and local disk cache. Falls
 //! back to the cached data when the registry is unreachable.
+//!
+//! It lives here rather than in the desktop so that every surface reads the
+//! same catalogue through the same cache: the desktop wizard through its IPC
+//! commands, and any caller without a desktop through
+//! `GET /api/v1/mcp/registry`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -12,9 +17,9 @@ use serde::{Deserialize, Serialize};
 
 /// Client for the MCP Registry API (`registry.modelcontextprotocol.io`).
 ///
-/// The client is `Clone` and `Send + Sync`, suitable for storage in Tauri
-/// managed state. The internal `reqwest::Client` connection pool is shared
-/// across clones.
+/// The client is `Clone` and `Send + Sync`, suitable for storage in shared
+/// application state. The internal `reqwest::Client` connection pool is
+/// shared across clones.
 #[derive(Clone)]
 pub struct McpRegistryClient {
     http: reqwest::Client,
@@ -624,9 +629,8 @@ mod tests {
     fn registry_url_defaults_to_the_public_registry() {
         // GIVEN no override in the environment
         let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        // SAFETY: the lock above makes this the only thread touching the
-        // environment for the duration of the test.
-        unsafe { std::env::remove_var(REGISTRY_URL_ENV) };
+        // The lock above makes this the only test touching the variable.
+        std::env::remove_var(REGISTRY_URL_ENV);
 
         // WHEN the client resolves its endpoint
         let url = base_url_from_env();
@@ -640,16 +644,14 @@ mod tests {
         // GIVEN an override, written with a trailing slash the client must not
         // keep (every path is joined with a leading one)
         let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        // SAFETY: the lock above makes this the only thread touching the
-        // environment for the duration of the test.
-        unsafe { std::env::set_var(REGISTRY_URL_ENV, "http://127.0.0.1:1/") };
+        // The lock above makes this the only test touching the variable.
+        std::env::set_var(REGISTRY_URL_ENV, "http://127.0.0.1:1/");
 
         // WHEN the client resolves its endpoint
         let url = base_url_from_env();
 
         // THEN it targets the override, without the trailing slash
-        // SAFETY: same lock.
-        unsafe { std::env::remove_var(REGISTRY_URL_ENV) };
+        std::env::remove_var(REGISTRY_URL_ENV);
         assert_eq!(url, "http://127.0.0.1:1");
     }
 

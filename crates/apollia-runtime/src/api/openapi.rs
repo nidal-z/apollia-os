@@ -264,6 +264,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_mcp::restart_server,
         crate::api::routes_mcp::update_server_config,
         crate::api::routes_mcp::set_server_approval,
+        crate::api::routes_mcp_registry::list_registry_servers,
+        crate::api::routes_mcp_registry::get_registry_server,
         crate::api::routes_connectors::start_connector_consent,
         crate::api::routes_connectors::complete_connector_consent,
         crate::api::routes_connectors::list_connector_accounts,
