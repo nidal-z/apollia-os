@@ -14,6 +14,7 @@ pub mod routes_hooks;
 pub mod routes_llm;
 pub mod routes_mcp;
 pub mod routes_mcp_registry;
+pub mod routes_mcp_secrets;
 pub mod routes_messages;
 pub mod routes_model_hub;
 pub mod routes_notifications;

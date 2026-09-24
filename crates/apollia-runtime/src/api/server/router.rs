@@ -86,6 +86,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_llm::llm_routes;
     use crate::api::routes_mcp::mcp_router;
     use crate::api::routes_mcp_registry::mcp_registry_router;
+    use crate::api::routes_mcp_secrets::mcp_secrets_router;
     use crate::api::routes_messages::{inject_agent_message, list_agent_messages, stream_mailbox};
     use crate::api::routes_model_hub::model_hub_routes;
     use crate::api::routes_notifications::logs::notification_logs;
@@ -264,6 +265,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // MCP routes
         .merge(mcp_router::<B>())
         .merge(mcp_registry_router::<B>())
+        .merge(mcp_secrets_router::<B>())
         // Native connector consent routes
         .merge(connectors_router::<B>())
         .with_state(state)

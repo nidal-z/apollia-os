@@ -173,6 +173,22 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             absent_method: Method::DELETE,
             live_probed: true,
         },
+        // The secret paths carry a key no placeholder can hold, so a probe that
+        // reaches the handler is refused before any secret store is opened.
+        UnreachedOp {
+            id: "put_mcp_secret",
+            method: Method::PUT,
+            path: "/api/v1/mcp/servers/probe/secrets/not-a-variable",
+            absent_method: Method::POST,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "delete_mcp_secret",
+            method: Method::DELETE,
+            path: "/api/v1/mcp/servers/probe/secrets/not-a-variable",
+            absent_method: Method::POST,
+            live_probed: true,
+        },
         UnreachedOp {
             id: "start_connector_consent",
             method: Method::POST,
@@ -362,8 +378,8 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
     let ops = unreached_ops();
     assert_eq!(
         ops.len(),
-        20,
-        "the census must carry the twenty operations the coverage table lists"
+        22,
+        "the census must carry the twenty-two operations the coverage table lists"
     );
 
     // WHEN each is probed with a method its route does not declare
@@ -412,13 +428,13 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
         bound += 1;
     }
     assert_eq!(
-        bound, 17,
-        "the method binding of seventeen operations must be probed"
+        bound, 19,
+        "the method binding of nineteen operations must be probed"
     );
 }
 
 #[tokio::test]
-async fn test_seventeen_of_the_twenty_operations_carry_a_live_probe() {
+async fn test_nineteen_of_the_twenty_two_operations_carry_a_live_probe() {
     // GIVEN the census table, which records which operations a live probe
     // invokes the handler of
     let ops = unreached_ops();
@@ -435,7 +451,7 @@ async fn test_seventeen_of_the_twenty_operations_carry_a_live_probe() {
     // is the one whose handler reads the process home rather than the state's
     // data directory
     assert_eq!(
-        live, 17,
+        live, 19,
         "live probe count changed without the table saying so"
     );
     // Three exclusions, and they are not the same kind. `get_task_timeline`
@@ -865,6 +881,39 @@ async fn test_registry_routes_answer_from_the_cache_without_the_network() {
     assert_eq!(one_status, StatusCode::OK);
     assert_eq!(json_of(&one_body)["server"]["title"], "Probe");
     assert_eq!(missing_status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_secret_routes_refuse_a_key_no_placeholder_can_carry() {
+    // GIVEN the router the daemon serves
+    let dir = tempfile::tempdir().expect("temp dir");
+    let router = APIServer::build_router_for_test(base_state(dir.path()));
+
+    // WHEN a secret is put and deleted under a key with a dash in it
+    let (put_status, put_body) = call(
+        router.clone(),
+        Method::PUT,
+        "/api/v1/mcp/servers/probe/secrets/not-a-variable",
+        Body::from(r#"{"value":"v"}"#),
+    )
+    .await;
+    let (delete_status, _) = call(
+        router,
+        Method::DELETE,
+        "/api/v1/mcp/servers/probe/secrets/not-a-variable",
+        Body::empty(),
+    )
+    .await;
+
+    // THEN both handlers refuse it before any secret store is opened, and the
+    // refusal never echoes the value
+    assert_eq!(put_status, StatusCode::BAD_REQUEST);
+    assert_eq!(delete_status, StatusCode::BAD_REQUEST);
+    let text = String::from_utf8_lossy(&put_body).to_string();
+    assert!(
+        text.contains("environment variable name"),
+        "body was: {text}"
+    );
 }
 
 #[tokio::test]

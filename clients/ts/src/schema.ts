@@ -1142,6 +1142,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mcp/servers/{name}/secrets/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/mcp/servers/:name/secrets/:key`: set the secret a
+         *     `${APOLLIA_SECRET:KEY}` placeholder of server `name` resolves to.
+         * @description The server need not exist yet. A running server reads the new value at its
+         *     next connection (`POST /api/v1/mcp/servers/:name/restart`).
+         */
+        put: operations["put_mcp_secret"];
+        post?: never;
+        /**
+         * `DELETE /api/v1/mcp/servers/:name/secrets/:key`: remove the secret.
+         *     Removing one that is absent succeeds.
+         */
+        delete: operations["delete_mcp_secret"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mcp/servers/{name}/test": {
         parameters: {
             query?: never;
@@ -2974,6 +3000,11 @@ export interface components {
             decision: string;
             /** @description Run identifier whose gate was resolved. */
             run_id: string;
+        };
+        /** @description Body of `PUT /api/v1/mcp/servers/:name/secrets/:key`. */
+        PutMcpSecretBody: {
+            /** @description The secret. Stored, never answered back. */
+            value: string;
         };
         /** @description Success response body for reload. */
         ReloadResponse: {
@@ -5857,6 +5888,110 @@ export interface operations {
                 };
             };
             /** @description MCP not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    put_mcp_secret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server name */
+                name: string;
+                /** @description Secret key, as the placeholder names it */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutMcpSecretBody"];
+            };
+        };
+        responses: {
+            /** @description Secret stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid server name, key, or value */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The secret store refused the write */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No secret store is available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_mcp_secret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server name */
+                name: string;
+                /** @description Secret key, as the placeholder names it */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Secret removed, or was absent */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid server name or key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The secret store refused the removal */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No secret store is available */
             503: {
                 headers: {
                     [name: string]: unknown;

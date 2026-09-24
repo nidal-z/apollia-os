@@ -84,6 +84,7 @@ from .ping_response import PingResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
 from .plan_decision_request import PlanDecisionRequest
 from .plan_decision_response import PlanDecisionResponse
+from .put_mcp_secret_body import PutMcpSecretBody
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
@@ -250,6 +251,7 @@ __all__ = (
     "PlanCacheStatsResponse",
     "PlanDecisionRequest",
     "PlanDecisionResponse",
+    "PutMcpSecretBody",
     "ReloadResponse",
     "ReloadRouterResponse",
     "ReloadRouterResponseBackendsItem",

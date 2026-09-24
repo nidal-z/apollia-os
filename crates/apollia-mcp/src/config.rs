@@ -50,6 +50,19 @@ impl SecretResolver for DefaultMcpSecretResolver {
     }
 }
 
+/// Whether `name` is an acceptable MCP server name: lowercase ASCII letters,
+/// digits, `_` and `-`, at least one of them.
+///
+/// The name keys the server in `mcp.db` and prefixes each of its static
+/// secrets in the keychain (`"{name}:{KEY}"`), so the same rule holds for a
+/// configuration and for a secret written ahead of it.
+pub fn is_valid_server_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_' | '-'))
+}
+
 /// Trait for resolving secrets referenced by `${APOLLIA_SECRET:KEY}` placeholders
 /// in env values. Decouples the config layer from the runtime's
 /// specific keychain implementation.
@@ -387,11 +400,7 @@ impl McpServerConfig {
             return Err(McpConfigError::EmptyServerName);
         }
 
-        if !self
-            .name
-            .chars()
-            .all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_' | '-'))
-        {
+        if !is_valid_server_name(&self.name) {
             return Err(McpConfigError::InvalidServerName(self.name.clone()));
         }
 

@@ -2769,6 +2769,143 @@
         }
       }
     },
+    "/api/v1/mcp/servers/{name}/secrets/{key}": {
+      "put": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "`PUT /api/v1/mcp/servers/:name/secrets/:key`: set the secret a\n`${APOLLIA_SECRET:KEY}` placeholder of server `name` resolves to.",
+        "description": "The server need not exist yet. A running server reads the new value at its\nnext connection (`POST /api/v1/mcp/servers/:name/restart`).",
+        "operationId": "put_mcp_secret",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Server name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Secret key, as the placeholder names it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutMcpSecretBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Secret stored"
+          },
+          "400": {
+            "description": "Invalid server name, key, or value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The secret store refused the write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No secret store is available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "`DELETE /api/v1/mcp/servers/:name/secrets/:key`: remove the secret.\nRemoving one that is absent succeeds.",
+        "operationId": "delete_mcp_secret",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Server name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Secret key, as the placeholder names it",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Secret removed, or was absent"
+          },
+          "400": {
+            "description": "Invalid server name or key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The secret store refused the removal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No secret store is available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mcp/servers/{name}/test": {
       "post": {
         "tags": [
@@ -7533,6 +7670,19 @@
           "run_id": {
             "type": "string",
             "description": "Run identifier whose gate was resolved."
+          }
+        }
+      },
+      "PutMcpSecretBody": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/mcp/servers/:name/secrets/:key`.",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "The secret. Stored, never answered back."
           }
         }
       },
