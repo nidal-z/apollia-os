@@ -1031,6 +1031,216 @@
         }
       }
     },
+    "/api/v1/connectors/accounts": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/accounts`: every connected account, all providers.",
+        "operationId": "list_connector_accounts",
+        "responses": {
+          "200": {
+            "description": "Connected accounts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectorAccountResponse"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The token store could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/accounts/{provider}/{account_id}": {
+      "delete": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`DELETE /api/v1/connectors/accounts/:provider/:account_id`: forget the\naccount's token. The provider is not notified.",
+        "operationId": "disconnect_connector_account",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Token forgotten"
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The token store could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/oauth/complete": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/connectors/oauth/complete`: exchange the code the provider\nreturned and store the account's token.",
+        "operationId": "complete_connector_consent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteConsentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Account connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectedAccountResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized state or code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No pending consent for this state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The provider refused the code or named no account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/oauth/start": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/connectors/oauth/start`: start a consent and answer the URL\nto send the user to. No browser opens.",
+        "operationId": "start_connector_consent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartConsentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Consent started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartConsentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider or scope, or invalid redirect URI",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many consents pending",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The provider's OAuth client is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "tags": [
@@ -6189,6 +6399,24 @@
           }
         }
       },
+      "CompleteConsentBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/connectors/oauth/complete`.",
+        "required": [
+          "state",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The authorization `code` the provider returned."
+          },
+          "state": {
+            "type": "string",
+            "description": "The `state` the provider returned, as `start` issued it."
+          }
+        }
+      },
       "CompleteRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/llm/complete`.",
@@ -6240,6 +6468,50 @@
             ],
             "format": "float",
             "description": "Sampling temperature; the backend default when omitted."
+          }
+        }
+      },
+      "ConnectedAccountResponse": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/connectors/oauth/complete`.",
+        "required": [
+          "provider",
+          "account_id",
+          "granted_scopes"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Account identifier: the Google email, or the Microsoft principal name."
+          },
+          "granted_scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Scopes the provider actually granted."
+          },
+          "provider": {
+            "type": "string",
+            "description": "Provider identifier."
+          }
+        }
+      },
+      "ConnectorAccountResponse": {
+        "type": "object",
+        "description": "One connected account, in `GET /api/v1/connectors/accounts`.",
+        "required": [
+          "provider",
+          "account_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Account identifier."
+          },
+          "provider": {
+            "type": "string",
+            "description": "Provider identifier."
           }
         }
       },
@@ -7585,6 +7857,49 @@
           }
         }
       },
+      "StartConsentBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/connectors/oauth/start`.",
+        "required": [
+          "provider",
+          "redirect_uri"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Provider identifier: `google` or `microsoft`."
+          },
+          "redirect_uri": {
+            "type": "string",
+            "description": "Page the provider returns the user to, registered with the provider\nunder the OAuth client the runtime resolves. `https`, or `http` on a\nloopback host."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Scope names from the provider's catalogue (`mail.send`,\n`calendar.read`, ...). The identity scopes are added implicitly."
+          }
+        }
+      },
+      "StartConsentResponse": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/connectors/oauth/start`.",
+        "required": [
+          "auth_url",
+          "state"
+        ],
+        "properties": {
+          "auth_url": {
+            "type": "string",
+            "description": "URL to send the user to."
+          },
+          "state": {
+            "type": "string",
+            "description": "Opaque value the provider returns with the code, to hand back to\n`complete`. Valid ten minutes, once."
+          }
+        }
+      },
       "SttReloadResponse": {
         "type": "object",
         "description": "Response body for `POST /api/v1/stt/reload`.",
@@ -8641,6 +8956,10 @@
     {
       "name": "mcp",
       "description": "MCP servers and resources"
+    },
+    {
+      "name": "connectors",
+      "description": "Native connector accounts and their consent"
     },
     {
       "name": "webhooks",

@@ -1,7 +1,7 @@
 //! The API operations no CLI leaf reaches, exercised through the real router.
 //!
 //! A sweep of the CLI traverses the API operations the CLI addresses, and only
-//! those. Eleven operations of the surface sit outside that path: nothing in
+//! those. The operations of [`unreached_ops`] sit outside that path: nothing in
 //! `apollia-cli` builds their URL, so no CLI sweep, however exhaustive, can
 //! observe them. This module is the instrument that covers them, and it drives
 //! [`APIServer::build_router_for_test`] rather than a hand-rolled router, so a
@@ -12,13 +12,16 @@
 //!
 //! The census sends a method the route does not declare and expects `405`,
 //! which axum returns only when the path matched. That proves the path is
-//! mounted, and it costs nothing, so every one of the eleven takes it.
+//! mounted, and it costs nothing, so every operation takes it.
 //!
 //! The live probes send the declared method and assert what the handler
-//! answers. Ten of the eleven take one. The eleventh, `get_task_timeline`,
-//! is measured and reported instead of run: `routes_timeline::resolve_data_dir`
-//! ignores `state.data_dir` and resolves the process home, so invoking it here
-//! would read the developer's own `~/.apollia`. See [`LIVE_PROBE_EXCLUSION`].
+//! answers. All but three take one. `get_task_timeline` is measured and
+//! reported instead of run: `routes_timeline::resolve_data_dir` ignores
+//! `state.data_dir` and resolves the process home, so invoking it here would
+//! read the developer's own `~/.apollia` ([`LIVE_PROBE_EXCLUSION`]).
+//! `list_connector_accounts` reads the OS keychain
+//! ([`KEYCHAIN_PROBE_EXCLUSION`]). `set_server_approval` is named as debt in
+//! the test that counts them.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -156,8 +159,40 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             absent_method: Method::POST,
             live_probed: false,
         },
+        UnreachedOp {
+            id: "start_connector_consent",
+            method: Method::POST,
+            path: "/api/v1/connectors/oauth/start",
+            absent_method: Method::GET,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "complete_connector_consent",
+            method: Method::POST,
+            path: "/api/v1/connectors/oauth/complete",
+            absent_method: Method::GET,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "list_connector_accounts",
+            method: Method::GET,
+            path: "/api/v1/connectors/accounts",
+            absent_method: Method::POST,
+            live_probed: false,
+        },
+        UnreachedOp {
+            id: "disconnect_connector_account",
+            method: Method::DELETE,
+            path: "/api/v1/connectors/accounts/not-a-provider/probe",
+            absent_method: Method::GET,
+            live_probed: true,
+        },
     ]
 }
+
+/// Why `list_connector_accounts` carries no live probe.
+const KEYCHAIN_PROBE_EXCLUSION: &str = "list_connector_accounts reads every provider's \
+account index from the OS keychain, so a live probe would read the real one";
 
 // ── Test fixtures ────────────────────────────────────────────────────────
 
@@ -286,14 +321,14 @@ fn json_of(bytes: &[u8]) -> serde_json::Value {
 
 #[tokio::test]
 async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
-    // GIVEN the eleven operations no CLI leaf addresses, and the router the
-    // daemon actually serves
+    // GIVEN the operations no CLI leaf addresses, and the router the daemon
+    // actually serves
     let dir = tempfile::tempdir().expect("temp dir");
     let ops = unreached_ops();
     assert_eq!(
         ops.len(),
-        14,
-        "the census must carry the fourteen operations the coverage table lists"
+        18,
+        "the census must carry the eighteen operations the coverage table lists"
     );
 
     // WHEN each is probed with a method its route does not declare
@@ -342,13 +377,13 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
         bound += 1;
     }
     assert_eq!(
-        bound, 12,
-        "the method binding of twelve operations must be probed"
+        bound, 15,
+        "the method binding of fifteen operations must be probed"
     );
 }
 
 #[tokio::test]
-async fn test_twelve_of_the_fourteen_operations_carry_a_live_probe() {
+async fn test_fifteen_of_the_eighteen_operations_carry_a_live_probe() {
     // GIVEN the census table, which records which operations a live probe
     // invokes the handler of
     let ops = unreached_ops();
@@ -365,18 +400,27 @@ async fn test_twelve_of_the_fourteen_operations_carry_a_live_probe() {
     // is the one whose handler reads the process home rather than the state's
     // data directory
     assert_eq!(
-        live, 12,
+        live, 15,
         "live probe count changed without the table saying so"
     );
-    // Two exclusions, and they are not the same kind. `get_task_timeline`
-    // cannot be live-probed here at all, for the reason the constant states.
-    // `set_server_approval` mutates a server the census does not create, so it
-    // carries a routing probe only until a probe builds that server: debt, and
-    // named as such rather than counted as coverage.
+    // Three exclusions, and they are not the same kind. `get_task_timeline`
+    // and `list_connector_accounts` cannot be live-probed here at all, for the
+    // reasons their constants state. `set_server_approval` mutates a server the
+    // census does not create, so it carries a routing probe only until a probe
+    // builds that server: debt, and named as such rather than counted as
+    // coverage.
     let mut excluded = excluded;
     excluded.sort_unstable();
-    assert_eq!(excluded, vec!["get_task_timeline", "set_server_approval"]);
+    assert_eq!(
+        excluded,
+        vec![
+            "get_task_timeline",
+            "list_connector_accounts",
+            "set_server_approval"
+        ]
+    );
     assert!(LIVE_PROBE_EXCLUSION.contains("state.data_dir"));
+    assert!(KEYCHAIN_PROBE_EXCLUSION.contains("keychain"));
 }
 
 // ── Live probes ──────────────────────────────────────────────────────────
@@ -746,4 +790,44 @@ async fn test_sidechains_answers_503_without_the_a2a_invoker() {
     // the 404 a task with no delegation gets
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     assert!(json_of(&body)["error"].is_string());
+}
+
+#[tokio::test]
+async fn test_connector_consent_routes_refuse_before_reaching_a_provider() {
+    // GIVEN the router the daemon serves
+    let dir = tempfile::tempdir().expect("temp dir");
+    let router = APIServer::build_router_for_test(base_state(dir.path()));
+
+    // WHEN a consent is started for an unknown provider, completed under a
+    // state never issued, and an account of an unknown provider disconnected
+    let (start_status, start_body) = call(
+        router.clone(),
+        Method::POST,
+        "/api/v1/connectors/oauth/start",
+        Body::from(r#"{"provider":"github","redirect_uri":"https://app.example.test/cb"}"#),
+    )
+    .await;
+    let (complete_status, _) = call(
+        router.clone(),
+        Method::POST,
+        "/api/v1/connectors/oauth/complete",
+        Body::from(r#"{"state":"never-issued","code":"c"}"#),
+    )
+    .await;
+    let (disconnect_status, _) = call(
+        router,
+        Method::DELETE,
+        "/api/v1/connectors/accounts/not-a-provider/probe",
+        Body::empty(),
+    )
+    .await;
+
+    // THEN each handler answers its refusal, and none opened a browser, a
+    // listener, a provider connection or the keychain
+    assert_eq!(start_status, StatusCode::BAD_REQUEST);
+    assert!(json_of(&start_body)["error"]
+        .as_str()
+        .is_some_and(|m| m.contains("github")));
+    assert_eq!(complete_status, StatusCode::NOT_FOUND);
+    assert_eq!(disconnect_status, StatusCode::BAD_REQUEST);
 }

@@ -45,15 +45,24 @@ pub struct OAuth2PkceFlow {
 impl OAuth2PkceFlow {
     /// Create a new PKCE flow for a callback server bound to `redirect_port`.
     pub fn new(redirect_port: u16) -> Self {
+        Self::with_redirect_uri(format!("http://127.0.0.1:{redirect_port}/callback"))
+    }
+
+    /// Create a new PKCE flow whose redirect URI the caller owns.
+    ///
+    /// The loopback form of [`Self::new`] suits a process that can bind a
+    /// port on the user's machine. A hosted caller cannot: its redirect URI is
+    /// a page on its own domain, registered with the provider, and the code
+    /// comes back through that caller rather than through a local listener.
+    pub fn with_redirect_uri(redirect_uri: impl Into<String>) -> Self {
         let code_verifier = generate_code_verifier();
         let code_challenge = generate_code_challenge(&code_verifier);
         let state = generate_code_verifier();
-        let redirect_uri = format!("http://127.0.0.1:{redirect_port}/callback");
         Self {
             code_verifier,
             code_challenge,
             state,
-            redirect_uri,
+            redirect_uri: redirect_uri.into(),
         }
     }
 }
@@ -155,6 +164,22 @@ mod tests {
         let challenge = generate_code_challenge(verifier);
         // THEN
         assert_eq!(challenge, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+    }
+
+    #[test]
+    fn test_pkce_flow_keeps_the_redirect_uri_its_caller_owns() {
+        // GIVEN a redirect URI on a hosted caller's own domain
+        let uri = "https://app.example.test/oauth/callback";
+
+        // WHEN a flow is built around it
+        let flow = OAuth2PkceFlow::with_redirect_uri(uri);
+
+        // THEN the URI is kept verbatim, and the challenge still derives from the verifier
+        assert_eq!(flow.redirect_uri, uri);
+        assert_eq!(
+            flow.code_challenge,
+            generate_code_challenge(&flow.code_verifier)
+        );
     }
 
     #[test]

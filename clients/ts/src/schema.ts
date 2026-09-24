@@ -411,6 +411,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connectors/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/connectors/accounts`: every connected account, all providers. */
+        get: operations["list_connector_accounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/accounts/{provider}/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/connectors/accounts/:provider/:account_id`: forget the
+         *     account's token. The provider is not notified.
+         */
+        delete: operations["disconnect_connector_account"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/oauth/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/connectors/oauth/complete`: exchange the code the provider
+         *     returned and store the account's token.
+         */
+        post: operations["complete_connector_consent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/oauth/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/connectors/oauth/start`: start a consent and answer the URL
+         *     to send the user to. No browser opens.
+         */
+        post: operations["start_connector_consent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -2400,6 +2477,13 @@ export interface components {
              */
             cleared_count: number;
         };
+        /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
+        CompleteConsentBody: {
+            /** @description The authorization `code` the provider returned. */
+            code: string;
+            /** @description The `state` the provider returned, as `start` issued it. */
+            state: string;
+        };
         /** @description Request body for `POST /api/v1/llm/complete`. */
         CompleteRequest: {
             /** @description Backend to use; falls back to the router default if omitted. */
@@ -2426,6 +2510,22 @@ export interface components {
              * @description Sampling temperature; the backend default when omitted.
              */
             temperature?: number | null;
+        };
+        /** @description Answer of `POST /api/v1/connectors/oauth/complete`. */
+        ConnectedAccountResponse: {
+            /** @description Account identifier: the Google email, or the Microsoft principal name. */
+            account_id: string;
+            /** @description Scopes the provider actually granted. */
+            granted_scopes: string[];
+            /** @description Provider identifier. */
+            provider: string;
+        };
+        /** @description One connected account, in `GET /api/v1/connectors/accounts`. */
+        ConnectorAccountResponse: {
+            /** @description Account identifier. */
+            account_id: string;
+            /** @description Provider identifier. */
+            provider: string;
         };
         /** @description A single backend/model cost summary row. */
         CostSummaryRow: {
@@ -3040,6 +3140,32 @@ export interface components {
         StartAgentRequest: {
             /** @description Path to the agent Python module. */
             agent_path: string;
+        };
+        /** @description Body of `POST /api/v1/connectors/oauth/start`. */
+        StartConsentBody: {
+            /** @description Provider identifier: `google` or `microsoft`. */
+            provider: string;
+            /**
+             * @description Page the provider returns the user to, registered with the provider
+             *     under the OAuth client the runtime resolves. `https`, or `http` on a
+             *     loopback host.
+             */
+            redirect_uri: string;
+            /**
+             * @description Scope names from the provider's catalogue (`mail.send`,
+             *     `calendar.read`, ...). The identity scopes are added implicitly.
+             */
+            scopes?: string[];
+        };
+        /** @description Answer of `POST /api/v1/connectors/oauth/start`. */
+        StartConsentResponse: {
+            /** @description URL to send the user to. */
+            auth_url: string;
+            /**
+             * @description Opaque value the provider returns with the code, to hand back to
+             *     `complete`. Valid ten minutes, once.
+             */
+            state: string;
         };
         /** @description Response body for `POST /api/v1/stt/reload`. */
         SttReloadResponse: {
@@ -4240,6 +4366,178 @@ export interface operations {
                 };
             };
             /** @description Audit journal not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_connector_accounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Connected accounts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorAccountResponse"][];
+                };
+            };
+            /** @description The token store could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    disconnect_connector_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider identifier */
+                provider: string;
+                /** @description Account identifier */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Token forgotten */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The token store could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    complete_connector_consent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteConsentBody"];
+            };
+        };
+        responses: {
+            /** @description Account connected */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectedAccountResponse"];
+                };
+            };
+            /** @description Empty or oversized state or code */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No pending consent for this state */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The provider refused the code or named no account */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    start_connector_consent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartConsentBody"];
+            };
+        };
+        responses: {
+            /** @description Consent started */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StartConsentResponse"];
+                };
+            };
+            /** @description Unknown provider or scope, or invalid redirect URI */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Too many consents pending */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The provider's OAuth client is not configured */
             503: {
                 headers: {
                     [name: string]: unknown;

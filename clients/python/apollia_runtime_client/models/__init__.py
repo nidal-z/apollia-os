@@ -32,8 +32,11 @@ from .chat_request_schema_type_0 import ChatRequestSchemaType0
 from .chat_response import ChatResponse
 from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_cache_response import ClearCacheResponse
+from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
+from .connected_account_response import ConnectedAccountResponse
+from .connector_account_response import ConnectorAccountResponse
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .create_channel_request import CreateChannelRequest
@@ -106,6 +109,8 @@ from .skill_listing_input_schema_type_0 import SkillListingInputSchemaType0
 from .sse_mailbox_event import SseMailboxEvent
 from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
+from .start_consent_body import StartConsentBody
+from .start_consent_response import StartConsentResponse
 from .stt_reload_response import SttReloadResponse
 from .stt_status_response import SttStatusResponse
 from .submit_task_request import SubmitTaskRequest
@@ -193,8 +198,11 @@ __all__ = (
     "ChatResponse",
     "ChatResponseValueType0",
     "ClearCacheResponse",
+    "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
+    "ConnectedAccountResponse",
+    "ConnectorAccountResponse",
     "CostsResponse",
     "CostSummaryRow",
     "CreateChannelRequest",
@@ -265,6 +273,8 @@ __all__ = (
     "SseMailboxEvent",
     "SseTaskEvent",
     "StartAgentRequest",
+    "StartConsentBody",
+    "StartConsentResponse",
     "SttReloadResponse",
     "SttStatusResponse",
     "SubmitTaskRequest",

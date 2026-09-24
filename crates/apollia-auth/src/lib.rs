@@ -20,6 +20,7 @@
 
 pub mod auth_manager;
 pub mod callback;
+pub mod connector_consent;
 pub mod connector_providers;
 pub mod drive_prefs;
 pub mod error;
@@ -35,6 +36,9 @@ pub mod storage;
 pub mod token;
 
 pub use auth_manager::AuthManager;
+pub use connector_consent::{
+    ConnectedAccount, ConsentError, ConsentStart, PendingConsent, PendingConsents,
+};
 pub use connector_providers::{
     build_google_provider, build_microsoft_provider, build_microsoft_provider_for_tenant,
     ConnectorProvider, GoogleScope, MicrosoftScope, MICROSOFT_DEFAULT_CLIENT_ID,

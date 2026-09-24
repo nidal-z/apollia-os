@@ -40,8 +40,8 @@ use credentials::ensure_credentials;
 use std::sync::{Arc, OnceLock};
 
 use apollia_auth::{
-    build_google_provider, build_microsoft_provider, AccountId, AuthManager, ConnectorProvider,
-    GoogleScope, MicrosoftScope, OAuth2PkceFlow, ProviderConfig, StoredToken,
+    AccountId, AuthManager, ConnectorProvider, ConsentError, OAuth2PkceFlow, ProviderConfig,
+    StoredToken,
 };
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -178,65 +178,20 @@ pub struct OauthAccountInfo {
 // ─── Provider + scope resolution ─────────────────────────────────────────────
 
 fn provider_from_id(id: &str) -> Result<ConnectorProvider, IntegrationsError> {
-    match id {
-        "google" => Ok(ConnectorProvider::Google),
-        "microsoft" => Ok(ConnectorProvider::Microsoft),
-        other => Err(IntegrationsError::UnknownProvider(other.to_owned())),
-    }
+    ConnectorProvider::from_id(id).ok_or_else(|| IntegrationsError::UnknownProvider(id.to_owned()))
 }
 
+/// The scope vocabulary is `apollia_auth`'s, shared with the runtime's HTTP
+/// consent route, so a scope added there is offered here without a second
+/// table to keep in step.
 fn build_provider_with_scopes(
     provider: ConnectorProvider,
     scopes: &[String],
 ) -> Result<ProviderConfig, IntegrationsError> {
-    match provider {
-        ConnectorProvider::Google => {
-            let mut typed = Vec::with_capacity(scopes.len());
-            for s in scopes {
-                let g = match s.as_str() {
-                    "mail.send" => GoogleScope::MailSend,
-                    "mail.drafts" => GoogleScope::MailDraftsCreate,
-                    // Restricted `gmail.compose`: Expert Mode only, kept for
-                    // power users who supply their own OAuth client.
-                    "mail.compose" => GoogleScope::MailCompose,
-                    "calendar.read" => GoogleScope::CalendarRead,
-                    "calendar.write" => GoogleScope::CalendarWrite,
-                    "drive.workspace" => GoogleScope::DriveWorkspace,
-                    "sheets" => GoogleScope::SheetsReadWrite,
-                    "docs" => GoogleScope::DocsReadWrite,
-                    "slides" => GoogleScope::SlidesReadWrite,
-                    "tasks" => GoogleScope::Tasks,
-                    "forms" => GoogleScope::FormsReadWrite,
-                    "youtube" => GoogleScope::YouTubeReadOnly,
-                    "openid" => GoogleScope::OpenId,
-                    "email" => GoogleScope::Email,
-                    "profile" => GoogleScope::Profile,
-                    other => return Err(IntegrationsError::UnknownScope(other.to_owned())),
-                };
-                typed.push(g);
-            }
-            Ok(build_google_provider(&typed))
-        }
-        ConnectorProvider::Microsoft => {
-            let mut typed = Vec::with_capacity(scopes.len());
-            for s in scopes {
-                let m = match s.as_str() {
-                    "mail.read" => MicrosoftScope::MailRead,
-                    "mail.send" => MicrosoftScope::MailSend,
-                    "mail.readwrite" => MicrosoftScope::MailReadWrite,
-                    "calendar.read" => MicrosoftScope::CalendarRead,
-                    "calendar.write" => MicrosoftScope::CalendarWrite,
-                    "files.read" => MicrosoftScope::FilesRead,
-                    "files.write" => MicrosoftScope::FilesWrite,
-                    "profile" => MicrosoftScope::Profile,
-                    "offline" => MicrosoftScope::Offline,
-                    other => return Err(IntegrationsError::UnknownScope(other.to_owned())),
-                };
-                typed.push(m);
-            }
-            Ok(build_microsoft_provider(&typed))
-        }
-    }
+    apollia_auth::connector_consent::provider_config_for(provider, scopes).map_err(|e| match e {
+        ConsentError::UnknownScope(name) => IntegrationsError::UnknownScope(name),
+        other => IntegrationsError::Internal(other.to_string()),
+    })
 }
 
 // ─── Sovereignty gate ────────────────────────────────────────────────────────
@@ -427,38 +382,12 @@ async fn resolve_account_id(
     provider: ConnectorProvider,
     bearer: &str,
 ) -> Result<AccountId, IntegrationsError> {
-    let client =
-        apollia_core::net::safe_client().map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    let response = client
-        .get(provider.userinfo_url())
-        .bearer_auth(bearer)
-        .send()
+    apollia_auth::connector_consent::resolve_account_id(provider, bearer)
         .await
-        .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    if !response.status().is_success() {
-        return Err(IntegrationsError::Internal(format!(
-            "userinfo returned {}",
-            response.status()
-        )));
-    }
-    let json: serde_json::Value =
-        apollia_core::net::read_capped_json(response, apollia_core::net::MAX_METADATA_BYTES)
-            .await
-            .map_err(|e| IntegrationsError::Internal(e.to_string()))?;
-    let id = match provider {
-        ConnectorProvider::Google => json
-            .get("email")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| IntegrationsError::Internal("userinfo missing email".into()))?,
-        ConnectorProvider::Microsoft => json
-            .get("userPrincipalName")
-            .and_then(|v| v.as_str())
-            .or_else(|| json.get("mail").and_then(|v| v.as_str()))
-            .ok_or_else(|| {
-                IntegrationsError::Internal("Graph /me missing userPrincipalName".into())
-            })?,
-    };
-    Ok(AccountId::new(id))
+        .map_err(|e| match e {
+            ConsentError::AccountResolution(msg) => IntegrationsError::Internal(msg),
+            other => IntegrationsError::Internal(other.to_string()),
+        })
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────

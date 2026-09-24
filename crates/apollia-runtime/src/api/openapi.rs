@@ -151,6 +151,7 @@ impl ToSchema for RawWebhookBody {}
         (name = "model_hub", description = "Hardware profiling and model registry"),
         (name = "resilience", description = "Circuit breakers"),
         (name = "mcp", description = "MCP servers and resources"),
+        (name = "connectors", description = "Native connector accounts and their consent"),
         (name = "webhooks", description = "Inbound webhooks")
     ),
     paths(
@@ -263,6 +264,10 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_mcp::restart_server,
         crate::api::routes_mcp::update_server_config,
         crate::api::routes_mcp::set_server_approval,
+        crate::api::routes_connectors::start_connector_consent,
+        crate::api::routes_connectors::complete_connector_consent,
+        crate::api::routes_connectors::list_connector_accounts,
+        crate::api::routes_connectors::disconnect_connector_account,
     ),
     components(schemas(
         ApiErrorBody,
@@ -366,6 +371,11 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_resilience::ResetResponse,
         crate::api::routes_mcp::TestLiveRequest,
         crate::api::routes_mcp::SetApprovalBody,
+        crate::api::routes_connectors::StartConsentBody,
+        crate::api::routes_connectors::StartConsentResponse,
+        crate::api::routes_connectors::CompleteConsentBody,
+        crate::api::routes_connectors::ConnectedAccountResponse,
+        crate::api::routes_connectors::ConnectorAccountResponse,
     ))
 )]
 pub struct ApiDoc;

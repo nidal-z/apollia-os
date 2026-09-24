@@ -77,7 +77,7 @@ async fn get_google_connector() -> Result<Arc<GoogleConnector>, String> {
         .cloned()
 }
 
-async fn get_auth() -> Result<Arc<AuthManager>, String> {
+pub(crate) async fn get_auth() -> Result<Arc<AuthManager>, String> {
     GOOGLE_AUTH
         .get_or_try_init(|| async {
             AuthManager::new()
