@@ -1698,6 +1698,15 @@ export interface paths {
         /**
          * Handler for `DELETE /api/v1/tasks/{id}`.
          * @description Cancels a running task. Returns 404 if the task does not exist.
+         *
+         *     `id` is a task id, or the `invocation_id` a client gave a synchronous
+         *     `POST /api/v1/a2a/invoke` that is still running. The second form exists
+         *     because that route answers only once the worker has finished, so its task id
+         *     reaches the caller too late to cancel anything; the name the caller chose is
+         *     bound to the task from the moment it is submitted. A name that resolves wins
+         *     over a task of the same spelling, which costs nothing: task ids are UUIDs
+         *     and a client that picks one as its own name gets the task it meant either
+         *     way.
          */
         delete: operations["cancel_task"];
         options?: never;
@@ -2343,6 +2352,24 @@ export interface components {
             backend?: string | null;
             /** @description User prompt text to send to the LLM. */
             prompt: string;
+            /**
+             * @description JSON Schema the answer must satisfy, or `null` for free-form generation.
+             *
+             *     Same contract as `ctx.llm(schema=...)`: the backend turns it into
+             *     whatever decoding constraint it supports, the answer is validated
+             *     against it, and the validated value comes back in `value`.
+             */
+            schema?: Record<string, never> | null;
+            /**
+             * Format: int64
+             * @description Sampling seed, for a reproducible answer on a backend that carries one.
+             */
+            seed?: number | null;
+            /**
+             * Format: float
+             * @description Sampling temperature; the backend default when omitted.
+             */
+            temperature?: number | null;
         };
         /** @description Response body for `POST /api/v1/llm/chat` and `POST /api/v1/llm/complete`. */
         ChatResponse: {
@@ -2357,6 +2384,13 @@ export interface components {
             latency_ms: number;
             /** @description Token usage statistics for this call. */
             usage: components["schemas"]["TokenUsageResponse"];
+            /**
+             * @description The answer validated against the requested `schema`.
+             *
+             *     Absent on a free-form call. Present whenever `schema` was given, since a
+             *     call that could not satisfy it answers an error rather than a body.
+             */
+            value?: Record<string, never> | null;
         };
         /** @description Response body for `POST /api/v1/plan-cache/clear`. */
         ClearCacheResponse: {
@@ -2374,6 +2408,24 @@ export interface components {
             grammar?: string | null;
             /** @description Ordered list of messages forming the conversation history. */
             messages: components["schemas"]["MessageDto"][];
+            /**
+             * @description JSON Schema the answer must satisfy, or `null` for free-form generation.
+             *
+             *     A `grammar` already on the request wins over it, being the more specific
+             *     constraint of the two; the answer is validated against the schema either
+             *     way and comes back in `value`.
+             */
+            schema?: Record<string, never> | null;
+            /**
+             * Format: int64
+             * @description Sampling seed, for a reproducible answer on a backend that carries one.
+             */
+            seed?: number | null;
+            /**
+             * Format: float
+             * @description Sampling temperature; the backend default when omitted.
+             */
+            temperature?: number | null;
         };
         /** @description A single backend/model cost summary row. */
         CostSummaryRow: {
@@ -2566,6 +2618,20 @@ export interface components {
             caller?: string | null;
             /** @description JSON payload passed to the Worker Agent as input. */
             input: Record<string, never>;
+            /**
+             * @description A name the client chooses for this invocation, so it can cancel it.
+             *
+             *     This route is synchronous and answers only once the worker has
+             *     finished, so the task id it returns arrives too late to cancel
+             *     anything. A name supplied here is bound to the task as soon as the task
+             *     is submitted, and `DELETE /api/v1/tasks/{id}` accepts it in place of the
+             *     task id until this call returns. The invocation then answers `409` with
+             *     a cancellation error instead of running to its timeout.
+             *
+             *     A name already held by another live invocation is not bound; the call
+             *     runs normally and the journal says so (`a2a.invocation_id.taken`).
+             */
+            invocation_id?: string | null;
             /** @description Target skill identifier (e.g. `"read-excel"`). */
             skill_id: string;
             /**
@@ -3506,6 +3572,15 @@ export interface operations {
             };
             /** @description Skill not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Invocation cancelled through its client-supplied id */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6874,7 +6949,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description Task id */
+                /** @description Task id, or a live invocation_id */
                 id: string;
             };
             cookie?: never;

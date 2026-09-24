@@ -23,12 +23,24 @@ class InvokeRequest:
         input_ (InvokeRequestInput): JSON payload passed to the Worker Agent as input.
         skill_id (str): Target skill identifier (e.g. `"read-excel"`).
         caller (None | str | Unset): Caller name (Director Agent), used for observability.
+        invocation_id (None | str | Unset): A name the client chooses for this invocation, so it can cancel it.
+
+            This route is synchronous and answers only once the worker has
+            finished, so the task id it returns arrives too late to cancel
+            anything. A name supplied here is bound to the task as soon as the task
+            is submitted, and `DELETE /api/v1/tasks/{id}` accepts it in place of the
+            task id until this call returns. The invocation then answers `409` with
+            a cancellation error instead of running to its timeout.
+
+            A name already held by another live invocation is not bound; the call
+            runs normally and the journal says so (`a2a.invocation_id.taken`).
         timeout_secs (int | None | Unset): Invocation timeout in seconds (default: 120).
     """
 
     input_: InvokeRequestInput
     skill_id: str
     caller: None | str | Unset = UNSET
+    invocation_id: None | str | Unset = UNSET
     timeout_secs: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -42,6 +54,12 @@ class InvokeRequest:
             caller = UNSET
         else:
             caller = self.caller
+
+        invocation_id: None | str | Unset
+        if isinstance(self.invocation_id, Unset):
+            invocation_id = UNSET
+        else:
+            invocation_id = self.invocation_id
 
         timeout_secs: int | None | Unset
         if isinstance(self.timeout_secs, Unset):
@@ -59,6 +77,8 @@ class InvokeRequest:
         )
         if caller is not UNSET:
             field_dict["caller"] = caller
+        if invocation_id is not UNSET:
+            field_dict["invocation_id"] = invocation_id
         if timeout_secs is not UNSET:
             field_dict["timeout_secs"] = timeout_secs
 
@@ -82,6 +102,15 @@ class InvokeRequest:
 
         caller = _parse_caller(d.pop("caller", UNSET))
 
+        def _parse_invocation_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        invocation_id = _parse_invocation_id(d.pop("invocation_id", UNSET))
+
         def _parse_timeout_secs(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -95,6 +124,7 @@ class InvokeRequest:
             input_=input_,
             skill_id=skill_id,
             caller=caller,
+            invocation_id=invocation_id,
             timeout_secs=timeout_secs,
         )
 

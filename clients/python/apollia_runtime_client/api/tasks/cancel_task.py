@@ -64,6 +64,15 @@ def sync_detailed(
 
      Cancels a running task. Returns 404 if the task does not exist.
 
+    `id` is a task id, or the `invocation_id` a client gave a synchronous
+    `POST /api/v1/a2a/invoke` that is still running. The second form exists
+    because that route answers only once the worker has finished, so its task id
+    reaches the caller too late to cancel anything; the name the caller chose is
+    bound to the task from the moment it is submitted. A name that resolves wins
+    over a task of the same spelling, which costs nothing: task ids are UUIDs
+    and a client that picks one as its own name gets the task it meant either
+    way.
+
     Args:
         id (str):
 
@@ -95,6 +104,15 @@ def sync(
 
      Cancels a running task. Returns 404 if the task does not exist.
 
+    `id` is a task id, or the `invocation_id` a client gave a synchronous
+    `POST /api/v1/a2a/invoke` that is still running. The second form exists
+    because that route answers only once the worker has finished, so its task id
+    reaches the caller too late to cancel anything; the name the caller chose is
+    bound to the task from the moment it is submitted. A name that resolves wins
+    over a task of the same spelling, which costs nothing: task ids are UUIDs
+    and a client that picks one as its own name gets the task it meant either
+    way.
+
     Args:
         id (str):
 
@@ -120,6 +138,15 @@ async def asyncio_detailed(
     """Handler for `DELETE /api/v1/tasks/{id}`.
 
      Cancels a running task. Returns 404 if the task does not exist.
+
+    `id` is a task id, or the `invocation_id` a client gave a synchronous
+    `POST /api/v1/a2a/invoke` that is still running. The second form exists
+    because that route answers only once the worker has finished, so its task id
+    reaches the caller too late to cancel anything; the name the caller chose is
+    bound to the task from the moment it is submitted. A name that resolves wins
+    over a task of the same spelling, which costs nothing: task ids are UUIDs
+    and a client that picks one as its own name gets the task it meant either
+    way.
 
     Args:
         id (str):
@@ -149,6 +176,15 @@ async def asyncio(
     """Handler for `DELETE /api/v1/tasks/{id}`.
 
      Cancels a running task. Returns 404 if the task does not exist.
+
+    `id` is a task id, or the `invocation_id` a client gave a synchronous
+    `POST /api/v1/a2a/invoke` that is still running. The second form exists
+    because that route answers only once the worker has finished, so its task id
+    reaches the caller too late to cancel anything; the name the caller chose is
+    bound to the task from the moment it is submitted. A name that resolves wins
+    over a task of the same spelling, which costs nothing: task ids are UUIDs
+    and a client that picks one as its own name gets the task it meant either
+    way.
 
     Args:
         id (str):

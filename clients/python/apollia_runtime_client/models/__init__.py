@@ -28,9 +28,12 @@ from .channel_delete_response import ChannelDeleteResponse
 from .channel_response import ChannelResponse
 from .channel_response_config import ChannelResponseConfig
 from .chat_request import ChatRequest
+from .chat_request_schema_type_0 import ChatRequestSchemaType0
 from .chat_response import ChatResponse
+from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_cache_response import ClearCacheResponse
 from .complete_request import CompleteRequest
+from .complete_request_schema_type_0 import CompleteRequestSchemaType0
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .create_channel_request import CreateChannelRequest
@@ -186,9 +189,12 @@ __all__ = (
     "ChannelResponse",
     "ChannelResponseConfig",
     "ChatRequest",
+    "ChatRequestSchemaType0",
     "ChatResponse",
+    "ChatResponseValueType0",
     "ClearCacheResponse",
     "CompleteRequest",
+    "CompleteRequestSchemaType0",
     "CostsResponse",
     "CostSummaryRow",
     "CreateChannelRequest",
