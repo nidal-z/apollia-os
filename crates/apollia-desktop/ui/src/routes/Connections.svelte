@@ -27,6 +27,7 @@
     listAgents,
     fetchMcpCurated,
     fetchMcpRegistry,
+    getMcpServerDetail,
     oauthGetStatus,
     oauthDisconnect,
     type OauthAccountInfo,
@@ -36,6 +37,14 @@
   import { sortServers, needsOauthSetup } from "$lib/connections/status";
   import { oauthListClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
   import { navigateToSettings } from "$lib/router";
+  import { navigateTo } from "$lib/stores/navigation";
+  import { pendingChatSessionId } from "$lib/stores/chat";
+  import { createChatSession } from "$lib/ipc/agents";
+  import { sendChatMessage } from "$lib/ipc/chat";
+  import { triggerAutoName } from "$lib/chat/autoName";
+  import { reportError } from "$lib/errors/reportError";
+  import { deriveServerName } from "$lib/integrations/connectorConfig";
+  import { tryConnectorPrompt } from "$lib/connections/tryConnectorPrompt";
   import type {
     AgentListItem,
     ConnectorEnrichmentView,
@@ -298,6 +307,30 @@
   $effect(() => {
     void onNavigateTasks;
   });
+  /** "Try" on a coaching card: a chat limited to the tools of the connector just installed. */
+  async function tryPrompt(prompt: string): Promise<void> {
+    const server = selectedRegistryServer;
+    if (!server) return;
+    const name = deriveServerName(server);
+    const opened = await tryConnectorPrompt(prompt, {
+      loadToolNames: async () =>
+        (await getMcpServerDetail(name)).tools.map((tool) => tool.full_name),
+      createSession: (tools) => createChatSession({ mode: "libre", tools }),
+      sendMessage: sendChatMessage,
+      nameSession: triggerAutoName,
+      rememberSession: (sessionId) => pendingChatSessionId.set(sessionId),
+      report: (err) => {
+        reportError(err, { surface: "toast", testid: "connector-try-error" });
+      },
+      navigate: () => navigateTo("chat"),
+      noToolsMessage: $t("integrations.wizard.coaching.no_tools"),
+    });
+    if (!opened) return;
+    wizardOpen = false;
+    selectedRegistryServer = null;
+    catalogueOpen = false;
+    void loadAll();
+  }
 </script>
 
 <div class="flex h-full min-h-0 w-full flex-col" data-testid="connections-route">
@@ -365,6 +398,7 @@
       catalogueOpen = false;
       void loadAll();
     }}
+    ontryprompt={(prompt) => void tryPrompt(prompt)}
   />
 {/if}
 

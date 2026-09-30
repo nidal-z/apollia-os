@@ -106,7 +106,10 @@ pub async fn mcp_oauth_discover(
         // metadata with `scopes_supported_description` or similar, but we
         // don't parse those today - leave empty.
         scope_descriptions: HashMap::new(),
-        registration_supported: as_metadata.registration_endpoint.is_some(),
+        // A client can identify itself when the AS offers DCR or CIMD;
+        // with neither, only a pre-registered client id can work.
+        registration_supported: as_metadata.registration_endpoint.is_some()
+            || as_metadata.client_id_metadata_document_supported == Some(true),
     })
 }
 

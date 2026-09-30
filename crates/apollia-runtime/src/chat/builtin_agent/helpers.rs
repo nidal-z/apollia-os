@@ -378,6 +378,58 @@ pub(in crate::chat::builtin_agent) fn levenshtein(a: &str, b: &str) -> usize {
     prev[b.len()]
 }
 
+/// Advertise, as real tool specs, the tools `tool_search` has returned this turn.
+///
+/// An index too large to advertise leaves `tool_search` as the only declared
+/// function, and a backend that constrains tool calls to the declared names
+/// cannot emit any other: the model finds the tool it needs, then can only
+/// search again until the step budget is spent. Once a search names a tool, that
+/// tool is declared from the next iteration on, with the schema the search
+/// carried. Idempotent: a tool already declared is not added twice.
+pub(in crate::chat::builtin_agent) fn promote_discovered_tools(
+    specs: &mut Vec<ToolSpec>,
+    calls: &[ToolCallRecord],
+) {
+    for call in calls {
+        if call.tool_name != apollia_mcp::tool_search::TOOL_SEARCH_NAME
+            || !matches!(call.status, ToolCallStatus::Executed)
+        {
+            continue;
+        }
+        let Some(output) = call.output.as_deref() else {
+            continue;
+        };
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(output) else {
+            continue;
+        };
+        let Some(matches) = parsed.get("matches").and_then(|m| m.as_array()) else {
+            continue;
+        };
+        for found in matches {
+            let Some(name) = found.get("full_name").and_then(|n| n.as_str()) else {
+                continue;
+            };
+            if specs.iter().any(|spec| spec.name == name) {
+                continue;
+            }
+            let description = found
+                .get("description")
+                .and_then(|d| d.as_str())
+                .map_or_else(|| format!("MCP tool `{name}`."), str::to_string);
+            let parameters = found
+                .get("input_schema")
+                .filter(|schema| schema.is_object())
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({ "type": "object" }));
+            specs.push(ToolSpec {
+                name: name.to_string(),
+                description,
+                parameters,
+            });
+        }
+    }
+}
+
 pub(in crate::chat::builtin_agent) async fn build_tool_specs(
     available_tools: &[String],
     tool_registry: &ToolRegistryHandle,

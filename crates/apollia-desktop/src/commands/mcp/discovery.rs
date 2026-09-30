@@ -153,7 +153,7 @@ pub async fn fetch_mcp_registry(
         .collect();
 
     let mut result = views;
-    for enrichment in &enrichments {
+    for enrichment in enrichments.iter().filter(|e| !e.awaiting_registration) {
         let already_present = enrichment
             .registry_names
             .iter()
@@ -293,7 +293,7 @@ pub async fn fetch_mcp_curated(
         };
 
     let mut result: Vec<RegistryServerView> = Vec::with_capacity(enrichments.len());
-    for enrichment in &enrichments {
+    for enrichment in enrichments.iter().filter(|e| !e.awaiting_registration) {
         let name = enrichment
             .registry_names
             .first()

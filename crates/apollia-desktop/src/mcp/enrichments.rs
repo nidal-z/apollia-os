@@ -96,6 +96,13 @@ pub struct ConnectorEnrichment {
     /// `mcp_oauth_login`, bypassing CIMD/DCR discovery for this provider.
     #[serde(default)]
     pub oauth_pre_registered_client_id_env: Option<String>,
+    /// The provider's authorization server offers neither DCR nor CIMD and
+    /// Apollia holds no pre-registered client there, so no sign-in can
+    /// succeed. The entry stays in the data, and still shadows the same
+    /// server coming from the public registry, but it is never listed.
+    /// Drop the flag once the client id ships in the release build.
+    #[serde(default)]
+    pub awaiting_registration: bool,
     /// Environment variable names required by this package (for synthetic entries).
     #[serde(default)]
     pub package_env_vars: Vec<EnrichmentEnvVar>,
@@ -345,6 +352,25 @@ mod tests {
                 e.package_identifier
             );
         }
+    }
+
+    #[test]
+    fn catalog_flags_exactly_the_connectors_without_a_usable_client_registration() {
+        // GIVEN the shipped catalogue
+        let enrichments = load_builtin_enrichments();
+        // WHEN the entries awaiting a provider-side registration are collected
+        let mut awaiting: Vec<&str> = enrichments
+            .iter()
+            .filter(|e| e.awaiting_registration)
+            .map(|e| e.package_identifier.as_str())
+            .collect();
+        awaiting.sort_unstable();
+        // THEN only Slack and GitHub are flagged: their authorization servers
+        // offer neither DCR nor CIMD, and no client id is pre-registered
+        assert_eq!(
+            awaiting,
+            ["com.slack/mcp", "io.github.github/github-mcp-server"]
+        );
     }
 
     #[test]

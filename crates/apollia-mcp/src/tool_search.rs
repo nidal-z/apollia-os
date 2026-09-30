@@ -16,6 +16,9 @@ use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 
+/// Name under which the synthetic search tool is advertised and dispatched.
+pub const TOOL_SEARCH_NAME: &str = "tool_search";
+
 /// Upper bound the pure [`search_index`] accepts for `limit`.
 const MAX_SEARCH_LIMIT: usize = 500;
 
@@ -113,6 +116,25 @@ pub fn search_index(
             .cmp(&b.server_name)
             .then_with(|| a.tool_name.cmp(&b.tool_name))
     });
+
+    // A model asks in sentences ("latest notion page"), and no tool name
+    // contains that whole string: the search came back empty, the model asked
+    // again, and it never reached a tool. When the whole query matches nothing,
+    // fall back to its words, best match first.
+    if matched.is_empty() {
+        let terms = query_terms(&needle);
+        let mut scored: Vec<(usize, &ToolIndexSnapshot)> = entries
+            .iter()
+            .map(|entry| (matched_terms(entry, &terms), entry))
+            .filter(|(score, _)| *score > 0)
+            .collect();
+        scored.sort_by(|(sa, a), (sb, b)| {
+            sb.cmp(sa)
+                .then_with(|| a.server_name.cmp(&b.server_name))
+                .then_with(|| a.tool_name.cmp(&b.tool_name))
+        });
+        matched = scored.into_iter().map(|(_, entry)| entry).collect();
+    }
     matched.truncate(limit);
 
     Ok(matched
@@ -127,6 +149,34 @@ pub fn search_index(
         .collect())
 }
 
+/// Words of a lowercased query: alphanumeric runs of at least two characters.
+fn query_terms(needle: &str) -> Vec<&str> {
+    needle
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|term| term.chars().count() >= 2)
+        .collect()
+}
+
+/// How many distinct query words occur in the tool's name, description, tags
+/// or server name.
+fn matched_terms(entry: &ToolIndexSnapshot, terms: &[&str]) -> usize {
+    let haystack = format!(
+        "{} {} {} {}",
+        entry.server_name,
+        entry.tool_name,
+        entry.description.as_deref().unwrap_or(""),
+        entry.tags.join(" ")
+    )
+    .to_lowercase();
+    let mut seen: Vec<&str> = Vec::new();
+    for term in terms {
+        if !seen.contains(term) && haystack.contains(term) {
+            seen.push(term);
+        }
+    }
+    seen.len()
+}
+
 /// JSON Schema for the synthetic `tool_search` tool's input.
 ///
 /// Consumed by the runtime when building the tool descriptor that is injected
@@ -137,7 +187,7 @@ pub fn tool_search_input_schema() -> Value {
         "properties": {
             "query": {
                 "type": "string",
-                "description": "Substring to search in tool names, descriptions, and server tags. Empty returns the top results."
+                "description": "Words or a substring to search in tool names, descriptions, server names, and server tags. Short keywords work best (e.g. `notion search`). Empty returns the top results."
             },
             "limit": {
                 "type": "integer",
@@ -177,7 +227,7 @@ impl ToolSearchExecutor {
 
 impl ToolExecutor for ToolSearchExecutor {
     fn name(&self) -> &str {
-        "tool_search"
+        TOOL_SEARCH_NAME
     }
 
     fn is_read_only(&self) -> bool {
@@ -306,6 +356,39 @@ mod tests {
         let matches = search_index(&index, "", 5).unwrap();
         // THEN exactly 5 results come back
         assert_eq!(matches.len(), 5);
+    }
+
+    #[test]
+    fn test_search_falls_back_to_query_words_ranked_by_matches() {
+        // GIVEN an index and a sentence-like query no tool contains as a whole
+        let index = sample_index();
+        // WHEN searching for "create calendar event"
+        let matches = search_index(&index, "create calendar event", 10).unwrap();
+        // THEN tools matching more of the words come first: calendar_create
+        // matches all three, the other calendar tools and create_page fewer
+        assert_eq!(matches[0].full_name, "mcp:google/calendar_create");
+        assert!(matches.len() > 1);
+    }
+
+    #[test]
+    fn test_search_words_reach_a_tool_through_its_server_name() {
+        // GIVEN a tool whose name and description never say the server name
+        let index = vec![entry("notion", "fetch", Some("Retrieve a page"), &[])];
+        // WHEN the query mixes the server name with an unrelated word
+        let matches = search_index(&index, "latest notion", 10).unwrap();
+        // THEN the tool is found through its server name
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].full_name, "mcp:notion/fetch");
+    }
+
+    #[test]
+    fn test_search_whole_query_match_keeps_precedence_over_word_fallback() {
+        // GIVEN a query that matches one tool as a whole string
+        let index = sample_index();
+        // WHEN searching for "search_pages"
+        let matches = search_index(&index, "search_pages", 10).unwrap();
+        // THEN only that tool comes back, the word fallback does not widen it
+        assert_eq!(matches.len(), 1);
     }
 
     #[test]

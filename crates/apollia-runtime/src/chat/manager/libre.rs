@@ -24,6 +24,11 @@ pub(in crate::chat::manager) fn merge_live_authorized_tools(
     // per-invocation approval. This is the consumption-side backstop for the
     // "always allow bash = blank check" finding.
     authorized_tools.retain(|tool| !apollia_permissions::is_code_executor(tool));
+    // The synthetic search tool reads an in-memory index and touches nothing
+    // else, so asking the operator before each search only stalls the model
+    // before it can reach the tool it needs. The MCP tools it finds keep their
+    // own approval.
+    authorized_tools.insert(apollia_mcp::tool_search::TOOL_SEARCH_NAME.to_string());
     authorized_tools
 }
 
@@ -718,6 +723,18 @@ mod code_executor_guard_tests {
         // THEN the code executor is dropped, the normal tool is kept
         assert!(!merged.contains("bash_executor"));
         assert!(merged.contains("web_read"));
+    }
+
+    #[test]
+    fn merge_live_authorized_tools_always_authorizes_tool_search() {
+        // GIVEN an empty base authorization set
+        let base = std::collections::HashSet::new();
+        // WHEN the effective set is assembled for a chat session
+        let merged = merge_live_authorized_tools(&base, &ChatMode::Libre, None);
+        // THEN the read-only index search runs without a prompt
+        assert!(merged.contains("tool_search"));
+        // AND an MCP tool it discovers is not authorized by that
+        assert!(!merged.contains("mcp:notion/notion-search"));
     }
 
     #[test]

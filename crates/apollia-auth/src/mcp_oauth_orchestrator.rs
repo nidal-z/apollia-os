@@ -397,18 +397,18 @@ async fn fetch_prm(
 ///    `oauth_pre_registered_client_id_env` and the corresponding env var is
 ///    populated. Required for AS that support neither CIMD nor anonymous DCR
 ///    (Figma today: dev-portal app registration only).
-/// 2. **CIMD** when the AS advertises `client_id_metadata_document_supported`
-///    (modern MCP-compliant servers: Linear, Sentry, Notion).
-/// 3. **DCR (RFC 7591)** when a registration endpoint is published.
+/// 2. **DCR (RFC 7591)** when a registration endpoint is published. It
+///    registers the exact `redirect_uri` we listen on (ephemeral loopback port
+///    included), so it works on every AS, including those that also advertise
+///    CIMD. A CIMD `client_id` is only as good as the hosted document and the
+///    AS-side fetch, and a failure surfaces in the **browser** after the
+///    redirect ("Unknown OAuth client"), where nothing in Apollia can see it.
+/// 3. **CIMD** when DCR is unavailable or refused and the AS advertises
+///    `client_id_metadata_document_supported`.
 /// 4. **CIMD as last resort** when no registration endpoint is available and
 ///    no CIMD flag: Apollia tries it on the off chance the AS accepts it.
-/// 5. Otherwise, a guidance-bearing error pointing at the AS dev portal.
-///
-/// An earlier version of this function did an implicit DCR-then-CIMD fallback
-/// on 401/403. That made debugging harder because
-/// CIMD failures surface in the **browser** (post-redirect) while DCR errors
-/// surface in Apollia directly. The current version fails fast on DCR errors
-/// so the operator sees the right diagnostic.
+/// 5. Otherwise the original DCR failure, so the operator can register
+///    manually at the AS dev portal.
 async fn resolve_client_id(
     discovery: &McpDiscoveryClient,
     as_metadata: &AuthorizationServerMetadata,
@@ -420,31 +420,30 @@ async fn resolve_client_id(
             return Ok(id.to_string());
         }
     }
-    if as_metadata.client_id_metadata_document_supported == Some(true) {
-        return Ok(APOLLIA_CIMD_URL.to_string());
-    }
+    let cimd_advertised = as_metadata.client_id_metadata_document_supported == Some(true);
     let Some(dcr_endpoint) = as_metadata.registration_endpoint.as_deref() else {
-        // No DCR endpoint, no explicit CIMD flag: try CIMD anyway (some AS
-        // accept it without advertising). If the AS rejects, the user will
-        // see a clear error from the AS itself.
+        // No DCR endpoint: CIMD is the only option left, advertised or not
+        // (some AS accept it without advertising).
         return Ok(APOLLIA_CIMD_URL.to_string());
     };
-    discovery
-        .register_client(dcr_endpoint, redirect_uri)
-        .await
-        .map(|reg| reg.client_id)
-        .map_err(|e| {
-            // DCR failed; do NOT auto-fallback to CIMD (we'd hide the real
-            // error behind a worse one). Surface the original DCR failure so
-            // the operator can choose: register manually at the AS dev portal,
-            // or contact the AS support to enable DCR for their workspace.
+    match discovery.register_client(dcr_endpoint, redirect_uri).await {
+        Ok(reg) => Ok(reg.client_id),
+        Err(e) if cimd_advertised => {
+            tracing::warn!(
+                error = %e,
+                "mcp.oauth.dcr.failed.falling_back_to_cimd"
+            );
+            Ok(APOLLIA_CIMD_URL.to_string())
+        }
+        Err(e) => {
             tracing::warn!(
                 error = %e,
                 detail = "pre-registration at the authorization server portal is likely required",
                 "mcp.oauth.dcr.failed"
             );
-            e.into()
-        })
+            Err(e.into())
+        }
+    }
 }
 
 /// Choose the effective scope list: caller's selection > PRM `scopes_supported`.
@@ -838,11 +837,41 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_client_id_prefers_cimd_when_explicitly_supported() {
-        // GIVEN an AS metadata that advertises CIMD support AND a DCR endpoint.
+    async fn test_resolve_client_id_prefers_dcr_over_advertised_cimd() {
+        // GIVEN a mock AS with a DCR endpoint, whose metadata also advertises
+        // CIMD support (Notion and Linear both do).
+        let (base, mock_state) = spawn_mock_as().await;
         let mut meta = dummy_as_metadata();
         meta.client_id_metadata_document_supported = Some(true);
-        meta.registration_endpoint = Some("https://a/register".into());
+        meta.registration_endpoint = Some(format!("{base}/register"));
+        let discovery = McpDiscoveryClient::new().unwrap();
+
+        // WHEN we resolve the client_id
+        let cid = resolve_client_id(
+            &discovery,
+            &meta,
+            "http://127.0.0.1:4242/oauth/callback",
+            None,
+        )
+        .await
+        .unwrap();
+
+        // THEN the dynamically registered id wins, and the exact redirect URI
+        // (port included) was the one registered.
+        assert_eq!(cid, "registered-client-id");
+        let body = mock_state.lock().await.last_dcr_body.clone().unwrap();
+        assert_eq!(
+            body["redirect_uris"][0],
+            "http://127.0.0.1:4242/oauth/callback"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_client_id_falls_back_to_cimd_when_dcr_fails_and_cimd_advertised() {
+        // GIVEN an AS that advertises CIMD and whose DCR endpoint is unreachable.
+        let mut meta = dummy_as_metadata();
+        meta.client_id_metadata_document_supported = Some(true);
+        meta.registration_endpoint = Some("http://127.0.0.1:1/register".into());
         let discovery = McpDiscoveryClient::new().unwrap();
 
         // WHEN we resolve the client_id
@@ -850,8 +879,23 @@ mod tests {
             .await
             .unwrap();
 
-        // THEN CIMD wins; DCR is not called even though the endpoint exists.
+        // THEN CIMD is used instead of failing the whole connection.
         assert_eq!(cid, APOLLIA_CIMD_URL);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_client_id_surfaces_dcr_failure_when_cimd_not_advertised() {
+        // GIVEN an AS with a dead DCR endpoint and no CIMD support.
+        let mut meta = dummy_as_metadata();
+        meta.registration_endpoint = Some("http://127.0.0.1:1/register".into());
+        let discovery = McpDiscoveryClient::new().unwrap();
+
+        // WHEN we resolve the client_id
+        let result =
+            resolve_client_id(&discovery, &meta, "http://127.0.0.1:0/oauth/callback", None).await;
+
+        // THEN the DCR error is returned, not masked by a CIMD guess.
+        assert!(result.is_err());
     }
 
     #[tokio::test]

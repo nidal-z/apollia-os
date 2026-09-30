@@ -70,6 +70,9 @@ impl BuiltInChatAgent {
         // moved into the estimator.
         #[allow(clippy::needless_borrow)]
         let tool_reserve = apollia_llm::estimate_tool_specs_tokens(&tool_specs);
+        // Grows during the loop: a tool `tool_search` names is declared from the
+        // next iteration on, since the model can only call declared tools.
+        let mut specs: Vec<ToolSpec> = tool_specs.to_vec();
 
         loop {
             // Cooperative pause checkpoint: a pause request cancels the token; we
@@ -135,10 +138,11 @@ impl BuiltInChatAgent {
                 }
             }
 
+            promote_discovered_tools(&mut specs, &acc.all_tool_calls);
             let request = CompletionRequest {
                 messages: llm_messages.clone(),
-                tools: tool_specs.to_vec(),
-                temperature: self.turn_temperature(!tool_specs.is_empty()),
+                tools: specs.clone(),
+                temperature: self.turn_temperature(!specs.is_empty()),
                 ..Default::default()
             };
 

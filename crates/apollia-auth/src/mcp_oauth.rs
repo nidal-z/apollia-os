@@ -233,6 +233,29 @@ fn split_issuer(issuer: &str) -> (String, String) {
     (issuer.to_string(), String::new())
 }
 
+/// Origin (`scheme://host:port`) of a URL, without any path.
+fn origin_of(url: &str) -> String {
+    split_issuer(url.trim_end_matches('/')).0
+}
+
+/// Candidate PRM locations for a resource URL, in priority order.
+fn prm_candidates(server_url: &str) -> Vec<String> {
+    let (root, path) = split_issuer(server_url.trim().trim_end_matches('/'));
+    let mut out = Vec::new();
+    if !path.is_empty() {
+        out.push(format!(
+            "{root}/.well-known/oauth-protected-resource/{path}"
+        ));
+    }
+    out.push(format!("{root}/.well-known/oauth-protected-resource"));
+    if !path.is_empty() {
+        out.push(format!(
+            "{root}/{path}/.well-known/oauth-protected-resource"
+        ));
+    }
+    out
+}
+
 // ─── Client ID Metadata Document (CIMD) ─────────────────────────────────────
 
 /// Apollia's CIMD payload, hosted at
@@ -242,6 +265,9 @@ fn split_issuer(issuer: &str) -> (String, String) {
 /// infrastructure; this struct lets us render it from build metadata if needed.
 #[derive(Debug, Clone, Serialize)]
 pub struct ClientIdMetadataDocument {
+    /// The document's own URL. The AS rejects the document when this is
+    /// absent or differs from the URL it was fetched from.
+    pub client_id: &'static str,
     /// Display name for the user consent screen.
     pub client_name: &'static str,
     /// Apollia marketing URL.
@@ -273,6 +299,7 @@ pub struct ClientIdMetadataDocument {
 ///
 /// Static; safe to share across goroutines / tasks.
 pub const APOLLIA_CIMD: ClientIdMetadataDocument = ClientIdMetadataDocument {
+    client_id: APOLLIA_CIMD_URL,
     client_name: "Apollia OS",
     client_uri: "https://apollia.fr",
     redirect_uris: &["http://127.0.0.1/oauth/callback"],
@@ -368,17 +395,31 @@ impl McpDiscoveryClient {
 
     /// Fetch the Protected Resource Metadata document for an MCP server.
     ///
-    /// The well-known location is `<server>/.well-known/oauth-protected-resource[/<path>]`.
     /// Per RFC 9728 §3, when a `WWW-Authenticate` header points to a specific
     /// URL, callers should pass it via [`fetch_prm_at`](Self::fetch_prm_at)
-    /// instead.
+    /// instead. Otherwise the candidates are tried in order: the well-known
+    /// path inserted before the resource path (RFC 9728 §3.1), the origin
+    /// root, then the legacy suffix form. A server that publishes no PRM at
+    /// all (Atlassian) is assumed to be its own authorization server, as the
+    /// MCP 2025-03-26 authorization spec prescribes.
     pub async fn fetch_prm(
         &self,
         server_url: &str,
     ) -> Result<ProtectedResourceMetadata, AuthError> {
-        let base = server_url.trim_end_matches('/');
-        let url = format!("{base}/.well-known/oauth-protected-resource");
-        self.fetch_prm_at(&url).await
+        let candidates = prm_candidates(server_url);
+        for url in &candidates {
+            if let Ok(prm) = self.fetch_prm_at(url).await {
+                return Ok(prm);
+            }
+        }
+        let origin = origin_of(server_url);
+        Ok(ProtectedResourceMetadata {
+            resource: server_url.trim_end_matches('/').to_string(),
+            authorization_servers: vec![origin],
+            bearer_methods_supported: Vec::new(),
+            scopes_supported: Vec::new(),
+            resource_name: None,
+        })
     }
 
     /// Fetch the PRM document at a specific URL (typically the one carried by
@@ -606,6 +647,43 @@ mod tests {
         assert!(APOLLIA_CIMD.grant_types.contains(&"authorization_code"));
         assert!(APOLLIA_CIMD.grant_types.contains(&"refresh_token"));
         assert!(APOLLIA_CIMD.response_types.contains(&"code"));
+    }
+
+    #[test]
+    fn test_prm_candidates_insert_well_known_before_the_path() {
+        // GIVEN a resource URL that carries a path
+        // WHEN the PRM candidates are built
+        let c = prm_candidates("https://mcp.linear.app/mcp/");
+        // THEN the path-inserted form comes first, then the root, then the legacy suffix
+        assert_eq!(
+            c,
+            vec![
+                "https://mcp.linear.app/.well-known/oauth-protected-resource/mcp",
+                "https://mcp.linear.app/.well-known/oauth-protected-resource",
+                "https://mcp.linear.app/mcp/.well-known/oauth-protected-resource",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_prm_candidates_for_a_bare_origin_is_the_root_only() {
+        // GIVEN a resource URL with no path
+        // WHEN the PRM candidates are built
+        let c = prm_candidates("https://mcp.slack.com");
+        // THEN only the root well-known is tried
+        assert_eq!(
+            c,
+            vec!["https://mcp.slack.com/.well-known/oauth-protected-resource"]
+        );
+    }
+
+    #[test]
+    fn test_apollia_cimd_serializes_its_own_url_as_client_id() {
+        // GIVEN the CIMD document Apollia publishes
+        // WHEN it is serialized as the hosted JSON body
+        let body = serde_json::to_value(APOLLIA_CIMD).expect("serialize");
+        // THEN client_id is present and equals the URL it is served from
+        assert_eq!(body["client_id"], APOLLIA_CIMD_URL);
     }
 
     #[test]

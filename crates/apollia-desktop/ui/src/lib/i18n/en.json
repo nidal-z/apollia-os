@@ -573,7 +573,8 @@
         "loading": "Generating suggestions…",
         "error": "Suggestions are not available right now.",
         "empty": "No suggestions - explore the tools from the chat.",
-        "try": "Try"
+        "try": "Try",
+        "no_tools": "No tool is available for this connector yet, so the example cannot run."
       },
       "next": "Next",
       "optional": "optional",

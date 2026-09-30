@@ -2810,6 +2810,70 @@ async fn test_build_tool_specs_deferred_index_above_limit_stays_search_only() {
     );
 }
 
+fn search_record(output: &str, status: ToolCallStatus) -> ToolCallRecord {
+    ToolCallRecord {
+        tool_name: "tool_search".to_string(),
+        input: serde_json::json!({"query": "notion"}),
+        output: Some(output.to_string()),
+        status,
+        rationale: None,
+        retry_attempts: Vec::new(),
+    }
+}
+
+#[test]
+fn test_promote_discovered_tools_declares_what_tool_search_found() {
+    // GIVEN a turn where only tool_search is declared and a search found a tool
+    let mut specs = vec![ToolSpec {
+        name: "tool_search".to_string(),
+        description: String::new(),
+        parameters: serde_json::json!({"type": "object"}),
+    }];
+    let found = r#"{"matches":[{"full_name":"mcp:notion/notion-fetch","tool_name":"notion-fetch","server_name":"notion","description":"Fetch a page","input_schema":{"type":"object","properties":{"id":{"type":"string"}}}}],"total":1}"#;
+    // WHEN the discovered tools are promoted
+    promote_discovered_tools(
+        &mut specs,
+        &[search_record(found, ToolCallStatus::Executed)],
+    );
+    // THEN the found tool is declared with the schema the search carried
+    let fetch = specs
+        .iter()
+        .find(|s| s.name == "mcp:notion/notion-fetch")
+        .expect("promoted spec");
+    assert_eq!(fetch.description, "Fetch a page");
+    assert_eq!(fetch.parameters["properties"]["id"]["type"], "string");
+}
+
+#[test]
+fn test_promote_discovered_tools_is_idempotent() {
+    // GIVEN the same search result seen on two iterations
+    let mut specs = Vec::new();
+    let found = r#"{"matches":[{"full_name":"mcp:notion/notion-fetch","tool_name":"notion-fetch","server_name":"notion","description":null,"input_schema":null}],"total":1}"#;
+    let records = [search_record(found, ToolCallStatus::Executed)];
+    // WHEN promoting twice
+    promote_discovered_tools(&mut specs, &records);
+    promote_discovered_tools(&mut specs, &records);
+    // THEN the tool is declared once, with a permissive schema when none came
+    assert_eq!(specs.len(), 1);
+    assert_eq!(specs[0].parameters["type"], "object");
+}
+
+#[test]
+fn test_promote_discovered_tools_ignores_failed_and_foreign_calls() {
+    // GIVEN a failed search, and an unrelated tool whose output looks alike
+    let mut specs = Vec::new();
+    let found = r#"{"matches":[{"full_name":"mcp:notion/notion-fetch"}],"total":1}"#;
+    let mut other = search_record(found, ToolCallStatus::Executed);
+    other.tool_name = "web_read".to_string();
+    // WHEN promoting
+    promote_discovered_tools(
+        &mut specs,
+        &[search_record(found, ToolCallStatus::Failed), other],
+    );
+    // THEN nothing is declared
+    assert!(specs.is_empty());
+}
+
 #[tokio::test]
 async fn test_build_tool_specs_deferred_index_without_schema_is_still_callable() {
     // GIVEN an indexed tool whose server sent no usable schema

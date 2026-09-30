@@ -82,6 +82,8 @@
   let approvalLevel = $state<"auto" | "ask">("ask");
   let testSucceeded = $state(false);
   let finalizing = $state(false);
+  /** The connector exists once installed, whether by "Finish" or by trying an example. */
+  let installed = $state(false);
   let finalizeError = $state<string | null>(null);
 
   // ── Auth-step probe + OAuth state ────────────────────────
@@ -119,6 +121,7 @@
       argValues = {};
       approvalLevel = "ask";
       testSucceeded = false;
+      installed = false;
       finalizeError = null;
       probeMode = "idle";
       probeError = null;
@@ -390,6 +393,15 @@
         oauthClientIdOverride = null;
       }
 
+      // The AS offers neither DCR nor CIMD (Slack, GitHub) and no client id
+      // is pre-registered: the browser flow cannot succeed. Use the static
+      // token the catalog declares, or report the failure, rather than open
+      // a browser onto an "unknown client" page.
+      if (!result.registration_supported && !oauthClientIdOverride) {
+        probeMode = remoteHeadersAsEnvVars.length > 0 ? "static" : "probe_error";
+        return;
+      }
+
       // Scope selection depends on the auth path:
       // - Generic CIMD/DCR (no override): PRM-published scopes are valid at
       //   the AS, default them all checked.
@@ -480,6 +492,9 @@
     ) {
       return;
     }
+    // A connector installed by trying an example must show in the list even
+    // when the wizard is dismissed instead of finished.
+    if (installed) oncomplete();
     onclose();
   }
 
@@ -504,22 +519,38 @@
     return out;
   }
 
-  async function finalize(): Promise<void> {
-    if (!builtConfig) return;
+  /** Install the connector once. Returns whether it exists afterwards. */
+  async function ensureInstalled(): Promise<boolean> {
+    if (installed) return true;
+    if (!builtConfig) return false;
     finalizing = true;
     finalizeError = null;
     try {
       await installConnector(builtConfig, pendingSecrets());
-      oncomplete();
-      // The first-connection walkthrough moved out of the wizard: it used to run
-      // while this dialog was closed, pointing at a sheet that was never open.
-      // It is now the "connect" micro-tour, launched from Getting started.
-      onclose();
+      installed = true;
+      return true;
     } catch (err: unknown) {
       finalizeError = err instanceof Error ? err.message : String(err);
+      return false;
     } finally {
       finalizing = false;
     }
+  }
+
+  async function finalize(): Promise<void> {
+    if (!(await ensureInstalled())) return;
+    oncomplete();
+    // The first-connection walkthrough moved out of the wizard: it used to run
+    // while this dialog was closed, pointing at a sheet that was never open.
+    // It is now the "connect" micro-tour, launched from Getting started.
+    onclose();
+  }
+
+  /** An example needs a running connector to draw its tools from, so trying
+   *  one installs it first, with the approval level chosen on this step. */
+  async function tryExample(prompt: string): Promise<void> {
+    if (finalizing || !(await ensureInstalled())) return;
+    ontryprompt(prompt);
   }
 
 </script>
@@ -595,7 +626,7 @@
           {hasWriteTools}
           {approvalLevel}
           onchange={(l) => (approvalLevel = l)}
-          ontry={ontryprompt}
+          ontry={(prompt) => void tryExample(prompt)}
         />
       {:else}
         <div

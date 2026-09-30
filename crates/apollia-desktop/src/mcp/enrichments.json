@@ -135,6 +135,7 @@
   },
   {
     "package_identifier": "io.github.github/github-mcp-server",
+    "awaiting_registration": true,
     "registry_names": ["io.github.github/github-mcp-server"],
     "operator_label": { "en": "GitHub", "fr": "GitHub" },
     "description": {
@@ -164,6 +165,7 @@
   },
   {
     "package_identifier": "com.slack/mcp",
+    "awaiting_registration": true,
     "registry_names": ["com.slack/mcp"],
     "operator_label": { "en": "Slack", "fr": "Slack" },
     "description": {
@@ -208,8 +210,8 @@
       "fr": "Le MCP Linear utilise officiellement OAuth. En attendant le handshake automatique d'Apollia (v0.1.1), collez manuellement un access token OAuth avec le préfixe `Bearer `, ou votre clé API Linear."
     },
     "default_requires_approval": true,
-    "remote_url": "https://mcp.linear.app/sse",
-    "remote_transport": "sse",
+    "remote_url": "https://mcp.linear.app/mcp",
+    "remote_transport": "streamable-http",
     "remote_headers": [
       {
         "name": "Authorization",
@@ -237,7 +239,7 @@
       "fr": "Le MCP Atlassian Rovo utilise officiellement OAuth. En attendant le handshake automatique d'Apollia (v0.1.1), collez manuellement un access token OAuth avec le préfixe `Bearer `. La disponibilité de Rovo dépend de votre plan."
     },
     "default_requires_approval": true,
-    "remote_url": "https://mcp.atlassian.com",
+    "remote_url": "https://mcp.atlassian.com/v1/mcp",
     "remote_transport": "streamable-http",
     "remote_headers": [
       {
@@ -319,7 +321,7 @@
       "fr": "Créez un token utilisateur Sentry avec les permissions en lecture seule nécessaires."
     },
     "default_requires_approval": false,
-    "remote_url": "https://mcp.sentry.dev",
+    "remote_url": "https://mcp.sentry.dev/mcp",
     "remote_transport": "streamable-http",
     "remote_headers": [
       {
@@ -348,8 +350,8 @@
       "fr": "Créez un token API Cloudflare avec les permissions souhaitées."
     },
     "default_requires_approval": true,
-    "remote_url": "https://mcp.cloudflare.com/sse",
-    "remote_transport": "sse",
+    "remote_url": "https://mcp.cloudflare.com/mcp",
+    "remote_transport": "streamable-http",
     "remote_headers": [
       {
         "name": "Authorization",
