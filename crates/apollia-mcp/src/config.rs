@@ -200,6 +200,13 @@ pub struct McpServerConfig {
     /// each key a well-formed tool name, no `unclassified` value.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tool_families: BTreeMap<String, apollia_tools::ActionFamily>,
+
+    /// Where the connection comes from, written by the caller that adds it.
+    ///
+    /// `None` keeps the origin already stored for this name, and a connection
+    /// never given one reads as custom.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<crate::origin::ConnectionOrigin>,
 }
 
 fn default_transport() -> String {
@@ -761,6 +768,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -790,6 +798,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN
         let resolved = config.resolve_env(None).await.unwrap();
@@ -821,6 +830,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -847,6 +857,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -879,6 +890,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN
         let resolved = config.resolve_env(None).await.unwrap();
@@ -908,6 +920,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -934,6 +947,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -961,6 +975,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN validation rejects with a guidance-bearing error.
         match config.validate() {
@@ -989,6 +1004,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -1023,6 +1039,7 @@ mod tests {
                 max_tools: 256,
                 tags: vec![],
                 tool_families: Default::default(),
+                origin: None,
             };
             // WHEN / THEN: must accept all of these.
             assert!(
@@ -1086,6 +1103,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         }
     }
 
@@ -1258,6 +1276,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -1284,6 +1303,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -1310,6 +1330,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -1336,6 +1357,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -1362,6 +1384,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(config.validate().is_ok());
@@ -1385,6 +1408,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(config.validate().is_ok());
@@ -1408,6 +1432,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(matches!(
@@ -1434,6 +1459,7 @@ mod tests {
             max_tools: 256,
             tags: vec![],
             tool_families: Default::default(),
+            origin: None,
         };
         // WHEN / THEN
         assert!(config.validate().is_ok());

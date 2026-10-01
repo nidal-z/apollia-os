@@ -208,7 +208,7 @@ pub async fn test_mcp_connection(
 }
 
 /// Give a configuration the tool classification of the curated entry it was
-/// made from, then install a `uvx` server on the bundled interpreter and
+/// made from and the origin it is added under, then install a `uvx` server on the bundled interpreter and
 /// rewrite its command; any other configuration is otherwise unchanged.
 ///
 /// The classification is read before the install, which rewrites a `uvx`
@@ -219,6 +219,7 @@ async fn install_python_server(config: McpServerConfig) -> Result<McpServerConfi
     let installer = PythonServerInstaller::new(python_server::connections_dir());
     let enrichments = crate::mcp::load_builtin_enrichments();
     let config = crate::mcp::enrichments::with_selection_classification(config, &enrichments);
+    let config = crate::mcp::origin::with_origin(config, &enrichments);
     python_server::prepare(config, &enrichments, &installer)
         .await
         .map_err(|e| e.to_string())
