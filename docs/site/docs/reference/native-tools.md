@@ -71,9 +71,8 @@ credential.
 | `memory_search` | `memory-search` | none |
 | all other native tools | always compiled | none |
 
-The `permission_rule_*` tools additionally require a governance database to be
-configured; when it is absent, they are not registered. `python_executor`
-requires a system Python 3 on the host (see the platform notes below).
+`python_executor` requires a system Python 3 on the host (see the platform
+notes below).
 
 Store the optional Brave key with:
 
@@ -204,14 +203,9 @@ these tools are not how it does it. See
 
 ## Permission governance
 
-Agent-driven management of the permission rules in the governance database. Each
-of these is subject to human-in-the-loop approval before it takes effect.
-
-| Tool | Purpose | Key parameters |
-|---|---|---|
-| `permission_rule_add` | Persist a new permission rule, tagged with the calling agent's identity. `arg_prefix` scopes the rule to arguments starting with that prefix, evaluated on every invocation; for a code executor it only ever covers a single simple command. | `tool_name`, `action` (`allow`/`deny`), `scope` (`global`/`project`/`agent`), `arg_prefix`, `project_path`, `agent_id`, `expires_at` |
-| `permission_rule_remove` | Remove a rule by id. | `rule_id` |
-| `permission_rule_list` | List rules, optionally filtered. Read-only. | `tool_name`, `created_by`, `scope` |
+No native tool reads or writes the permission rules in the governance
+database, so an agent cannot grant itself access. The rules are managed by the
+user, from the desktop or with `apollia-os permissions`.
 
 For how permission rules and autonomy tiers shape what runs without asking, see
 [Autonomy tiers](/explanation/autonomy-tiers) and

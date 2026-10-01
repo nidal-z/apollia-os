@@ -244,9 +244,8 @@
   }
 
   async function handleFinish(): Promise<void> {
-    // The modal hands back to a fully usable application. Discovery continues
-    // from the Getting started band on the dashboard, which the user opens when
-    // they choose to: nothing launches on its own after this point.
+    // The modal hands back to a fully usable application: nothing launches on
+    // its own after this point.
     onclose();
   }
 

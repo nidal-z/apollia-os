@@ -29,7 +29,6 @@ use crate::tools::file_read::FileRead;
 use crate::tools::file_write::FileWrite;
 use crate::tools::notebook_edit::NotebookEdit;
 use crate::tools::notebook_read::NotebookRead;
-use crate::tools::permission_rules::{PermissionRuleAdd, PermissionRuleList, PermissionRuleRemove};
 use crate::tools::python_executor::PythonExecutor;
 
 #[cfg(feature = "http")]
@@ -91,10 +90,6 @@ pub struct NativeDispatcherConfig {
     /// Operator-supplied configuration for the `web_read` tool. Drives the
     /// HTTP timeout, the maximum response size, and the SSRF guard toggle.
     pub web_read_config: WebReadConfig,
-    /// Path to `governance.db` for the `permission_rule_*` tools. When `None`,
-    /// those tools are not registered and the agent receives `UnknownTool` if it
-    /// tries to invoke them.
-    pub governance_db_path: Option<PathBuf>,
     /// `[tools] python_interpreter`: an interpreter the operator chose over the
     /// bundled one, by absolute path.
     ///
@@ -265,8 +260,6 @@ pub fn build_dispatcher_with(
         }
     }
 
-    register_governance_tools(&mut executors, cfg, &is_active);
-
     executors.extend(extra);
     ToolDispatcher::new(executors)
 }
@@ -334,31 +327,6 @@ fn register_sandbox_tools(
             "notebook_edit",
             NotebookEdit::new(cfg.sandbox_roots.clone()),
         );
-    }
-}
-
-/// Register the permission-governance tools when a governance database
-/// path is configured and the individual tools are not disabled.
-fn register_governance_tools(
-    executors: &mut Vec<Box<dyn ToolExecutor>>,
-    cfg: &NativeDispatcherConfig,
-    is_active: &impl Fn(&str) -> bool,
-) {
-    // Permission governance: agent-driven tools gated by human-in-the-loop.
-    let Some(db_path) = cfg.governance_db_path.as_ref() else {
-        return;
-    };
-    if is_active("permission_rule_add") {
-        executors.push(Box::new(PermissionRuleAdd::new(
-            db_path.clone(),
-            cfg.agent_id.clone(),
-        )));
-    }
-    if is_active("permission_rule_remove") {
-        executors.push(Box::new(PermissionRuleRemove::new(db_path.clone())));
-    }
-    if is_active("permission_rule_list") {
-        executors.push(Box::new(PermissionRuleList::new(db_path.clone())));
     }
 }
 
@@ -440,7 +408,6 @@ mod tests {
             brave_api_key: None,
             web_search_config: Default::default(),
             web_read_config: Default::default(),
-            governance_db_path: None,
             python_interpreter: None,
         };
         let dispatcher = std::sync::Arc::new(build_native_dispatcher(&cfg));

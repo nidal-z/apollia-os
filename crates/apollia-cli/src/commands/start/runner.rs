@@ -77,6 +77,9 @@ pub(super) struct BridgeRunner {
     /// is wired into the agent's `ctx.tools` and `ctx.llm` so the Python agent's
     /// tool and LLM calls are counted and cut off (principle #7, non-bypassable).
     pub(super) budget: Arc<StepBudget>,
+    /// Cancels this run. Fired by the coordinator when the user stops the
+    /// task; the Python dispatch is then cancelled at its next await point.
+    pub(super) cancel: apollia_runtime::coordinator::CancellationToken,
 }
 
 impl BridgeRunner {
@@ -152,9 +155,6 @@ impl BridgeRunner {
                 brave_api_key: snapshot.brave_api_key,
                 web_search_config: self.tools_config.web_search.clone(),
                 web_read_config: self.tools_config.web_read.clone(),
-                governance_db_path: Some(
-                    governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
-                ),
                 python_interpreter: self.tools_config.python_interpreter.clone(),
             },
             extra_executors,
@@ -185,6 +185,7 @@ impl AgentRunner for BridgeRunner {
         task: AIPTask,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send + '_>> {
         let bridge = Arc::clone(&self.bridge);
+        let cancel = self.cancel.clone();
         let llm_router = self.llm_router.clone();
         let event_bus = self.event_bus.clone();
         let agent_id = self.agent_id.clone();
@@ -265,9 +266,6 @@ impl AgentRunner for BridgeRunner {
                     brave_api_key: snapshot.brave_api_key,
                     web_search_config: tools_config.web_search.clone(),
                     web_read_config: tools_config.web_read.clone(),
-                    governance_db_path: Some(
-                        governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
-                    ),
                     python_interpreter: tools_config.python_interpreter.clone(),
                 },
                 extra_executors,
@@ -372,7 +370,10 @@ impl AgentRunner for BridgeRunner {
                 Err(error) => return Err(format!("RuntimeContext construction failed: {error}")),
             };
 
-            bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
+            bridge
+                .call_run_until(&task, ctx, cancel.cancelled())
+                .await
+                .map_err(|e| e.to_string())
         })
     }
 }

@@ -22,8 +22,8 @@ mod parse;
 use compat::compat_from_model_type;
 pub use compat::HfModelTypeCache;
 use parse::{
-    build_gguf_files, build_search_url, extract_base_model_from_json, parse_model_list_item,
-    parse_next_link, reevaluate_gguf_compat, resolve_model_type,
+    build_gguf_files, build_search_url, extract_base_model_from_json, lfs_sha256_by_path,
+    parse_model_list_item, parse_next_link, reevaluate_gguf_compat, resolve_model_type,
 };
 
 /// Errors of the HuggingFace client.
@@ -49,6 +49,16 @@ pub enum HfError {
     /// The model is gated and requires an HF token.
     #[error("model '{0}' is gated - a HuggingFace token is required")]
     Gated(String),
+
+    /// The repository tree publishes no SHA-256 for this file, so its
+    /// download cannot be verified.
+    #[error("no published sha256 for '{path}' in repository '{repo_id}'")]
+    NoPublishedSha256 {
+        /// Repository (`org/name`).
+        repo_id: String,
+        /// Path of the file inside the repository.
+        path: String,
+    },
 }
 
 /// Metadata card for a HuggingFace model.
@@ -105,6 +115,12 @@ pub struct HfFile {
     pub compatibility: Option<CompatibilityBadge>,
     /// Direct download URL.
     pub download_url: String,
+    /// SHA-256 of the file content, lowercase hex, as HuggingFace publishes it
+    /// for every LFS file (`lfs.oid` in the repository tree). `None` for a
+    /// file that is not stored through LFS, or when the tree was not read (a
+    /// search result only lists names).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
 }
 
 /// Recommended generation parameters from `generation_config.json`.
@@ -158,6 +174,15 @@ pub(crate) struct TreeEntry {
     size: u64,
     #[serde(rename = "type")]
     entry_type: String,
+    /// Present only for a file stored through LFS.
+    #[serde(default)]
+    lfs: Option<TreeLfs>,
+}
+
+/// The `lfs` object of a tree entry: `oid` is the SHA-256 of the content.
+#[derive(Debug, Deserialize)]
+pub(crate) struct TreeLfs {
+    oid: String,
 }
 
 // ── Client ────────────────────────────────────────────────────────────────
@@ -373,6 +398,45 @@ impl HfRegistryClient {
         extract_base_model_from_json(&json)
     }
 
+    /// The SHA-256 HuggingFace publishes for one file of a repository.
+    ///
+    /// Reads the recursive tree of `main` and returns the `lfs.oid` of the
+    /// entry whose path is `path`. This is the reference a downloaded file is
+    /// checked against.
+    ///
+    /// # Errors
+    /// - [`HfError::NotFound`] / [`HfError::Gated`] on a 404 / 403.
+    /// - [`HfError::NoPublishedSha256`] when the file is absent from the tree
+    ///   or not stored through LFS.
+    pub async fn lfs_sha256(&self, repo_id: &str, path: &str) -> Result<String, HfError> {
+        let url = format!("{HF_API_BASE}/models/{repo_id}/tree/main?recursive=true");
+        let resp = self
+            .client
+            .get(&url)
+            .headers(self.auth_headers())
+            .send()
+            .await?;
+        match resp.status() {
+            reqwest::StatusCode::NOT_FOUND => return Err(HfError::NotFound(repo_id.to_string())),
+            reqwest::StatusCode::FORBIDDEN | reqwest::StatusCode::UNAUTHORIZED => {
+                return Err(HfError::Gated(repo_id.to_string()))
+            }
+            s if !s.is_success() => {
+                return Err(HfError::Body(format!("tree of {repo_id} answered {s}")))
+            }
+            _ => {}
+        }
+        let entries: Vec<TreeEntry> = apollia_core::net::read_capped_json(resp, HF_MAX_JSON_BYTES)
+            .await
+            .map_err(|e| HfError::Body(e.to_string()))?;
+        lfs_sha256_by_path(&entries)
+            .remove(path)
+            .ok_or_else(|| HfError::NoPublishedSha256 {
+                repo_id: repo_id.to_string(),
+                path: path.to_string(),
+            })
+    }
+
     /// Fetch the recommended generation parameters from `generation_config.json`.
     ///
     /// Returns `None` if the file is absent (model with no explicit generation config).
@@ -499,6 +563,57 @@ mod tests {
         // WHEN the base model is extracted
         // THEN nothing comes back
         assert!(extract_base_model_from_json(&payload).is_none());
+    }
+
+    /// A tree recorded from `ggml-org/SmolVLM-256M-Instruct-GGUF`: two plain
+    /// git files and four LFS files.
+    const RECORDED_TREE: &str = include_str!("hf_registry/fixtures/tree_smolvlm_256m.json");
+
+    #[test]
+    fn tree_yields_the_lfs_sha256_of_every_lfs_file() {
+        // GIVEN a repository tree recorded from the HuggingFace API
+        let entries: Vec<TreeEntry> =
+            serde_json::from_str(RECORDED_TREE).expect("recorded tree parses");
+
+        // WHEN the tree is read
+        let by_path = lfs_sha256_by_path(&entries);
+        let files = build_gguf_files(&entries, "ggml-org/SmolVLM-256M-Instruct-GGUF", None);
+
+        // THEN every LFS file carries its lfs.oid, and the plain git files none
+        assert_eq!(by_path.len(), 4);
+        assert_eq!(
+            by_path
+                .get("SmolVLM-256M-Instruct-Q8_0.gguf")
+                .map(String::as_str),
+            Some("2a31195d3769c0b0fd0a4906201666108834848db768af11de1d2cef7cd35e65")
+        );
+        assert_eq!(
+            by_path
+                .get("mmproj-SmolVLM-256M-Instruct-f16.gguf")
+                .map(String::as_str),
+            Some("0802360aca1748f112ea510b8ff277c65b1361c8ef30ed89b83c9c7a60d08e96")
+        );
+        assert!(!by_path.contains_key("README.md"));
+        assert!(!by_path.contains_key(".gitattributes"));
+        assert_eq!(files.len(), 4);
+        for file in &files {
+            assert_eq!(file.sha256.as_ref(), by_path.get(&file.filename));
+        }
+    }
+
+    #[test]
+    fn tree_entry_with_a_malformed_oid_has_no_sha256() {
+        // GIVEN an LFS entry whose oid is not a SHA-256
+        let entries: Vec<TreeEntry> = serde_json::from_value(json!([
+            { "type": "file", "path": "a.gguf", "size": 3, "lfs": { "oid": "abc", "size": 3 } }
+        ]))
+        .expect("tree parses");
+
+        // WHEN the tree is read
+        let by_path = lfs_sha256_by_path(&entries);
+
+        // THEN no reference is offered for that file
+        assert!(by_path.is_empty());
     }
 
     #[test]

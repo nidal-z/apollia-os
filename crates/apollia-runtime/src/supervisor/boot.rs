@@ -334,8 +334,8 @@ impl Supervisor {
                 // Feed the chat dispatcher the same global config the Agent-mode
                 // dispatcher uses. Native tools that need app-level config
                 // (web_search Brave key, web_read SSRF settings, http_fetch
-                // allowlist, memory_search base dir, permission_rule_*
-                // governance.db) become available in free chat too.
+                // allowlist, memory_search base dir) become available in free
+                // chat too.
                 Some(std::sync::Arc::new(crate::chat::ChatToolsConfig {
                     data_dir: self.config.data_dir.clone(),
                     brave_api_key: None, // resolved lazily by web_search when missing

@@ -3,7 +3,7 @@
    * AgentDetailTabs - the tab bar and routed content for a selected assistant.
    *
    * The active tab is bound by the route (so it can reset on selection change
-   * and jump to a specific tab for the guided tour). Panes swap through the
+   * and open on a specific tab). Panes swap through the
    * canonical `RouteTransition` (fly + fade, reduced motion aware); each pane is
    * its own component under `tabs/`.
    */

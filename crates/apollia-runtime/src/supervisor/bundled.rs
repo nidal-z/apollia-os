@@ -191,10 +191,6 @@ pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::Too
         apollia_tools::tools::notebook_read::NotebookRead::descriptor(),
         apollia_tools::tools::notebook_edit::NotebookEdit::descriptor(),
         apollia_tools::tools::ask_user::AskUser::descriptor(),
-        // Agent-driven permission governance.
-        apollia_tools::tools::permission_rules::PermissionRuleAdd::descriptor(),
-        apollia_tools::tools::permission_rules::PermissionRuleRemove::descriptor(),
-        apollia_tools::tools::permission_rules::PermissionRuleList::descriptor(),
     ];
 
     // Web tools are always advertised in the catalogue (so the UI and agent

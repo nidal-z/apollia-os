@@ -42,10 +42,6 @@ pub const NATIVE_TOOL_NAMES: &[&str] = &[
     "web_read",
     "memory_search",
     "ask_user",
-    // Agent-driven permission governance.
-    "permission_rule_add",
-    "permission_rule_remove",
-    "permission_rule_list",
 ];
 
 /// Credential-store namespace for secrets an agent declares in its manifest.

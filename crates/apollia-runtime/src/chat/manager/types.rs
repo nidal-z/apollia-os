@@ -8,7 +8,7 @@ pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
 
 /// Subset of the runtime's native-tool config the chat dispatcher needs to
 /// instantiate config-dependent natives (web_search, web_read, http_fetch,
-/// memory_search, permission_rule_*). Cloned per session, then completed
+/// memory_search). Cloned per session, then completed
 /// with per-session `sandbox_root` + `agent_id` inside
 /// [`resolve_workspace_for_session`].
 ///

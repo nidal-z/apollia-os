@@ -20,6 +20,7 @@ pub mod connectors_bridge;
 pub mod coordinator;
 pub mod embedded;
 pub mod eventbus;
+pub mod governance;
 pub mod hooks;
 pub mod llama_server;
 pub mod llama_server_backend;

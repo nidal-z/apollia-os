@@ -1561,7 +1561,7 @@ Show the full configuration of a backend (including config_json)
 
 Create a new LLM backend.
 
-`--provider` drives the shape of the `config_json` sent to the runtime. For `llama-cpp` (local GGUF models), `--model` must be the absolute path to the .gguf file. For cloud providers, `--model` is the identifier (e.g. `claude-sonnet-4-6`, `gpt-4o`).
+`--provider` drives the shape of the `config_json` sent to the runtime. For `llama-cpp` (local GGUF models), `--model` must be the absolute path to the .gguf file. For an OpenAI-compatible server or Ollama, `--model` is the identifier the server knows (e.g. `qwen3-32b`).
 
 **Usage:** `apollia-os llm backends create [OPTIONS] --provider <PROVIDER> --model <MODEL> <NAME>`
 
@@ -1571,9 +1571,9 @@ Create a new LLM backend.
 
 ###### **Options:**
 
-* `--provider <PROVIDER>` - Provider: `llama-cpp` (local GGUF), `anthropic`, `openai`, `mistral`, `ollama`. `--kind` is accepted as an alias for backward compatibility
+* `--provider <PROVIDER>` - Provider: `llama-cpp` (local GGUF), `openai` (any OpenAI-compatible server, designated by `--base-url`), `ollama`. Any other value is refused. `--kind` is accepted as an alias for backward compatibility
 * `--model <MODEL>` - Model identifier or path (absolute path for `llama-cpp`)
-* `--api-key <KEY>` - API key (cloud providers only). Stored as-is in `config_json.api_key`. Prefer `--api-key-env VAR_NAME` to avoid persisting the key in system.db
+* `--api-key <KEY>` - API key of the server, when it requires one. Stored as-is in `config_json.api_key`. Prefer `--api-key-env VAR_NAME` to avoid persisting the key in system.db
 * `--api-key-env <VAR_NAME>` - Environment variable name holding the API key.
 
    The runtime reads `std::env::var(NAME)` at boot. Recommended to keep the key out of system.db.
@@ -1610,9 +1610,9 @@ Works in merge mode: flags that are not supplied keep their current value. The r
 
 ###### **Options:**
 
-* `--provider <PROVIDER>` - New provider (rarely useful, changes the backend implementation)
+* `--provider <PROVIDER>` - New provider (rarely useful, changes the backend implementation): `llama-cpp`, `openai` or `ollama`
 * `--model <MODEL>` - New model (absolute path for `llama-cpp`)
-* `--api-key <KEY>` - New API key (cloud providers)
+* `--api-key <KEY>` - New API key of the server
 * `--api-key-env <VAR_NAME>` - New environment variable name for the API key
 * `--base-url <URL>` - New base URL
 * `--device <DEVICE>` - New device recorded on the backend row. It selects nothing today: the local engine offloads according to the llama-server build it ships with and to `APOLLIA_LLAMA_N_GPU_LAYERS`

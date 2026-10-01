@@ -1053,8 +1053,8 @@ mod tests {
             .unwrap();
             repo.save(&LlmBackendConfig {
                 name: "beta".into(),
-                provider: apollia_core::LlmProvider::Mistral,
-                model: "mistral-small-latest".into(),
+                provider: apollia_core::LlmProvider::Ollama,
+                model: "qwen3:8b".into(),
                 config_json: serde_json::json!({}),
                 enabled: true,
                 is_default: false,

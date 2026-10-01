@@ -51,6 +51,18 @@ pub enum JournalEntryKind {
     /// A mailbox message was dropped (queue full). The payload is a
     /// [`MessageSnapshot`].
     MessageDropped,
+    /// An access was granted to or revoked from an agent. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    AccessChanged,
+    /// An agent was installed. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    AgentInstalled,
+    /// An installed agent was updated. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    AgentUpdated,
+    /// An agent was uninstalled. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    AgentUninstalled,
     /// A run-scoped event with no explicit mapping; `raw_kind` keeps the
     /// original variant name so coverage stays auditable.
     Unknown {
@@ -80,6 +92,10 @@ impl JournalEntryKind {
             JournalEntryKind::MessageSent => "message_sent",
             JournalEntryKind::MessageDelivered => "message_delivered",
             JournalEntryKind::MessageDropped => "message_dropped",
+            JournalEntryKind::AccessChanged => "access_changed",
+            JournalEntryKind::AgentInstalled => "agent_installed",
+            JournalEntryKind::AgentUpdated => "agent_updated",
+            JournalEntryKind::AgentUninstalled => "agent_uninstalled",
             JournalEntryKind::Unknown { raw_kind } => raw_kind,
         }
     }
@@ -103,6 +119,10 @@ impl JournalEntryKind {
             "message_sent" => JournalEntryKind::MessageSent,
             "message_delivered" => JournalEntryKind::MessageDelivered,
             "message_dropped" => JournalEntryKind::MessageDropped,
+            "access_changed" => JournalEntryKind::AccessChanged,
+            "agent_installed" => JournalEntryKind::AgentInstalled,
+            "agent_updated" => JournalEntryKind::AgentUpdated,
+            "agent_uninstalled" => JournalEntryKind::AgentUninstalled,
             other => JournalEntryKind::Unknown {
                 raw_kind: other.to_string(),
             },
@@ -257,6 +277,26 @@ mod tests {
         // THEN the tag is stable and the round trip is identity
         assert_eq!(tag, "plan_mutation");
         assert_eq!(back, kind);
+    }
+
+    // The four governance kinds round-trip through their stable tags.
+    #[test]
+    fn test_governance_kinds_tags_round_trip() {
+        // GIVEN the four governance kinds and their expected tags
+        let cases = [
+            (JournalEntryKind::AccessChanged, "access_changed"),
+            (JournalEntryKind::AgentInstalled, "agent_installed"),
+            (JournalEntryKind::AgentUpdated, "agent_updated"),
+            (JournalEntryKind::AgentUninstalled, "agent_uninstalled"),
+        ];
+        for (kind, expected) in cases {
+            // WHEN converting to its tag and back
+            let tag = kind.tag().to_string();
+            let back = JournalEntryKind::from_tag(&tag);
+            // THEN the tag is stable and the round trip is identity
+            assert_eq!(tag, expected);
+            assert_eq!(back, kind);
+        }
     }
 
     // A snapshot with Some deltas round-trips through JSON unchanged.

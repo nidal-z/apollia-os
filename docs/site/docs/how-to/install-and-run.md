@@ -187,22 +187,25 @@ An agent that generates text needs a backend. Pick one path.
 
 `llm setup --local` writes straight to the local database and works offline.
 Every other `llm` subcommand, including `backends create`, `reload` and `status`,
-talks to the daemon. If you take the cloud path, or want to check with `llm
+talks to the daemon. If you take the server path, or want to check with `llm
 status`, start the daemon first with step 4 and come back here.
 
 <!-- claim:cloud-llm-auth-is-api-key-only -->
-Cloud: register a backend with an API key. That is the only way a cloud provider
-authenticates; there is no OAuth flow for one.
+Server: register an OpenAI-compatible server (a self-hosted vLLM or LM Studio,
+or a LiteLLM gateway) with its address and, when it requires one, an API key.
+That is the only way such a server authenticates; there is no OAuth flow for
+one.
 
 ```sh
-apollia-os llm backends create prod --provider anthropic \
-  --model claude-sonnet-4-20250514 --api-key "$ANTHROPIC_API_KEY" --default
+apollia-os llm backends create prod --provider openai \
+  --base-url http://10.0.0.5:8000/v1 --model qwen3-32b \
+  --api-key "$VLLM_API_KEY" --default
 ```
 
 `--api-key` also accepts a `${VAR}` form, resolved from the environment at
 startup, so the key need not sit in `apollia.toml`.
 
-Use your provider's current model id for `--model`; the value above is only an
+Use the model id your server serves for `--model`; the value above is only an
 example.
 
 Local: point the runtime at a `.gguf` file on your machine. This registers the

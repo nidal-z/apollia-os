@@ -283,6 +283,12 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # so its tests hold one (`serve_once`) and prove a claimed port cannot be
     # bound twice. Both binds are on port 0, never a reservation released.
     "crates/apollia-desktop/src/startup/tests.rs": 2,
+    # One helper, the transport is the subject: these tests prove that a
+    # virtualenv gets built, that pip refuses an altered digest, and that the
+    # rewritten command starts. The helper builds the local wheel the
+    # installer reads and runs the entry point it installed; neither can be
+    # observed without a process.
+    "crates/apollia-desktop/src/mcp/python_server/tests.rs": 1,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
     "crates/apollia-llm/src/retry.rs": 1,

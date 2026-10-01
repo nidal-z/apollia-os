@@ -559,8 +559,18 @@ impl BuiltInChatAgent {
                 }
             }
             ToolDecision::AlwaysAccept { .. } => {
-                acc.authorized.insert(call.name.clone());
-                acc.newly_authorized.push(call.name.clone());
+                // A code executor takes an arbitrary-code payload, so a grant by
+                // name would let every later call of the exchange run unseen.
+                // "Always" is downgraded to this one call; the next one asks.
+                if apollia_permissions::is_code_executor(&call.name) {
+                    tracing::warn!(
+                        tool = %call.name,
+                        "chat.tool.always_accept.downgraded"
+                    );
+                } else {
+                    acc.authorized.insert(call.name.clone());
+                    acc.newly_authorized.push(call.name.clone());
+                }
                 let (record, tool_result, success) = self
                     .execute_tool_call(session_id, message_id, call, run_id)
                     .await;
