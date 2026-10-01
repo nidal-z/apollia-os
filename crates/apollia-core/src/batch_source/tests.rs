@@ -4,7 +4,7 @@ use chrono::{DateTime, TimeZone, Utc};
 
 use crate::batch_source::{
     dated_backup_path, BatchSource, MemorySource, OriginRef, SourceError, SourceRegistry,
-    SourceSpec, WriteSession,
+    SourceSpec, WriteGuard, WriteSession,
 };
 
 fn at_noon() -> DateTime<Utc> {
@@ -96,6 +96,40 @@ fn write_refused_on_read_only_source() {
     // THEN it is refused and no backup is taken
     assert!(matches!(opened, Err(SourceError::NotWritable)));
     assert!(source.backups().is_empty());
+}
+
+#[test]
+fn memory_source_refuses_a_guard_issued_for_another_source() {
+    // GIVEN a backup taken on source A, and a source B never backed up. A
+    // guard cannot be obtained outside a session; this module builds one
+    // around A's backup to stand for a writer that forwards the guard it
+    // was handed.
+    let mut a = two_requests();
+    let backup_of_a = WriteSession::open(&mut a, at_noon())
+        .unwrap()
+        .backup()
+        .clone();
+    let foreign = WriteGuard {
+        backup: backup_of_a.clone(),
+    };
+    let mut b = MemorySource::new("/data/other.xlsx", &["client"])
+        .with_item("Sheet1!2", &[("client", "Initech")]);
+
+    // WHEN B is asked to write under A's guard
+    let written = b.writer().unwrap().write_value(
+        &foreign,
+        &OriginRef::new("Sheet1!2"),
+        "client",
+        "overwritten",
+    );
+
+    // THEN B refuses, names the foreign backup, and keeps its value
+    assert!(matches!(
+        written,
+        Err(SourceError::ForeignBackup { path }) if path == backup_of_a.path()
+    ));
+    assert!(b.backups().is_empty());
+    assert_eq!(b.value("Sheet1!2", "client"), Some("Initech"));
 }
 
 #[test]

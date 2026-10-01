@@ -13,10 +13,28 @@
 //!   backup copy placed next to the original file.
 //!
 //! The backup rule is held by the types rather than by convention:
-//! [`SourceWriter::write_value`] takes a [`Backup`], which only
-//! [`WriteSession::open`] can build, and only after
-//! [`SourceWriter::back_up`] has succeeded. A write without a successful
-//! backup cannot be expressed.
+//! [`SourceWriter::write_value`] takes a [`WriteGuard`], which only
+//! [`WriteSession::open`] can build, only after [`SourceWriter::back_up`]
+//! has succeeded on that very source, and which never leaves the session.
+//! Outside this module, a write reaches a source only through
+//! [`WriteSession::write`], so a write without a successful backup of the
+//! source written cannot be expressed. A [`Backup`] is a plain record of the
+//! copy, not a permission to write:
+//!
+//! ```compile_fail
+//! use apollia_core::batch_source::{BatchSource, MemorySource, OriginRef, WriteSession};
+//!
+//! let now = chrono::Utc::now();
+//! let mut a = MemorySource::new("/data/a.csv", &["text"]).with_item("1", &[("text", "x")]);
+//! let mut b = MemorySource::new("/data/b.csv", &["text"]).with_item("1", &[("text", "x")]);
+//! let backup_of_a = WriteSession::open(&mut a, now).unwrap().backup().clone();
+//! // Refused by the compiler: a backup of `a` is not a guard, and no guard
+//! // can be named outside a session.
+//! b.writer()
+//!     .unwrap()
+//!     .write_value(&backup_of_a, &OriginRef::new("1"), "text", "overwritten")
+//!     .unwrap();
+//! ```
 //!
 //! The contract is synchronous: readers parse files and archives, and the
 //! batch engine drives a source from a blocking task rather than from an
@@ -93,11 +111,14 @@ pub trait SourceWriter: Send {
     /// [`dated_backup_path`]) and returns the location of the copy.
     fn back_up(&mut self, taken_at: DateTime<Utc>) -> Result<PathBuf, SourceError>;
 
-    /// Writes `value` into `column` of the item at `origin`. The `backup`
-    /// argument is the proof that the copy was taken first.
+    /// Writes `value` into `column` of the item at `origin`. The `guard` is
+    /// the proof that a copy of this source was taken first; it can only be
+    /// obtained from the [`WriteSession`] that took it, which calls this
+    /// method itself. An implementation refuses a guard whose backup is not
+    /// one it took ([`SourceError::ForeignBackup`]).
     fn write_value(
         &mut self,
-        backup: &Backup,
+        guard: &WriteGuard,
         origin: &OriginRef,
         column: &str,
         value: &str,
@@ -105,7 +126,8 @@ pub trait SourceWriter: Send {
 }
 
 /// A backup copy that was taken successfully. It has no public constructor:
-/// [`WriteSession::open`] is the only place one is built.
+/// [`WriteSession::open`] is the only place one is built. It records the
+/// copy; it does not grant a write.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Backup {
     path: PathBuf,
@@ -122,16 +144,33 @@ impl Backup {
     }
 }
 
+/// The permission to write into one source, held by the [`WriteSession`]
+/// that took its backup. It has no public constructor, is neither `Clone`
+/// nor `Copy`, and the session never hands it out: outside this module it
+/// is only ever seen by a [`SourceWriter::write_value`] being called by the
+/// session.
+#[derive(Debug, PartialEq, Eq)]
+pub struct WriteGuard {
+    backup: Backup,
+}
+
+impl WriteGuard {
+    /// The backup this guard was issued for.
+    pub fn backup(&self) -> &Backup {
+        &self.backup
+    }
+}
+
 /// A run of writes into one source, opened by a successful backup.
 pub struct WriteSession<'a> {
     writer: &'a mut dyn SourceWriter,
-    backup: Backup,
+    guard: WriteGuard,
 }
 
 impl std::fmt::Debug for WriteSession<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WriteSession")
-            .field("backup", &self.backup)
+            .field("backup", &self.guard.backup)
             .finish_non_exhaustive()
     }
 }
@@ -154,13 +193,15 @@ impl<'a> WriteSession<'a> {
         tracing::event!(Level::INFO, path = %path.display(), "batch_source.backup_taken");
         Ok(Self {
             writer,
-            backup: Backup { path, taken_at },
+            guard: WriteGuard {
+                backup: Backup { path, taken_at },
+            },
         })
     }
 
     /// The backup this session was opened on.
     pub fn backup(&self) -> &Backup {
-        &self.backup
+        &self.guard.backup
     }
 
     /// Writes `value` into `column` of the item at `origin`.
@@ -170,7 +211,7 @@ impl<'a> WriteSession<'a> {
         column: &str,
         value: &str,
     ) -> Result<(), SourceError> {
-        self.writer.write_value(&self.backup, origin, column, value)
+        self.writer.write_value(&self.guard, origin, column, value)
     }
 }
 
@@ -200,6 +241,8 @@ pub enum SourceError {
     NotWritable,
     #[error("backup copy failed, nothing was written: {reason}")]
     BackupFailed { reason: String },
+    #[error("backup {} was not taken from this source, nothing was written", path.display())]
+    ForeignBackup { path: PathBuf },
     #[error("no item at origin {origin}")]
     UnknownOrigin { origin: OriginRef },
     #[error("no source kind named {kind}")]

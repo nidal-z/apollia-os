@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 
 use crate::batch_source::{
-    dated_backup_path, Backup, BatchSource, OriginRef, SourceError, SourceItem, SourceItems,
-    SourceWriter,
+    dated_backup_path, BatchSource, OriginRef, SourceError, SourceItem, SourceItems, SourceWriter,
+    WriteGuard,
 };
 
 /// An in-memory source. It stands for a file at a nominal path: its backups
@@ -116,11 +116,17 @@ impl SourceWriter for MemorySource {
 
     fn write_value(
         &mut self,
-        _backup: &Backup,
+        guard: &WriteGuard,
         origin: &OriginRef,
         column: &str,
         value: &str,
     ) -> Result<(), SourceError> {
+        let backup = guard.backup().path();
+        if !self.backups.iter().any(|taken| taken == backup) {
+            return Err(SourceError::ForeignBackup {
+                path: backup.to_path_buf(),
+            });
+        }
         let item = self
             .items
             .iter_mut()
