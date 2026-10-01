@@ -165,6 +165,12 @@ impl ToolExecutor for UnavailableTool {
 /// and the active session list. They live outside `NativeDispatcherConfig`
 /// because the `ToolExecutor` trait is not `Clone`, so the config struct must
 /// stay `Clone`-friendly for the rest of the runtime.
+///
+/// `disabled_tools` applies to the extra executors as it does to the natives:
+/// a disabled MCP or connector tool is left out, so a call to it answers
+/// `UnknownTool`. An extra executor named after a native tool is the embedder's
+/// replacement for that native (the chat path wraps `bash_executor` with its
+/// approval guard), whose own disabled list it applies; it is kept here.
 pub fn build_dispatcher_with(
     cfg: &NativeDispatcherConfig,
     extra: Vec<Box<dyn ToolExecutor>>,
@@ -260,7 +266,10 @@ pub fn build_dispatcher_with(
         }
     }
 
-    executors.extend(extra);
+    executors.extend(extra.into_iter().filter(|executor| {
+        let name = executor.name();
+        crate::tool_registry::NATIVE_TOOL_NAMES.contains(&name) || is_active(name)
+    }));
     ToolDispatcher::new(executors)
 }
 
@@ -388,6 +397,103 @@ mod tests {
             other => panic!("expected ExecutionFailed with tool_unavailable, got {other:?}"),
         }
     }
+    /// An executor standing for an MCP or connector tool, answering its name.
+    struct NamedTool(&'static str);
+
+    impl ToolExecutor for NamedTool {
+        fn name(&self) -> &str {
+            self.0
+        }
+
+        fn execute(
+            &self,
+            _input: serde_json::Value,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = Result<serde_json::Value, crate::executor::ToolExecutionError>,
+                    > + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async move { Ok(serde_json::json!({ "ran": self.0 })) })
+        }
+    }
+
+    fn config_disabling(disabled: &[&str]) -> NativeDispatcherConfig {
+        let root = std::env::temp_dir().join("apollia-native-dispatcher-disabled-test");
+        NativeDispatcherConfig {
+            sandbox_roots: vec![root.clone()],
+            agent_id: "agent".to_string(),
+            venv_base_dir: root.join("venvs"),
+            memory_namespace: None,
+            memory_shared_namespaces: Vec::new(),
+            memory_base_dir: root.join("memory"),
+            http_allowlist: None,
+            pending_user_inputs: None,
+            session_id: None,
+            disabled_tools: disabled.iter().map(|s| (*s).to_string()).collect(),
+            brave_api_key: None,
+            web_search_config: Default::default(),
+            web_read_config: Default::default(),
+            python_interpreter: None,
+        }
+    }
+
+    // A disabled MCP tool and a disabled connector tool are left out of the
+    // dispatcher like a disabled native, and a call to them does not run.
+    #[tokio::test]
+    async fn a_disabled_mcp_or_connector_tool_is_not_dispatched() {
+        // GIVEN an MCP tool and a connector tool disabled, and one MCP tool not
+        let cfg = config_disabling(&["mcp:notion/create_page", "gmail.send"]);
+        let extra: Vec<Box<dyn ToolExecutor>> = vec![
+            Box::new(NamedTool("mcp:notion/create_page")),
+            Box::new(NamedTool("gmail.send")),
+            Box::new(NamedTool("mcp:notion/search")),
+        ];
+
+        // WHEN the dispatcher is built with them
+        let dispatcher = build_dispatcher_with(&cfg, extra);
+
+        // THEN the disabled ones are absent and the enabled one is registered
+        let names = dispatcher.tool_names();
+        assert!(!names.contains(&"mcp:notion/create_page"), "{names:?}");
+        assert!(!names.contains(&"gmail.send"), "{names:?}");
+        assert!(names.contains(&"mcp:notion/search"), "{names:?}");
+        // AND a call to a disabled one is refused as unknown, never executed
+        let refused = dispatcher
+            .dispatch("mcp:notion/create_page", serde_json::json!({}))
+            .await;
+        assert!(
+            matches!(refused, Err(ToolExecutionError::UnknownTool { .. })),
+            "{refused:?}"
+        );
+        let ran = dispatcher
+            .dispatch("mcp:notion/search", serde_json::json!({}))
+            .await
+            .expect("enabled tool runs");
+        assert_eq!(ran["ran"], "mcp:notion/search");
+    }
+
+    // An extra executor replacing a native keeps the embedder's own filter.
+    #[test]
+    fn an_extra_executor_named_after_a_native_is_kept() {
+        // GIVEN the plain bash_executor disabled so a wrapped one replaces it
+        let cfg = config_disabling(&["bash_executor"]);
+        let extra: Vec<Box<dyn ToolExecutor>> = vec![Box::new(NamedTool("bash_executor"))];
+
+        // WHEN the dispatcher is built
+        let dispatcher = build_dispatcher_with(&cfg, extra);
+
+        // THEN exactly one bash_executor is registered: the replacement
+        let count = dispatcher
+            .tool_names()
+            .iter()
+            .filter(|n| **n == "bash_executor")
+            .count();
+        assert_eq!(count, 1);
+    }
+
     #[tokio::test]
     async fn ask_user_request_carries_the_session_the_dispatcher_serves() {
         // GIVEN a dispatcher built for one chat session, with the ask_user
