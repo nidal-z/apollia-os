@@ -279,6 +279,12 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # test holds the second site, and it is the one that proves the first can
     # fail. Windows only.
     "crates/apollia-desktop/src/process_job.rs": 2,
+    # One helper, the transport is the subject: these tests prove that a
+    # virtualenv gets built, that pip refuses an altered digest, and that the
+    # rewritten command starts. The helper builds the local wheel the
+    # installer reads and runs the entry point it installed; neither can be
+    # observed without a process.
+    "crates/apollia-desktop/src/mcp/python_server/tests.rs": 1,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
     "crates/apollia-llm/src/retry.rs": 1,
