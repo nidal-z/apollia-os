@@ -52,7 +52,6 @@ fn production_tools_fixture_matches_runtime_registration() {
         brave_api_key: None,
         web_search_config: Default::default(),
         web_read_config: Default::default(),
-        governance_db_path: Some(sandbox.path().join("governance.db")),
         python_interpreter: None,
     };
     let dispatcher = build_native_dispatcher(&cfg);

@@ -20,6 +20,7 @@
 //! - `budget`: `ctx.budget` step budget view (successor of `step_budget`).
 
 pub mod a2a;
+pub mod apollia_manifest;
 pub mod bridge;
 pub mod budget;
 #[allow(clippy::useless_conversion)]

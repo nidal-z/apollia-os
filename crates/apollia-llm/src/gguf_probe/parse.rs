@@ -112,6 +112,9 @@ pub struct GgufHeaderFacts {
     pub architecture: Option<String>,
     /// `general.name`, the publisher's label for the weights.
     pub name: Option<String>,
+    /// `general.size_label`, the publisher's parameter count label, for
+    /// example `"8B"` or `"30B-A3B"`.
+    pub size_label: Option<String>,
     /// `general.file_type`, the quantisation scheme as a `LLAMA_FTYPE` value.
     pub file_type: Option<u32>,
     /// `general.quantization_version`.
@@ -502,6 +505,7 @@ fn skip_array(cur: &mut Cursor<'_>, depth: u32) -> Step<()> {
 const GENERAL_KEYS: &[&str] = &[
     "general.architecture",
     "general.name",
+    "general.size_label",
     "general.file_type",
     "general.quantization_version",
     "tokenizer.ggml.model",
@@ -627,6 +631,7 @@ fn read_pair(
     match (key.as_str(), value) {
         ("general.architecture", Scalar::Text(s)) => facts.architecture = Some(s),
         ("general.name", Scalar::Text(s)) => facts.name = Some(s),
+        ("general.size_label", Scalar::Text(s)) => facts.size_label = Some(s),
         ("general.file_type", Scalar::Unsigned(n)) => facts.file_type = u32::try_from(n).ok(),
         ("general.quantization_version", Scalar::Unsigned(n)) => {
             facts.quantization_version = u32::try_from(n).ok();

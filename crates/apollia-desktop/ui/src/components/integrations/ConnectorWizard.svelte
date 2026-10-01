@@ -540,9 +540,8 @@
   async function finalize(): Promise<void> {
     if (!(await ensureInstalled())) return;
     oncomplete();
-    // The first-connection walkthrough moved out of the wizard: it used to run
-    // while this dialog was closed, pointing at a sheet that was never open.
-    // It is now the "connect" micro-tour, launched from Getting started.
+    // No walkthrough follows the wizard: one used to run while this dialog was
+    // closed, pointing at a sheet that was never open.
     onclose();
   }
 

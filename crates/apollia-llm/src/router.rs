@@ -1442,9 +1442,5 @@ mod tests {
             infer_api_provider_from_url("https://gateway.internal:8443/v1"),
             LlmProvider::OpenAi
         );
-        assert_eq!(
-            infer_api_provider_from_url("https://api.anthropic.com"),
-            LlmProvider::Anthropic
-        );
     }
 }

@@ -99,6 +99,7 @@ own, and the runtime matches on the one it received.
 | `AIPLoaderError` | `src/loader.rs` | importing and instantiating a module |
 | `AIPValidationError` | `src/validator.rs` | manifest and tool-requirement validation |
 | `PackageLoaderError` | `src/package_loader.rs` | agent packages |
+| `ApolliaManifestError` | `src/apollia_manifest/mod.rs` | the `apollia.toml` package manifest: schema, unknown keys with their path, validation rules |
 | `ToolProxyError` | `src/context/tool_proxy.rs` | `ctx.tools` invocations |
 | `MemoryInterfaceError` | `src/memory.rs` | `ctx.memory` calls |
 | `PythonProviderError` | `src/python_provider.rs` | loading a workspace context provider written in Python |

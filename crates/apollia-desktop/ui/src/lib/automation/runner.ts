@@ -628,10 +628,7 @@ function keyToCode(key: string): string {
 // The two MCP disclaimer keys are on the list: the dialog they gate opens only
 // from a catalogue Connect click (Connections.svelte handleConnect), never at
 // boot, so clearing them costs nothing at startup and makes that click land on
-// the disclaimer every run. `apollia.tour.state` is deliberately absent:
-// tour-det measures the Getting started band with whatever followVisited the
-// machine holds, and a reset at boot would make getting-started-keep
-// unreachable for good.
+// the disclaimer every run.
 
 // App.svelte hands the runner the boot's script and gate; the tokens a recipe
 // may name come from the same payload, re-read here when the caller passes

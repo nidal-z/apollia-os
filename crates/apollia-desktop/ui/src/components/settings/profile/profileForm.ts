@@ -82,10 +82,6 @@ export const LLM_BACKENDS: Option[] = [
   { v: "", labelKey: "settings.profile.option.none" },
   { v: "local", labelKey: "settings.profile.llm.local" },
   { v: "ollama", labelKey: "settings.profile.llm.ollama" },
-  { v: "anthropic", labelKey: "settings.profile.llm.anthropic" },
-  { v: "openai", labelKey: "settings.profile.llm.openai" },
-  { v: "bedrock", labelKey: "settings.profile.llm.bedrock" },
-  { v: "vertex", labelKey: "settings.profile.llm.vertex" },
 ];
 
 export const HITL_OPTIONS: RadioOption[] = [

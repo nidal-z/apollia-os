@@ -3,7 +3,8 @@
 /** Configured LLM backend - CRUD view returned by `list_llm_backends`. */
 export interface LlmBackendConfig {
   name: string;
-  provider: "llama-cpp" | "openai" | "mistral" | "anthropic" | "ollama";
+  /** `openai` is any OpenAI-compatible server, at the address the backend designates. */
+  provider: "llama-cpp" | "openai" | "ollama";
   model: string;
   config_json: Record<string, unknown>;
   enabled: boolean;

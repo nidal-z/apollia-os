@@ -43,7 +43,7 @@ pub type LlmPingCache = Arc<RwLock<HashMap<String, PingState>>>;
 pub struct LlmBackendView {
     /// Unique logical backend name (e.g. `"local-code"`).
     pub name: String,
-    /// Provider: `"llama-cpp"`, `"openai"`, `"mistral"`, `"anthropic"`, `"ollama"`.
+    /// Provider: `"llama-cpp"`, `"openai"` (OpenAI-compatible server), `"ollama"`.
     pub provider: String,
     /// Configured model identifier.
     pub model: String,

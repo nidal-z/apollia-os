@@ -6,6 +6,7 @@
 
 pub mod enrichments;
 pub mod overrides;
+pub mod python_server;
 
 /// The registry client lives in `apollia-mcp`, shared with the runtime's
 /// `/api/v1/mcp/registry` routes; the desktop reads it under its old path.

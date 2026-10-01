@@ -377,6 +377,10 @@ fn main() {
             // never trips during idle chat sessions.
             events::spawn_heartbeat(app.handle().clone());
 
+            // Reconcile the installed-model index with the disk: a model copied
+            // into a sub-folder, or deleted, while the application was closed.
+            tauri::async_runtime::spawn_blocking(commands::model_hub::reconcile_model_index);
+
             // Session metrics aggregator.
             // .setup() runs outside any Tokio context; enter the Tauri async
             // runtime before calling spawn_detached so tokio::spawn is valid.

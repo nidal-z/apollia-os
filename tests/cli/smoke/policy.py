@@ -167,7 +167,7 @@ ARGV: dict[str, list[str]] = {
     "llm backends show": ["local-llama-server"],
     "llm backends update": ["local-llama-server", "--disable"],
     "llm backends set-default": ["local-llama-server"],
-    "llm backends delete": ["openai-gpt4o-mini", "--confirm"],
+    "llm backends delete": ["vllm-qwen", "--confirm"],
     "llm backends create": [
         "smoke-backend",
         "--provider",

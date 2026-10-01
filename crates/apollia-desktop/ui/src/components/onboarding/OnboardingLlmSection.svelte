@@ -40,7 +40,7 @@
     X,
     Search,
     ArrowLeft,
-    Cloud,
+    Server,
     Upload,
   } from "lucide-svelte";
   import { Spinner, ProgressBar } from "$lib/components/ui/progress";
@@ -688,8 +688,8 @@
           {$t("onboarding.ai_setup.search_hf")}
         </Button>
         <Button variant="ghost" size="sm" class="btn-search-hf btn-cloud" onclick={onopencloud} data-testid="onboarding-open-cloud">
-          <Cloud size={11} strokeWidth={2} />
-          {$t("onboarding.ai_setup.use_cloud")}
+          <Server size={11} strokeWidth={2} />
+          {$t("onboarding.ai_setup.connect_server")}
         </Button>
       </div>
     {/if}

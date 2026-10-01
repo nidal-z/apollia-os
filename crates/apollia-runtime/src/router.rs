@@ -8,7 +8,7 @@ use apollia_core::{
     AIPInput, AIPTask, AgentId, ProcessState, RunId, RunOptions, RuntimeEvent, TaskId, TaskStatus,
 };
 
-use crate::coordinator::{ExecutionBackend, ExecutionCoordinator};
+use crate::coordinator::{CancellationToken, ExecutionBackend, ExecutionCoordinator};
 use crate::eventbus::EventBusSender;
 use crate::registry::AgentRegistryHandle;
 
@@ -77,10 +77,15 @@ enum RouterMessage<B: ExecutionBackend> {
         reply: oneshot::Sender<Option<String>>,
     },
     /// Cancel a running task.
+    ///
+    /// Answered once the execution has stopped, not when it was asked to.
     Cancel {
         task_id: TaskId,
         reply: oneshot::Sender<Option<TaskStatus>>,
     },
+    /// The execution of a task has ended, whatever the outcome. Sent by the
+    /// watcher that holds the task's `JoinHandle`.
+    ExecutionEnded { task_id: TaskId },
     /// Return the IDs of active tasks (Working or Submitted).
     GetActiveTasks { reply: oneshot::Sender<Vec<TaskId>> },
     /// Return all known tasks with their agent_id and status.
@@ -125,6 +130,14 @@ struct TaskRouter<B: ExecutionBackend> {
     task_runs: HashMap<TaskId, RunId>,
     /// Latest session budget snapshot, updated on each TokenBudgetUpdated event.
     latest_budget: Option<TokenBudget>,
+    /// The cancellation token of every execution still running, removed when
+    /// its `JoinHandle` resolves.
+    task_cancels: HashMap<TaskId, CancellationToken>,
+    /// Cancel requests waiting for their execution to stop before they answer.
+    pending_cancels: HashMap<TaskId, Vec<oneshot::Sender<Option<TaskStatus>>>>,
+    /// Weak sender to this actor's own mailbox, for the `JoinHandle` watchers.
+    /// Weak so that the watchers never keep the actor alive on their own.
+    self_tx: mpsc::WeakSender<RouterMessage<B>>,
 }
 
 impl<B: ExecutionBackend> TaskRouter<B> {
@@ -155,8 +168,10 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                             let _ = reply.send(output);
                         }
                         RouterMessage::Cancel { task_id, reply } => {
-                            let result = self.handle_cancel(&task_id);
-                            let _ = reply.send(result);
+                            self.handle_cancel(task_id, reply);
+                        }
+                        RouterMessage::ExecutionEnded { task_id } => {
+                            self.handle_execution_ended(task_id);
                         }
                         RouterMessage::GetActiveTasks { reply } => {
                             let active: Vec<TaskId> = self
@@ -351,9 +366,11 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             .get(&agent_id)
             .ok_or_else(|| SubmitError::NoCoordinator(agent_id.clone()))?;
 
-        coordinator
+        let submitted = coordinator
             .submit_task(task)
             .map_err(|_| SubmitError::ConcurrencyLimit(agent_id.clone()))?;
+        self.task_cancels.insert(task_id.clone(), submitted.cancel);
+        self.watch_execution(task_id.clone(), submitted.handle);
 
         // 5. Record the status and the task -> agent association
         self.task_statuses
@@ -369,17 +386,83 @@ impl<B: ExecutionBackend> TaskRouter<B> {
 
     /// Handle a task cancellation.
     ///
-    /// Returns the new status if the task exists, None otherwise.
-    /// Only tasks in `Submitted` or `Working` state can be canceled.
-    fn handle_cancel(&mut self, task_id: &TaskId) -> Option<TaskStatus> {
-        let status = self.task_statuses.get_mut(task_id)?;
-        match status {
-            TaskStatus::Submitted | TaskStatus::Working | TaskStatus::InputRequired => {
+    /// A task whose execution is still running has its token cancelled and
+    /// keeps its status (`Working`) until that execution has stopped; the
+    /// reply is sent then, by [`Self::handle_execution_ended`]. A live status
+    /// with no execution left (a task paused for input, whose run already
+    /// returned) is cancelled at once. A terminal status is answered as is,
+    /// and an unknown task with `None`.
+    fn handle_cancel(&mut self, task_id: TaskId, reply: oneshot::Sender<Option<TaskStatus>>) {
+        let Some(status) = self.task_statuses.get_mut(&task_id) else {
+            let _ = reply.send(None);
+            return;
+        };
+        if !matches!(
+            status,
+            TaskStatus::Submitted | TaskStatus::Working | TaskStatus::InputRequired
+        ) {
+            let _ = reply.send(Some(status.clone()));
+            return;
+        }
+        if let Some(token) = self.task_cancels.get(&task_id) {
+            token.cancel();
+            info!(task_id = %task_id, "task.cancel.requested");
+            self.pending_cancels.entry(task_id).or_default().push(reply);
+            return;
+        }
+        *status = TaskStatus::Canceled;
+        info!(task_id = %task_id, "task.canceled");
+        let _ = self.event_bus.send(RuntimeEvent::TaskCanceled {
+            task_id: task_id.clone(),
+        });
+        let _ = reply.send(Some(TaskStatus::Canceled));
+    }
+
+    /// Hands the `JoinHandle` of a task to a watcher that reports back to
+    /// this actor once the execution has ended.
+    fn watch_execution(
+        &self,
+        task_id: TaskId,
+        handle: tokio::task::JoinHandle<
+            Result<apollia_core::AIPResult, crate::coordinator::CoordinatorError>,
+        >,
+    ) {
+        let self_tx = self.self_tx.clone();
+        tokio::spawn(async move {
+            let _ = handle.await;
+            if let Some(tx) = self_tx.upgrade() {
+                let _ = tx.send(RouterMessage::ExecutionEnded { task_id }).await;
+            }
+        });
+    }
+
+    /// The execution of `task_id` has ended: drop its token and, when a
+    /// cancellation was waiting for it, settle the status and answer.
+    fn handle_execution_ended(&mut self, task_id: TaskId) {
+        self.task_cancels.remove(&task_id);
+        let Some(replies) = self.pending_cancels.remove(&task_id) else {
+            return;
+        };
+        let status = match self.task_statuses.get_mut(&task_id) {
+            Some(status)
+                if matches!(
+                    status,
+                    TaskStatus::Submitted | TaskStatus::Working | TaskStatus::InputRequired
+                ) =>
+            {
                 *status = TaskStatus::Canceled;
                 info!(task_id = %task_id, "task.canceled");
+                let _ = self.event_bus.send(RuntimeEvent::TaskCanceled {
+                    task_id: task_id.clone(),
+                });
                 Some(TaskStatus::Canceled)
             }
-            _ => Some(status.clone()),
+            // The execution finished on its own before the cancellation
+            // reached it: the outcome it reported is the true one.
+            other => other.cloned(),
+        };
+        for reply in replies {
+            let _ = reply.send(status.clone());
         }
     }
 }
@@ -414,6 +497,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
         buffer_size: usize,
     ) -> Self {
         let (tx, rx) = mpsc::channel(buffer_size);
+        let self_tx = tx.downgrade();
         let event_rx = event_bus.subscribe();
         let router = TaskRouter {
             rx,
@@ -426,6 +510,9 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             task_runs: HashMap::new(),
             task_outputs: HashMap::new(),
             latest_budget: None,
+            task_cancels: HashMap::new(),
+            pending_cancels: HashMap::new(),
+            self_tx,
         };
         tokio::spawn(router.run());
         Self { tx }
@@ -576,7 +663,10 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
 
     /// Cancel a running task.
     ///
-    /// Returns the new status if the task exists, None otherwise.
+    /// Returns the new status if the task exists, None otherwise. For a task
+    /// whose execution is running, the answer comes once that execution has
+    /// stopped, within [`crate::coordinator::CANCEL_GRACE`] of the request for
+    /// a backend that does not stop by itself.
     pub async fn cancel(&self, task_id: &str) -> Result<Option<TaskStatus>, SubmitError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
@@ -1253,11 +1343,11 @@ mod tests {
 
         let agent_id =
             register_agent_in_state(&registry, "agent-cancel-race", ProcessState::Active).await;
-        let (gate_tx, gate_rx) = watch::channel(false);
+        let (_gate_tx, gate_rx) = watch::channel(false);
         let coordinator = ExecutionCoordinator::new(
             agent_id.clone(),
             1,
-            event_tx,
+            event_tx.clone(),
             GatedMockBackend { gate: gate_rx },
         );
         router
@@ -1282,9 +1372,18 @@ mod tests {
             "cancel should return Canceled"
         );
 
-        // AND once the gate is released the backend emits its late TaskCompleted;
-        // wait deterministically for it (proves the completion actually fired).
-        gate_tx.send(true).expect("release gate");
+        // AND a completion for the same task lands afterwards. The cancelled
+        // execution itself no longer reports one (it is stopped, not left to
+        // finish), so the late event is published the way any other source on
+        // the bus would; wait for it to prove it actually went out.
+        event_tx
+            .send(RuntimeEvent::TaskCompleted {
+                agent_id: agent_id.clone(),
+                task_id: task_id.clone(),
+                success: true,
+                output: None,
+            })
+            .expect("publish the late completion");
         let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
             tokio::select! {
@@ -1296,7 +1395,7 @@ mod tests {
                     }
                 }
                 _ = tokio::time::sleep_until(deadline) => {
-                    panic!("backend never emitted its late TaskCompleted event");
+                    panic!("the late TaskCompleted event never went out");
                 }
             }
         }
@@ -1353,5 +1452,277 @@ mod tests {
         .expect("timeout waiting for task failure");
 
         assert_eq!(final_status, Some(TaskStatus::Failed));
+    }
+
+    // Real cancellation: the execution stops, and the status says so only then.
+
+    /// Sets its flag when dropped, so a test can tell an abandoned future
+    /// from one still running.
+    struct DropFlag(std::sync::Arc<AtomicBool>);
+
+    impl Drop for DropFlag {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    /// Backend whose execution never ends and ignores the cancellation token.
+    struct ForeverBackend {
+        dropped: std::sync::Arc<AtomicBool>,
+    }
+
+    impl ExecutionBackend for ForeverBackend {
+        fn execute(
+            &self,
+            _task: AIPTask,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+        {
+            let flag = DropFlag(std::sync::Arc::clone(&self.dropped));
+            Box::pin(async move {
+                let _flag = flag;
+                std::future::pending::<Result<AIPResult, String>>().await
+            })
+        }
+    }
+
+    /// Backend that honours the token: once cancelled it reports that it is
+    /// stopping, then returns only when the test releases `release`.
+    struct StoppingBackend {
+        stopping: std::sync::Arc<tokio::sync::Notify>,
+        release: watch::Receiver<bool>,
+    }
+
+    impl ExecutionBackend for StoppingBackend {
+        fn execute(
+            &self,
+            task: AIPTask,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+        {
+            self.execute_cancellable(task, CancellationToken::new())
+        }
+
+        fn execute_cancellable(
+            &self,
+            _task: AIPTask,
+            cancel: CancellationToken,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+        {
+            let stopping = std::sync::Arc::clone(&self.stopping);
+            let mut release = self.release.clone();
+            Box::pin(async move {
+                cancel.cancelled().await;
+                stopping.notify_one();
+                let _ = release.wait_for(|released| *released).await;
+                Err("stopped".to_string())
+            })
+        }
+    }
+
+    /// Tool executor standing for an HTTP or MCP call that never answers.
+    struct UnansweredToolExecutor {
+        started: std::sync::Arc<tokio::sync::Notify>,
+        abandoned: std::sync::Arc<AtomicBool>,
+    }
+
+    impl apollia_tools::ToolExecutor for UnansweredToolExecutor {
+        fn name(&self) -> &str {
+            "http_get"
+        }
+
+        fn execute(
+            &self,
+            _input: serde_json::Value,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<
+                        Output = Result<serde_json::Value, apollia_tools::ToolExecutionError>,
+                    > + Send
+                    + '_,
+            >,
+        > {
+            let flag = DropFlag(std::sync::Arc::clone(&self.abandoned));
+            let started = std::sync::Arc::clone(&self.started);
+            Box::pin(async move {
+                let _flag = flag;
+                started.notify_one();
+                std::future::pending().await
+            })
+        }
+    }
+
+    /// Backend whose execution is one tool call through the dispatcher.
+    struct ToolCallingBackend {
+        dispatcher: std::sync::Arc<apollia_tools::ToolDispatcher>,
+    }
+
+    impl ExecutionBackend for ToolCallingBackend {
+        fn execute(
+            &self,
+            task: AIPTask,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+        {
+            let dispatcher = std::sync::Arc::clone(&self.dispatcher);
+            Box::pin(async move {
+                dispatcher
+                    .dispatch(
+                        "http_get",
+                        serde_json::json!({"url": "https://example.org"}),
+                    )
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok(AIPResult {
+                    task_id: task.task_id,
+                    status: TaskStatus::Completed,
+                    output: vec![],
+                    error: None,
+                    artifacts: vec![],
+                    input_required_data: None,
+                })
+            })
+        }
+    }
+
+    /// Spawns a router with one active agent served by `backend`.
+    async fn router_with_backend<B: ExecutionBackend>(
+        name: &str,
+        backend: B,
+    ) -> (
+        TaskRouterHandle<B>,
+        AgentId,
+        broadcast::Receiver<RuntimeEvent>,
+    ) {
+        let (event_tx, event_rx) = broadcast::channel::<RuntimeEvent>(64);
+        let registry = AgentRegistry::spawn(event_tx.clone());
+        let router = TaskRouterHandle::spawn(registry.clone(), event_tx.clone(), 256);
+        let agent_id = register_agent_in_state(&registry, name, ProcessState::Active).await;
+        let coordinator = ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, backend);
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+        (router, agent_id, event_rx)
+    }
+
+    #[tokio::test]
+    async fn cancel_stops_an_execution_that_would_wait_forever() {
+        // GIVEN a task whose execution never ends and does not even look at
+        // its cancellation token
+        let dropped = std::sync::Arc::new(AtomicBool::new(false));
+        let backend = ForeverBackend {
+            dropped: std::sync::Arc::clone(&dropped),
+        };
+        let (router, agent_id, _events) = router_with_backend("agent-forever", backend).await;
+        let task_id = router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("submit failed");
+
+        // WHEN the task is cancelled
+        let asked = std::time::Instant::now();
+        let status = router
+            .cancel(task_id.as_str())
+            .await
+            .expect("cancel failed");
+        let took = asked.elapsed();
+
+        // THEN the execution has stopped, its future dropped, within a second
+        assert_eq!(status, Some(TaskStatus::Canceled));
+        assert!(
+            dropped.load(Ordering::SeqCst),
+            "the execution must be stopped, not only relabelled"
+        );
+        assert!(took < std::time::Duration::from_secs(1), "took {took:?}");
+        // AND its concurrency slot is free again: a new task is accepted
+        router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("the agent must accept a task once the cancelled one stopped");
+    }
+
+    #[tokio::test]
+    async fn status_reads_working_while_the_execution_stops_then_canceled() {
+        // GIVEN a task whose backend honours the token but takes its time to
+        // stop, under the test's control
+        let stopping = std::sync::Arc::new(tokio::sync::Notify::new());
+        let (release_tx, release_rx) = watch::channel(false);
+        let backend = StoppingBackend {
+            stopping: std::sync::Arc::clone(&stopping),
+            release: release_rx,
+        };
+        let (router, agent_id, mut events) = router_with_backend("agent-stopping", backend).await;
+        let task_id = router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("submit failed");
+
+        // WHEN the task is cancelled and its execution has begun to stop
+        let canceller = router.clone();
+        let cancel_id = task_id.clone();
+        let cancel = tokio::spawn(async move { canceller.cancel(cancel_id.as_str()).await });
+        stopping.notified().await;
+
+        // THEN the status still reads Working while the execution stops
+        let during = router.get_status(task_id.as_str()).await.expect("status");
+        assert_eq!(during, Some(TaskStatus::Working));
+        assert!(!cancel.is_finished(), "cancel must wait for the stop");
+
+        // AND once the execution has ended, the status is Canceled
+        release_tx.send(true).expect("release the backend");
+        let answered = cancel.await.expect("join").expect("cancel failed");
+        assert_eq!(answered, Some(TaskStatus::Canceled));
+        let after = router.get_status(task_id.as_str()).await.expect("status");
+        assert_eq!(after, Some(TaskStatus::Canceled));
+        // AND the bus has heard TaskCanceled, never a completion. The router
+        // publishes it before answering, so it is already buffered here.
+        let mut heard_canceled = false;
+        loop {
+            match events.try_recv() {
+                Ok(RuntimeEvent::TaskCanceled { task_id: id }) if id == task_id => {
+                    heard_canceled = true;
+                }
+                Ok(RuntimeEvent::TaskCompleted { task_id: id, .. }) if id == task_id => {
+                    panic!("a cancelled task reported a completion");
+                }
+                Ok(_) | Err(broadcast::error::TryRecvError::Lagged(_)) => {}
+                Err(_) => break,
+            }
+        }
+        assert!(heard_canceled, "TaskCanceled was not published");
+    }
+
+    #[tokio::test]
+    async fn cancel_abandons_a_tool_call_that_never_answers() {
+        // GIVEN a task blocked inside a tool call (HTTP or MCP) that never
+        // answers
+        let started = std::sync::Arc::new(tokio::sync::Notify::new());
+        let abandoned = std::sync::Arc::new(AtomicBool::new(false));
+        let executor = UnansweredToolExecutor {
+            started: std::sync::Arc::clone(&started),
+            abandoned: std::sync::Arc::clone(&abandoned),
+        };
+        let backend = ToolCallingBackend {
+            dispatcher: std::sync::Arc::new(apollia_tools::ToolDispatcher::new(vec![Box::new(
+                executor,
+            )])),
+        };
+        let (router, agent_id, _events) = router_with_backend("agent-tool", backend).await;
+        let task_id = router
+            .submit(agent_id.as_str(), AIPInput::default())
+            .await
+            .expect("submit failed");
+        started.notified().await;
+
+        // WHEN the task is cancelled
+        let status = router
+            .cancel(task_id.as_str())
+            .await
+            .expect("cancel failed");
+
+        // THEN the in-flight call has been abandoned, not left pending
+        assert_eq!(status, Some(TaskStatus::Canceled));
+        assert!(
+            abandoned.load(Ordering::SeqCst),
+            "the tool call future must be dropped on cancel"
+        );
     }
 }

@@ -18,8 +18,6 @@ use crate::router::config::{BackendConfig, BackendKind, LlmConfig};
 use crate::types::{CompletionModel, CompletionRequest, CompletionResponse, LlmError, StreamChunk};
 
 #[cfg(feature = "cloud")]
-use crate::backends::anthropic::AnthropicClient;
-#[cfg(feature = "cloud")]
 use crate::backends::ollama::{OllamaClient, OllamaConfig};
 #[cfg(feature = "cloud")]
 use crate::backends::openai::{ApiBackendConfig, OpenAICompatibleClient};
@@ -28,12 +26,11 @@ use crate::backends::vertex::VertexClient;
 
 /// Instantiate an `Arc<dyn CompletionModel>` backend from its config.
 ///
-/// Heuristic: Anthropic API maps to `AnthropicClient`, any other provider to
-/// `OpenAICompatibleClient`. Returns `Err` if the API key cannot be resolved.
+/// Every API backend is served by `OpenAICompatibleClient`. Returns `Err` if
+/// the API key cannot be resolved.
 #[cfg(feature = "cloud")]
 pub(super) fn build_backend(
     backend_cfg: &BackendConfig,
-    config: &LlmConfig,
     cancellation_token: &CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     match &backend_cfg.kind {
@@ -44,21 +41,11 @@ pub(super) fn build_backend(
                     backend: cfg.name.clone(),
                     reason: e.to_string(),
                 })?;
-            let backend: Arc<dyn CompletionModel> = if cfg.api_url.contains("anthropic.com") {
-                Arc::new(AnthropicClient::new(
-                    cfg,
-                    key,
-                    config.pricing_overrides.clone(),
-                    cancellation_token.clone(),
-                ))
-            } else {
-                Arc::new(OpenAICompatibleClient::new(
-                    cfg,
-                    key,
-                    cancellation_token.clone(),
-                ))
-            };
-            Ok(backend)
+            Ok(Arc::new(OpenAICompatibleClient::new(
+                cfg,
+                key,
+                cancellation_token.clone(),
+            )) as Arc<dyn CompletionModel>)
         }
     }
 }
@@ -100,7 +87,6 @@ pub(super) fn insert_vertex_backend(
 pub(super) fn load_backend_with_bus(
     backends: &mut HashMap<String, Arc<dyn CompletionModel>>,
     backend_cfg: &BackendConfig,
-    config: &LlmConfig,
     cancellation_token: &CancellationToken,
     bus: &Option<EventBusSender>,
 ) {
@@ -116,10 +102,10 @@ pub(super) fn load_backend_with_bus(
     }
 
     #[cfg(feature = "cloud")]
-    let result = build_backend(backend_cfg, config, cancellation_token);
+    let result = build_backend(backend_cfg, cancellation_token);
     #[cfg(not(feature = "cloud"))]
     let result: Result<Arc<dyn CompletionModel>, LlmError> = {
-        let _ = (config, cancellation_token);
+        let _ = cancellation_token;
         match &backend_cfg.kind {}
     };
 
@@ -296,36 +282,62 @@ pub(super) async fn instantiate_from_config(
                      does not stage it: only the packaged build does"
                 .to_string(),
         }),
-        provider => instantiate_cloud_backend(cfg, provider, cancel).await,
+        LlmProvider::OpenAi => {
+            instantiate_remote_backend(cfg, RemoteKind::OpenAiCompatible, cancel).await
+        }
+        LlmProvider::Ollama => instantiate_remote_backend(cfg, RemoteKind::Ollama, cancel).await,
     }
 }
-/// Instantiate a cloud backend (OpenAI-compatible or Anthropic) from the SQLite config.
+/// The providers reached over HTTP, the local engine excluded by construction.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RemoteKind {
+    /// An OpenAI-compatible server at the address the backend designates.
+    OpenAiCompatible,
+    /// An Ollama server, local by default.
+    Ollama,
+}
+impl std::fmt::Display for RemoteKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RemoteKind::OpenAiCompatible => f.write_str("openai"),
+            RemoteKind::Ollama => f.write_str("ollama"),
+        }
+    }
+}
+/// Instantiate an HTTP backend (OpenAI-compatible server or Ollama) from the
+/// SQLite config.
 ///
-/// Resolves the API key from `config_json["api_key"]` when present.
+/// Resolves the API key from `config_json["api_key"]` when present. An
+/// OpenAI-compatible backend must designate its server: there is no cloud
+/// address to fall back on.
 #[cfg(feature = "cloud")]
-pub(super) async fn instantiate_cloud_backend(
+pub(super) async fn instantiate_remote_backend(
     cfg: &LlmBackendConfig,
-    provider: &LlmProvider,
+    kind: RemoteKind,
     cancel: CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     let api_key = extract_api_key_value(cfg)?;
 
-    let default_url = match provider {
-        LlmProvider::OpenAi => "https://api.openai.com/v1",
-        LlmProvider::Mistral => "https://api.mistral.ai/v1",
-        LlmProvider::Ollama => "http://127.0.0.1:11434/v1",
-        LlmProvider::Anthropic => "https://api.anthropic.com",
-        LlmProvider::LlamaCpp => {
-            unreachable!("LlamaCpp is handled before reaching instantiate_cloud_backend (sidecar runner path)")
+    let base_url = match kind {
+        RemoteKind::Ollama => extract_base_url(cfg, "http://127.0.0.1:11434/v1"),
+        RemoteKind::OpenAiCompatible => {
+            let url = extract_base_url(cfg, "");
+            if url.is_empty() {
+                return Err(LlmError::BackendUnavailable {
+                    backend: cfg.name.clone(),
+                    reason: "an OpenAI-compatible backend needs the address of its server \
+                             (base_url)"
+                        .to_string(),
+                });
+            }
+            url
         }
     };
-
-    let base_url = extract_base_url(cfg, default_url);
     let idle_timeout = extract_idle_timeout(cfg);
 
     // Ollama is reached through its native API, the only one that lets the
     // client choose the context window. See `backends::ollama`.
-    if matches!(provider, LlmProvider::Ollama) {
+    if kind == RemoteKind::Ollama {
         let root = OllamaConfig::root_of(&base_url);
         let num_ctx =
             OllamaClient::num_ctx(&root, &cfg.model, configured_context_window(cfg)).await;
@@ -360,16 +372,6 @@ pub(super) async fn instantiate_cloud_backend(
         // to its own backend above, and that is where the extension is declared.
         llama_cpp_extensions: false,
     };
-
-    if matches!(provider, LlmProvider::Anthropic) {
-        return Ok(Arc::new(AnthropicClient::with_idle_timeout(
-            &api_cfg,
-            api_key,
-            HashMap::new(),
-            cancel,
-            idle_timeout,
-        )) as Arc<dyn CompletionModel>);
-    }
 
     Ok(Arc::new(OpenAICompatibleClient::with_idle_timeout(
         &api_cfg,
@@ -412,9 +414,9 @@ pub(super) fn extract_idle_timeout(cfg: &LlmBackendConfig) -> std::time::Duratio
 }
 /// Return `BackendUnavailable` when the `"cloud"` feature is not compiled.
 #[cfg(not(feature = "cloud"))]
-pub(super) async fn instantiate_cloud_backend(
+pub(super) async fn instantiate_remote_backend(
     cfg: &LlmBackendConfig,
-    provider: &LlmProvider,
+    provider: RemoteKind,
     _cancel: CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     Err(LlmError::BackendUnavailable {

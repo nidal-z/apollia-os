@@ -49,12 +49,9 @@ pub struct LlmBackendConfig {
 pub enum LlmProvider {
     /// Embedded llama.cpp backend (local GGUF).
     LlamaCpp,
-    /// OpenAI API or OpenAI-compatible API (LM Studio, vLLM).
+    /// OpenAI-compatible server, reached at the address the organization
+    /// designates (vLLM, LM Studio, a LiteLLM gateway...). Stored as `openai`.
     OpenAi,
-    /// Mistral AI API.
-    Mistral,
-    /// Anthropic API.
-    Anthropic,
     /// Local Ollama.
     Ollama,
 }
@@ -64,8 +61,6 @@ impl std::fmt::Display for LlmProvider {
         let s = match self {
             LlmProvider::LlamaCpp => "llama-cpp",
             LlmProvider::OpenAi => "openai",
-            LlmProvider::Mistral => "mistral",
-            LlmProvider::Anthropic => "anthropic",
             LlmProvider::Ollama => "ollama",
         };
         f.write_str(s)
@@ -79,8 +74,6 @@ impl TryFrom<&str> for LlmProvider {
         match s {
             "llama-cpp" => Ok(LlmProvider::LlamaCpp),
             "openai" => Ok(LlmProvider::OpenAi),
-            "mistral" => Ok(LlmProvider::Mistral),
-            "anthropic" => Ok(LlmProvider::Anthropic),
             "ollama" => Ok(LlmProvider::Ollama),
             other => Err(LlmBackendError::Serialization(format!(
                 "unknown provider: {other}"
