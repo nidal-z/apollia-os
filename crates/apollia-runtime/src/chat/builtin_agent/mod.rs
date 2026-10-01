@@ -75,6 +75,8 @@ pub use invoker::{HitlInvokerParams, NativeChatToolInvoker};
 pub use response::{ChatAgentResponse, ConsolidatedVerificationReport};
 pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTracker, RetryCarry};
 
+#[cfg(test)]
+mod parity_tests;
 /// Cooperative pause/resume of the chat ReAct loop.
 #[cfg(test)]
 mod pause_tests;
