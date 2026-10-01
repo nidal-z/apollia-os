@@ -279,6 +279,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # test holds the second site, and it is the one that proves the first can
     # fail. Windows only.
     "crates/apollia-desktop/src/process_job.rs": 2,
+    # The port is the subject: the startup decision is the claim of a port,
+    # so its tests hold one (`serve_once`) and prove a claimed port cannot be
+    # bound twice. Both binds are on port 0, never a reservation released.
+    "crates/apollia-desktop/src/startup/tests.rs": 2,
     # One helper, the transport is the subject: these tests prove that a
     # virtualenv gets built, that pip refuses an altered digest, and that the
     # rewritten command starts. The helper builds the local wheel the
@@ -298,7 +302,7 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-oria/src/budget.rs": 5,
     "crates/apollia-oria/src/engine.rs": 10,
     "crates/apollia-oria/src/resilience.rs": 3,
-    "crates/apollia-runtime/src/api/server.rs": 12,
+    "crates/apollia-runtime/src/api/server.rs": 13,
     "crates/apollia-runtime/src/api/unreached_by_cli.rs": 1,
     "crates/apollia-runtime/src/chat/builtin_agent/tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,

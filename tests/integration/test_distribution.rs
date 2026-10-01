@@ -140,6 +140,7 @@ fn supervisor_config(
         api_config: APIServerConfig {
             socket_path: PathBuf::from(format!("/tmp/ap-dist-{socket_id}.sock")),
             tcp_port: Some(tcp_port),
+            tcp_listener: None,
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
             tls_cert_path: None,

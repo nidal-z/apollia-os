@@ -200,6 +200,7 @@ async fn start_test_server(state: AppState<MockBackend>) -> (APIServerHandle, u1
     let config = APIServerConfig {
         socket_path: socket_path.clone(),
         tcp_port: Some(port),
+        tcp_listener: None,
         bind_addr: "127.0.0.1".to_string(),
         api_token: None,
         tls_cert_path: None,
