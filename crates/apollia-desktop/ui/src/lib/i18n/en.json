@@ -3896,12 +3896,12 @@
       "bash_executor": {
         "label_operator": "Terminal commands",
         "desc_operator": "Execute shell commands - each run requires your approval",
-        "desc_builder": "bash_executor - timeout_secs, working_dir - SandboxProfile::Full - dangerous"
+        "desc_builder": "bash_executor - timeout_secs, working_dir - SandboxProfile::FileSystem - family execute_code"
       },
       "python_executor": {
         "label_operator": "Python scripts",
         "desc_operator": "Run Python code in an isolated environment",
-        "desc_builder": "python_executor - per-agent venv, timeout_secs - SandboxProfile::Full - dangerous"
+        "desc_builder": "python_executor - per-agent venv, timeout_secs - SandboxProfile::FileSystem - family execute_code"
       },
       "http_fetch": {
         "label_operator": "Web requests",

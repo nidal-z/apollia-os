@@ -356,6 +356,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn api_tools_get_by_name_carries_family_and_source() {
+        // GIVEN a registry with the native tools registered
+        let router = test_router_with_tools().await;
+
+        // WHEN GET /api/v1/tools/http_fetch
+        let req = Request::builder()
+            .uri("/api/v1/tools/http_fetch")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN the descriptor carries its action family and where it comes from
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["family"], "send_external");
+        assert_eq!(json["family_source"], "builtin");
+    }
+
+    #[tokio::test]
     async fn api_tools_response_includes_tags() {
         // GIVEN a registry with all 10 native tools registered
         let router = test_router_with_tools().await;

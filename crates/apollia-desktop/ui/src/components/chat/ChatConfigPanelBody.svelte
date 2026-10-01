@@ -7,6 +7,7 @@
   import type { ChatSessionDetail, UpdateSessionRequest } from "$lib/types";
   import { updateChatSession } from "$lib/ipc/chat";
   import { TOOL_GROUPS, TOOL_CATALOG, getGroupState, toggleGroup } from "$lib/tools/tool-catalog";
+  import { isSensitiveFamily } from "$lib/tools/action-family";
   import { llmBackends } from "$lib/stores/sse";
   import { useUserMemory, chatConversationStats } from "$lib/stores/chat";
   import { uiMode } from "$lib/stores/mode";
@@ -325,16 +326,24 @@
               {#each groupTools as tool (tool.id)}
                 {@const checked = enabledTools.has(tool.id)}
                 {@const ToolIcon = tool.icon}
+                {@const sensitive = isSensitiveFamily(tool.family)}
                 <div class="flex items-center justify-between rounded-lg px-3 py-2 glass-surface {isReadOnly ? 'opacity-50' : ''}">
                   <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                    <ToolIcon class="h-3.5 w-3.5 shrink-0 {tool.dangerous ? 'text-warning/70' : 'text-muted-foreground'}" />
+                    <ToolIcon
+                      class="h-3.5 w-3.5 shrink-0 {sensitive ? 'text-warning/70' : 'text-muted-foreground'}"
+                      data-testid="config-tool-icon-{tool.id}"
+                      data-sensitive={sensitive}
+                    />
                     <div class="min-w-0">
                       <div class="flex items-center gap-1.5">
                         <span class="text-xs font-medium truncate">
                           {isOperator ? $t(tool.labelOperatorKey) : tool.id}
                         </span>
-                        {#if tool.dangerous && !isOperator}
-                          <TriangleAlert class="h-2.5 w-2.5 text-warning/60 shrink-0" />
+                        {#if sensitive && !isOperator}
+                          <TriangleAlert
+                            class="h-2.5 w-2.5 text-warning/60 shrink-0"
+                            data-testid="config-tool-sensitive-{tool.id}"
+                          />
                         {/if}
                       </div>
                       <p class="text-micro text-muted-foreground/50 leading-tight mt-0.5">

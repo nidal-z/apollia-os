@@ -79,15 +79,12 @@ impl McpClientManager {
 /// loaded at boot and the runtime exposes the synthetic `tool_search` tool
 /// instead, so the registry stays free of `mcp:` descriptors.
 ///
-/// A descriptor never carries the server's `requires_approval` flag as
-/// `dangerous`. `dangerous` is the resolver's word for a tool that runs without
-/// per-call gating and so needs the manifest's `dangerous_tools_allowed`; a
-/// server that requires approval is the opposite, every call to it is held by
-/// the approval gate of the executor at run time. Marking it `dangerous`
-/// refused the install of any agent declaring such a tool, while an agent
-/// declaring a tool of an ungated server installed freely. The flag can also
-/// be toggled on a running server, which a descriptor registered once would
-/// not follow.
+/// A descriptor registered here carries no action family yet: it is published
+/// `Unclassified`, which every reader treats as sensitive. The server's
+/// `requires_approval` flag stays out of the descriptor, because every call to
+/// such a server is held by the approval gate of the executor at run time and
+/// the flag can be toggled on a running server, which a descriptor registered
+/// once would not follow.
 pub(super) async fn register_session_tools_in_registry(
     tool_registry: &ToolRegistryHandle,
     server_name: &str,
@@ -115,7 +112,8 @@ pub(super) async fn register_session_tools_in_registry(
             output_schema: None,
             sandbox_profile: SandboxProfile::NetworkRestricted,
             tags: tool_tags,
-            dangerous: false,
+            family: apollia_tools::ActionFamily::Unclassified,
+            family_source: apollia_tools::FamilySource::Unsourced,
             is_read_only: false,
             risk_score: 3,
             approval_risk_level: None,
