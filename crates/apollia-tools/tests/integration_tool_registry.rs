@@ -52,7 +52,6 @@ fn dispatcher_config(
         brave_api_key: None,
         web_search_config: WebSearchConfig::default(),
         web_read_config: WebReadConfig::default(),
-        governance_db_path: None,
         python_interpreter: None,
     }
 }

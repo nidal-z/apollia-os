@@ -380,9 +380,6 @@ impl AgentRunner for BridgeRunner {
                     brave_api_key: snapshot.brave_api_key,
                     web_search_config: tools_config.web_search.clone(),
                     web_read_config: tools_config.web_read.clone(),
-                    governance_db_path: Some(
-                        governance_base.join(apollia_tools::GOVERNANCE_DB_FILENAME),
-                    ),
                     python_interpreter: tools_config.python_interpreter.clone(),
                 },
                 extra_executors,

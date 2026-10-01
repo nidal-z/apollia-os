@@ -6,13 +6,8 @@
 //!
 //! The desktop reads that key and renders one approval card per proposal in
 //! the onboarding modal. On approval, this module persists the rule directly
-//! through `PrefixRuleEngine::add_rule`, rather than by calling the
-//! `permission_rule_add` native tool.
-//!
-//! Why: `permission_rule_add` is an ordinary native tool, so a chat invocation
-//! of it goes through the approval flow like any other. Reaching it from a
-//! Tauri command triggered by an explicit user click would re-ask a question
-//! the user has just answered in the UI.
+//! through `PrefixRuleEngine::add_rule`, on the user's explicit click. No
+//! native tool writes a permission rule: an agent proposes, the user decides.
 
 use std::path::{Path, PathBuf};
 

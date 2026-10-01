@@ -3,11 +3,11 @@
 Validates ``_persist_proposed_permission_rules`` (renamed from
 ``_propose_permission_rules`` in plan v2) :
 
-- skips when the agent has already created rules (idempotence) ;
 - writes the right matrix of proposals to ``onboarding.proposed_rules``
   given the user profile keys ;
-- never raises even if the tools API misbehaves ;
-- works without a ``ctx.tools`` (best-effort idempotence skipped).
+- derives the proposals without calling any tool: an agent holds no tool
+  that reads or writes permission rules ;
+- works without a ``ctx.tools``.
 
 The agent file uses hyphens in its directory name, so we load it via
 ``importlib.util.spec_from_file_location``.
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Any
@@ -89,25 +90,13 @@ class _FakeProfile:
 
 
 class _FakeTools:
-    """Records every call(); returns canned responses by tool name."""
+    """Records every call() and refuses it: the derivation calls no tool."""
 
-    def __init__(
-        self,
-        list_response: dict[str, Any] | None = None,
-        list_should_raise: bool = False,
-    ) -> None:
+    def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
-        self._list_response = list_response or {"rules": []}
-        self._list_should_raise = list_should_raise
 
     async def call(self, tool_name: str, payload: dict[str, Any]) -> dict[str, Any]:
         self.calls.append((tool_name, payload))
-        if tool_name == "permission_rule_list":
-            if self._list_should_raise:
-                raise RuntimeError("dispatcher unavailable")
-            return self._list_response
-        # The new flow does NOT call permission_rule_add - surfacing it
-        # in a test would be a regression.
         raise AssertionError(f"unexpected tool call: {tool_name}")
 
 
@@ -122,6 +111,7 @@ class _FakeCtx:
         self.memory = memory
         self.profile = _FakeProfile(memory)
         self.tools = tools
+        self.logger = logging.getLogger("test.onboarding")
 
 
 def _proposals_from(memory: _FakeMemory) -> list[dict[str, Any]]:
@@ -137,38 +127,19 @@ def _proposals_from(memory: _FakeMemory) -> list[dict[str, Any]]:
 
 
 @pytest.mark.asyncio
-async def test_writes_proposals_even_when_governance_has_prior_rules() -> None:
-    # GIVEN sovereignty=local-only AND rules already persisted in gov.db by an
-    # earlier onboarding session (a real case: a user who resets, then
-    # onboards again).
+async def test_derives_proposals_without_calling_any_tool() -> None:
+    # GIVEN sovereignty=local-only and a tools surface that records every call
     memory = _FakeMemory({"user.constraints.sovereignty": "local-only"})
-    tools = _FakeTools(
-        list_response={"rules": [{"id": 42, "tool_name": "http_fetch"}]},
-    )
+    tools = _FakeTools()
     ctx = _FakeCtx(memory, tools)
 
     # WHEN
     await _persist_proposed_permission_rules(ctx)
 
-    # THEN the proposals are (re)written into memory - the agent has no
-    # idempotence, the desktop deduplicates on apply when it needs to.
-    proposals = _proposals_from(memory)
-    assert proposals, "expected fresh proposals despite prior gov.db rules"
-
-
-@pytest.mark.asyncio
-async def test_continues_when_permission_rule_list_fails() -> None:
-    # GIVEN an unavailable dispatcher
-    memory = _FakeMemory({"user.constraints.sovereignty": "local-only"})
-    tools = _FakeTools(list_should_raise=True)
-    ctx = _FakeCtx(memory, tools)
-
-    await _persist_proposed_permission_rules(ctx)
-
-    # The proposals were written all the same - a failure of the history must
-    # not block the derivation.
-    proposals = _proposals_from(memory)
-    assert proposals, "expected proposals despite list failure"
+    # THEN the proposals are written into memory and no tool was called: the
+    # user, not the agent, turns them into rules through the desktop cards.
+    assert _proposals_from(memory), "expected proposals for local-only"
+    assert tools.calls == []
 
 
 @pytest.mark.asyncio

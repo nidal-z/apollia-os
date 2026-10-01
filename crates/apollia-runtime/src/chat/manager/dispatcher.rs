@@ -90,8 +90,8 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
 
     // When the supervisor handed us a `ChatToolsConfig`, build the full native
     // dispatcher (same factory the Agent-mode + Triggers pipeline uses). This
-    // pulls in web_search, web_read, http_fetch, memory_search,
-    // permission_rule_* and ask_user with the operator's `apollia.toml` cfg.
+    // pulls in web_search, web_read, http_fetch, memory_search and ask_user
+    // with the operator's `apollia.toml` cfg.
     // HITL-sensitive natives (bash, python_executor, file_write/edit,
     // notebook_edit) stay disabled from the dispatcher so the fast path
     // continues to drive their inline approval flow; migrating that flow to
@@ -216,8 +216,7 @@ fn build_full_chat_dispatcher(
     //   - http_fetch: re-added as `DynamicAllowlistHttpFetch`.
     //
     // The remaining natives (file_read/list/glob/grep, notebook_read,
-    // web_search, web_read, memory_search, ask_user, permission_rule_*)
-    // are built untouched by `build_dispatcher_with`.
+    // web_search, web_read, memory_search, ask_user) are built untouched by `build_dispatcher_with`.
     const WRAPPED_NATIVES: &[&str] = &[
         "bash_executor",
         "python_executor",
@@ -258,7 +257,6 @@ fn build_full_chat_dispatcher(
         brave_api_key: cfg.brave_api_key.clone(),
         web_search_config: cfg.tools_config.web_search.clone(),
         web_read_config: cfg.tools_config.web_read.clone(),
-        governance_db_path: Some(cfg.data_dir.join(apollia_tools::GOVERNANCE_DB_FILENAME)),
         python_interpreter: cfg.tools_config.python_interpreter.clone(),
     };
 
