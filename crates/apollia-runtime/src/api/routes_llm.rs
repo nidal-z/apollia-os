@@ -14,6 +14,7 @@
 //! - `POST   /api/v1/llm/backends/:name/set-default`, mark as default
 //! - `GET    /api/v1/llm/loaded-models`           , list resident local models
 //! - `POST   /api/v1/llm/loaded-models/unload`    , unload one resident model
+//! - presets, the model of each agent and the default model: see [`presets`]
 
 use std::time::Instant;
 
@@ -32,6 +33,7 @@ use crate::coordinator::ExecutionBackend;
 pub mod backends;
 pub mod costs;
 pub mod loaded;
+pub mod presets;
 pub mod servers;
 
 use backends::{
@@ -550,6 +552,7 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/llm/reload", post(reload_llm_router::<B>))
         .merge(loaded::loaded_model_routes::<B>())
         .merge(servers::server_routes::<B>())
+        .merge(presets::preset_routes::<B>())
 }
 
 // ─────────────────────────────────────────────

@@ -147,11 +147,13 @@ fn config_to_response(cfg: LlmBackendConfig) -> LlmBackendResponse {
 pub(crate) fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<BackendErrorResponse>) {
     let (status, msg) = match &err {
         LlmBackendError::NotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
-        LlmBackendError::DefaultAlreadyExists(_) | LlmBackendError::CannotDeleteDefault => {
-            (StatusCode::CONFLICT, err.to_string())
-        }
+        LlmBackendError::PresetNotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
+        LlmBackendError::DefaultAlreadyExists(_)
+        | LlmBackendError::CannotDeleteDefault
+        | LlmBackendError::PresetConflict(_) => (StatusCode::CONFLICT, err.to_string()),
         LlmBackendError::InvalidName(_)
         | LlmBackendError::InvalidAddress(_)
+        | LlmBackendError::InvalidPreset(_)
         | LlmBackendError::Serialization(_) => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
         LlmBackendError::Db(_) | LlmBackendError::Io(_) | LlmBackendError::Schema(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
@@ -164,7 +166,7 @@ pub(crate) fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<Backe
 }
 
 /// Sync backends from DB to `apollia.toml` after a mutation (best-effort, never fails the request).
-fn sync_toml_after_mutation<B: ExecutionBackend + Clone>(
+pub(crate) fn sync_toml_after_mutation<B: ExecutionBackend + Clone>(
     state: &AppState<B>,
     guard: &LlmBackendRepository,
 ) {

@@ -26,9 +26,9 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::inference_servers::{resolve_server_key, server_endpoints};
 
-type ApiError = (StatusCode, Json<BackendErrorResponse>);
+pub(crate) type ApiError = (StatusCode, Json<BackendErrorResponse>);
 
-fn api_err(status: StatusCode, msg: impl std::fmt::Display) -> ApiError {
+pub(crate) fn api_err(status: StatusCode, msg: impl std::fmt::Display) -> ApiError {
     (
         status,
         Json(BackendErrorResponse {
@@ -177,7 +177,7 @@ fn as_probe((status, Json(body)): ApiError) -> (StatusCode, Json<ServerProbeErro
     )
 }
 
-fn with_repo<B, T>(
+pub(crate) fn with_repo<B, T>(
     state: &AppState<B>,
     f: impl FnOnce(&LlmBackendRepository) -> Result<T, ApiError>,
 ) -> Result<T, ApiError>
