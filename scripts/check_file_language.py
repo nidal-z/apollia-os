@@ -259,7 +259,6 @@ OUT_OF_SCOPE = (
 FRENCH_DOCUMENTS = (
     "crates/apollia-desktop/ui/figma/GUIDE-FIGMA-FIRST.md",
     "crates/apollia-desktop/ui/src/lib/design/breakpoints.md",
-    "crates/apollia-desktop/ui/src/lib/i18n/operator-glossary.md",
     "docs/README.md",
     "packaging/README.md",
 )
@@ -273,6 +272,7 @@ BILINGUAL_DATA = (
     "crates/apollia-desktop/src/mcp/enrichments.json",
     "crates/apollia-desktop/ui/src/lib/i18n/en.json",
     "crates/apollia-desktop/ui/src/lib/i18n/fr.json",
+    "crates/apollia-desktop/ui/src/lib/i18n/glossary.json",
     "scripts/automation/",
 )
 
