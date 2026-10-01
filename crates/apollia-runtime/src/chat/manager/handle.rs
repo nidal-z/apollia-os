@@ -64,7 +64,7 @@ impl ChatSessionManagerHandle {
         mcp_handle: Option<apollia_mcp::manager::McpClientManagerHandle>,
         // Supervisor-built config so the chat dispatcher can include
         // config-dependent natives (web_search, web_read, http_fetch,
-        // memory_search, permission_rule_*) alongside MCP + connectors.
+        // memory_search) alongside MCP + connectors.
         // `None` keeps the minimal behaviour (only read-only file tools in
         // the dispatcher, the rest in the fast path).
         chat_tools_config: Option<Arc<ChatToolsConfig>>,

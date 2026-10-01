@@ -74,8 +74,6 @@ outil lit un identifiant optionnel.
 | `memory_search` | `memory-search` | aucun |
 | tous les autres outils natifs | toujours compilé | aucun |
 
-Les outils `permission_rule_*` requièrent en plus qu'une base de gouvernance
-soit configurée ; en son absence, ils ne sont pas enregistrés.
 `python_executor` requiert un Python 3 système sur l'hôte (voir les notes de
 plateforme ci-dessous).
 
@@ -218,15 +216,10 @@ un résultat `input_required`.
 
 ## Gouvernance des permissions
 
-Gestion des règles de permission dans la base de gouvernance, pilotée par
-l'agent. Chacune de ces actions est soumise à une approbation humaine dans
-la boucle avant de prendre effet.
-
-| Outil | Objectif | Paramètres clés |
-|---|---|---|
-| `permission_rule_add` | Persiste une nouvelle règle de permission, étiquetée avec l'identité de l'agent appelant. `arg_prefix` restreint la règle aux arguments commençant par ce préfixe, évalué à chaque invocation ; pour un exécuteur de code, elle ne couvre jamais qu'une seule commande simple. | `tool_name`, `action` (`allow`/`deny`), `scope` (`global`/`project`/`agent`), `arg_prefix`, `project_path`, `agent_id`, `expires_at` |
-| `permission_rule_remove` | Supprime une règle par son id. | `rule_id` |
-| `permission_rule_list` | Liste les règles, avec filtrage optionnel. Lecture seule. | `tool_name`, `created_by`, `scope` |
+Aucun outil natif ne lit ni n'écrit les règles de permission de la base de
+gouvernance : un agent ne peut donc pas s'accorder d'accès. Les règles sont
+gérées par l'utilisateur, depuis l'application de bureau ou avec
+`apollia-os permissions`.
 
 Pour savoir comment les règles de permission et les paliers d'autonomie
 déterminent ce qui s'exécute sans demander, voir

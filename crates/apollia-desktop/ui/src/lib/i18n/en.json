@@ -3776,9 +3776,6 @@
       "mcp_tool": "External tool",
       "notebook_read": "Notebook reading",
       "notebook_edit": "Notebook editing",
-      "permission_rule_add": "Permission rule addition",
-      "permission_rule_remove": "Permission rule removal",
-      "permission_rule_list": "Permission rules listing",
       "tool_search": "Tool search",
       "mcp_resources_list": "Connector resources listing",
       "mcp_resources_read": "Connector resource reading"
@@ -3820,9 +3817,6 @@
       "mcp_tool": "Using {server_name}: {tool_description}",
       "notebook_read": "Reading a Jupyter notebook",
       "notebook_edit": "Editing a Jupyter notebook cell",
-      "permission_rule_add": "Adding a permission rule",
-      "permission_rule_remove": "Removing a permission rule",
-      "permission_rule_list": "Listing the permission rules in force",
       "tool_search": "Searching the index of available external tools",
       "mcp_resources_list": "Listing the resources exposed by connected MCP servers",
       "mcp_resources_read": "Reading a resource exposed by a connected MCP server"

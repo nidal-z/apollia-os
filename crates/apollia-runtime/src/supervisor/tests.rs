@@ -42,10 +42,10 @@ impl ExecutionBackend for MockBackend {
 fn native_tool_descriptors_returns_expected_count() {
     // GIVEN: the native_tool_descriptors() function
     // WHEN: called
-    // THEN: 16 baseline tools (13 historical + 3 permission_rule_*),
-    // plus optional web tools when their features are on.
+    // THEN: 13 baseline tools, plus optional web tools when their features
+    // are on.
     let expected_count =
-        16 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
+        13 + cfg!(feature = "web-search") as usize + cfg!(feature = "web-read") as usize;
     let descriptors = native_tool_descriptors();
     assert_eq!(descriptors.len(), expected_count);
 }
