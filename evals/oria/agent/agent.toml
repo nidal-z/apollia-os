@@ -1,0 +1,14 @@
+# Apollia OS package manifest for the eval-oria-probe fixture agent.
+# Installed into a throwaway HOME before the agent-loop suite of this directory
+# is played. Not a product agent: it has no purpose outside that suite.
+
+[package]
+name = "eval-oria-probe"
+version = "0.2.0-preview"
+description = "Measurement probe for the ORIA agent-loop suite: an orchestrated agent that may call the native tools."
+author = "Apollia OS"
+
+[[agents]]
+name = "eval-oria-probe"
+entry = "agent.py"
+role = "assistant"
