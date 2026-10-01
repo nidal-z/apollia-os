@@ -86,6 +86,31 @@ pub struct ConnectorEnrichment {
     /// stdio `command` (with the conventional `-y` prefix for `npx`).
     #[serde(default)]
     pub package_runtime_hint: Option<String>,
+    /// Exact version of the package this entry was tested at (e.g.
+    /// `"2026.8.18"`).
+    ///
+    /// A plain version string, never a range: no operator, no wildcard, no
+    /// marker. For a `pypi` entry it is the version the hash lock below pins
+    /// the package itself to, and the two must agree. `None` means the entry
+    /// is not pinned, and the version is then resolved once, when the
+    /// connection is added, and recorded beside it.
+    #[serde(default)]
+    pub package_version: Option<String>,
+    /// Hash lock of everything the package installs: the package itself and
+    /// its whole dependency closure, one [`LockedRequirement`] per
+    /// distribution.
+    ///
+    /// The lock is closed: an installer reading it must refuse any
+    /// distribution it does not list and any file whose digest is not one of
+    /// the listed ones. For `pypi` it is rendered as a pip requirements file
+    /// and installed with `pip install --require-hashes`, so a single altered
+    /// digest refuses the whole installation. Empty means no lock, which is
+    /// allowed only for an entry that is not part of the curated selection.
+    ///
+    /// Read from the embedded catalogue only: it never crosses to the webview,
+    /// which has no use for a thousand digests.
+    #[serde(default, skip_serializing)]
+    pub package_lock: Vec<LockedRequirement>,
     /// Name of the env var that holds a pre-registered OAuth client id for
     /// this connector, e.g. `"APOLLIA_FIGMA_CLIENT_ID"`.
     ///
@@ -127,6 +152,45 @@ pub struct ConnectorEnrichment {
     /// reports reachability only ("not yet verified by an operation").
     #[serde(default)]
     pub health_probe: Option<EnrichmentHealthProbe>,
+}
+
+/// One distribution of a package's hash lock.
+///
+/// Serialized as:
+///
+/// ```json
+/// {
+///   "name": "pydantic-core",
+///   "version": "2.46.5",
+///   "marker": "sys_platform != \"darwin\" or platform_machine != \"x86_64\"",
+///   "hashes": ["sha256:013d6f34...", "sha256:03b96..."]
+/// }
+/// ```
+///
+/// - `name`: the distribution name as the package index spells it, letters,
+///   digits, `-`, `_` and `.` only.
+/// - `version`: one exact version, never a range.
+/// - `marker`: optional environment marker, PEP 508 vocabulary only, for a
+///   distribution needed on some platforms and not others (a dependency that
+///   ships no wheel for one of them, say). Absent means every platform.
+/// - `hashes`: every artifact the installer may accept for that exact version,
+///   as `<algorithm>:<lowercase hex digest>`. For `pypi` the algorithm is
+///   `sha256`, one digest per wheel or source archive Apollia's interpreter can
+///   install; at least one is required.
+///
+/// The same shape carries an npm lock, where each hash is the registry's
+/// `integrity` value for that exact version.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LockedRequirement {
+    /// Distribution name.
+    pub name: String,
+    /// Exact version.
+    pub version: String,
+    /// Environment marker restricting the platforms that install it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marker: Option<String>,
+    /// Accepted artifact digests, `<algorithm>:<hex>`.
+    pub hashes: Vec<String>,
 }
 
 /// Declarative read-only probe for the connection Test.
@@ -400,6 +464,46 @@ mod tests {
                 ids.contains(&id),
                 "expected official SaaS entry {id} to be present"
             );
+        }
+    }
+
+    #[test]
+    fn every_python_entry_is_pinned_and_locked_by_digest() {
+        // GIVEN the shipped catalogue's Python entries
+        let enrichments = load_builtin_enrichments();
+        let python: Vec<&ConnectorEnrichment> = enrichments
+            .iter()
+            .filter(|e| e.package_registry_type.as_deref() == Some("pypi"))
+            .collect();
+        assert!(!python.is_empty(), "the catalogue carries Python entries");
+        for entry in python {
+            // WHEN the `uvx` command the wizard builds for it is planned
+            let config: apollia_mcp::config::McpServerConfig =
+                serde_json::from_value(serde_json::json!({
+                    "name": "probe",
+                    "command": "uvx",
+                    "args": [entry.package_identifier],
+                }))
+                .expect("config");
+            let plan = crate::mcp::python_server::plan(&config, &enrichments)
+                .unwrap_or_else(|e| panic!("{}: {e}", entry.package_identifier))
+                .expect("a uvx command is planned");
+            // THEN it installs one exact version from a lock pip can read with
+            //      `--require-hashes`, every line carrying a sha256 digest
+            assert_eq!(plan.version, entry.package_version);
+            assert!(
+                !plan.lock.is_empty(),
+                "{} has no lock",
+                entry.package_identifier
+            );
+            let rendered = crate::mcp::python_server::render_requirements(
+                &entry.package_identifier,
+                &plan.lock,
+            )
+            .unwrap_or_else(|e| panic!("{}: {e}", entry.package_identifier));
+            assert!(rendered
+                .lines()
+                .all(|line| line.contains("==") && line.contains(" --hash=sha256:")));
         }
     }
 

@@ -6,6 +6,7 @@
 
 pub mod enrichments;
 pub mod overrides;
+pub mod python_server;
 pub mod secret_store;
 
 /// The registry client lives in `apollia-mcp`, shared with the runtime's
