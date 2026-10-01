@@ -887,6 +887,19 @@ jobs:
           codesign --verify --verbose=2 \
             "target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app"
 
+      # The MLX engine (packaging/build-mlx-engine.sh) ships inside the
+      # bundled Python tree, in its own package directory. This runs its
+      # server entry point from the sealed .app, with the bundled interpreter
+      # and under the isolation contract the supervisor uses (`-S`, the engine
+      # directory as the only package path), so a bundle without a working
+      # engine fails here rather than on a user's machine.
+      - name: Verify the MLX engine in the .app
+        run: |
+          RES="target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app/Contents/Resources/python"
+          PYTHONNOUSERSITE=1 PYTHONPATH="$RES/engines/mlx/site-packages" \
+            "$RES/bin/python3.13" -S -m vllm_mlx.cli serve --help
+          du -sh "$RES/engines/mlx"
+
       # When the signing key is present, `cargo tauri build` emits the updater
       # archive and its minisign signature next to the .app. Stage them beside
       # the .dmg so one upload carries everything; their absence is the no-key
