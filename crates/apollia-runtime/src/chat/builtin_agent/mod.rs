@@ -78,6 +78,8 @@ pub(in crate::chat::builtin_agent) use response::{NoopCheckInvoker, PlanPhaseTra
 /// An "always accept" on a code executor covers the current call only.
 #[cfg(test)]
 mod code_executor_grant_tests;
+#[cfg(test)]
+mod parity_tests;
 /// Cooperative pause/resume of the chat ReAct loop.
 #[cfg(test)]
 mod pause_tests;
