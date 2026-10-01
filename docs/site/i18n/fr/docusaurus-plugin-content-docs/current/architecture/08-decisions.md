@@ -316,6 +316,50 @@ adresse non locale sans TLS est une erreur de démarrage plutôt qu'un
 avertissement : un attachement distant non sécurisé est la seule erreur qu'on ne
 peut pas défaire une fois que le trafic est passé.
 
+## Signatures {#signing-schemes}
+
+Deux schémas de signature coexistent, un par sorte de signataire, et aucun n'a
+besoin du réseau pour vérifier.
+
+Les paquets d'agents et les politiques d'organisation sont signés par leur
+auteur, avec une clé que l'application génère. La signature est une signature
+Ed25519 détachée sur une liste canonique d'entrées `(chemin, SHA-256)` triée par
+les octets du chemin : l'ordre dans lequel les fichiers ont été rassemblés ne la
+change jamais, et ajouter, retirer ou modifier un seul fichier la casse. Elle
+voyage dans un fichier `SIGNATURE` versionné qui porte la version du format,
+l'empreinte de la clé (le SHA-256 de la clé publique), le nom d'éditeur déclaré
+par l'auteur, et la signature. La clé privée est rangée par le magasin de
+secrets et n'est jamais écrite en clair sur le disque. Le nom d'éditeur est une
+déclaration et n'est pas couvert par la signature : ce qui identifie un auteur,
+c'est l'empreinte de sa clé.
+
+Les métadonnées de distribution publiées par la chaîne de publication d'Apollia
+(le manifeste d'empreintes des moteurs d'inférence et de Node.js, l'index du
+registre des modèles) sont signées au format minisign, avec une clé de
+distribution dédiée. C'est le même format que la clé du programme de mise à jour
+de l'application de bureau, et une clé distincte, rangée dans ses propres
+secrets de la chaîne (`APOLLIA_DIST_SIGNING_KEY`,
+`APOLLIA_DIST_SIGNING_KEY_PASSWORD`). La signature se fait dans la chaîne avec
+l'outil de signature de Tauri ; l'application ne fait que vérifier, et le démon
+vérifie sans Tauri, ce qui fait du vérificateur une dépendance directe plutôt
+qu'une dépendance atteinte par le greffon de mise à jour.
+
+minisign n'a pas été retenu pour les paquets et les politiques : il signe un
+fichier, pas une liste d'entrées, et la génération et le rangement de clé dont
+l'application a besoin seraient à écrire de toute façon. Sigstore et X.509 ont
+été écartés pour les deux usages : l'un exige un journal de transparence et un
+fournisseur d'identité joints par le réseau, l'autre une autorité de
+certification, et chacun fait d'un tiers une condition de la vérification,
+contre le principe du local d'abord.
+
+Le coût est une surface de dépendances nouvelle et l'absence de révocation.
+`ed25519-dalek` 2 est compilé sans ses fonctionnalités par défaut (pas de tables
+précalculées) et apporte `ed25519` et `signature` ; son arithmétique de courbe,
+`curve25519-dalek`, était déjà dans l'arbre. `minisign-verify` n'a aucune
+dépendance propre et était déjà dans l'arbre par le programme de mise à jour.
+Une clé ne se révoque qu'en changeant l'ensemble des clés auxquelles un lecteur
+fait confiance.
+
 ## Ligne de commande {#cli}
 
 Le CLI est en nom-verbe. Les opérations quotidiennes sont des verbes nus ; tout
