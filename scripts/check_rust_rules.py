@@ -306,6 +306,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/api/unreached_by_cli.rs": 1,
     "crates/apollia-runtime/src/chat/builtin_agent/tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
+    # The process is the subject: unloading a resident model has to stop its
+    # child, and `kill -0` on the pid is the one observable left once the
+    # supervisor has taken and reaped the handle. One helper, two tests.
+    "crates/apollia-runtime/src/llama_server/loaded.rs": 1,
     "crates/apollia-runtime/src/llama_server/mod.rs": 1,
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,

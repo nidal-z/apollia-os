@@ -1895,6 +1895,99 @@
         }
       }
     },
+    "/api/v1/llm/loaded-models": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `GET /api/v1/llm/loaded-models`.",
+        "operationId": "list_loaded_models",
+        "responses": {
+          "200": {
+            "description": "Resident local models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadedModelsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/loaded-models/unload": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `POST /api/v1/llm/loaded-models/unload`.",
+        "description": "Stops the model and frees its memory. Refused with 409 while it is\nanswering a request, so an unload never cuts an answer short.",
+        "operationId": "unload_loaded_model",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnloadModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model unloaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnloadModelResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty model path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model not loaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Model in use, a response is in progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/ping": {
       "post": {
         "tags": [
@@ -7427,6 +7520,96 @@
           }
         }
       },
+      "LoadedModelDto": {
+        "type": "object",
+        "description": "One resident model.",
+        "required": [
+          "model",
+          "modelPath",
+          "port",
+          "nCtx",
+          "nGpuLayers",
+          "loadedAt",
+          "lastUsedAt",
+          "activeRequests"
+        ],
+        "properties": {
+          "activeRequests": {
+            "type": "integer",
+            "description": "Requests being answered right now. An unload is refused above zero.",
+            "minimum": 0
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "description": "When a request last used the model, RFC 3339."
+          },
+          "loadedAt": {
+            "type": "string",
+            "description": "When the model finished loading, RFC 3339."
+          },
+          "model": {
+            "type": "string",
+            "description": "Display name, the model file name without its extension."
+          },
+          "modelPath": {
+            "type": "string",
+            "description": "Path the model was loaded from; the key an unload takes."
+          },
+          "nCtx": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Context window in tokens.",
+            "minimum": 0
+          },
+          "nGpuLayers": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Layers placed on the GPU."
+          },
+          "nParallel": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Requests the process may serve in parallel; absent when the engine\ndefault applies.",
+            "minimum": 0
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Loopback port of the process serving it.",
+            "minimum": 0
+          }
+        }
+      },
+      "LoadedModelsResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/llm/loaded-models`.",
+        "required": [
+          "engineAvailable",
+          "maxLoaded",
+          "models"
+        ],
+        "properties": {
+          "engineAvailable": {
+            "type": "boolean",
+            "description": "Whether a local engine exists on this host. `false` means nothing can\never be loaded, not merely that nothing is."
+          },
+          "maxLoaded": {
+            "type": "integer",
+            "description": "How many models may stay resident at once; `0` without an engine.",
+            "minimum": 0
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoadedModelDto"
+            },
+            "description": "The resident models, most recently used first."
+          }
+        }
+      },
       "LogsResponse": {
         "type": "object",
         "description": "Response for `GET /api/v1/triggers/:id/logs`.",
@@ -8940,6 +9123,38 @@
           }
         ],
         "description": "Trigger source description used in create/update requests."
+      },
+      "UnloadModelRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/llm/loaded-models/unload`.",
+        "required": [
+          "modelPath"
+        ],
+        "properties": {
+          "modelPath": {
+            "type": "string",
+            "description": "Path of the model to unload, as the list reports it."
+          }
+        }
+      },
+      "UnloadModelResponse": {
+        "type": "object",
+        "description": "Response body for `POST /api/v1/llm/loaded-models/unload`.",
+        "required": [
+          "modelPath",
+          "stopped"
+        ],
+        "properties": {
+          "modelPath": {
+            "type": "string",
+            "description": "The model that was unloaded."
+          },
+          "stopped": {
+            "type": "integer",
+            "description": "Processes stopped: one, or more when the model ran with several\ncontext windows.",
+            "minimum": 0
+          }
+        }
       },
       "UpdateChannelRequest": {
         "type": "object",

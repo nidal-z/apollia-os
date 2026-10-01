@@ -718,6 +718,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/loaded-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/llm/loaded-models`. */
+        get: operations["list_loaded_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/loaded-models/unload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/llm/loaded-models/unload`.
+         * @description Stops the model and frees its memory. Refused with 409 while it is
+         *     answering a request, so an unload never cuts an answer short.
+         */
+        post: operations["unload_loaded_model"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/ping": {
         parameters: {
             query?: never;
@@ -2890,6 +2928,52 @@ export interface components {
              */
             cost_usd?: number | null;
         };
+        /** @description One resident model. */
+        LoadedModelDto: {
+            /** @description Requests being answered right now. An unload is refused above zero. */
+            activeRequests: number;
+            /** @description When a request last used the model, RFC 3339. */
+            lastUsedAt: string;
+            /** @description When the model finished loading, RFC 3339. */
+            loadedAt: string;
+            /** @description Display name, the model file name without its extension. */
+            model: string;
+            /** @description Path the model was loaded from; the key an unload takes. */
+            modelPath: string;
+            /**
+             * Format: int32
+             * @description Context window in tokens.
+             */
+            nCtx: number;
+            /**
+             * Format: int32
+             * @description Layers placed on the GPU.
+             */
+            nGpuLayers: number;
+            /**
+             * Format: int32
+             * @description Requests the process may serve in parallel; absent when the engine
+             *     default applies.
+             */
+            nParallel?: number | null;
+            /**
+             * Format: int32
+             * @description Loopback port of the process serving it.
+             */
+            port: number;
+        };
+        /** @description Response body for `GET /api/v1/llm/loaded-models`. */
+        LoadedModelsResponse: {
+            /**
+             * @description Whether a local engine exists on this host. `false` means nothing can
+             *     ever be loaded, not merely that nothing is.
+             */
+            engineAvailable: boolean;
+            /** @description How many models may stay resident at once; `0` without an engine. */
+            maxLoaded: number;
+            /** @description The resident models, most recently used first. */
+            models: components["schemas"]["LoadedModelDto"][];
+        };
         /** @description Response for `GET /api/v1/triggers/:id/logs`. */
         LogsResponse: {
             /** @description History entries. */
@@ -3563,6 +3647,21 @@ export interface components {
         TriggerSourceInput: Record<string, never> & {
             /** @description Source type: `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`. */
             type: string;
+        };
+        /** @description Request body for `POST /api/v1/llm/loaded-models/unload`. */
+        UnloadModelRequest: {
+            /** @description Path of the model to unload, as the list reports it. */
+            modelPath: string;
+        };
+        /** @description Response body for `POST /api/v1/llm/loaded-models/unload`. */
+        UnloadModelResponse: {
+            /** @description The model that was unloaded. */
+            modelPath: string;
+            /**
+             * @description Processes stopped: one, or more when the model ran with several
+             *     context windows.
+             */
+            stopped: number;
         };
         /**
          * @description Request body for `PUT /api/v1/notifications/channels/:id`.
@@ -5157,6 +5256,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HardwareResponse"];
+                };
+            };
+        };
+    };
+    list_loaded_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resident local models */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadedModelsResponse"];
+                };
+            };
+        };
+    };
+    unload_loaded_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnloadModelRequest"];
+            };
+        };
+        responses: {
+            /** @description Model unloaded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnloadModelResponse"];
+                };
+            };
+            /** @description Empty model path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Model not loaded */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Model in use, a response is in progress */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine on this host */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };

@@ -1226,6 +1226,15 @@
       "near_badge": "Close to threshold",
       "exceeded_note": "{spend} spent on {date} is above the {threshold} alert threshold.",
       "unset": "No cost alert threshold is set: add cost_alert_threshold_usd to the [llm] section of apollia.toml to be warned when spending climbs."
+    },
+    "loaded": {
+      "title": "Loaded in memory",
+      "empty": "No model is loaded in memory.",
+      "since": "Loaded at {time}",
+      "in_use": "Answering",
+      "unload": "Unload",
+      "unloaded_toast": "{name} unloaded, its memory is free.",
+      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
     }
   },
   "automations": {

@@ -521,6 +521,8 @@ fn main() {
             commands::llm::get_cost_alert_threshold,
             commands::llm::reload_llm,
             commands::llm::reload_llm_from_db,
+            commands::llm_loaded::list_loaded_models,
+            commands::llm_loaded::unload_loaded_model,
             commands::model_hub::get_hardware_profile,
             commands::recommend::recommend_models,
             commands::model_hub::search_hf_models,

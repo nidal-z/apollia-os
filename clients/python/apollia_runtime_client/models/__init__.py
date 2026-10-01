@@ -70,6 +70,8 @@ from .llm_backend_response_config_json import LlmBackendResponseConfigJson
 from .llm_backends_list_response import LlmBackendsListResponse
 from .llm_status_response import LlmStatusResponse
 from .llm_status_response_backends_item import LlmStatusResponseBackendsItem
+from .loaded_model_dto import LoadedModelDto
+from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
 from .message_dto import MessageDto
@@ -157,6 +159,8 @@ from .transcriptions_list_response_transcriptions_item import (
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
 from .trigger_source_input import TriggerSourceInput
+from .unload_model_request import UnloadModelRequest
+from .unload_model_response import UnloadModelResponse
 from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
 from .update_llm_backend_request import UpdateLlmBackendRequest
@@ -237,6 +241,8 @@ __all__ = (
     "LlmBackendsListResponse",
     "LlmStatusResponse",
     "LlmStatusResponseBackendsItem",
+    "LoadedModelDto",
+    "LoadedModelsResponse",
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MessageDto",
@@ -320,6 +326,8 @@ __all__ = (
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
     "TriggerSourceInput",
+    "UnloadModelRequest",
+    "UnloadModelResponse",
     "UpdateChannelRequest",
     "UpdateChannelRequestConfigType0",
     "UpdateLlmBackendRequest",
