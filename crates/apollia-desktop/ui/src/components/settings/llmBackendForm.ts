@@ -47,25 +47,25 @@ const NAME_RE = /^[a-z0-9_-]+$/;
 
 /** Returns `true` when this provider needs a remote endpoint + api key. */
 export function isRemoteProvider(p: LlmProvider): boolean {
-  return p === "openai" || p === "mistral" || p === "anthropic" || p === "ollama";
+  return p === "openai" || p === "ollama";
 }
 
 /**
- * Endpoint each provider expects, so the user never has to guess it.
+ * Endpoint a provider expects when it has a well-known one, so the user never
+ * has to guess it.
  *
- * The `/v1` suffix is not cosmetic and it is not uniform. The
- * OpenAI-compatible client appends `/chat/completions` to the base, so those
- * providers need the base to already end in `/v1`. The Anthropic client
- * appends `/v1/messages` itself, so adding `/v1` here would produce
- * `/v1/v1/messages` and a 404. Both mistakes are easy to make by hand, which
- * is exactly why this table exists.
+ * Only Ollama has one: it listens on a fixed local port. An OpenAI-compatible
+ * server lives wherever the organization runs it, so it gets no default and the
+ * field shows [`SERVER_ENDPOINT_PLACEHOLDER`] as an example instead. The
+ * OpenAI-compatible client appends `/chat/completions` to the base, so the base
+ * must already end in `/v1`.
  */
 export const PROVIDER_DEFAULT_ENDPOINT: Partial<Record<LlmProvider, string>> = {
-  openai: "https://api.openai.com/v1",
-  mistral: "https://api.mistral.ai/v1",
-  anthropic: "https://api.anthropic.com",
   ollama: "http://127.0.0.1:11434/v1",
 };
+
+/** Example address shown in an empty endpoint field: a self-hosted server. */
+export const SERVER_ENDPOINT_PLACEHOLDER = "http://localhost:8000/v1";
 
 /** Every value the prefill is allowed to overwrite: empty, or another provider's default. */
 const DEFAULT_ENDPOINTS = Object.values(PROVIDER_DEFAULT_ENDPOINT);

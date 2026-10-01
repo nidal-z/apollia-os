@@ -2438,11 +2438,7 @@
       },
       "llm": {
         "local": "Local (llama.cpp)",
-        "ollama": "Ollama",
-        "anthropic": "Anthropic",
-        "openai": "OpenAI",
-        "bedrock": "AWS Bedrock",
-        "vertex": "Vertex AI"
+        "ollama": "Ollama"
       },
       "supervision": {
         "title": "Supervision des agents"
@@ -3025,7 +3021,8 @@
       }
     },
     "llm_backend": {
-      "provider_local": "local"
+      "provider_local": "local",
+      "provider_openai_compatible": "Serveur compatible OpenAI"
     },
     "all_saved": "Tous les changements enregistrés",
     "save": "Enregistrer",
@@ -3188,7 +3185,7 @@
       "recommended_models": "Modèles recommandés",
       "recommended": "Recommandé",
       "search_hf": "Rechercher sur HuggingFace",
-      "use_cloud": "Utiliser un fournisseur cloud",
+      "connect_server": "Se connecter à un serveur",
       "stt_section_title": "Reconnaissance vocale (optionnel)",
       "rescan_whisper": "Re-scanner les modèles Whisper",
       "rescan_short": "Re-scanner",
@@ -3678,7 +3675,7 @@
     "feature_local_title": "Local-first",
     "feature_local_desc": "Tes données ne quittent pas ta machine.",
     "feature_llm_title": "LLM au choix",
-    "feature_llm_desc": "Local (llama.cpp) ou cloud (Anthropic, OpenAI…).",
+    "feature_llm_desc": "Local (llama.cpp) ou un serveur que ton organisation héberge.",
     "feature_agents_title": "Agents autonomes",
     "feature_agents_desc": "ReAct natif, pas un pipeline déterministe.",
     "cta_start": "Commencer la configuration",
