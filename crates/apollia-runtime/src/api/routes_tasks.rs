@@ -1337,6 +1337,172 @@ mod tests {
         assert_eq!(json["status"], "canceled");
     }
 
+    /// Backend whose execution never ends, and which records when that
+    /// execution is dropped, so a test can tell a stopped run from a caller
+    /// that merely stopped waiting for it.
+    #[derive(Clone)]
+    struct ForeverTrackedBackend {
+        dropped: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    struct SetOnDrop(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+    impl Drop for SetOnDrop {
+        fn drop(&mut self) {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    impl ExecutionBackend for ForeverTrackedBackend {
+        fn execute(
+            &self,
+            _task: apollia_core::AIPTask,
+        ) -> Pin<Box<dyn Future<Output = Result<AIPResult, String>> + Send>> {
+            let flag = SetOnDrop(std::sync::Arc::clone(&self.dropped));
+            Box::pin(async move {
+                let _flag = flag;
+                std::future::pending::<Result<AIPResult, String>>().await
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn cancelling_an_a2a_invocation_by_its_client_id_stops_the_execution() {
+        // GIVEN a worker that exposes one A2A skill and whose execution never
+        // ends, behind the invoke and cancel routes
+        let (event_tx, _) = broadcast::channel::<RuntimeEvent>(64);
+        let registry_handle = AgentRegistry::spawn(event_tx.clone());
+        let router_handle: TaskRouterHandle<ForeverTrackedBackend> =
+            TaskRouterHandle::spawn(registry_handle.clone(), event_tx.clone(), 64);
+        let mut manifest = test_manifest("import-worker");
+        manifest.supports_a2a = true;
+        manifest.skills = vec![apollia_core::AgentSkill {
+            id: "read-import".to_string(),
+            name: "read-import".to_string(),
+            description: String::new(),
+            input_modes: vec!["text".to_string()],
+            output_modes: vec!["text".to_string()],
+            input_schema: None,
+            examples: vec![],
+        }];
+        let agent_id = registry_handle
+            .register(manifest)
+            .await
+            .expect("register failed");
+        registry_handle
+            .update_state(agent_id.as_str(), ProcessState::Active)
+            .await
+            .expect("activate failed");
+        let dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let backend = ForeverTrackedBackend {
+            dropped: std::sync::Arc::clone(&dropped),
+        };
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, event_tx.clone(), backend.clone());
+        router_handle
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+        let invoker = std::sync::Arc::new(crate::a2a::A2AInvoker::new(
+            registry_handle.clone(),
+            router_handle.clone(),
+            event_tx.clone(),
+            apollia_core::A2AConfig::default(),
+        ));
+        let state = AppState {
+            router_handle,
+            registry_handle,
+            event_sender: event_tx,
+            agent_loader: std::sync::Arc::new(crate::api::routes_agents::StubAgentLoader),
+            backend,
+            llm_router: crate::api::server::empty_shared_llm_router(),
+            trigger_engine: None,
+            config_path: None,
+            task_repository: None,
+            pending_approvals: None,
+            plan_gates: None,
+            notification_config: None,
+            backend_factory: None,
+            tool_registry_handle: None,
+            audit_trail: None,
+            audit_journal: None,
+            obs_config: apollia_core::ObservabilityConfig::default(),
+            llm_call_repository: None,
+            trigger_def_repo: None,
+            notification_repo: None,
+            notification_engine_handle: None,
+            chat_manager: None,
+            plan_cache: None,
+            mailbox_handle: None,
+            user_memory: None,
+            data_dir: std::path::PathBuf::new(),
+            stt_engine: crate::api::server::empty_shared_stt_engine(),
+            stt_repository: crate::api::server::empty_shared_stt_repository(),
+            mcp_handle: None,
+            mcp_server_repo: None,
+            llm_backend_repo: None,
+            stt_config_repo: None,
+            a2a_invoker: Some(std::sync::Arc::clone(&invoker)),
+            resilience_layer: None,
+            runner_proxy: None,
+            llama_server_supervisor: None,
+        };
+        let app = Router::new()
+            .route(
+                "/api/v1/a2a/invoke",
+                post(crate::api::routes_a2a::invoke_by_skill::<ForeverTrackedBackend>),
+            )
+            .route(
+                "/api/v1/tasks/:id",
+                axum::routing::delete(cancel_task::<ForeverTrackedBackend>),
+            )
+            .with_state(state);
+
+        // AND a synchronous invocation the client named, under way
+        let body = serde_json::json!({
+            "skill_id": "read-import",
+            "input": {"prompt": "Read the import"},
+            "invocation_id": "import-42",
+            "timeout_secs": 30
+        });
+        let invoke = Request::builder()
+            .method("POST")
+            .uri("/api/v1/a2a/invoke")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).expect("serialize")))
+            .expect("build request");
+        let invoking = tokio::spawn(app.clone().oneshot(invoke));
+        let bound = crate::test_support::poll_until(std::time::Duration::from_secs(5), || {
+            invoker.aliases().resolve("import-42").is_some()
+        })
+        .await;
+        assert!(bound, "the invocation never bound its name");
+
+        // WHEN the client deletes the invocation by the name it chose
+        let cancel = Request::builder()
+            .method("DELETE")
+            .uri("/api/v1/tasks/import-42")
+            .body(Body::empty())
+            .expect("build request");
+        let resp = app.oneshot(cancel).await.expect("request failed");
+
+        // THEN the execution itself has stopped, not only the caller
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(body_json(resp).await["status"], "canceled");
+        assert!(
+            dropped.load(std::sync::atomic::Ordering::SeqCst),
+            "the worker's execution must be stopped by the cancel"
+        );
+        // AND the invocation answers with its own cancellation, at once
+        let freed = crate::test_support::poll_until(std::time::Duration::from_secs(5), || {
+            invoking.is_finished()
+        })
+        .await;
+        assert!(freed, "the invocation kept waiting after the cancel");
+        let answered = invoking.await.expect("join").expect("request failed");
+        assert_eq!(answered.status(), StatusCode::CONFLICT);
+    }
+
     #[tokio::test]
     async fn cancelling_by_an_unbound_name_is_still_a_404() {
         // GIVEN an environment where no invocation holds that name
