@@ -128,10 +128,14 @@ check_json    "permissions list --json"             "$BIN" permissions list --js
 check         "permissions audit (seeded rows)"     "$BIN" permissions audit --limit 10
 check         "permissions add web_search global"   "$BIN" permissions add --tool web_search_e2e --scope global
 check_content "permissions list shows the new rule" "web_search_e2e" "$BIN" permissions list
-check_exit    "permissions add project w/o path"  1 "$BIN" permissions add --tool file_write --scope project
+check_exit    "permissions add --scope project refused → 1" 1 "$BIN" permissions add --tool file_write --scope project
+check_exit    "permissions add --scope agent w/o --agent → 1" 1 "$BIN" permissions add --tool file_write --scope agent
+check         "permissions add agent rule"          "$BIN" permissions add --tool http_fetch_e2e --scope agent --agent e2e-agent
+check_content "permissions list --scope agent has it" "http_fetch_e2e" "$BIN" permissions list --scope agent
+check_exit    "permissions list --scope session → 1" 1 "$BIN" permissions list --scope session
 check         "permissions add deny"                "$BIN" permissions add --tool risky_tool --action deny --scope global
 check         "permissions revoke 1 --yes"          "$BIN" permissions revoke 1 --yes
-check_exit    "permissions revoke session-prefix → 1" 1 "$BIN" permissions revoke s42 --yes
+check_exit    "permissions revoke non-numeric id → 1" 1 "$BIN" permissions revoke s42 --yes
 
 # ── A.7 memory (5 seeded namespaces) ────────────────────────────────────────
 section "A.7 memory"

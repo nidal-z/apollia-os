@@ -180,6 +180,12 @@ impl Supervisor {
             warn!(detail = "subscriber not started", "audit.journal.disabled");
         }
 
+        // Phase 8c: the one-shot access upgrade of governance.db, journaled.
+        crate::governance::access_upgrade::run_at_startup(
+            &self.config.data_dir,
+            audit_journal_handle.as_ref(),
+        );
+
         // Phase 9 (pos 10): APIServer
         info!("supervisor.api.starting");
         // Open TaskRepository (HITL persistence).

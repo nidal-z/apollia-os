@@ -4,15 +4,13 @@
 //! `permission_rules` and `permission_audit` tables) without going through the
 //! runtime. It exposes three operations to the operator:
 //!
-//! - `list`:   show the persisted rules (project + global) with their scope.
+//! - `list`:   show the persisted rules with their scope.
 //! - `revoke`: delete a persisted rule by identifier, or in bulk by scope.
 //! - `audit`:  inspect the immutable history of permission decisions.
+//! - `add`:    persist a rule.
 //!
-//! `session` rules live only in memory inside the running chat manager; they
-//! are neither listable nor revocable from this subcommand, which runs outside
-//! the daemon process. When an identifier prefixed with `s` is passed
-//! to `revoke`, a clear message reports this limit and redirects the operator
-//! to the desktop app.
+//! A rule targets one agent (`agent`, with its identifier) or every agent
+//! (`global`).
 
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
@@ -29,9 +27,9 @@ use crate::note;
 /// Subcommands of `apollia-os permissions`.
 #[derive(Debug, Subcommand)]
 pub enum PermissionsCommand {
-    /// List persisted rules (project + global).
+    /// List persisted rules, for one agent and for every agent.
     List {
-        /// Filter by scope: `global`, `project` or `session`.
+        /// Filter by scope: `agent` or `global`.
         #[arg(long)]
         scope: Option<String>,
         /// Filter by tool name.
@@ -41,14 +39,11 @@ pub enum PermissionsCommand {
     /// Revoke a rule by identifier, or every matching rule with `--all`.
     Revoke {
         /// Numeric identifier of a persisted rule.
-        ///
-        /// IDs prefixed with `s` denote session-scoped rules; they are not
-        /// revocable from the CLI (use the desktop app or restart the daemon).
         id: Option<String>,
         /// Revoke every rule matching `--scope`.
         #[arg(long)]
         all: bool,
-        /// Scope targeted by `--all`: `global` (default) or `project`.
+        /// Scope targeted by `--all`: `agent` or `global`.
         #[arg(long)]
         scope: Option<String>,
         /// Skip the interactive confirmation (useful for scripts).
@@ -66,9 +61,9 @@ pub enum PermissionsCommand {
     },
     /// Add a persisted permission rule for a tool + optional argument prefix.
     ///
-    /// Persists into `governance.db` directly (no runtime required). Session
-    /// scope is not supported here because session rules live in the runtime
-    /// memory; use the chat REPL approval flow instead.
+    /// Persists into `governance.db` directly (no runtime required). The rule
+    /// applies to one agent (`--scope agent --agent <ID>`) or to every agent
+    /// (`--scope global`).
     Add {
         /// Tool name (e.g. `file_write`, `bash_executor`).
         #[arg(long, value_name = "NAME")]
@@ -85,12 +80,12 @@ pub enum PermissionsCommand {
         /// Rule action: `allow` or `deny`.
         #[arg(long, value_parser = ["allow", "deny"], default_value = "allow")]
         action: String,
-        /// Rule scope: `project` or `global` (session is not persistable).
-        #[arg(long, value_parser = ["project", "global"], default_value = "global")]
+        /// Rule scope: `agent` (one agent) or `global` (every agent).
+        #[arg(long, value_parser = ["agent", "global"], default_value = "global")]
         scope: String,
-        /// Project canonical path (required when `--scope project`).
-        #[arg(long, value_name = "PATH")]
-        project_path: Option<std::path::PathBuf>,
+        /// Agent the rule applies to (required when `--scope agent`).
+        #[arg(long, value_name = "ID")]
+        agent: Option<String>,
     },
 }
 
@@ -116,14 +111,14 @@ pub async fn run(cmd: &PermissionsCommand, _socket: Option<PathBuf>, json: bool)
             prefix,
             action,
             scope,
-            project_path,
+            agent,
         } => run_add(
             AddRuleInput {
                 tool,
                 prefix: prefix.as_deref(),
                 action,
                 scope,
-                project_path: project_path.as_deref(),
+                agent: agent.as_deref(),
             },
             json,
         ),
@@ -158,18 +153,13 @@ fn run_list(scope_filter: Option<&str>, tool_filter: Option<&str>, json: bool) -
 
     if json {
         let arr: Vec<serde_json::Value> = filtered.iter().map(rule_to_json).collect();
-        let payload = serde_json::json!({
-            "rules": arr,
-            "session_rules_visible": false,
-            "note": "session rules live in the runtime memory and are not visible from the CLI",
-        });
+        let payload = serde_json::json!({ "rules": arr });
         println!(
             "{}",
             serde_json::to_string_pretty(&payload).unwrap_or_else(|_| "{}".to_string())
         );
     } else {
         print_rules_table(&filtered);
-        println!("  (session-scoped rules live in the runtime memory - not listable from the CLI)");
     }
     exit_codes::SUCCESS
 }
@@ -179,7 +169,7 @@ fn load_rules(
     scope: Option<PermissionScope>,
 ) -> Result<Vec<PrefixRule>, String> {
     engine
-        .list_rules_filtered(scope, None)
+        .list_rules_filtered(scope)
         .map_err(|e| format!("failed to read rules: {e}"))
 }
 
@@ -193,7 +183,7 @@ fn print_rules_table(rules: &[PrefixRule]) {
         return;
     }
     for r in rules {
-        let arg = display_arg(r.arg_prefix.as_deref(), r.scope, r.project_path.as_deref());
+        let arg = display_arg(r.arg_prefix.as_deref(), r.scope, r.agent_id.as_deref());
         let expiration = display_expiration(r.expires_at);
         let created = format_unix_date(r.created_at);
         println!(
@@ -208,15 +198,11 @@ fn print_rules_table(rules: &[PrefixRule]) {
     }
 }
 
-fn display_arg(
-    arg_prefix: Option<&str>,
-    scope: PermissionScope,
-    project_path: Option<&Path>,
-) -> String {
+fn display_arg(arg_prefix: Option<&str>, scope: PermissionScope, agent_id: Option<&str>) -> String {
     let prefix = arg_prefix.unwrap_or("(all)");
-    if matches!(scope, PermissionScope::Project) {
-        if let Some(p) = project_path {
-            return format!("{prefix} @ {}", p.display());
+    if matches!(scope, PermissionScope::Agent) {
+        if let Some(agent) = agent_id {
+            return format!("{prefix} @ {agent}");
         }
     }
     prefix.to_string()
@@ -236,7 +222,7 @@ fn rule_to_json(r: &PrefixRule) -> serde_json::Value {
         "arg_prefix": r.arg_prefix,
         "action": match r.action { RuleAction::Allow => "allow", RuleAction::Deny => "deny" },
         "scope": r.scope.as_str(),
-        "project_path": r.project_path.as_ref().map(|p| p.to_string_lossy().to_string()),
+        "agent_id": r.agent_id,
         "expires_at": r.expires_at,
         "created_at": r.created_at,
         "created_by_agent": r.created_by_agent,
@@ -265,16 +251,6 @@ fn run_revoke(
             );
         }
     };
-
-    if raw_id.starts_with('s') || raw_id.starts_with('S') {
-        return emit_error(
-            format!(
-                "{raw_id} denotes a session rule living in the runtime memory - \
-                 use the desktop app or restart the daemon to remove it"
-            ),
-            json,
-        );
-    }
 
     let parsed: i64 = match raw_id.parse() {
         Ok(n) => n,
@@ -321,21 +297,10 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
     let scope = match scope_filter.map(parse_scope_filter).transpose() {
         Ok(Some(s)) => s,
         Ok(None) => {
-            return emit_error(
-                "--all requires --scope global|project (the CLI does not touch session rules)"
-                    .to_string(),
-                json,
-            );
+            return emit_error("--all requires --scope agent|global".to_string(), json);
         }
         Err(msg) => return emit_error(msg, json),
     };
-    if matches!(scope, PermissionScope::Session) {
-        return emit_error(
-            "--scope session not applicable from the CLI (those rules live in the runtime memory)"
-                .to_string(),
-            json,
-        );
-    }
 
     let db_path = match ensure_governance_db_path() {
         Ok(p) => p,
@@ -346,7 +311,7 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
         Err(e) => return emit_error(format!("failed to open governance.db: {e}"), json),
     };
 
-    let candidates = match engine.list_rules_filtered(Some(scope), None) {
+    let candidates = match engine.list_rules_filtered(Some(scope)) {
         Ok(r) => r,
         Err(e) => return emit_error(format!("failed to read rules: {e}"), json),
     };
@@ -375,7 +340,7 @@ fn run_revoke_all(scope_filter: Option<&str>, yes: bool, json: bool) -> i32 {
         return cancelled(json);
     }
 
-    let removed = match engine.remove_rules_by_scope(scope, None) {
+    let removed = match engine.remove_rules_by_scope(scope) {
         Ok(n) => n,
         Err(e) => return emit_error(format!("bulk revoke failed: {e}"), json),
     };
@@ -455,13 +420,13 @@ fn run_audit(tool_filter: Option<&str>, limit: u32, json: bool) -> i32 {
 
 // ─── Add ─────────────────────────────────────────────────────────────
 
-/// Raw CLI input for `permissions add` (string action/scope, uncanonicalised path).
+/// Raw CLI input for `permissions add` (string action and scope).
 struct AddRuleInput<'a> {
     tool: &'a str,
     prefix: Option<&'a str>,
     action: &'a str,
     scope: &'a str,
-    project_path: Option<&'a Path>,
+    agent: Option<&'a str>,
 }
 
 /// Validated rule fields ready to persist via the governance engine.
@@ -470,7 +435,7 @@ struct ResolvedRule<'a> {
     tool: &'a str,
     prefix: Option<&'a str>,
     scope_enum: PermissionScope,
-    project_buf: Option<PathBuf>,
+    agent_id: Option<String>,
 }
 
 fn run_add(input: AddRuleInput<'_>, json: bool) -> i32 {
@@ -479,7 +444,7 @@ fn run_add(input: AddRuleInput<'_>, json: bool) -> i32 {
         prefix,
         action,
         scope,
-        project_path,
+        agent,
     } = input;
     if tool.trim().is_empty() {
         return emit_error("--tool must not be empty".into(), json);
@@ -490,32 +455,24 @@ fn run_add(input: AddRuleInput<'_>, json: bool) -> i32 {
         other => return emit_error(format!("unknown action '{other}'"), json),
     };
     let scope_enum = match scope {
-        "project" => PermissionScope::Project,
+        "agent" => PermissionScope::Agent,
         "global" => PermissionScope::Global,
         other => {
             return emit_error(
-                format!("unknown scope '{other}' (use 'project' or 'global')"),
+                format!("unknown scope '{other}' (use 'agent' or 'global')"),
                 json,
             )
         }
     };
-    let project_buf = if scope_enum == PermissionScope::Project {
-        let Some(raw) = project_path else {
-            return emit_error(
-                "--project-path is required when --scope project".into(),
-                json,
-            );
-        };
-        // Canonicalise so the rule matches the runtime's canonical-path lookup.
-        let canonical = match raw.canonicalize() {
-            Ok(p) => p,
-            Err(e) => {
-                return emit_error(format!("cannot canonicalize {}: {e}", raw.display()), json);
-            }
-        };
-        Some(canonical)
-    } else {
-        None
+    let agent_id = match (scope_enum, agent.map(str::trim)) {
+        (PermissionScope::Agent, Some(id)) if !id.is_empty() => Some(id.to_string()),
+        (PermissionScope::Agent, _) => {
+            return emit_error("--agent is required when --scope agent".into(), json);
+        }
+        (PermissionScope::Global, Some(_)) => {
+            return emit_error("--agent applies to --scope agent only".into(), json);
+        }
+        (PermissionScope::Global, None) => None,
     };
 
     run_add_with_engine(
@@ -524,7 +481,7 @@ fn run_add(input: AddRuleInput<'_>, json: bool) -> i32 {
             tool: tool.trim(),
             prefix,
             scope_enum,
-            project_buf,
+            agent_id,
         },
         None,
         json,
@@ -540,7 +497,7 @@ fn run_add_with_engine(rule: ResolvedRule<'_>, governance_dir: Option<&Path>, js
         tool,
         prefix,
         scope_enum,
-        project_buf,
+        agent_id,
     } = rule;
     let db_path = match governance_dir {
         Some(dir) => {
@@ -576,8 +533,7 @@ fn run_add_with_engine(rule: ResolvedRule<'_>, governance_dir: Option<&Path>, js
         created_at: now,
         created_by_agent: None,
         scope: scope_enum,
-        project_path: project_buf.clone(),
-        agent_id: None,
+        agent_id: agent_id.clone(),
         expires_at: None,
     };
 
@@ -597,7 +553,7 @@ fn run_add_with_engine(rule: ResolvedRule<'_>, governance_dir: Option<&Path>, js
             "prefix": rule.arg_prefix,
             "action": action_str,
             "scope": scope_enum.as_str(),
-            "project_path": project_buf.as_ref().map(|p| p.display().to_string()),
+            "agent_id": agent_id,
         });
         println!(
             "{}",
@@ -605,17 +561,14 @@ fn run_add_with_engine(rule: ResolvedRule<'_>, governance_dir: Option<&Path>, js
         );
     } else {
         let prefix_str = rule.arg_prefix.as_deref().unwrap_or("*");
-        let project_str = project_buf
-            .as_ref()
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| "-".to_string());
+        let agent_str = agent_id.as_deref().unwrap_or("(every agent)");
         println!(
-            "  * rule #{id} added: tool={} action={} scope={} prefix={} project={}",
+            "  * rule #{id} added: tool={} action={} scope={} prefix={} agent={}",
             rule.tool_name,
             action_str,
             scope_enum.as_str(),
             prefix_str,
-            project_str,
+            agent_str,
         );
     }
     exit_codes::SUCCESS
@@ -625,11 +578,10 @@ fn run_add_with_engine(rule: ResolvedRule<'_>, governance_dir: Option<&Path>, js
 
 fn parse_scope_filter(raw: &str) -> Result<PermissionScope, String> {
     match raw {
-        "session" => Ok(PermissionScope::Session),
-        "project" => Ok(PermissionScope::Project),
+        "agent" => Ok(PermissionScope::Agent),
         "global" => Ok(PermissionScope::Global),
         other => Err(format!(
-            "unknown scope '{other}' - expected: session | project | global"
+            "unknown scope '{other}' - expected: agent | global"
         )),
     }
 }
@@ -717,7 +669,7 @@ mod tests {
 
     #[test]
     fn test_list_shows_all_scopes() {
-        // GIVEN an engine holding one global rule and one project rule
+        // GIVEN an engine holding one global rule and one agent rule
         let dir = TempDir::new().expect("tempdir");
         let (mut engine, _) = fresh_engine(&dir);
         engine
@@ -735,19 +687,19 @@ mod tests {
                 arg_prefix: Some("/tmp/".into()),
                 action: RuleAction::Allow,
                 created_at: now(),
-                scope: PermissionScope::Project,
-                project_path: Some(PathBuf::from("/home/user/projet")),
+                scope: PermissionScope::Agent,
+                agent_id: Some("a1".into()),
                 ..PrefixRule::default()
             })
-            .expect("add project");
+            .expect("add agent");
 
         // WHEN the rules are listed with no filter
-        let all = engine.list_rules_filtered(None, None).expect("list");
+        let all = engine.list_rules_filtered(None).expect("list");
         // THEN both come back, each under its own scope
         assert_eq!(all.len(), 2);
         let scopes: Vec<&str> = all.iter().map(|r| r.scope.as_str()).collect();
         assert!(scopes.contains(&"global"));
-        assert!(scopes.contains(&"project"));
+        assert!(scopes.contains(&"agent"));
     }
 
     #[test]
@@ -774,8 +726,8 @@ mod tests {
     }
 
     #[test]
-    fn test_revoke_all_global_keeps_project() {
-        // GIVEN an engine holding one global rule and one project rule
+    fn test_revoke_all_global_keeps_agent_rules() {
+        // GIVEN an engine holding one global rule and one agent rule
         let dir = TempDir::new().expect("tempdir");
         let (mut engine, _) = fresh_engine(&dir);
         engine
@@ -792,21 +744,21 @@ mod tests {
                 tool_name: "file_write".into(),
                 action: RuleAction::Allow,
                 created_at: now(),
-                scope: PermissionScope::Project,
-                project_path: Some(PathBuf::from("/projet")),
+                scope: PermissionScope::Agent,
+                agent_id: Some("a1".into()),
                 ..PrefixRule::default()
             })
-            .expect("add project");
+            .expect("add agent");
 
         // WHEN every global rule is removed
         let removed = engine
-            .remove_rules_by_scope(PermissionScope::Global, None)
+            .remove_rules_by_scope(PermissionScope::Global)
             .expect("remove global");
-        // THEN exactly one goes, and the project rule survives
+        // THEN exactly one goes, and the agent rule survives
         assert_eq!(removed, 1);
         let remaining = engine.list_rules().expect("list");
         assert_eq!(remaining.len(), 1);
-        assert!(matches!(remaining[0].scope, PermissionScope::Project));
+        assert!(matches!(remaining[0].scope, PermissionScope::Agent));
     }
 
     #[test]
@@ -842,36 +794,31 @@ mod tests {
 
     #[test]
     fn parse_scope_filter_accepts_known_values() {
-        // GIVEN the three scope names the filter accepts, plus one that does not exist
+        // GIVEN the two scope names the filter accepts, the two retired ones,
+        // and one that never existed
         // WHEN each is parsed
-        // THEN the three map and the unknown one is rejected rather than listing everything
+        // THEN the two map, and the others are rejected rather than listing everything
         assert!(matches!(
             parse_scope_filter("global"),
             Ok(PermissionScope::Global)
         ));
         assert!(matches!(
-            parse_scope_filter("project"),
-            Ok(PermissionScope::Project)
+            parse_scope_filter("agent"),
+            Ok(PermissionScope::Agent)
         ));
-        assert!(matches!(
-            parse_scope_filter("session"),
-            Ok(PermissionScope::Session)
-        ));
+        assert!(parse_scope_filter("project").is_err());
+        assert!(parse_scope_filter("session").is_err());
         assert!(parse_scope_filter("xyz").is_err());
     }
 
     #[test]
-    fn display_arg_includes_project_path_for_project_scope() {
-        // GIVEN a project-scoped rule with a prefix, then a global one
+    fn display_arg_names_the_agent_for_agent_scope() {
+        // GIVEN an agent-scoped rule with a prefix, then a global one
         // WHEN each is rendered for the listing
-        let s = display_arg(
-            Some("/tmp/"),
-            PermissionScope::Project,
-            Some(Path::new("/home/u/projet")),
-        );
-        // THEN the project line names its project path and the global line stays bare
+        let s = display_arg(Some("/tmp/"), PermissionScope::Agent, Some("a1"));
+        // THEN the agent line names its agent and the global line stays bare
         assert!(s.contains("/tmp/"));
-        assert!(s.contains("/home/u/projet"));
+        assert!(s.contains("a1"));
 
         let g = display_arg(Some("git"), PermissionScope::Global, None);
         assert_eq!(g, "git");
@@ -905,27 +852,27 @@ mod tests {
                 prefix,
                 action,
                 scope,
-                project_path,
+                agent,
             } => {
                 assert_eq!(tool, "web_search");
                 assert!(prefix.is_none());
                 assert_eq!(action, "allow");
                 assert_eq!(scope, "global");
-                assert!(project_path.is_none());
+                assert!(agent.is_none());
             }
             other => panic!("unexpected: {other:?}"),
         }
     }
 
     #[test]
-    fn parses_add_project_with_prefix() {
+    fn parses_add_agent_with_prefix() {
         use clap::Parser;
         #[derive(Parser, Debug)]
         struct TestCli {
             #[command(subcommand)]
             cmd: PermissionsCommand,
         }
-        // GIVEN an add carrying a prefix, a project scope, a project path and a deny action
+        // GIVEN an add carrying a prefix, an agent scope, an agent and a deny action
         let cli = TestCli::parse_from([
             "x",
             "add",
@@ -934,9 +881,9 @@ mod tests {
             "--prefix",
             "/tmp/",
             "--scope",
-            "project",
-            "--project-path",
-            "/home/u/proj",
+            "agent",
+            "--agent",
+            "a1",
             "--action",
             "deny",
         ]);
@@ -948,13 +895,13 @@ mod tests {
                 prefix,
                 action,
                 scope,
-                project_path,
+                agent,
             } => {
                 assert_eq!(tool, "file_write");
                 assert_eq!(prefix.as_deref(), Some("/tmp/"));
                 assert_eq!(action, "deny");
-                assert_eq!(scope, "project");
-                assert_eq!(project_path, Some(PathBuf::from("/home/u/proj")));
+                assert_eq!(scope, "agent");
+                assert_eq!(agent.as_deref(), Some("a1"));
             }
             other => panic!("unexpected: {other:?}"),
         }
@@ -973,7 +920,7 @@ mod tests {
                 tool: "web_search",
                 prefix: None,
                 scope_enum: PermissionScope::Global,
-                project_buf: None,
+                agent_id: None,
             },
             Some(dir.path()),
             true,
@@ -991,10 +938,30 @@ mod tests {
     }
 
     #[test]
-    fn add_project_requires_project_path() {
+    fn add_agent_requires_an_agent() {
         // No need to set HOME: the surface validation happens in `run_add`
         // before any DB access, so the helper short-circuits.
-        // GIVEN a project-scoped rule with no project path
+        // GIVEN an agent-scoped rule with no agent, then with a blank one
+        for agent in [None, Some("  ")] {
+            // WHEN it is added
+            let code = run_add(
+                AddRuleInput {
+                    tool: "file_write",
+                    prefix: None,
+                    action: "allow",
+                    scope: "agent",
+                    agent,
+                },
+                true,
+            );
+            // THEN the command stops on an error before touching any database
+            assert_eq!(code, exit_codes::GENERAL_ERROR);
+        }
+    }
+
+    #[test]
+    fn add_refuses_the_retired_project_scope() {
+        // GIVEN a rule asking for the project scope, which no longer exists
         // WHEN it is added
         let code = run_add(
             AddRuleInput {
@@ -1002,12 +969,56 @@ mod tests {
                 prefix: None,
                 action: "allow",
                 scope: "project",
-                project_path: None,
+                agent: None,
             },
             true,
         );
-        // THEN the command stops on an error before touching any database
+        // THEN the command refuses it
         assert_eq!(code, exit_codes::GENERAL_ERROR);
+    }
+
+    #[test]
+    fn parse_refuses_the_retired_scopes() {
+        use clap::Parser;
+        #[derive(Parser, Debug)]
+        struct TestCli {
+            #[command(subcommand)]
+            cmd: PermissionsCommand,
+        }
+        // GIVEN an add line naming each retired scope
+        for scope in ["project", "session"] {
+            // WHEN clap parses it
+            let parsed =
+                TestCli::try_parse_from(["x", "add", "--tool", "file_write", "--scope", scope]);
+            // THEN it is refused at parse time
+            assert!(parsed.is_err(), "scope {scope} must be refused");
+        }
+    }
+
+    #[test]
+    fn add_agent_persists_rule_for_that_agent() {
+        // GIVEN an empty governance directory
+        let dir = TempDir::new().expect("tempdir");
+        // WHEN an allow rule for agent a1 is added through the command
+        let code = run_add_with_engine(
+            ResolvedRule {
+                rule_action: RuleAction::Allow,
+                tool: "http_fetch",
+                prefix: Some("https://example.com/"),
+                scope_enum: PermissionScope::Agent,
+                agent_id: Some("a1".into()),
+            },
+            Some(dir.path()),
+            true,
+        );
+        // THEN it reports success and the rule belongs to a1
+        assert_eq!(code, exit_codes::SUCCESS);
+        let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
+        let engine = PrefixRuleEngine::new(&db_path).expect("open engine");
+        let rules = engine.list_rules_for_agent("a1").expect("list");
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].scope, PermissionScope::Agent);
+        assert_eq!(rules[0].tool_name, "http_fetch");
     }
 
     #[test]
@@ -1020,7 +1031,7 @@ mod tests {
                 prefix: None,
                 action: "allow",
                 scope: "global",
-                project_path: None,
+                agent: None,
             },
             true,
         );
@@ -1039,7 +1050,7 @@ mod tests {
                 tool: "file_write",
                 prefix: Some("/tmp/"),
                 scope_enum: PermissionScope::Global,
-                project_buf: None,
+                agent_id: None,
             },
             Some(dir.path()),
             true,

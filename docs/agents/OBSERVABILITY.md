@@ -352,6 +352,10 @@ Governance changes are journaled as `AccessChanged`, `AgentInstalled`,
 `AgentUpdated`, and `AgentUninstalled`, one run per agent
 (`governance:<agent_id>`), written through the `GovernanceContract` of
 `crates/apollia-runtime/src/governance/`.
+The one-shot access upgrade run at startup records each conversion or
+removal it makes as an `AccessChanged` entry with the actor `upgrade` and a
+`reason`; a change that concerns every agent goes to the run
+`governance:*`.
 
 ---
 

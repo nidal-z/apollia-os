@@ -2260,7 +2260,7 @@ Permission rule management (list, revoke, audit)
 
 ###### **Subcommands:**
 
-* `list` - List persisted rules (project + global)
+* `list` - List persisted rules, for one agent and for every agent
 * `revoke` - Revoke a rule by identifier, or every matching rule with `--all`
 * `audit` - Show the permission decision history
 * `add` - Add a persisted permission rule for a tool + optional argument prefix
@@ -2269,13 +2269,13 @@ Permission rule management (list, revoke, audit)
 
 ## `apollia-os permissions list`
 
-List persisted rules (project + global)
+List persisted rules, for one agent and for every agent
 
 **Usage:** `apollia-os permissions list [OPTIONS]`
 
 ###### **Options:**
 
-* `--scope <SCOPE>` - Filter by scope: `global`, `project` or `session`
+* `--scope <SCOPE>` - Filter by scope: `agent` or `global`
 * `--tool <TOOL>` - Filter by tool name
 
 
@@ -2288,14 +2288,12 @@ Revoke a rule by identifier, or every matching rule with `--all`
 
 ###### **Arguments:**
 
-* `<ID>` - Numeric identifier of a persisted rule.
-
-   IDs prefixed with `s` denote session-scoped rules; they are not revocable from the CLI (use the desktop app or restart the daemon).
+* `<ID>` - Numeric identifier of a persisted rule
 
 ###### **Options:**
 
 * `--all` - Revoke every rule matching `--scope`
-* `--scope <SCOPE>` - Scope targeted by `--all`: `global` (default) or `project`
+* `--scope <SCOPE>` - Scope targeted by `--all`: `agent` or `global`
 * `--yes` - Skip the interactive confirmation (useful for scripts)
 
 
@@ -2319,7 +2317,7 @@ Show the permission decision history
 
 Add a persisted permission rule for a tool + optional argument prefix.
 
-Persists into `governance.db` directly (no runtime required). Session scope is not supported here because session rules live in the runtime memory; use the chat REPL approval flow instead.
+Persists into `governance.db` directly (no runtime required). The rule applies to one agent (`--scope agent --agent <ID>`) or to every agent (`--scope global`).
 
 **Usage:** `apollia-os permissions add [OPTIONS] --tool <NAME>`
 
@@ -2333,13 +2331,13 @@ Persists into `governance.db` directly (no runtime required). Session scope is n
 
   Possible values: `allow`, `deny`
 
-* `--scope <SCOPE>` - Rule scope: `project` or `global` (session is not persistable)
+* `--scope <SCOPE>` - Rule scope: `agent` (one agent) or `global` (every agent)
 
   Default value: `global`
 
-  Possible values: `project`, `global`
+  Possible values: `agent`, `global`
 
-* `--project-path <PATH>` - Project canonical path (required when `--scope project`)
+* `--agent <ID>` - Agent the rule applies to (required when `--scope agent`)
 
 
 
@@ -2484,7 +2482,7 @@ Reset the configuration to the defaults (empty prompt, no tools)
 
 Manage persisted permission rules scoped to the Apollia Chat agent.
 
-Mirrors the Desktop Settings → Chat permissions panel: lists or deletes rules stored in `governance.db` with `agent_id = apollia:chat`. Rules of scope `session` live in the runtime memory and are not visible here (same caveat as `permissions list`).
+Mirrors the Desktop Settings → Chat permissions panel: lists or deletes rules stored in `governance.db` with `agent_id = apollia:chat`. The authorizations a running chat holds for its session only are not rules and are not visible here.
 
 **Usage:** `apollia-os chat config permissions <COMMAND>`
 

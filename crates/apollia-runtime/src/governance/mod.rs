@@ -12,7 +12,11 @@
 //! allowed, an access is sensitive only when its tool declares it so, no
 //! signature is required, and every record lands in the hash-chained audit
 //! journal next to the run entries, chained and signed like them.
+//!
+//! [`access_upgrade`] runs, once at startup, the conversion of the rules
+//! persisted before standing consents, and journals every change it makes.
 
+pub mod access_upgrade;
 mod contract;
 mod no_policy;
 mod record;

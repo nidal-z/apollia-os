@@ -85,8 +85,7 @@ pub struct PermissionRuleFilter {
 /// Frontend representation of a permission rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionRuleDto {
-    /// Identifier. Positive for persisted rules (DB), negative for in-memory
-    /// session rules.
+    /// Identifier of the persisted rule.
     pub id: i64,
     /// Name of the targeted tool.
     pub tool_name: String,
@@ -94,10 +93,8 @@ pub struct PermissionRuleDto {
     pub arg_prefix: Option<String>,
     /// Applied action (`"allow"` or `"deny"`).
     pub action: String,
-    /// Rule scope (`"session"`, `"project"`, `"global"`).
+    /// Rule scope (`"agent"`, `"global"`).
     pub scope: String,
-    /// Canonical project path, for `project` rules.
-    pub project_path: Option<String>,
     /// Agent identifier, for `agent` rules.
     pub agent_id: Option<String>,
     /// ISO 8601 expiration date, if any.
@@ -170,12 +167,10 @@ fn iso8601_opt(secs: Option<i64>) -> Option<String> {
 
 fn parse_scope(value: &str) -> Result<PermissionScope, String> {
     match value {
-        "session" => Ok(PermissionScope::Session),
-        "project" => Ok(PermissionScope::Project),
         "agent" => Ok(PermissionScope::Agent),
         "global" => Ok(PermissionScope::Global),
         other => Err(format!(
-            "unknown scope '{other}', expected 'session' | 'project' | 'agent' | 'global'"
+            "unknown scope '{other}', expected 'agent' | 'global'"
         )),
     }
 }
@@ -194,10 +189,6 @@ fn rule_to_dto(rule: &PrefixRule) -> PermissionRuleDto {
             RuleAction::Deny => "deny".to_string(),
         },
         scope: rule.scope.as_str().to_string(),
-        project_path: rule
-            .project_path
-            .as_ref()
-            .map(|p| p.to_string_lossy().to_string()),
         agent_id: rule.agent_id.clone(),
         expires_at: iso8601_opt(rule.expires_at),
         created_at: iso8601(rule.created_at),
@@ -205,24 +196,7 @@ fn rule_to_dto(rule: &PrefixRule) -> PermissionRuleDto {
     }
 }
 
-/// Normalizes a raw `project_path` received from the frontend: trim and
-/// canonicalize when the path exists. Non-existent paths are returned as-is
-/// (useful to describe a deleted project we still want to filter on).
-pub(crate) fn canonical_project_path(raw: &str) -> Result<PathBuf, String> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return Err("project_path must not be empty".to_string());
-    }
-    let path = PathBuf::from(trimmed);
-    match path.canonicalize() {
-        Ok(c) => Ok(c),
-        Err(_) => Ok(path),
-    }
-}
-
 /// Persists a scope-aware rule in `governance.db`.
-// Rule persistence: the tool name, arg prefix, action, scope, project path and
-// agent id exceed 5 by design; they are the full scope-key of a governance rule.
 // REASON: internal helper persisting one scoped rule; the arguments are that rule's columns.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn persist_scoped_rule(
@@ -231,7 +205,6 @@ pub(crate) fn persist_scoped_rule(
     arg_prefix: Option<String>,
     action: RuleAction,
     scope: PermissionScope,
-    project_path: Option<PathBuf>,
     agent_id: Option<String>,
 ) -> Result<i64, String> {
     let _migrate = GovernanceDb::open(base_dir)
@@ -247,7 +220,6 @@ pub(crate) fn persist_scoped_rule(
         action,
         created_at: current_unix_secs(),
         scope,
-        project_path,
         agent_id,
         ..PrefixRule::default()
     };
@@ -575,7 +547,7 @@ async fn test_brave_key(key: &str) -> CredentialTestResultDto {
 // Permission rules: list / revoke
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Lists the `project` / `global` permission rules from `governance.db`.
+/// Lists the `agent` / `global` permission rules from `governance.db`.
 ///
 /// # Errors
 ///
@@ -598,7 +570,7 @@ pub async fn governance_list_permission_rules(
     let engine = PrefixRuleEngine::new(&db_path)
         .map_err(|e| format!("failed to open prefix rule engine: {e}"))?;
     let rules = engine
-        .list_rules_filtered(scope_filter, None)
+        .list_rules_filtered(scope_filter)
         .map_err(|e| format!("failed to list permission rules: {e}"))?;
     for r in rules {
         if matches_tool(&r.tool_name, tool_filter) {
@@ -640,8 +612,7 @@ pub async fn governance_revoke_permission_rule(
     Ok(())
 }
 
-/// Deletes all rules of a given scope; `None` targets both `project` and
-/// `global`.
+/// Deletes all rules of a given scope; `None` targets the `global` rules.
 ///
 /// # Errors
 ///
@@ -663,12 +634,12 @@ pub async fn governance_revoke_all_rules(
     let mut engine = PrefixRuleEngine::new(&db_path)
         .map_err(|e| format!("failed to open prefix rule engine: {e}"))?;
     let scopes_to_clear: Vec<PermissionScope> = match target_scope {
-        None => vec![PermissionScope::Project, PermissionScope::Global],
+        None => vec![PermissionScope::Global],
         Some(s) => vec![s],
     };
     for s in scopes_to_clear {
         let removed = engine
-            .remove_rules_by_scope(s, None)
+            .remove_rules_by_scope(s)
             .map_err(|e| format!("failed to revoke rules: {e}"))?;
         total = total.saturating_add(removed);
     }
@@ -726,47 +697,30 @@ pub async fn governance_list_audit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusqlite::{params, Connection, OpenFlags};
     use tempfile::TempDir;
 
-    fn count_project_rules(db_path: &Path) -> i64 {
-        let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .expect("open ro");
-        conn.query_row(
-            "SELECT COUNT(*) FROM permission_rules WHERE scope = 'project'",
-            params![],
-            |r| r.get::<_, i64>(0),
-        )
-        .expect("count")
-    }
-
     #[test]
-    fn test_add_project_rule_persisted_with_path() {
-        // GIVEN
+    fn test_add_agent_rule_persisted_with_agent() {
+        // GIVEN an empty governance directory
         let dir = TempDir::new().expect("tempdir");
-        let project = PathBuf::from("/home/user/projet-foo");
 
-        // WHEN
+        // WHEN a rule for agent a1 is persisted
         let id = persist_scoped_rule(
             dir.path(),
             "bash_executor".into(),
             Some("git".into()),
             RuleAction::Allow,
-            PermissionScope::Project,
-            Some(project.clone()),
-            None,
+            PermissionScope::Agent,
+            Some("a1".into()),
         )
-        .expect("persist project");
+        .expect("persist agent");
 
-        // THEN
+        // THEN it is stored for that agent
         assert!(id > 0);
         let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
         let engine = PrefixRuleEngine::new(&db_path).expect("engine");
-        let rules = engine
-            .list_rules_filtered(Some(PermissionScope::Project), Some(&project))
-            .expect("list");
+        let rules = engine.list_rules_for_agent("a1").expect("list");
         assert_eq!(rules.len(), 1);
-        assert_eq!(rules[0].project_path.as_deref(), Some(project.as_path()));
         assert_eq!(rules[0].action, RuleAction::Allow);
     }
 
@@ -780,7 +734,6 @@ mod tests {
             None,
             RuleAction::Allow,
             PermissionScope::Global,
-            None,
             None,
         )
         .expect("persist global");
@@ -797,9 +750,8 @@ mod tests {
 
     #[test]
     fn test_remove_rules_by_scope_only_clears_target() {
-        // GIVEN: one global rule and one project rule
+        // GIVEN: one global rule and one agent rule
         let dir = TempDir::new().expect("tempdir");
-        let project = PathBuf::from("/home/user/projet-bar");
         persist_scoped_rule(
             dir.path(),
             "bash_executor".into(),
@@ -807,33 +759,30 @@ mod tests {
             RuleAction::Allow,
             PermissionScope::Global,
             None,
-            None,
         )
         .expect("global");
         persist_scoped_rule(
             dir.path(),
             "bash_executor".into(),
-            None,
+            Some("git".into()),
             RuleAction::Allow,
-            PermissionScope::Project,
-            Some(project),
-            None,
+            PermissionScope::Agent,
+            Some("a1".into()),
         )
-        .expect("project");
+        .expect("agent");
         let db_path = dir.path().join(GOVERNANCE_DB_FILENAME);
-        assert_eq!(count_project_rules(&db_path), 1);
 
         // WHEN: only the global rules are removed
         let mut engine = PrefixRuleEngine::new(&db_path).expect("engine");
         let removed = engine
-            .remove_rules_by_scope(PermissionScope::Global, None)
+            .remove_rules_by_scope(PermissionScope::Global)
             .expect("remove globals");
 
-        // THEN: only the project rule remains
+        // THEN: only the agent rule remains
         assert_eq!(removed, 1);
         let remaining = engine.list_rules().expect("list");
         assert_eq!(remaining.len(), 1);
-        assert_eq!(remaining[0].scope, PermissionScope::Project);
+        assert_eq!(remaining[0].scope, PermissionScope::Agent);
     }
 
     #[test]
@@ -854,53 +803,37 @@ mod tests {
 
     #[test]
     fn test_parse_scope_unknown_value() {
-        // GIVEN the scope names the front end sends, plus one that does not exist
+        // GIVEN the two scope names, the two retired ones, and one that never existed
         // WHEN each is parsed
-        // THEN the four known scopes map and the unknown one is rejected
+        // THEN the two known scopes map and the others are rejected
         assert!(parse_scope("user").is_err());
-        // "session" is now accepted for backward compatibility with the
-        // frontend filters; list_rules_filtered simply returns an empty list
-        // since no rule has scope='session' in the database.
-        assert_eq!(parse_scope("session"), Ok(PermissionScope::Session));
-        assert_eq!(parse_scope("project"), Ok(PermissionScope::Project));
+        assert!(parse_scope("session").is_err());
+        assert!(parse_scope("project").is_err());
         assert_eq!(parse_scope("agent"), Ok(PermissionScope::Agent));
         assert_eq!(parse_scope("global"), Ok(PermissionScope::Global));
     }
 
     #[test]
     fn test_rule_to_dto_serializes_action_and_scope() {
-        // GIVEN a project-scoped deny rule on a command prefix
+        // GIVEN an agent-scoped deny rule on a command prefix
         let rule = PrefixRule {
             id: 7,
             tool_name: "bash_executor".into(),
             arg_prefix: Some("git".into()),
             action: RuleAction::Deny,
             created_at: 1_700_000_000,
-            scope: PermissionScope::Project,
-            project_path: Some(PathBuf::from("/tmp/p")),
-            agent_id: None,
+            scope: PermissionScope::Agent,
+            agent_id: Some("a1".into()),
             expires_at: None,
             created_by_agent: Some("operator".into()),
         };
         // WHEN it is converted for the front end
         let dto = rule_to_dto(&rule);
-        // THEN action, scope, project path and author cross as the strings the UI reads
+        // THEN action, scope, agent and author cross as the strings the UI reads
         assert_eq!(dto.id, 7);
         assert_eq!(dto.action, "deny");
-        assert_eq!(dto.scope, "project");
-        assert_eq!(dto.project_path.as_deref(), Some("/tmp/p"));
+        assert_eq!(dto.scope, "agent");
+        assert_eq!(dto.agent_id.as_deref(), Some("a1"));
         assert_eq!(dto.created_by.as_deref(), Some("operator"));
-    }
-
-    #[test]
-    fn test_canonical_project_path_rejects_empty() {
-        // GIVEN an empty path, a blank one, and one that does not exist
-        // WHEN each is canonicalised
-        // THEN the first two are rejected and the third comes back as written
-        assert!(canonical_project_path("").is_err());
-        assert!(canonical_project_path("   ").is_err());
-        // Non-existent → returned as-is.
-        let res = canonical_project_path("/definitely/not/here").expect("ok");
-        assert_eq!(res, PathBuf::from("/definitely/not/here"));
     }
 }

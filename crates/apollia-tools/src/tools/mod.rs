@@ -28,35 +28,42 @@ pub mod web_read;
 #[cfg(feature = "web-search")]
 pub mod web_search;
 
+/// Every native tool descriptor this build ships, feature gates included.
+///
+/// The family a governance decision reads for a native tool is the one stated
+/// here.
+pub fn native_descriptors() -> Vec<crate::descriptor::ToolDescriptor> {
+    let mut d = vec![
+        ask_user::AskUser::descriptor(),
+        bash_executor::BashExecutor::descriptor(),
+        file_edit::FileEdit::descriptor(),
+        file_glob::FileGlob::descriptor(),
+        file_grep::FileGrep::descriptor(),
+        file_list::FileList::descriptor(),
+        file_read::FileRead::descriptor(),
+        file_write::FileWrite::descriptor(),
+        notebook_edit::NotebookEdit::descriptor(),
+        notebook_read::NotebookRead::descriptor(),
+        python_executor::PythonExecutor::descriptor(),
+    ];
+    #[cfg(feature = "http")]
+    d.push(http_fetch::HttpFetch::descriptor());
+    #[cfg(feature = "memory-search")]
+    d.push(memory_search::MemorySearchTool::descriptor());
+    #[cfg(feature = "web-read")]
+    d.push(web_read::WebRead::descriptor());
+    #[cfg(feature = "web-search")]
+    d.push(web_search::WebSearch::descriptor());
+    d
+}
+
 #[cfg(test)]
 mod tests {
     use crate::descriptor::ToolDescriptor;
     use apollia_core::SandboxProfile;
 
-    /// Every descriptor this crate ships, feature gates included.
     fn all_descriptors() -> Vec<ToolDescriptor> {
-        let mut d = vec![
-            super::ask_user::AskUser::descriptor(),
-            super::bash_executor::BashExecutor::descriptor(),
-            super::file_edit::FileEdit::descriptor(),
-            super::file_glob::FileGlob::descriptor(),
-            super::file_grep::FileGrep::descriptor(),
-            super::file_list::FileList::descriptor(),
-            super::file_read::FileRead::descriptor(),
-            super::file_write::FileWrite::descriptor(),
-            super::notebook_edit::NotebookEdit::descriptor(),
-            super::notebook_read::NotebookRead::descriptor(),
-            super::python_executor::PythonExecutor::descriptor(),
-        ];
-        #[cfg(feature = "http")]
-        d.push(super::http_fetch::HttpFetch::descriptor());
-        #[cfg(feature = "memory-search")]
-        d.push(super::memory_search::MemorySearchTool::descriptor());
-        #[cfg(feature = "web-read")]
-        d.push(super::web_read::WebRead::descriptor());
-        #[cfg(feature = "web-search")]
-        d.push(super::web_search::WebSearch::descriptor());
-        d
+        super::native_descriptors()
     }
 
     #[test]

@@ -86,6 +86,22 @@ pub enum ActionFamily {
     Exempt,
 }
 
+impl ActionFamily {
+    /// The family a standing consent covers for this tool, `None` for a tool
+    /// that is unclassified or exempt, which no standing consent can cover.
+    pub fn consent_family(self) -> Option<apollia_permissions::ConsentFamily> {
+        use apollia_permissions::ConsentFamily;
+        match self {
+            ActionFamily::Read => Some(ConsentFamily::Read),
+            ActionFamily::ReadPersonal => Some(ConsentFamily::ReadPersonal),
+            ActionFamily::WriteOrDelete => Some(ConsentFamily::WriteOrDelete),
+            ActionFamily::SendExternal => Some(ConsentFamily::SendExternal),
+            ActionFamily::ExecuteCode => Some(ConsentFamily::ExecuteCode),
+            ActionFamily::Unclassified | ActionFamily::Exempt => None,
+        }
+    }
+}
+
 /// Origin of a descriptor's [`ActionFamily`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -422,6 +438,31 @@ mod tests {
         assert!(!d.reject_reason_required);
         assert_eq!(d.family, ActionFamily::Unclassified);
         assert_eq!(d.family_source, FamilySource::Unsourced);
+    }
+
+    #[test]
+    fn consent_family_keeps_the_wire_name_and_drops_the_unconsentable() {
+        // GIVEN every action family
+        let families = [
+            ActionFamily::Read,
+            ActionFamily::ReadPersonal,
+            ActionFamily::WriteOrDelete,
+            ActionFamily::SendExternal,
+            ActionFamily::ExecuteCode,
+            ActionFamily::Unclassified,
+            ActionFamily::Exempt,
+        ];
+        for family in families {
+            // WHEN it is turned into the family a standing consent covers
+            let consent = family.consent_family();
+            // THEN the five families keep their wire name, and the
+            // unclassified and exempt ones have none
+            let wire = serde_json::to_value(family).expect("serialise");
+            match family {
+                ActionFamily::Unclassified | ActionFamily::Exempt => assert!(consent.is_none()),
+                _ => assert_eq!(consent.map(|c| c.as_str()), wire.as_str()),
+            }
+        }
     }
 
     #[test]
