@@ -1114,9 +1114,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_client_named_invocation_is_cancellable_while_it_runs() {
-        // GIVEN a worker whose delegation is slow enough to be cancelled, and
-        // an invocation the client named itself, which is the only handle it
-        // holds before this synchronous call answers
+        // GIVEN a worker whose delegation holds the task open until the test
+        // releases it, and an invocation the client named itself, which is
+        // the only handle it holds before this synchronous call answers
         let (bus_tx, _bus_rx) = EventBus::new();
         let registry = AgentRegistry::spawn(bus_tx.clone());
         let agent_id = registry
@@ -1127,13 +1127,17 @@ mod tests {
             .update_state(agent_id.as_str(), ProcessState::Active)
             .await
             .expect("update state failed");
+        let bound = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Notify::new());
+        let (delegate_bound, delegate_release) = (Arc::clone(&bound), Arc::clone(&release));
         let delegate: A2aDelegateFn = Arc::new(
-            |_skill_id: String,
-             _input: serde_json::Value,
-             _timeout: u64,
-             _chain: Vec<apollia_core::AgentId>,
-             _caller: apollia_core::AgentId,
-             invocation: Option<crate::a2a::ClientInvocation>| {
+            move |_skill_id: String,
+                  _input: serde_json::Value,
+                  _timeout: u64,
+                  _chain: Vec<apollia_core::AgentId>,
+                  _caller: apollia_core::AgentId,
+                  invocation: Option<crate::a2a::ClientInvocation>| {
+                let (bound, release) = (Arc::clone(&delegate_bound), Arc::clone(&delegate_release));
                 let fut: Pin<
                     Box<
                         dyn Future<Output = Result<crate::a2a::A2aDelegateResult, LowLevelA2aError>>
@@ -1144,7 +1148,8 @@ mod tests {
                     // the router accepted the task and well before the answer.
                     let inv = invocation.expect("the client named this invocation");
                     assert!(inv.aliases.bind(&inv.id, "task-7f3a"));
-                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    bound.notify_one();
+                    release.notified().await;
                     inv.aliases.release(&inv.id);
                     Err(LowLevelA2aError::Canceled {
                         task_id: "task-7f3a".to_string(),
@@ -1161,35 +1166,29 @@ mod tests {
         ));
 
         // WHEN the invocation is under way and a canceller reads the name
-        let probe = Arc::clone(&invoker);
-        let observed = tokio::spawn(async move {
-            for _ in 0..50 {
-                if let Some(task) = probe.aliases().resolve("import-42") {
-                    return Some(task);
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-            }
-            None
+        // while the worker still holds the task
+        let running = Arc::clone(&invoker);
+        let call = tokio::spawn(async move {
+            running
+                .invoke(A2AInvokeRequest {
+                    skill_id: "read-excel",
+                    input: serde_json::json!({}),
+                    caller: "api",
+                    a2a_depth: 0,
+                    timeout: None,
+                    chain_deadline: None,
+                    invocation_id: Some("import-42"),
+                })
+                .await
         });
-
-        let result = invoker
-            .invoke(A2AInvokeRequest {
-                skill_id: "read-excel",
-                input: serde_json::json!({}),
-                caller: "api",
-                a2a_depth: 0,
-                timeout: None,
-                chain_deadline: None,
-                invocation_id: Some("import-42"),
-            })
-            .await;
+        bound.notified().await;
+        let observed = invoker.aliases().resolve("import-42");
+        release.notify_one();
+        let result = call.await.expect("the invocation ran");
 
         // THEN the task was reachable by the client's own name while the call
         // was still running, which is what `DELETE /api/v1/tasks/{id}` needs
-        assert_eq!(
-            observed.await.expect("the probe ran").as_deref(),
-            Some("task-7f3a")
-        );
+        assert_eq!(observed.as_deref(), Some("task-7f3a"));
         // AND the cancellation comes back as its own error rather than as a
         // worker failure, so the caller tells its own decision apart from a
         // defect
