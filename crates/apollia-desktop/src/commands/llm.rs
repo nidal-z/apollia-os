@@ -388,14 +388,15 @@ pub async fn reload_llm_from_db(
     let (all_configs, default_name) = tokio::task::spawn_blocking(move || {
         let repo = LlmBackendRepository::open(&db_path)
             .map_err(|e| format!("failed to open system.db: {e}"))?;
-        let all = repo
-            .list()
-            .map_err(|e| format!("failed to list LLM backends: {e}"))?;
-        let default_cfg = repo
-            .find_default()
-            .map_err(|e| format!("failed to find default backend: {e}"))?
+        // A key kept in the secret store is put back in memory for the router.
+        let (all, default_name) = apollia_runtime::backend_keys::routable_configs(
+            &repo,
+            apollia_runtime::inference_servers::default_store,
+        )
+        .map_err(|e| format!("failed to list LLM backends: {e}"))?;
+        let default_name = default_name
             .ok_or_else(|| "no default LLM backend configured in system.db".to_string())?;
-        Ok::<_, String>((all, default_cfg.name))
+        Ok::<_, String>((all, default_name))
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;

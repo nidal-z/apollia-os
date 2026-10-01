@@ -736,6 +736,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         }
     }
 
@@ -1198,6 +1199,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
 
         let router = Router::new()

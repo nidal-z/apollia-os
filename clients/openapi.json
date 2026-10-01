@@ -2310,6 +2310,251 @@
         }
       }
     },
+    "/api/v1/llm/servers": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`GET /api/v1/llm/servers`: every declared server, without its key.",
+        "operationId": "list_llm_servers",
+        "responses": {
+          "200": {
+            "description": "Declared servers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServersListResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`POST /api/v1/llm/servers`: declare (or replace) a server. The key goes to\nthe secret store; the server's models become routable at once.",
+        "operationId": "create_llm_server",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Server saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid name or address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Repository or secret store not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/servers/test": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`POST /api/v1/llm/servers/test`: list the models of a server that is not\nsaved, to check the address and the key before saving. Writes nothing.",
+        "operationId": "test_llm_server",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The server answered with its models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestServerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The address is not an HTTP URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Unreachable, key refused, or not an OpenAI-compatible server; `kind` says which",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/servers/{name}": {
+      "delete": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`DELETE /api/v1/llm/servers/{name}`: forget a server and its key.",
+        "operationId": "delete_llm_server",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Server name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteServerResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Repository or secret store not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/servers/{name}/models": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`GET /api/v1/llm/servers/{name}/models`: the models of a declared server,\neach with the name it routes by.",
+        "operationId": "list_llm_server_models",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Server name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The server's models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerModelsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Unreachable, key refused, or not an OpenAI-compatible server; `kind` says which",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Repository or key not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/status": {
       "get": {
         "tags": [
@@ -7158,6 +7403,35 @@
           }
         }
       },
+      "CreateServerRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/llm/servers`.",
+        "required": [
+          "name",
+          "base_url"
+        ],
+        "properties": {
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Key, when the server asks for one. Written to the secret store."
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Base address, with or without the trailing `/v1`."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server's models are routable (default: `true`)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique name, pattern `^[a-z0-9_-]+$`."
+          }
+        }
+      },
       "CreateSessionRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions`.",
@@ -7342,6 +7616,19 @@
           "deleted": {
             "type": "string",
             "description": "Identifier of the deleted trigger."
+          }
+        }
+      },
+      "DeleteServerResponse": {
+        "type": "object",
+        "description": "Body of `DELETE /api/v1/llm/servers/{name}`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "string",
+            "description": "Name of the deleted server."
           }
         }
       },
@@ -8256,6 +8543,114 @@
           }
         }
       },
+      "ServerModel": {
+        "type": "object",
+        "description": "One model of a declared server.",
+        "required": [
+          "id",
+          "route"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier the server gives the model."
+          },
+          "route": {
+            "type": "string",
+            "description": "Name to address it by, `<server>/<model>`."
+          }
+        }
+      },
+      "ServerModelsResponse": {
+        "type": "object",
+        "description": "Body of `GET /api/v1/llm/servers/{name}/models`.",
+        "required": [
+          "server",
+          "models"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerModel"
+            },
+            "description": "Models the server offers, in its order."
+          },
+          "server": {
+            "type": "string",
+            "description": "Server name."
+          }
+        }
+      },
+      "ServerProbeErrorResponse": {
+        "type": "object",
+        "description": "Body of a failed server call: a readable message and a stable kind.",
+        "required": [
+          "error",
+          "kind"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable message."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`unreachable`, `key_refused` or `not_openai_compatible`."
+          }
+        }
+      },
+      "ServerResponse": {
+        "type": "object",
+        "description": "One declared server. The key is never part of it.",
+        "required": [
+          "name",
+          "base_url",
+          "has_key",
+          "enabled"
+        ],
+        "properties": {
+          "api_key_env": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Environment variable holding the key, for a migrated `${VAR}` key."
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Base address."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server's models are routable."
+          },
+          "has_key": {
+            "type": "boolean",
+            "description": "Whether a key is held for this server."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique name, the first segment of `<server>/<model>`."
+          }
+        }
+      },
+      "ServersListResponse": {
+        "type": "object",
+        "description": "Body of `GET /api/v1/llm/servers`.",
+        "required": [
+          "servers"
+        ],
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerResponse"
+            },
+            "description": "Every declared server, sorted by name."
+          }
+        }
+      },
       "SetApprovalBody": {
         "type": "object",
         "description": "Request body for `PATCH /api/v1/mcp/servers/:name/approval`.",
@@ -8748,6 +9143,42 @@
               "null"
             ],
             "description": "Read-only probe declared for this connector, when any."
+          }
+        }
+      },
+      "TestServerRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/llm/servers/test`.",
+        "required": [
+          "base_url"
+        ],
+        "properties": {
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Key, when the server asks for one. Used for this call only."
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Base address, with or without the trailing `/v1`."
+          }
+        }
+      },
+      "TestServerResponse": {
+        "type": "object",
+        "description": "Body of a successful `POST /api/v1/llm/servers/test`.",
+        "required": [
+          "models"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the models the server offers, in its order."
           }
         }
       },

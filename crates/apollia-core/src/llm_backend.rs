@@ -106,6 +106,11 @@ pub enum LlmBackendError {
     #[error("invalid backend name '{0}': only [a-z0-9_-] allowed")]
     InvalidName(String),
 
+    /// Invalid inference server address (must be an `http://` or `https://` URL
+    /// with a host).
+    #[error("invalid server address '{0}': expected an http:// or https:// URL")]
+    InvalidAddress(String),
+
     /// Underlying SQLite error.
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
@@ -127,7 +132,7 @@ pub enum LlmBackendError {
 // Validation
 // ────────────────────────────────────────────────────────────────────────────
 
-fn validate_name(name: &str) -> Result<(), LlmBackendError> {
+pub(crate) fn validate_name(name: &str) -> Result<(), LlmBackendError> {
     // No `OnceLock` needed: validation runs rarely (write operations only),
     // so recompiling the pattern each call is acceptable.
     // SAFETY: the pattern is a literal fixed in this line, so it compiles or
@@ -153,7 +158,7 @@ fn validate_name(name: &str) -> Result<(), LlmBackendError> {
 /// `RefCell`). It must be created and used on the same thread, or passed to
 /// `spawn_blocking`.
 pub struct LlmBackendRepository {
-    conn: RefCell<Connection>,
+    pub(crate) conn: RefCell<Connection>,
 }
 
 impl LlmBackendRepository {

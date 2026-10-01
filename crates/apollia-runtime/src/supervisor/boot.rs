@@ -453,6 +453,7 @@ impl Supervisor {
             resilience_layer: Some(shared_resilience_layer.clone()),
             runner_proxy: runner_supervisor.as_ref().map(|s| s.proxy()),
             llama_server_supervisor: llama_server_supervisor.clone(),
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 

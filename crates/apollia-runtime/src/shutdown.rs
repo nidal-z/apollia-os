@@ -635,6 +635,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -811,6 +812,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -936,6 +938,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1056,6 +1059,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -1268,6 +1272,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

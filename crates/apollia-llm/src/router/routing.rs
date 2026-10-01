@@ -16,7 +16,7 @@ impl LlmRouter {
     /// Returns `None` if the requested backend is not in the router.
     pub fn get(&self, name: Option<&str>) -> Option<Arc<dyn CompletionModel>> {
         let key = name.unwrap_or(&self.default);
-        self.backends.get(key).cloned()
+        self.lookup(key)
     }
     /// Return the backend for `llm_backend`, or the default if `None` / unknown.
     ///
@@ -29,8 +29,8 @@ impl LlmRouter {
     /// asserting an invariant the empty constructor never established.
     pub fn route(&self, llm_backend: Option<&str>) -> Arc<dyn CompletionModel> {
         if let Some(name) = llm_backend {
-            if let Some(backend) = self.backends.get(name) {
-                return backend.clone();
+            if let Some(backend) = self.lookup(name) {
+                return backend;
             }
             tracing::warn!(
                 backend = %name,
