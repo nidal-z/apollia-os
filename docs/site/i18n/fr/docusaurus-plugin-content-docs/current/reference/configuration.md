@@ -465,3 +465,36 @@ url = "https://mcp.example.com/mcp"
 max_response_bytes = 16777216  # 16 Mio
 max_tools = 512
 ```
+
+### `tool_families`
+
+La famille d'action de chaque outil, indexée par le nom de l'outil sur le
+serveur. Le bureau l'écrit quand une connexion est ajoutée depuis la sélection
+Apollia ; ne la renseignez pas pour un autre serveur.
+
+- Type : table d'un nom d'outil vers une famille
+- Familles : `read`, `read_personal`, `write_or_delete`, `send_external`,
+  `execute_code`
+- Valeur par défaut : vide
+- Bornes : au plus `8192` entrées, chaque clé un nom d'outil valide, aucune
+  valeur `unclassified`
+
+Un outil listé ici prend cette famille. Un outil absent est classé d'après les
+indications que déclare son serveur (`readOnlyHint`, `destructiveHint`) : en
+lecture seule, il lit, ou lit des données personnelles quand la connexion porte
+un jeton OAuth ou un secret enregistré ; destructif, ou déclaré non en lecture
+seule, il écrit ou supprime. Un outil sans indication n'est pas classé et il est
+traité comme sensible. Les indications viennent d'un serveur non fiable : elles
+classent un outil sans jamais le laisser s'exécuter comme une lecture seule, et
+aucune ne peut classer un outil comme un envoi hors de la machine.
+
+```toml
+[[mcp.servers]]
+name = "notion"
+transport = "streamable-http"
+url = "https://mcp.notion.com/mcp"
+
+[mcp.servers.tool_families]
+notion-search = "read_personal"
+notion-create-pages = "write_or_delete"
+```

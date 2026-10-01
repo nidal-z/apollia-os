@@ -14,6 +14,7 @@
 //! into [`manager::McpClientManagerHandle`] via `start_with_approvals`.
 
 pub mod approvals;
+pub mod classify;
 pub mod config;
 pub mod discovery;
 pub mod executor;
