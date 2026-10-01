@@ -444,3 +444,35 @@ url = "https://mcp.example.com/mcp"
 max_response_bytes = 16777216  # 16 MiB
 max_tools = 512
 ```
+
+### `tool_families`
+
+The action family of each tool, keyed by the tool's name on the server. The
+desktop writes it when a connection is added from the curated selection; leave
+it out for any other server.
+
+- Type: table of tool name to family
+- Families: `read`, `read_personal`, `write_or_delete`, `send_external`,
+  `execute_code`
+- Default: empty
+- Bounds: at most `8192` entries, each key a valid tool name, no
+  `unclassified` value
+
+A tool listed here takes this family. A tool left out is classified from the
+hints its server declares (`readOnlyHint`, `destructiveHint`): read-only reads,
+or reads personal data when the connection holds an OAuth token or a stored
+secret; destructive, or declared not read-only, writes or deletes. A tool with
+no hint is unclassified and treated as sensitive. The hints come from an
+untrusted server: they classify a tool but never let it run as read-only, and
+no hint can classify a tool as sending outside the machine.
+
+```toml
+[[mcp.servers]]
+name = "notion"
+transport = "streamable-http"
+url = "https://mcp.notion.com/mcp"
+
+[mcp.servers.tool_families]
+notion-search = "read_personal"
+notion-create-pages = "write_or_delete"
+```

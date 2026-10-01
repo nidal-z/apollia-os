@@ -42,13 +42,13 @@ pub enum McpRepoError {
 }
 
 /// Current schema version of `mcp.db`.
-const MCP_SCHEMA_VERSION: u32 = 1;
+const MCP_SCHEMA_VERSION: u32 = 2;
 
 /// Numbered migration steps of `mcp.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`MCP_SCHEMA_VERSION`].
-const MCP_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+const MCP_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1, migrate_v2];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -84,6 +84,14 @@ fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
     apollia_core::schema::add_column_if_missing(
         conn,
         "ALTER TABLE mcp_servers ADD COLUMN max_tools INTEGER NOT NULL DEFAULT 256;",
+    )
+}
+
+/// v2: the classification the curated selection gives each tool.
+fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
+    apollia_core::schema::add_column_if_missing(
+        conn,
+        "ALTER TABLE mcp_servers ADD COLUMN tool_families_json TEXT NOT NULL DEFAULT '{}';",
     )
 }
 
@@ -127,13 +135,16 @@ impl McpServerRepository {
             .map_err(|e| McpRepoError::Serialization(e.to_string()))?;
         let tags_json = serde_json::to_string(&config.tags)
             .map_err(|e| McpRepoError::Serialization(e.to_string()))?;
+        let tool_families_json = serde_json::to_string(&config.tool_families)
+            .map_err(|e| McpRepoError::Serialization(e.to_string()))?;
 
         self.conn.execute(
             "INSERT INTO mcp_servers
                 (name, command, args_json, env_json, transport, url,
                  requires_approval, init_timeout_secs, call_timeout_secs,
-                 max_response_bytes, max_tools, tags_json, enabled, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 1,
+                 max_response_bytes, max_tools, tags_json, tool_families_json,
+                 enabled, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 1,
                      strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
              ON CONFLICT(name) DO UPDATE SET
                 command            = excluded.command,
@@ -147,6 +158,7 @@ impl McpServerRepository {
                 max_response_bytes = excluded.max_response_bytes,
                 max_tools          = excluded.max_tools,
                 tags_json          = excluded.tags_json,
+                tool_families_json = excluded.tool_families_json,
                 updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
             params![
                 config.name,
@@ -161,6 +173,7 @@ impl McpServerRepository {
                 config.max_response_bytes as i64,
                 config.max_tools as i64,
                 tags_json,
+                tool_families_json,
             ],
         )?;
         Ok(())
@@ -171,7 +184,7 @@ impl McpServerRepository {
         let mut stmt = self.conn.prepare(
             "SELECT name, command, args_json, env_json, transport, url,
                     requires_approval, init_timeout_secs, call_timeout_secs,
-                    tags_json, max_response_bytes, max_tools
+                    tags_json, max_response_bytes, max_tools, tool_families_json
              FROM mcp_servers
              ORDER BY name",
         )?;
@@ -185,7 +198,7 @@ impl McpServerRepository {
         let mut stmt = self.conn.prepare(
             "SELECT name, command, args_json, env_json, transport, url,
                     requires_approval, init_timeout_secs, call_timeout_secs,
-                    tags_json, max_response_bytes, max_tools
+                    tags_json, max_response_bytes, max_tools, tool_families_json
              FROM mcp_servers
              WHERE name = ?1",
         )?;
@@ -286,6 +299,8 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
     let args: Vec<String> = json_column(2, &args_json)?;
     let env: HashMap<String, String> = json_column(3, &env_json)?;
     let tags: Vec<String> = json_column(9, &tags_json)?;
+    let tool_families_json: String = row.get(12)?;
+    let tool_families = json_column(12, &tool_families_json)?;
 
     Ok(McpServerConfig {
         format_version: 1,
@@ -301,6 +316,7 @@ fn row_to_config(row: &rusqlite::Row<'_>) -> rusqlite::Result<McpServerConfig> {
         max_response_bytes: max_response_bytes as u64,
         max_tools: max_tools as u32,
         tags,
+        tool_families,
     })
 }
 
@@ -325,6 +341,7 @@ mod tests {
             max_response_bytes: 8 * 1024 * 1024,
             max_tools: 256,
             tags: vec![],
+            tool_families: Default::default(),
         }
     }
 
@@ -466,6 +483,7 @@ mod tests {
             max_response_bytes: 8 * 1024 * 1024,
             max_tools: 256,
             tags: vec![],
+            tool_families: Default::default(),
         };
 
         // WHEN save is called
@@ -523,6 +541,11 @@ mod tests {
             max_response_bytes: 4 * 1024 * 1024,
             max_tools: 42,
             tags: vec!["productivity".to_string()],
+            tool_families: [(
+                "notion-search".to_string(),
+                apollia_tools::ActionFamily::ReadPersonal,
+            )]
+            .into(),
         };
 
         // WHEN saved and read back
@@ -539,6 +562,31 @@ mod tests {
         assert_eq!(found.max_response_bytes, 4 * 1024 * 1024);
         assert_eq!(found.max_tools, 42);
         assert_eq!(found.tags, vec!["productivity"]);
+        assert_eq!(found.tool_families, config.tool_families);
+    }
+
+    #[test]
+    fn test_tool_families_column_backfills_on_a_v1_db() {
+        // GIVEN a db written at schema version 1, before the classification column
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("mcp.db");
+        {
+            let conn = Connection::open(&path).unwrap();
+            migrate_v1(&conn).unwrap();
+            conn.execute_batch("PRAGMA user_version = 1;").unwrap();
+            conn.execute(
+                "INSERT INTO mcp_servers (name, command) VALUES ('legacy', 'npx')",
+                [],
+            )
+            .unwrap();
+        }
+
+        // WHEN the repository opens it
+        let repo = McpServerRepository::open(&path).unwrap();
+
+        // THEN the existing row reads back with no classification
+        let found = repo.find_by_name("legacy").unwrap().unwrap();
+        assert!(found.tool_families.is_empty());
     }
 
     #[test]

@@ -48,6 +48,7 @@ use crate::hardware::{CompatibilityBadge, HardwareProfile};
 use super::llama_support::{
     architecture_is_recurrent, hybrid_attention_for, sliding_window_for, HybridAttention,
 };
+use super::offload::{plan_offload, MemoryArchitecture, OffloadPlan};
 
 /// Bytes in a gibibyte, the unit every figure here is reported in.
 const BYTES_PER_GIB: f64 = 1024.0 * 1024.0 * 1024.0;
@@ -391,10 +392,7 @@ pub fn estimate_memory(
         None => (weights_gb * FALLBACK_KV_SHARE, false),
     };
 
-    let mut overhead_gb = (weights_gb * OVERHEAD_SHARE).max(MIN_OVERHEAD_GB);
-    if accelerated {
-        overhead_gb += ACCELERATOR_CONTEXT_GB;
-    }
+    let overhead_gb = overhead_gb(weights_gb, accelerated);
 
     MemoryEstimate {
         weights_gb,
@@ -406,16 +404,90 @@ pub fn estimate_memory(
     }
 }
 
-/// Grade an estimate against the machine's memory budget.
-#[must_use]
-pub fn grade(estimate: &MemoryEstimate, profile: &HardwareProfile) -> CompatibilityBadge {
-    let budget = profile.memory_budget_gb;
-    if estimate.total_gb < budget * 0.70 {
-        CompatibilityBadge::Fits
-    } else if estimate.total_gb < budget {
-        CompatibilityBadge::MightFit
+/// The engine's own allocations beyond weights and cache: compute buffers, and
+/// the graphics context a device costs before any weight is read.
+pub(super) fn overhead_gb(weights_gb: f64, accelerated: bool) -> f64 {
+    let base = (weights_gb * OVERHEAD_SHARE).max(MIN_OVERHEAD_GB);
+    if accelerated {
+        base + ACCELERATOR_CONTEXT_GB
     } else {
-        CompatibilityBadge::TooLarge
+        base
+    }
+}
+
+/// Grade an estimate against the machine, through the placement it implies.
+///
+/// This is the one place a "fits" verdict is decided. The Hub badge, the
+/// onboarding scan, the ranking and the `-ngl` plan all reach it through
+/// [`assess_fit`], so a file is never "recommended" on one screen and "might fit"
+/// on another.
+///
+/// - **Fits** means the whole model runs on the fastest pool the machine has:
+///   every layer on the accelerator when there is one, which is exactly when
+///   `plan.fully_offloaded` is true, or within the system budget on a machine
+///   without one.
+/// - **Might fit** only exists on a discrete card: the model is split between
+///   the card and system memory. It runs, more slowly.
+/// - **Too large** means it exceeds everything the machine can hold.
+///
+/// The budgets themselves already keep a share of memory back for the system
+/// (a quarter of unified memory, two fifths of system memory), so no second
+/// comfort margin is applied on top of them.
+#[must_use]
+pub fn grade(
+    estimate: &MemoryEstimate,
+    plan: &OffloadPlan,
+    profile: &HardwareProfile,
+) -> CompatibilityBadge {
+    let architecture = MemoryArchitecture::of(profile);
+    if architecture.uses_accelerator() && plan.fully_offloaded {
+        return CompatibilityBadge::Fits;
+    }
+    if estimate.total_gb >= architecture.total_capacity_gb(profile) {
+        return CompatibilityBadge::TooLarge;
+    }
+    match architecture {
+        MemoryArchitecture::HostOnly { .. } => CompatibilityBadge::Fits,
+        MemoryArchitecture::Discrete { .. } => CompatibilityBadge::MightFit,
+        // Unreachable in practice: a unified plan is fully offloaded exactly
+        // when the footprint is within the budget, which the test above
+        // already refused.
+        MemoryArchitecture::Unified { .. } => CompatibilityBadge::TooLarge,
+    }
+}
+
+/// Everything the machine needs to know about one model file: its footprint,
+/// where its layers go, and the verdict that follows from both.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct FitAssessment {
+    /// Weights, cache and overhead.
+    pub estimate: MemoryEstimate,
+    /// How many layers go on the accelerator.
+    pub plan: OffloadPlan,
+    /// The verdict, read from the two above by [`grade`].
+    pub badge: CompatibilityBadge,
+}
+
+/// Size a model file for this machine and grade it.
+///
+/// `facts` may be [`GgufHeaderFacts::default`] when no header was read (the
+/// Hub lists files by size alone); the estimate then falls back to a
+/// proportional cache, and says so in `kv_cache_measured`.
+#[must_use]
+pub fn assess_fit(
+    file_size_bytes: u64,
+    facts: &GgufHeaderFacts,
+    profile: &HardwareProfile,
+    shape: &RuntimeShape,
+) -> FitAssessment {
+    let accelerated = MemoryArchitecture::of(profile).uses_accelerator();
+    let estimate = estimate_memory(file_size_bytes, facts, shape, accelerated);
+    let plan = plan_offload(file_size_bytes, facts, profile, shape);
+    let badge = grade(&estimate, &plan, profile);
+    FitAssessment {
+        estimate,
+        plan,
+        badge,
     }
 }
 
@@ -689,6 +761,94 @@ mod tests {
         );
     }
 
+    fn machine(accelerator: AcceleratorProfile, ram_gb: f64, budget_gb: f64) -> HardwareProfile {
+        HardwareProfile {
+            total_ram_gb: ram_gb,
+            available_ram_gb: ram_gb,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 8,
+            accelerator,
+            memory_budget_gb: budget_gb,
+        }
+    }
+
+    #[test]
+    fn the_badge_says_fits_exactly_when_the_plan_offloads_every_layer() {
+        // GIVEN one header and machines with an accelerator, discrete and
+        // unified, across file sizes from far below to far above their memory
+        let facts = qwen3_14b();
+        let shape = RuntimeShape::default();
+        let machines = [
+            machine(
+                AcceleratorProfile::Cuda {
+                    device_name: "test".to_owned(),
+                    vram_gb: 12.0,
+                    compute_capability: (8, 9),
+                },
+                64.0,
+                12.0,
+            ),
+            machine(
+                AcceleratorProfile::AppleSilicon {
+                    chip: "M3 Pro".to_owned(),
+                    generation: 3,
+                    vram_gb: 36.0,
+                },
+                36.0,
+                27.0,
+            ),
+        ];
+
+        for profile in &machines {
+            let mut seen = std::collections::BTreeSet::new();
+            for tenth_gib in (5..=600).step_by(5) {
+                let bytes = (f64::from(tenth_gib) / 10.0 * BYTES_PER_GIB) as u64;
+
+                // WHEN the badge is computed and the -ngl plan is drawn
+                let badge = assess_fit(bytes, &facts, profile, &shape).badge;
+                let plan = plan_offload(bytes, &facts, profile, &shape);
+
+                // THEN the badge is Fits if and only if every layer is offloaded
+                assert_eq!(
+                    badge == CompatibilityBadge::Fits,
+                    plan.fully_offloaded,
+                    "{bytes} bytes on {:?}: badge {badge:?}, plan {plan:?}",
+                    profile.accelerator
+                );
+                seen.insert(format!("{badge:?}"));
+            }
+            // and the sweep did cross the boundary, so the equivalence is not
+            // vacuous
+            assert!(
+                seen.contains("Fits") && seen.contains("TooLarge"),
+                "{seen:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_split_across_card_and_system_memory_is_the_only_might_fit() {
+        // GIVEN a 12 GB card in a 64 GB machine, and a 14B too large for the
+        // card alone
+        let profile = machine(
+            AcceleratorProfile::Cuda {
+                device_name: "test".to_owned(),
+                vram_gb: 12.0,
+                compute_capability: (8, 9),
+            },
+            64.0,
+            12.0,
+        );
+        let bytes = (14.0 * BYTES_PER_GIB) as u64;
+
+        // WHEN it is assessed
+        let fit = assess_fit(bytes, &qwen3_14b(), &profile, &RuntimeShape::default());
+
+        // THEN part of it is on the card, and the badge says it runs split
+        assert!(fit.plan.n_gpu_layers > 0 && !fit.plan.fully_offloaded);
+        assert_eq!(fit.badge, CompatibilityBadge::MightFit);
+    }
+
     #[test]
     fn a_header_without_hyperparameters_falls_back_and_says_so() {
         // GIVEN a probe truncated before the architecture hyperparameters
@@ -736,10 +896,7 @@ mod tests {
         let profile = profile_with_budget(12.0);
         let shape = RuntimeShape::default();
         assert_eq!(
-            grade(
-                &estimate_memory(file_bytes, &facts, &shape, false),
-                &profile
-            ),
+            assess_fit(file_bytes, &facts, &profile, &shape).badge,
             CompatibilityBadge::TooLarge
         );
 
@@ -754,10 +911,7 @@ mod tests {
             ..shape
         };
         assert_ne!(
-            grade(
-                &estimate_memory(file_bytes, &facts, &narrowed, false),
-                &profile
-            ),
+            assess_fit(file_bytes, &facts, &profile, &narrowed).badge,
             CompatibilityBadge::TooLarge
         );
     }

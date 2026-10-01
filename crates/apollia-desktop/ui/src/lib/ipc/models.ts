@@ -181,6 +181,8 @@ export interface HardwareProfileView {
   cpu_model: string;
   cpu_cores: number;
   memory_budget_gb: number;
+  /** What a model can occupy here, GB to the tenth. */
+  total_capacity_gb: number;
   accelerator: { kind: string; [key: string]: unknown };
 }
 

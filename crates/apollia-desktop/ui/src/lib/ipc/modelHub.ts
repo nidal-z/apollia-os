@@ -28,6 +28,8 @@ export interface HardwareProfile {
   cpu_cores: number;
   accelerator: AcceleratorProfile;
   memory_budget_gb: number;
+  /** What a model can occupy here, GB to the tenth: card plus usable system memory on a discrete card. */
+  total_capacity_gb: number;
 }
 
 // ── HuggingFace model cards ───────────────────────────────────────────────

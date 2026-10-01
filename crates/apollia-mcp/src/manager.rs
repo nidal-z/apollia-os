@@ -512,6 +512,7 @@ mod tests {
             max_response_bytes: 8 * 1024 * 1024,
             max_tools: 256,
             tags: vec![],
+            tool_families: Default::default(),
         };
         // WHEN / THEN the flag is readable
         assert!(config.requires_approval);
@@ -535,6 +536,7 @@ mod tests {
             max_response_bytes: 8 * 1024 * 1024,
             max_tools: 256,
             tags: vec![],
+            tool_families: Default::default(),
         };
         // WHEN the approval flag is read
         // THEN the server is not gated behind an approval

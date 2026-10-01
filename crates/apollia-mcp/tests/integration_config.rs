@@ -56,6 +56,7 @@ async fn test_config_unresolved_env_var_fails() {
         max_response_bytes: 8 * 1024 * 1024,
         max_tools: 256,
         tags: vec![],
+        tool_families: Default::default(),
     };
 
     // WHEN env var resolution is requested
