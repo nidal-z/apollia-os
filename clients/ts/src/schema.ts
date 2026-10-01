@@ -411,6 +411,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/connections`: every connection, whatever its kind, with its
+         *     provenance, its remote attribute and its tools.
+         */
+        get: operations["list_connections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/accounts": {
         parameters: {
             query?: never;
@@ -2624,6 +2644,51 @@ export interface components {
             /** @description Provider identifier. */
             provider: string;
         };
+        /** @description One connection, whatever its kind. */
+        Connection: {
+            /** @description Account the connection acts as, when it has one. */
+            account?: string | null;
+            /** @description Stable identifier: `mcp:<server>`, `native:<provider>:<account>`. */
+            id: string;
+            /** @description Kind of connection. */
+            kind: components["schemas"]["ConnectionKind"];
+            /** @description Name shown to the user: the server name, or the provider. */
+            label: string;
+            /** @description Published by the service's own publisher. */
+            official: boolean;
+            /** @description Where the connection was found before it was added. */
+            provenance: string;
+            /** @description Sends data off this machine. Computed, see [`is_remote`]. */
+            remote: boolean;
+            /** @description Whether it can be used right now. */
+            state: components["schemas"]["ConnectionState"];
+            /** @description Tools the connection brings. */
+            tools: components["schemas"]["ConnectionTool"][];
+        };
+        /**
+         * @description The kind of thing a connection plugs in.
+         * @enum {string}
+         */
+        ConnectionKind: "native" | "mcp" | "folder";
+        /**
+         * @description Whether a connection can be used right now.
+         * @enum {string}
+         */
+        ConnectionState: "connected" | "degraded" | "needs_reauth" | "unavailable" | "stopped";
+        /** @description One tool a connection brings. */
+        ConnectionTool: {
+            /** @description Action family of the tool. */
+            family: string;
+            /** @description Where the family comes from. */
+            familySource: string;
+            /**
+             * @description Tool identifier as the tool registry names it (`mcp:notion/search`,
+             *     `gmail.send`).
+             */
+            id: string;
+            /** @description Offered checked when the connection is granted to an agent. */
+            prechecked: boolean;
+        };
         /** @description One connected account, in `GET /api/v1/connectors/accounts`. */
         ConnectorAccountResponse: {
             /** @description Account identifier. */
@@ -4552,6 +4617,35 @@ export interface operations {
             };
             /** @description Audit journal not configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_connections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"][];
+                };
+            };
+            /** @description A store could not be read */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

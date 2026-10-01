@@ -671,6 +671,7 @@ fn main() {
             commands::stt::start_tour_recording,
             commands::stt::stop_tour_recording,
             commands::mcp::catalog::list_mcp_enrichments,
+            commands::connections::list_connections,
             commands::mcp::list_mcp_servers,
             commands::mcp::list_mcp_resources,
             commands::mcp::get_mcp_server_detail,
