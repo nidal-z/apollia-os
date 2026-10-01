@@ -291,6 +291,7 @@ dependencies = [
  "apollia-oria",
  "apollia-permissions",
  "apollia-runtime",
+ "apollia-signing",
  "apollia-tools",
  "apollia-triggers",
  "apollia-workspace",

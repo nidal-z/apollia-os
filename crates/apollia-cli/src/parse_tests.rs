@@ -20,6 +20,7 @@ use crate::commands::digest::DigestWindow;
 use crate::commands::llm::{LlmBackendsCommand, LlmCommand};
 use crate::commands::mcp::McpCommand;
 use crate::commands::memory::{MemoryCommand, MemoryType};
+use crate::commands::package::PackageCommand as ApoPackageCommand;
 use crate::commands::permissions::PermissionsCommand;
 use crate::commands::project::{ProjectAgentsCommand, ProjectCommand, ProjectTemplatesCommand};
 use crate::commands::task::TaskCommand;
@@ -1337,4 +1338,39 @@ fn test_cli_parses_explain() {
         panic!("expected explain");
     };
     assert_eq!(text, "what is a StepBudget");
+}
+
+// ─── package ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cli_parses_package_build() {
+    // GIVEN "apollia-os package build ./pkg --sign"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "package", "build", "./pkg", "--sign"]);
+    // THEN the folder and the signing request are carried, with the default key
+    let Commands::Package {
+        command: ApoPackageCommand::Build { dir, sign, key, .. },
+    } = cli.command
+    else {
+        panic!("expected package build");
+    };
+    assert_eq!(dir, std::path::PathBuf::from("./pkg"));
+    assert!(sign);
+    assert_eq!(key, "default");
+}
+
+#[test]
+fn test_cli_parses_package_inspect() {
+    // GIVEN "apollia-os package inspect lone.apo --json"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "package", "inspect", "lone.apo", "--json"]);
+    // THEN the archive path is carried and --json is global
+    assert!(cli.json);
+    let Commands::Package {
+        command: ApoPackageCommand::Inspect { file },
+    } = cli.command
+    else {
+        panic!("expected package inspect");
+    };
+    assert_eq!(file, std::path::PathBuf::from("lone.apo"));
 }
