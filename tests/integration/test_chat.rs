@@ -942,8 +942,8 @@ async fn test_chat_budget_exhausted() {
     let mut responses = Vec::new();
     for _ in 0..20 {
         responses.push(tool_call_response(
-            "bash_executor",
-            serde_json::json!({"command": "echo loop"}),
+            "file_write",
+            serde_json::json!({"path": "loop.txt", "content": "loop"}),
         ));
     }
     let model = MockChatModel::new(responses);
@@ -957,16 +957,18 @@ async fn test_chat_budget_exhausted() {
 
     let (handle, port, socket_path, mut event_rx) = start_chat_server(model, budget).await;
 
-    // Create session with bash_executor tool
+    // Create session with file_write tool. A code executor would not do: an
+    // "always" on it covers the current call only, so the loop would stop on
+    // the next prompt instead of reaching the budget.
     let (_, session) = http_post(
         port,
         "/api/v1/sessions",
-        serde_json::json!({ "mode": "libre", "tools": ["bash_executor"] }),
+        serde_json::json!({ "mode": "libre", "tools": ["file_write"] }),
     )
     .await;
     let session_id = session["id"].as_str().expect("session id");
 
-    // Authorize bash_executor via always_accept on the first tool call.
+    // Authorize file_write via always_accept on the first tool call.
     // After that, subsequent calls in this and future exchanges are auto-authorized,
     // allowing the ReAct loop to hit the budget limit without HITL blocking.
 
@@ -1005,7 +1007,7 @@ async fn test_chat_budget_exhausted() {
         serde_json::json!({
             "message_id": msg_id,
             "tool_call_id": tool_call_id,
-            "tool_name": "bash_executor",
+            "tool_name": "file_write",
             "decision": "always_accept"
         }),
     )

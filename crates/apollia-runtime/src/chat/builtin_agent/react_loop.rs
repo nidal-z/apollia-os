@@ -234,7 +234,7 @@ impl BuiltInChatAgent {
         // plus anything the first turn auto-authorized, so a correction turn does
         // not re-prompt for a tool the user already approved this turn.
         let mut carried_authorized = authorized_tools.clone();
-        carried_authorized.extend(first.newly_authorized.iter().cloned());
+        carry_grants(&mut carried_authorized, &first.newly_authorized);
         let carry = RetryCarry {
             messages: llm_messages,
             last_response: first,
@@ -276,9 +276,7 @@ impl BuiltInChatAgent {
                         Ok(next) => {
                             let output = next.content.clone();
                             // Carry any tool authorized on this retry into the next.
-                            state
-                                .authorized
-                                .extend(next.newly_authorized.iter().cloned());
+                            carry_grants(&mut state.authorized, &next.newly_authorized);
                             state.last_response = next;
                             (Ok(output), state)
                         }
@@ -292,4 +290,15 @@ impl BuiltInChatAgent {
         response.verification_report = report;
         Ok(response)
     }
+}
+
+/// Carry the grants a turn produced into the next correction turn. A code
+/// executor is never carried: each of its calls asks on its own.
+pub(super) fn carry_grants(carried: &mut HashSet<String>, newly_authorized: &[String]) {
+    carried.extend(
+        newly_authorized
+            .iter()
+            .filter(|name| !apollia_permissions::is_code_executor(name))
+            .cloned(),
+    );
 }
