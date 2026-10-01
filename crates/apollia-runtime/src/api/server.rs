@@ -355,6 +355,12 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
     }
 }
 
+/// The product marker `GET /api/v1/health` carries.
+///
+/// A host that finds the TCP port taken asks that route what holds it; this
+/// value, and only this value, says the holder is an Apollia runtime.
+pub const PRODUCT_MARKER: &str = "apollia-os";
+
 /// Permission bits applied to the Unix socket right after `bind`: owner read
 /// and write, nothing for the group and nothing for the rest of the machine.
 #[cfg(unix)]
@@ -378,6 +384,15 @@ pub struct APIServerConfig {
     /// `Some(port)`. Binding a non-loopback address without an `api_token` is
     /// refused at startup; a loopback bind without a token is allowed.
     pub tcp_port: Option<u16>,
+    /// A TCP listener the host has already bound, served in place of binding
+    /// `tcp_port`.
+    ///
+    /// A host that decides whether to start a runtime by claiming the port
+    /// hands the claimed listener over here, so the port is never released
+    /// between that decision and the serve: a release followed by a rebind is
+    /// a window another process can take. Read only when `tcp_port` is `Some`,
+    /// which must then name the port this listener holds.
+    pub tcp_listener: Option<std::net::TcpListener>,
     /// Bearer token required on TCP connections.
     ///
     /// `Some(token)`, every incoming TCP request must supply
@@ -409,6 +424,7 @@ impl Default for APIServerConfig {
             socket_path: apollia_core::paths::socket_path_or_temp(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: None,
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -598,13 +614,20 @@ impl APIServer {
                 _ => None,
             };
 
-            let tcp_addr = format!("{}:{}", config.bind_addr, tcp_port);
-            let tcp_listener = TcpListener::bind(&tcp_addr).await.map_err(|source| {
-                APIServerError::BindFailed {
-                    port: tcp_port,
-                    source,
+            let bind_failed = |source| APIServerError::BindFailed {
+                port: tcp_port,
+                source,
+            };
+            let tcp_listener = match config.tcp_listener {
+                Some(claimed) => {
+                    claimed.set_nonblocking(true).map_err(bind_failed)?;
+                    TcpListener::from_std(claimed).map_err(bind_failed)?
                 }
-            })?;
+                None => {
+                    let tcp_addr = format!("{}:{}", config.bind_addr, tcp_port);
+                    TcpListener::bind(&tcp_addr).await.map_err(bind_failed)?
+                }
+            };
 
             // Apply token authentication to the TCP-facing router only.
             let tcp_router = match &config.api_token {
@@ -852,6 +875,66 @@ mod tests {
         assert_eq!(json["status"], "ok");
     }
 
+    /// The exact body `GET /api/v1/health` answers with.
+    fn health_body() -> String {
+        format!(
+            r#"{{"status":"ok","product":"{PRODUCT_MARKER}","version":"{}"}}"#,
+            env!("CARGO_PKG_VERSION")
+        )
+    }
+
+    #[tokio::test]
+    async fn test_health_names_the_product_and_its_version() {
+        // GIVEN the router of a runtime
+        let router = build_router(test_app_state());
+
+        use axum::body::Body;
+        use axum::http::Request;
+        use tower::ServiceExt;
+
+        // WHEN GET /api/v1/health
+        let req = Request::builder()
+            .uri("/api/v1/health")
+            .body(Body::empty())
+            .unwrap();
+        let resp = router.oneshot(req).await.unwrap();
+
+        // THEN the body says what answers and in which version, which is what
+        // tells an Apollia runtime from a foreign listener on the same port
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["product"], PRODUCT_MARKER);
+        assert_eq!(json["version"], env!("CARGO_PKG_VERSION"));
+    }
+
+    #[tokio::test]
+    async fn test_a_listener_bound_by_the_host_is_served_without_a_rebind() {
+        // GIVEN a TCP listener the host already holds, never released
+        let claimed = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = claimed.local_addr().unwrap().port();
+        let socket_path = temp_socket_path();
+        let config = APIServerConfig {
+            socket_path: socket_path.clone(),
+            tcp_port: Some(port),
+            tcp_listener: Some(claimed),
+            ..APIServerConfig::default()
+        };
+
+        // WHEN the server starts with it
+        let handle = APIServer::new(config, test_app_state())
+            .start()
+            .await
+            .unwrap();
+
+        // THEN that very listener answers: a second bind of the port would
+        // have failed with the port still held, so a 200 proves no rebind
+        let resp = http_get_via_tcp(port).await;
+        assert_eq!(resp, health_body());
+
+        handle.shutdown();
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
     #[tokio::test]
     async fn test_tcp_listener_binds_successfully() {
         // GIVEN a free port
@@ -863,6 +946,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -876,7 +960,7 @@ mod tests {
 
         // THEN the server responds over TCP
         let resp = http_get_via_tcp(port).await;
-        assert_eq!(resp, r#"{"status":"ok"}"#);
+        assert_eq!(resp, health_body());
 
         // Cleanup
         handle.shutdown();
@@ -896,6 +980,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: None,
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -909,7 +994,7 @@ mod tests {
 
         // THEN the Unix socket serves requests
         let resp = http_get_via_unix(&socket_path).await;
-        assert_eq!(resp, r#"{"status":"ok"}"#);
+        assert_eq!(resp, health_body());
 
         // AND no TCP listener was bound: the port can be freshly bound. This is
         // the inverse requirement of every other port in this module, the number
@@ -939,6 +1024,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: Some(token.to_owned()),
             tls_cert_path: None,
             tls_key_path: None,
@@ -955,7 +1041,7 @@ mod tests {
         // WHEN a request carries the token THEN it succeeds
         let (status_ok, body) = http_get_health_status_via_tcp(port, Some(token)).await;
         assert_eq!(status_ok, 200, "TCP with token must be accepted");
-        assert_eq!(body, r#"{"status":"ok"}"#);
+        assert_eq!(body, health_body());
 
         // Cleanup
         handle.shutdown();
@@ -1039,6 +1125,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: Some(cert_path),
             tls_key_path: Some(key_path),
@@ -1082,7 +1169,7 @@ mod tests {
             (Some(s), Some(e)) => &raw_body[s..=e],
             _ => raw_body,
         };
-        assert_eq!(body, r#"{"status":"ok"}"#);
+        assert_eq!(body, health_body());
 
         // Cleanup
         handle.shutdown();
@@ -1101,6 +1188,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "0.0.0.0".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -1134,6 +1222,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -1161,6 +1250,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "0.0.0.0".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: Some("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef".to_owned()),
             tls_cert_path: None,
             tls_key_path: None,
@@ -1190,6 +1280,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -1203,7 +1294,7 @@ mod tests {
 
         // THEN the server responds over the Unix socket
         let resp = http_get_via_unix(&socket_path).await;
-        assert_eq!(resp, r#"{"status":"ok"}"#);
+        assert_eq!(resp, health_body());
 
         // Cleanup
         handle.shutdown();
@@ -1224,6 +1315,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -1264,6 +1356,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -1277,7 +1370,7 @@ mod tests {
 
         // THEN the stale file is removed and the bind succeeds
         let resp = http_get_via_unix(&socket_path).await;
-        assert_eq!(resp, r#"{"status":"ok"}"#);
+        assert_eq!(resp, health_body());
 
         // Cleanup
         handle.shutdown();
@@ -1295,6 +1388,7 @@ mod tests {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -1306,7 +1400,7 @@ mod tests {
 
         // Verify it's serving
         let resp = http_get_via_tcp(port).await;
-        assert_eq!(resp, r#"{"status":"ok"}"#);
+        assert_eq!(resp, health_body());
 
         // WHEN shutdown() is called
         handle.shutdown();

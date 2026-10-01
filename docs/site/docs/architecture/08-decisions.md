@@ -311,6 +311,31 @@ English and French entries. Color, spacing, and typography come from design
 tokens; a hardcoded value duplicating a token is a value that will not follow a
 theme change.
 
+### The runtime in the window or beside it {#desktop-runtime-modes}
+
+The runtime runs in one of two places: inside the desktop process, or as a
+separate daemon, `apollia-os start` installed as a service of the user, to which
+the desktop attaches. The daemon is what lets agents and scheduled work go on
+with the window closed, and it is the same runtime, not a second one.
+
+The TCP port decides. At launch, before the Python interpreter, any database or
+any listener, the desktop binds the runtime port. Winning it means no runtime
+serves the machine: the desktop starts one in its own process, on that very
+listener, which is never released between the decision and the serve. Losing it
+means something holds the port, and the desktop asks it `GET /api/v1/health`,
+whose body carries a product marker and a version: a compatible Apollia runtime
+is attached to, anything else is refused. A probe followed by a bind was
+rejected, because the moment between the two belongs to whichever process takes
+the port first.
+
+Refused: two runtimes on one machine, attaching to a listener that does not say
+it is Apollia or to a runtime whose major or minor version differs, and a launch
+that ends without a word. A refusal opens a window that names what holds the
+port and the gesture to make, and appends the reason to `startup-refused.log` in
+the data directory.
+
+Version 0.3.0 delivers both modes.
+
 ## Agent distribution {#agent-distribution}
 
 An agent is installed from a local path or a Git URL. Publishing agents to a

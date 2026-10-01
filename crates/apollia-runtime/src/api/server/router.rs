@@ -11,13 +11,18 @@ use axum::{Json, Router};
 use serde::Serialize;
 use tracing::info;
 
-use crate::api::server::AppState;
+use crate::api::server::{AppState, PRODUCT_MARKER};
 use crate::coordinator::{DynBackend, ExecutionBackend};
 
 /// Response body for the health endpoint.
 #[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct HealthResponse {
     status: String,
+    /// Always [`PRODUCT_MARKER`]: what lets a caller that finds the port
+    /// taken tell an Apollia runtime from any other listener.
+    product: &'static str,
+    /// The version of the runtime answering, as its crate declares it.
+    version: &'static str,
 }
 
 /// Response body for the shutdown endpoint.
@@ -36,6 +41,8 @@ pub(crate) struct ShutdownResponse {
 pub(crate) async fn health_handler() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok".into(),
+        product: PRODUCT_MARKER,
+        version: env!("CARGO_PKG_VERSION"),
     })
 }
 

@@ -163,7 +163,8 @@ s'applique côté client sous TLS natif : ne mettez pas la réponse en tampon.
 # Disponibilité. L'écouteur TCP exige le jeton porteur sur tous les chemins sauf
 # celui des webhooks, le contrôle de santé le porte donc aussi.
 curl -H "Authorization: Bearer $(cat ~/.apollia/api-token)" \
-  http://127.0.0.1:7771/api/v1/health             # {"status":"ok"}
+  http://127.0.0.1:7771/api/v1/health
+# {"status":"ok","product":"apollia-os","version":"<version du runtime>"}
 
 # État du runtime et des agents
 apollia-os status

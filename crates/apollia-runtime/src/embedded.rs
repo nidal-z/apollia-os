@@ -228,6 +228,12 @@ pub struct EmbeddedConfig {
     /// `Some(port)` and MUST also set [`api_token`](EmbeddedConfig::api_token)
     /// so the port is authenticated.
     pub tcp_port: Option<u16>,
+    /// A listener the host already bound on `tcp_port`, served as is.
+    ///
+    /// A host that decides at startup whether to run a runtime by claiming the
+    /// port passes the claimed listener here, so the port is never released
+    /// between the decision and the serve. `None` binds `tcp_port` at startup.
+    pub tcp_listener: Option<std::net::TcpListener>,
     /// Bearer token honored on the TCP listener, or `None` for no TCP auth.
     ///
     /// Only meaningful when [`tcp_port`](EmbeddedConfig::tcp_port) is `Some`.
@@ -309,6 +315,7 @@ impl Default for EmbeddedConfig {
         let home = apollia_core::paths::home_dir_or_temp();
         Self {
             tcp_port: None,
+            tcp_listener: None,
             api_token: None,
             socket_path: apollia_core::paths::socket_path_under(&home),
             data_dir: apollia_core::paths::data_dir_under(home),
@@ -501,6 +508,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
             socket_path: config.socket_path,
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port,
+            tcp_listener: config.tcp_listener,
             api_token: config.api_token,
             // Embedded hosts are loopback-only; TLS is a daemon-only concern.
             ..APIServerConfig::default()

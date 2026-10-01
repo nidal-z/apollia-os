@@ -14,20 +14,31 @@ class HealthResponse:
     """Response body for the health endpoint.
 
     Attributes:
+        product (str): Always [`PRODUCT_MARKER`]: what lets a caller that finds the port
+            taken tell an Apollia runtime from any other listener.
         status (str):
+        version (str): The version of the runtime answering, as its crate declares it.
     """
 
+    product: str
     status: str
+    version: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        product = self.product
+
         status = self.status
+
+        version = self.version
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
+                "product": product,
                 "status": status,
+                "version": version,
             }
         )
 
@@ -36,10 +47,16 @@ class HealthResponse:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+        product = d.pop("product")
+
         status = d.pop("status")
 
+        version = d.pop("version")
+
         health_response = cls(
+            product=product,
             status=status,
+            version=version,
         )
 
         health_response.additional_properties = d

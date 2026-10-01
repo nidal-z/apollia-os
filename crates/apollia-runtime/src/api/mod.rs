@@ -44,4 +44,6 @@ mod unreached_by_cli;
 mod tls_test_material;
 
 pub use middleware::{load_or_generate_token, AuthError, TokenAuthLayer, TokenFileError};
-pub use server::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
+pub use server::{
+    APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState, PRODUCT_MARKER,
+};

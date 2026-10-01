@@ -7172,11 +7172,21 @@
         "type": "object",
         "description": "Response body for the health endpoint.",
         "required": [
-          "status"
+          "status",
+          "product",
+          "version"
         ],
         "properties": {
+          "product": {
+            "type": "string",
+            "description": "Always [`PRODUCT_MARKER`]: what lets a caller that finds the port\ntaken tell an Apollia runtime from any other listener."
+          },
           "status": {
             "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "The version of the runtime answering, as its crate declares it."
           }
         }
       },

@@ -2761,7 +2761,14 @@ export interface components {
         };
         /** @description Response body for the health endpoint. */
         HealthResponse: {
+            /**
+             * @description Always [`PRODUCT_MARKER`]: what lets a caller that finds the port
+             *     taken tell an Apollia runtime from any other listener.
+             */
+            product: string;
             status: string;
+            /** @description The version of the runtime answering, as its crate declares it. */
+            version: string;
         };
         /** @description Request body for `POST /api/v1/agents/:name/messages`. */
         InjectMessageBody: {

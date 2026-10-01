@@ -217,6 +217,7 @@ async fn test_shutdown_drains_active_tasks() {
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: Some(port),
+            tcp_listener: None,
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
             tls_cert_path: None,
@@ -327,6 +328,7 @@ async fn test_shutdown_stops_all_agents() {
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: Some(port),
+            tcp_listener: None,
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
             tls_cert_path: None,
@@ -427,6 +429,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: Some(port),
+            tcp_listener: None,
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
             tls_cert_path: None,
@@ -549,6 +552,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: Some(port),
+            tcp_listener: None,
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
             tls_cert_path: None,
