@@ -307,6 +307,8 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// Managed embedded `llama-server` (local LLM engine), or `None` when the
     /// binary is absent. Whisper STT stays on `runner_supervisor`.
     pub llama_server_supervisor: Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
+    /// The organisation policy verdict, read once at startup.
+    pub org_policy: Arc<apollia_permissions::PolicyVerdict>,
 }
 
 /// Supervisor errors.
