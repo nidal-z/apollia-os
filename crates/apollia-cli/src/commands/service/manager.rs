@@ -8,17 +8,11 @@
 
 use std::path::Path;
 use std::process::{Command, Output};
-use std::time::Duration;
 
 use tracing::Level;
 
 use crate::commands::service::definition::{Manager, LAUNCHD_LABEL, SYSTEMD_UNIT, TASK_NAME};
 use crate::commands::service::ServiceError;
-
-/// How often `launchctl bootstrap` is retried while a previous instance of the
-/// label is still being torn down, and how long between attempts.
-const BOOTSTRAP_ATTEMPTS: u32 = 5;
-const BOOTSTRAP_PAUSE: Duration = Duration::from_millis(300);
 
 /// What the service manager reports for this definition.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -89,16 +83,7 @@ pub fn load(manager: Manager, definition: &Path) -> Result<(), ServiceError> {
                     &["bootout", &format!("{domain}/{LAUNCHD_LABEL}")],
                 )?;
             }
-            let mut last = Ok(());
-            for attempt in 1..=BOOTSTRAP_ATTEMPTS {
-                last = run_checked("launchctl", &["bootstrap", &domain, &path]);
-                if last.is_ok() {
-                    break;
-                }
-                tracing::event!(Level::DEBUG, attempt, "service.bootstrap_retry");
-                std::thread::sleep(BOOTSTRAP_PAUSE);
-            }
-            last
+            run_checked("launchctl", &["bootstrap", &domain, &path])
         }
         Manager::Systemd => {
             run_checked("systemctl", &["--user", "daemon-reload"])?;
