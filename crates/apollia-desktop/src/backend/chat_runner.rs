@@ -190,6 +190,9 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             secrets_declared,
             manifest: chat_manifest,
             budget: Arc::clone(&direct_budget),
+            // The chat loop has its own stop control; this run is not
+            // cancelled from the task router.
+            cancel: apollia_runtime::coordinator::CancellationToken::new(),
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(event_bus);

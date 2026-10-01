@@ -23,6 +23,8 @@ use pyo3::types::PyDict;
 
 use crate::validator::ValidatedAgent;
 
+mod cancel;
+
 /// Errors that can occur when calling a Python agent via the bridge.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -49,6 +51,10 @@ pub enum AIPBridgeError {
     /// the Tokio runtime cannot preempt synchronous Python code holding the GIL.
     #[error("agent run() exceeded wall-clock limit of {secs}s")]
     WallClockTimeout { secs: u64 },
+
+    /// The caller cancelled the run and the Python dispatch has stopped.
+    #[error("agent run() was canceled")]
+    Canceled,
 }
 
 /// Default wall-clock budget applied to `call_run()` when none is configured.
@@ -154,6 +160,31 @@ impl AIPBridge {
         task: &AIPTask,
         ctx: PyObject,
     ) -> Result<AIPResult, AIPBridgeError> {
+        self.call_run_until(task, ctx, std::future::pending()).await
+    }
+
+    /// Calls the dispatch hook like [`Self::call_run`], and stops it when
+    /// `cancelled` resolves.
+    ///
+    /// Stopping is real: the asyncio task running the agent is cancelled, so
+    /// the coroutine receives `CancelledError` at its next await point, and
+    /// this method returns only once the blocking thread has given control
+    /// back. Dropping the returned future before it resolves also requests the
+    /// cancellation, so an abandoned wait never leaves the agent running.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`Self::call_run`], plus `Canceled` when `cancelled`
+    /// resolved first.
+    pub async fn call_run_until<C>(
+        &self,
+        task: &AIPTask,
+        ctx: PyObject,
+        cancelled: C,
+    ) -> Result<AIPResult, AIPBridgeError>
+    where
+        C: std::future::Future<Output = ()>,
+    {
         let task_json = serde_json::to_string(task)
             .map_err(|e| AIPBridgeError::SerializationError(e.to_string()))?;
         let agent = Python::with_gil(|py| self.agent.clone_ref(py));
@@ -172,7 +203,16 @@ impl AIPBridge {
         let input_response = task.input_response.clone();
         let wall_clock = std::time::Duration::from_secs(wall_clock_secs);
 
-        let blocking = tokio::task::spawn_blocking(move || {
+        let task_id = task.task_id.clone();
+        let (slot, slot_for_cancel, slot_for_drop) = Python::with_gil(|py| {
+            let slot: Py<PyDict> = PyDict::new(py).unbind();
+            let for_cancel = slot.clone_ref(py);
+            let for_drop = slot.clone_ref(py);
+            (slot, for_cancel, for_drop)
+        });
+        let mut guard = cancel::CancelOnDrop::new(slot_for_drop);
+
+        let mut blocking = tokio::task::spawn_blocking(move || {
             Python::with_gil(|py| -> Result<String, AIPBridgeError> {
                 // 1. Inject workspace snapshot, wall-clock budget and logger
                 //    wiring into the RuntimeContext before dispatch.
@@ -193,13 +233,29 @@ impl AIPBridge {
                     .call_method1("__apollia_dispatch__", (task_dict, ctx))
                     .map_err(|e| AIPBridgeError::PythonException(format!("{e}")))?;
 
+                let coroutine = cancel::wrap(py, &coroutine, &slot)
+                    .map_err(|e| AIPBridgeError::Internal(format!("{e}")))?;
                 let result = run_coroutine(py, &coroutine)?;
 
                 py_obj_to_json_string(py, &result)
             })
         });
 
-        let result_json = match tokio::time::timeout(wall_clock, blocking).await {
+        let finished = tokio::select! {
+            joined = tokio::time::timeout(wall_clock, &mut blocking) => joined,
+            () = cancelled => {
+                guard.disarm();
+                cancel::request(&slot_for_cancel);
+                // The task is cancelled at its next await point; wait for the
+                // thread to hand control back so the caller knows it stopped.
+                let _ = blocking.await;
+                tracing::event!(tracing::Level::INFO, task_id = %task_id, "aip.bridge.run.canceled");
+                return Err(AIPBridgeError::Canceled);
+            }
+        };
+        guard.disarm();
+
+        let result_json = match finished {
             Ok(Ok(inner)) => inner?,
             Ok(Err(join_err)) => {
                 return Err(AIPBridgeError::Internal(format!(
