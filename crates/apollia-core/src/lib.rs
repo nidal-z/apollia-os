@@ -28,6 +28,7 @@ pub mod inference_server;
 pub mod llm_backend;
 pub mod manifest;
 pub mod mcp_health;
+pub mod model_preset;
 #[cfg(feature = "net")]
 pub mod net;
 pub mod notebook;

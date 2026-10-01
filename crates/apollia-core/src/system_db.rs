@@ -1,7 +1,8 @@
 //! Versioned schema of `system.db`, shared by every store in the file.
 //!
 //! `system.db` holds the LLM backend registry ([`crate::llm_backend`]), the
-//! inference servers ([`crate::inference_server`]) and the STT configuration
+//! inference servers ([`crate::inference_server`]), the model presets and the
+//! model of each agent ([`crate::model_preset`]), and the STT configuration
 //! ([`crate::stt_config`]).
 //! `PRAGMA user_version` belongs to the database file, not to a table, so the
 //! stores share one migration list: whichever opens first brings the whole
@@ -14,13 +15,14 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 3;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 4;
 
 /// Numbered migration steps of `system.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`SYSTEM_DB_SCHEMA_VERSION`].
-pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3];
+pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] =
+    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -330,6 +332,84 @@ pub(crate) fn migrate_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
         "llm.servers.migrated"
     );
     Ok(())
+}
+
+/// v4: the model presets, the model of each agent, and one default backend.
+///
+/// - `model_presets`: a named set of load and request settings attached to a
+///   model. A model has at most one default preset, held by a partial unique
+///   index, and neither settings column may carry a system prompt, held by a
+///   `CHECK`: the system prompt is the agent's mission, not a setting.
+/// - `agent_model`: the model the user assigned to an agent, local or on a
+///   server, and the preset chosen for it, if any. Kept apart from the
+///   installed package, so updating the agent leaves the choice in place. A
+///   deleted preset is cleared from every agent that chose it, by a trigger.
+/// - `llm_backends.is_default`: a file holding several defaults (written by
+///   hand, or by a binary that lost a race) keeps the first by name, and a
+///   partial unique index then refuses a second one.
+///
+/// Every statement is idempotent, so a replay changes nothing.
+pub(crate) fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let tx = conn.unchecked_transaction()?;
+    tx.execute_batch(&format!(
+        "CREATE TABLE IF NOT EXISTS model_presets (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            name             TEXT NOT NULL CHECK (length(trim(name)) > 0),
+            model_source     TEXT NOT NULL CHECK (model_source IN ('local', 'server')),
+            model_id         TEXT NOT NULL CHECK (length(trim(model_id)) > 0),
+            load_json        TEXT NOT NULL DEFAULT '{{}}',
+            request_json     TEXT NOT NULL DEFAULT '{{}}',
+            is_model_default INTEGER NOT NULL DEFAULT 0 CHECK (is_model_default IN (0, 1)),
+            created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            UNIQUE (model_source, model_id, name),
+            CHECK (json_valid(load_json) AND json_type(load_json) = 'object'),
+            CHECK (json_valid(request_json) AND json_type(request_json) = 'object'),
+            CHECK ({no_prompt})
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS model_presets_one_default_per_model
+            ON model_presets (model_source, model_id) WHERE is_model_default = 1;
+
+        CREATE TABLE IF NOT EXISTS agent_model (
+            agent        TEXT PRIMARY KEY CHECK (length(trim(agent)) > 0),
+            model_source TEXT NOT NULL CHECK (model_source IN ('local', 'server')),
+            model_id     TEXT NOT NULL CHECK (length(trim(model_id)) > 0),
+            preset_id    INTEGER,
+            updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+
+        CREATE TRIGGER IF NOT EXISTS model_presets_detach_from_agents
+            AFTER DELETE ON model_presets
+            BEGIN
+                UPDATE agent_model SET preset_id = NULL WHERE preset_id = OLD.id;
+            END;
+
+        UPDATE llm_backends SET is_default = 0
+            WHERE is_default = 1
+              AND name != (SELECT name FROM llm_backends WHERE is_default = 1
+                           ORDER BY name LIMIT 1);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS llm_backends_one_default
+            ON llm_backends (is_default) WHERE is_default = 1;",
+        no_prompt = no_system_prompt_check(),
+    ))?;
+    tx.commit()
+}
+
+/// Keys a preset may never carry, in either settings column.
+pub(crate) const SYSTEM_PROMPT_KEYS: &[&str] = &["system_prompt", "system", "system_message"];
+
+/// The `CHECK` expression refusing every [`SYSTEM_PROMPT_KEYS`] entry at the
+/// top level of `load_json` and `request_json`.
+fn no_system_prompt_check() -> String {
+    let mut terms = Vec::new();
+    for column in ["load_json", "request_json"] {
+        for key in SYSTEM_PROMPT_KEYS {
+            terms.push(format!("json_type({column}, '$.{key}') IS NULL"));
+        }
+    }
+    terms.join(" AND ")
 }
 
 #[cfg(test)]

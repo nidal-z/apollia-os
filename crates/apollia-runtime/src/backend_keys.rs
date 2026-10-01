@@ -9,6 +9,7 @@
 //! [`unseal_backend_keys`] first; nothing writes it back.
 
 use apollia_auth::SecretStore;
+use apollia_core::model_preset::SERVER_REF_FIELD;
 use apollia_core::{LlmBackendConfig, LlmBackendRepository};
 
 use crate::inference_servers::SharedStore;
@@ -154,6 +155,9 @@ where
 /// Every backend row with its stored key put back in memory, and the name of
 /// the default one, ready for the router.
 ///
+/// A row that names a declared server (the default set to a server model)
+/// takes, in memory, that server's current address and key.
+///
 /// # Errors
 ///
 /// The repository could not be read.
@@ -162,12 +166,54 @@ pub fn routable_configs<F>(
     store: F,
 ) -> Result<(Vec<LlmBackendConfig>, Option<String>), apollia_core::LlmBackendError>
 where
-    F: FnOnce() -> Result<Box<dyn SecretStore>, String>,
+    F: Fn() -> Result<Box<dyn SecretStore>, String>,
 {
     let mut configs = repo.list()?;
     let default = repo.find_default()?.map(|cfg| cfg.name);
-    unseal_backend_keys(&mut configs, store);
+    unseal_backend_keys(&mut configs, &store);
+    attach_server_rows(repo, &mut configs, &store);
     Ok((configs, default))
+}
+
+/// Give each row naming a declared server that server's address and key.
+/// A server that is gone or disabled leaves the row as stored.
+fn attach_server_rows<F>(repo: &LlmBackendRepository, configs: &mut [LlmBackendConfig], store: F)
+where
+    F: Fn() -> Result<Box<dyn SecretStore>, String>,
+{
+    let refers = |cfg: &LlmBackendConfig| {
+        cfg.config_json
+            .get(SERVER_REF_FIELD)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    };
+    if !configs.iter().any(|cfg| refers(cfg).is_some()) {
+        return;
+    }
+    let endpoints = crate::inference_servers::server_endpoints(repo, store);
+    for cfg in configs.iter_mut() {
+        let Some(server) = refers(cfg) else {
+            continue;
+        };
+        let Some(endpoint) = endpoints.iter().find(|e| e.name == server) else {
+            tracing::event!(
+                tracing::Level::WARN,
+                backend = %cfg.name,
+                server = %server,
+                "llm.backend.server.unresolved"
+            );
+            continue;
+        };
+        if let Some(config) = cfg.config_json.as_object_mut() {
+            config.insert(
+                "base_url".into(),
+                serde_json::Value::String(endpoint.base_url.clone()),
+            );
+            if let Some(key) = &endpoint.api_key {
+                config.insert("api_key".into(), serde_json::Value::String(key.clone()));
+            }
+        }
+    }
 }
 
 /// Move into the secret store every key a backend row still holds in clear,
@@ -440,5 +486,48 @@ mod tests {
 
         // THEN
         assert!(result.is_err());
+    }
+
+    // GIVEN a declared server whose key sits in the store, moved to a new
+    //       address after its model was made the default
+    // WHEN the routable configurations are read
+    // THEN the default row reaches the server's current address with its key,
+    //      in memory only
+    #[test]
+    fn test_a_default_naming_a_server_takes_its_address_and_key() {
+        // GIVEN
+        let dir = tempfile::TempDir::new().unwrap();
+        let repo =
+            LlmBackendRepository::open(&dir.path().join(DataFile::System.file_name())).unwrap();
+        let mut server = apollia_core::InferenceServer {
+            name: "vllm".into(),
+            base_url: "http://10.0.0.5:8000/v1".into(),
+            has_key: true,
+            api_key_env: None,
+            enabled: true,
+        };
+        repo.save_server(&server).unwrap();
+        file_store(&dir)
+            .set(INFERENCE_SERVER_SECRET_SERVICE, "vllm", "vllm-key")
+            .unwrap();
+        let default = repo
+            .set_default_model(
+                apollia_core::model_preset::ModelSource::Server,
+                "vllm/qwen3-32b",
+            )
+            .unwrap();
+        server.base_url = "http://10.0.0.6:8000/v1".into();
+        repo.save_server(&server).unwrap();
+
+        // WHEN
+        let (configs, default_name) = routable_configs(&repo, || Ok(file_store(&dir))).unwrap();
+
+        // THEN
+        assert_eq!(default_name.as_deref(), Some(default.backend.as_str()));
+        let row = configs.iter().find(|c| c.name == default.backend).unwrap();
+        assert_eq!(row.config_json["base_url"], "http://10.0.0.6:8000/v1");
+        assert_eq!(row.config_json["api_key"], "vllm-key");
+        let stored = repo.find_by_name(&default.backend).unwrap().unwrap();
+        assert!(stored.config_json.get("api_key").is_none());
     }
 }

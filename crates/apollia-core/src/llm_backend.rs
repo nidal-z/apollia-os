@@ -111,6 +111,19 @@ pub enum LlmBackendError {
     #[error("invalid server address '{0}': expected an http:// or https:// URL")]
     InvalidAddress(String),
 
+    /// No model preset with this identifier.
+    #[error("preset {0} not found")]
+    PresetNotFound(i64),
+
+    /// A preset, an agent assignment or a default designation that cannot be
+    /// stored as given.
+    #[error("invalid model setting: {0}")]
+    InvalidPreset(String),
+
+    /// The model already has a preset of this name.
+    #[error("the model already has a preset named '{0}'")]
+    PresetConflict(String),
+
     /// Underlying SQLite error.
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
@@ -531,7 +544,15 @@ fn strip_llm_backends_blocks(content: &str) -> String {
 /// `RunnerLlmBackend`; emitting them here as `type = "embedded"` produced a config
 /// the runtime rejects at startup (`unknown variant "embedded"`), breaking boot.
 fn backend_to_toml_block(cfg: &LlmBackendConfig) -> Option<String> {
-    if cfg.provider == LlmProvider::LlamaCpp {
+    // A row that names a declared server takes its key from that server, which
+    // `[[llm.backends]]` cannot express: like an embedded one, it stays in
+    // system.db.
+    if cfg.provider == LlmProvider::LlamaCpp
+        || cfg
+            .config_json
+            .get(crate::model_preset::SERVER_REF_FIELD)
+            .is_some()
+    {
         return None;
     }
 

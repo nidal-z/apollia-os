@@ -11,6 +11,7 @@ from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
 from .agent_message_dto_payload import AgentMessageDtoPayload
 from .agent_messages_response import AgentMessagesResponse
+from .agent_model_response import AgentModelResponse
 from .agent_response import AgentResponse
 from .agent_response_manifest_type_0 import AgentResponseManifestType0
 from .api_error_body import ApiErrorBody
@@ -31,6 +32,7 @@ from .chat_request import ChatRequest
 from .chat_request_schema_type_0 import ChatRequestSchemaType0
 from .chat_response import ChatResponse
 from .chat_response_value_type_0 import ChatResponseValueType0
+from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
@@ -47,14 +49,19 @@ from .create_channel_request import CreateChannelRequest
 from .create_channel_request_config import CreateChannelRequestConfig
 from .create_llm_backend_request import CreateLlmBackendRequest
 from .create_llm_backend_request_config_json import CreateLlmBackendRequestConfigJson
+from .create_preset_request import CreatePresetRequest
+from .create_preset_request_load import CreatePresetRequestLoad
+from .create_preset_request_request import CreatePresetRequestRequest
 from .create_server_request import CreateServerRequest
 from .create_session_request import CreateSessionRequest
 from .create_trigger_request import CreateTriggerRequest
 from .daily_cost_entry import DailyCostEntry
 from .daily_costs_response import DailyCostsResponse
+from .default_model_response import DefaultModelResponse
 from .delegate_request import DelegateRequest
 from .delegate_request_input import DelegateRequestInput
 from .delete_backend_response import DeleteBackendResponse
+from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
 from .events_response import EventsResponse
@@ -82,6 +89,7 @@ from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
 from .message_dto import MessageDto
 from .model_info import ModelInfo
+from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .ok_response import OkResponse
 from .pending_approval_response import PendingApprovalResponse
@@ -92,6 +100,10 @@ from .ping_response import PingResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
 from .plan_decision_request import PlanDecisionRequest
 from .plan_decision_response import PlanDecisionResponse
+from .preset_response import PresetResponse
+from .preset_response_load import PresetResponseLoad
+from .preset_response_request import PresetResponseRequest
+from .presets_list_response import PresetsListResponse
 from .put_mcp_secret_body import PutMcpSecretBody
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
@@ -112,7 +124,9 @@ from .server_models_response import ServerModelsResponse
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .servers_list_response import ServersListResponse
+from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
+from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
 from .set_events_request import SetEventsRequest
 from .shutdown_response import ShutdownResponse
@@ -178,6 +192,9 @@ from .update_channel_request import UpdateChannelRequest
 from .update_channel_request_config_type_0 import UpdateChannelRequestConfigType0
 from .update_llm_backend_request import UpdateLlmBackendRequest
 from .update_llm_backend_request_config_json import UpdateLlmBackendRequestConfigJson
+from .update_preset_request import UpdatePresetRequest
+from .update_preset_request_load import UpdatePresetRequestLoad
+from .update_preset_request_request import UpdatePresetRequestRequest
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
 from .verify_chain_report import VerifyChainReport
@@ -195,6 +212,7 @@ __all__ = (
     "AgentMessageDto",
     "AgentMessageDtoPayload",
     "AgentMessagesResponse",
+    "AgentModelResponse",
     "AgentResponse",
     "AgentResponseManifestType0",
     "ApiErrorBody",
@@ -215,6 +233,7 @@ __all__ = (
     "ChatRequestSchemaType0",
     "ChatResponse",
     "ChatResponseValueType0",
+    "ClearAgentModelResponse",
     "ClearCacheResponse",
     "CompleteConsentBody",
     "CompleteRequest",
@@ -231,14 +250,19 @@ __all__ = (
     "CreateChannelRequestConfig",
     "CreateLlmBackendRequest",
     "CreateLlmBackendRequestConfigJson",
+    "CreatePresetRequest",
+    "CreatePresetRequestLoad",
+    "CreatePresetRequestRequest",
     "CreateServerRequest",
     "CreateSessionRequest",
     "CreateTriggerRequest",
     "DailyCostEntry",
     "DailyCostsResponse",
+    "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
     "DeleteBackendResponse",
+    "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
     "EventsResponse",
@@ -267,6 +291,7 @@ __all__ = (
     "MessageDto",
     "ModelInfo",
     "ModelsListResponse",
+    "ModelSourceDto",
     "OkResponse",
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
@@ -276,6 +301,10 @@ __all__ = (
     "PlanCacheStatsResponse",
     "PlanDecisionRequest",
     "PlanDecisionResponse",
+    "PresetResponse",
+    "PresetResponseLoad",
+    "PresetResponseRequest",
+    "PresetsListResponse",
     "PutMcpSecretBody",
     "ReloadResponse",
     "ReloadRouterResponse",
@@ -294,7 +323,9 @@ __all__ = (
     "ServerProbeErrorResponse",
     "ServerResponse",
     "ServersListResponse",
+    "SetAgentModelRequest",
     "SetApprovalBody",
+    "SetDefaultModelRequest",
     "SetDefaultResponse",
     "SetEventsRequest",
     "ShutdownResponse",
@@ -358,6 +389,9 @@ __all__ = (
     "UpdateChannelRequestConfigType0",
     "UpdateLlmBackendRequest",
     "UpdateLlmBackendRequestConfigJson",
+    "UpdatePresetRequest",
+    "UpdatePresetRequestLoad",
+    "UpdatePresetRequestRequest",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",
     "VerifyChainReport",
