@@ -209,8 +209,15 @@ A packaged build stages the engine binary. A source build expects
 is reachable, calls fail with an explicit unavailable reason rather than
 silently falling back to a cloud provider.
 
-Cloud backends are configured per backend with an API key. There is no OAuth
-flow for a cloud model provider, because none of them offers one for this use.
+There is no dedicated cloud provider. A remote model is reached through one
+generic connection to an OpenAI-compatible server, at the address the
+organization designates: a self-hosted vLLM or LM Studio, or a gateway. Any
+OpenAI-compatible address is accepted, but a cloud API is neither tested nor
+promoted. Where a cloud model is needed, LiteLLM is the recommended gateway: it
+runs on infrastructure the organization controls and speaks the OpenAI protocol
+to Apollia. When `system.db` is migrated, backends that pointed at the OpenAI,
+Anthropic or Mistral APIs are deleted, and backends that point at a self-hosted
+server are kept unchanged.
 
 ## Speech to text {#speech-to-text}
 

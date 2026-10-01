@@ -226,9 +226,15 @@ les sources attend `llama-server` sur le `PATH`. Quand un backend local est
 configuré et qu'aucun moteur n'est joignable, les appels échouent avec une raison
 d'indisponibilité explicite, sans repli silencieux vers un fournisseur cloud.
 
-Les backends cloud se configurent un par un avec une clé d'API. Il n'y a pas de
-flux OAuth pour un fournisseur de modèle cloud, parce qu'aucun n'en propose pour
-cet usage.
+Il n'y a aucun fournisseur cloud dédié. Un modèle distant se joint par une seule
+connexion générique à un serveur compatible OpenAI, à l'adresse que
+l'organisation désigne : un vLLM ou un LM Studio auto-hébergé, ou une
+passerelle. Toute adresse compatible OpenAI est acceptée, mais une API cloud
+n'est ni testée ni promue. Quand un modèle cloud est nécessaire, LiteLLM est la
+passerelle recommandée : elle tourne sur une infrastructure que l'organisation
+maîtrise et parle le protocole OpenAI à Apollia. À la migration de `system.db`,
+les backends qui visaient les API d'OpenAI, d'Anthropic ou de Mistral sont
+supprimés, et ceux qui visent un serveur auto-hébergé sont gardés tels quels.
 
 ## Reconnaissance vocale {#speech-to-text}
 
