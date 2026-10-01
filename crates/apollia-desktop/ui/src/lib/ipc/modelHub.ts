@@ -58,9 +58,13 @@ export type CompatIssue =
   | "no_gguf_files"
   | null;
 
+/** Whether a repository's owner trained the model or converted it. */
+export type PublisherKind = "official" | "converter" | null;
+
 export interface HfModelCard {
   repo_id: string;
   author: string | null;
+  publisher_kind: PublisherKind;
   downloads: number;
   likes: number;
   license: string | null;
