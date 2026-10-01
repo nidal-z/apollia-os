@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use apollia_core::{AIPResult, AIPTask};
 use apollia_oria::engine::ORIAEngine;
-use apollia_runtime::coordinator::ExecutionBackend;
+use apollia_runtime::coordinator::{CancellationToken, ExecutionBackend};
 
 use super::engine::{direct_path_budget, wire_engine_with_llm, AIPProductionBackend};
 use super::llm_glue::OriaToolProxy;
@@ -15,6 +15,14 @@ impl ExecutionBackend for AIPProductionBackend {
     fn execute(
         &self,
         task: AIPTask,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
+        self.execute_cancellable(task, CancellationToken::new())
+    }
+
+    fn execute_cancellable(
+        &self,
+        task: AIPTask,
+        cancel: CancellationToken,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
         // Agent-declared budget capped to the runtime ceiling. The same
         // Arc<StepBudget> is shared into the runner (so the Direct-path ctx
@@ -46,6 +54,7 @@ impl ExecutionBackend for AIPProductionBackend {
             secrets_data_dir: self.secrets_data_dir.clone(),
             mcp_handle: self.mcp_handle.clone(),
             budget: Arc::clone(&direct_budget),
+            cancel,
         };
 
         // Build a per-task ORIAEngine wired with HITL components.

@@ -25,7 +25,7 @@ use apollia_oria::engine::{AgentRunner, ORIAEngine};
 use apollia_oria::plan_cache::PlanCacheRepository;
 use apollia_oria::PendingPlanGates;
 use apollia_runtime::a2a::{A2AInvoker, A2AToolsProvider};
-use apollia_runtime::coordinator::ExecutionBackend;
+use apollia_runtime::coordinator::{CancellationToken, ExecutionBackend};
 use apollia_runtime::eventbus::EventBusSender;
 use apollia_runtime::mailbox::AgentMailboxHandle;
 use apollia_tools::tools::ask_user::PendingUserInputs;
@@ -272,6 +272,9 @@ pub(super) struct BridgeRunner {
     /// is wired into `ctx.tools` and `ctx.llm` so the Python agent's tool and
     /// LLM calls are counted and cut off (principle #7, non-bypassable).
     pub(super) budget: Arc<StepBudget>,
+    /// Cancels this run. Fired by the coordinator when the user stops the
+    /// task; the Python dispatch is then cancelled at its next await point.
+    pub(super) cancel: CancellationToken,
 }
 
 impl AgentRunner for BridgeRunner {
@@ -280,6 +283,7 @@ impl AgentRunner for BridgeRunner {
         task: AIPTask,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send + '_>> {
         let bridge = Arc::clone(&self.bridge);
+        let cancel = self.cancel.clone();
         let llm_router = self.llm_router.clone();
         let event_bus = self.event_bus.clone();
         let agent_id = self.agent_id.clone();
@@ -507,7 +511,10 @@ impl AgentRunner for BridgeRunner {
                     .map_err(|e| format!("RuntimeContext PyObject construction failed: {e}"))
             })?;
 
-            bridge.call_run(&task, ctx).await.map_err(|e| e.to_string())
+            bridge
+                .call_run_until(&task, ctx, cancel.cancelled())
+                .await
+                .map_err(|e| e.to_string())
         })
     }
 }
@@ -581,6 +588,14 @@ impl ExecutionBackend for AIPProductionBackend {
         &self,
         task: AIPTask,
     ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
+        self.execute_cancellable(task, CancellationToken::new())
+    }
+
+    fn execute_cancellable(
+        &self,
+        task: AIPTask,
+        cancel: CancellationToken,
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>> {
         // Agent budget capped to the runtime ceiling, shared into the runner's
         // ctx and the engine supervisor so the Direct path is bounded on the
         // step/tool_call dimensions, not wall-clock alone (principle #7).
@@ -615,6 +630,7 @@ impl ExecutionBackend for AIPProductionBackend {
             secrets_declared: self.secrets_declared.clone(),
             manifest: self.manifest.clone(),
             budget: Arc::clone(&direct_budget),
+            cancel,
         };
 
         let mut engine = ORIAEngine::new().with_event_bus(self.event_bus.clone());

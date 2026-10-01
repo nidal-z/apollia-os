@@ -1,11 +1,14 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use apollia_core::{
     AIPPart, AIPResult, AIPTask, AgentId, ObservabilityConfig, RuntimeEvent, TaskId, TaskStatus,
 };
 use apollia_tools::TaskRepository;
 use tokio::sync::Semaphore;
+/// Re-exported so a backend can honour a cancellation without depending on
+/// `tokio-util` itself.
+pub use tokio_util::sync::CancellationToken;
 
 use crate::eventbus::EventBusSender;
 
@@ -20,7 +23,28 @@ pub trait ExecutionBackend: Send + Sync + 'static {
         &self,
         task: AIPTask,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>;
+
+    /// Executes a task that the caller may cancel through `cancel`.
+    ///
+    /// A backend that can stop its own work cleanly (cancel a Python
+    /// coroutine, close a connection) overrides this and returns soon after
+    /// `cancel` fires. The default ignores the token: the coordinator then
+    /// drops the execution future once [`CANCEL_GRACE`] has elapsed, which
+    /// abandons every in-flight await it holds.
+    fn execute_cancellable(
+        &self,
+        task: AIPTask,
+        cancel: CancellationToken,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+    {
+        let _ = cancel;
+        self.execute(task)
+    }
 }
+
+/// How long a cancelled execution may take to stop by itself before the
+/// coordinator drops it.
+pub const CANCEL_GRACE: Duration = Duration::from_millis(500);
 
 /// Type-erased execution backend for dynamic dispatch.
 ///
@@ -46,6 +70,15 @@ impl ExecutionBackend for DynBackend {
     {
         self.0.execute(task)
     }
+
+    fn execute_cancellable(
+        &self,
+        task: AIPTask,
+        cancel: CancellationToken,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<AIPResult, String>> + Send>>
+    {
+        self.0.execute_cancellable(task, cancel)
+    }
 }
 
 /// Errors from the execution coordinator.
@@ -59,6 +92,19 @@ pub enum CoordinatorError {
     /// Task execution failed.
     #[error("execution failed: {0}")]
     ExecutionFailed(String),
+
+    /// The execution was cancelled and has stopped.
+    #[error("execution canceled")]
+    Canceled,
+}
+
+/// A task the coordinator accepted: the handle that resolves once its
+/// execution has ended, and the token that cancels it.
+pub struct SubmittedTask {
+    /// Resolves when the execution has stopped, cancelled or not.
+    pub handle: tokio::task::JoinHandle<Result<AIPResult, CoordinatorError>>,
+    /// Cancels this execution, and only this one.
+    pub cancel: CancellationToken,
 }
 
 /// Execution coordinator for one active agent.
@@ -131,21 +177,21 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
     /// Submits a task for execution.
     ///
     /// Tries to acquire a semaphore permit:
-    /// - On success: spawns a Tokio task, emits `TaskStarted`, returns a `JoinHandle`
+    /// - On success: spawns a Tokio task, emits `TaskStarted`, returns the
+    ///   `JoinHandle` together with the execution's own `CancellationToken`
     /// - When the semaphore is full: returns `ConcurrencyLimitReached`
     ///
     /// The permit is released automatically when the spawned task finishes
-    /// (the `OwnedSemaphorePermit` is dropped inside the closure).
-    pub fn submit_task(
-        &self,
-        task: AIPTask,
-    ) -> Result<tokio::task::JoinHandle<Result<AIPResult, CoordinatorError>>, CoordinatorError>
-    {
+    /// (the `OwnedSemaphorePermit` is dropped inside the closure), which after
+    /// a cancellation is once the execution has actually stopped.
+    pub fn submit_task(&self, task: AIPTask) -> Result<SubmittedTask, CoordinatorError> {
         let permit = Arc::clone(&self.concurrency)
             .try_acquire_owned()
             .map_err(|_| CoordinatorError::ConcurrencyLimitReached(self.agent_id.clone()))?;
 
+        let cancel = CancellationToken::new();
         let ctx = SubmittedTaskCtx {
+            cancel: cancel.clone(),
             agent_id: self.agent_id.clone(),
             agent_name_for_db: self.agent_name.clone(),
             event_bus: self.event_bus.clone(),
@@ -160,7 +206,7 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
 
         let handle = tokio::spawn(async move { run_submitted_task(ctx, permit).await });
 
-        Ok(handle)
+        Ok(SubmittedTask { handle, cancel })
     }
 
     /// Returns the number of available permits (tasks that can still be accepted).
@@ -171,6 +217,7 @@ impl<B: ExecutionBackend> ExecutionCoordinator<B> {
 
 /// Context captured to run a submitted task inside the spawned Tokio task.
 struct SubmittedTaskCtx<B: ExecutionBackend> {
+    cancel: CancellationToken,
     agent_id: AgentId,
     agent_name_for_db: String,
     event_bus: EventBusSender,
@@ -194,6 +241,7 @@ async fn run_submitted_task<B: ExecutionBackend>(
     let _permit = permit;
 
     let SubmittedTaskCtx {
+        cancel,
         agent_id,
         agent_name_for_db,
         event_bus,
@@ -239,7 +287,21 @@ async fn run_submitted_task<B: ExecutionBackend>(
         }
     }
 
-    let result = backend.execute(task).await;
+    let Some(result) = execute_until_canceled(backend.as_ref(), task, &cancel).await else {
+        persist_cancellation(
+            task_repo.as_deref(),
+            &task_id,
+            started_at.elapsed().as_millis() as i64,
+        )
+        .await;
+        tracing::event!(
+            tracing::Level::INFO,
+            agent_id = %agent_id,
+            task_id = %task_id,
+            "task.execution.canceled"
+        );
+        return Err(CoordinatorError::Canceled);
+    };
 
     let elapsed_ms = started_at.elapsed().as_millis() as i64;
 
@@ -265,6 +327,43 @@ async fn run_submitted_task<B: ExecutionBackend>(
     });
 
     result.map_err(CoordinatorError::ExecutionFailed)
+}
+
+/// Runs the backend until it finishes or `cancel` fires.
+///
+/// Returns `None` when the execution was cancelled. A cancelled backend gets
+/// [`CANCEL_GRACE`] to stop by itself; after that its future is dropped, which
+/// abandons whatever it was awaiting (an LLM request, an HTTP or MCP tool call).
+/// Its result, if it still produced one, is discarded: the user asked to stop.
+async fn execute_until_canceled<B: ExecutionBackend>(
+    backend: &B,
+    task: AIPTask,
+    cancel: &CancellationToken,
+) -> Option<Result<AIPResult, String>> {
+    let execution = backend.execute_cancellable(task, cancel.clone());
+    tokio::pin!(execution);
+    tokio::select! {
+        biased;
+        () = cancel.cancelled() => {
+            let _ = tokio::time::timeout(CANCEL_GRACE, &mut execution).await;
+            None
+        }
+        result = &mut execution => Some(result),
+    }
+}
+
+/// Persists the "canceled" terminal transition and the duration.
+async fn persist_cancellation(repo: Option<&TaskRepository>, task_id: &TaskId, elapsed_ms: i64) {
+    let Some(repo) = repo else { return };
+    if let Err(e) = repo
+        .append_transition(task_id.as_str(), "canceled", &now_rfc3339())
+        .await
+    {
+        tracing::warn!(task_id = %task_id, error = %e, "task.cancel.transition.persist.failed");
+    }
+    if let Err(e) = repo.set_duration(task_id.as_str(), elapsed_ms).await {
+        tracing::warn!(task_id = %task_id, error = %e, "task.duration.persist.failed");
+    }
 }
 
 /// Persists the input, the agent name, and the "submitted" transition.
@@ -586,7 +685,7 @@ mod tests {
         let coord = ExecutionCoordinator::new("agent-1".into(), 1, tx, MockBackend::success());
 
         // WHEN a task is submitted
-        let handle = coord.submit_task(make_task("task-1"));
+        let handle = coord.submit_task(make_task("task-1")).map(|s| s.handle);
 
         // THEN submit_task returns Ok(JoinHandle)
         assert!(handle.is_ok());
@@ -606,10 +705,11 @@ mod tests {
         // holding the single permit
         let h1 = coord
             .submit_task(make_task("task-1"))
+            .map(|s| s.handle)
             .expect("first submit should succeed");
 
         // WHEN a second task is submitted
-        let result = coord.submit_task(make_task("task-2"));
+        let result = coord.submit_task(make_task("task-2")).map(|s| s.handle);
 
         // THEN it returns ConcurrencyLimitReached
         assert!(result.is_err());
@@ -632,9 +732,9 @@ mod tests {
         let coord = ExecutionCoordinator::new("agent-1".into(), 3, tx, MockBackend::gated(gate_rx));
 
         // WHEN 3 tasks are submitted at once, all parked in-flight on the gate
-        let h1 = coord.submit_task(make_task("task-1"));
-        let h2 = coord.submit_task(make_task("task-2"));
-        let h3 = coord.submit_task(make_task("task-3"));
+        let h1 = coord.submit_task(make_task("task-1")).map(|s| s.handle);
+        let h2 = coord.submit_task(make_task("task-2")).map(|s| s.handle);
+        let h3 = coord.submit_task(make_task("task-3")).map(|s| s.handle);
 
         // THEN all are accepted
         assert!(h1.is_ok());
@@ -642,7 +742,7 @@ mod tests {
         assert!(h3.is_ok());
 
         // AND a 4th returns ConcurrencyLimitReached
-        let h4 = coord.submit_task(make_task("task-4"));
+        let h4 = coord.submit_task(make_task("task-4")).map(|s| s.handle);
         assert!(h4.is_err());
         assert!(matches!(
             h4.unwrap_err(),
@@ -668,6 +768,7 @@ mod tests {
         // WHEN a task is submitted
         let handle = coord
             .submit_task(make_task("task-42"))
+            .map(|s| s.handle)
             .expect("submit should succeed");
         handle
             .await
@@ -692,6 +793,7 @@ mod tests {
         // WHEN a task finishes (success)
         let handle = coord
             .submit_task(make_task("task-99"))
+            .map(|s| s.handle)
             .expect("submit should succeed");
         handle
             .await
@@ -719,6 +821,7 @@ mod tests {
         // WHEN a task is submitted and its execution fails
         let handle = coord
             .submit_task(make_task("task-fail"))
+            .map(|s| s.handle)
             .expect("submit should succeed");
         let result = handle.await.expect("join failed");
         assert!(result.is_err(), "execution should have failed");
@@ -727,7 +830,7 @@ mod tests {
         assert_eq!(coord.available_permits(), 1);
 
         // AND a new task can be submitted
-        let handle2 = coord.submit_task(make_task("task-retry"));
+        let handle2 = coord.submit_task(make_task("task-retry")).map(|s| s.handle);
         assert!(handle2.is_ok(), "should be able to submit after failure");
 
         // AND TaskCompleted with success=false was emitted
@@ -776,6 +879,7 @@ mod tests {
         // WHEN
         let handle = coord
             .submit_task(make_task("task-agent-fail"))
+            .map(|s| s.handle)
             .expect("submit should succeed");
         let _ = handle.await.expect("join should succeed");
 
