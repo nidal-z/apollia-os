@@ -35,6 +35,8 @@ pub mod router;
 pub mod routing_level;
 pub(crate) mod schema_sanitize;
 pub mod schema_validate;
+#[cfg(feature = "cloud")]
+pub mod server_models;
 pub mod token_budget;
 pub mod tool_helper;
 pub mod tool_performance_hints;
@@ -79,7 +81,9 @@ pub use repository::{
     LlmDailyCostSummary, LlmRepositoryError,
 };
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
-pub use router::{BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig};
+pub use router::{
+    BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig, ServerEndpoint,
+};
 pub use routing_level::{EscalationSignal, LlmRoutingLevel};
 pub use schema_validate::{
     parse_and_validate, schema_fingerprint, validate_against_schema, SchemaViolation,

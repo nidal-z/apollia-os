@@ -879,6 +879,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/servers`: every declared server, without its key. */
+        get: operations["list_llm_servers"];
+        put?: never;
+        /**
+         * `POST /api/v1/llm/servers`: declare (or replace) a server. The key goes to
+         *     the secret store; the server's models become routable at once.
+         */
+        post: operations["create_llm_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/servers/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/llm/servers/test`: list the models of a server that is not
+         *     saved, to check the address and the key before saving. Writes nothing.
+         */
+        post: operations["test_llm_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/servers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/llm/servers/{name}`: forget a server and its key. */
+        delete: operations["delete_llm_server"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/servers/{name}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/llm/servers/{name}/models`: the models of a declared server,
+         *     each with the name it routes by.
+         */
+        get: operations["list_llm_server_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/status": {
         parameters: {
             query?: never;
@@ -2698,6 +2776,17 @@ export interface components {
             /** @description Provider identifier: `"llama-cpp"`, `"openai"`, `"mistral"`, `"anthropic"`, `"ollama"`. */
             provider: string;
         };
+        /** @description Body of `POST /api/v1/llm/servers`. */
+        CreateServerRequest: {
+            /** @description Key, when the server asks for one. Written to the secret store. */
+            api_key?: string | null;
+            /** @description Base address, with or without the trailing `/v1`. */
+            base_url: string;
+            /** @description Whether the server's models are routable (default: `true`). */
+            enabled?: boolean;
+            /** @description Unique name, pattern `^[a-z0-9_-]+$`. */
+            name: string;
+        };
         /** @description Request body for `POST /api/v1/sessions`. */
         CreateSessionRequest: {
             /** @description Agent name (required when `mode == "agent"`). */
@@ -2768,6 +2857,11 @@ export interface components {
         /** @description Response for `DELETE /api/v1/triggers/:id`. */
         DeleteResponse: {
             /** @description Identifier of the deleted trigger. */
+            deleted: string;
+        };
+        /** @description Body of `DELETE /api/v1/llm/servers/{name}`. */
+        DeleteServerResponse: {
+            /** @description Name of the deleted server. */
             deleted: string;
         };
         /** @description Response for `GET /api/v1/notifications/events`. */
@@ -3210,6 +3304,45 @@ export interface components {
             /** @description Processing status. */
             status: string;
         };
+        /** @description One model of a declared server. */
+        ServerModel: {
+            /** @description Identifier the server gives the model. */
+            id: string;
+            /** @description Name to address it by, `<server>/<model>`. */
+            route: string;
+        };
+        /** @description Body of `GET /api/v1/llm/servers/{name}/models`. */
+        ServerModelsResponse: {
+            /** @description Models the server offers, in its order. */
+            models: components["schemas"]["ServerModel"][];
+            /** @description Server name. */
+            server: string;
+        };
+        /** @description Body of a failed server call: a readable message and a stable kind. */
+        ServerProbeErrorResponse: {
+            /** @description Human-readable message. */
+            error: string;
+            /** @description `unreachable`, `key_refused` or `not_openai_compatible`. */
+            kind: string;
+        };
+        /** @description One declared server. The key is never part of it. */
+        ServerResponse: {
+            /** @description Environment variable holding the key, for a migrated `${VAR}` key. */
+            api_key_env?: string | null;
+            /** @description Base address. */
+            base_url: string;
+            /** @description Whether the server's models are routable. */
+            enabled: boolean;
+            /** @description Whether a key is held for this server. */
+            has_key: boolean;
+            /** @description Unique name, the first segment of `<server>/<model>`. */
+            name: string;
+        };
+        /** @description Body of `GET /api/v1/llm/servers`. */
+        ServersListResponse: {
+            /** @description Every declared server, sorted by name. */
+            servers: components["schemas"]["ServerResponse"][];
+        };
         /** @description Request body for `PATCH /api/v1/mcp/servers/:name/approval`. */
         SetApprovalBody: {
             requires_approval: boolean;
@@ -3443,6 +3576,18 @@ export interface components {
         TestLiveRequest: {
             /** @description Read-only probe declared for this connector, when any. */
             probe?: Record<string, never> | null;
+        };
+        /** @description Body of `POST /api/v1/llm/servers/test`. */
+        TestServerRequest: {
+            /** @description Key, when the server asks for one. Used for this call only. */
+            api_key?: string | null;
+            /** @description Base address, with or without the trailing `/v1`. */
+            base_url: string;
+        };
+        /** @description Body of a successful `POST /api/v1/llm/servers/test`. */
+        TestServerResponse: {
+            /** @description Identifiers of the models the server offers, in its order. */
+            models: string[];
         };
         /**
          * @description A single event in a task's execution timeline.
@@ -5530,6 +5675,210 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_llm_servers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declared servers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServersListResponse"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_llm_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServerRequest"];
+            };
+        };
+        responses: {
+            /** @description Server saved */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerResponse"];
+                };
+            };
+            /** @description Invalid name or address */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Repository or secret store not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    test_llm_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestServerRequest"];
+            };
+        };
+        responses: {
+            /** @description The server answered with its models */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestServerResponse"];
+                };
+            };
+            /** @description The address is not an HTTP URL */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
+                };
+            };
+            /** @description Unreachable, key refused, or not an OpenAI-compatible server; `kind` says which */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_llm_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteServerResponse"];
+                };
+            };
+            /** @description Server not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Repository or secret store not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_llm_server_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The server's models */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerModelsResponse"];
+                };
+            };
+            /** @description Server not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
+                };
+            };
+            /** @description Unreachable, key refused, or not an OpenAI-compatible server; `kind` says which */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
+                };
+            };
+            /** @description Repository or key not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
                 };
             };
         };

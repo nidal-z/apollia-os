@@ -43,6 +43,7 @@ from .create_channel_request import CreateChannelRequest
 from .create_channel_request_config import CreateChannelRequestConfig
 from .create_llm_backend_request import CreateLlmBackendRequest
 from .create_llm_backend_request_config_json import CreateLlmBackendRequestConfigJson
+from .create_server_request import CreateServerRequest
 from .create_session_request import CreateSessionRequest
 from .create_trigger_request import CreateTriggerRequest
 from .daily_cost_entry import DailyCostEntry
@@ -51,6 +52,7 @@ from .delegate_request import DelegateRequest
 from .delegate_request_input import DelegateRequestInput
 from .delete_backend_response import DeleteBackendResponse
 from .delete_response import DeleteResponse
+from .delete_server_response import DeleteServerResponse
 from .events_response import EventsResponse
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
@@ -101,6 +103,11 @@ from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
+from .server_model import ServerModel
+from .server_models_response import ServerModelsResponse
+from .server_probe_error_response import ServerProbeErrorResponse
+from .server_response import ServerResponse
+from .servers_list_response import ServersListResponse
 from .set_approval_body import SetApprovalBody
 from .set_default_response import SetDefaultResponse
 from .set_events_request import SetEventsRequest
@@ -127,6 +134,8 @@ from .task_response_result_type_0 import TaskResponseResultType0
 from .task_response_token_budget_type_0 import TaskResponseTokenBudgetType0
 from .test_live_request import TestLiveRequest
 from .test_live_request_probe_type_0 import TestLiveRequestProbeType0
+from .test_server_request import TestServerRequest
+from .test_server_response import TestServerResponse
 from .timeline_event_type_0 import TimelineEventType0
 from .timeline_event_type_0_type import TimelineEventType0Type
 from .timeline_event_type_1 import TimelineEventType1
@@ -214,6 +223,7 @@ __all__ = (
     "CreateChannelRequestConfig",
     "CreateLlmBackendRequest",
     "CreateLlmBackendRequestConfigJson",
+    "CreateServerRequest",
     "CreateSessionRequest",
     "CreateTriggerRequest",
     "DailyCostEntry",
@@ -222,6 +232,7 @@ __all__ = (
     "DelegateRequestInput",
     "DeleteBackendResponse",
     "DeleteResponse",
+    "DeleteServerResponse",
     "EventsResponse",
     "FireResponse",
     "ForkSessionRequest",
@@ -270,6 +281,11 @@ __all__ = (
     "ResumeResponse",
     "SendMessageRequest",
     "SendMessageResponse",
+    "ServerModel",
+    "ServerModelsResponse",
+    "ServerProbeErrorResponse",
+    "ServerResponse",
+    "ServersListResponse",
     "SetApprovalBody",
     "SetDefaultResponse",
     "SetEventsRequest",
@@ -296,6 +312,8 @@ __all__ = (
     "TaskResponseTokenBudgetType0",
     "TestLiveRequest",
     "TestLiveRequestProbeType0",
+    "TestServerRequest",
+    "TestServerResponse",
     "TimelineEventType0",
     "TimelineEventType0Type",
     "TimelineEventType1",

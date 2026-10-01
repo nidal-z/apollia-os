@@ -223,6 +223,18 @@ impl Supervisor {
         // setup_local_llm writes only to TOML, not to system.db.
         self.migrate_llm_backends_from_toml(&repo);
 
+        // Declared inference servers: a key the schema migration left in clear
+        // moves into the secret store, then every enabled server is resolved
+        // so its models route as `<server>/<model>`.
+        crate::inference_servers::adopt_pending_keys(
+            &repo,
+            crate::inference_servers::default_store,
+        );
+        let server_endpoints = crate::inference_servers::server_endpoints(
+            &repo,
+            crate::inference_servers::default_store,
+        );
+
         // Override instantiation of `LlamaCpp` backends so they route through
         // the managed llama-server. Cloud backends keep their standard
         // `instantiate_from_config` path. The factory is shared with the reload
@@ -236,7 +248,7 @@ impl Supervisor {
         let repo = Arc::new(std::sync::Mutex::new(repo));
         match router_result {
             Ok(router) => {
-                let router = self.finalize_llm_router(router);
+                let router = self.finalize_llm_router(router.with_servers(server_endpoints));
                 info!("supervisor.llm_router.ready");
                 (Some(Arc::new(router)), Some(repo))
             }

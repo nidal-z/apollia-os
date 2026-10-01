@@ -22,6 +22,7 @@ pub mod embedded;
 pub mod eventbus;
 pub mod governance;
 pub mod hooks;
+pub mod inference_servers;
 pub mod llama_server;
 pub mod llama_server_backend;
 pub mod llm_timings;

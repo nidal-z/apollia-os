@@ -144,15 +144,15 @@ fn config_to_response(cfg: LlmBackendConfig) -> LlmBackendResponse {
 }
 
 /// Map [`LlmBackendError`] to an HTTP status + error body.
-fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<BackendErrorResponse>) {
+pub(crate) fn map_backend_error(err: LlmBackendError) -> (StatusCode, Json<BackendErrorResponse>) {
     let (status, msg) = match &err {
         LlmBackendError::NotFound(_) => (StatusCode::NOT_FOUND, err.to_string()),
         LlmBackendError::DefaultAlreadyExists(_) | LlmBackendError::CannotDeleteDefault => {
             (StatusCode::CONFLICT, err.to_string())
         }
-        LlmBackendError::InvalidName(_) | LlmBackendError::Serialization(_) => {
-            (StatusCode::UNPROCESSABLE_ENTITY, err.to_string())
-        }
+        LlmBackendError::InvalidName(_)
+        | LlmBackendError::InvalidAddress(_)
+        | LlmBackendError::Serialization(_) => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
         LlmBackendError::Db(_) | LlmBackendError::Io(_) | LlmBackendError::Schema(_) => {
             (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
         }
@@ -587,6 +587,14 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
         )
     })?;
 
+    let endpoints = match repo.lock() {
+        Ok(guard) => crate::inference_servers::server_endpoints(
+            &guard,
+            crate::inference_servers::default_store,
+        ),
+        Err(_) => Vec::new(),
+    };
+    let new_router = new_router.with_servers(endpoints);
     let backends = new_router.list();
     let default = new_router.default_name().to_owned();
     let arc_router = Arc::new(new_router);

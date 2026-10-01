@@ -32,6 +32,7 @@ use crate::coordinator::ExecutionBackend;
 pub mod backends;
 pub mod costs;
 pub mod loaded;
+pub mod servers;
 
 use backends::{
     create_llm_backend, delete_llm_backend, get_llm_backend, list_llm_backends, reload_llm_router,
@@ -260,8 +261,11 @@ pub async fn ping_llm_backend<B: ExecutionBackend + Clone>(
         .unwrap_or_else(|| router.default_name())
         .to_owned();
 
+    // One token is enough to prove the backend answers; without a cap the
+    // diagnostic paid for a whole generation.
     let ping_req = CompletionRequest {
         messages: vec![ChatMessage::user("ping")],
+        max_tokens: Some(1),
         ..Default::default()
     };
     let obs = ObservabilityConfig::default();
@@ -545,6 +549,7 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         )
         .route("/api/v1/llm/reload", post(reload_llm_router::<B>))
         .merge(loaded::loaded_model_routes::<B>())
+        .merge(servers::server_routes::<B>())
 }
 
 // ─────────────────────────────────────────────
