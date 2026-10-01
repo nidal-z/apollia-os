@@ -9,9 +9,9 @@ use thiserror::Error;
 /// Abstracts secret retrieval so that `apollia-mcp` does not depend on any
 /// Default service slot for MCP static secrets in the OS keychain.
 ///
-/// Kept in sync with the desktop-side `apollia_desktop::mcp::SecretStore`
-/// which writes under the same service when the wizard calls
-/// `store_mcp_secret`. The constant lives here so the
+/// The desktop `store_mcp_secret` command, the runtime secrets route and the
+/// CLI write under this service through `apollia_auth::SecretStore`. The
+/// constant lives here so the
 /// [`DefaultMcpSecretResolver`] can read from the same slot without
 /// duplicating the literal.
 pub const MCP_STATIC_SECRET_SERVICE: &str = "apollia-mcp";

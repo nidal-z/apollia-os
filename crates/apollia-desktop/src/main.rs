@@ -39,7 +39,6 @@ use apollia_runtime::router::TaskRouterHandle;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use mcp::McpRegistryClient;
-use mcp::SecretStore;
 use tauri::Manager;
 
 use bootstrap::{
@@ -342,7 +341,6 @@ fn main() {
         .manage(runtime_handle.event_sender.clone())
         .manage(llm_router_lock.clone())
         .manage(mcp_registry_client)
-        .manage(SecretStore::new())
         .manage(stt_flow_state.clone())
         .manage(std::sync::Arc::new(
             tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()),

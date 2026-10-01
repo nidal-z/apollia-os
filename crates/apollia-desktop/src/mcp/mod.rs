@@ -1,13 +1,12 @@
 //! MCP integration layer for the desktop application.
 //!
 //! Provides the registry client for discovering MCP servers from the official
-//! registry, the OS keychain secret store, builtin connector enrichments, and
-//! Tauri IPC commands.
+//! registry, builtin connector enrichments, and Tauri IPC commands. MCP
+//! secrets go through the shared `apollia_auth::SecretStore`.
 
 pub mod enrichments;
 pub mod overrides;
 pub mod python_server;
-pub mod secret_store;
 
 /// The registry client lives in `apollia-mcp`, shared with the runtime's
 /// `/api/v1/mcp/registry` routes; the desktop reads it under its old path.
@@ -22,4 +21,3 @@ pub use registry_client::{
     RegistryMetadata, RegistryPackage, RegistryPackageArg, RegistryRepository, RegistryServer,
     RegistryServerDetail, RegistryTransport,
 };
-pub use secret_store::{SecretStore, SecretStoreError};
