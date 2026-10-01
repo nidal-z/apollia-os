@@ -195,6 +195,7 @@
           total_capacity_gb: 0,
           accelerator: { kind: "none" },
         },
+        selection: [],
       };
     } finally {
       if (request === recommendRequest) recommendLoading = false;

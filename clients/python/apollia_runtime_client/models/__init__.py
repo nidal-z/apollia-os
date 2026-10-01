@@ -36,6 +36,10 @@ from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
 from .connected_account_response import ConnectedAccountResponse
+from .connection import Connection
+from .connection_kind import ConnectionKind
+from .connection_state import ConnectionState
+from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
@@ -216,6 +220,10 @@ __all__ = (
     "CompleteRequest",
     "CompleteRequestSchemaType0",
     "ConnectedAccountResponse",
+    "Connection",
+    "ConnectionKind",
+    "ConnectionState",
+    "ConnectionTool",
     "ConnectorAccountResponse",
     "CostsResponse",
     "CostSummaryRow",

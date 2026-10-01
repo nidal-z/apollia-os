@@ -1,0 +1,54 @@
+# The HuggingFace organisations whose repositories Apollia names, and how.
+#
+# Two kinds, kept apart because they answer different questions:
+#
+#   official     the organisation that trained the model. A repository under
+#                one of these orgs is the publisher's own release.
+#   converter    an organisation or user that republishes someone else's model
+#                in a format the runtime loads (GGUF, MLX). A short list on
+#                purpose: these are the converters whose files load cleanly and
+#                whose naming the curated table already relies on.
+#
+# Anything else on the Hub carries no kind at all.
+#
+# Every name below is the exact HuggingFace handle, checked against
+# `https://huggingface.co/api/organizations/<name>/overview` (or `users/` for a
+# personal account). The Hub matches handles without regard to case and
+# redirects, so the spelling here is the canonical one, not merely one that
+# resolves.
+#
+# `scripts/check-model-families.py` holds this file: both lists are non-empty,
+# no handle sits in both, and every `publisher` of `families.toml` is listed
+# below as an official publisher.
+
+schema_version = 1
+
+converters = ["lmstudio-community", "mlx-community", "unsloth", "bartowski"]
+
+[[official]]
+publisher = "Qwen"
+orgs = ["Qwen"]
+
+[[official]]
+publisher = "Mistral AI"
+orgs = ["mistralai"]
+
+[[official]]
+publisher = "Google"
+orgs = ["google"]
+
+[[official]]
+publisher = "Meta"
+orgs = ["meta-llama"]
+
+[[official]]
+publisher = "Microsoft"
+orgs = ["microsoft"]
+
+[[official]]
+publisher = "NVIDIA"
+orgs = ["nvidia"]
+
+[[official]]
+publisher = "IBM"
+orgs = ["ibm-granite"]
