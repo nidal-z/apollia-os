@@ -198,12 +198,6 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "lib/tools/tool-display.ts",
   },
   {
-    pattern: new RegExp(
-      `^tour\\.band\\.milestone\\.${SEG}\\.(cta|hint|label)$`,
-    ),
-    builtBy: "components/dashboard/GettingStartedBand.svelte",
-  },
-  {
     pattern: new RegExp(`^trace\\.describe\\.${SEG}$`),
     builtBy: "lib/utils/bashDescriber.ts",
   },

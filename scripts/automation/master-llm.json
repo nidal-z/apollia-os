@@ -3,7 +3,6 @@
   "stopOnError": false,
   "dynamicTestids": [
     "command-item-companion.toggle",
-    "getting-started-milestone-chat",
     "sidebar-mode-option-operator"
   ],
   "steps": [
@@ -874,155 +873,12 @@
     {
       "kind": "screenshot",
       "label": "03-coach-answer"
-    },
-    {
-      "kind": "screenshot",
-      "label": "section-tour-llm"
-    },
-    {
-      "kind": "click",
-      "testid": "companion-close",
-      "timeoutMs": 5000
-    },
-    {
-      "kind": "goto",
-      "route": "dashboard"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "click",
-      "testid": "sidebar-mode-chip",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "sidebar-mode-option-operator",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "sleep",
-      "ms": 600
-    },
-    {
-      "kind": "waitFor",
-      "testid": "getting-started-card",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "screenshot",
-      "label": "00-tour-band"
-    },
-    {
-      "kind": "click",
-      "testid": "getting-started-milestone-chat",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "quickpicker-textarea",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tour-step-card",
-      "timeoutMs": 15000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "tour-spotlight",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "expect",
-      "testid": "tour-counter"
-    },
-    {
-      "kind": "screenshot",
-      "label": "01-annotation-1-on-composer"
-    },
-    {
-      "kind": "fill",
-      "testid": "quickpicker-textarea",
-      "text": "Liste les fichiers du dossier courant."
-    },
-    {
-      "kind": "click",
-      "testid": "quickpicker-submit",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "chat-conversation",
-      "timeoutMs": 30000
-    },
-    {
-      "kind": "expect",
-      "testid": "tour-step-card"
-    },
-    {
-      "kind": "screenshot",
-      "label": "02-conversation-opened"
-    },
-    {
-      "kind": "click",
-      "testid": "tour-next",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "awaitTurn",
-      "timeoutMs": 300000,
-      "maxApprovals": 10,
-      "label": "approval-autoaccepted"
-    },
-    {
-      "kind": "captureText",
-      "testidPrefix": "chat-message-",
-      "nth": -1,
-      "as": "tour_first_result_answer"
-    },
-    {
-      "kind": "click",
-      "testid": "tour-next",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "tour-step-card",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "04-annotation-3-on-answer"
-    },
-    {
-      "kind": "click",
-      "testid": "tour-next",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "tour-step-card",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "screenshot",
-      "label": "05-act-1-finished"
     }
   ],
   "notes": [
     "ChatPlanHost picks the review card by persona: operator gets ChatPlanReview (chat-plan-review, with request-changes + an adjust textarea), builder gets ChatPlanReviewBuilder (chat-plan-review-builder, approve/reject only, revision by continuing to type). This block is written for the operator card, so the mode is forced to operator first instead of inheriting whatever the previous section left.",
     "The journey now ends on an approval: propose, request changes, revise, approve. Stopping after the revision left the plan pending forever and never exercised the gate that releases execution.",
     "The ask_user card is answered with ask-user-skip, not with a typed answer: AskUserCard renders whatever question TYPE the model chose (open input, radios, checkboxes) and ask-user-submit stays disabled until every question is answered, so no fixed step can answer it. Skip is always enabled and releases the turn; leaving the card pending keeps the session processing, which then hides config-save (isReadOnly = isClosed || isProcessing) and breaks the whole tail.",
-    "The turn that follows the plan approval keeps the runner's default approval budget (25), not the 6 used while reviewing the plan: approving releases the execution of every planned step, and a three-step plan with two or three tools each blows past 6 approvals and aborts as a runaway turn.",
-    "The tour section runs last, after the three proven ones, so it cannot perturb them. It closes the companion the coach section leaves open, forces operator mode (the approval card is persona-picked), and drives its approval by hand rather than through awaitTurn, which would accept the HITL card before the annotation could land on it. If the model answers without calling a tool the approval annotation never fires: that silence is the accepted product behaviour, not a defect."
+    "The turn that follows the plan approval keeps the runner's default approval budget (25), not the 6 used while reviewing the plan: approving releases the execution of every planned step, and a three-step plan with two or three tools each blows past 6 approvals and aborts as a runaway turn."
   ]
 }

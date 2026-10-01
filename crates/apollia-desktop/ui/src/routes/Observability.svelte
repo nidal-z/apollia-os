@@ -32,7 +32,6 @@
 </script>
 
 <script lang="ts">
-  import { onMount } from "svelte";
   import { t } from "svelte-i18n";
   import { TabBar } from "$lib/components/ui/tabs";
   import { uiMode } from "$lib/stores/mode";
@@ -46,7 +45,6 @@
   import DelegationTree from "../components/observability/DelegationTree.svelte";
   import MailboxTable from "../components/observability/MailboxTable.svelte";
   import ActiveHooksPanel from "../components/observability/ActiveHooksPanel.svelte";
-  import { markFollowVisited } from "$lib/tour/persistence";
 
   type ObsTab =
     | "timeline"
@@ -79,10 +77,6 @@
     activeTab = "timeline";
     timelineLoaded = true;
   });
-
-  // Ticks the "follow" getting-started milestone. Consulting the activity and
-  // audit surface is an act, so no store can report it on our behalf.
-  onMount(() => markFollowVisited());
 
   /** Tabs reserved to builder mode: they expose runtime internals. */
   const BUILDER_TABS: ReadonlySet<ObsTab> = new Set<ObsTab>([

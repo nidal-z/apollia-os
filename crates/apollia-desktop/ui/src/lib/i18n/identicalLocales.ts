@@ -82,7 +82,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "tools.body.url_label", // URL
   "tools.catalog.file_grep.desc_builder", // file_grep - regex, context_lines, max_results - SandboxProfile::ReadOnly
   "tools.labels.connector", // {provider}
-  "tour.band.progress", // {done} / {total}
   "transcriptions.source_api", // API
 ];
 

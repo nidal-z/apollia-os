@@ -104,8 +104,8 @@ const ROUTE_ALLOWLIST: Record<string, Route> = {
 
 /**
  * Allowlist of Tauri commands the coach may invoke. Currently empty - the
- * `invoke` action kind is reserved for future capabilities (e.g. "Run the
- * onboarding tour from here"). Commands must be explicitly added here AND
+ * `invoke` action kind is reserved for future capabilities. Commands must be
+ * explicitly added here AND
  * must be read-only / idempotent.
  */
 const INVOKE_ALLOWLIST = new Set<string>([]);
