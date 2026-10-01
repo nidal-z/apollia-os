@@ -208,17 +208,13 @@ fn validate_config_json(
 /// Move a key given in clear into the secret store before `cfg` is written.
 /// `previous` is the row being replaced, if any.
 fn seal_key(
+    open_store: &crate::inference_servers::SecretStoreOpener,
     cfg: &mut LlmBackendConfig,
     previous: Option<&LlmBackendConfig>,
 ) -> Result<(), (StatusCode, Json<BackendErrorResponse>)> {
     let had_stored_key =
         previous.is_some_and(|p| crate::backend_keys::key_in_store(&p.config_json));
-    crate::backend_keys::seal_backend_key(
-        cfg,
-        had_stored_key,
-        crate::inference_servers::default_store,
-    )
-    .map_err(|e| {
+    crate::backend_keys::seal_backend_key(cfg, had_stored_key, || open_store()).map_err(|e| {
         (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(BackendErrorResponse {
@@ -359,7 +355,7 @@ pub async fn create_llm_backend<B: ExecutionBackend + Clone>(
         )
     })?;
     let previous = guard.find_by_name(&cfg.name).map_err(map_backend_error)?;
-    seal_key(&mut cfg, previous.as_ref())?;
+    seal_key(&state.secret_store, &mut cfg, previous.as_ref())?;
     guard.save(&cfg).map_err(map_backend_error)?;
     sync_toml_after_mutation(&state, &guard);
     let created = guard
@@ -443,7 +439,7 @@ pub async fn update_llm_backend<B: ExecutionBackend + Clone>(
         enabled: body.enabled,
         is_default: body.is_default,
     };
-    seal_key(&mut cfg, Some(&previous))?;
+    seal_key(&state.secret_store, &mut cfg, Some(&previous))?;
     guard.save(&cfg).map_err(map_backend_error)?;
     sync_toml_after_mutation(&state, &guard);
     let updated = guard
@@ -495,9 +491,7 @@ pub async fn delete_llm_backend<B: ExecutionBackend + Clone>(
         .is_some_and(|cfg| crate::backend_keys::key_in_store(&cfg.config_json));
     guard.delete(&name).map_err(map_backend_error)?;
     if had_stored_key {
-        if let Err(e) =
-            crate::backend_keys::forget_backend_key(&name, crate::inference_servers::default_store)
-        {
+        if let Err(e) = crate::backend_keys::forget_backend_key(&name, || (state.secret_store)()) {
             tracing::event!(
                 tracing::Level::WARN,
                 backend = %name,
@@ -593,7 +587,7 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
             )
         })?;
         let (all, default) =
-            crate::backend_keys::routable_configs(&guard, crate::inference_servers::default_store)
+            crate::backend_keys::routable_configs(&guard, || (state.secret_store)())
                 .map_err(map_backend_error)?;
         let default = default.ok_or_else(|| {
                 (
@@ -628,10 +622,7 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
     })?;
 
     let endpoints = match repo.lock() {
-        Ok(guard) => crate::inference_servers::server_endpoints(
-            &guard,
-            crate::inference_servers::default_store,
-        ),
+        Ok(guard) => crate::inference_servers::server_endpoints(&guard, || (state.secret_store)()),
         Err(_) => Vec::new(),
     };
     let new_router = new_router.with_servers(endpoints);

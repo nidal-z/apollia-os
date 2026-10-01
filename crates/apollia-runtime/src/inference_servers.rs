@@ -72,6 +72,16 @@ pub fn default_store() -> Result<Box<dyn SecretStore>, String> {
     apollia_auth::select_secret_store().map_err(|e| e.to_string())
 }
 
+/// Opens the secret store a route writes keys to. Held by the API state so a
+/// test hands the routes a throwaway store instead of the operator's keychain.
+pub type SecretStoreOpener =
+    std::sync::Arc<dyn Fn() -> Result<Box<dyn SecretStore>, String> + Send + Sync>;
+
+/// The opener over [`default_store`], the one the runtime serves with.
+pub fn default_store_opener() -> SecretStoreOpener {
+    std::sync::Arc::new(default_store)
+}
+
 /// Move into the secret store the keys a schema migration left in clear on a
 /// backend row, then record each as stored. Returns how many were moved.
 ///

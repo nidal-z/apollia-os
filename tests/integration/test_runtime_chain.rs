@@ -109,6 +109,7 @@ fn build_app_state() -> AppState<MockBackend> {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        secret_store: apollia_runtime::inference_servers::default_store_opener(),
     }
 }
 

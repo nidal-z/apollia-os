@@ -24,7 +24,7 @@ use apollia_llm::server_models::{list_server_models, ServerModelsError};
 use crate::api::routes_llm::backends::{map_backend_error, BackendErrorResponse};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
-use crate::inference_servers::{default_store, resolve_server_key, server_endpoints};
+use crate::inference_servers::{resolve_server_key, server_endpoints};
 
 type ApiError = (StatusCode, Json<BackendErrorResponse>);
 
@@ -278,7 +278,7 @@ async fn refresh_router_servers<B: ExecutionBackend + Clone>(state: &AppState<B>
         return;
     };
     let endpoints = match repo.lock() {
-        Ok(guard) => server_endpoints(&guard, default_store),
+        Ok(guard) => server_endpoints(&guard, || (state.secret_store)()),
         Err(_) => return,
     };
     let refreshed = {
@@ -358,7 +358,9 @@ pub async fn create_llm_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<CreateServerRequest>,
 ) -> Result<(StatusCode, Json<ServerResponse>), ApiError> {
-    let server = with_repo(&state, |repo| save_server(repo, &req, default_store))?;
+    let server = with_repo(&state, |repo| {
+        save_server(repo, &req, || (state.secret_store)())
+    })?;
     tracing::event!(
         tracing::Level::INFO,
         server = %server.name,
@@ -385,7 +387,9 @@ pub async fn delete_llm_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
 ) -> Result<Json<DeleteServerResponse>, ApiError> {
-    with_repo(&state, |repo| remove_server(repo, &name, default_store))?;
+    with_repo(&state, |repo| {
+        remove_server(repo, &name, || (state.secret_store)())
+    })?;
     tracing::event!(tracing::Level::INFO, server = %name, "llm.server.deleted");
     refresh_router_servers(&state).await;
     Ok(Json(DeleteServerResponse { deleted: name }))
@@ -415,7 +419,7 @@ pub async fn list_llm_server_models<B: ExecutionBackend + Clone>(
             .ok_or_else(|| api_err(StatusCode::NOT_FOUND, format!("server '{name}' not found")))
     })
     .map_err(as_probe)?;
-    let key = resolve_server_key(&server, default_store)
+    let key = resolve_server_key(&server, || (state.secret_store)())
         .map_err(|e| as_probe(api_err(StatusCode::SERVICE_UNAVAILABLE, e)))?;
     let ids = list_server_models(&server.base_url, key.as_deref())
         .await
