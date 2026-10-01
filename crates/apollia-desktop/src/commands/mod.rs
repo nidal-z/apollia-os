@@ -19,6 +19,7 @@ pub mod hitl;
 pub mod integrations;
 pub mod link_preview;
 pub mod llm;
+pub mod llm_loaded;
 pub mod mcp;
 pub mod mcp_coaching;
 pub mod memory;

@@ -26,6 +26,7 @@
   import LlmStats from "../components/llm/LlmStats.svelte";
   import LlmDeleteDialog from "../components/llm/LlmDeleteDialog.svelte";
   import LlmErrorNotice from "../components/llm/LlmErrorNotice.svelte";
+  import LlmLoadedModels from "../components/llm/LlmLoadedModels.svelte";
   import LlmBackendDialog from "../components/settings/LlmBackendDialog.svelte";
 
   const SKELETON_COUNT = 2;
@@ -219,6 +220,8 @@
         <LlmStats />
       </div>
     {/if}
+
+    <LlmLoadedModels />
   </div>
 </PageLayout>
 

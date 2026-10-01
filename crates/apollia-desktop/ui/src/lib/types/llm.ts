@@ -15,6 +15,40 @@ export interface LlmBackendConfig {
   last_ping_at?: string | null;
 }
 
+/** One local model resident in memory, as `list_loaded_models` returns it. */
+export interface LoadedModel {
+  /** Display name, the model file name without its extension. */
+  model: string;
+  /** Path the model was loaded from; the key an unload takes. */
+  modelPath: string;
+  port: number;
+  nCtx: number;
+  nGpuLayers: number;
+  /** Absent when the engine default applies. */
+  nParallel?: number | null;
+  /** RFC 3339. */
+  loadedAt: string;
+  /** RFC 3339. */
+  lastUsedAt: string;
+  /** Requests being answered right now; an unload is refused above zero. */
+  activeRequests: number;
+}
+
+/** Resident local models and the engine that holds them. */
+export interface LoadedModelsResponse {
+  /** `false` means no local engine on this host, not merely nothing loaded. */
+  engineAvailable: boolean;
+  maxLoaded: number;
+  /** Most recently used first. */
+  models: LoadedModel[];
+}
+
+/** Outcome of `unload_loaded_model`. */
+export interface UnloadedModel {
+  modelPath: string;
+  stopped: number;
+}
+
 /** Result of an LLM ping. */
 export interface LlmPingResult {
   backend: string;
