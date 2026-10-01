@@ -140,6 +140,15 @@ fn is_webhook_path(path: &str) -> bool {
     }
 }
 
+/// Whether the request is `GET /api/v1/health`, the one `/api/v1` route
+/// served without a bearer token on the TCP listener.
+///
+/// Exact on both the method and the path: `POST /api/v1/health`,
+/// `/api/v1/health/x` and `/api/v1/healthz` stay behind the token.
+fn is_health_request(method: &axum::http::Method, path: &str) -> bool {
+    method == axum::http::Method::GET && path == "/api/v1/health"
+}
+
 // ─────────────────────────────────────────────
 // Tower Layer + Service
 // ─────────────────────────────────────────────
@@ -209,6 +218,16 @@ where
         // secret would make the HMAC forgeable by anyone and turn this into an
         // unauthenticated route.
         if is_webhook_path(req.uri().path()) {
+            let mut inner = self.inner.clone();
+            return Box::pin(async move { inner.call(req).await });
+        }
+
+        // The health route is open by decision: a process that finds the port
+        // taken has no token of this installation, and the answer it needs is
+        // whether an Apollia runtime holds the port and in which version. The
+        // handler reveals that and nothing else, so it is the only `/api/v1`
+        // path served without a token.
+        if is_health_request(req.method(), req.uri().path()) {
             let mut inner = self.inner.clone();
             return Box::pin(async move { inner.call(req).await });
         }
@@ -405,6 +424,23 @@ mod tests {
         assert!(!is_webhook_path("/webhooks/a/b"));
         assert!(!is_webhook_path("/webhooksomething"));
         assert!(!is_webhook_path("/api/v1/webhooks/abc"));
+    }
+
+    /// GIVEN the health predicate alone
+    /// WHEN  it is asked about `GET /api/v1/health` and its neighbours
+    /// THEN  it accepts that exact method and path, and nothing else
+    #[test]
+    fn test_is_health_request_matches_get_on_the_exact_path_only() {
+        // GIVEN
+        use axum::http::Method;
+
+        // WHEN / THEN
+        assert!(is_health_request(&Method::GET, "/api/v1/health"));
+        assert!(!is_health_request(&Method::POST, "/api/v1/health"));
+        assert!(!is_health_request(&Method::GET, "/api/v1/health/x"));
+        assert!(!is_health_request(&Method::GET, "/api/v1/healthz"));
+        assert!(!is_health_request(&Method::GET, "/health"));
+        assert!(!is_health_request(&Method::GET, "/api/v1/shutdown"));
     }
 
     fn build_open_router() -> Router {

@@ -1012,9 +1012,15 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
     }
 
+    /// GIVEN a server bound on TCP with a bearer token
+    /// WHEN  health and another route are requested with and without the token
+    /// THEN  health answers without it, and every other route still needs it
+    ///
+    /// Health is the single `/api/v1` exemption: a process that finds the port
+    /// taken has no token and must still learn what holds it.
     #[tokio::test]
-    async fn test_tcp_token_required_when_configured() {
-        // GIVEN a server bound on TCP with a bearer token
+    async fn test_tcp_token_required_on_every_route_but_health() {
+        // GIVEN
         let socket_path = temp_socket_path();
         let reserved_port = reserve_port();
         let port = reserved_port.port();
@@ -1034,14 +1040,18 @@ mod tests {
         reserved_port.release();
         let handle = server.start().await.unwrap();
 
-        // WHEN a request omits the token THEN it is rejected with 401
-        let (status_no, _) = http_get_health_status_via_tcp(port, None).await;
-        assert_eq!(status_no, 401, "TCP without token must be rejected");
+        // WHEN health is requested without the token
+        let (health_status, health) = http_get_status_via_tcp(port, "/api/v1/health", None).await;
+        // WHEN another route is requested without, then with, the token
+        let (tasks_no, _) = http_get_status_via_tcp(port, "/api/v1/tasks", None).await;
+        let (tasks_ok, _) = http_get_status_via_tcp(port, "/api/v1/tasks", Some(token)).await;
 
-        // WHEN a request carries the token THEN it succeeds
-        let (status_ok, body) = http_get_health_status_via_tcp(port, Some(token)).await;
-        assert_eq!(status_ok, 200, "TCP with token must be accepted");
-        assert_eq!(body, health_body());
+        // THEN health answers 200 with the product marker and the version only
+        assert_eq!(health_status, 200, "health must answer without a token");
+        assert_eq!(health, health_body());
+        // THEN the other route is refused without the token, served with it
+        assert_eq!(tasks_no, 401, "every other route stays behind the token");
+        assert_eq!(tasks_ok, 200, "the token still opens the other route");
 
         // Cleanup
         handle.shutdown();
@@ -1447,9 +1457,9 @@ mod tests {
         raw_http_get_health(stream).await
     }
 
-    /// GET `/api/v1/health` over TCP with an optional `Bearer` token, returning
-    /// the HTTP status code and trimmed body.
-    async fn http_get_health_status_via_tcp(port: u16, auth: Option<&str>) -> (u16, String) {
+    /// GET `path` over TCP with an optional `Bearer` token, returning the HTTP
+    /// status code and trimmed body.
+    async fn http_get_status_via_tcp(port: u16, path: &str, auth: Option<&str>) -> (u16, String) {
         let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port))
             .await
             .expect("failed to connect to TCP");
@@ -1458,7 +1468,7 @@ mod tests {
             None => String::new(),
         };
         let request = format!(
-            "GET /api/v1/health HTTP/1.1\r\nHost: localhost\r\n{auth_line}Connection: close\r\n\r\n"
+            "GET {path} HTTP/1.1\r\nHost: localhost\r\n{auth_line}Connection: close\r\n\r\n"
         );
         stream.write_all(request.as_bytes()).await.unwrap();
         let mut response = Vec::new();

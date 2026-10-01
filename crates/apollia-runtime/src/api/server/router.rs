@@ -36,6 +36,9 @@ pub(crate) struct ShutdownResponse {
     get,
     path = "/api/v1/health",
     tag = "health",
+    // Open on the TCP listener: a process that finds the port taken has no
+    // token, and the body reveals the product marker and the version only.
+    security(()),
     responses((status = 200, description = "Runtime is up", body = HealthResponse))
 )]
 pub(crate) async fn health_handler() -> Json<HealthResponse> {

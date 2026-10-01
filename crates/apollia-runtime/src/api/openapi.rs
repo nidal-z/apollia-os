@@ -52,9 +52,10 @@ impl Modify for BearerToken {
                     .description(Some(
                         "Token read from `<data_dir>/api-token`, generated on first start \
                          and sent as `Authorization: Bearer <token>`. Enforced on the TCP \
-                         listener by `TokenAuthLayer`, on every route except \
-                         `POST /webhooks/{id}`, which authenticates its caller with an \
-                         HMAC-SHA256 signature instead. Requests arriving on the Unix \
+                         listener by `TokenAuthLayer`, on every route except two: \
+                         `GET /api/v1/health`, which reveals the product marker and the \
+                         version only, and `POST /webhooks/{id}`, which authenticates its \
+                         caller with an HMAC-SHA256 signature instead. Requests arriving on the Unix \
                          socket bypass the check: the socket file is mode 0600, so its \
                          permissions carry the same rule. Setting `[api] require_token = \
                          false` in `apollia.toml` removes the layer from the TCP listener \
@@ -125,8 +126,8 @@ impl ToSchema for RawWebhookBody {}
 /// The generated OpenAPI document for the `/api/v1` driving contract.
 ///
 /// The document-level `security` applies [`BearerToken`] to every operation.
-/// One operation opts out, `POST /webhooks/{id}`, and does so at its own
-/// annotation.
+/// Two operations opt out, `GET /api/v1/health` and `POST /webhooks/{id}`,
+/// each at its own annotation.
 #[derive(OpenApi)]
 #[openapi(
     info(
@@ -461,8 +462,15 @@ mod tests {
             "the document-level requirement must name the bearer scheme"
         );
 
-        // THEN the HMAC-authenticated webhook route, and it alone, opts out
-        assert_eq!(opted_out, vec!["POST /webhooks/{id}".to_owned()]);
+        // THEN the health route and the HMAC-authenticated webhook route, and
+        // they alone, opt out
+        assert_eq!(
+            opted_out,
+            vec![
+                "GET /api/v1/health".to_owned(),
+                "POST /webhooks/{id}".to_owned()
+            ]
+        );
     }
 
     #[test]

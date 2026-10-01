@@ -317,10 +317,16 @@ de configuration.
 L'API HTTP écoute sur une socket Unix et sur un port TCP ; le daemon lie les deux
 à chaque démarrage, et le numéro de port est la seule chose que `--port` décide.
 La socket Unix relève de la confiance locale et s'appuie sur les permissions du
-système de fichiers. Le TCP exige un jeton porteur sur tous les chemins, et le lier à une
-adresse non locale sans TLS est une erreur de démarrage plutôt qu'un
-avertissement : un attachement distant non sécurisé est la seule erreur qu'on ne
-peut pas défaire une fois que le trafic est passé.
+système de fichiers. Le TCP exige un jeton porteur sur tous les chemins
+`/api/v1` sauf un, et le lier à une adresse non locale sans TLS est une erreur de
+démarrage plutôt qu'un avertissement : un attachement distant non sécurisé est la
+seule erreur qu'on ne peut pas défaire une fois que le trafic est passé.
+
+L'exception est `GET /api/v1/health`, qui répond sans jeton et ne révèle que le
+marqueur de produit et la version du runtime, rien d'autre. Un processus qui
+trouve le port pris ne détient aucun jeton de cette installation, et ce qu'il doit
+savoir, c'est si le détenteur est un runtime Apollia et dans quelle version.
+Toutes les autres routes `/api/v1` gardent le jeton.
 
 ## Signatures {#signing-schemes}
 

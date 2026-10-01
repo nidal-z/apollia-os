@@ -294,9 +294,15 @@ exists. They are never written to configuration files.
 The HTTP API listens on a Unix socket and on a TCP port; the daemon binds both on
 every start, and the port number is the only thing `--port` decides. The Unix
 socket is local-trust and relies on filesystem permissions. TCP requires a
-bearer token on every path, and binding it to a non-loopback address without TLS
-is a startup error rather than a warning: an insecure remote bind is the one
-mistake that cannot be undone once traffic has flowed.
+bearer token on every `/api/v1` path but one, and binding it to a non-loopback
+address without TLS is a startup error rather than a warning: an insecure remote
+bind is the one mistake that cannot be undone once traffic has flowed.
+
+The exemption is `GET /api/v1/health`, which answers without a token and reveals
+the product marker and the runtime version, nothing else. A process that finds
+the port taken holds no token of this installation, and what it needs to know is
+whether an Apollia runtime is the holder and in which version. Every other
+`/api/v1` route keeps the token.
 
 ## Signatures {#signing-schemes}
 
