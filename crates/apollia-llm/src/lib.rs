@@ -7,8 +7,8 @@
 //!
 //! # Features
 //!
-//! - `cloud` (default): enables `OpenAICompatibleClient` and `OllamaClient` via
-//!   `async-openai` / `reqwest`.
+//! - `cloud` (default): enables `OpenAICompatibleClient`, which serves every
+//!   remote server including Ollama, via `async-openai` / `reqwest`.
 //!
 //! The core types (`CompletionModel`, `CompletionRequest`, etc.) are available
 //! regardless of which feature is enabled.
@@ -37,6 +37,8 @@ pub(crate) mod schema_sanitize;
 pub mod schema_validate;
 #[cfg(feature = "cloud")]
 pub mod server_models;
+#[cfg(feature = "cloud")]
+pub mod server_window;
 pub mod token_budget;
 pub mod tool_helper;
 pub mod tool_performance_hints;

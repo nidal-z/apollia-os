@@ -74,6 +74,20 @@ struct ModelList {
 #[derive(Deserialize)]
 struct ModelEntry {
     id: String,
+    /// The window vLLM serves the model with. Read loosely: a server that
+    /// puts something else under this key loses the window, not the list.
+    #[serde(default)]
+    max_model_len: Option<serde_json::Value>,
+}
+
+/// One model a server lists, with the context window it declares for it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListedModel {
+    /// Identifier the server gives the model.
+    pub id: String,
+    /// Context window the server serves the model with, in tokens, when the
+    /// listing says (`max_model_len` on vLLM). `None` when it does not.
+    pub context_window: Option<u32>,
 }
 
 /// List the model identifiers a server offers, in the order it gives them.
@@ -89,6 +103,23 @@ pub async fn list_server_models(
     address: &str,
     api_key: Option<&str>,
 ) -> Result<Vec<String>, ServerModelsError> {
+    Ok(list_server_model_entries(address, api_key)
+        .await?
+        .into_iter()
+        .map(|m| m.id)
+        .collect())
+}
+
+/// [`list_server_models`], each model with the context window the listing
+/// declares for it.
+///
+/// # Errors
+///
+/// See [`ServerModelsError`].
+pub async fn list_server_model_entries(
+    address: &str,
+    api_key: Option<&str>,
+) -> Result<Vec<ListedModel>, ServerModelsError> {
     let url = models_url(address);
     let unreachable = |reason: String| ServerModelsError::Unreachable {
         url: url.clone(),
@@ -139,7 +170,19 @@ pub async fn list_server_models(
         models = list.data.len(),
         "llm.server.models.listed"
     );
-    Ok(list.data.into_iter().map(|m| m.id).collect())
+    Ok(list
+        .data
+        .into_iter()
+        .map(|m| ListedModel {
+            context_window: m
+                .max_model_len
+                .as_ref()
+                .and_then(serde_json::Value::as_u64)
+                .filter(|n| *n > 0)
+                .and_then(|n| u32::try_from(n).ok()),
+            id: m.id,
+        })
+        .collect())
 }
 
 #[cfg(test)]

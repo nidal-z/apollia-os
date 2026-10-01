@@ -1380,11 +1380,11 @@ mod tests {
     }
 
     // GIVEN a backend whose operator pinned a context window
-    // WHEN the window is resolved
-    // THEN the configured value wins, because it is the only one that survives
-    //      the server being unreachable
+    // WHEN the configured window is resolved
+    // THEN it is the pinned value, the one that stands when the server exposes
+    //      no window of its own
     #[test]
-    fn test_configured_context_window_wins_over_any_probe() {
+    fn test_configured_context_window_is_the_fallback_figure() {
         let cfg = LlmBackendConfig {
             name: "ollama".into(),
             provider: LlmProvider::Ollama,

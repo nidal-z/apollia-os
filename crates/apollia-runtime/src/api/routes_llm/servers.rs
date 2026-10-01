@@ -19,7 +19,10 @@ use apollia_core::inference_server::{
     route_name, validate_address, validate_server_name, INFERENCE_SERVER_SECRET_SERVICE,
 };
 use apollia_core::{InferenceServer, LlmBackendRepository};
-use apollia_llm::server_models::{list_server_models, ServerModelsError};
+use apollia_llm::server_models::{
+    list_server_model_entries, list_server_models, ServerModelsError,
+};
+use apollia_llm::server_window::{context_short, fill_windows};
 
 use crate::api::routes_llm::backends::{map_backend_error, BackendErrorResponse};
 use crate::api::server::AppState;
@@ -130,6 +133,13 @@ pub struct ServerModel {
     pub id: String,
     /// Name to address it by, `<server>/<model>`.
     pub route: String,
+    /// Context window the server serves the model with, in tokens, read on
+    /// the server (`/api/show` on Ollama, `max_model_len` on vLLM). Absent
+    /// when the server exposes none.
+    pub context_window: Option<u32>,
+    /// Whether that window is shorter than the one an agent is expected to
+    /// have. Nothing is changed on the server: its administrator decides.
+    pub context_short: bool,
 }
 
 /// Body of `GET /api/v1/llm/servers/{name}/models`.
@@ -421,15 +431,20 @@ pub async fn list_llm_server_models<B: ExecutionBackend + Clone>(
     .map_err(as_probe)?;
     let key = resolve_server_key(&server, || (state.secret_store)())
         .map_err(|e| as_probe(api_err(StatusCode::SERVICE_UNAVAILABLE, e)))?;
-    let ids = list_server_models(&server.base_url, key.as_deref())
+    let mut listed = list_server_model_entries(&server.base_url, key.as_deref())
         .await
         .map_err(probe_error)?;
+    fill_windows(&server.base_url, key.as_deref(), &mut listed).await;
     Ok(Json(ServerModelsResponse {
-        models: ids
+        models: listed
             .into_iter()
-            .map(|id| ServerModel {
-                route: route_name(&server.name, &id),
-                id,
+            .map(|m| ServerModel {
+                route: route_name(&server.name, &m.id),
+                context_short: m
+                    .context_window
+                    .is_some_and(|w| context_short(&server.name, &m.id, w)),
+                context_window: m.context_window,
+                id: m.id,
             })
             .collect(),
         server: server.name,
@@ -522,12 +537,20 @@ mod tests {
                     },
                 ),
             );
+        FakeServer {
+            url: serve(app).await,
+            received,
+        }
+    }
+
+    /// Serve `app` on a loopback port the system picks, and return its address.
+    async fn serve(app: Router) -> String {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         tokio::spawn(async move {
             let _ = axum::serve(listener, app).await;
         });
-        FakeServer { url, received }
+        url
     }
 
     fn two_models() -> serde_json::Value {
@@ -755,8 +778,18 @@ mod tests {
         assert_eq!(
             models["models"],
             serde_json::json!([
-                { "id": "qwen3-32b", "route": "corp/qwen3-32b" },
-                { "id": "llama-3.3-70b", "route": "corp/llama-3.3-70b" }
+                {
+                    "id": "qwen3-32b",
+                    "route": "corp/qwen3-32b",
+                    "context_window": null,
+                    "context_short": false
+                },
+                {
+                    "id": "llama-3.3-70b",
+                    "route": "corp/llama-3.3-70b",
+                    "context_window": null,
+                    "context_short": false
+                }
             ])
         );
         assert_eq!(chatted, StatusCode::OK, "{chat}");
@@ -772,6 +805,72 @@ mod tests {
         let repo = state.llm_backend_repo.as_ref().unwrap().lock().unwrap();
         assert_eq!(repo.list_servers().unwrap().len(), 1);
         assert!(repo.list().unwrap().is_empty(), "no backend row per model");
+    }
+
+    // GIVEN a saved Ollama server serving one model at 8192 tokens (its
+    //       `/api/show` parameters) and one at its trained 131072
+    // WHEN its models are listed
+    // THEN each model carries the window read on the server, and only the
+    //      first is flagged short
+    #[tokio::test]
+    async fn test_the_model_list_carries_each_window_and_flags_a_short_one() {
+        // GIVEN
+        let app = Router::new()
+            .route(
+                "/v1/models",
+                get(|| async {
+                    Json(serde_json::json!({
+                        "object": "list",
+                        "data": [
+                            { "id": "qwen3:8b", "object": "model", "owned_by": "library" },
+                            { "id": "qwen3:32b", "object": "model", "owned_by": "library" }
+                        ]
+                    }))
+                }),
+            )
+            .route(
+                "/api/show",
+                post(|Json(body): Json<serde_json::Value>| async move {
+                    Json(if body["model"] == "qwen3:8b" {
+                        serde_json::json!({
+                            "parameters": "num_ctx 8192",
+                            "model_info": { "qwen3.context_length": 40_960 }
+                        })
+                    } else {
+                        serde_json::json!({ "model_info": { "qwen3.context_length": 131_072 } })
+                    })
+                }),
+            );
+        let url = format!("{}/v1", serve(app).await);
+        let dir = tempfile::tempdir().unwrap();
+        let state = state_with_repo(&dir);
+        let (created, _) = call(
+            state.clone(),
+            "POST",
+            "/api/v1/llm/servers",
+            Some(serde_json::json!({ "name": "ollama", "base_url": url })),
+        )
+        .await;
+
+        // WHEN
+        let (listed, models) = call(state, "GET", "/api/v1/llm/servers/ollama/models", None).await;
+
+        // THEN
+        assert_eq!(created, StatusCode::CREATED);
+        assert_eq!(listed, StatusCode::OK, "{models}");
+        let windows: Vec<(serde_json::Value, serde_json::Value)> = models["models"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| (m["context_window"].clone(), m["context_short"].clone()))
+            .collect();
+        assert_eq!(
+            windows,
+            vec![
+                (serde_json::json!(8192), serde_json::json!(true)),
+                (serde_json::json!(131_072), serde_json::json!(false)),
+            ]
+        );
     }
 
     // GIVEN a server saved with a key, through an encrypted-file secret store

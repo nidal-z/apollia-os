@@ -3550,6 +3550,18 @@ export interface components {
         };
         /** @description One model of a declared server. */
         ServerModel: {
+            /**
+             * @description Whether that window is shorter than the one an agent is expected to
+             *     have. Nothing is changed on the server: its administrator decides.
+             */
+            context_short: boolean;
+            /**
+             * Format: int32
+             * @description Context window the server serves the model with, in tokens, read on
+             *     the server (`/api/show` on Ollama, `max_model_len` on vLLM). Absent
+             *     when the server exposes none.
+             */
+            context_window?: number | null;
             /** @description Identifier the server gives the model. */
             id: string;
             /** @description Name to address it by, `<server>/<model>`. */
