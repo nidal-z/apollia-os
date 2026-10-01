@@ -89,9 +89,34 @@ pub(super) fn build_gguf_files(
                 size_human: format_size(size_bytes),
                 compatibility,
                 download_url: format!("{HF_CDN_BASE}/{repo_id}/resolve/main/{}", e.path),
+                sha256: e.lfs.as_ref().and_then(|lfs| normalize_sha256(&lfs.oid)),
             }
         })
         .collect()
+}
+
+/// Map every LFS file of a repository tree to its SHA-256.
+///
+/// HuggingFace publishes the content hash of an LFS file as `lfs.oid`. A file
+/// committed outside LFS carries a git blob id instead (`oid` at the top
+/// level, SHA-1 of the git object, not of the content) and is left out.
+pub(super) fn lfs_sha256_by_path(
+    tree_entries: &[TreeEntry],
+) -> std::collections::HashMap<String, String> {
+    tree_entries
+        .iter()
+        .filter(|e| e.entry_type == "file")
+        .filter_map(|e| {
+            let sha = normalize_sha256(&e.lfs.as_ref()?.oid)?;
+            Some((e.path.clone(), sha))
+        })
+        .collect()
+}
+
+/// A SHA-256 as 64 lowercase hex digits, or `None` when `raw` is not one.
+fn normalize_sha256(raw: &str) -> Option<String> {
+    let lower = raw.trim().to_ascii_lowercase();
+    (lower.len() == 64 && lower.bytes().all(|b| b.is_ascii_hexdigit())).then_some(lower)
 }
 /// Re-evaluate `NoGgufFiles` from the authoritative tree data.
 pub(super) fn reevaluate_gguf_compat(card: &mut HfModelCard) {
@@ -222,6 +247,7 @@ pub(super) fn parse_model_list_item(
                         size_human: String::new(),
                         compatibility: None,
                         download_url: format!("{HF_CDN_BASE}/{repo_id}/resolve/main/{name}"),
+                        sha256: None,
                     })
                 })
                 .collect()

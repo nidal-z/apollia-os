@@ -183,12 +183,29 @@ pub async fn start_model_download(
         .await
         .map_err(|e| format!("failed to create model directory: {e}"))?;
 
+    // A file from a HuggingFace repository is checked against the SHA-256 its
+    // tree publishes. When that reference cannot be read, the download is
+    // refused rather than run unverified.
+    let expected_sha256 = match request.repo_id.as_deref() {
+        Some(repo_id) => {
+            let path = hf_repo_path(&request.url, request.filename.as_deref());
+            let client = apollia_llm::HfRegistryClient::new(request.hf_token.clone());
+            let sha = client
+                .lfs_sha256(repo_id, &path)
+                .await
+                .map_err(|e| format!("cannot verify the download, refusing it: {e}"))?;
+            Some(sha)
+        }
+        None => None,
+    };
+
     let dl_request = DownloadRequest {
         url: request.url,
         dest_dir,
         filename: request.filename,
         hf_token: request.hf_token,
         repo_id: request.repo_id,
+        expected_sha256,
     };
 
     let on_progress = Arc::new(move |progress: apollia_llm::DownloadProgress| {
@@ -197,6 +214,21 @@ pub async fn start_model_download(
 
     let id = manager.lock().await.start(dl_request, on_progress);
     Ok(id)
+}
+
+/// Path of a file inside its HuggingFace repository: what follows
+/// `/resolve/<revision>/` in its download URL, or the requested filename.
+fn hf_repo_path(url: &str, filename: Option<&str>) -> String {
+    let from_url = url
+        .split_once("/resolve/")
+        .and_then(|(_, rest)| rest.split_once('/'))
+        .map(|(_, path)| path.split(['?', '#']).next().unwrap_or(path))
+        .filter(|p| !p.is_empty());
+    match (from_url, filename) {
+        (Some(p), _) => p.to_string(),
+        (None, Some(f)) => f.to_string(),
+        (None, None) => url.rsplit('/').next().unwrap_or_default().to_string(),
+    }
 }
 
 /// Cancels an in-progress download.
@@ -496,6 +528,30 @@ fn import_model_file_inner(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hf_repo_path_reads_the_path_after_the_revision() {
+        // GIVEN a resolve URL whose file sits in a subfolder, with a query
+        let url = "https://huggingface.co/org/repo/resolve/main/Q4_K_M/m-00001-of-00002.gguf?download=true";
+
+        // WHEN the repository path is derived
+        let path = hf_repo_path(url, Some("ignored.gguf"));
+
+        // THEN it is the tree path, subfolder included, query dropped
+        assert_eq!(path, "Q4_K_M/m-00001-of-00002.gguf");
+    }
+
+    #[test]
+    fn hf_repo_path_falls_back_to_the_filename() {
+        // GIVEN a URL that is not a resolve URL
+        let url = "https://mirror.example/files/model.gguf";
+
+        // WHEN the repository path is derived
+        let path = hf_repo_path(url, Some("model.gguf"));
+
+        // THEN the requested filename is used
+        assert_eq!(path, "model.gguf");
+    }
 
     // GIVEN a tilde-relative destination, as a download request could carry,
     //       under a substituted home directory

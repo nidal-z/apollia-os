@@ -585,6 +585,7 @@ mod tests {
             size_human: format!("{gb} GB"),
             compatibility: None,
             download_url: format!("https://example.invalid/{name}"),
+            sha256: None,
         }
     }
 
