@@ -20,6 +20,7 @@
 mod config;
 mod engine_facts;
 mod ngl;
+mod projector;
 
 pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError};
 
@@ -469,6 +470,12 @@ impl LlamaServerSupervisor {
         n_ctx: u32,
     ) -> Result<String, LlamaServerError> {
         let mut config = resolve_env_overrides(&*self.config.lock().await, env_getter);
+        // The index is a file beside the models, and a model it does not know
+        // sends the lookup to the disk: off the async workers either way.
+        let lookup = model_path.clone();
+        config.mmproj_path = tokio::task::spawn_blocking(move || projector::for_model(&lookup))
+            .await
+            .unwrap_or(None);
         config.model_path = model_path;
         // Already resolved by `effective_n_ctx`: the environment, then the
         // backend's own window, then the default.
@@ -484,6 +491,7 @@ impl LlamaServerSupervisor {
         tracing::info!(
             binary = %self.bin_path.display(),
             model = %config.model_path,
+            mmproj = %display_opt(config.mmproj_path.as_ref()),
             port,
             n_ctx = config.n_ctx,
             n_gpu_layers = config.n_gpu_layers,
@@ -507,6 +515,7 @@ impl LlamaServerSupervisor {
         // vector reveals that.
         crate::perf_trace::set_launch_config(serde_json::json!({
             "model_path": config.model_path,
+            "mmproj_path": config.mmproj_path,
             "n_ctx": config.n_ctx,
             "n_gpu_layers": config.n_gpu_layers,
             "n_batch": config.n_batch,
