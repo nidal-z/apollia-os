@@ -8528,9 +8528,23 @@
         "description": "One model of a declared server.",
         "required": [
           "id",
-          "route"
+          "route",
+          "context_short"
         ],
         "properties": {
+          "context_short": {
+            "type": "boolean",
+            "description": "Whether that window is shorter than the one an agent is expected to\nhave. Nothing is changed on the server: its administrator decides."
+          },
+          "context_window": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Context window the server serves the model with, in tokens, read on\nthe server (`/api/show` on Ollama, `max_model_len` on vLLM). Absent\nwhen the server exposes none.",
+            "minimum": 0
+          },
           "id": {
             "type": "string",
             "description": "Identifier the server gives the model."
