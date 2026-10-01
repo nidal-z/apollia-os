@@ -22,6 +22,7 @@ use crate::commands::mcp::McpCommand;
 use crate::commands::memory::{MemoryCommand, MemoryType};
 use crate::commands::permissions::PermissionsCommand;
 use crate::commands::project::{ProjectAgentsCommand, ProjectCommand, ProjectTemplatesCommand};
+use crate::commands::service::ServiceCommand;
 use crate::commands::task::TaskCommand;
 use crate::commands::tools::{
     ToolsApprovalsCmd, ToolsCommand, ToolsConfigCmd, ToolsCredentialsCmd,
@@ -1337,4 +1338,60 @@ fn test_cli_parses_explain() {
         panic!("expected explain");
     };
     assert_eq!(text, "what is a StepBudget");
+}
+
+// ─── service ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cli_parses_service_install_with_no_load() {
+    // GIVEN "apollia-os service install --no-load"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "service", "install", "--no-load"]);
+    // THEN the install verb carries the write-only flag
+    let Commands::Service { command } = cli.command else {
+        panic!("expected service");
+    };
+    assert!(matches!(command, ServiceCommand::Install { no_load: true }));
+}
+
+#[test]
+fn test_cli_parses_service_install_loads_by_default() {
+    // GIVEN "apollia-os service install"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "service", "install"]);
+    // THEN the service is handed to the manager unless asked otherwise
+    let Commands::Service { command } = cli.command else {
+        panic!("expected service");
+    };
+    assert!(matches!(
+        command,
+        ServiceCommand::Install { no_load: false }
+    ));
+}
+
+#[test]
+fn test_cli_parses_service_uninstall_with_confirm() {
+    // GIVEN "apollia-os service uninstall --confirm"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "service", "uninstall", "--confirm"]);
+    // THEN the destruction is confirmed
+    let Commands::Service { command } = cli.command else {
+        panic!("expected service");
+    };
+    assert!(matches!(
+        command,
+        ServiceCommand::Uninstall { confirm: true }
+    ));
+}
+
+#[test]
+fn test_cli_parses_service_status() {
+    // GIVEN "apollia-os service status"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "service", "status"]);
+    // THEN the status verb is selected
+    let Commands::Service { command } = cli.command else {
+        panic!("expected service");
+    };
+    assert!(matches!(command, ServiceCommand::Status));
 }
