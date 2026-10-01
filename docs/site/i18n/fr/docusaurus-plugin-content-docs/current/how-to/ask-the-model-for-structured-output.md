@@ -91,7 +91,6 @@ except StructuredOutputError as e:
 - `schema_unsupported` : le schéma ne peut pas devenir une contrainte. Levé avant
   l'appel au modèle, donc aucun jeton n'a été dépensé.
 - `backend_unsupported` : le backend résolu n'a pas de mode de sortie structurée.
-  Anthropic et Vertex sont dans ce cas aujourd'hui.
 - `response_invalid` : la réponse est revenue et le schéma la refuse.
 
 Rien n'est réessayé pour vous. Qu'une seconde tentative vaille ses jetons dépend

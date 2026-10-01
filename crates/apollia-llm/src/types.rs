@@ -12,7 +12,7 @@ use futures::Stream;
 /// Unified trait for any LLM backend: local via sidecar runner or cloud HTTP.
 ///
 /// Implemented by `RunnerLlmBackend` (apollia-runtime sidecar),
-/// `OpenAICompatibleClient`, `AnthropicClient` and `VertexClient` (feature `"cloud"`).
+/// `OpenAICompatibleClient` and `OllamaClient` (feature `"cloud"`).
 /// Stored as `Arc<dyn CompletionModel>` in the `LlmRouter`.
 #[async_trait::async_trait]
 pub trait CompletionModel: Send + Sync {
@@ -179,13 +179,11 @@ pub struct CompletionResponse {
     pub engine_timings: Option<serde_json::Value>,
 }
 
-/// Anthropic cache marker for prompt caching.
+/// Prompt-caching marker, in the shape of the Anthropic API.
 ///
-/// May be set on a `ChatMessage` to indicate the message should be included
-/// in a cache breakpoint when serializing to the Anthropic API. Only the
-/// `Ephemeral` variant is supported by the current API.
-///
-/// Non-Anthropic backends (OpenAI, Ollama, local) ignore this field.
+/// May be set on a `ChatMessage` to ask that the message close a cache
+/// breakpoint. No backend in this crate reads it: the OpenAI-compatible and
+/// Ollama clients, and the local runner, ignore the field.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CacheControl {
@@ -264,11 +262,8 @@ pub struct ChatMessage {
     pub role: Role,
     /// Message content (text, tool result, or text + tool calls).
     pub content: MessageContent,
-    /// Anthropic cache marker for prompt caching.
-    ///
-    /// When `Some(CacheControl::Ephemeral)`, the Anthropic backend includes
-    /// this message in a cache breakpoint when building the request.
-    /// Non-Anthropic backends ignore this field.
+    /// Prompt-caching marker, ignored by every current backend (see
+    /// [`CacheControl`]).
     pub cache_control: Option<CacheControl>,
 }
 

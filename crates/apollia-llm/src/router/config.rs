@@ -5,9 +5,7 @@
 
 use std::collections::HashMap;
 
-use apollia_core::{
-    LlmBackendConfig, LlmProvider, LlmRoutingConfig, LlmRunnerConfig, VertexConfig,
-};
+use apollia_core::{LlmBackendConfig, LlmProvider, LlmRoutingConfig, LlmRunnerConfig};
 
 use crate::pricing::PricingTier;
 
@@ -51,9 +49,8 @@ pub struct LlmConfig {
     /// to a client, and the daemon instead builds its backends from `system.db`
     /// through `instantiate_cloud_backend`, which hands over an empty table.
     ///
-    /// On the path that does read them, entries take priority over the internal
-    /// table in [`crate::pricing::default_pricing`], and only the Anthropic
-    /// client consults either.
+    /// No client consults them, nor the internal table in
+    /// [`crate::pricing::default_pricing`] they would take priority over.
     ///
     /// `apollia.toml` example:
     /// ```toml
@@ -75,25 +72,6 @@ pub struct LlmConfig {
     /// ```
     #[serde(default)]
     pub cost_alert_threshold_usd: Option<f64>,
-    /// Optional Google Vertex AI backend configuration (`[llm.vertex]`), not
-    /// instantiated by a running daemon: the backend is only built on the
-    /// [`LlmRouter::from_config`] path, and [`to_db_configs`](Self::to_db_configs) copies
-    /// `backends` alone into `system.db`, so this section never reaches the
-    /// router the daemon runs.
-    ///
-    /// On the path that does read it, an absent section or `enabled = false`
-    /// skips the backend.
-    ///
-    /// `apollia.toml` example:
-    /// ```toml
-    /// [llm.vertex]
-    /// enabled    = true
-    /// project_id = "my-gcp-project"
-    /// location   = "us-east5"
-    /// model_id   = "claude-sonnet-4-6@20251001"
-    /// ```
-    #[serde(default)]
-    pub vertex: Option<VertexConfig>,
     /// Speech-to-text sidecar runner configuration (`[llm.runner]` section).
     ///
     /// Determines which runner binary (`apollia-runner-cuda`,
@@ -223,7 +201,7 @@ impl BackendConfig {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum BackendKind {
-    /// OpenAI- or Anthropic-compatible cloud HTTP backend (feature `"cloud"`).
+    /// OpenAI-compatible HTTP backend (feature `"cloud"`).
     #[cfg(feature = "cloud")]
     Api(ApiBackendConfig),
 }

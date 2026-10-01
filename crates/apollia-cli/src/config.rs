@@ -221,6 +221,7 @@ pub fn validate_apollia_toml_str(content: &str) -> Result<ApolliaCConfig, Config
     // Check for deprecated and inert sections before strict deserialization.
     check_deprecated_sections(content);
     check_inert_sections(content);
+    apollia_core::config::warn_retired_keys(content);
 
     // Parse as a loose table first to ignore unknown sections gracefully.
     let raw_table: toml::Value = toml::from_str(content)?;
@@ -393,6 +394,42 @@ model = "claude-haiku-4-5-20251001"
             config.llm.is_none(),
             "llm should be None when section absent"
         );
+    }
+
+    // GIVEN an apollia.toml written for an earlier version, still carrying [llm.vertex]
+    // WHEN parsing
+    // THEN the file loads and its backends are read, the retired table ignored
+    #[test]
+    fn test_retired_llm_vertex_section_still_loads() {
+        // GIVEN
+        let toml_str = r#"
+[llm]
+default = "local"
+
+[[llm.backends]]
+name = "local"
+type = "api"
+api_url = "http://localhost:8080/v1"
+api_key_env = "LOCAL_SERVER_KEY"
+model = "qwen"
+
+[llm.vertex]
+enabled    = true
+project_id = "my-gcp-project"
+location   = "us-east5"
+model_id   = "claude-sonnet-4-6@20251001"
+"#;
+        let file = write_toml(toml_str);
+
+        // WHEN
+        let config = parse_apollia_toml(file.path());
+
+        // THEN
+        let llm = config
+            .expect("a retired section must not fail the load")
+            .llm
+            .expect("llm should be present");
+        assert_eq!(llm.backends[0].name(), "local");
     }
 
     // GIVEN a minimal LlmConfig (cloud backend without an API key)

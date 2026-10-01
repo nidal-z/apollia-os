@@ -106,7 +106,6 @@ Backends LLM et routage.
 | `routing` | `Option<LlmRoutingConfig>` | `None` | Routage LLM par niveau de précision (section `[llm.routing]`). |
 | `pricing_overrides` | `HashMap<String, PricingTier>` | vide | Surcharges de tarification par l'opérateur (section `[llm.pricing_overrides]`). |
 | `cost_alert_threshold_usd` | `Option<f64>` | `None` | Seuil de coût en USD au-delà duquel `RuntimeEvent::TokenBudgetUpdated` est émis avec `threshold_exceeded = true`. |
-| `vertex` | `Option<VertexConfig>` | `None` | Configuration optionnelle du backend Google Vertex AI (`[llm.vertex]`). |
 | `runner` | `LlmRunnerConfig` | défaut du type | Configuration du sidecar LLM local (section `[llm.runner]`). |
 
 ### `[runtime]`

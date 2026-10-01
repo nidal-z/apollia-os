@@ -177,33 +177,3 @@ impl Default for LlmRunnerConfig {
 fn default_runner_backend() -> String {
     "auto".to_string()
 }
-
-// ─────────────────────────────────────────────
-// VertexConfig
-// ─────────────────────────────────────────────
-
-/// Google Vertex AI backend configuration.
-///
-/// Auth via Application Default Credentials (ADC): the
-/// `~/.config/gcloud/application_default_credentials.json` file or the
-/// `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
-///
-/// The `[llm.vertex]` section in `apollia.toml` is optional. When absent,
-/// `enabled` is `false` and the backend is not loaded.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VertexConfig {
-    /// Version of this on-disk format. A file written before versioning has
-    /// no key and reads as format 1; a future format bumps the default and the
-    /// reader branches on the value it finds.
-    #[serde(default = "default_format_version")]
-    pub format_version: u32,
-    /// Enable this backend (false by default).
-    #[serde(default)]
-    pub enabled: bool,
-    /// GCP project ID (e.g. `"my-gcp-project"`).
-    pub project_id: String,
-    /// Vertex AI region (e.g. `"us-east5"`, `"europe-west1"`).
-    pub location: String,
-    /// ID of the Anthropic model published on Vertex (e.g. `"claude-sonnet-4-6@20251001"`).
-    pub model_id: String,
-}

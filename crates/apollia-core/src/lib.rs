@@ -62,7 +62,7 @@ pub use config::{
     HitlConfig, HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig,
     HybridRoutingConfig, JournalConfig, LlmRoutingConfig, LlmRunnerConfig, McpConfig,
     McpToolLoading, ORIAConfig, RegistryConfig, RuntimeConfig, ToolsConfig, TriggersConfig,
-    VertexConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
+    WebReadConfig, WebSearchBackend, WebSearchConfig,
 };
 pub use context::{ContextProvider, ContextSection, ContextSnapshot};
 pub use decision_point::{ConsideredAlternative, DecisionKind, DecisionPoint};

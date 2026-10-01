@@ -14,15 +14,13 @@ use tokio_util::sync::CancellationToken;
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use apollia_core::{LlmBackendConfig, LlmProvider};
 
-use crate::router::config::{BackendConfig, BackendKind, LlmConfig};
+use crate::router::config::{BackendConfig, BackendKind};
 use crate::types::{CompletionModel, CompletionRequest, CompletionResponse, LlmError, StreamChunk};
 
 #[cfg(feature = "cloud")]
 use crate::backends::ollama::{OllamaClient, OllamaConfig};
 #[cfg(feature = "cloud")]
 use crate::backends::openai::{ApiBackendConfig, OpenAICompatibleClient};
-#[cfg(feature = "cloud")]
-use crate::backends::vertex::VertexClient;
 
 /// Instantiate an `Arc<dyn CompletionModel>` backend from its config.
 ///
@@ -46,38 +44,6 @@ pub(super) fn build_backend(
                 key,
                 cancellation_token.clone(),
             )) as Arc<dyn CompletionModel>)
-        }
-    }
-}
-/// Instantiate the Vertex AI backend from `[llm.vertex]` when `enabled = true`.
-///
-/// Fails silently (logs a warning, skips the backend) and does not propagate
-/// an error.
-#[cfg(feature = "cloud")]
-pub(super) fn insert_vertex_backend(
-    backends: &mut HashMap<String, Arc<dyn CompletionModel>>,
-    config: &LlmConfig,
-    cancellation_token: &CancellationToken,
-) {
-    let Some(vertex_cfg) = &config.vertex else {
-        return;
-    };
-    if !vertex_cfg.enabled {
-        return;
-    }
-    match VertexClient::new(vertex_cfg, cancellation_token.clone()) {
-        Ok(client) => {
-            backends.insert(
-                "vertex".to_owned(),
-                Arc::new(client) as Arc<dyn CompletionModel>,
-            );
-        }
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                reason = "Vertex AI credentials missing or invalid",
-                "llm.backend.skipped"
-            );
         }
     }
 }
@@ -135,53 +101,6 @@ pub(super) fn load_backend_with_bus(
                 });
             }
             // Keep going and try the remaining backends.
-        }
-    }
-}
-/// Variant of [`insert_vertex_backend`] that emits events on the bus.
-#[cfg(feature = "cloud")]
-pub(super) fn insert_vertex_backend_with_bus(
-    backends: &mut HashMap<String, Arc<dyn CompletionModel>>,
-    config: &LlmConfig,
-    cancellation_token: &CancellationToken,
-    bus: &Option<EventBusSender>,
-) {
-    let Some(vertex_cfg) = &config.vertex else {
-        return;
-    };
-    if !vertex_cfg.enabled {
-        return;
-    }
-    let vertex_name = "vertex".to_owned();
-    if let Some(b) = bus {
-        let _ = b.send(RuntimeEvent::LlmModelLoading {
-            backend: vertex_name.clone(),
-            model_path: vertex_cfg.model_id.clone(),
-        });
-    }
-    match VertexClient::new(vertex_cfg, cancellation_token.clone()) {
-        Ok(client) => {
-            let model_id = client.model_id().to_owned();
-            if let Some(b) = bus {
-                let _ = b.send(RuntimeEvent::LlmModelReady {
-                    backend: vertex_name.clone(),
-                    model_id,
-                });
-            }
-            backends.insert(vertex_name, Arc::new(client) as Arc<dyn CompletionModel>);
-        }
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                reason = "Vertex AI credentials missing or invalid",
-                "llm.backend.skipped"
-            );
-            if let Some(b) = bus {
-                let _ = b.send(RuntimeEvent::LlmModelFailed {
-                    backend: vertex_name,
-                    reason: e.to_string(),
-                });
-            }
         }
     }
 }

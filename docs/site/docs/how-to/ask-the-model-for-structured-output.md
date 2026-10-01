@@ -91,7 +91,6 @@ except StructuredOutputError as e:
 - `schema_unsupported`: the schema cannot become a constraint. Raised before the
   model is called, so no tokens were spent.
 - `backend_unsupported`: the resolved backend has no structured output mode.
-  Anthropic and Vertex are in this case today.
 - `response_invalid`: the answer came back and the schema refuses it.
 
 Nothing is retried for you. Whether a second attempt is worth its tokens depends
