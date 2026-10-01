@@ -1,18 +1,17 @@
 //! Tauri IPC commands for MCP server management.
 //!
 //! Delegates to the runtime REST API (via TCP) for CRUD operations on connected
-//! servers, and directly to [`McpRegistryClient`] and [`SecretStore`] for
-//! registry discovery and secret management.
+//! servers, and directly to [`McpRegistryClient`] and the configured
+//! [`apollia_auth::SecretStore`] for registry discovery and secret management.
 
-use apollia_mcp::config::McpServerConfig;
+use apollia_auth::SecretStore;
+use apollia_mcp::config::{McpServerConfig, MCP_STATIC_SECRET_SERVICE};
 use apollia_mcp::manager::{
     McpConnectionTestResult, McpResourceSummary, McpServerDetail, McpServerStatus, ProbeSpec,
 };
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-
-use crate::mcp::secret_store::SecretStore;
 
 use super::{http_delete_json, http_get_json, http_patch_json, http_post_json, http_put_json};
 
@@ -246,18 +245,19 @@ pub async fn restart_mcp_server(
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
-/// Store a secret in the OS keychain for an MCP server environment variable.
+/// Store a secret for an MCP server environment variable.
 ///
-/// The secret is stored under the composite key `"{server_name}:{env_var}"`.
+/// The secret goes through the configured [`apollia_auth::SecretStore`]
+/// (OS keychain by default, encrypted files when `APOLLIA_TOKEN_STORAGE=file`),
+/// the store the runtime resolves `${APOLLIA_SECRET:KEY}` placeholders from.
 #[tauri::command]
 pub async fn store_mcp_secret(
-    secret_store: State<'_, SecretStore>,
     server_name: String,
     env_var: String,
     value: String,
 ) -> Result<(), String> {
-    let key = SecretStore::key_for(&server_name, &env_var);
-    secret_store.store(&key, &value).map_err(|e| e.to_string())
+    let store = open_secret_store()?;
+    put_mcp_secret(&*store, &server_name, &env_var, &value)
 }
 
 /// Update the `requires_approval` flag for a running MCP server.
@@ -277,42 +277,100 @@ pub async fn set_mcp_server_approval(
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
-/// Delete a secret from the OS keychain for an MCP server environment variable.
-///
-/// The secret is looked up under the composite key `"{server_name}:{env_var}"`.
+/// Delete the secret of an MCP server environment variable. Idempotent.
 #[tauri::command]
-pub async fn delete_mcp_secret(
-    secret_store: State<'_, SecretStore>,
-    server_name: String,
-    env_var: String,
+pub async fn delete_mcp_secret(server_name: String, env_var: String) -> Result<(), String> {
+    let store = open_secret_store()?;
+    remove_mcp_secret(&*store, &server_name, &env_var)
+}
+
+fn open_secret_store() -> Result<Box<dyn SecretStore>, String> {
+    apollia_auth::select_secret_store().map_err(|e| format!("secret store unavailable: {e}"))
+}
+
+/// Store key of a static MCP secret: `"{server_name}:{env_var}"`, the key
+/// `apollia_mcp::config` resolves `${APOLLIA_SECRET:KEY}` with, under the
+/// [`MCP_STATIC_SECRET_SERVICE`] service.
+fn mcp_secret_key(server_name: &str, env_var: &str) -> String {
+    format!("{server_name}:{env_var}")
+}
+
+fn put_mcp_secret(
+    store: &dyn SecretStore,
+    server_name: &str,
+    env_var: &str,
+    value: &str,
 ) -> Result<(), String> {
-    let key = SecretStore::key_for(&server_name, &env_var);
-    secret_store.delete(&key).map_err(|e| e.to_string())
+    store
+        .set(
+            MCP_STATIC_SECRET_SERVICE,
+            &mcp_secret_key(server_name, env_var),
+            value,
+        )
+        .map_err(|e| e.to_string())
+}
+
+fn remove_mcp_secret(
+    store: &dyn SecretStore,
+    server_name: &str,
+    env_var: &str,
+) -> Result<(), String> {
+    store
+        .delete(
+            MCP_STATIC_SECRET_SERVICE,
+            &mcp_secret_key(server_name, env_var),
+        )
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::mcp::secret_store::SecretStore;
+    use super::*;
 
-    // ── store_mcp_secret uses the correct composite key ───────────────
-
-    #[test]
-    fn test_store_secret_delegates_to_secret_store() {
-        // GIVEN a server name and env var name
-        // WHEN the composite key is generated (as done inside store_mcp_secret)
-        let key = SecretStore::key_for("notion", "NOTION_API_KEY");
-        // THEN the key follows the "{server}:{env_var}" convention
-        assert_eq!(key, "notion:NOTION_API_KEY");
+    fn age_store(dir: &std::path::Path) -> apollia_auth::AgeFileSecretStore {
+        apollia_auth::AgeFileSecretStore::new(dir.to_path_buf(), "test-pass".into())
+            .expect("age store")
     }
 
-    // ── delete_mcp_secret uses the correct composite key ──────────────
+    #[test]
+    fn test_secret_key_and_service_match_the_keychain_names() {
+        // GIVEN the names the desktop keychain wrapper wrote under before it
+        // was folded into the shared store: service "apollia-mcp", account
+        // "{server}:{env_var}"
+        // WHEN the store names are produced for the same inputs
+        // THEN they are identical, so no keychain entry has to be migrated
+        assert_eq!(MCP_STATIC_SECRET_SERVICE, "apollia-mcp");
+        assert_eq!(
+            mcp_secret_key("notion", "NOTION_API_KEY"),
+            "notion:NOTION_API_KEY"
+        );
+        assert_eq!(mcp_secret_key("", "KEY"), ":KEY");
+    }
 
     #[test]
-    fn test_delete_secret_delegates_to_secret_store() {
-        // GIVEN a server name and env var name
-        // WHEN the composite key is generated (as done inside delete_mcp_secret)
-        let key = SecretStore::key_for("slack", "SLACK_BOT_TOKEN");
-        // THEN the key follows the "{server}:{env_var}" convention
-        assert_eq!(key, "slack:SLACK_BOT_TOKEN");
+    fn test_put_read_remove_through_the_shared_store_in_age_file_mode() {
+        // GIVEN the encrypted-file store on a throwaway directory
+        let dir = tempfile::tempdir().expect("tempdir");
+        let store = age_store(dir.path());
+
+        // WHEN the desktop command body stores a secret
+        put_mcp_secret(&store, "notion", "NOTION_API_KEY", "secret-1").expect("put");
+        // THEN the runtime resolver's slot holds it
+        assert_eq!(
+            age_store(dir.path())
+                .get(MCP_STATIC_SECRET_SERVICE, "notion:NOTION_API_KEY")
+                .expect("get")
+                .as_deref(),
+            Some("secret-1")
+        );
+
+        // WHEN the desktop command body removes it, twice
+        remove_mcp_secret(&store, "notion", "NOTION_API_KEY").expect("remove");
+        remove_mcp_secret(&store, "notion", "NOTION_API_KEY").expect("remove again");
+        // THEN the slot is empty and the second removal did not fail
+        assert!(store
+            .get(MCP_STATIC_SECRET_SERVICE, "notion:NOTION_API_KEY")
+            .expect("get")
+            .is_none());
     }
 }

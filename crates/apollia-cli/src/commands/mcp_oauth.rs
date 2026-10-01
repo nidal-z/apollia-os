@@ -18,7 +18,7 @@ use clap::Subcommand;
 
 use apollia_auth::{
     delete_mcp_token, load_mcp_token, negotiate_token, parse_www_authenticate, select_secret_store,
-    AuthError, McpDiscoveryClient, McpOAuthError, NegotiateRequest,
+    AuthError, McpDiscoveryClient, McpOAuthError, NegotiateRequest, MCP_CLIENT_ID_SERVICE,
 };
 
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
@@ -121,11 +121,6 @@ pub enum McpClientIdCommand {
         confirm: bool,
     },
 }
-
-/// Same keychain service name the Desktop uses for OAuth client-id overrides.
-/// Mirrors `MCP_CLIENT_ID_SERVICE` in `apollia-desktop/src/commands/mcp.rs`
-/// so the two binaries share entries on the host keychain.
-const MCP_CLIENT_ID_SERVICE: &str = "apollia-mcp-client-ids";
 
 /// Entry point for `apollia-os mcp oauth <verb>`.
 pub async fn run(cmd: &McpOauthCommand, json: bool) -> i32 {

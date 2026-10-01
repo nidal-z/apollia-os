@@ -54,7 +54,7 @@ pub use mcp_oauth_orchestrator::{
 };
 pub use mcp_token_store::{
     delete_mcp_token, extract_identity_claims, load_mcp_token, save_mcp_token, JwtIdentityClaims,
-    StoredMcpToken, MCP_OAUTH_SERVICE,
+    StoredMcpToken, MCP_CLIENT_ID_SERVICE, MCP_OAUTH_SERVICE,
 };
 pub use multi_account::{AccountId, MultiAccountStorage};
 pub use pkce::{build_auth_url, generate_code_challenge, generate_code_verifier, OAuth2PkceFlow};
