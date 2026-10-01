@@ -230,6 +230,12 @@ impl Supervisor {
             &repo,
             crate::inference_servers::default_store,
         );
+        // Then every key a backend row still holds in clear leaves
+        // `config_json` for the store.
+        crate::backend_keys::seal_stored_backend_keys(
+            &repo,
+            crate::inference_servers::default_store,
+        );
         let server_endpoints = crate::inference_servers::server_endpoints(
             &repo,
             crate::inference_servers::default_store,
@@ -242,7 +248,26 @@ impl Supervisor {
         let router_result = {
             let factory =
                 crate::llama_server_backend::llama_server_override(llama_server_supervisor.clone());
-            LlmRouter::from_repository_with_override(&repo, factory).await
+            match crate::backend_keys::routable_configs(
+                &repo,
+                crate::inference_servers::default_store,
+            ) {
+                Ok((configs, Some(default))) => {
+                    LlmRouter::from_backend_configs_with_override(configs, default, factory).await
+                }
+                Ok((_, None)) => Err(apollia_llm::LlmError::BackendUnavailable {
+                    backend: "default".to_string(),
+                    reason:
+                        "no default LLM backend in system.db - configure one with is_default=true"
+                            .to_string(),
+                }),
+                Err(e) => Err(apollia_llm::LlmError::BackendUnavailable {
+                    backend: apollia_core::paths::DataFile::System
+                        .file_name()
+                        .to_string(),
+                    reason: e.to_string(),
+                }),
+            }
         };
 
         let repo = Arc::new(std::sync::Mutex::new(repo));

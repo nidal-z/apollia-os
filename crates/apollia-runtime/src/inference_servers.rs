@@ -174,7 +174,7 @@ where
 }
 
 /// A shared store handed out as a `Box<dyn SecretStore>`.
-struct SharedStore(std::sync::Arc<dyn SecretStore>);
+pub(crate) struct SharedStore(pub(crate) std::sync::Arc<dyn SecretStore>);
 
 impl SecretStore for SharedStore {
     fn set(&self, service: &str, user: &str, value: &str) -> Result<(), apollia_auth::AuthError> {
