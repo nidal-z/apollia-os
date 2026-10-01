@@ -711,7 +711,6 @@ mod tests {
             routing: None,
             pricing_overrides: HashMap::new(),
             cost_alert_threshold_usd: None,
-            vertex: None,
             runner: Default::default(),
         };
 
@@ -904,7 +903,6 @@ mod tests {
             routing: None,
             pricing_overrides: HashMap::new(),
             cost_alert_threshold_usd: None,
-            vertex: None,
             runner: Default::default(),
         };
 

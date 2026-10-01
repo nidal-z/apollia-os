@@ -352,6 +352,7 @@ impl EmbeddedConfig {
             filesystem: Option<apollia_core::FilesystemConfig>,
             observability: Option<ObservabilityConfig>,
         }
+        apollia_core::config::warn_retired_keys(content);
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
             if let Some(rc) = s.runtime {

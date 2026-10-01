@@ -12,7 +12,7 @@ default = ["cloud"]
 # (sidecar process). This crate only ships the cloud HTTP clients and the
 # shared types (CompletionModel, LlmRouter, etc.).
 
-# Cloud backends (HTTP API: Anthropic, OpenAI-compatible, Vertex)
+# HTTP backends (OpenAI-compatible, Ollama)
 cloud            = ["dep:async-openai", "dep:reqwest"]
 
 [dependencies]

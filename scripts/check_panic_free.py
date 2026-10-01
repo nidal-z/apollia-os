@@ -53,8 +53,8 @@ Three exclusions, and nothing else:
      as a gate drops thirty-eight production files from this scan.
   2. Inside a kept file, the same attributes on a block, plus functions
      annotated `#[test]`, `#[tokio::test]` and their kin. The predicate is read,
-     never the literal string `#[cfg(test)]`: seven sites of
-     `apollia-llm/src/backends/anthropic.rs` live under
+     never the literal string `#[cfg(test)]`: the test helpers of
+     `apollia-llm/src/backends/mod.rs` live under
      `#[cfg(all(test, feature = "cloud"))]`.
   3. Comments and the inside of string literals. Doc examples such as
      `apollia-workspace/src/lib.rs:26` are prose, not production.

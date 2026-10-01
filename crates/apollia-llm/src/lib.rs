@@ -7,8 +7,8 @@
 //!
 //! # Features
 //!
-//! - `cloud` (default): enables `OpenAICompatibleClient`, `AnthropicClient` and
-//!   `VertexClient` via `async-openai` / `reqwest`.
+//! - `cloud` (default): enables `OpenAICompatibleClient` and `OllamaClient` via
+//!   `async-openai` / `reqwest`.
 //!
 //! The core types (`CompletionModel`, `CompletionRequest`, etc.) are available
 //! regardless of which feature is enabled.

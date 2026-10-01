@@ -17,7 +17,7 @@ rust-version.workspace = true
 # crate (sidecar). The desktop no longer forwards any `local-*` or `stt-*`
 # feature to the runtime; inference is dispatched to the runner over HTTP IPC.
 default = ["cloud"]
-## Turns on the cloud backends (Anthropic, OpenAI-compatible, and so on).
+## Turns on the HTTP backends (OpenAI-compatible servers, Ollama).
 cloud = ["apollia-runtime/cloud"]
 
 [dependencies]

@@ -4,21 +4,14 @@
 //! crate (multi-runner sidecar). This module now holds only the cloud HTTP
 //! clients:
 //!
-//! - `openai`   : OpenAI-compatible HTTP client `[feature = "cloud"]`
-//! - `anthropic`: Anthropic HTTP client `[feature = "cloud"]`
-//! - `vertex`   : Google Vertex AI client `[feature = "cloud"]`
-
-#[cfg(feature = "cloud")]
-pub mod anthropic;
+//! - `openai`: OpenAI-compatible HTTP client `[feature = "cloud"]`
+//! - `ollama`: Ollama HTTP client `[feature = "cloud"]`
 
 #[cfg(feature = "cloud")]
 pub mod ollama;
 
 #[cfg(feature = "cloud")]
 pub mod openai;
-
-#[cfg(feature = "cloud")]
-pub mod vertex;
 
 /// Serialisation and restoration for tests that mutate the process
 /// environment. Environment variables are process globals: two parallel
