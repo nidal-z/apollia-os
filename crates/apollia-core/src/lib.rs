@@ -15,6 +15,7 @@
 //! Types implemented:
 //! - [`RuntimeEvent`], [`AgentId`], [`TaskId`]
 
+pub mod batch_source;
 pub mod budget;
 pub mod config;
 pub mod context;
