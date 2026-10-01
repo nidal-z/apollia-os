@@ -8,6 +8,7 @@
 //! - `POST   /api/v1/sessions/:id/messages`   , send message
 //! - `POST   /api/v1/sessions/:id/authorize`  , resolve approval
 //! - `GET    /api/v1/sessions/:id/stream`     , SSE stream
+//! - `POST   /api/v1/sessions/:id/pause`      , pause the turn in flight
 
 use std::convert::Infallible;
 
@@ -27,6 +28,7 @@ use crate::api::server::AppState;
 use crate::chat::types::{ChatMode, SessionStatus, ToolDecision};
 use crate::coordinator::ExecutionBackend;
 
+pub mod pause;
 mod sse;
 
 use sse::chat_event_to_sse;

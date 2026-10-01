@@ -302,7 +302,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-oria/src/engine.rs": 10,
     "crates/apollia-oria/src/resilience.rs": 3,
     "crates/apollia-runtime/src/api/server.rs": 13,
-    "crates/apollia-runtime/src/api/unreached_by_cli.rs": 1,
+    # The mailbox and the whole-bus event streams never end: each probe reads
+    # its first frame under a deadline, which is what fails it rather than a
+    # hang if the frame never comes.
+    "crates/apollia-runtime/src/api/unreached_by_cli.rs": 2,
     "crates/apollia-runtime/src/chat/builtin_agent/tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its

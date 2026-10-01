@@ -138,6 +138,7 @@ impl ToSchema for RawWebhookBody {}
     security(("bearerAuth" = [])),
     tags(
         (name = "health", description = "Liveness and lifecycle"),
+        (name = "events", description = "The runtime event bus as a stream"),
         (name = "tasks", description = "Submit and drive autonomous agent tasks"),
         (name = "chat", description = "Conversational chat sessions"),
         (name = "agents", description = "Agent inventory and lifecycle"),
@@ -158,6 +159,7 @@ impl ToSchema for RawWebhookBody {}
     paths(
         crate::api::server::router::health_handler,
         crate::api::server::router::shutdown_handler,
+        crate::api::routes_events::stream_events,
         crate::api::routes_tasks::list_tasks,
         crate::api::routes_tasks::submit_task,
         crate::api::routes_tasks::get_task,
@@ -184,6 +186,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_chat::send_message,
         crate::api::routes_chat::authorize_tool,
         crate::api::routes_chat::stream_session,
+        crate::api::routes_chat::pause::pause_session,
         crate::api::routes_chat::get_session_todo,
         crate::api::routes_chat::resume_session,
         crate::api::routes_chat::fork_session,
