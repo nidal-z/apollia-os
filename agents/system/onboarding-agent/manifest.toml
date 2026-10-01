@@ -13,10 +13,10 @@ tags = ["onboarding", "conversational", "system"]
 agent_type = "system"
 execution_mode = "auto"
 # The onboarding-agent proposes the permission rules matching the preferences
-# it collected (sovereignty, hitl, integrations), through HITL-gated tool
-# calls. permission_rule_remove is deliberately not exposed (least privilege:
-# reset and cleanup go through the Settings UI or the CLI).
-tools_required = ["permission_rule_add", "permission_rule_list"]
+# it collected (sovereignty, hitl, integrations) by writing them to memory; the
+# user turns each one into a rule from the desktop. No agent holds a tool that
+# reads or writes permission rules.
+tools_required = []
 tools_optional = []
 memory_namespace = "onboarding"
 supports_streaming = false

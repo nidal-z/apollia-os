@@ -210,25 +210,27 @@ Un agent qui génère du texte a besoin d'un backend. Choisissez un chemin.
 `llm setup --local` écrit directement dans la base de données locale et
 fonctionne hors ligne. Toute autre sous-commande `llm`, y compris `backends
 create`, `reload` et `status`, dialogue avec le daemon. Si vous prenez le
-chemin cloud, ou si vous voulez vérifier avec `llm status`, démarrez d'abord
+chemin serveur, ou si vous voulez vérifier avec `llm status`, démarrez d'abord
 le daemon à l'étape 4 puis revenez ici.
 
 <!-- claim:cloud-llm-auth-is-api-key-only -->
-Cloud : enregistrez un backend avec une clé d'API. C'est la seule façon
-dont un fournisseur cloud s'authentifie ; il n'existe aucun flux OAuth pour
-cela.
+Serveur : enregistrez un serveur compatible OpenAI (un vLLM ou un LM Studio
+auto-hébergé, ou une passerelle LiteLLM) avec son adresse et, s'il en demande
+une, une clé d'API. C'est la seule façon dont un tel serveur s'authentifie ; il
+n'existe aucun flux OAuth pour cela.
 
 ```sh
-apollia-os llm backends create prod --provider anthropic \
-  --model claude-sonnet-4-20250514 --api-key "$ANTHROPIC_API_KEY" --default
+apollia-os llm backends create prod --provider openai \
+  --base-url http://10.0.0.5:8000/v1 --model qwen3-32b \
+  --api-key "$VLLM_API_KEY" --default
 ```
 
 `--api-key` accepte aussi une forme `${VAR}`, résolue depuis l'environnement
 au démarrage, de sorte que la clé n'a pas besoin de figurer dans
 `apollia.toml`.
 
-Utilisez l'identifiant de modèle actuel de votre fournisseur pour `--model` ;
-la valeur ci-dessus n'est qu'un exemple.
+Utilisez l'identifiant du modèle que votre serveur sert pour `--model` ; la
+valeur ci-dessus n'est qu'un exemple.
 
 Local : pointez le runtime vers un fichier `.gguf` sur votre machine. Cela
 enregistre le backend ; le daemon le sert via le `llama-server` embarqué

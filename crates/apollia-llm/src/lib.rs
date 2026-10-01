@@ -25,6 +25,7 @@ pub mod http_client;
 pub mod meta;
 pub mod meta_orchestrator;
 pub mod model_defaults;
+pub mod model_index;
 pub mod pricing;
 pub mod reasoning_markers;
 pub mod recommend;
@@ -63,6 +64,9 @@ pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
 pub use hf_registry::{
     CompatIssue, GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache,
     HfRegistryClient, HfSearchFilter, SearchPage,
+};
+pub use model_index::{
+    IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelIndexError, ModelOrigin,
 };
 pub use recommend::{
     assess as assess_gguf, rank as rank_models, Blocker, Caveat, FamilyManifest, FileCandidate,

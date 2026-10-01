@@ -951,9 +951,6 @@ _SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
     tags=("onboarding", "conversational"),
     memory_namespace="onboarding",
     agent_type="system",
-    # Access to the permission_rule_* tools to propose the rules derived
-    # from the profile (HITL-gated).
-    tools_required=("permission_rule_add", "permission_rule_list"),
     # Only this system agent owns the user profile and may write into the
     # global `__user__` namespace via ctx.profile.set.
     user_memory_write=True,

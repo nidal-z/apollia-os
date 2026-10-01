@@ -123,20 +123,21 @@ pub enum LlmBackendsCommand {
     ///
     /// `--provider` drives the shape of the `config_json` sent to the
     /// runtime. For `llama-cpp` (local GGUF models), `--model` must be the
-    /// absolute path to the .gguf file. For cloud providers, `--model` is
-    /// the identifier (e.g. `claude-sonnet-4-6`, `gpt-4o`).
+    /// absolute path to the .gguf file. For an OpenAI-compatible server or
+    /// Ollama, `--model` is the identifier the server knows (e.g. `qwen3-32b`).
     Create {
         /// Unique backend name (snake_case or kebab-case).
         name: String,
-        /// Provider: `llama-cpp` (local GGUF), `anthropic`, `openai`,
-        /// `mistral`, `ollama`. `--kind` is accepted as an alias for
-        /// backward compatibility.
-        #[arg(long, alias = "kind", value_name = "PROVIDER")]
+        /// Provider: `llama-cpp` (local GGUF), `openai` (any OpenAI-compatible
+        /// server, designated by `--base-url`), `ollama`. Any other value is
+        /// refused. `--kind` is accepted as an alias for backward
+        /// compatibility.
+        #[arg(long, alias = "kind", value_name = "PROVIDER", value_parser = backends::parse_provider)]
         provider: String,
         /// Model identifier or path (absolute path for `llama-cpp`).
         #[arg(long)]
         model: String,
-        /// API key (cloud providers only). Stored as-is in
+        /// API key of the server, when it requires one. Stored as-is in
         /// `config_json.api_key`. Prefer `--api-key-env VAR_NAME` to avoid
         /// persisting the key in system.db.
         #[arg(long, value_name = "KEY")]
@@ -192,13 +193,14 @@ pub enum LlmBackendsCommand {
     Update {
         /// Backend name to update.
         name: String,
-        /// New provider (rarely useful, changes the backend implementation).
-        #[arg(long, alias = "kind", value_name = "PROVIDER")]
+        /// New provider (rarely useful, changes the backend implementation):
+        /// `llama-cpp`, `openai` or `ollama`.
+        #[arg(long, alias = "kind", value_name = "PROVIDER", value_parser = backends::parse_provider)]
         provider: Option<String>,
         /// New model (absolute path for `llama-cpp`).
         #[arg(long)]
         model: Option<String>,
-        /// New API key (cloud providers).
+        /// New API key of the server.
         #[arg(long, value_name = "KEY")]
         api_key: Option<String>,
         /// New environment variable name for the API key.
@@ -407,12 +409,12 @@ mod tests {
 
     #[test]
     fn test_llm_ping_with_backend_parses() {
-        // GIVEN "ping anthropic"
+        // GIVEN "ping vllm"
         // WHEN
-        let cli = TestCli::parse_from(["apollia-os", "ping", "anthropic"]);
-        // THEN LlmCommand::Ping { backend: Some("anthropic") }
+        let cli = TestCli::parse_from(["apollia-os", "ping", "vllm"]);
+        // THEN LlmCommand::Ping { backend: Some("vllm") }
         match &cli.command {
-            LlmCommand::Ping { backend } => assert_eq!(backend.as_deref(), Some("anthropic")),
+            LlmCommand::Ping { backend } => assert_eq!(backend.as_deref(), Some("vllm")),
             other => panic!("expected Ping, got {other:?}"),
         }
     }
@@ -657,17 +659,17 @@ mod tests {
 
     #[test]
     fn test_llm_backends_create_parses() {
-        // GIVEN "backends create anthropic --kind anthropic --model claude-3-5-sonnet-20241022"
+        // GIVEN "backends create vllm --kind openai --model qwen3-32b"
         // WHEN
         let cli = TestCli::parse_from([
             "apollia-os",
             "backends",
             "create",
-            "anthropic",
+            "vllm",
             "--kind",
-            "anthropic",
+            "openai",
             "--model",
-            "claude-3-5-sonnet-20241022",
+            "qwen3-32b",
         ]);
         // THEN Create with the right fields
         match &cli.command {
@@ -680,15 +682,65 @@ mod tests {
                     base_url,
                     ..
                 } => {
-                    assert_eq!(name, "anthropic");
-                    assert_eq!(provider, "anthropic");
-                    assert_eq!(model, "claude-3-5-sonnet-20241022");
+                    assert_eq!(name, "vllm");
+                    assert_eq!(provider, "openai");
+                    assert_eq!(model, "qwen3-32b");
                     assert!(api_key.is_none());
                     assert!(base_url.is_none());
                 }
                 other => panic!("expected Create, got {other:?}"),
             },
             other => panic!("expected Backends, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_llm_backends_create_refuses_a_cloud_provider() {
+        // GIVEN "backends create x --provider anthropic --model y"
+        // WHEN
+        let err = TestCli::try_parse_from([
+            "apollia-os",
+            "backends",
+            "create",
+            "x",
+            "--provider",
+            "anthropic",
+            "--model",
+            "y",
+        ])
+        .unwrap_err();
+        // THEN the parse fails, naming the refused value and every accepted one
+        let message = err.to_string();
+        assert!(
+            message.contains("unknown provider 'anthropic'"),
+            "{message}"
+        );
+        for accepted in ["llama-cpp", "openai", "ollama"] {
+            assert!(message.contains(accepted), "{accepted} missing: {message}");
+        }
+        assert!(!message.contains("mistral"), "{message}");
+    }
+
+    #[test]
+    fn test_llm_backends_create_canonicalises_a_local_alias() {
+        // GIVEN "backends create x --provider local --model /m.gguf"
+        // WHEN
+        let cli = TestCli::parse_from([
+            "apollia-os",
+            "backends",
+            "create",
+            "x",
+            "--provider",
+            "local",
+            "--model",
+            "/m.gguf",
+        ]);
+        // THEN the provider is stored under its canonical name
+        match &cli.command {
+            LlmCommand::Backends {
+                command: LlmBackendsCommand::Create { provider, .. },
+            } => assert_eq!(provider, "llama-cpp"),
+            other => panic!("expected Create, got {other:?}"),
         }
     }
 
@@ -722,17 +774,17 @@ mod tests {
 
     #[test]
     fn test_llm_backends_update_parses() {
-        // GIVEN "backends update anthropic --model claude-3-opus-20240229"
+        // GIVEN "backends update vllm --model qwen3-72b"
         // WHEN
         let cli = TestCli::parse_from([
             "apollia-os",
             "backends",
             "update",
-            "anthropic",
+            "vllm",
             "--model",
-            "claude-3-opus-20240229",
+            "qwen3-72b",
         ]);
-        // THEN Update { name: "anthropic", model: Some("claude-3-opus-20240229"), api_key: None }
+        // THEN Update { name: "vllm", model: Some("qwen3-72b"), api_key: None }
         match &cli.command {
             LlmCommand::Backends { command } => match command {
                 LlmBackendsCommand::Update {
@@ -741,8 +793,8 @@ mod tests {
                     api_key,
                     ..
                 } => {
-                    assert_eq!(name, "anthropic");
-                    assert_eq!(model.as_deref(), Some("claude-3-opus-20240229"));
+                    assert_eq!(name, "vllm");
+                    assert_eq!(model.as_deref(), Some("qwen3-72b"));
                     assert!(api_key.is_none());
                 }
                 other => panic!("expected Update, got {other:?}"),
@@ -753,15 +805,14 @@ mod tests {
 
     #[test]
     fn test_llm_backends_delete_confirm_parses() {
-        // GIVEN "backends delete anthropic --confirm"
+        // GIVEN "backends delete vllm --confirm"
         // WHEN
-        let cli =
-            TestCli::parse_from(["apollia-os", "backends", "delete", "anthropic", "--confirm"]);
-        // THEN Delete { name: "anthropic", confirm: true }
+        let cli = TestCli::parse_from(["apollia-os", "backends", "delete", "vllm", "--confirm"]);
+        // THEN Delete { name: "vllm", confirm: true }
         match &cli.command {
             LlmCommand::Backends { command } => match command {
                 LlmBackendsCommand::Delete { name, confirm } => {
-                    assert_eq!(name, "anthropic");
+                    assert_eq!(name, "vllm");
                     assert!(confirm);
                 }
                 other => panic!("expected Delete, got {other:?}"),
@@ -772,13 +823,13 @@ mod tests {
 
     #[test]
     fn test_llm_backends_set_default_parses() {
-        // GIVEN "backends set-default anthropic"
+        // GIVEN "backends set-default vllm"
         // WHEN
-        let cli = TestCli::parse_from(["apollia-os", "backends", "set-default", "anthropic"]);
-        // THEN SetDefault { name: "anthropic" }
+        let cli = TestCli::parse_from(["apollia-os", "backends", "set-default", "vllm"]);
+        // THEN SetDefault { name: "vllm" }
         match &cli.command {
             LlmCommand::Backends { command } => match command {
-                LlmBackendsCommand::SetDefault { name } => assert_eq!(name, "anthropic"),
+                LlmBackendsCommand::SetDefault { name } => assert_eq!(name, "vllm"),
                 other => panic!("expected SetDefault, got {other:?}"),
             },
             other => panic!("expected Backends, got {other:?}"),
@@ -927,10 +978,10 @@ mod tests {
         // WHEN the notes are built
         // THEN only the egress note applies, never the cleartext one
         let notes = backend_security_notes(
-            "anthropic",
-            "claude-sonnet-4-6",
-            Some("https://api.anthropic.com"),
-            Some("sk-ant-x"),
+            "openai",
+            "qwen3-32b",
+            Some("https://llm.example.org/v1"),
+            Some("sk-x"),
             None,
         );
         let joined = notes.join(" ");

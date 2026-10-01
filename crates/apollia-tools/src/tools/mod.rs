@@ -18,7 +18,6 @@ pub mod http_fetch;
 pub mod memory_search;
 pub mod notebook_edit;
 pub mod notebook_read;
-pub mod permission_rules;
 pub mod python_discovery;
 pub mod python_executor;
 pub mod risk_classifier;
@@ -47,9 +46,6 @@ mod tests {
             super::file_write::FileWrite::descriptor(),
             super::notebook_edit::NotebookEdit::descriptor(),
             super::notebook_read::NotebookRead::descriptor(),
-            super::permission_rules::PermissionRuleAdd::descriptor(),
-            super::permission_rules::PermissionRuleRemove::descriptor(),
-            super::permission_rules::PermissionRuleList::descriptor(),
             super::python_executor::PythonExecutor::descriptor(),
         ];
         #[cfg(feature = "http")]

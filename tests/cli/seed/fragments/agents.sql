@@ -32,7 +32,7 @@ VALUES
     ('onboarding-agent', '0.2.0-preview',
      '/__SEED_HOME__/.apollia/agents/onboarding-agent',
      '/__SEED_HOME__/.apollia/agents/onboarding-agent/agent.py',
-     '{"name":"onboarding-agent","version":"0.2.0-preview","description":"First user contact: short calibration on identity, supervision and sovereignty.","tools_required":["permission_rule_add","permission_rule_list"],"tools_optional":[],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"onboarding","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["onboarding","conversational","system"],"skills":[],"execution_mode":"conversational","agent_type":"system","user_memory_write":true,"examples":["Start onboarding"],"limitations":["Runs once at first launch"]}',
+     '{"name":"onboarding-agent","version":"0.2.0-preview","description":"First user contact: short calibration on identity, supervision and sovereignty.","tools_required":[],"tools_optional":[],"supports_streaming":false,"supports_a2a":false,"memory_namespace":"onboarding","shared_memory_namespaces":[],"max_concurrent_tasks":1,"tags":["onboarding","conversational","system"],"skills":[],"execution_mode":"conversational","agent_type":"system","user_memory_write":true,"examples":["Start onboarding"],"limitations":["Runs once at first launch"]}',
      1, '2026-07-16T09:00:00Z', '2026-07-16T09:00:00Z');
 
 INSERT INTO installed_agents

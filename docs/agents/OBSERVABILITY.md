@@ -348,6 +348,10 @@ CLI surface (`apollia audit ...`) : `list`, `journal`, `stats`, `export`,
 Add a new audit-worthy event by extending the `JournalEntryKind` enum,
 not by emitting a free-form string. Inter-agent mailbox events are
 journaled as `MessageSent`, `MessageDelivered`, and `MessageDropped`.
+Governance changes are journaled as `AccessChanged`, `AgentInstalled`,
+`AgentUpdated`, and `AgentUninstalled`, one run per agent
+(`governance:<agent_id>`), written through the `GovernanceContract` of
+`crates/apollia-runtime/src/governance/`.
 
 ---
 

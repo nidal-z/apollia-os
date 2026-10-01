@@ -19,6 +19,7 @@ members = [
     "crates/apollia-workspace",
     "crates/apollia-permissions",
     "crates/apollia-eval",
+    "crates/apollia-signing",
     "crates/apollia-cli",
     "crates/apollia-desktop",
     "tests",
@@ -43,6 +44,7 @@ default-members = [
     "crates/apollia-workspace",
     "crates/apollia-permissions",
     "crates/apollia-eval",
+    "crates/apollia-signing",
     "crates/apollia-cli",
     "tests",
 ]
@@ -130,6 +132,13 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 sha2 = "0.10"
 hmac = "0.12"
 aes-gcm = "0.10"
+# Detached Ed25519 signatures over a digest list (apollia-signing). Default
+# features off: `fast` only adds precomputed tables, `zeroize` wipes the
+# signing key on drop. See the `signing-schemes` decision.
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "zeroize"] }
+# Verification of the minisign signatures on distribution metadata
+# (apollia-signing). Already in the tree through tauri-plugin-updater.
+minisign-verify = "0.2"
 
 # --- Random ---
 # rand 0.9 = the latest widely adopted stable major (0.10 has only just
@@ -288,6 +297,7 @@ apollia-permissions   = { path = "crates/apollia-permissions" }
 apollia-auth          = { path = "crates/apollia-auth" }
 apollia-connectors    = { path = "crates/apollia-connectors" }
 apollia-eval          = { path = "crates/apollia-eval" }
+apollia-signing       = { path = "crates/apollia-signing" }
 
 [profile.release]
 opt-level = 3
