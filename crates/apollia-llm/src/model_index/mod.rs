@@ -27,6 +27,8 @@
 mod overrides;
 mod scan;
 
+pub(crate) use scan::{is_projector_name, split_part};
+
 #[cfg(test)]
 mod tests;
 

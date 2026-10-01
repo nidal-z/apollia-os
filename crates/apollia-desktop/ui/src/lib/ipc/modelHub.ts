@@ -103,11 +103,20 @@ export interface DownloadProgress {
   status: DownloadStatus;
 }
 
-export interface DownloadRequest {
-  url: string;
-  filename: string;
+/** Which variant of a repository to download. */
+export type VariantSelector =
+  | { kind: "gguf"; file: string }
+  | { kind: "mlx" };
+
+/**
+ * Request to download one variant whole: every part of a split GGUF, its
+ * vision projector when the repository has one, or every file of an MLX
+ * repository. One download id, one aggregated progress stream.
+ */
+export interface VariantDownloadRequest {
+  repo_id: string;
+  selector: VariantSelector;
   hf_token: string | null;
-  repo_id: string | null;
   /** Destination directory. Defaults to `~/.apollia/models` when absent. */
   dest_dir?: string | null;
 }
@@ -143,9 +152,9 @@ export function getHfModel(
   return invoke<HfModelCard>("get_hf_model", { repoId, hfToken });
 }
 
-/** Starts a download; resolves to the download id (tracked via the event). */
-export function startModelDownload(request: DownloadRequest): Promise<string> {
-  return invoke<string>("start_model_download", { request });
+/** Starts downloading a whole variant; resolves to its single download id. */
+export function startVariantDownload(request: VariantDownloadRequest): Promise<string> {
+  return invoke<string>("start_variant_download", { request });
 }
 
 export function cancelModelDownload(downloadId: string): Promise<void> {

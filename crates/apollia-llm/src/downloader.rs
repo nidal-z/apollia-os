@@ -65,6 +65,20 @@ pub enum DownloadError {
     /// directory.
     #[error("invalid destination filename '{0}'")]
     InvalidFilename(String),
+    /// A file published without a SHA-256 does not have the size its
+    /// repository declares. The file has been deleted.
+    #[error(
+        "size check failed for '{file}': expected {expected} bytes, got {actual}; \
+         the file was deleted"
+    )]
+    SizeMismatch {
+        /// Destination filename.
+        file: String,
+        /// Declared size.
+        expected: u64,
+        /// Size received.
+        actual: u64,
+    },
 }
 
 /// Unique identifier of a download.
@@ -643,6 +657,10 @@ async fn persist_sampling_defaults(
     );
     Ok(())
 }
+
+mod group;
+
+pub use group::VariantDownload;
 
 #[cfg(test)]
 mod tests;

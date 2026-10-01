@@ -54,6 +54,7 @@ pub use apollia_core::config::LlmRoutingConfig;
 #[cfg(feature = "cloud")]
 pub use downloader::{
     DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
+    VariantDownload,
 };
 pub use gguf_probe::{parse_header, GgufHeaderFacts, GgufParseError};
 #[cfg(feature = "cloud")]
@@ -63,7 +64,8 @@ pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
 #[cfg(feature = "cloud")]
 pub use hf_registry::{
     CompatIssue, GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache,
-    HfRegistryClient, HfSearchFilter, SearchPage,
+    HfRegistryClient, HfSearchFilter, SearchPage, VariantError, VariantFile, VariantPlan,
+    VariantSelector,
 };
 pub use model_index::{
     IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelIndexError, ModelOrigin,

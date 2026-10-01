@@ -2790,7 +2790,6 @@
         "compat_fits": "Fits in memory",
         "compat_might_fit": "Might fit - tight",
         "compat_too_large": "Too large for your machine",
-        "vision_projector": "Vision projector - required for multimodal inference",
         "download": "Download",
         "files_count": "{count} files",
         "no_gguf_in_repo": "No GGUF files found in this repository."

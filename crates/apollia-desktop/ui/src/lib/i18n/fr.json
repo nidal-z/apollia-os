@@ -2790,7 +2790,6 @@
         "compat_fits": "Tient en mémoire",
         "compat_might_fit": "Pourrait tenir - limite",
         "compat_too_large": "Trop volumineux pour votre machine",
-        "vision_projector": "Projecteur de vision - requis pour l'inférence multimodale",
         "download": "Télécharger",
         "files_count": "{count} fichiers",
         "no_gguf_in_repo": "Aucun fichier GGUF trouvé dans ce dépôt."

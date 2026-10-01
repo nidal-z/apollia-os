@@ -4,6 +4,8 @@
 //! - [`search_hf_models`]: searches HuggingFace GGUF models
 //! - [`get_hf_model`]: full metadata for a HuggingFace model
 //! - [`start_model_download`]: downloads a GGUF file
+//! - [`start_variant_download`]: downloads a whole variant (parts, projector,
+//!   MLX folder) as one download
 //! - [`cancel_model_download`]: cancels an in-progress download
 
 use std::path::{Path, PathBuf};
@@ -84,6 +86,20 @@ pub struct DownloadModelRequest {
     /// `generation_config.json` after the download and persist the
     /// official sampling defaults in `~/.apollia/models/sampling-defaults.json`.
     pub repo_id: Option<String>,
+}
+
+/// Request to download one variant of a HuggingFace repository.
+#[derive(Debug, Deserialize)]
+pub struct VariantDownloadRequest {
+    /// Repository (`org/name`).
+    pub repo_id: String,
+    /// Which variant: a GGUF weights file of the repository, or the whole MLX
+    /// repository.
+    pub selector: apollia_llm::VariantSelector,
+    /// HF token for gated models.
+    pub hf_token: Option<String>,
+    /// Destination directory (defaults to `~/.apollia/models/`).
+    pub dest_dir: Option<String>,
 }
 
 // ─────────────────────────────────────────────
@@ -227,6 +243,58 @@ pub async fn start_model_download(
     });
 
     let id = manager.lock().await.start(dl_request, on_progress);
+    Ok(id)
+}
+
+/// Starts downloading every file of one variant as a single download: each
+/// part of a split GGUF, the vision projector when the repository has one, or
+/// every file of an MLX repository.
+///
+/// Returns one `download_id`. Progress is emitted on the same
+/// `model-download-progress` event as [`start_model_download`], aggregated over
+/// the files, its `dest_path` the model path. Each file is checked against the
+/// reference its repository publishes, and the model enters the index once.
+#[tauri::command]
+pub async fn start_variant_download(
+    app: tauri::AppHandle,
+    manager: State<'_, SharedDownloadManager>,
+    request: VariantDownloadRequest,
+) -> Result<String, String> {
+    let dest_dir = request
+        .dest_dir
+        .as_deref()
+        .map(expand_tilde)
+        .unwrap_or_else(models_dir);
+    tokio::fs::create_dir_all(&dest_dir)
+        .await
+        .map_err(|e| format!("failed to create model directory: {e}"))?;
+
+    let client = apollia_llm::HfRegistryClient::new(request.hf_token.clone());
+    let plan = client
+        .variant_plan(&request.repo_id, &request.selector)
+        .await
+        .map_err(|e| format!("cannot prepare the download, refusing it: {e}"))?;
+
+    let repo_id = plan.repo_id.clone();
+    let origin_file = plan.origin_file.clone();
+    let variant = apollia_llm::VariantDownload {
+        plan,
+        dest_dir,
+        hf_token: request.hf_token,
+    };
+    let on_progress = Arc::new(move |progress: apollia_llm::DownloadProgress| {
+        if progress.status == apollia_llm::DownloadStatus::Completed {
+            let path = progress.dest_path.clone();
+            let repo = Some(repo_id.clone());
+            let file = origin_file.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                super::model_index::record_download(&models_dir(), &path, repo, file);
+            });
+        }
+        let _ = app.emit("model-download-progress", &progress);
+    });
+
+    let id = manager.lock().await.start_variant(variant, on_progress);
     Ok(id)
 }
 
