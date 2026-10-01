@@ -330,33 +330,6 @@ impl PrefixRuleEngine {
         Ok(affected as u32)
     }
 
-    /// Lists persisted rules whose `created_by` field matches.
-    ///
-    /// Returns rules sorted by ascending identifier. Does not include session
-    /// rules (RAM only, never persisted).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`PermissionError::Database`] on SQLite error.
-    pub fn list_rules_by_creator(
-        &self,
-        created_by: &str,
-    ) -> Result<Vec<PrefixRule>, PermissionError> {
-        let mut stmt = self.db.prepare(
-            "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
-                    scope, project_path, agent_id, expires_at \
-             FROM permission_rules \
-             WHERE created_by = ? \
-             ORDER BY id ASC",
-        )?;
-        let rules = stmt
-            .query_map(params![created_by], row_to_rule)?
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .collect::<Result<Vec<_>, PermissionError>>()?;
-        Ok(rules)
-    }
-
     /// Lists `scope = 'agent'` rules filtered by `agent_id`.
     ///
     /// # Errors
@@ -378,6 +351,9 @@ impl PrefixRuleEngine {
         Ok(rules)
     }
 
+    // TEST-ONLY: a test oracle over every persisted rule. Production lists
+    // through `list_rules_filtered` (the desktop and the CLI) and
+    // `list_rules_for_agent` (the free chat).
     /// Returns all persisted rules, sorted by ascending identifier.
     ///
     /// # Errors
@@ -776,52 +752,6 @@ mod tests {
             created_by_agent: Some(creator.into()),
             ..PrefixRule::default()
         }
-    }
-
-    #[test]
-    fn list_rules_by_creator_returns_only_matching() {
-        // GIVEN three rules: two by "onboarding-agent", one by "user-hitl"
-        let (mut engine, _tmp) = tmp_engine();
-        engine
-            .add_rule(&rule_with_creator(
-                "tool_a",
-                RuleAction::Allow,
-                "onboarding-agent",
-            ))
-            .expect("add_rule");
-        engine
-            .add_rule(&rule_with_creator(
-                "tool_b",
-                RuleAction::Deny,
-                "onboarding-agent",
-            ))
-            .expect("add_rule");
-        engine
-            .add_rule(&rule_with_creator("tool_c", RuleAction::Allow, "user-hitl"))
-            .expect("add_rule");
-
-        // WHEN listing by creator
-        let rules = engine
-            .list_rules_by_creator("onboarding-agent")
-            .expect("list_rules_by_creator");
-
-        // THEN only the two onboarding-agent rules are returned
-        assert_eq!(rules.len(), 2);
-        assert!(rules
-            .iter()
-            .all(|r| r.created_by_agent.as_deref() == Some("onboarding-agent")));
-    }
-
-    #[test]
-    fn list_rules_by_creator_unknown_returns_empty() {
-        // GIVEN an empty engine
-        let (engine, _tmp) = tmp_engine();
-        // WHEN listing an unknown creator
-        let rules = engine
-            .list_rules_by_creator("ghost")
-            .expect("list_rules_by_creator");
-        // THEN no rules
-        assert!(rules.is_empty());
     }
 
     #[test]

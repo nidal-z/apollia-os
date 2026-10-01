@@ -62,10 +62,9 @@ MEMORY_SOURCE: str = "onboarding"
 ONBOARDING_VERSION: str = "2.3"
 
 # The agent proposes the permission rules that match the collected profile
-# preferences, through the HITL-gated native tools `permission_rule_add` /
-# `permission_rule_list`. The table below describes the default intent; every
-# tool call is confirmed by the user via the desktop HITL dialog, so the user
-# stays in control even when the mapping is conservative.
+# preferences by writing them to memory; it holds no tool that reads or writes
+# permission rules. The desktop presents each proposal and the user confirms
+# it, so the user stays in control even when the mapping is conservative.
 ONBOARDING_AGENT_CREATOR: str = "onboarding-agent"
 
 CONFIDENCE_EXPLICIT: float = 0.9
@@ -271,10 +270,9 @@ tag.
 
 ### Permission application (post-closure, transparent)
 
-After your closing message, the runtime automatically applies the permission \
-rules matching the collected preferences through HITL-gated \
-`permission_rule_add` calls. The user confirms each rule in a dialog. You do \
-not need to emit these calls; the finalization code triggers them.
+After your closing message, the desktop presents the permission rules matching \
+the collected preferences. The user confirms each rule in a dialog. You do not \
+need to do anything; the finalization code prepares them.
 
 ## Tags
 
@@ -948,9 +946,7 @@ async def _persist_proposed_permission_rules(ctx: Ctx) -> None:
     this key at the end of onboarding and presents each rule as an inline
     approval card (`OnboardingPermissionStep.svelte`). On approval, the
     desktop calls ``PrefixRuleEngine::add_rule`` directly through a Tauri
-    command (bypassing the tool dispatcher), which avoids the
-    ``executor.rs:NeedsApproval -> PermissionDenied`` bug that stopped the
-    cards from appearing when the agent called ``permission_rule_add``.
+    command: no agent holds a tool that writes a permission rule.
 
     Matrix:
 
@@ -968,17 +964,14 @@ async def _persist_proposed_permission_rules(ctx: Ctx) -> None:
       GitHub | Slack | Notion | Gmail -> allow http_fetch on the matching API
                                          (global scope)
 
-    Idempotence: if the onboarding agent has already emitted rules
-    (``permission_rule_list(created_by="onboarding-agent")`` non-empty via
-    the tool when available), no new proposal is written. The user can revoke
-    from Settings -> Permissions (filter `Onboarding`) then rerun onboarding
-    for a reset.
+    No idempotence check: the user, not the agent, creates the rules through
+    the desktop cards, and the user can revoke them from Settings ->
+    Permissions (filter `Onboarding`).
     """
-    # No idempotence check on ``permission_rule_list``: since moving to a
-    # memory-based architecture, the user (not the agent) creates the rules
-    # through the desktop cards. Re-onboarding must always re-propose the full
-    # set: the user may have declined some rules earlier and wants a second
-    # chance, or changed profile so the matrix differs. The application layer
+    # The user (not the agent) creates the rules through the desktop cards.
+    # Re-onboarding must always re-propose the full set: the user may have
+    # declined some rules earlier and wants a second chance, or changed
+    # profile so the matrix differs. The application layer
     # (``apply_proposed_permission_rule``) is free to deduplicate on the
     # ``governance.db`` side if needed.
 
@@ -1152,9 +1145,6 @@ _SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
     tags=("onboarding", "conversational"),
     memory_namespace="onboarding",
     agent_type="system",
-    # Access to the permission_rule_* tools to propose the rules derived
-    # from the profile (HITL-gated).
-    tools_required=("permission_rule_add", "permission_rule_list"),
     # Only this system agent owns the user profile and may write into the
     # global `__user__` namespace via ctx.profile.set.
     user_memory_write=True,

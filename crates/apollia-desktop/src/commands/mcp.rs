@@ -12,6 +12,7 @@ use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::mcp::python_server::{self, PythonServerInstaller};
 use crate::mcp::secret_store::SecretStore;
 
 use super::{http_delete_json, http_get_json, http_patch_json, http_post_json, http_put_json};
@@ -65,11 +66,15 @@ pub async fn get_mcp_server_detail(
 ///
 /// Delegates to `POST /api/v1/mcp/servers` on the embedded runtime. The server
 /// process is spawned and the MCP handshake is performed before returning.
+///
+/// A Python server declared as `uvx <package>` is installed first, into its
+/// own virtualenv, and the persisted command names that venv's entry point.
 #[tauri::command]
 pub async fn add_mcp_server(
     state: State<'_, RuntimeHandle>,
     config: McpServerConfig,
 ) -> Result<McpServerStatus, String> {
+    let config = install_python_server(config).await?;
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
     let json = http_post_json(state.api_port, "/api/v1/mcp/servers", &body).await?;
@@ -94,6 +99,16 @@ pub async fn remove_mcp_server(
 ) -> Result<(), String> {
     let path = format!("/api/v1/mcp/servers/{name}");
     http_delete_json(state.api_port, &path).await.map(|_| ())?;
+
+    // The connection's own directory (a Python server's venv) goes with it.
+    if let Err(e) = python_server::remove_connection_dir(&python_server::connections_dir(), &name) {
+        tracing::warn!(
+            server = %name,
+            error = %e,
+            detail = "the connection directory may be orphaned",
+            "mcp.connection_dir.purge.failed"
+        );
+    }
 
     // Best-effort OAuth token cleanup. We don't know at this layer whether
     // the server used OAuth, so we always attempt the delete - it's a no-op
@@ -143,6 +158,7 @@ pub async fn update_mcp_server_config(
     name: String,
     config: McpServerConfig,
 ) -> Result<McpServerStatus, String> {
+    let config = install_python_server(config).await?;
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
     let path = format!("/api/v1/mcp/servers/{name}/config");
@@ -184,10 +200,24 @@ pub async fn test_mcp_connection(
     state: State<'_, RuntimeHandle>,
     config: McpServerConfig,
 ) -> Result<McpConnectionTestResponse, String> {
+    let config = install_python_server(config).await?;
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
     let json = http_post_json(state.api_port, "/api/v1/mcp/servers/test", &body).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse test result: {e}"))
+}
+
+/// Install a `uvx` server on the bundled interpreter and rewrite its command;
+/// return any other configuration unchanged.
+///
+/// The test before adding goes through here too: it is the first launch, so
+/// the venv it builds is the one the addition then finds and reuses.
+async fn install_python_server(config: McpServerConfig) -> Result<McpServerConfig, String> {
+    let installer = PythonServerInstaller::new(python_server::connections_dir());
+    let enrichments = crate::mcp::load_builtin_enrichments();
+    python_server::prepare(config, &enrichments, &installer)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Resolve the connector's declared read-only probe for an installed server.

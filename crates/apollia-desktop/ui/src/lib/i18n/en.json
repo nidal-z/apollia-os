@@ -2438,11 +2438,7 @@
       },
       "llm": {
         "local": "Local (llama.cpp)",
-        "ollama": "Ollama",
-        "anthropic": "Anthropic",
-        "openai": "OpenAI",
-        "bedrock": "AWS Bedrock",
-        "vertex": "Vertex AI"
+        "ollama": "Ollama"
       },
       "supervision": {
         "title": "Agent supervision"
@@ -3025,7 +3021,8 @@
       }
     },
     "llm_backend": {
-      "provider_local": "local"
+      "provider_local": "local",
+      "provider_openai_compatible": "OpenAI-compatible server"
     },
     "all_saved": "All changes saved",
     "save": "Save",
@@ -3188,7 +3185,7 @@
       "recommended_models": "Recommended models",
       "recommended": "Recommended",
       "search_hf": "Search on HuggingFace",
-      "use_cloud": "Use a cloud provider",
+      "connect_server": "Connect to a server",
       "stt_section_title": "Voice recognition (optional)",
       "rescan_whisper": "Re-scan Whisper models",
       "rescan_short": "Re-scan",
@@ -3678,7 +3675,7 @@
     "feature_local_title": "Local-first",
     "feature_local_desc": "Your data stays on your machine.",
     "feature_llm_title": "LLM of your choice",
-    "feature_llm_desc": "Local (llama.cpp) or cloud (Anthropic, OpenAI…).",
+    "feature_llm_desc": "Local (llama.cpp) or a server your organization runs.",
     "feature_agents_title": "Autonomous agents",
     "feature_agents_desc": "Native ReAct, not a deterministic pipeline.",
     "cta_start": "Start configuration",
@@ -3776,9 +3773,6 @@
       "mcp_tool": "External tool",
       "notebook_read": "Notebook reading",
       "notebook_edit": "Notebook editing",
-      "permission_rule_add": "Permission rule addition",
-      "permission_rule_remove": "Permission rule removal",
-      "permission_rule_list": "Permission rules listing",
       "tool_search": "Tool search",
       "mcp_resources_list": "Connector resources listing",
       "mcp_resources_read": "Connector resource reading"
@@ -3820,9 +3814,6 @@
       "mcp_tool": "Using {server_name}: {tool_description}",
       "notebook_read": "Reading a Jupyter notebook",
       "notebook_edit": "Editing a Jupyter notebook cell",
-      "permission_rule_add": "Adding a permission rule",
-      "permission_rule_remove": "Removing a permission rule",
-      "permission_rule_list": "Listing the permission rules in force",
       "tool_search": "Searching the index of available external tools",
       "mcp_resources_list": "Listing the resources exposed by connected MCP servers",
       "mcp_resources_read": "Reading a resource exposed by a connected MCP server"
@@ -4312,159 +4303,6 @@
       "project_no_project": "This session is not attached to any project.",
       "global_title": "Always, everywhere",
       "global_desc": "All assistants, all projects."
-    }
-  },
-  "tour": {
-    "chrome": {
-      "next": "Next",
-      "prev": "Back",
-      "skip": "Skip",
-      "finish": "Done",
-      "counter_label": "Step {current} of {total}",
-      "anchorless": "No visual anchor",
-      "exit_title": "Stop the tour?",
-      "exit_body": "Your progress is kept. You can pick it up from this step in the Getting started band.",
-      "exit_cancel": "Keep going",
-      "exit_confirm": "Stop"
-    },
-    "band": {
-      "title": "Getting started",
-      "subtitle": "Five moves to learn what Apollia can do for you.",
-      "progress": "{done} / {total}",
-      "hide": "Hide getting started",
-      "keep": "Keep it visible",
-      "done_title": "You have covered the ground",
-      "done_body": "This band steps aside to give you the room back. You will find it again in Help.",
-      "milestone": {
-        "chat": {
-          "label": "Converse",
-          "hint": "Ask a question, get a result",
-          "cta": "Get your first answer"
-        },
-        "frame": {
-          "label": "Frame",
-          "hint": "Give context with a project",
-          "cta": "Give your work some context"
-        },
-        "automate": {
-          "label": "Automate",
-          "hint": "Let a task run on its own",
-          "cta": "Let a task run on its own"
-        },
-        "connect": {
-          "label": "Connect",
-          "hint": "Plug in your tools",
-          "cta": "Plug in your tools"
-        },
-        "follow": {
-          "label": "Follow",
-          "hint": "Review activity and the journal",
-          "cta": "See what happened"
-        }
-      },
-      "landmarks": "Revisit the landmarks"
-    },
-    "first_result": {
-      "title": "Your first answer",
-      "compose": {
-        "title": "It starts here, and it stays on your machine",
-        "body": "Describe what you want in plain language, or start from one of the suggested templates. The language model runs on your own machine."
-      },
-      "approval": {
-        "title": "Nothing happens without your go-ahead",
-        "body": "Allow once, refuse, or always allow within a scope you choose. Everything is revocable in Settings."
-      },
-      "trace": {
-        "title": "What just happened is on the record",
-        "body": "Every tool call leaves a timestamped trace you can read back, and whose integrity you can verify."
-      }
-    },
-    "landmarks": {
-      "title": "The landmarks",
-      "surfaces": {
-        "title": "Your surfaces",
-        "body": "The left column holds everything Apollia can do. Nothing is buried in a menu."
-      },
-      "palette": {
-        "title": "Everything is one keystroke away",
-        "body": "The command palette opens any page, runs an action, and finds a past conversation."
-      },
-      "modes": {
-        "title": "Two levels of detail",
-        "body": "Operator keeps it essential. Builder opens traces, costs and permissions. Switch whenever you like."
-      },
-      "inbox": {
-        "title": "You are the go-ahead",
-        "body": "Sensitive actions stop here and wait for your decision. Nothing proceeds without you."
-      }
-    },
-    "frame": {
-      "title": "Frame it with a project",
-      "what": {
-        "title": "A project holds one topic",
-        "body": "Conversations, documents and workspace in one place, so you stop re-explaining the context every time."
-      },
-      "documents": {
-        "title": "The Context tab",
-        "body": "Standing instructions and project documents. Whatever you put here becomes readable by your assistants."
-      },
-      "context": {
-        "title": "Your assistant reads it without being told again",
-        "body": "The project content is genuinely attached to your exchanges. It is the most useful mechanism in Apollia, and the quietest."
-      }
-    },
-    "automate": {
-      "title": "Automate a task",
-      "create": {
-        "title": "Describe what you want",
-        "body": "One sentence sets the frame. The parsing is deterministic: always read the proposed schedule back."
-      },
-      "when": {
-        "title": "Choose when",
-        "body": "Every morning, every thirty minutes, or once on a given date."
-      },
-      "run_now": {
-        "title": "Run it now to check",
-        "body": "The row menu fires the automation immediately instead of waiting for its next due time."
-      }
-    },
-    "connect": {
-      "title": "Connect your tools",
-      "catalogue": {
-        "title": "The catalogue",
-        "body": "Ready-to-use MCP servers, and native connectors for your accounts. A local server plugs in with no account to create."
-      },
-      "list": {
-        "title": "Your connections and their state",
-        "body": "Each row shows whether the connection holds, what it exposes, and how long since it was last used."
-      },
-      "capabilities": {
-        "title": "What the tool can do",
-        "body": "The detail pane lists the actions made available to your assistants once the connection is live."
-      }
-    },
-    "follow": {
-      "title": "Follow what happened",
-      "timeline": {
-        "title": "Everything that happened, in order",
-        "body": "Timeline, costs, audit journal, and the mailbox between assistants."
-      },
-      "costs": {
-        "title": "What it cost you",
-        "body": "Usage per day and per model. Running locally costs nothing beyond your own machine."
-      },
-      "journal": {
-        "title": "The journal, chained and tamper-evident",
-        "body": "Every tool call is cryptographically chained to the one before it. A line edited after the fact breaks the chain and becomes detectable."
-      }
-    },
-    "help_topic": {
-      "title": "Revisit getting started",
-      "body": "Reopens the band and its five milestones on the dashboard.",
-      "action": "Open"
-    },
-    "palette": {
-      "replay": "Revisit getting started"
     }
   },
   "stt_failure": {

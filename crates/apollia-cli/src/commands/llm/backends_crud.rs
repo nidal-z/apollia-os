@@ -6,7 +6,7 @@ use crate::note;
 
 use super::backends::{
     auto_reload_after_mutation, backend_security_notes, build_config_json, canonicalize_provider,
-    BuildConfigArgs,
+    BuildConfigArgs, ACCEPTED_PROVIDERS_HINT,
 };
 use super::handle_error;
 
@@ -204,7 +204,7 @@ pub(super) fn emit_backend_create_server_error(status: u16, body: &str, json: bo
     );
     if !json && status == 422 {
         eprintln!();
-        eprintln!("Hint: accepted providers: llama-cpp, anthropic, openai, mistral, ollama");
+        eprintln!("Hint: accepted providers: {ACCEPTED_PROVIDERS_HINT}");
         eprintln!("      (the --kind alias is still accepted for backward compatibility)");
     }
     exit_codes::GENERAL_ERROR
@@ -253,7 +253,7 @@ pub(super) async fn run_backends_update(
     let cur_provider = current
         .get("provider")
         .and_then(|v| v.as_str())
-        .unwrap_or("anthropic");
+        .unwrap_or("openai");
     let cur_model = current.get("model").and_then(|v| v.as_str()).unwrap_or("");
     let cur_cfg = current
         .get("config_json")

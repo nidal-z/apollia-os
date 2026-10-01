@@ -26,6 +26,7 @@ pub mod meta_automation;
 pub mod meta_next_steps;
 pub mod meta_rewrite;
 pub mod model_hub;
+pub(crate) mod model_index;
 pub mod notifications;
 pub mod observability;
 pub mod onboarding;

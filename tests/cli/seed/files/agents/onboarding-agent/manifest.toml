@@ -11,7 +11,7 @@ tags = ["onboarding", "conversational", "system"]
 [agent.manifest]
 agent_type = "system"
 execution_mode = "conversational"
-tools_required = ["permission_rule_add", "permission_rule_list"]
+tools_required = []
 tools_optional = []
 memory_namespace = "onboarding"
 supports_streaming = false

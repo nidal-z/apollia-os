@@ -41,8 +41,6 @@ function baseForm(overrides: Partial<BackendFormState> = {}): BackendFormState {
 describe("isRemoteProvider", () => {
   it("marks remote providers correctly", () => {
     expect(isRemoteProvider("openai")).toBe(true);
-    expect(isRemoteProvider("anthropic")).toBe(true);
-    expect(isRemoteProvider("mistral")).toBe(true);
     expect(isRemoteProvider("ollama")).toBe(true);
     expect(isRemoteProvider("llama-cpp")).toBe(false);
   });
@@ -109,7 +107,7 @@ describe("validateForm", () => {
     const errors = validateForm(
       baseForm({
         provider: "openai",
-        endpoint: "https://api.openai.com/v1",
+        endpoint: "https://llm.example.org/v1",
         apiKey: "",
         model: "gpt-4",
       }),
@@ -142,14 +140,14 @@ describe("buildConfigJson", () => {
     const cfg = buildConfigJson(
       baseForm({
         provider: "openai",
-        endpoint: "https://api.openai.com/v1",
+        endpoint: "https://llm.example.org/v1",
         apiKey: "sk-x",
         model: "gpt-4",
         timeoutSec: 30,
       }),
     );
     expect(cfg).toEqual({
-      base_url: "https://api.openai.com/v1",
+      base_url: "https://llm.example.org/v1",
       api_key: "sk-x",
       timeout_sec: 30,
     });
@@ -166,7 +164,7 @@ describe("buildConfigJson", () => {
     const cfg = buildConfigJson(
       baseForm({
         provider: "openai",
-        endpoint: "https://api.openai.com/v1",
+        endpoint: "https://llm.example.org/v1",
         apiKey: "sk-x",
         model: "gpt-4",
         extraJson: JSON.stringify({ temperature: 0.2, device: "cuda" }),
@@ -174,7 +172,7 @@ describe("buildConfigJson", () => {
     );
     expect(cfg.temperature).toBe(0.2);
     expect(cfg.device).toBe("cuda");
-    expect(cfg.base_url).toBe("https://api.openai.com/v1");
+    expect(cfg.base_url).toBe("https://llm.example.org/v1");
   });
 
   it("converges legacy endpoint/api_url aliases onto base_url", () => {
@@ -204,12 +202,15 @@ describe("endpoint prefill", () => {
     expect(PROVIDER_DEFAULT_ENDPOINT.ollama).toBe("http://127.0.0.1:11434/v1");
   });
 
-  it("gives Anthropic a base WITHOUT /v1", () => {
-    // GIVEN the Anthropic client appends /v1/messages itself
-    // WHEN Anthropic is selected
-    // THEN the default stops at the host, otherwise the path doubles to /v1/v1
-    expect(PROVIDER_DEFAULT_ENDPOINT.anthropic).toBe("https://api.anthropic.com");
-    expect(PROVIDER_DEFAULT_ENDPOINT.anthropic).not.toMatch(/\/v1$/);
+  it("suggests no cloud address for an OpenAI-compatible server", () => {
+    // GIVEN the server lives wherever the organization runs it
+    // WHEN the OpenAI-compatible provider is selected
+    // THEN no default address is offered, and no default points at a cloud API
+    expect(PROVIDER_DEFAULT_ENDPOINT.openai).toBeUndefined();
+    expect(endpointForProvider("openai", "")).toBe("");
+    for (const url of Object.values(PROVIDER_DEFAULT_ENDPOINT)) {
+      expect(url).not.toMatch(/api\.(openai\.com|anthropic\.com|mistral\.ai)/);
+    }
   });
 
   it("fills an empty endpoint from the provider", () => {
@@ -217,7 +218,7 @@ describe("endpoint prefill", () => {
     // WHEN a remote provider is picked
     // THEN its default lands in the field
     expect(endpointForProvider("ollama", "")).toBe("http://127.0.0.1:11434/v1");
-    expect(endpointForProvider("mistral", "   ")).toBe("https://api.mistral.ai/v1");
+    expect(endpointForProvider("ollama", "   ")).toBe("http://127.0.0.1:11434/v1");
   });
 
   it("never clobbers an endpoint the user typed", () => {
@@ -233,16 +234,14 @@ describe("endpoint prefill", () => {
     // GIVEN the field still holds the default of the previously selected provider
     // WHEN the provider changes
     // THEN the stale default is replaced rather than carried over
-    expect(endpointForProvider("ollama", "https://api.openai.com/v1")).toBe(
-      "http://127.0.0.1:11434/v1",
-    );
+    expect(endpointForProvider("openai", "http://127.0.0.1:11434/v1")).toBe("");
   });
 
   it("clears the field for a provider that needs no endpoint", () => {
     // GIVEN a local provider
     // WHEN it is selected
     // THEN there is no endpoint to suggest
-    expect(endpointForProvider("llama-cpp", "https://api.openai.com/v1")).toBe("");
+    expect(endpointForProvider("llama-cpp", "http://127.0.0.1:11434/v1")).toBe("");
   });
 });
 
@@ -271,7 +270,7 @@ describe("cleartext credential warning", () => {
     // GIVEN either transport encryption, or no credential to expose
     // WHEN the form is inspected
     // THEN there is nothing to warn about
-    expect(credentialExposureWarning(remote("https://api.openai.com/v1"))).toBe(false);
+    expect(credentialExposureWarning(remote("https://llm.example.org/v1"))).toBe(false);
     expect(credentialExposureWarning(remote("http://192.168.1.55:11434/v1", ""))).toBe(false);
   });
 

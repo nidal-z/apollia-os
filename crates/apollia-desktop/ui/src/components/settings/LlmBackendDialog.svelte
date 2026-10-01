@@ -5,6 +5,7 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import {
     PROVIDER_DEFAULT_ENDPOINT,
+    SERVER_ENDPOINT_PLACEHOLDER,
     buildConfigJson,
     credentialExposureWarning,
     detectMultipart,
@@ -310,9 +311,7 @@
           data-testid="llm-dialog-provider"
         >
           <option value="llama-cpp">llama-cpp ({$t("settings.llm_backend.provider_local")})</option>
-          <option value="openai">OpenAI</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="mistral">Mistral</option>
+          <option value="openai">{$t("settings.llm_backend.provider_openai_compatible")}</option>
           <option value="ollama">Ollama</option>
         </Select>
       </FormField>
@@ -327,7 +326,7 @@
         <Input
           id="llm-endpoint"
           type="url"
-          placeholder={PROVIDER_DEFAULT_ENDPOINT[form.provider] ?? "https://api.openai.com/v1"}
+          placeholder={PROVIDER_DEFAULT_ENDPOINT[form.provider] ?? SERVER_ENDPOINT_PLACEHOLDER}
           class={inputClass("endpoint") + " font-mono"}
           bind:value={form.endpoint}
           data-testid="llm-dialog-endpoint"

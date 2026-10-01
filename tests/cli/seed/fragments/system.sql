@@ -46,9 +46,14 @@
 -- (Llm.svelte:107), and a ping can only succeed against something reachable:
 --   * local-llama-server points at :8899, which the -llama recipe brings up, so
 --     it is the one that shows a healthy card. It is the default.
---   * anthropic-claude stays enabled without a key, which is the honest error
---     state the "provider does not answer" troubleshooting page documents.
---   * openai-gpt4o-mini is disabled, so the list also shows a disabled card.
+--   * gpu-server is an enabled OpenAI-compatible server at 127.0.0.1:9, which
+--     refuses at once: the honest error state the "provider does not answer"
+--     troubleshooting page documents, reached without any network.
+--   * vllm-qwen is a self-hosted vLLM server, disabled, so the list also shows a
+--     disabled card.
+-- No row points at a cloud API: those have no dedicated provider any more, and
+-- the system.db migration deletes them when it finds them. The names keep the
+-- ORDER BY name position of the rows they replaced (non-default card first).
 -- local-qwen was dropped: it needs the apollia-runner sidecar, absent in dev, so
 -- it was red in every run and added nothing but a second identical error.
 INSERT INTO llm_backends (name, provider, model, config_json, enabled, is_default, created_at, updated_at) VALUES
@@ -60,18 +65,18 @@ INSERT INTO llm_backends (name, provider, model, config_json, enabled, is_defaul
    1,
    '2026-07-01T00:00:00Z',
    '2026-07-01T00:00:00Z'),
-  ('openai-gpt4o-mini',
+  ('vllm-qwen',
    'openai',
-   'gpt-4o-mini',
-   '{"base_url":"https://api.openai.com/v1","api_key":"${OPENAI_API_KEY}","context_size":128000,"temperature":0.7}',
+   'qwen3-32b',
+   '{"base_url":"http://10.0.0.5:8000/v1","api_key":"${VLLM_API_KEY}","context_size":32768,"temperature":0.7}',
    0,
    0,
    '2026-07-01T00:00:00Z',
    '2026-07-01T00:00:00Z'),
-  ('anthropic-claude',
-   'anthropic',
-   'claude-3-5-sonnet-latest',
-   '{"base_url":"https://api.anthropic.com","api_key":"${ANTHROPIC_API_KEY}","context_size":200000,"temperature":0.7}',
+  ('gpu-server',
+   'openai',
+   'gemma-3-27b',
+   '{"base_url":"http://127.0.0.1:9/v1","context_size":32768,"temperature":0.7}',
    1,
    0,
    '2026-07-01T00:00:00Z',

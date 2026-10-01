@@ -7,7 +7,6 @@
   import { SkipToContent } from "$lib/components/layout";
   import KeyboardHintOverlay from "./components/common/KeyboardHintOverlay.svelte";
   import OnboardingModal from "./components/onboarding/OnboardingModal.svelte";
-  import TourHost from "$lib/components/tour/TourHost.svelte";
   import { ToastContainer } from "$lib/components/ui/toast";
   import PlanModeHost from "$lib/components/operator/PlanModeHost.svelte";
   import CompanionContextProvider from "./components/companion/CompanionContextProvider.svelte";
@@ -187,9 +186,8 @@
 
   function handleOnboardingClose(): void {
     onboardingModalOpen.set(false);
-    // The guided tour used to own this call, which meant a user who never
-    // finished the tour was never marked onboarded. The tour is now optional
-    // and launched from the dashboard, so completing the modal is what counts.
+    // Closing the modal, whether finished or skipped, is what marks the user
+    // as onboarded: no later step is required to count as done.
     void markOnboarded().catch(() => {});
   }
 </script>
@@ -223,7 +221,6 @@
     {#if $onboardingModalOpen}
       <OnboardingModal onclose={handleOnboardingClose} />
     {/if}
-    <TourHost />
   {/if}
 
   <!-- Global Cmd+K / Ctrl+Shift+P palette. Always mounted so it survives

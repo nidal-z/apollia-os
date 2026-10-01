@@ -7,7 +7,6 @@
    */
   import { t } from "svelte-i18n";
   import {
-    Compass,
     Cpu,
     MessageSquare,
     Mic,
@@ -17,7 +16,6 @@
   } from "lucide-svelte";
   import { navigateTo } from "$lib/stores/navigation";
   import { navigateToSettings } from "$lib/router";
-  import { restoreBand } from "$lib/tour/persistence";
 
   type Icon = typeof Cpu;
 
@@ -31,20 +29,6 @@
   };
 
   const topics: HelpTopic[] = [
-    {
-      // Restores the Getting started band and sends the user to it. It is the
-      // single entry point of the tour system, so it has to be reachable again
-      // once dismissed.
-      id: "tour",
-      icon: Compass,
-      titleKey: "tour.help_topic.title",
-      bodyKey: "tour.help_topic.body",
-      actionKey: "tour.help_topic.action",
-      run: () => {
-        restoreBand();
-        navigateTo("dashboard");
-      },
-    },
     {
       id: "model",
       icon: Cpu,

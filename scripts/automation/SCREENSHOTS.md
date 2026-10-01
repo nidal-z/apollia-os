@@ -557,7 +557,7 @@ the three stale images in place: they are the only rows in the set where that is
 the honest answer.
 
 **N7. A backend in error needs the backend to fail** (row 83)
-The seed disables `openai-gpt4o-mini` but disabled is not error: the card shows
+The seed disables `vllm-qwen` but disabled is not error: the card shows
 grey, not red. To get the red state, configure a backend pointing at an
 unreachable host and let the health check fail. Name it `Remote GPU` and point
 it at `http://127.0.0.1:9/v1`, which refuses instantly.

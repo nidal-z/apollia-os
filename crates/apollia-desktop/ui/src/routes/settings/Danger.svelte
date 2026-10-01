@@ -23,7 +23,6 @@
     factoryReset,
     appRestart,
   } from "$lib/ipc/danger";
-  import { resetTourState } from "$lib/tour/persistence";
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import DestructiveActionDialog from "../../components/settings/DestructiveActionDialog.svelte";
 
@@ -57,10 +56,6 @@
     loading = true;
     try {
       await resetOnboarding();
-      // The tour and its milestones live in the frontend, so the backend reset
-      // does not reach them. Clearing them here is what makes "reset
-      // onboarding" mean the same thing as a fresh install.
-      resetTourState();
       // Reload the now-empty state so derived stores (badges, etc.) catch up.
       await onboardingStore.refreshState();
       // Open the onboarding modal immediately, no restart required.

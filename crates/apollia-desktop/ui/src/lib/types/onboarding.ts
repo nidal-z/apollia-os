@@ -9,13 +9,12 @@ export interface TriggerResult {
   topic?: string;
 }
 
-/** Seven ordered phases of the onboarding flow. */
+/** Ordered phases of the onboarding flow that the interface reaches. */
 export type OnboardingPhase =
   | "welcome"
   | "profile_choice"
   | "ai_setup"
   | "acquaintance"
-  | "guided_tour"
   | "graduation"
   | "done";
 
@@ -34,9 +33,6 @@ export interface OnboardingState {
   stt_configured: boolean;
   topics_covered: string[];
   mandatory_complete: boolean;
-  tour_step_index: number;
-  tour_total_steps: number;
-  tour_completed: boolean;
   companion_session_id: string | null;
   voice_enabled: boolean;
   skipped: boolean;

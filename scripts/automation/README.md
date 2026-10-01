@@ -154,10 +154,8 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
 
 - **Deterministic** (`<page>-det.json`, no model): one exhaustive book per surface
   (operator + builder walk, empty/error states, dialogs opened then cancelled,
-  mutating controls driven to the boundary). `master-det.json` runs all 21 in one
-  boot and is the release gate (4108 steps); `just desktop-automation-verdict` reads its report. `tour-det` covers the Getting
-  started band and the guided tour (entry points, step navigation, the
-  anchorless fallback, the exit confirmation, finishing).
+  mutating controls driven to the boundary). `master-det.json` runs all 20 in one
+  boot and is the release gate (3989 steps); `just desktop-automation-verdict` reads its report.
 - **Standalone deterministic**: `onboarding-full`, `mailbox-det`, `destructive`,
   and three books written against the coverage report below, none of them in
   `regen_master.py`'s `ORDER` yet because none has been through a runtime round:
@@ -170,11 +168,8 @@ python3 scripts/automation/tools/publish_screenshots.py --locale both --apply
   and re-running `regen_master.py --write`, after its first green solo run.
 - **LLM** (need `-seeded-llama`): `chat-llm` (the flagship: tools, HITL, memory,
   config, plan mode, ask_user, step budget), `hitl-critical`, `coach-llm`,
-  `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, `tour-llm` (act 1 of
-  the guided tour, annotated live on a real conversation), and `master-llm` (an
-  aggregate of chat/hitl/coach/tour, 234 steps). The tour section sits last so it
-  cannot perturb the three proven ones, and it forces operator mode because the
-  approval card is persona-picked.
+  `chat-sanity`, `a2a`, `agents-a2a-llm`, `onboarding-llm`, and `master-llm` (an
+  aggregate of chat/hitl/coach, 197 steps).
 
 The whole corpus was last run green on 2026-07-28 against the redesigned UI:
 14 suites, 3056 steps, 0 failures. The LLM ones ran on

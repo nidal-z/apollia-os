@@ -136,7 +136,6 @@
         profile_choice: "profile",
         ai_setup: "ai-setup",
         acquaintance: "chat",
-        guided_tour: "chat",
         graduation: "chat",
         done: "chat",
       };
