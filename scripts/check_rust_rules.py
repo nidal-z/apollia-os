@@ -282,6 +282,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # so its tests hold one (`serve_once`) and prove a claimed port cannot be
     # bound twice. Both binds are on port 0, never a reservation released.
     "crates/apollia-desktop/src/startup/tests.rs": 2,
+    # The closed port is the subject: an attached desktop whose daemon has
+    # stopped must get an error back, not wait. The test binds port 0 and
+    # releases it to obtain a port nothing listens on.
+    "crates/apollia-desktop/src/attached/tests.rs": 1,
     # One helper, the transport is the subject: these tests prove that a
     # virtualenv gets built, that pip refuses an altered digest, and that the
     # rewritten command starts. The helper builds the local wheel the

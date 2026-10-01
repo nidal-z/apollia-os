@@ -175,6 +175,18 @@ pub fn overlay_recording(l: UiLocale) -> &'static str {
     }
 }
 
+/// Error a command not routed yet answers while the runtime is a daemon.
+pub(crate) fn attached_unavailable(locale: UiLocale, command: &str) -> String {
+    match locale {
+        UiLocale::Fr => format!(
+            "« {command} » est indisponible quand Apollia tourne en service : cette action demande que le runtime tourne dans l'application."
+        ),
+        UiLocale::En => format!(
+            "\"{command}\" is unavailable while Apollia runs as a service: this action needs the runtime to run inside the application."
+        ),
+    }
+}
+
 /// Title of the window a refused launch opens.
 pub(crate) fn startup_refused_title(locale: UiLocale) -> &'static str {
     match locale {
@@ -192,12 +204,6 @@ pub(crate) fn startup_refused_message(
 ) -> String {
     let log = log.display();
     let what = match (locale, reason) {
-        (UiLocale::Fr, RefusalReason::AttachNotYetAvailable { port, version }) => format!(
-            "Le runtime Apollia {version} tourne déjà et sert le port {port}, lancé par « apollia-os start ». Cette version de l'application ne sait pas encore s'y rattacher.\n\nPour ouvrir l'application, arrêtez ce runtime avec « apollia-os stop » dans un terminal, puis relancez Apollia OS."
-        ),
-        (UiLocale::En, RefusalReason::AttachNotYetAvailable { port, version }) => format!(
-            "The Apollia runtime {version} is already running and serves port {port}, started by \"apollia-os start\". This version of the application cannot attach to it yet.\n\nTo open the application, stop that runtime with \"apollia-os stop\" in a terminal, then launch Apollia OS again."
-        ),
         (UiLocale::Fr, RefusalReason::IncompatibleRuntime { port, version, ours }) => format!(
             "Le runtime Apollia {version} sert le port {port}, et cette application en version {ours} ne peut pas le piloter.\n\nArrêtez ce runtime avec « apollia-os stop » dans un terminal, puis relancez Apollia OS."
         ),
