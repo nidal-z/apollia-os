@@ -11,7 +11,9 @@ use std::sync::Arc;
 
 use apollia_core::LlmBackendRepository;
 use apollia_llm::hardware::detect as detect_hardware;
-use apollia_llm::{AcceleratorProfile, HardwareProfile};
+use apollia_llm::{
+    AcceleratorProfile, HardwareProfile, IndexedModel, ModelCategory, ModelFormat, ModelOrigin,
+};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
 use tokio::sync::Mutex;
@@ -191,7 +193,19 @@ pub async fn start_model_download(
         repo_id: request.repo_id,
     };
 
+    let repo_id = dl_request.repo_id.clone();
     let on_progress = Arc::new(move |progress: apollia_llm::DownloadProgress| {
+        if progress.status == apollia_llm::DownloadStatus::Completed {
+            let path = progress.dest_path.clone();
+            let repo = repo_id.clone();
+            let file = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            tauri::async_runtime::spawn_blocking(move || {
+                super::model_index::record_download(&models_dir(), &path, repo, file);
+            });
+        }
         let _ = app.emit("model-download-progress", &progress);
     });
 
@@ -216,7 +230,7 @@ pub async fn cancel_model_download(
 // Installed models (list + guarded delete)
 // ─────────────────────────────────────────────
 
-/// Classification of an installed model file by extension.
+/// Classification of an installed model, from the category its header declares.
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum InstalledModelKind {
@@ -226,17 +240,29 @@ pub enum InstalledModelKind {
     Stt,
 }
 
-/// A model file installed under `~/.apollia/models/`.
+/// A model installed under `~/.apollia/models/`, as the model index holds it.
 #[derive(Debug, Clone, Serialize)]
 pub struct InstalledModelView {
-    /// Absolute path of the file on disk.
+    /// Identifier in the model index.
+    pub id: String,
+    /// Absolute path on disk: the file of a GGUF, the folder of an MLX model.
     pub path: String,
-    /// File name (basename).
+    /// File or folder name (basename).
     pub name: String,
-    /// Size in bytes.
+    /// Size in bytes, every part of a split file included.
     pub size_bytes: u64,
-    /// LLM or STT, inferred from the extension.
+    /// LLM or STT, from the category in force.
     pub kind: InstalledModelKind,
+    /// Storage format.
+    pub format: ModelFormat,
+    /// Category in force (the developer override when set).
+    pub category: ModelCategory,
+    /// Parameter count label read from the header, for example `"8B"`.
+    pub parameters: Option<String>,
+    /// Last modification time, RFC 3339.
+    pub modified_at: Option<String>,
+    /// When the model was pinned to the top of the list, RFC 3339.
+    pub pinned_at: Option<String>,
     /// True when an LLM backend or the STT config references this file.
     pub in_use: bool,
     /// Human-readable owner when `in_use` (e.g. `LLM backend 'local-code'`).
@@ -317,45 +343,50 @@ fn used_by(file: &Path, refs: &[ModelRef]) -> Option<String> {
 }
 
 fn collect_installed_models() -> Result<Vec<InstalledModelView>, String> {
-    let dir = models_dir();
-    let refs = collect_in_use_refs();
-    let mut out = Vec::new();
+    collect_installed_models_in(&models_dir(), &collect_in_use_refs())
+}
 
-    let entries = match std::fs::read_dir(&dir) {
-        Ok(e) => e,
-        // No models directory yet is not an error: nothing installed.
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(out),
-        Err(e) => return Err(format!("failed to read models directory: {e}")),
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let kind = match path.extension().and_then(|e| e.to_str()) {
-            Some("gguf") => InstalledModelKind::Llm,
-            Some("bin") => InstalledModelKind::Stt,
-            _ => continue,
-        };
-        let size_bytes = entry.metadata().map(|m| m.len()).unwrap_or(0);
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-        let owner = used_by(&path, &refs);
-        out.push(InstalledModelView {
-            path: path.to_string_lossy().to_string(),
-            name,
-            size_bytes,
-            kind,
-            in_use: owner.is_some(),
-            used_by: owner,
-        });
-    }
-
+/// The installed models of `dir`, read from its model index.
+fn collect_installed_models_in(
+    dir: &Path,
+    refs: &[ModelRef],
+) -> Result<Vec<InstalledModelView>, String> {
+    let index = super::model_index::current(dir)
+        .map_err(|e| format!("failed to read the model index: {e}"))?;
+    let mut out: Vec<InstalledModelView> = index
+        .models
+        .iter()
+        .map(|model| installed_view(model, refs))
+        .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(out)
+}
+
+fn installed_view(model: &IndexedModel, refs: &[ModelRef]) -> InstalledModelView {
+    let category = model.effective_category();
+    let kind = match category {
+        ModelCategory::Dictation => InstalledModelKind::Stt,
+        _ => InstalledModelKind::Llm,
+    };
+    let owner = used_by(&model.path, refs);
+    InstalledModelView {
+        id: model.id.clone(),
+        path: model.path.to_string_lossy().to_string(),
+        name: model
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        size_bytes: model.size_bytes,
+        kind,
+        format: model.format,
+        category,
+        parameters: model.parameters.clone(),
+        modified_at: model.modified_at.map(|t| t.to_rfc3339()),
+        pinned_at: model.pinned_at.map(|t| t.to_rfc3339()),
+        in_use: owner.is_some(),
+        used_by: owner,
+    }
 }
 
 fn delete_installed_model_inner(path: &str) -> Result<(), String> {
@@ -380,7 +411,33 @@ fn delete_installed_model_inner(path: &str) -> Result<(), String> {
         ));
     }
 
-    std::fs::remove_file(&canonical_target).map_err(|e| format!("failed to delete model file: {e}"))
+    std::fs::remove_file(&canonical_target)
+        .map_err(|e| format!("failed to delete model file: {e}"))?;
+    if let Err(e) = super::model_index::forget(&models_dir(), &target)
+        .and_then(|()| super::model_index::forget(&models_dir(), &canonical_target))
+    {
+        tracing::event!(
+            tracing::Level::WARN,
+            path = %target.display(),
+            error = %e,
+            "model.index.forget.failed"
+        );
+    }
+    Ok(())
+}
+
+/// Reconciles the model index with `~/.apollia/models/`. Run once at startup,
+/// so a model copied in or removed while the application was closed is seen.
+pub(crate) fn reconcile_model_index() {
+    let dir = models_dir();
+    if let Err(e) = super::model_index::reconcile(&dir) {
+        tracing::event!(
+            tracing::Level::WARN,
+            dir = %dir.display(),
+            error = %e,
+            "model.index.reconcile.failed"
+        );
+    }
 }
 
 /// Lists model files installed under `~/.apollia/models/` with size and usage.
@@ -444,15 +501,18 @@ pub async fn import_model_file(
     source_path: String,
     allowed_extensions: Vec<String>,
 ) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || import_model_file_inner(&source_path, &allowed_extensions))
-        .await
-        .map_err(|e| format!("spawn_blocking failed: {e}"))?
-        .map_err(|e| e.to_string())
+    tokio::task::spawn_blocking(move || {
+        import_model_file_into(&source_path, &allowed_extensions, &models_dir())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+    .map_err(|e| e.to_string())
 }
 
-fn import_model_file_inner(
+fn import_model_file_into(
     source_path: &str,
     allowed_extensions: &[String],
+    dir: &Path,
 ) -> Result<String, ImportModelError> {
     let source = PathBuf::from(source_path);
     if !source.is_file() {
@@ -479,8 +539,7 @@ fn import_model_file_inner(
     }
 
     let file_name = source.file_name().ok_or(ImportModelError::BadFileName)?;
-    let dir = models_dir();
-    std::fs::create_dir_all(&dir).map_err(ImportModelError::CreateDir)?;
+    std::fs::create_dir_all(dir).map_err(ImportModelError::CreateDir)?;
     let dest = dir.join(file_name);
 
     // `std::fs::copy` streams the file (it does not buffer the whole payload in
@@ -490,6 +549,14 @@ fn import_model_file_inner(
     }
 
     tracing::info!(dest = %dest.display(), "model.file.imported");
+    if let Err(e) = super::model_index::record(dir, &dest, ModelOrigin::Import) {
+        tracing::event!(
+            tracing::Level::WARN,
+            path = %dest.display(),
+            error = %e,
+            "model.index.record.failed"
+        );
+    }
     Ok(dest.display().to_string())
 }
 
@@ -538,5 +605,68 @@ mod tests {
             "/mnt/models"
         };
         assert_eq!(expand_tilde(absolute), PathBuf::from(absolute));
+    }
+
+    // GIVEN a GGUF file outside the models folder, picked by the operator
+    // WHEN it is imported
+    // THEN the copy is in the model index, with an import origin
+    #[test]
+    fn test_an_import_adds_its_entry_to_the_index() {
+        let tmp = tempfile::tempdir().unwrap();
+        let source = tmp.path().join("picked.gguf");
+        std::fs::write(&source, b"GGUF").unwrap();
+        let dir = tmp.path().join("models");
+
+        import_model_file_into(&source.to_string_lossy(), &["gguf".to_string()], &dir).unwrap();
+
+        let index = super::super::model_index::current(&dir).unwrap();
+        let entry = index.get("picked").unwrap();
+        assert_eq!(entry.path, dir.join("picked.gguf"));
+        assert_eq!(entry.origin, ModelOrigin::Import);
+    }
+
+    // GIVEN a GGUF kept in a sub-folder of the models folder, the shape the
+    //       listing at the top level used to miss
+    // WHEN the installed models are listed
+    // THEN it is among them, read from the index
+    #[test]
+    fn test_the_installed_list_reads_the_index_and_sees_subfolders() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        std::fs::create_dir_all(dir.join("vendor")).unwrap();
+        std::fs::write(dir.join("vendor/deep.gguf"), b"GGUF").unwrap();
+
+        let list = collect_installed_models_in(dir, &[]).unwrap();
+
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].id, "deep");
+        assert_eq!(list[0].name, "deep.gguf");
+        assert!(super::super::model_index::index_path(dir).is_file());
+    }
+
+    // GIVEN a dictation model saved as .gguf, whose header names whisper
+    // WHEN the installed models are listed
+    // THEN it is filed as STT: the header decides, where the extension alone
+    //      used to file every .gguf as an LLM
+    #[test]
+    fn test_a_gguf_dictation_model_is_listed_as_stt() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let mut header = b"GGUF".to_vec();
+        header.extend_from_slice(&3u32.to_le_bytes());
+        header.extend_from_slice(&0u64.to_le_bytes());
+        header.extend_from_slice(&1u64.to_le_bytes());
+        header.extend_from_slice(&20u64.to_le_bytes());
+        header.extend_from_slice(b"general.architecture");
+        header.extend_from_slice(&8u32.to_le_bytes());
+        header.extend_from_slice(&7u64.to_le_bytes());
+        header.extend_from_slice(b"whisper");
+        std::fs::write(dir.join("whisper-fr.gguf"), header).unwrap();
+
+        let list = collect_installed_models_in(dir, &[]).unwrap();
+
+        let json = serde_json::to_value(&list).unwrap();
+        assert_eq!(json[0]["kind"], "stt");
+        assert_eq!(json[0]["category"], "dictation");
     }
 }
