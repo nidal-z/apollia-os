@@ -592,12 +592,14 @@ name = "apollia-permissions"
 version = "0.2.0-preview"
 dependencies = [
  "apollia-core",
+ "apollia-signing",
  "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "toml 0.8.2",
  "tracing",
 ]
 
