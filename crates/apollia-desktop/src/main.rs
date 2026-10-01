@@ -45,8 +45,8 @@ use mcp::McpRegistryClient;
 use tauri::Manager;
 
 use bootstrap::{
-    auto_load_installed_agents, load_stt_config, load_toml_config, or_exit, populate_runtime_locks,
-    setup_bundled_python, setup_stt_hotkey, RuntimeLocks,
+    auto_load_installed_agents, backfill_mcp_origins, load_stt_config, load_toml_config, or_exit,
+    populate_runtime_locks, setup_bundled_python, setup_stt_hotkey, RuntimeLocks,
 };
 
 /// Shared mutable LLM router: updated by `reload_llm`, read by
@@ -276,6 +276,10 @@ fn main() {
 
     // Load the STT config from SQLite for the desktop hotkey listener.
     let stt_config_for_hotkey = load_stt_config(&apollia_data_dir);
+
+    // Servers stored before their origin was recorded get one now, while the
+    // desktop is the caller that knows the curated selection.
+    backfill_mcp_origins(&apollia_data_dir);
 
     // Populate OnceLocks now that the supervisor is fully running.
     populate_runtime_locks(
@@ -667,6 +671,7 @@ fn main() {
             commands::stt::start_tour_recording,
             commands::stt::stop_tour_recording,
             commands::mcp::catalog::list_mcp_enrichments,
+            commands::connections::list_connections,
             commands::mcp::list_mcp_servers,
             commands::mcp::list_mcp_resources,
             commands::mcp::get_mcp_server_detail,

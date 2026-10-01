@@ -24,6 +24,7 @@ fn mock_server_config() -> McpServerConfig {
         max_tools: 256,
         tags: vec!["test".to_string()],
         tool_families: Default::default(),
+        origin: None,
     }
 }
 
@@ -46,6 +47,7 @@ fn crash_server_config() -> McpServerConfig {
         max_tools: 256,
         tags: vec![],
         tool_families: Default::default(),
+        origin: None,
     }
 }
 
@@ -70,6 +72,7 @@ fn deferred_server_config() -> McpServerConfig {
         max_tools: 256,
         tags: vec![],
         tool_families: Default::default(),
+        origin: None,
     }
 }
 
@@ -187,6 +190,7 @@ async fn test_initialize_timeout_on_slow_server() {
         max_tools: 256,
         tags: vec![],
         tool_families: Default::default(),
+        origin: None,
     };
 
     // WHEN a session start is attempted
@@ -390,6 +394,7 @@ fn dies_during_handshake_config() -> McpServerConfig {
         max_tools: 256,
         tags: vec![],
         tool_families: Default::default(),
+        origin: None,
     }
 }
 

@@ -1031,6 +1031,40 @@
         }
       }
     },
+    "/api/v1/connections": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`GET /api/v1/connections`: every connection, whatever its kind, with its\nprovenance, its remote attribute and its tools.",
+        "operationId": "list_connections",
+        "responses": {
+          "200": {
+            "description": "Every connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Connection"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/accounts": {
       "get": {
         "tags": [
@@ -6830,6 +6864,112 @@
           }
         }
       },
+      "Connection": {
+        "type": "object",
+        "description": "One connection, whatever its kind.",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "provenance",
+          "remote",
+          "official",
+          "state",
+          "tools"
+        ],
+        "properties": {
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Account the connection acts as, when it has one."
+          },
+          "id": {
+            "type": "string",
+            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ConnectionKind",
+            "description": "Kind of connection."
+          },
+          "label": {
+            "type": "string",
+            "description": "Name shown to the user: the server name, or the provider."
+          },
+          "official": {
+            "type": "boolean",
+            "description": "Published by the service's own publisher."
+          },
+          "provenance": {
+            "type": "string",
+            "description": "Where the connection was found before it was added."
+          },
+          "remote": {
+            "type": "boolean",
+            "description": "Sends data off this machine. Computed, see [`is_remote`]."
+          },
+          "state": {
+            "$ref": "#/components/schemas/ConnectionState",
+            "description": "Whether it can be used right now."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectionTool"
+            },
+            "description": "Tools the connection brings."
+          }
+        }
+      },
+      "ConnectionKind": {
+        "type": "string",
+        "description": "The kind of thing a connection plugs in.",
+        "enum": [
+          "native",
+          "mcp",
+          "folder"
+        ]
+      },
+      "ConnectionState": {
+        "type": "string",
+        "description": "Whether a connection can be used right now.",
+        "enum": [
+          "connected",
+          "degraded",
+          "needs_reauth",
+          "unavailable",
+          "stopped"
+        ]
+      },
+      "ConnectionTool": {
+        "type": "object",
+        "description": "One tool a connection brings.",
+        "required": [
+          "id",
+          "family",
+          "familySource",
+          "prechecked"
+        ],
+        "properties": {
+          "family": {
+            "type": "string",
+            "description": "Action family of the tool."
+          },
+          "familySource": {
+            "type": "string",
+            "description": "Where the family comes from."
+          },
+          "id": {
+            "type": "string",
+            "description": "Tool identifier as the tool registry names it (`mcp:notion/search`,\n`gmail.send`)."
+          },
+          "prechecked": {
+            "type": "boolean",
+            "description": "Offered checked when the connection is granted to an agent."
+          }
+        }
+      },
       "ConnectorAccountResponse": {
         "type": "object",
         "description": "One connected account, in `GET /api/v1/connectors/accounts`.",
@@ -9440,6 +9580,10 @@
     {
       "name": "mcp",
       "description": "MCP servers and resources"
+    },
+    {
+      "name": "connections",
+      "description": "Everything plugged into this machine, in one list"
     },
     {
       "name": "connectors",

@@ -39,6 +39,7 @@ fn gated_server(name: &str) -> McpServerConfig {
         max_tools: 256,
         tags: vec![],
         tool_families: Default::default(),
+        origin: None,
     }
 }
 
