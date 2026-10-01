@@ -15688,7 +15688,7 @@
       "kind": "stubInvoke",
       "command": "ping_llm_backend",
       "resolve": {
-        "backend": "anthropic-claude",
+        "backend": "gpu-server",
         "available": true,
         "latency_ms": 42,
         "error": null
@@ -15898,7 +15898,7 @@
     {
       "kind": "fill",
       "testid": "llm-dialog-endpoint",
-      "text": "https://api.openai.com/v1"
+      "text": "https://llm.example.org/v1"
     },
     {
       "kind": "fill",
@@ -15908,7 +15908,7 @@
     {
       "kind": "fill",
       "testid": "llm-dialog-model",
-      "text": "gpt-4o-mini"
+      "text": "qwen3-32b"
     },
     {
       "kind": "screenshot",
@@ -16051,7 +16051,7 @@
     {
       "kind": "fill",
       "testid": "llm-dialog-endpoint",
-      "text": "https://api.openai.com/v1"
+      "text": "https://llm.example.org/v1"
     },
     {
       "kind": "fill",
@@ -16061,7 +16061,7 @@
     {
       "kind": "fill",
       "testid": "llm-dialog-model",
-      "text": "gpt-4o-mini"
+      "text": "qwen3-32b"
     },
     {
       "kind": "click",
@@ -16167,7 +16167,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "11f-default-restored-to-anthropic-claude"
+      "label": "11f-default-restored-to-gpu-server"
     },
     {
       "kind": "click",

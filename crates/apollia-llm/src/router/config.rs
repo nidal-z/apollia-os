@@ -148,11 +148,7 @@ const OLLAMA_DEFAULT_PORT: &str = ":11434";
 /// a second host.
 #[cfg(feature = "cloud")]
 pub(crate) fn infer_api_provider_from_url(api_url: &str) -> LlmProvider {
-    if api_url.contains("anthropic.com") {
-        LlmProvider::Anthropic
-    } else if api_url.contains("mistral.ai") {
-        LlmProvider::Mistral
-    } else if api_url.contains(OLLAMA_DEFAULT_PORT) || api_url.contains("ollama") {
+    if api_url.contains(OLLAMA_DEFAULT_PORT) || api_url.contains("ollama") {
         LlmProvider::Ollama
     } else {
         LlmProvider::OpenAi
