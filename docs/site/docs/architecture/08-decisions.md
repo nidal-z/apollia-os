@@ -367,6 +367,38 @@ Third-party Python dependencies declared by an agent are installed into that
 agent's own virtual environment, after explicit consent, and the operator sees
 the list before it happens.
 
+## Package archive {#package-archive}
+
+An agent package travels as one `.apo` file: a zip archive with the
+`apollia.toml` manifest at its root, the Python modules and resources of the
+package at their relative paths, and, when the author signed it, a `SIGNATURE`
+file (see [Signatures](#signing-schemes)) and a `SIGNATURE.key` file holding the
+public key that made it. The signature covers every other entry. Building the
+archive validates the manifest and refuses a folder whose modules define tools
+or workflows that the manifest does not describe; it runs no Python.
+
+Zip was taken over a `tar.gz`: any operating system opens it without a tool,
+and its central directory lets the manifest be read without decompressing the
+rest, which is what an install preview needs. A `tar.gz` has no index, so
+reading one file means decompressing everything before it, and it would have
+made two crates direct dependencies instead of one. Reading zip with code of
+our own was rejected: an archive parser is an attack surface, and an unaudited
+one is a worse surface than a maintained one.
+
+An archive comes from elsewhere, so reading it is bounded. An entry with an
+absolute path, a `..` component, a backslash or a drive prefix is refused, as is
+a symbolic link and a name that appears twice. The archive is capped at 256 MiB,
+4096 entries, 64 MiB per entry decompressed and 512 MiB decompressed in all, and
+the manifest at 1 MiB. The caps apply to the bytes actually decompressed, not to
+the sizes the archive declares, so a lying header does not lift them. A package
+over any cap is refused at build time too, so what Apollia builds it can read.
+
+The cost is the `zip` crate as a direct dependency, compiled with deflate only:
+no encryption, no bzip2, lzma, zstd or deflate64. It was already in the tree
+through the desktop updater. `flate2` is declared beside it for one reason, to
+give that deflate its pure-Rust backend (`miniz_oxide`), which it already used
+elsewhere in the tree; no crate entered the lock file.
+
 ## Host integration {#host-integration}
 
 The versioned HTTP API is a driving contract, not an implementation detail. It
