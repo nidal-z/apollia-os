@@ -1,7 +1,8 @@
 //! Versioned schema of `system.db`, shared by every store in the file.
 //!
-//! `system.db` holds two singleton stores: the LLM backend registry
-//! ([`crate::llm_backend`]) and the STT configuration ([`crate::stt_config`]).
+//! `system.db` holds the LLM backend registry ([`crate::llm_backend`]), the
+//! inference servers ([`crate::inference_server`]) and the STT configuration
+//! ([`crate::stt_config`]).
 //! `PRAGMA user_version` belongs to the database file, not to a table, so the
 //! stores share one migration list: whichever opens first brings the whole
 //! file to the current version, and both refuse a file written by a newer
@@ -9,16 +10,17 @@
 
 use rusqlite::{params, Connection, OptionalExtension};
 
+use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 2;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 3;
 
 /// Numbered migration steps of `system.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`SYSTEM_DB_SCHEMA_VERSION`].
-pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
+pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -26,7 +28,7 @@ pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
 /// `user_version = 0` whatever columns it carries, so this step must accept
 /// a fresh file, the initial schema, and the schema after the additive
 /// `input_device` column, and bring each of them to the same state.
-fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
+pub(crate) fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS llm_backends (
             name         TEXT PRIMARY KEY,
@@ -65,10 +67,10 @@ const CLOUD_API_HOSTS: &[&str] = &["api.openai.com", "api.mistral.ai", "api.anth
 ///
 /// The desktop settings write `endpoint`, the CLI writes `base_url`, and the
 /// TOML-to-database seed writes `api_url`.
-const ADDRESS_KEYS: &[&str] = &["base_url", "endpoint", "api_url"];
+pub(crate) const ADDRESS_KEYS: &[&str] = &["base_url", "endpoint", "api_url"];
 
 /// Host of an address, lowercased, without scheme, credentials or port.
-fn host_of(address: &str) -> String {
+pub(crate) fn host_of(address: &str) -> String {
     let rest = address
         .trim()
         .split_once("://")
@@ -122,7 +124,7 @@ fn is_cloud_row(provider: &str, config_json: &str) -> bool {
 ///
 /// The step runs in one transaction, so a crash leaves the file at v1, and a
 /// replay on a migrated table deletes nothing.
-fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
+pub(crate) fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
     let rows: Vec<(String, String, String, bool)> = {
         let mut stmt =
             conn.prepare("SELECT name, provider, config_json, is_default FROM llm_backends")?;
@@ -192,6 +194,140 @@ fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
         default_removed = default_removed,
         default_moved_to = default_moved_to.as_deref().unwrap_or(""),
         "llm.backends.cloud_removed"
+    );
+    Ok(())
+}
+
+/// How a backend row designates its key.
+pub(crate) enum LegacyKey {
+    None,
+    Env(String),
+    Literal,
+}
+
+pub(crate) fn legacy_key(config: &serde_json::Value) -> LegacyKey {
+    match config
+        .get("api_key")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+    {
+        None | Some("") => LegacyKey::None,
+        Some(raw) => match raw.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+            Some(var) if !var.is_empty() => LegacyKey::Env(var.to_string()),
+            _ => LegacyKey::Literal,
+        },
+    }
+}
+
+/// The address a backend row designates, `None` when it designates none.
+fn row_address(provider: &str, config: &serde_json::Value) -> Option<String> {
+    let stored = ADDRESS_KEYS.iter().find_map(|key| {
+        config
+            .get(*key)
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    });
+    match (provider, stored) {
+        (_, Some(address)) => Some(address.trim_end_matches('/').to_string()),
+        ("ollama", None) => Some(DEFAULT_OLLAMA_ADDRESS.to_string()),
+        _ => None,
+    }
+}
+
+/// v3: one server per distinct address of the `openai` and `ollama` rows.
+///
+/// The backend rows themselves are kept unchanged, so every name an agent or a
+/// setting refers to stays routable. Two rows on the same address (compared on
+/// their OpenAI API base, so `http://h:8000` and `http://h:8000/v1/` are one)
+/// give one server, named after the first row by name. A `${VAR}` key becomes
+/// the server's `api_key_env`; a key stored in clear is left for the runtime to
+/// move into the secret store (see [`crate::LlmBackendRepository::pending_server_keys`]).
+///
+/// A replay creates nothing: an address that already has a server is skipped.
+pub(crate) fn migrate_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS inference_servers (
+            name            TEXT PRIMARY KEY,
+            base_url        TEXT NOT NULL,
+            has_key         INTEGER NOT NULL DEFAULT 0,
+            api_key_env     TEXT,
+            legacy_key_from TEXT,
+            enabled         INTEGER NOT NULL DEFAULT 1,
+            created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );",
+    )?;
+
+    let rows: Vec<(String, String, String, bool)> = {
+        let mut stmt = conn.prepare(
+            "SELECT name, provider, config_json, enabled FROM llm_backends
+             WHERE provider IN ('openai', 'ollama') ORDER BY name",
+        )?;
+        let mapped = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)? != 0,
+            ))
+        })?;
+        mapped.collect::<Result<_, _>>()?
+    };
+    let mut known: Vec<(String, String)> = {
+        let mut stmt = conn.prepare("SELECT name, base_url FROM inference_servers")?;
+        let mapped = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        mapped
+            .map(|r| r.map(|(name, url)| (name, openai_api_base(&url))))
+            .collect::<Result<_, _>>()?
+    };
+
+    let tx = conn.unchecked_transaction()?;
+    let mut created = 0usize;
+    for (name, provider, config_json, enabled) in &rows {
+        let config: serde_json::Value =
+            serde_json::from_str(config_json).unwrap_or(serde_json::Value::Null);
+        let Some(address) = row_address(provider, &config) else {
+            continue;
+        };
+        let base = openai_api_base(&address);
+        let (env, legacy_from) = match legacy_key(&config) {
+            LegacyKey::None => (None, None),
+            LegacyKey::Env(var) => (Some(var), None),
+            LegacyKey::Literal => (None, Some(name.clone())),
+        };
+        if let Some((server, _)) = known.iter().find(|(_, b)| *b == base) {
+            // Same address as an earlier row: the server exists, and it takes
+            // this row's key only if it has none yet.
+            tx.execute(
+                "UPDATE inference_servers
+                 SET api_key_env = COALESCE(api_key_env, ?2),
+                     legacy_key_from = CASE
+                        WHEN api_key_env IS NULL AND ?2 IS NULL AND has_key = 0
+                        THEN COALESCE(legacy_key_from, ?3) ELSE legacy_key_from END,
+                     enabled = MAX(enabled, ?4)
+                 WHERE name = ?1",
+                params![server, env, legacy_from, *enabled as i64],
+            )?;
+            continue;
+        }
+        tx.execute(
+            "INSERT OR IGNORE INTO inference_servers
+                (name, base_url, api_key_env, legacy_key_from, enabled)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![name, address, env, legacy_from, *enabled as i64],
+        )?;
+        known.push((name.clone(), base));
+        created += 1;
+    }
+    tx.commit()?;
+
+    tracing::event!(
+        tracing::Level::INFO,
+        created = created,
+        "llm.servers.migrated"
     );
     Ok(())
 }

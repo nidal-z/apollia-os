@@ -579,6 +579,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        secret_store: crate::inference_servers::default_store_opener(),
     };
 
     // WHEN the AppState is cloned
