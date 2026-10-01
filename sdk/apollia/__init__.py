@@ -15,6 +15,7 @@ from apollia.messages import on_message
 from apollia.orchestration import orchestrated
 from apollia.react import react
 from apollia.skills import skill
+from apollia.tool_decorator import tool
 from apollia.types import (
     Ctx,
     ImageContent,
@@ -28,6 +29,7 @@ from apollia.types import (
     image_from_url,
     text,
 )
+from apollia.workflow_decorator import WorkflowCtx, workflow
 
 # REASON: the SDK ships with the runtime and carries the product version, not a
 # lifecycle of its own. PEP 440 normalises the "-preview" suffix to "rc0" in the
@@ -54,6 +56,7 @@ __all__ = [
     "SkillNotFound",
     "StructuredOutputError",
     "TextContent",
+    "WorkflowCtx",
     # Version
     "__version__",
     # Decorators
@@ -68,4 +71,6 @@ __all__ = [
     "skill",
     # Vision helpers
     "text",
+    "tool",
+    "workflow",
 ]

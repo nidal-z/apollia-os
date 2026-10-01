@@ -77,6 +77,53 @@ class MockA2A:
         }
 
 
+# ctx.agents
+class MockAgents:
+    """In-memory mock of the ``AgentsInterface`` Protocol.
+
+    Pre-configure via attributes:
+        ``answers``: ``{agent_id: answer}`` returned by :meth:`run`. An agent
+            with no configured answer returns the empty string.
+
+    Track via attributes:
+        ``run_calls``: ordered list of ``(agent_id, message)``.
+    """
+
+    def __init__(self) -> None:
+        """Start with no configured answer and an empty call log."""
+        self.run_calls: list[tuple[str, str]] = []
+        self.answers: dict[str, str] = {}
+
+    async def run(self, agent_id: str, message: str) -> str:  # NOSONAR S7503
+        """Record the call and return the configured answer."""
+        self.run_calls.append((agent_id, message))
+        return self.answers.get(agent_id, "")
+
+
+# ctx.workflows
+class MockWorkflows:
+    """In-memory mock of the ``WorkflowsInterface`` Protocol.
+
+    Pre-configure via attributes:
+        ``results``: ``{workflow_id: result}`` returned by :meth:`run`. A
+            workflow with no configured result returns ``None``.
+
+    Track via attributes:
+        ``run_calls``: ordered list of ``(workflow_id, inputs)``.
+    """
+
+    def __init__(self) -> None:
+        """Start with no configured result and an empty call log."""
+        self.run_calls: list[tuple[str, dict[str, Any]]] = []
+        self.results: dict[str, Any] = {}
+
+    # REASON(ANN401): mirrors the `WorkflowsInterface.run` contract.
+    async def run(self, workflow_id: str, inputs: dict[str, Any]) -> Any:  # noqa: ANN401
+        """Record the call and return the configured result."""
+        self.run_calls.append((workflow_id, dict(inputs)))
+        return self.results.get(workflow_id)
+
+
 # ctx.datasources
 class MockDatasources:
     """In-memory mock of the ``Datasources`` Protocol.
