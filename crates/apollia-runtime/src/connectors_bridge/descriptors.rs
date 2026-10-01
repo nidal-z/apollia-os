@@ -2,7 +2,9 @@ use apollia_connectors::google::operations as google_operations;
 use apollia_connectors::microsoft::operations as microsoft_operations;
 use apollia_connectors::operation::{ApprovalPolicy, OperationSpec};
 use apollia_core::SandboxProfile;
-use apollia_tools::descriptor::{ApprovalRiskLevel, ToolDescriptor, ToolKind};
+use apollia_tools::descriptor::{
+    ActionFamily, ApprovalRiskLevel, FamilySource, ToolDescriptor, ToolKind,
+};
 use serde_json::json;
 
 /// Build the full set of [`ToolDescriptor`]s for the Google Workspace
@@ -51,12 +53,30 @@ fn op_to_descriptor(connector_id: &str, op: &OperationSpec) -> ToolDescriptor {
         // not the sandbox.
         sandbox_profile: SandboxProfile::ReadOnly,
         tags: connector_tags(connector_id, op),
-        dangerous: false,
+        family: action_family(op),
+        family_source: FamilySource::Builtin,
         is_read_only: read_only,
         risk_score,
         approval_risk_level: Some(risk_level),
         impact_description: Some(short_impact(op)),
         reject_reason_required: matches!(op.approval, ApprovalPolicy::ConfirmPhrase),
+    }
+}
+
+/// The action family of a connector operation, fixed by its declaration.
+///
+/// A send is a send whatever its approval policy, so the verb is read first.
+/// An auto-approved operation reads the connected account, which holds
+/// personal data; every operation that needs an approval writes or deletes.
+fn action_family(op: &OperationSpec) -> ActionFamily {
+    if op.action == "send" {
+        return ActionFamily::SendExternal;
+    }
+    match op.approval {
+        ApprovalPolicy::AutoApprove => ActionFamily::ReadPersonal,
+        ApprovalPolicy::AlwaysRequireApproval | ApprovalPolicy::ConfirmPhrase => {
+            ActionFamily::WriteOrDelete
+        }
     }
 }
 
