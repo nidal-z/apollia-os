@@ -2794,6 +2794,14 @@ export interface components {
             cpu_model: string;
             /** Format: double */
             memory_budget_gb: number;
+            /**
+             * Format: double
+             * @description What a model can occupy on this machine, in GB rounded to the tenth:
+             *     the card plus the usable share of system memory on a discrete
+             *     accelerator, the memory budget otherwise. A model under it is one the
+             *     estimator does not call too large.
+             */
+            total_capacity_gb: number;
             /** Format: double */
             total_ram_gb: number;
         };

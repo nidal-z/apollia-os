@@ -1,6 +1,6 @@
 //! The AI setup step of onboarding: what the machine can run, which GGUF and
 //! Whisper models it already has on disk, and which of them are worth
-//! recommending given the RAM available.
+//! recommending on this machine.
 
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,7 @@ pub struct GgufModelInfo {
     pub size_bytes: u64,
     /// Human-readable file size (e.g. `"4.2 GB"`).
     pub size_human: String,
-    /// Whether this model is recommended for the current RAM.
+    /// Whether the memory estimator says this model fits this machine.
     pub recommended: bool,
 }
 
@@ -91,8 +91,7 @@ pub async fn scan_for_gguf_models() -> Result<Vec<GgufModelInfo>, String> {
     tokio::task::spawn_blocking(|| {
         let home = apollia_core::paths::home_string().unwrap_or_default();
         let home_path = std::path::PathBuf::from(&home);
-        let sys_info = get_system_info_sync();
-        let max_recommended = recommended_max_gguf_size_bytes(sys_info.total_ram_gb);
+        let hardware = apollia_llm::hardware::detect();
 
         let flat_dirs = [
             apollia_core::paths::data_dir_under(&home_path).join("models"),
@@ -106,7 +105,7 @@ pub async fn scan_for_gguf_models() -> Result<Vec<GgufModelInfo>, String> {
         for dir in &flat_dirs {
             for mut info in scan_gguf_in_dir(dir) {
                 if seen.insert(info.path.clone()) {
-                    info.recommended = info.size_bytes <= max_recommended;
+                    info.recommended = fits_this_machine(&info, &hardware);
                     models.push(info);
                 }
             }
@@ -116,7 +115,7 @@ pub async fn scan_for_gguf_models() -> Result<Vec<GgufModelInfo>, String> {
         collect_gguf_recursive(&lm_studio_root, &mut recursive_buf, 0, 4);
         for mut info in recursive_buf {
             if seen.insert(info.path.clone()) {
-                info.recommended = info.size_bytes <= max_recommended;
+                info.recommended = fits_this_machine(&info, &hardware);
                 models.push(info);
             }
         }
@@ -300,7 +299,7 @@ fn vram_gb_of(accelerator: &apollia_llm::AcceleratorProfile) -> Option<f64> {
 /// Scans a single directory (non-recursive) for `.gguf` files.
 ///
 /// Returns an empty `Vec` for non-existent or unreadable directories.
-/// The `recommended` field defaults to `false`; callers apply a RAM threshold.
+/// The `recommended` field defaults to `false`; callers grade it with the estimator.
 pub fn scan_gguf_in_dir(dir: &std::path::Path) -> Vec<GgufModelInfo> {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
@@ -432,20 +431,35 @@ pub fn detect_whisper_model_size(filename: &str) -> Option<String> {
     None
 }
 
-/// Returns the maximum recommended GGUF file size in bytes for the given RAM.
+/// Whether a model file on disk fits this machine, by the estimator every
+/// other surface reads.
 ///
-/// Thresholds:
-/// - < 8 GB  → 2.5 GB (≤ 3B-parameter models)
-/// - 8–16 GB → 6.0 GB (7–8B-parameter models)
-/// - > 16 GB → no upper limit
-pub fn recommended_max_gguf_size_bytes(total_ram_gb: f64) -> u64 {
-    if total_ram_gb < 8.0 {
-        2_500_000_000
-    } else if total_ram_gb <= 16.0 {
-        6_000_000_000
-    } else {
-        u64::MAX
-    }
+/// The header is probed from the file itself, so the cache is sized from the
+/// model's own architecture; an unreadable header falls back to the
+/// estimator's proportional cache rather than to a size threshold.
+fn fits_this_machine(info: &GgufModelInfo, hardware: &apollia_llm::HardwareProfile) -> bool {
+    let facts = apollia_llm::gguf_probe::probe_file(
+        std::path::Path::new(&info.path),
+        apollia_llm::gguf_probe::SCREEN_BYTES,
+    )
+    .unwrap_or_default();
+    recommended_for(info.size_bytes, &facts, hardware)
+}
+
+/// The onboarding verdict for a file of `size_bytes` with header `facts`.
+fn recommended_for(
+    size_bytes: u64,
+    facts: &apollia_llm::gguf_probe::GgufHeaderFacts,
+    hardware: &apollia_llm::HardwareProfile,
+) -> bool {
+    apollia_llm::recommend::assess_fit(
+        size_bytes,
+        facts,
+        hardware,
+        &apollia_llm::recommend::RuntimeShape::default(),
+    )
+    .badge
+        == apollia_llm::CompatibilityBadge::Fits
 }
 
 /// Formats a byte count as a human-readable string using binary divisions.
@@ -604,22 +618,43 @@ mod tests {
     }
 
     #[test]
-    fn test_ram_recommendation_low() {
-        // GIVEN 6 GB RAM
-        let max_size = recommended_max_gguf_size_bytes(6.0);
-        // WHEN the largest recommended model is computed
-        // THEN the threshold is at most 2.5 GB
-        assert!(max_size <= 2_500_000_000);
-    }
+    fn onboarding_recommends_what_the_estimator_says_fits() {
+        use apollia_llm::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
 
-    #[test]
-    fn test_ram_recommendation_medium() {
-        // GIVEN 12 GB RAM
-        let max_size = recommended_max_gguf_size_bytes(12.0);
-        // WHEN the largest recommended model is computed
-        // THEN the threshold is between 2.5 GB and 6 GB (inclusive)
-        assert!(max_size <= 6_000_000_000);
-        assert!(max_size > 2_500_000_000);
+        // GIVEN a 16 GiB file on a 32 GB Apple Silicon machine (24 GB budget),
+        // which the old size threshold, no limit above 16 GB of memory, and the
+        // old Hub badge, "might fit", disagreed on
+        let hardware = HardwareProfile {
+            total_ram_gb: 32.0,
+            available_ram_gb: 20.0,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 8,
+            accelerator: AcceleratorProfile::AppleSilicon {
+                chip: "M3 Max".to_owned(),
+                generation: 3,
+                vram_gb: 32.0,
+            },
+            memory_budget_gb: 24.0,
+        };
+        let facts = apollia_llm::gguf_probe::GgufHeaderFacts::default();
+        let fits: u64 = 16 * 1024 * 1024 * 1024;
+        let too_large: u64 = 20 * 1024 * 1024 * 1024;
+
+        // WHEN onboarding grades each
+        // THEN it follows the estimator's badge, both ways
+        let badge = |size| {
+            apollia_llm::recommend::assess_fit(
+                size,
+                &facts,
+                &hardware,
+                &apollia_llm::recommend::RuntimeShape::default(),
+            )
+            .badge
+        };
+        assert_eq!(badge(fits), CompatibilityBadge::Fits);
+        assert!(recommended_for(fits, &facts, &hardware));
+        assert_eq!(badge(too_large), CompatibilityBadge::TooLarge);
+        assert!(!recommended_for(too_large, &facts, &hardware));
     }
 
     #[test]

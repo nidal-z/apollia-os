@@ -7236,7 +7236,8 @@
           "cpu_model",
           "cpu_cores",
           "accelerator",
-          "memory_budget_gb"
+          "memory_budget_gb",
+          "total_capacity_gb"
         ],
         "properties": {
           "accelerator": {
@@ -7257,6 +7258,11 @@
           "memory_budget_gb": {
             "type": "number",
             "format": "double"
+          },
+          "total_capacity_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "What a model can occupy on this machine, in GB rounded to the tenth:\nthe card plus the usable share of system memory on a discrete\naccelerator, the memory budget otherwise. A model under it is one the\nestimator does not call too large."
           },
           "total_ram_gb": {
             "type": "number",

@@ -27,6 +27,7 @@
 pub mod fit;
 pub mod llama_support;
 pub mod manifest;
+pub mod mlx;
 pub mod offload;
 pub mod quant;
 pub mod rank;
@@ -35,12 +36,15 @@ pub mod resolve;
 pub mod verdict;
 
 pub use fit::{
-    cache_layout, estimate_memory, grade, kv_cache_bytes, max_context_for, CacheKind, CacheLayout,
-    MemoryEstimate, RuntimeShape,
+    assess_fit, cache_layout, estimate_memory, grade, kv_cache_bytes, max_context_for, CacheKind,
+    CacheLayout, FitAssessment, MemoryEstimate, RuntimeShape,
 };
 pub use llama_support::LLAMA_CPP_TAG;
 pub use manifest::{Family, FamilyManifest, ManifestError, ToolCalling, Variant};
-pub use offload::{active_weight_share, plan_offload, MemoryArchitecture, OffloadPlan};
+pub use mlx::{estimate_mlx_memory, mlx_kv_cache_bytes, MlxConfig, MlxEstimateError};
+pub use offload::{
+    active_weight_share, estimated_capacity_gb, plan_offload, MemoryArchitecture, OffloadPlan,
+};
 pub use quant::Quant;
 pub use rank::{rank, FileCandidate, Matched, Reason, Recommendation};
 #[cfg(feature = "cloud")]
