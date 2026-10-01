@@ -2987,13 +2987,21 @@ fn write_hook_script(dir: &std::path::Path, name: &str, decision_json: &str) -> 
 }
 
 /// Builds a hook executor with a single PreToolUse command handler.
+///
+/// The handler is `/bin/sh <script>`, never the script itself. A file written
+/// a moment earlier and executed for the first time is assessed by macOS
+/// before it runs, and those assessments queue: forty first executions
+/// launched together took up to 4.8 s, the same forty run again 0.04 s, and
+/// handed to `/bin/sh` as an argument 0.03 s on the first run. Under a parallel
+/// test run that queue pushed the handler past its 5 s timeout, and the deny
+/// or rewrite it would have answered was read as the permissive default.
 fn pre_tool_use_executor(script: String) -> Arc<HookExecutor> {
     let registry = crate::hooks::HookRegistry::from_config(&apollia_core::HooksConfig {
         handlers: vec![apollia_core::HookHandlerConfig {
             format_version: 1,
             events: vec![apollia_core::HookEventKind::PreToolUse],
             kind: apollia_core::HookHandlerKind::Command {
-                command: vec![script],
+                command: vec!["/bin/sh".to_string(), script],
             },
             timeout_ms: 5_000,
         }],
