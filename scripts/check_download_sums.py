@@ -11,9 +11,11 @@ Four surfaces are held to the same rule:
      summed in `packaging/python-standalone-checksums.txt`, and the fetch
      script actually verifies against that file.
   3. The bundled Python requirements: every logical line of
-     `packaging/requirements-bundled.txt` is pinned with `==` and carries at
-     least one `--hash=sha256:`, and `packaging/build-python-bundle.sh`
-     installs it with `--require-hashes` and pins its own pip.
+     `packaging/requirements-bundled.txt` (the agents' packages) and of
+     `packaging/requirements-mlx-engine.txt` (the MLX engine) is pinned with
+     `==` and carries at least one `--hash=sha256:`; the script that installs
+     each file does so with `--require-hashes`, and the bundle build pins its
+     own pip.
   4. The workflow `run:` blocks: a step that downloads with wget, curl or
      Invoke-WebRequest either verifies a sha256 in the same step or sits on
      the named exemption list below, which only ever shrinks.
@@ -47,6 +49,8 @@ PBS_FETCH = "packaging/fetch-python-standalone.sh"
 PBS_SUMS = "packaging/python-standalone-checksums.txt"
 REQUIREMENTS = "packaging/requirements-bundled.txt"
 BUNDLE_BUILD = "packaging/build-python-bundle.sh"
+MLX_REQUIREMENTS = "packaging/requirements-mlx-engine.txt"
+MLX_BUILD = "packaging/build-mlx-engine.sh"
 WORKFLOW_DIR = ".github/workflows"
 SCRIPT_DIRS = ("packaging", "crates/apollia-desktop/scripts")
 
@@ -225,8 +229,16 @@ def requirement_lines(text: str) -> list[str]:
     return logical
 
 
-def check_requirements(req_path: Path, build_path: Path) -> int:
-    print("bundled requirements: pinned and hashed")
+def check_requirements(
+    req_path: Path, build_path: Path, pip_pinned_by: Path | None = None
+) -> int:
+    """Pinned and summed lines, a hash-requiring install, and a pinned pip.
+
+    `pip_pinned_by` names the script that pins pip when it is not the one
+    that installs this file: the MLX engine script runs with the pip the
+    bundle build already pinned.
+    """
+    print(f"bundled requirements: {req_path.name} pinned and hashed")
     req = _read(req_path)
     build = _read(build_path)
     if req is None or build is None:
@@ -253,8 +265,15 @@ def check_requirements(req_path: Path, build_path: Path) -> int:
     if "--require-hashes" not in build:
         print(f"  GAP    {build_path.name}: pip install without --require-hashes")
         problems += 1
-    if not re.search(r"pip==\d", build):
-        print(f"  GAP    {build_path.name}: pip not pinned")
+    if req_path.name not in build:
+        print(f"  GAP    {build_path.name}: does not install {req_path.name}")
+        problems += 1
+    pip_text = build if pip_pinned_by is None else _read(pip_pinned_by)
+    if pip_text is None:
+        sys.exit(2)
+    pip_name = (pip_pinned_by or build_path).name
+    if not re.search(r"pip==\d", pip_text):
+        print(f"  GAP    {pip_name}: pip not pinned")
         problems += 1
     return problems
 
@@ -499,7 +518,7 @@ def selftest() -> int:
         req.write_text("pypdf==6.0.0\n", encoding="utf-8")
         build_ok = tmp / "build.sh"
         build_ok.write_text(
-            "pip install pip==99.0\npip install --require-hashes -r r.txt\n",
+            "pip install pip==99.0\npip install --require-hashes -r requirements.txt\n",
             encoding="utf-8",
         )
         control(
@@ -514,10 +533,32 @@ def selftest() -> int:
             check_requirements(req, build_ok) == 0,
         )
         build_bad = tmp / "build-bad.sh"
-        build_bad.write_text("pip install -r r.txt\n", encoding="utf-8")
+        build_bad.write_text("pip install -r requirements.txt\n", encoding="utf-8")
         control(
             "a pip install without --require-hashes is a gap",
             check_requirements(req, build_bad) > 0,
+        )
+        engine_build = tmp / "build-engine.sh"
+        engine_build.write_text(
+            "pip install --require-hashes --target t -r requirements.txt\n",
+            encoding="utf-8",
+        )
+        control(
+            "a second set whose pip is pinned by the bundle build passes",
+            check_requirements(req, engine_build, pip_pinned_by=build_ok) == 0,
+        )
+        control(
+            "a second set with no pinned pip anywhere is a gap",
+            check_requirements(req, engine_build, pip_pinned_by=build_bad) > 0,
+        )
+        other_build = tmp / "build-other.sh"
+        other_build.write_text(
+            "pip install pip==99.0\npip install --require-hashes -r other.txt\n",
+            encoding="utf-8",
+        )
+        control(
+            "a requirements file no build script installs is a gap",
+            check_requirements(req, other_build) > 0,
         )
 
         wf = tmp / "workflows"
@@ -574,6 +615,11 @@ def main() -> int:
     )
     problems += check_requirements(
         REPO_ROOT / REQUIREMENTS, REPO_ROOT / BUNDLE_BUILD
+    )
+    problems += check_requirements(
+        REPO_ROOT / MLX_REQUIREMENTS,
+        REPO_ROOT / MLX_BUILD,
+        pip_pinned_by=REPO_ROOT / BUNDLE_BUILD,
     )
     problems += check_workflows(REPO_ROOT / WORKFLOW_DIR, EXEMPT_WORKFLOW_STEPS)
     problems += check_fetch_scripts(REPO_ROOT, SCRIPT_DIRS)

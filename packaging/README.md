@@ -12,6 +12,8 @@ bundle Tauri signé.
 | `fetch-python-standalone.sh` | Télécharge et extrait `python-build-standalone` d'Astral pour une target donnée. Cache sous `target/python-bundle/<triple>/.cache/`. |
 | `build-universal-python.sh` | Compose un bundle macOS universal2 en `lipo -create` des Mach-O Python ARM + Intel. |
 | `build-python-bundle.sh` | Orchestrateur : fetch + `pip install -r requirements-bundled.txt` + pruning + patch `install_name` (macOS). |
+| `requirements-mlx-engine.txt` | Moteur MLX (vllm-mlx) et toute sa fermeture, verrouillés par empreinte, roues `macosx_14_0_arm64`. Jeu distinct de celui des agents. |
+| `build-mlx-engine.sh` | Installe ce jeu dans `python/engines/mlx/site-packages` (macOS arm64 seulement, appelé par `build-python-bundle.sh`) et vérifie que `vllm_mlx.cli serve --help` répond avec l'interpréteur embarqué en mode `-S`. `APOLLIA_SKIP_MLX_ENGINE=1` construit sans le moteur. |
 | `artifacts.json` | Contrat de nommage des artefacts de release : lu par `release.yml` (producteur), embarqué par `apollia-os update` (`include_str!`), cité par la page d'installation ; gardé par `scripts/check_release_artifacts.py`. |
 | `fetch-llama-server.sh` | Télécharge le binaire `llama-server` amont pour une plateforme (`uname -s` et `uname -m`) et vérifie sa somme de contrôle. |
 | `llama-server-checksums.txt` | Sommes de contrôle attendues, une par plateforme, lues par le script ci-dessus. |

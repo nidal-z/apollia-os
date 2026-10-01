@@ -226,6 +226,21 @@ les sources attend `llama-server` sur le `PATH`. Quand un backend local est
 configuré et qu'aucun moteur n'est joignable, les appels échouent avec une raison
 d'indisponibilité explicite, sans repli silencieux vers un fournisseur cloud.
 
+Sur macOS Apple Silicon, les modèles au format MLX tournent via un second
+moteur embarqué, vllm-mlx (Apache 2.0), un serveur compatible OpenAI bâti sur
+MLX, avec traitement continu par lots, cache de préfixe et sortie structurée
+native. Une version est épinglée, et le moteur comme toute sa fermeture de
+dépendances sont installés par empreinte dans un environnement à part, dans
+l'arbre Python embarqué, séparé des paquets qu'importent les agents : le moteur
+démarre avec l'interpréteur embarqué dans un mode qui tient les paquets des
+agents hors de son chemin. Le démon le supervise comme il supervise
+`llama-server`, derrière une interface de moteur qui garde le moteur
+remplaçable, et il n'écoute que sur l'interface de boucle locale. Le prix est
+le poids : le moteur et ses dépendances ajoutent environ un demi-gigaoctet à
+l'image disque macOS, et ils demandent macOS 14 ou plus récent, plancher des
+roues MLX et PyTorch aux versions épinglées. Les paquets Windows et Linux ne
+le portent pas.
+
 Il n'y a aucun fournisseur cloud dédié. Un modèle distant se joint par une seule
 connexion générique à un serveur compatible OpenAI, à l'adresse que
 l'organisation désigne : un vLLM ou un LM Studio auto-hébergé, ou une

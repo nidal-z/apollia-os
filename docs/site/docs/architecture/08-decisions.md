@@ -209,6 +209,20 @@ A packaged build stages the engine binary. A source build expects
 is reachable, calls fail with an explicit unavailable reason rather than
 silently falling back to a cloud provider.
 
+On macOS Apple Silicon, models in the MLX format run through a second embedded
+engine, vllm-mlx (Apache 2.0), an OpenAI-compatible server built on MLX with
+continuous batching, prefix caching and native structured output. One version
+is pinned, and the engine and its whole dependency closure are installed by
+hash into an environment of their own inside the bundled Python tree, apart
+from the packages agents import: the engine starts with the bundled
+interpreter in a mode that keeps the agents' packages off its path. The daemon
+supervises it the way it supervises `llama-server`, behind an engine interface
+that keeps the engine replaceable, and it listens on the loopback interface
+only. The cost is weight: the engine and its dependencies add about half a
+gigabyte to the macOS disk image, and they need macOS 14 or later, the floor
+of the MLX and PyTorch wheels at the pinned versions. The Windows and Linux
+bundles do not carry it.
+
 There is no dedicated cloud provider. A remote model is reached through one
 generic connection to an OpenAI-compatible server, at the address the
 organization designates: a self-hosted vLLM or LM Studio, or a gateway. Any
