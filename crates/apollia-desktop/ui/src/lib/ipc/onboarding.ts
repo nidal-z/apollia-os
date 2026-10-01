@@ -2,8 +2,8 @@
  * Typed Tauri command wrappers for the first-run onboarding flow.
  *
  * Groups the onboarding lifecycle (phase machine, dismissal, resume), the
- * embedded acquaintance chat, the proposed-permission triage, and the
- * post-onboarding guided tour. Components never call `invoke` directly; they
+ * embedded acquaintance chat, and the proposed-permission triage. Components
+ * never call `invoke` directly; they
  * import these helpers so the command names and payload shapes live in one
  * typed place (see `crates/apollia-desktop/ui/AGENTS.md`, section 3).
  */

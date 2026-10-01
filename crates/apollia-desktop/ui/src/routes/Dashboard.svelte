@@ -22,7 +22,6 @@
   import AgentsAtWorkCard from "../components/dashboard/AgentsAtWorkCard.svelte";
   import RecentActivityStrip from "../components/dashboard/RecentActivityStrip.svelte";
   import PinnedProjectsStrip from "../components/dashboard/PinnedProjectsStrip.svelte";
-  import GettingStartedBand from "../components/dashboard/GettingStartedBand.svelte";
   import {
     buildInboxItems,
     toPendingRows,
@@ -182,13 +181,6 @@
       </Button>
     {/snippet}
   </PageHeader>
-
-  <!-- Getting started, full width above the bento. It is the single entry point
-       of the tour system: nothing launches on its own, so its visibility is not
-       a layout detail. It retires itself once every milestone lands. -->
-  <div class="px-8 pt-6">
-    <GettingStartedBand />
-  </div>
 
   {#if isColdStart}
     <!-- Cold start - welcome the operator. -->
