@@ -190,15 +190,15 @@ mod tests {
         assert_eq!(with_v1, bare);
     }
 
-    // GIVEN an address where nothing listens
+    // GIVEN an address where nothing can listen
     // WHEN its models are listed
     // THEN the error says the server cannot be reached
     #[tokio::test]
     async fn test_nothing_listening_is_unreachable() {
         // GIVEN
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = format!("http://{}", listener.local_addr().unwrap());
-        drop(listener);
+        // Port 0 is never a destination: the connection fails on every
+        // machine, with no port reserved and released for the occasion.
+        let address = "http://127.0.0.1:0".to_string();
 
         // WHEN
         let err = list_server_models(&address, None).await.unwrap_err();

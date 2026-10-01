@@ -177,17 +177,6 @@ fn as_probe((status, Json(body)): ApiError) -> (StatusCode, Json<ServerProbeErro
     )
 }
 
-fn require_repo<B: ExecutionBackend + Clone>(
-    state: &AppState<B>,
-) -> Result<&Arc<std::sync::Mutex<LlmBackendRepository>>, ApiError> {
-    state.llm_backend_repo.as_ref().ok_or_else(|| {
-        api_err(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "LLM backend repository not available",
-        )
-    })
-}
-
 fn with_repo<B, T>(
     state: &AppState<B>,
     f: impl FnOnce(&LlmBackendRepository) -> Result<T, ApiError>,
@@ -195,7 +184,12 @@ fn with_repo<B, T>(
 where
     B: ExecutionBackend + Clone,
 {
-    let repo = require_repo(state)?;
+    let repo = state.llm_backend_repo.as_ref().ok_or_else(|| {
+        api_err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "LLM backend repository not available",
+        )
+    })?;
     let guard = repo.lock().map_err(|_| {
         api_err(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -611,15 +605,15 @@ mod tests {
         assert!(repo.list_servers().unwrap().is_empty());
     }
 
-    // GIVEN an address where nothing listens
+    // GIVEN an address where nothing can listen
     // WHEN it is tested
     // THEN 502 with kind `unreachable`
     #[tokio::test]
     async fn test_testing_an_address_where_nothing_listens_says_unreachable() {
         // GIVEN
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let url = format!("http://{}", listener.local_addr().unwrap());
-        drop(listener);
+        // Port 0 is never a destination: the connection fails on every
+        // machine, with no port reserved and released for the occasion.
+        let url = "http://127.0.0.1:0".to_string();
 
         // WHEN
         let (status, body) = call(
