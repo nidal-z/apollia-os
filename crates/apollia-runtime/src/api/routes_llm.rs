@@ -12,6 +12,8 @@
 //! - `PUT    /api/v1/llm/backends/:name`          , update backend
 //! - `DELETE /api/v1/llm/backends/:name`          , delete backend
 //! - `POST   /api/v1/llm/backends/:name/set-default`, mark as default
+//! - `GET    /api/v1/llm/loaded-models`           , list resident local models
+//! - `POST   /api/v1/llm/loaded-models/unload`    , unload one resident model
 
 use std::time::Instant;
 
@@ -29,6 +31,7 @@ use crate::coordinator::ExecutionBackend;
 
 pub mod backends;
 pub mod costs;
+pub mod loaded;
 
 use backends::{
     create_llm_backend, delete_llm_backend, get_llm_backend, list_llm_backends, reload_llm_router,
@@ -516,6 +519,8 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
 /// - `PUT    /api/v1/llm/backends/:name`               , update backend
 /// - `DELETE /api/v1/llm/backends/:name`               , delete backend
 /// - `POST   /api/v1/llm/backends/:name/set-default`   , mark as default
+/// - `GET    /api/v1/llm/loaded-models`                , list resident local models
+/// - `POST   /api/v1/llm/loaded-models/unload`         , unload one resident model
 pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/llm/status", get(get_llm_status::<B>))
@@ -539,6 +544,7 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             post(set_default_llm_backend::<B>),
         )
         .route("/api/v1/llm/reload", post(reload_llm_router::<B>))
+        .merge(loaded::loaded_model_routes::<B>())
 }
 
 // ─────────────────────────────────────────────
@@ -563,7 +569,7 @@ mod tests {
 
     /// Minimal `ExecutionBackend` for tests, never actually executed.
     #[derive(Clone)]
-    struct MockBackend;
+    pub(super) struct MockBackend;
 
     impl ExecutionBackend for MockBackend {
         fn execute(
@@ -584,7 +590,7 @@ mod tests {
     }
 
     /// Build a minimal `AppState` with `llm_router = None`.
-    fn test_app_state_no_llm() -> AppState<MockBackend> {
+    pub(super) fn test_app_state_no_llm() -> AppState<MockBackend> {
         let (event_tx, _event_rx) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =

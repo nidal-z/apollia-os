@@ -19,17 +19,20 @@
 
 mod config;
 mod engine_facts;
+mod loaded;
 mod ngl;
 
 pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError};
+pub use loaded::{LoadedModel, ModelLease, UnloadError};
 
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
@@ -68,15 +71,45 @@ struct Instance {
     /// instance's identity: a backend asking for another window for the same
     /// model needs another launch, not this process.
     n_ctx: u32,
+    /// Layers placed on the accelerator (`-ngl`), as planned at launch.
+    n_gpu_layers: i32,
+    /// Server slots (`-np`), `None` when the engine default was left alone.
+    n_parallel: Option<u32>,
     port: u16,
     child: Child,
     /// Value of the supervisor's tick when this instance was last requested.
     /// Orders eviction; a wall clock would not, since two requests inside the
     /// same millisecond are common.
     last_used: u64,
+    /// Wall-clock time the process became healthy, for display only.
+    loaded_at: DateTime<Utc>,
+    /// Wall-clock time of the last request, for display only. Eviction reads
+    /// `last_used`, never this.
+    last_used_at: DateTime<Utc>,
+    /// Requests currently holding a [`ModelLease`] on this process. An unload
+    /// is refused while it is above zero.
+    in_flight: Arc<AtomicUsize>,
 }
 
 impl Instance {
+    /// A freshly healthy process launched with `config`, used once at `tick`,
+    /// serving no request yet.
+    fn new(config: LlamaServerConfig, port: u16, child: Child, tick: u64) -> Self {
+        let now = Utc::now();
+        Self {
+            model_path: config.model_path,
+            n_ctx: config.n_ctx,
+            n_gpu_layers: config.n_gpu_layers,
+            n_parallel: config.n_parallel,
+            port,
+            child,
+            last_used: tick,
+            loaded_at: now,
+            last_used_at: now,
+            in_flight: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
     fn base_url(&self) -> String {
         format!("http://127.0.0.1:{}/v1", self.port)
     }
@@ -222,7 +255,7 @@ impl LlamaServerSupervisor {
         self.max_loaded
     }
 
-    /// Make `model_path` servable and return the base URL that serves it.
+    /// Make `model_path` servable and return a lease on the process serving it.
     ///
     /// Returns immediately when that model already has a live process, which is
     /// what makes a second resident model worth having: the hand-off between two
@@ -230,10 +263,12 @@ impl LlamaServerSupervisor {
     /// process is started, evicting the least recently used one first when the
     /// residency ceiling is reached.
     ///
-    /// The URL is returned rather than read back through a separate accessor:
-    /// with several instances alive, "the current one" is not a well-defined
-    /// question, and a caller that asked for a specific model must not receive
-    /// another one's port.
+    /// The URL is carried by the lease rather than read back through a separate
+    /// accessor: with several instances alive, "the current one" is not a
+    /// well-defined question, and a caller that asked for a specific model must
+    /// not receive another one's port. Holding the lease for the length of a
+    /// request is what lets [`unload_model`](Self::unload_model) refuse to stop
+    /// a model in the middle of an answer.
     ///
     /// # Errors
     ///
@@ -243,20 +278,20 @@ impl LlamaServerSupervisor {
         &self,
         model_path: String,
         n_ctx: Option<u32>,
-    ) -> Result<String, LlamaServerError> {
+    ) -> Result<ModelLease, LlamaServerError> {
         let n_ctx = self.effective_n_ctx(n_ctx);
         let _guard = self.respawn_lock.lock().await;
-        if let Some(url) = self.touch_live_instance(&model_path, n_ctx).await {
-            return Ok(url);
+        if let Some(lease) = self.touch_live_instance(&model_path, n_ctx).await {
+            return Ok(lease);
         }
         self.evict_until_below_ceiling().await;
         self.spawn_instance(model_path, n_ctx).await
     }
 
-    /// Return the base URL of a live instance for `model_path`, marking it as
-    /// just used. Drops an instance whose process has died, so the caller
-    /// respawns instead of handing out a dead port.
-    async fn touch_live_instance(&self, model_path: &str, n_ctx: u32) -> Option<String> {
+    /// Return a lease on a live instance for `model_path`, marking it as just
+    /// used. Drops an instance whose process has died, so the caller respawns
+    /// instead of handing out a dead port.
+    async fn touch_live_instance(&self, model_path: &str, n_ctx: u32) -> Option<ModelLease> {
         let mut instances = self.instances.lock().await;
         let idx = instances
             .iter()
@@ -267,7 +302,11 @@ impl LlamaServerSupervisor {
             return None;
         }
         instances[idx].last_used = self.next_tick();
-        Some(instances[idx].base_url())
+        instances[idx].last_used_at = Utc::now();
+        Some(ModelLease::new(
+            instances[idx].base_url(),
+            Arc::clone(&instances[idx].in_flight),
+        ))
     }
 
     /// Stop least-recently-used instances until one more fits under the ceiling.
@@ -462,12 +501,12 @@ impl LlamaServerSupervisor {
     ///
     /// Picks a free loopback port, resolves the `APOLLIA_LLAMA_` overrides onto
     /// the stored configuration, launches, drains the logs into tracing, and
-    /// polls `/health`. Returns the base URL that serves the model.
+    /// polls `/health`. Returns a lease on the process that serves the model.
     async fn spawn_instance(
         &self,
         model_path: String,
         n_ctx: u32,
-    ) -> Result<String, LlamaServerError> {
+    ) -> Result<ModelLease, LlamaServerError> {
         let mut config = resolve_env_overrides(&*self.config.lock().await, env_getter);
         config.model_path = model_path;
         // Already resolved by `effective_n_ctx`: the environment, then the
@@ -550,17 +589,11 @@ impl LlamaServerSupervisor {
 
         self.wait_until_healthy(&mut child, port).await?;
 
-        let instance = Instance {
-            model_path: config.model_path,
-            n_ctx: config.n_ctx,
-            port,
-            child,
-            last_used: self.next_tick(),
-        };
-        let url = instance.base_url();
+        let instance = Instance::new(config, port, child, self.next_tick());
+        let lease = ModelLease::new(instance.base_url(), Arc::clone(&instance.in_flight));
         tracing::info!(port, model = %instance.model_path, "llama.server.healthy");
         self.instances.lock().await.push(instance);
-        Ok(url)
+        Ok(lease)
     }
 
     /// Poll `GET /health` until the server answers or the deadline elapses,
@@ -723,16 +756,24 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
     }
 }
 
+/// Fixtures shared by the supervisor's test modules.
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod test_support {
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicU64;
+    use std::sync::Arc;
+
+    use tokio::process::Command;
+    use tokio::sync::Mutex;
+
+    use super::{Instance, LlamaServerConfig, LlamaServerSupervisor, ModelLease};
 
     /// Build a supervisor without touching the filesystem or spawning anything.
     ///
     /// `LlamaServerSupervisor::new` locates the binary, which is absent on a CI
     /// runner; these tests exercise the residency bookkeeping, not the process
     /// lifecycle, so the struct is assembled directly.
-    fn supervisor_with_ceiling(max_loaded: usize) -> LlamaServerSupervisor {
+    pub(super) fn supervisor_with_ceiling(max_loaded: usize) -> LlamaServerSupervisor {
         LlamaServerSupervisor {
             bin_path: PathBuf::from("/nonexistent/llama-server"),
             n_ctx: 32_768,
@@ -746,21 +787,52 @@ mod tests {
         }
     }
 
-    /// A instance backed by a long-lived child, so liveness checks see it alive.
-    async fn live_instance(sup: &LlamaServerSupervisor, model: &str, port: u16) -> Instance {
+    /// An instance backed by a long-lived child, so liveness checks see it alive.
+    pub(super) async fn live_instance(
+        sup: &LlamaServerSupervisor,
+        model: &str,
+        port: u16,
+    ) -> Instance {
         let child = Command::new("sleep")
             .arg("60")
             .kill_on_drop(true)
             .spawn()
             .expect("spawning sleep must succeed");
-        Instance {
+        let config = LlamaServerConfig {
             model_path: model.to_owned(),
             n_ctx: sup.n_ctx(),
-            port,
-            child,
-            last_used: sup.next_tick(),
+            n_gpu_layers: 99,
+            n_parallel: Some(1),
+            ..LlamaServerConfig::default()
+        };
+        Instance::new(config, port, child, sup.next_tick())
+    }
+
+    impl LlamaServerSupervisor {
+        /// A supervisor whose resident models are stand-in processes, one per
+        /// path, for tests outside this module that need a populated pool.
+        pub(crate) async fn with_stand_in_models(models: &[&str]) -> Arc<Self> {
+            let sup = supervisor_with_ceiling(models.len().max(1));
+            for (offset, model) in (0_u16..).zip(models) {
+                let instance = live_instance(&sup, model, 9001 + offset).await;
+                sup.instances.lock().await.push(instance);
+            }
+            Arc::new(sup)
+        }
+
+        /// Take a lease on a resident model the way a request does, without the
+        /// spawn path `ensure_model` would fall back to.
+        pub(crate) async fn lease_for_test(&self, model_path: &str) -> Option<ModelLease> {
+            self.touch_live_instance(model_path, self.n_ctx()).await
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use super::test_support::{live_instance, supervisor_with_ceiling};
 
     // GIVEN no environment override
     // WHEN the residency ceiling is resolved
@@ -801,9 +873,12 @@ mod tests {
         let instance = live_instance(&sup, "/models/a.gguf", 9001).await;
         sup.instances.lock().await.push(instance);
 
-        let url = sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
+        let lease = sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
 
-        assert_eq!(url.as_deref(), Some("http://127.0.0.1:9001/v1"));
+        assert_eq!(
+            lease.as_ref().map(ModelLease::base_url),
+            Some("http://127.0.0.1:9001/v1")
+        );
         assert_eq!(sup.instances.lock().await.len(), 1);
     }
 
@@ -855,9 +930,9 @@ mod tests {
         instance.child.wait().await.expect("wait must succeed");
         sup.instances.lock().await.push(instance);
 
-        let url = sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
+        let lease = sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
 
-        assert!(url.is_none());
+        assert!(lease.is_none());
         assert!(sup.instances.lock().await.is_empty());
     }
 

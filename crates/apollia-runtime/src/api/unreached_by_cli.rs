@@ -217,6 +217,20 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             absent_method: Method::GET,
             live_probed: true,
         },
+        UnreachedOp {
+            id: "list_loaded_models",
+            method: Method::GET,
+            path: "/api/v1/llm/loaded-models",
+            absent_method: Method::POST,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "unload_loaded_model",
+            method: Method::POST,
+            path: "/api/v1/llm/loaded-models/unload",
+            absent_method: Method::GET,
+            live_probed: true,
+        },
     ]
 }
 
@@ -378,8 +392,8 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
     let ops = unreached_ops();
     assert_eq!(
         ops.len(),
-        22,
-        "the census must carry the twenty-two operations the coverage table lists"
+        24,
+        "the census must carry the twenty-four operations the coverage table lists"
     );
 
     // WHEN each is probed with a method its route does not declare
@@ -428,13 +442,13 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
         bound += 1;
     }
     assert_eq!(
-        bound, 19,
-        "the method binding of nineteen operations must be probed"
+        bound, 21,
+        "the method binding of twenty-one operations must be probed"
     );
 }
 
 #[tokio::test]
-async fn test_nineteen_of_the_twenty_two_operations_carry_a_live_probe() {
+async fn test_twenty_one_of_the_twenty_four_operations_carry_a_live_probe() {
     // GIVEN the census table, which records which operations a live probe
     // invokes the handler of
     let ops = unreached_ops();
@@ -451,7 +465,7 @@ async fn test_nineteen_of_the_twenty_two_operations_carry_a_live_probe() {
     // is the one whose handler reads the process home rather than the state's
     // data directory
     assert_eq!(
-        live, 19,
+        live, 21,
         "live probe count changed without the table saying so"
     );
     // Three exclusions, and they are not the same kind. `get_task_timeline`
@@ -954,4 +968,35 @@ async fn test_connector_consent_routes_refuse_before_reaching_a_provider() {
         .is_some_and(|m| m.contains("github")));
     assert_eq!(complete_status, StatusCode::NOT_FOUND);
     assert_eq!(disconnect_status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn test_loaded_model_routes_tell_a_host_without_a_local_engine_apart() {
+    // GIVEN a runtime started without the embedded llama-server
+    let dir = tempfile::tempdir().expect("temp dir");
+
+    // WHEN the resident models are listed and one is asked to unload
+    let (list_status, list_body) = call(
+        APIServer::build_router_for_test(base_state(dir.path())),
+        Method::GET,
+        "/api/v1/llm/loaded-models",
+        Body::empty(),
+    )
+    .await;
+    let (unload_status, unload_body) = call(
+        APIServer::build_router_for_test(base_state(dir.path())),
+        Method::POST,
+        "/api/v1/llm/loaded-models/unload",
+        Body::from(r#"{"modelPath":"/models/probe.gguf"}"#),
+    )
+    .await;
+
+    // THEN the list answers empty and says no engine exists, and the unload is
+    // refused as unavailable rather than as a model that is merely not loaded
+    assert_eq!(list_status, StatusCode::OK);
+    let listed = json_of(&list_body);
+    assert_eq!(listed["engineAvailable"], false);
+    assert_eq!(listed["models"].as_array().map(Vec::len), Some(0));
+    assert_eq!(unload_status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(json_of(&unload_body)["error"].is_string());
 }
