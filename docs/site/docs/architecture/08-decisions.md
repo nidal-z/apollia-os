@@ -298,6 +298,45 @@ bearer token on every path, and binding it to a non-loopback address without TLS
 is a startup error rather than a warning: an insecure remote bind is the one
 mistake that cannot be undone once traffic has flowed.
 
+## Signatures {#signing-schemes}
+
+Two signature schemes coexist, one per kind of signer, and neither needs a
+network to verify.
+
+Agent packages and organisation policies are signed by their author, with a key
+the application generates. The signature is a detached Ed25519 signature over a
+canonical list of `(path, SHA-256)` entries sorted by the bytes of the path, so
+the order in which files were collected never changes it, and adding, removing
+or altering a single file breaks it. It travels in a versioned `SIGNATURE` file
+that names the format version, the fingerprint of the key (the SHA-256 of the
+public key), the publisher name the author declared, and the signature. The
+private key is stored through the secret store and never written in clear to
+disk. The publisher name is a declaration and is not covered by the signature:
+what identifies an author is the key fingerprint.
+
+Distribution metadata published by the Apollia release pipeline (the digest
+manifest of the inference engines and of Node.js, the model registry index) is
+signed in the minisign format, with a dedicated distribution key. It is the same
+format as the desktop updater key and a distinct key, held in its own pipeline
+secrets (`APOLLIA_DIST_SIGNING_KEY`, `APOLLIA_DIST_SIGNING_KEY_PASSWORD`).
+Signing happens in the pipeline with the Tauri signing tool; the application
+only verifies, and the daemon verifies without Tauri, which is why the verifier
+is a direct dependency rather than one reached through the updater plugin.
+
+minisign was not taken for packages and policies: it signs one file, not a list
+of entries, and the key generation and storage the application needs would have
+to be written anyway. Sigstore and X.509 were rejected for both uses: one needs a
+transparency log and an identity provider reached over the network, the other a
+certificate authority, and either makes an outside party a condition of
+verification, against the local-first principle.
+
+The cost is a new dependency surface and no revocation. `ed25519-dalek` 2 is
+compiled without default features (no precomputed tables), and brings `ed25519`
+and `signature`; its curve arithmetic, `curve25519-dalek`, was already in the
+tree. `minisign-verify` has no dependency of its own and was already in the tree
+through the updater. A key cannot be revoked other than by changing the set of
+keys a reader trusts.
+
 ## Command line {#cli}
 
 The CLI is noun-verb. Daily operations are bare verbs; everything else is a noun
