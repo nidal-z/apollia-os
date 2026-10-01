@@ -1,0 +1,104 @@
+{
+  "fr": {
+    "objects": {
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "tool": "Outil",
+      "connection": "Connexion",
+      "package": "Paquet",
+      "source": "Source"
+    },
+    "screens": {
+      "chat": "Chat",
+      "agents": "Agents",
+      "connections": "Connexions",
+      "ai": "IA",
+      "review": "À valider",
+      "library": "Bibliothèque",
+      "automations": "Automatisations",
+      "permissions": "Autorisations",
+      "activity_log": "Journal",
+      "settings": "Réglages"
+    },
+    "developer_mode": "Mode développeur",
+    "chat_steps_panel": "Étapes",
+    "banned": [
+      "backend",
+      "runner",
+      "namespace",
+      "manifest",
+      "MCP",
+      "worker",
+      "skill",
+      "A2A",
+      "HITL",
+      "ReAct",
+      "runtime",
+      "endpoint",
+      "stdio",
+      "SSE",
+      "pip",
+      "venv",
+      "BM25",
+      "TTL",
+      "GGUF",
+      "sandbox"
+    ],
+    "banned_synonyms": {
+      "assistant": "agent"
+    },
+    "permitted_formats": ["Excel", "CSV", "JSON", "PDF"],
+    "exemptions": []
+  },
+  "en": {
+    "objects": {
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "tool": "Tool",
+      "connection": "Connection",
+      "package": "Package",
+      "source": "Source"
+    },
+    "screens": {
+      "chat": "Chat",
+      "agents": "Agents",
+      "connections": "Connections",
+      "ai": "AI",
+      "review": "To review",
+      "library": "Library",
+      "automations": "Automations",
+      "permissions": "Permissions",
+      "activity_log": "Activity log",
+      "settings": "Settings"
+    },
+    "developer_mode": "Developer mode",
+    "chat_steps_panel": "Steps",
+    "banned": [
+      "backend",
+      "runner",
+      "namespace",
+      "manifest",
+      "MCP",
+      "worker",
+      "skill",
+      "A2A",
+      "HITL",
+      "ReAct",
+      "runtime",
+      "endpoint",
+      "stdio",
+      "SSE",
+      "pip",
+      "venv",
+      "BM25",
+      "TTL",
+      "GGUF",
+      "sandbox"
+    ],
+    "banned_synonyms": {
+      "assistant": "agent"
+    },
+    "permitted_formats": ["Excel", "CSV", "JSON", "PDF"],
+    "exemptions": []
+  }
+}

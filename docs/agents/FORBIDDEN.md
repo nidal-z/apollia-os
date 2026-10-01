@@ -170,9 +170,8 @@ The three families, and how to recognise a new one:
 
 The test is mechanical: `grep -rn '<basename>.md' crates sdk scripts agents
 .github justfile`. A hit inside an `include_str!`, a `cp`, or a path join means
-the file is a resource. A hit inside a comment means it is a document, and two of
-those exist as known false positives:
-`crates/apollia-desktop/ui/src/lib/i18n/operator-glossary.md` and
+the file is a resource. A hit inside a comment means it is a document, and one
+of those exists as a known false positive:
 `crates/apollia-desktop/ui/src/lib/design/breakpoints.md`.
 
 This rule exists because a documentation audit proposed deleting fifteen files
