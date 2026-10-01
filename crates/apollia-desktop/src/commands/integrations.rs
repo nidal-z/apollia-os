@@ -348,8 +348,26 @@ pub async fn oauth_complete_flow(
 
     let account_id = resolve_account_id(provider, &token.access_token).await?;
     let manager = auth_manager().await?;
+    let granted_scopes = token.scopes.clone();
+    store_and_record(governance, &manager, provider, &account_id, token).await?;
+
+    Ok(OauthCompletedAccount {
+        provider: provider.id().to_owned(),
+        account_id: account_id.0,
+        granted_scopes,
+    })
+}
+
+/// Store the token of `account_id` in `manager`, then journal the connection.
+async fn store_and_record(
+    governance: &ConnectionGovernance,
+    manager: &AuthManager,
+    provider: ConnectorProvider,
+    account_id: &AccountId,
+    token: StoredToken,
+) -> Result<(), IntegrationsError> {
     manager
-        .put_token(provider, &account_id, token.clone())
+        .put_token(provider, account_id, token)
         .await
         .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
     governance.record_or_warn(&ConnectionEvent::account_connected(
@@ -357,12 +375,7 @@ pub async fn oauth_complete_flow(
         &account_id.0,
         DESKTOP_ACTOR,
     ));
-
-    Ok(OauthCompletedAccount {
-        provider: provider.id().to_owned(),
-        account_id: account_id.0,
-        granted_scopes: token.scopes,
-    })
+    Ok(())
 }
 
 /// Revoke (forget) the token for `(provider, account_id)`.
@@ -527,6 +540,60 @@ mod tests {
         );
         // AND the default governance admits it
         assert!(admit_account(&ConnectionGovernance::default(), ConnectorProvider::Google).is_ok());
+    }
+
+    // Connecting from the desktop stores the token and journals it.
+    #[tokio::test]
+    async fn test_desktop_connect_journals_the_account() {
+        // GIVEN an empty isolated store, and governance over a journal
+        let dir = tempfile::TempDir::new().unwrap();
+        let storage = apollia_auth::MultiAccountStorage::with_store(
+            dir.path().join("connectors-index.json"),
+            Box::new(MemoryStore::default()),
+        );
+        let manager = AuthManager::with_storage(storage);
+        let journal = apollia_runtime::audit_journal::AuditJournalHandle::open(
+            &dir.path().join("journal.db"),
+        )
+        .await
+        .unwrap();
+        let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+
+        // WHEN the token of a Microsoft account is stored
+        store_and_record(
+            &governance,
+            &manager,
+            ConnectorProvider::Microsoft,
+            &AccountId::new("ada@contoso.test"),
+            StoredToken {
+                access_token: "at".into(),
+                refresh_token: None,
+                expires_at: None,
+                scopes: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        // THEN the account is listed and the connection is journaled by the desktop
+        let accounts = manager
+            .list_accounts(ConnectorProvider::Microsoft)
+            .await
+            .unwrap();
+        assert_eq!(accounts, vec![AccountId::new("ada@contoso.test")]);
+        let entries = journal
+            .query_run(&apollia_runtime::governance::connection_run_id(
+                "native:microsoft:ada@contoso.test",
+            ))
+            .await;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].kind,
+            apollia_runtime::audit_journal::JournalEntryKind::AccountConnected
+        );
+        assert_eq!(entries[0].payload["actor"], "desktop");
+        assert_eq!(entries[0].payload["account"], "ada@contoso.test");
+        journal.shutdown().await;
     }
 
     // Disconnecting from the desktop forgets the token and journals it.

@@ -257,17 +257,26 @@ async fn complete_consent(
     let account = connector_consent::complete(pending, &body.code, &manager)
         .await
         .map_err(consent_err)?;
+    Ok(Json(record_connected(governance, account)))
+}
+
+/// Journal the connection of `account`, whose token is already stored, and
+/// answer it.
+fn record_connected(
+    governance: &ConnectionGovernance,
+    account: connector_consent::ConnectedAccount,
+) -> ConnectedAccountResponse {
     tracing::info!(provider = %account.provider.id(), "connectors.consent.completed");
     governance.record_or_warn(&ConnectionEvent::account_connected(
         account.provider,
         &account.account_id.0,
         ROUTE_ACTOR,
     ));
-    Ok(Json(ConnectedAccountResponse {
+    ConnectedAccountResponse {
         provider: account.provider.id().to_owned(),
         account_id: account.account_id.0,
         granted_scopes: account.granted_scopes,
-    }))
+    }
 }
 
 /// `GET /api/v1/connectors/accounts`: every connected account, all providers.
@@ -527,6 +536,46 @@ mod tests {
         // (an exchange would have answered a bad gateway)
         assert_eq!(code, StatusCode::FORBIDDEN);
         assert_eq!(err.error, "remote connections are not allowed");
+    }
+
+    // A completed consent journals the account it connected.
+    #[tokio::test]
+    async fn test_connect_journals_the_account() {
+        // GIVEN governance over a journal, and a Google account whose token
+        // the consent stored
+        let dir = tempfile::TempDir::new().unwrap();
+        let journal =
+            crate::audit_journal::AuditJournalHandle::open(&dir.path().join("journal.db"))
+                .await
+                .unwrap();
+        let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+        let account = connector_consent::ConnectedAccount {
+            provider: ConnectorProvider::Google,
+            account_id: AccountId::new("ada@example.com"),
+            granted_scopes: vec!["openid".to_owned()],
+        };
+
+        // WHEN the connection is recorded
+        let response = record_connected(&governance, account);
+
+        // THEN the answer names the account and its connection run records
+        // the connection by the route
+        assert_eq!(response.provider, "google");
+        assert_eq!(response.account_id, "ada@example.com");
+        assert_eq!(response.granted_scopes, vec!["openid".to_owned()]);
+        let entries = journal
+            .query_run(&crate::governance::connection_run_id(
+                "native:google:ada@example.com",
+            ))
+            .await;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].kind,
+            crate::audit_journal::JournalEntryKind::AccountConnected
+        );
+        assert_eq!(entries[0].payload["account"], "ada@example.com");
+        assert_eq!(entries[0].payload["actor"], ROUTE_ACTOR);
+        journal.shutdown().await;
     }
 
     // Disconnecting an account forgets its token and journals the disconnection.

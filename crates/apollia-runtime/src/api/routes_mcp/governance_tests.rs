@@ -170,6 +170,7 @@ async fn harness(admission: Arc<dyn ConnectionAdmission>) -> Harness {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        secret_store: crate::inference_servers::default_store_opener(),
     };
     Harness {
         dir,
