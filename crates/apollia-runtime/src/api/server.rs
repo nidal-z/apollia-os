@@ -195,6 +195,13 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `~/.apollia/audit_journal.db`. `None` in tests, the
     /// `/api/v1/audit/verify/:run_id` route returns 503 when `None`.
     pub audit_journal: Option<crate::audit_journal::AuditJournalHandle>,
+    /// Admission policy and journal of the connection routes: an MCP server
+    /// is admitted before it is added, and every addition, change, removal,
+    /// secret and account is journaled.
+    ///
+    /// Production journals into [`Self::audit_journal`] with no policy
+    /// deposited; the default admits everything and journals nothing.
+    pub connection_governance: crate::governance::ConnectionGovernance,
     /// Truncation configuration for task observability.
     ///
     /// Passed to the `ExecutionCoordinator` for persisting input/output/transitions.
@@ -331,6 +338,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             tool_registry_handle: self.tool_registry_handle.clone(),
             audit_trail: self.audit_trail.clone(),
             audit_journal: self.audit_journal.clone(),
+            connection_governance: self.connection_governance.clone(),
             obs_config: self.obs_config.clone(),
             llm_call_repository: self.llm_call_repository.clone(),
             trigger_def_repo: self.trigger_def_repo.clone(),
@@ -771,6 +779,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,

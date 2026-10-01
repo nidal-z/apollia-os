@@ -180,6 +180,11 @@ impl Supervisor {
             warn!(detail = "subscriber not started", "audit.journal.disabled");
         }
 
+        // Connections answer to governance: admitted before they are added,
+        // journaled when they change. No policy is deposited yet.
+        let connection_governance =
+            crate::governance::ConnectionGovernance::without_policy(audit_journal_handle.clone());
+
         // Phase 9 (pos 10): APIServer
         info!("supervisor.api.starting");
         // Open TaskRepository (HITL persistence).
@@ -427,6 +432,7 @@ impl Supervisor {
             tool_registry_handle: Some(tool_registry_handle.clone()),
             audit_trail: audit_trail_handle.clone(),
             audit_journal: audit_journal_handle.clone(),
+            connection_governance: connection_governance.clone(),
             obs_config: self.config.obs_config.clone(),
             llm_call_repository: llm_call_repository.clone(),
             trigger_def_repo: Some(trigger_def_repo.clone()),
@@ -552,6 +558,7 @@ impl Supervisor {
             llm_router,
             trigger_engine,
             audit_trail: audit_trail_handle,
+            connection_governance,
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),
             plan_gates: plan_gates.clone(),

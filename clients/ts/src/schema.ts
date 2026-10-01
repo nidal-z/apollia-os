@@ -4756,6 +4756,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
+            /** @description Refused by the connection admission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description No pending consent for this state */
             404: {
                 headers: {
@@ -5822,6 +5831,15 @@ export interface operations {
             };
             /** @description Invalid configuration or spawn failure */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Refused by the connection admission */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
