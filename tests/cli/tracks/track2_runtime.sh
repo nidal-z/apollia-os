@@ -29,11 +29,11 @@ check_json    "agent show --json"                  "${Q[@]}" agent show apollia-
 check_content "trigger list has daily-digest" "seed-trigger-daily-digest" "${Q[@]}" trigger list
 check_content "notify list has seed-channel-desktop" "seed-channel-desktop" "${Q[@]}" notify list
 # The seed writes exactly three backends (seed/fragments/system.sql):
-# local-llama-server (the default), openai-gpt4o-mini and anthropic-claude.
+# local-llama-server (the default), vllm-qwen and gpu-server.
 # Assert the default and one non-default, so the list is proven to carry more
 # than the row Track 3 repoints.
 check_content "llm backends lists local-llama-server" "local-llama-server" "${Q[@]}" llm backends list
-check_content "llm backends lists anthropic-claude" "anthropic-claude"  "${Q[@]}" llm backends list
+check_content "llm backends lists gpu-server" "gpu-server"  "${Q[@]}" llm backends list
 check_content "mcp list has filesystem connected" "filesystem"  "${Q[@]}" mcp list
 check_content "notify events get has task.completed" "task.completed" "${Q[@]}" notify events get
 # Seeded agents auto-start at boot, so seed-classifier exposes its A2A skill.
@@ -133,7 +133,7 @@ check         "notify test teardown: re-enable seeded desktop channel" "${Q[@]}"
 section "llm backends CRUD"
 check         "llm backends list"                  "${Q[@]}" llm backends list
 check         "llm backends show local-llama-server" "${Q[@]}" llm backends show local-llama-server
-check         "llm backends create e2e2"           "${Q[@]}" llm backends create e2e2 --provider openai --model gpt-4o-mini --timeout-sec 60
+check         "llm backends create e2e2"           "${Q[@]}" llm backends create e2e2 --provider openai --model qwen3-8b --base-url http://127.0.0.1:9/v1 --timeout-sec 60
 check         "llm backends update e2e2"           "${Q[@]}" llm backends update e2e2 --timeout-sec 90
 check         "llm backends set-default e2e2"      "${Q[@]}" llm backends set-default e2e2
 check         "llm backends set-default local-llama-server (restore)" "${Q[@]}" llm backends set-default local-llama-server

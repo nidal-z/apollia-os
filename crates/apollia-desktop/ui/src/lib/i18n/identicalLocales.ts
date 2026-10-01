@@ -62,12 +62,8 @@ export const IDENTICAL_BY_NATURE: string[] = [
   "settings.model_hub.hardware.ram", // RAM
   "settings.profile.language.en", // English
   "settings.profile.language.fr", // Français
-  "settings.profile.llm.anthropic", // Anthropic
-  "settings.profile.llm.bedrock", // AWS Bedrock
   "settings.profile.llm.local", // Local (llama.cpp)
   "settings.profile.llm.ollama", // Ollama
-  "settings.profile.llm.openai", // OpenAI
-  "settings.profile.llm.vertex", // Vertex AI
   "settings.profile.placeholder.tech_stack", // Python, TypeScript, React, Postgres…
   "settings.profile.placeholder.tools_daily", // Excel, Notion, Salesforce, Gmail, VS Code…
   "settings.profile.sector.ecommerce", // E-commerce

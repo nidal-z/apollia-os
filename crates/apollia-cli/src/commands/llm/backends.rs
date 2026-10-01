@@ -99,10 +99,10 @@ pub(super) async fn run_backends(
 
 /// Map a CLI-friendly provider name to the runtime's canonical identifier.
 ///
-/// The runtime accepts: `llama-cpp`, `openai`, `mistral`, `anthropic`, `ollama`.
-/// `local` is a common shortcut for `llama-cpp`. Unknown providers are
-/// passed through unchanged so the runtime can return its own validation
-/// error with the full list of valid values.
+/// The runtime accepts: `llama-cpp`, `openai`, `ollama`. `local` is a common
+/// shortcut for `llama-cpp`. Unknown providers are passed through unchanged
+/// so the runtime can return its own validation error with the full list of
+/// valid values.
 pub(super) fn canonicalize_provider(p: &str) -> &str {
     match p {
         "local" | "llama" | "llama_cpp" | "llamacpp" => "llama-cpp",
@@ -110,11 +110,32 @@ pub(super) fn canonicalize_provider(p: &str) -> &str {
     }
 }
 
+/// Providers the runtime accepts, in their canonical spelling.
+pub(super) const ACCEPTED_PROVIDERS: &[&str] = &["llama-cpp", "openai", "ollama"];
+
+/// The accepted providers, as the operator reads them in an error message.
+pub(super) const ACCEPTED_PROVIDERS_HINT: &str =
+    "llama-cpp (aliases: local, llama, llama_cpp, llamacpp), \
+     openai (any OpenAI-compatible server, with --base-url), ollama";
+
+/// Clap value parser for `--provider`: canonicalises the name and refuses a
+/// provider the runtime does not accept, before any request is sent.
+pub(super) fn parse_provider(raw: &str) -> Result<String, String> {
+    let canonical = canonicalize_provider(raw);
+    if ACCEPTED_PROVIDERS.contains(&canonical) {
+        Ok(canonical.to_string())
+    } else {
+        Err(format!(
+            "unknown provider '{raw}'; accepted values: {ACCEPTED_PROVIDERS_HINT}"
+        ))
+    }
+}
+
 /// Build the `config_json` object that the runtime stores alongside the
 /// backend row. Shape varies per provider:
 ///
 /// - `llama-cpp`: `{model_path, device, quantization?, timeout_sec}`
-/// - `anthropic` / `openai` / `mistral`: `{api_key?, api_key_env?, base_url?, timeout_sec}`
+/// - `openai`: `{api_key?, api_key_env?, base_url?, timeout_sec}`
 /// - `ollama`: `{base_url, timeout_sec}`
 ///
 /// Inputs for [`build_config_json`], grouped to keep the signature small.

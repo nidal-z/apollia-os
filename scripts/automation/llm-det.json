@@ -7,8 +7,8 @@
     "llm-dialog-enabled-switch and llm-dialog-default-switch are the <button role=switch> a SettingsToggle composes off llm-dialog-enabled / llm-dialog-default (SettingsToggle.svelte:53 passes `${dataTestId}-switch` to Toggle.svelte, which spreads it onto the button, :47-63). The earlier note claiming the inner ids resolve to nothing was wrong; llm-advanced-det drives them by their exact ids.",
     "llm-dialog-browse is played through a stubbed picker: handleBrowse (LlmBackendDialog.svelte:72-93) calls plugin-dialog `open`, which is the IPC plugin:dialog|open; the stub resolves ${HOME}/.apollia/models/Phi-3-mini-Q4.gguf (a seed file, tests/cli/seed/files/models) once, and applySelectedPath (:115-124) writes it into form.model. The dialog is cancelled afterwards, nothing persisted.",
     "llm-dialog-test on the ADD path is a pure local validation (handleTest :156-169, `!editing` branch): with name/endpoint/apikey/model filled the form has no errors, so the click renders llm-dialog-test-result without any network call. On the EDIT path the same button pings the backend, which is why it is only played here.",
-    "llm-error-details-toggle: set-default on the DISABLED seeded openai-gpt4o-mini (system.sql enabled=0). set_default itself succeeds (apollia-core llm_backend.rs:398-420 only refuses an unknown name), then reload_llm_from_db (commands/llm.rs:378-443) rebuilds the router from enabled configs only (router/construct.rs:222) and resolve_default_backend refuses a default that is not instantiated (router/backends.rs:262-275), so the command rejects before swapping the router; handleSetDefault's catch (settings/Llm.svelte:80-82) sets actionError, humanize keeps the raw string as detail (humanize.ts:261-274) and LlmActionErrorBanner mounts the Disclosure whose header composes llm-error-details-toggle (Disclosure.svelte:75). Cards are ORDER BY name (llm_backend.rs:286) and set-default renders on non-default cards only (LlmBackendCard.svelte:181), so after 11c the four cards are anthropic-claude (default), automation-saved, local-llama-server, openai-gpt4o-mini and set-default nth 2 is the disabled one. The restore is two clicks (nth 1 then nth 0) because the list may or may not have been refreshed by the llm-changed SSE the failed reload emits (sse.ts:595-605): on a stale list nth 1 is local-llama-server, on a refreshed one automation-saved; both succeed, both refresh, and on the refreshed list nth 0 is anthropic-claude either way, which is the state llm-det already leaves.",
-    "llm-backend-ping-btn is played in the settings list through a stubbed IPC: handlePing -> pingLlmBackend -> ping_llm_backend (LlmBackendCard.svelte:75-97, ipc/llm.ts:21-23) sends a real completion through the router with no handler-side timeout, and nth 0 is anthropic-claude, a remote backend with a placeholder key, so the real outcome depends on the network. The block after 07-settings-cards-controls stubs the command twice, once each: a resolve shaped like PingResult (commands/llm.rs:98-107, available:true latency_ms:42) renders llm-ping-result with llm.ping_ok, asserted by 'Ping OK (42ms)', which is the same string in both locales; then a reject with a raw string lands in the catch and is rendered verbatim as pingError on the same anchor. The card clears the feedback after FEEDBACK_MS (5 s, :41), so the assertions sit right after each click. The command is cleared afterwards; nothing is written. On the llm page (04-llm-builder-cards-ping-boundary) the button is still only asserted."
+    "llm-error-details-toggle: set-default on the DISABLED seeded vllm-qwen (system.sql enabled=0). set_default itself succeeds (apollia-core llm_backend.rs:398-420 only refuses an unknown name), then reload_llm_from_db (commands/llm.rs:378-443) rebuilds the router from enabled configs only (router/construct.rs:222) and resolve_default_backend refuses a default that is not instantiated (router/backends.rs:262-275), so the command rejects before swapping the router; handleSetDefault's catch (settings/Llm.svelte:80-82) sets actionError, humanize keeps the raw string as detail (humanize.ts:261-274) and LlmActionErrorBanner mounts the Disclosure whose header composes llm-error-details-toggle (Disclosure.svelte:75). Cards are ORDER BY name (llm_backend.rs:286) and set-default renders on non-default cards only (LlmBackendCard.svelte:181), so after 11c the four cards are gpu-server (default), automation-saved, local-llama-server, vllm-qwen and set-default nth 2 is the disabled one. The restore is two clicks (nth 1 then nth 0) because the list may or may not have been refreshed by the llm-changed SSE the failed reload emits (sse.ts:595-605): on a stale list nth 1 is local-llama-server, on a refreshed one automation-saved; both succeed, both refresh, and on the refreshed list nth 0 is gpu-server either way, which is the state llm-det already leaves.",
+    "llm-backend-ping-btn is played in the settings list through a stubbed IPC: handlePing -> pingLlmBackend -> ping_llm_backend (LlmBackendCard.svelte:75-97, ipc/llm.ts:21-23) sends a real completion through the router with no handler-side timeout, and nth 0 is gpu-server, an OpenAI-compatible server on a port that refuses, so the real outcome is an error and only the stub can show a success. The block after 07-settings-cards-controls stubs the command twice, once each: a resolve shaped like PingResult (commands/llm.rs:98-107, available:true latency_ms:42) renders llm-ping-result with llm.ping_ok, asserted by 'Ping OK (42ms)', which is the same string in both locales; then a reject with a raw string lands in the catch and is rendered verbatim as pingError on the same anchor. The card clears the feedback after FEEDBACK_MS (5 s, :41), so the assertions sit right after each click. The command is cleared afterwards; nothing is written. On the llm page (04-llm-builder-cards-ping-boundary) the button is still only asserted."
   ],
   "dynamicTestids": [
     "settings-nav-llm",
@@ -259,7 +259,7 @@
       "kind": "stubInvoke",
       "command": "ping_llm_backend",
       "resolve": {
-        "backend": "anthropic-claude",
+        "backend": "gpu-server",
         "available": true,
         "latency_ms": 42,
         "error": null
@@ -469,7 +469,7 @@
     {
       "kind": "fill",
       "testid": "llm-dialog-endpoint",
-      "text": "https://api.openai.com/v1"
+      "text": "https://llm.example.org/v1"
     },
     {
       "kind": "fill",
@@ -479,7 +479,7 @@
     {
       "kind": "fill",
       "testid": "llm-dialog-model",
-      "text": "gpt-4o-mini"
+      "text": "qwen3-32b"
     },
     {
       "kind": "screenshot",
@@ -622,7 +622,7 @@
     {
       "kind": "fill",
       "testid": "llm-dialog-endpoint",
-      "text": "https://api.openai.com/v1"
+      "text": "https://llm.example.org/v1"
     },
     {
       "kind": "fill",
@@ -632,7 +632,7 @@
     {
       "kind": "fill",
       "testid": "llm-dialog-model",
-      "text": "gpt-4o-mini"
+      "text": "qwen3-32b"
     },
     {
       "kind": "click",
@@ -738,7 +738,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "11f-default-restored-to-anthropic-claude"
+      "label": "11f-default-restored-to-gpu-server"
     },
     {
       "kind": "click",

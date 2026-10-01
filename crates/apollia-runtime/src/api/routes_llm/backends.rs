@@ -24,7 +24,7 @@ use crate::coordinator::ExecutionBackend;
 pub struct CreateLlmBackendRequest {
     /// Unique name, pattern `^[a-z0-9_-]+$`.
     pub name: String,
-    /// Provider identifier: `"llama-cpp"`, `"openai"`, `"mistral"`, `"anthropic"`, `"ollama"`.
+    /// Provider identifier: `"llama-cpp"`, `"openai"` (OpenAI-compatible server), `"ollama"`.
     pub provider: String,
     /// Model identifier (e.g. `"gpt-4o"`, `"mistral-small-latest"`).
     pub model: String,
@@ -310,7 +310,7 @@ pub async fn create_llm_backend<B: ExecutionBackend + Clone>(
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(BackendErrorResponse {
                 error: format!(
-                    "unknown provider '{}'; valid values: llama-cpp, openai, mistral, anthropic, ollama",
+                    "unknown provider '{}'; valid values: llama-cpp, openai, ollama",
                     body.provider
                 ),
             }),
@@ -380,7 +380,7 @@ pub async fn update_llm_backend<B: ExecutionBackend + Clone>(
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(BackendErrorResponse {
                 error: format!(
-                    "unknown provider '{}'; valid values: llama-cpp, openai, mistral, anthropic, ollama",
+                    "unknown provider '{}'; valid values: llama-cpp, openai, ollama",
                     body.provider
                 ),
             }),

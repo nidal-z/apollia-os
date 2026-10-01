@@ -81,7 +81,7 @@ seed_wire_real_model() {
     # Track 2.
     #
     # The name must be one the seed actually writes. seed/fragments/system.sql
-    # declares local-llama-server, openai-gpt4o-mini and anthropic-claude, and
+    # declares local-llama-server, vllm-qwen and gpu-server, and
     # nothing else: a WHERE on any other name matches no row, and the preceding
     # `SET is_default = 0` then leaves the base with NO default at all, a state
     # `reload_llm_from_db` refuses.
