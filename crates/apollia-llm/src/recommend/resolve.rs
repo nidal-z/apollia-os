@@ -77,6 +77,9 @@ pub struct ResolveOptions {
     pub hf_token: Option<String>,
     /// The launch settings the footprint is computed against.
     pub shape: RuntimeShape,
+    /// Root of the Hub to ask, `None` for HuggingFace itself. Set for a mirror
+    /// or a test server.
+    pub hub_base: Option<String>,
 }
 
 impl Default for ResolveOptions {
@@ -87,6 +90,7 @@ impl Default for ResolveOptions {
             concurrency: 4,
             hf_token: None,
             shape: RuntimeShape::default(),
+            hub_base: None,
         }
     }
 }
@@ -450,7 +454,10 @@ async fn resolve_unbounded(
         return Ok(Vec::new());
     }
 
-    let client = HfRegistryClient::new(options.hf_token.clone());
+    let client = match options.hub_base.as_deref() {
+        Some(base) => HfRegistryClient::with_hub_base(options.hf_token.clone(), base),
+        None => HfRegistryClient::new(options.hf_token.clone()),
+    };
     let type_cache = HfModelTypeCache::new();
     let hub = Hub {
         client: &client,

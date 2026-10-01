@@ -11,10 +11,15 @@
 //! for anything we curate", the second means "we could not look". So the
 //! outcome is an enum, and the onboarding step renders a different branch for
 //! each.
+//!
+//! Every outcome also carries the editorial selection, the curated table
+//! rendered as a catalogue. It is computed from the binary alone, so an
+//! unreachable Hub still leaves the operator something to choose from.
 
-use apollia_llm::hardware::detect as detect_hardware;
+use apollia_llm::hardware::{detect as detect_hardware, HardwareProfile};
 use apollia_llm::recommend::{
     resolve, FamilyManifest, Recommendation, ResolveError, ResolveOptions, RuntimeShape,
+    SelectionFamily,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
@@ -47,6 +52,8 @@ pub enum RecommendOutcome {
         /// The machine the ranking was computed for, so the interface can
         /// explain the choice without probing the hardware a second time.
         hardware: HardwareProfileView,
+        /// The editorial selection, whatever the ranking found.
+        selection: Vec<SelectionFamily>,
     },
 
     /// The Hub could not be reached, so there is no catalogue to rank.
@@ -59,12 +66,18 @@ pub enum RecommendOutcome {
         detail: String,
         /// The hardware probe, which succeeds offline and is still worth showing.
         hardware: HardwareProfileView,
+        /// The editorial selection, read from the binary: the one catalogue
+        /// that needs no network.
+        selection: Vec<SelectionFamily>,
     },
 
     /// The Hub answered and nothing it carries fits this machine.
     Empty {
         /// The hardware probe, so the interface can say what it measured.
         hardware: HardwareProfileView,
+        /// The editorial selection, so a machine too small for the ranking
+        /// still sees what Apollia curates.
+        selection: Vec<SelectionFamily>,
     },
 }
 
@@ -120,17 +133,6 @@ pub async fn recommend_models(params: RecommendParams) -> Result<RecommendOutcom
     let profile = tokio::task::spawn_blocking(detect_hardware)
         .await
         .map_err(|e| format!("hardware detection failed: {e}"))?;
-    let hardware = HardwareProfileView::from(profile.clone());
-
-    let manifest = match FamilyManifest::embedded() {
-        Ok(manifest) => manifest,
-        Err(err) => {
-            // The table ships inside this binary, so a failure here is a defect
-            // in the build rather than anything the operator did.
-            event!(Level::ERROR, error = %err, "recommend.manifest.invalid");
-            return Err(format!("the shipped model table is invalid: {err}"));
-        }
-    };
 
     let mut options = ResolveOptions {
         hf_token: params.hf_token,
@@ -143,16 +145,50 @@ pub async fn recommend_models(params: RecommendParams) -> Result<RecommendOutcom
         };
     }
 
-    match resolve(&manifest, &profile, &options).await {
-        Ok(models) if models.is_empty() => Ok(RecommendOutcome::Empty { hardware }),
-        Ok(models) => {
-            let outcome = RecommendOutcome::Ok { models, hardware };
-            remember(cache_key, &outcome);
-            Ok(truncated(outcome, params.limit))
+    let outcome = recommend_for(&profile, &options).await?;
+    remember(cache_key, &outcome);
+    Ok(truncated(outcome, params.limit))
+}
+
+/// The decision behind [`recommend_models`], for a given machine and Hub.
+///
+/// Split out so the outcome can be checked against a Hub that does not answer
+/// without probing the real hardware.
+async fn recommend_for(
+    profile: &HardwareProfile,
+    options: &ResolveOptions,
+) -> Result<RecommendOutcome, String> {
+    let hardware = HardwareProfileView::from(profile.clone());
+
+    let manifest = match FamilyManifest::embedded() {
+        Ok(manifest) => manifest,
+        Err(err) => {
+            // The table ships inside this binary, so a failure here is a defect
+            // in the build rather than anything the operator did.
+            event!(Level::ERROR, error = %err, "recommend.manifest.invalid");
+            return Err(format!("the shipped model table is invalid: {err}"));
         }
+    };
+
+    let selection = manifest.editorial_selection();
+
+    match resolve(&manifest, profile, options).await {
+        Ok(models) if models.is_empty() => Ok(RecommendOutcome::Empty {
+            hardware,
+            selection,
+        }),
+        Ok(models) => Ok(RecommendOutcome::Ok {
+            models,
+            hardware,
+            selection,
+        }),
         Err(ResolveError::HubUnreachable(detail)) => {
             event!(Level::WARN, detail = %detail, "recommend.hub.unreachable");
-            Ok(RecommendOutcome::Unreachable { detail, hardware })
+            Ok(RecommendOutcome::Unreachable {
+                detail,
+                hardware,
+                selection,
+            })
         }
         Err(err) => Err(err.to_string()),
     }
@@ -164,10 +200,85 @@ fn truncated(outcome: RecommendOutcome, limit: Option<usize>) -> RecommendOutcom
         RecommendOutcome::Ok {
             mut models,
             hardware,
+            selection,
         } => {
             models.truncate(limit.unwrap_or(MAX_LIMIT).clamp(1, MAX_LIMIT));
-            RecommendOutcome::Ok { models, hardware }
+            RecommendOutcome::Ok {
+                models,
+                hardware,
+                selection,
+            }
         }
         other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_llm::hardware::AcceleratorProfile;
+
+    /// A machine large enough for the plan to keep several candidates, so the
+    /// Hub is actually asked.
+    fn roomy_machine() -> HardwareProfile {
+        HardwareProfile {
+            total_ram_gb: 64.0,
+            available_ram_gb: 64.0,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 8,
+            accelerator: AcceleratorProfile::None,
+            memory_budget_gb: 38.0,
+        }
+    }
+
+    /// A Hub address nothing listens on: the reserved TCP port 1 of the
+    /// loopback, refused at once, with no port reserved by the test.
+    const UNREACHABLE_HUB: &str = "http://127.0.0.1:1";
+
+    #[tokio::test]
+    async fn an_unreachable_hub_still_renders_the_editorial_selection() {
+        // GIVEN a roomy machine and a HuggingFace that does not answer
+        let options = ResolveOptions {
+            hub_base: Some(UNREACHABLE_HUB.to_owned()),
+            ..ResolveOptions::default()
+        };
+
+        // WHEN the recommendation is asked for
+        let outcome = recommend_for(&roomy_machine(), &options)
+            .await
+            .expect("an unreachable hub is an outcome, not an error");
+
+        // THEN the outcome says the Hub was unreachable and still carries every
+        // family of the curated table, each with a repository to offer
+        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let RecommendOutcome::Unreachable { selection, .. } = outcome else {
+            panic!("expected the unreachable outcome, got {outcome:?}");
+        };
+        assert_eq!(selection.len(), manifest.families().len());
+        assert!(selection.iter().all(|f| f
+            .variants
+            .iter()
+            .all(|v| !v.gguf_repos.is_empty() || !v.mlx_repos.is_empty())));
+    }
+
+    #[test]
+    fn the_selection_is_serialised_with_the_unreachable_status() {
+        // GIVEN an unreachable outcome carrying the selection
+        let manifest = FamilyManifest::embedded().expect("the shipped table loads");
+        let outcome = RecommendOutcome::Unreachable {
+            detail: "offline".to_owned(),
+            hardware: HardwareProfileView::from(roomy_machine()),
+            selection: manifest.editorial_selection(),
+        };
+
+        // WHEN it crosses the IPC boundary
+        let json = serde_json::to_value(&outcome).expect("the outcome serialises");
+
+        // THEN the interface reads the status and the selection side by side
+        assert_eq!(json["status"], "unreachable");
+        let families = json["selection"].as_array().expect("selection is a list");
+        assert_eq!(families.len(), manifest.families().len());
+        assert!(families[0]["variants"][0]["gguf_repos"].is_array());
+        assert!(families[0]["variants"][0]["mlx_repos"].is_array());
     }
 }

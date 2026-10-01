@@ -16,6 +16,10 @@
 //! 3. **Is it the best available.** [`manifest`] holds the curated generation
 //!    table, and [`rank`] orders what survived the first two.
 //!
+//! The same table is also the editorial selection an operator sees first
+//! ([`catalogue`]), and [`publishers`] says which HuggingFace owners are the
+//! official publishers and which are recognised converters.
+//!
 //! The division of labour with the Hub is the point. `hf_registry` is the
 //! catalogue: which repositories exist, what their files weigh, which are
 //! gated. It is authoritative on all of that and silent on quality. Its
@@ -24,17 +28,20 @@
 //! Qwen3 for as long as the counter runs. So the Hub supplies the catalogue and
 //! `families.toml` supplies the order.
 
+pub mod catalogue;
 pub mod fit;
 pub mod llama_support;
 pub mod manifest;
 pub mod mlx;
 pub mod offload;
+pub mod publishers;
 pub mod quant;
 pub mod rank;
 #[cfg(feature = "cloud")]
 pub mod resolve;
 pub mod verdict;
 
+pub use catalogue::{SelectionFamily, SelectionVariant};
 pub use fit::{
     assess_fit, cache_layout, estimate_memory, grade, kv_cache_bytes, max_context_for, CacheKind,
     CacheLayout, FitAssessment, MemoryEstimate, RuntimeShape,
@@ -45,6 +52,7 @@ pub use mlx::{estimate_mlx_memory, mlx_kv_cache_bytes, MlxConfig, MlxEstimateErr
 pub use offload::{
     active_weight_share, estimated_capacity_gb, plan_offload, MemoryArchitecture, OffloadPlan,
 };
+pub use publishers::{publisher_kind, OfficialPublisher, PublisherKind, PublisherLists};
 pub use quant::Quant;
 pub use rank::{rank, FileCandidate, Matched, Reason, Recommendation};
 #[cfg(feature = "cloud")]

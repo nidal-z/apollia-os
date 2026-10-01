@@ -273,9 +273,12 @@ pub(super) fn parse_model_list_item(
         compatibility_issue = Some(CompatIssue::NoGgufFiles);
     }
 
+    let publisher_kind = crate::recommend::publisher_kind(&repo_id);
+
     Some(HfModelCard {
         repo_id,
         author,
+        publisher_kind,
         downloads,
         likes,
         license,
