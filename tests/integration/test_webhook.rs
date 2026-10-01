@@ -153,6 +153,7 @@ async fn build_webhook_state(
         agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
+        connection_governance: Default::default(),
         backend: MockBackend,
         llm_router: apollia_runtime::api::server::empty_shared_llm_router(),
         trigger_engine: Some(engine_handle),

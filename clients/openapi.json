@@ -1191,6 +1191,16 @@
               }
             }
           },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "No pending consent for this state",
             "content": {
@@ -3240,6 +3250,16 @@
           },
           "400": {
             "description": "Invalid configuration or spawn failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the connection admission",
             "content": {
               "application/json": {
                 "schema": {

@@ -79,6 +79,7 @@ fn build_app_state() -> AppState<MockBackend> {
         agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
+        connection_governance: Default::default(),
         backend: MockBackend,
         llm_router: empty_shared_llm_router(),
         trigger_engine: None,

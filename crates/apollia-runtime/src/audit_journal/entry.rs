@@ -63,6 +63,33 @@ pub enum JournalEntryKind {
     /// An agent was uninstalled. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     AgentUninstalled,
+    /// A connection was added: an MCP server, a native account, or a folder. The payload is a
+    /// [`crate::governance::ConnectionRecord`].
+    ConnectionAdded,
+    /// The configuration of a connection was replaced. The payload is a
+    /// [`crate::governance::ConnectionRecord`].
+    ConnectionModified,
+    /// A connection was removed. The payload is a
+    /// [`crate::governance::ConnectionRecord`].
+    ConnectionRemoved,
+    /// The user accepted the warning shown before a connection is added. The payload is a
+    /// [`crate::governance::ConnectionRecord`].
+    ConnectionWarningAccepted,
+    /// A secret a connection names was set. The value is never journaled. The payload is a
+    /// [`crate::governance::ConnectionRecord`].
+    ConnectionSecretSet,
+    /// A secret a connection names was removed. The payload is a
+    /// [`crate::governance::ConnectionRecord`].
+    ConnectionSecretRemoved,
+    /// A native connector account was connected. The payload is a
+    /// [`crate::governance::ConnectionRecord`].
+    AccountConnected,
+    /// A native connector account was disconnected. The payload is a
+    /// [`crate::governance::ConnectionRecord`].
+    AccountDisconnected,
+    /// A folder of this machine was added as a connection. The payload is a
+    /// [`crate::governance::ConnectionRecord`].
+    FolderAdded,
     /// A run-scoped event with no explicit mapping; `raw_kind` keeps the
     /// original variant name so coverage stays auditable.
     Unknown {
@@ -96,6 +123,15 @@ impl JournalEntryKind {
             JournalEntryKind::AgentInstalled => "agent_installed",
             JournalEntryKind::AgentUpdated => "agent_updated",
             JournalEntryKind::AgentUninstalled => "agent_uninstalled",
+            JournalEntryKind::ConnectionAdded => "connection_added",
+            JournalEntryKind::ConnectionModified => "connection_modified",
+            JournalEntryKind::ConnectionRemoved => "connection_removed",
+            JournalEntryKind::ConnectionWarningAccepted => "connection_warning_accepted",
+            JournalEntryKind::ConnectionSecretSet => "connection_secret_set",
+            JournalEntryKind::ConnectionSecretRemoved => "connection_secret_removed",
+            JournalEntryKind::AccountConnected => "account_connected",
+            JournalEntryKind::AccountDisconnected => "account_disconnected",
+            JournalEntryKind::FolderAdded => "folder_added",
             JournalEntryKind::Unknown { raw_kind } => raw_kind,
         }
     }
@@ -123,6 +159,15 @@ impl JournalEntryKind {
             "agent_installed" => JournalEntryKind::AgentInstalled,
             "agent_updated" => JournalEntryKind::AgentUpdated,
             "agent_uninstalled" => JournalEntryKind::AgentUninstalled,
+            "connection_added" => JournalEntryKind::ConnectionAdded,
+            "connection_modified" => JournalEntryKind::ConnectionModified,
+            "connection_removed" => JournalEntryKind::ConnectionRemoved,
+            "connection_warning_accepted" => JournalEntryKind::ConnectionWarningAccepted,
+            "connection_secret_set" => JournalEntryKind::ConnectionSecretSet,
+            "connection_secret_removed" => JournalEntryKind::ConnectionSecretRemoved,
+            "account_connected" => JournalEntryKind::AccountConnected,
+            "account_disconnected" => JournalEntryKind::AccountDisconnected,
+            "folder_added" => JournalEntryKind::FolderAdded,
             other => JournalEntryKind::Unknown {
                 raw_kind: other.to_string(),
             },
@@ -288,6 +333,43 @@ mod tests {
             (JournalEntryKind::AgentInstalled, "agent_installed"),
             (JournalEntryKind::AgentUpdated, "agent_updated"),
             (JournalEntryKind::AgentUninstalled, "agent_uninstalled"),
+        ];
+        for (kind, expected) in cases {
+            // WHEN converting to its tag and back
+            let tag = kind.tag().to_string();
+            let back = JournalEntryKind::from_tag(&tag);
+            // THEN the tag is stable and the round trip is identity
+            assert_eq!(tag, expected);
+            assert_eq!(back, kind);
+        }
+    }
+
+    // The connection kinds round-trip through their stable tags.
+    #[test]
+    fn test_connection_kinds_tags_round_trip() {
+        // GIVEN the connection kinds and their expected tags
+        let cases = [
+            (JournalEntryKind::ConnectionAdded, "connection_added"),
+            (JournalEntryKind::ConnectionModified, "connection_modified"),
+            (JournalEntryKind::ConnectionRemoved, "connection_removed"),
+            (
+                JournalEntryKind::ConnectionWarningAccepted,
+                "connection_warning_accepted",
+            ),
+            (
+                JournalEntryKind::ConnectionSecretSet,
+                "connection_secret_set",
+            ),
+            (
+                JournalEntryKind::ConnectionSecretRemoved,
+                "connection_secret_removed",
+            ),
+            (JournalEntryKind::AccountConnected, "account_connected"),
+            (
+                JournalEntryKind::AccountDisconnected,
+                "account_disconnected",
+            ),
+            (JournalEntryKind::FolderAdded, "folder_added"),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back

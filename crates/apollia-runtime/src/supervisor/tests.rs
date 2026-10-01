@@ -559,6 +559,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         tool_registry_handle: None,
         audit_trail: None,
         audit_journal: None,
+        connection_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,

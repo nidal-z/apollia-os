@@ -56,6 +56,9 @@ pub struct RuntimeHandle {
     pub trigger_engine: TriggerEngineHandle,
     /// Optional handle to the AuditTrail.
     pub audit_trail: Option<AuditTrailHandle>,
+    /// Admission policy and journal of connection events. The desktop admits
+    /// and journals a native account through it, the HTTP routes the rest.
+    pub connection_governance: crate::governance::ConnectionGovernance,
     /// Read access to the TaskRepository.
     pub task_repository: Option<Arc<TaskRepository>>,
     /// Pending approvals.
@@ -555,6 +558,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         llm_router: handles.llm_router,
         trigger_engine: handles.trigger_engine,
         audit_trail: handles.audit_trail,
+        connection_governance: handles.connection_governance,
         task_repository: handles.task_repository,
         pending_approvals: handles.pending_approvals,
         plan_gates: handles.plan_gates,

@@ -16,11 +16,14 @@
 //!
 //! The runtime is single-user by design; a connected account is the
 //! instance's account, as it is under the desktop.
+//!
+//! An account is submitted to the connection admission before its code is
+//! exchanged, and connecting or disconnecting one is journaled.
 
 use std::sync::OnceLock;
 
 use axum::{
-    extract::Path,
+    extract::{Path, State},
     http::StatusCode,
     routing::{delete, get, post},
     Json, Router,
@@ -33,6 +36,12 @@ use apollia_auth::{AccountId, ConnectorProvider};
 use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+use crate::governance::{
+    AdmissionDecision, AdmissionRequest, ConnectionEvent, ConnectionGovernance,
+};
+
+/// Who the connection journal names for an account changed through these routes.
+const ROUTE_ACTOR: &str = "api";
 
 /// Longest `state` accepted back. The runtime issues 43 characters.
 const MAX_STATE_LEN: usize = 256;
@@ -59,12 +68,12 @@ pub fn connectors_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         )
         .route(
             "/api/v1/connectors/oauth/complete",
-            post(complete_connector_consent),
+            post(complete_connector_consent::<B>),
         )
         .route("/api/v1/connectors/accounts", get(list_connector_accounts))
         .route(
             "/api/v1/connectors/accounts/:provider/:account_id",
-            delete(disconnect_connector_account),
+            delete(disconnect_connector_account::<B>),
         )
 }
 
@@ -93,6 +102,18 @@ fn consent_err(err: ConsentError) -> ApiError {
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     };
     api_err(code, err)
+}
+
+/// Submit an account of `provider` to the connection admission; a refusal is
+/// `403 Forbidden` carrying the reason.
+fn admit_account(
+    governance: &ConnectionGovernance,
+    provider: ConnectorProvider,
+) -> Result<(), ApiError> {
+    match governance.admit(&AdmissionRequest::for_native_account(provider)) {
+        AdmissionDecision::Admitted => Ok(()),
+        AdmissionDecision::Refused { reason } => Err(api_err(StatusCode::FORBIDDEN, reason)),
+    }
 }
 
 async fn auth_manager() -> Result<std::sync::Arc<apollia_auth::AuthManager>, ApiError> {
@@ -201,11 +222,21 @@ pub(crate) async fn start_connector_consent(
     responses(
         (status = 200, description = "Account connected", body = ConnectedAccountResponse),
         (status = 400, description = "Empty or oversized state or code", body = ApiErrorBody),
+        (status = 403, description = "Refused by the connection admission", body = ApiErrorBody),
         (status = 404, description = "No pending consent for this state", body = ApiErrorBody),
         (status = 502, description = "The provider refused the code or named no account", body = ApiErrorBody),
     )
 )]
-pub(crate) async fn complete_connector_consent(
+pub(crate) async fn complete_connector_consent<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    body: Json<CompleteConsentBody>,
+) -> Result<Json<ConnectedAccountResponse>, ApiError> {
+    complete_consent(&state.connection_governance, body).await
+}
+
+/// Body of [`complete_connector_consent`]: validate, admit, exchange, journal.
+async fn complete_consent(
+    governance: &ConnectionGovernance,
     Json(body): Json<CompleteConsentBody>,
 ) -> Result<Json<ConnectedAccountResponse>, ApiError> {
     if body.state.is_empty() || body.state.len() > MAX_STATE_LEN {
@@ -221,16 +252,31 @@ pub(crate) async fn complete_connector_consent(
         ));
     }
     let pending = consents().take(&body.state).map_err(consent_err)?;
+    admit_account(governance, pending.provider)?;
     let manager = auth_manager().await?;
     let account = connector_consent::complete(pending, &body.code, &manager)
         .await
         .map_err(consent_err)?;
+    Ok(Json(record_connected(governance, account)))
+}
+
+/// Journal the connection of `account`, whose token is already stored, and
+/// answer it.
+fn record_connected(
+    governance: &ConnectionGovernance,
+    account: connector_consent::ConnectedAccount,
+) -> ConnectedAccountResponse {
     tracing::info!(provider = %account.provider.id(), "connectors.consent.completed");
-    Ok(Json(ConnectedAccountResponse {
+    governance.record_or_warn(&ConnectionEvent::account_connected(
+        account.provider,
+        &account.account_id.0,
+        ROUTE_ACTOR,
+    ));
+    ConnectedAccountResponse {
         provider: account.provider.id().to_owned(),
         account_id: account.account_id.0,
         granted_scopes: account.granted_scopes,
-    }))
+    }
 }
 
 /// `GET /api/v1/connectors/accounts`: every connected account, all providers.
@@ -276,17 +322,43 @@ pub(crate) async fn list_connector_accounts(
         (status = 500, description = "The token store could not be written", body = ApiErrorBody),
     )
 )]
-pub(crate) async fn disconnect_connector_account(
+pub(crate) async fn disconnect_connector_account<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    path: Path<(String, String)>,
+) -> Result<StatusCode, ApiError> {
+    disconnect_account(&state.connection_governance, path).await
+}
+
+/// Body of [`disconnect_connector_account`]: forget the token, then journal.
+async fn disconnect_account(
+    governance: &ConnectionGovernance,
     Path((provider, account_id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let provider = connector_consent::provider_from_id(&provider).map_err(consent_err)?;
     let manager = auth_manager().await?;
+    revoke_and_record(governance, &manager, provider, &account_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Forget the token of `account_id` in `manager`, then journal the
+/// disconnection.
+async fn revoke_and_record(
+    governance: &ConnectionGovernance,
+    manager: &apollia_auth::AuthManager,
+    provider: ConnectorProvider,
+    account_id: &str,
+) -> Result<(), ApiError> {
     manager
         .revoke(provider, &AccountId::new(account_id))
         .await
         .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     tracing::info!(provider = %provider.id(), "connectors.account.disconnected");
-    Ok(StatusCode::NO_CONTENT)
+    governance.record_or_warn(&ConnectionEvent::account_disconnected(
+        provider,
+        account_id,
+        ROUTE_ACTOR,
+    ));
+    Ok(())
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
@@ -355,7 +427,9 @@ mod tests {
         });
 
         // WHEN the consent is completed with it
-        let (code, _) = complete_connector_consent(body).await.unwrap_err();
+        let (code, _) = complete_consent(&ConnectionGovernance::default(), body)
+            .await
+            .unwrap_err();
 
         // THEN it is not found, and no token exchange is attempted
         assert_eq!(code, StatusCode::NOT_FOUND);
@@ -370,10 +444,198 @@ mod tests {
         });
 
         // WHEN it is sent
-        let (code, _) = complete_connector_consent(body).await.unwrap_err();
+        let (code, _) = complete_consent(&ConnectionGovernance::default(), body)
+            .await
+            .unwrap_err();
 
         // THEN it is a bad request
         assert_eq!(code, StatusCode::BAD_REQUEST);
+    }
+
+    /// Token store held in memory, so no test touches the OS keychain.
+    #[derive(Default)]
+    struct MemoryStore(std::sync::Mutex<std::collections::HashMap<(String, String), String>>);
+
+    impl apollia_auth::SecretStore for MemoryStore {
+        fn set(
+            &self,
+            service: &str,
+            user: &str,
+            value: &str,
+        ) -> Result<(), apollia_auth::AuthError> {
+            self.0
+                .lock()
+                .unwrap()
+                .insert((service.to_owned(), user.to_owned()), value.to_owned());
+            Ok(())
+        }
+        fn get(
+            &self,
+            service: &str,
+            user: &str,
+        ) -> Result<Option<String>, apollia_auth::AuthError> {
+            Ok(self
+                .0
+                .lock()
+                .unwrap()
+                .get(&(service.to_owned(), user.to_owned()))
+                .cloned())
+        }
+        fn delete(&self, service: &str, user: &str) -> Result<(), apollia_auth::AuthError> {
+            self.0
+                .lock()
+                .unwrap()
+                .remove(&(service.to_owned(), user.to_owned()));
+            Ok(())
+        }
+        fn backend_id(&self) -> &'static str {
+            "memory"
+        }
+    }
+
+    struct RefuseRemote;
+
+    impl crate::governance::ConnectionAdmission for RefuseRemote {
+        fn read_decision(
+            &self,
+            request: &AdmissionRequest,
+        ) -> Result<AdmissionDecision, crate::governance::PolicyReadError> {
+            Ok(if request.remote {
+                AdmissionDecision::Refused {
+                    reason: "remote connections are not allowed".into(),
+                }
+            } else {
+                AdmissionDecision::Admitted
+            })
+        }
+    }
+
+    // A refused account stops the completion before any code is exchanged.
+    #[tokio::test]
+    async fn test_complete_refused_by_admission_exchanges_nothing() {
+        // GIVEN a pending Google consent and a policy refusing remote connections
+        let config = connector_consent::provider_config_for(ConnectorProvider::Google, &[])
+            .expect("provider config");
+        let start = consents()
+            .begin(
+                ConnectorProvider::Google,
+                config,
+                "https://app.example.test/cb",
+            )
+            .expect("begin");
+        let governance = ConnectionGovernance::new(std::sync::Arc::new(RefuseRemote), None);
+        let body = Json(CompleteConsentBody {
+            state: start.state,
+            code: "abc".to_owned(),
+        });
+
+        // WHEN the consent is completed
+        let (code, Json(err)) = complete_consent(&governance, body).await.unwrap_err();
+
+        // THEN it is forbidden with the policy's reason, before the exchange
+        // (an exchange would have answered a bad gateway)
+        assert_eq!(code, StatusCode::FORBIDDEN);
+        assert_eq!(err.error, "remote connections are not allowed");
+    }
+
+    // A completed consent journals the account it connected.
+    #[tokio::test]
+    async fn test_connect_journals_the_account() {
+        // GIVEN governance over a journal, and a Google account whose token
+        // the consent stored
+        let dir = tempfile::TempDir::new().unwrap();
+        let journal =
+            crate::audit_journal::AuditJournalHandle::open(&dir.path().join("journal.db"))
+                .await
+                .unwrap();
+        let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+        let account = connector_consent::ConnectedAccount {
+            provider: ConnectorProvider::Google,
+            account_id: AccountId::new("ada@example.com"),
+            granted_scopes: vec!["openid".to_owned()],
+        };
+
+        // WHEN the connection is recorded
+        let response = record_connected(&governance, account);
+
+        // THEN the answer names the account and its connection run records
+        // the connection by the route
+        assert_eq!(response.provider, "google");
+        assert_eq!(response.account_id, "ada@example.com");
+        assert_eq!(response.granted_scopes, vec!["openid".to_owned()]);
+        let entries = journal
+            .query_run(&crate::governance::connection_run_id(
+                "native:google:ada@example.com",
+            ))
+            .await;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].kind,
+            crate::audit_journal::JournalEntryKind::AccountConnected
+        );
+        assert_eq!(entries[0].payload["account"], "ada@example.com");
+        assert_eq!(entries[0].payload["actor"], ROUTE_ACTOR);
+        journal.shutdown().await;
+    }
+
+    // Disconnecting an account forgets its token and journals the disconnection.
+    #[tokio::test]
+    async fn test_disconnect_journals_the_account() {
+        // GIVEN a connected Google account in an isolated store, and governance
+        // over a journal
+        let dir = tempfile::TempDir::new().unwrap();
+        let storage = apollia_auth::MultiAccountStorage::with_store(
+            dir.path().join("connectors-index.json"),
+            Box::new(MemoryStore::default()),
+        );
+        let manager = apollia_auth::AuthManager::with_storage(storage);
+        manager
+            .put_token(
+                ConnectorProvider::Google,
+                &AccountId::new("ada@example.com"),
+                apollia_auth::StoredToken {
+                    access_token: "at".into(),
+                    refresh_token: None,
+                    expires_at: None,
+                    scopes: vec![],
+                },
+            )
+            .await
+            .unwrap();
+        let journal =
+            crate::audit_journal::AuditJournalHandle::open(&dir.path().join("journal.db"))
+                .await
+                .unwrap();
+        let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+
+        // WHEN the account is disconnected
+        revoke_and_record(
+            &governance,
+            &manager,
+            ConnectorProvider::Google,
+            "ada@example.com",
+        )
+        .await
+        .unwrap();
+
+        // THEN the account is gone and its connection run records the disconnection
+        let accounts = manager
+            .list_accounts(ConnectorProvider::Google)
+            .await
+            .unwrap();
+        assert!(accounts.is_empty());
+        let entries = journal
+            .query_run(&crate::governance::connection_run_id(
+                "native:google:ada@example.com",
+            ))
+            .await;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].kind,
+            crate::audit_journal::JournalEntryKind::AccountDisconnected
+        );
+        assert_eq!(entries[0].payload["account"], "ada@example.com");
+        journal.shutdown().await;
     }
 
     #[tokio::test]
@@ -382,7 +644,9 @@ mod tests {
         let path = Path(("github".to_owned(), "ada@example.test".to_owned()));
 
         // WHEN one of its accounts is disconnected
-        let (code, _) = disconnect_connector_account(path).await.unwrap_err();
+        let (code, _) = disconnect_account(&ConnectionGovernance::default(), path)
+            .await
+            .unwrap_err();
 
         // THEN it is a bad request, and the token store is never opened
         assert_eq!(code, StatusCode::BAD_REQUEST);
