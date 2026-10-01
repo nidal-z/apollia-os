@@ -565,6 +565,46 @@ mod tests {
         assert!(extract_base_model_from_json(&payload).is_none());
     }
 
+    #[test]
+    fn a_file_the_old_badge_called_tight_gets_the_estimator_verdict_in_the_hub() {
+        // GIVEN a 16 GiB file on a 32 GB Apple Silicon machine (24 GB budget):
+        // the old badge, 16 x 1.1 = 17.6 over 70 % of 24 = 16.8, said
+        // "might fit"; the estimator, weights plus cache plus overhead, says
+        // it fits
+        let profile = HardwareProfile {
+            total_ram_gb: 32.0,
+            available_ram_gb: 20.0,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 8,
+            accelerator: crate::hardware::AcceleratorProfile::AppleSilicon {
+                chip: "M3 Max".to_owned(),
+                generation: 3,
+                vram_gb: 32.0,
+            },
+            memory_budget_gb: 24.0,
+        };
+        let size: u64 = 16 * 1024 * 1024 * 1024;
+        let entries: Vec<TreeEntry> = serde_json::from_value(json!([
+            { "type": "file", "path": "model-Q4_K_M.gguf", "size": size }
+        ]))
+        .expect("tree parses");
+
+        // WHEN the Hub lists the file
+        let files = build_gguf_files(&entries, "org/model-GGUF", Some(&profile));
+
+        // THEN its badge is the estimator's, the same one the ranking and the
+        // offload plan read for the same inputs
+        let fit = crate::recommend::assess_fit(
+            size,
+            &crate::gguf_probe::GgufHeaderFacts::default(),
+            &profile,
+            &crate::recommend::RuntimeShape::default(),
+        );
+        assert_eq!(fit.badge, CompatibilityBadge::Fits);
+        assert!(fit.plan.fully_offloaded);
+        assert_eq!(files[0].compatibility, Some(CompatibilityBadge::Fits));
+    }
+
     /// A tree recorded from `ggml-org/SmolVLM-256M-Instruct-GGUF`: two plain
     /// git files and four LFS files.
     const RECORDED_TREE: &str = include_str!("hf_registry/fixtures/tree_smolvlm_256m.json");

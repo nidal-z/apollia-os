@@ -59,9 +59,9 @@ use serde::{Deserialize, Serialize};
 use crate::gguf_probe::GgufHeaderFacts;
 use crate::hardware::{CompatibilityBadge, HardwareProfile};
 
-use super::fit::{estimate_memory, max_context_for, MemoryEstimate, RuntimeShape};
+use super::fit::{assess_fit, max_context_for, FitAssessment, MemoryEstimate, RuntimeShape};
 use super::manifest::{Family, FamilyManifest, ToolCalling, Variant};
-use super::offload::{active_weight_share, plan_offload, MemoryArchitecture, OffloadPlan};
+use super::offload::{active_weight_share, MemoryArchitecture, OffloadPlan};
 use super::quant;
 use super::verdict::{assess, Caveat, Verdict};
 
@@ -269,68 +269,46 @@ pub struct Matched<'m> {
     pub variant: &'m Variant,
 }
 
-/// Grade a footprint against a capacity, on the thresholds the badge uses.
-fn grade_against(total_gb: f64, capacity_gb: f64) -> CompatibilityBadge {
-    if total_gb < capacity_gb * 0.70 {
-        CompatibilityBadge::Fits
-    } else if total_gb < capacity_gb {
-        CompatibilityBadge::MightFit
-    } else {
-        CompatibilityBadge::TooLarge
-    }
-}
-
-/// Where a model runs, judged against that pool alone.
+/// Why a model got its badge, stated against the pool it runs in.
 ///
-/// Returns the grade and the reason that states it. The gate against
-/// everything the machine can hold has already passed.
+/// The badge itself comes from [`super::fit::grade`]; this only words it.
 fn placement(
     architecture: MemoryArchitecture,
     estimate: &MemoryEstimate,
     offload: &OffloadPlan,
+    badge: CompatibilityBadge,
     capacity_gb: f64,
-) -> (CompatibilityBadge, Reason) {
+) -> Reason {
     let needs_gb = estimate.total_gb;
-    let within = |pool: MemoryPool, budget_gb: f64| {
-        // Never `TooLarge` here: the model passed the gate, and the placement
-        // only says how much room it leaves.
-        if needs_gb < budget_gb * 0.70 {
-            (
-                CompatibilityBadge::Fits,
-                Reason::FitsComfortably {
-                    needs_gb,
-                    budget_gb,
-                    pool,
-                },
-            )
+    let stated = |pool: MemoryPool, budget_gb: f64| {
+        if badge == CompatibilityBadge::Fits {
+            Reason::FitsComfortably {
+                needs_gb,
+                budget_gb,
+                pool,
+            }
         } else {
-            (
-                CompatibilityBadge::MightFit,
-                Reason::Tight {
-                    needs_gb,
-                    budget_gb,
-                    pool,
-                },
-            )
+            Reason::Tight {
+                needs_gb,
+                budget_gb,
+                pool,
+            }
         }
     };
     match architecture {
-        MemoryArchitecture::Unified { .. } => within(MemoryPool::Unified, capacity_gb),
-        MemoryArchitecture::HostOnly { .. } => within(MemoryPool::System, capacity_gb),
+        MemoryArchitecture::Unified { .. } => stated(MemoryPool::Unified, capacity_gb),
+        MemoryArchitecture::HostOnly { .. } => stated(MemoryPool::System, capacity_gb),
         MemoryArchitecture::Discrete { vram_gb, .. } if offload.fully_offloaded => {
-            within(MemoryPool::Gpu, vram_gb)
+            stated(MemoryPool::Gpu, vram_gb)
         }
         MemoryArchitecture::Discrete { host_gb, .. } if offload.n_gpu_layers == 0 => {
-            within(MemoryPool::System, host_gb)
+            stated(MemoryPool::System, host_gb)
         }
-        MemoryArchitecture::Discrete { vram_gb, .. } => (
-            CompatibilityBadge::MightFit,
-            Reason::SplitAcrossMemory {
-                gpu_gb: offload.device_gb,
-                vram_gb,
-                system_gb: offload.host_gb,
-            },
-        ),
+        MemoryArchitecture::Discrete { vram_gb, .. } => Reason::SplitAcrossMemory {
+            gpu_gb: offload.device_gb,
+            vram_gb,
+            system_gb: offload.host_gb,
+        },
     }
 }
 
@@ -378,8 +356,12 @@ pub fn rank(
             n_ctx: crate::context_window::cap_at_trained(asked.n_ctx, m.facts.context_length),
             ..*asked
         };
-        let estimate = estimate_memory(m.file.size_bytes, &m.facts, shape, accelerated);
-        if grade_against(estimate.total_gb, capacity_gb) == CompatibilityBadge::TooLarge {
+        let FitAssessment {
+            estimate,
+            plan: offload,
+            badge,
+        } = assess_fit(m.file.size_bytes, &m.facts, profile, shape);
+        if badge == CompatibilityBadge::TooLarge {
             continue;
         }
 
@@ -390,8 +372,7 @@ pub fn rank(
         let quant = quant::from_filename(&m.file.filename);
         let quality = base * quant.map_or(1.0, |q| q.quality);
 
-        let offload = plan_offload(m.file.size_bytes, &m.facts, profile, shape);
-        let (badge, fit_reason) = placement(architecture, &estimate, &offload, capacity_gb);
+        let fit_reason = placement(architecture, &estimate, &offload, badge, capacity_gb);
         let max_context = max_context_for(m.file.size_bytes, &m.facts, shape, profile, accelerated)
             .filter(|ctx| *ctx < shape.n_ctx);
 
