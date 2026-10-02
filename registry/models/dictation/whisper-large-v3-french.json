@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "whisper-large-v3-french",
+  "kind": "dictation",
+  "label": "Whisper Large-v3 French",
+  "publisher": "bofenghuang",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french"
+  },
+  "source_url": "https://huggingface.co/bofenghuang/whisper-large-v3-french",
+  "description": {
+    "fr": "Version du grand modèle de dictée affinée sur le français : meilleure ponctuation et meilleurs noms propres en français.",
+    "en": "A version of the large dictation model fine-tuned on French: better punctuation and proper names in French."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french"
+  },
+  "memory": {
+    "min_gb": 1.1,
+    "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french/blob/main/ggml-model-q5_0.bin"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "bofenghuang/whisper-large-v3-french"
+  ],
+  "selection_files": [
+    "https://huggingface.co/bofenghuang/whisper-large-v3-french/resolve/main/ggml-model-q5_0.bin"
+  ]
+}

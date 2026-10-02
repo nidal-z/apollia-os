@@ -5,6 +5,9 @@
 //! - `GET /api/v1/llm/registry/model/:org/:repo`, model metadata + file list
 //! - `GET /api/v1/llm/recommend`                 , models ranked for this machine
 //! - `GET /api/v1/llm/embeddings`                , embeddings models, and the one for this machine
+//! - `GET /api/v1/llm/registry/cards`            , the signed model cards, when the catalogue opens
+//! - `GET /api/v1/llm/registry/card`             , one model card, from the kept copy
+//! - `GET /api/v1/llm/registry/readme`           , the README of a repository, as text
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -18,6 +21,8 @@ use apollia_llm::AcceleratorProfile;
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
+#[cfg(feature = "cloud")]
+pub mod cards;
 pub mod embeddings;
 
 // ─────────────────────────────────────────────
@@ -322,7 +327,16 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             "/api/v1/llm/registry/model/:org/:repo",
             get(get_registry_model::<B>),
         )
-        .route("/api/v1/llm/recommend", get(recommend_models::<B>));
+        .route("/api/v1/llm/recommend", get(recommend_models::<B>))
+        .route(
+            "/api/v1/llm/registry/cards",
+            get(cards::list_model_cards::<B>),
+        )
+        .route("/api/v1/llm/registry/card", get(cards::get_model_card::<B>))
+        .route(
+            "/api/v1/llm/registry/readme",
+            get(cards::get_model_readme::<B>),
+        );
 
     router
 }

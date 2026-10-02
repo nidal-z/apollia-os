@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "phi4/phi-4",
+  "kind": "language",
+  "label": "Phi-4",
+  "publisher": "Microsoft",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/microsoft/phi-4"
+  },
+  "source_url": "https://huggingface.co/microsoft/phi-4",
+  "description": {
+    "fr": "Modèle de Microsoft entraîné surtout au raisonnement mathématique et logique ; son gabarit ne prévoit pas d'outils.",
+    "en": "A Microsoft model trained mostly for mathematical and logical reasoning; its template has no tools."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/microsoft/phi-4/tree/main"
+  },
+  "memory": {
+    "min_gb": 9.1,
+    "source": "https://huggingface.co/bartowski/phi-4-GGUF/blob/main/phi-4-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": "https://huggingface.co/microsoft/phi-4/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "microsoft/phi-4",
+    "microsoft/phi-4-gguf",
+    "bartowski/phi-4-GGUF",
+    "unsloth/phi-4-GGUF",
+    "mlx-community/phi-4-4bit"
+  ],
+  "template": "registry/models/templates/phi4.jinja"
+}

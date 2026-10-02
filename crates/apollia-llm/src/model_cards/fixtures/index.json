@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "cards": [
+    {
+      "id": "qwen3/Qwen3-8B",
+      "kind": "language",
+      "label": "Qwen3 8B",
+      "publisher": "Qwen",
+      "license": { "id": "apache-2.0", "source": "https://huggingface.co/Qwen/Qwen3-8B" },
+      "source_url": "https://huggingface.co/Qwen/Qwen3-8B",
+      "description": {
+        "fr": "Modèle polyvalent de taille moyenne, à l'aise avec les outils.",
+        "en": "A mid-sized general model, at ease with tools."
+      },
+      "capabilities": { "tools": true, "reasoning": true, "vision": false, "source": "https://huggingface.co/Qwen/Qwen3-8B-GGUF" },
+      "memory": { "min_gb": 6.1, "source": "https://huggingface.co/Qwen/Qwen3-8B-GGUF/blob/main/Qwen3-8B-Q4_K_M.gguf" },
+      "defaults": { "temperature": 1.0, "top_p": 0.95, "top_k": 20, "source": "https://huggingface.co/Qwen/Qwen3-8B/blob/main/generation_config.json" },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": { "fr": "Le modèle réfléchit avant de répondre.", "en": "The model thinks before it answers." },
+          "source": "https://huggingface.co/Qwen/Qwen3-8B/blob/main/tokenizer_config.json"
+        }
+      ],
+      "repos": ["Qwen/Qwen3-8B", "Qwen/Qwen3-8B-GGUF"]
+    },
+    {
+      "id": "multilingual-e5-small",
+      "kind": "embeddings",
+      "label": "Multilingual E5 small",
+      "publisher": "intfloat",
+      "license": { "id": "mit", "source": "https://huggingface.co/intfloat/multilingual-e5-small" },
+      "source_url": "https://huggingface.co/intfloat/multilingual-e5-small",
+      "description": { "fr": "", "en": "A small model that turns a text into a vector." },
+      "capabilities": { "tools": false, "reasoning": false, "vision": false, "source": "https://huggingface.co/intfloat/multilingual-e5-small" },
+      "memory": { "min_gb": 1.2, "source": "https://huggingface.co/cstr/multilingual-e5-small-GGUF" },
+      "defaults": { "source": "https://huggingface.co/intfloat/multilingual-e5-small" },
+      "repos": ["cstr/multilingual-e5-small-GGUF"]
+    }
+  ],
+  "publishers": { "official": [{ "publisher": "Qwen", "orgs": ["Qwen"] }], "converters": ["unsloth"] }
+}

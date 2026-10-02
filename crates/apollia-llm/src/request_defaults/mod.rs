@@ -1,8 +1,8 @@
 //! The request settings a call starts from, resolved in three levels.
 //!
 //! 1. **The model**: the defaults its publisher recommends, read by
-//!    [`crate::model_defaults::resolve`] from the file the downloader fills and
-//!    from the table the binary embeds.
+//!    [`crate::model_defaults::resolve`] from the card copied next to the
+//!    model, the file the downloader fills, and the table the binary embeds.
 //! 2. **The agent's package**: the `request` of the model defaults its
 //!    manifest declares ([`PackageRequestSettings`]).
 //! 3. **The user**: the request settings of the preset chosen for the agent,
@@ -21,9 +21,6 @@ use crate::gguf_probe::{probe_file, SCREEN_BYTES};
 use crate::model_defaults::{resolve, ModelDefaults, ModelHints, UserOverrides};
 use crate::model_index::{ModelIndex, INDEX_FILE_NAME};
 use crate::types::CompletionRequest;
-
-#[cfg(test)]
-mod tests;
 
 /// Name of the publisher defaults file inside the models directory.
 pub const SAMPLING_DEFAULTS_FILE_NAME: &str = "sampling-defaults.json";
@@ -59,6 +56,8 @@ impl RequestDefaults {
             temperature: defaults.temperature,
             top_p: defaults.top_p,
             top_k: defaults.top_k,
+            min_p: defaults.min_p,
+            presence_penalty: defaults.presence_penalty,
             repeat_penalty: defaults.repetition_penalty,
             ..Self::default()
         }
@@ -138,8 +137,9 @@ fn fill<T: Copy>(slot: &mut Option<T>, value: Option<T>) {
     }
 }
 
-/// Level 1 for the model a backend serves: [`resolve`] over the publisher
-/// defaults file of `models_dir` and the embedded table.
+/// Level 1 for the model a backend serves: [`resolve`] over the card copied
+/// next to the model, the publisher defaults file of `models_dir` and the
+/// embedded table.
 ///
 /// `model_id` and `backend` are the identifiers the router knows the model
 /// by. When the models index of `models_dir` holds that model, its file name
@@ -162,14 +162,33 @@ pub fn model_level(model_id: &str, backend: &str, models_dir: Option<&Path>) -> 
         .and_then(|n| n.to_str())
         .map(str::to_owned);
     let arch = file_path.as_deref().and_then(gguf_architecture);
+    let card = file_path.as_deref().and_then(card_defaults);
     let hints = ModelHints {
         arch: arch.as_deref(),
         name: Some(backend),
         file_name: file_name.as_deref(),
         repo_id: None,
         model_id: Some(model_id),
+        card: card.as_ref(),
     };
     resolve(&hints, &overrides)
+}
+
+/// The sampling values of the card copied next to the model at `path`.
+fn card_defaults(path: &Path) -> Option<ModelDefaults> {
+    match crate::model_cards::installed_card(path) {
+        Ok(card) => card.map(|c| ModelDefaults::from(&c.defaults)),
+        Err(error) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                path = %path.display(),
+                error = %error,
+                detail = "the model card is skipped",
+                "llm.request_defaults.card_unreadable"
+            );
+            None
+        }
+    }
 }
 
 fn load_overrides(path: &Path) -> UserOverrides {
@@ -220,3 +239,6 @@ fn gguf_architecture(path: &Path) -> Option<String> {
     }
     probe_file(path, SCREEN_BYTES).ok()?.architecture
 }
+
+#[cfg(test)]
+mod tests;

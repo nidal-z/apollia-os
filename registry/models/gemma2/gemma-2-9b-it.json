@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "gemma2/gemma-2-9b-it",
+  "kind": "language",
+  "label": "Gemma 2 9B",
+  "publisher": "Google",
+  "license": {
+    "id": "gemma",
+    "source": "https://huggingface.co/google/gemma-2-9b-it"
+  },
+  "source_url": "https://huggingface.co/google/gemma-2-9b-it",
+  "description": {
+    "fr": "Ancienne génération Gemma, conservée pour la conversation simple ; ni outils ni images.",
+    "en": "An older Gemma generation, kept for plain conversation; neither tools nor images."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/unsloth/gemma-2-9b-it/tree/main"
+  },
+  "memory": {
+    "min_gb": 5.8,
+    "source": "https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/blob/main/gemma-2-9b-it-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "source": "https://huggingface.co/unsloth/gemma-2-9b-it/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "google/gemma-2-9b-it",
+    "bartowski/gemma-2-9b-it-GGUF",
+    "mlx-community/gemma-2-9b-it-4bit"
+  ]
+}
