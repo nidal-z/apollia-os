@@ -39,8 +39,34 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
+    // Agents: the registry, the install, the start and the stop.
+    "agent_status_snapshot",
+    "install_agent",
+    "list_agents",
+    "start_agent",
+    "stop_agent",
+    // Tasks: the list, the launch, the detail, the cancellation.
+    "cancel_task",
+    "get_task_timeline",
+    "list_tasks",
+    "submit_task",
+    // Approvals: the pending and resolved ones, and the decision that resumes
+    // the task.
+    "list_pending_approvals",
+    "list_resolved_approvals",
+    "resume_task",
+    // The questions an agent asked the user.
+    "list_pending_user_inputs",
+    "respond_user_input",
+    "respond_user_input_rejected",
+    // Models: the download of a whole variant from the Hub.
     "start_variant_download",
 ];
+
+/// Encodes one path segment of a daemon route.
+pub(crate) fn segment(value: &str) -> std::borrow::Cow<'_, str> {
+    urlencoding::encode(value)
+}
 
 /// Where the runtime this application drives lives.
 #[derive(Clone)]

@@ -27,7 +27,7 @@ fn session(id: &str) -> SessionInfo {
 fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error() {
     // GIVEN the application attached to a daemon, and a command whose body
     // reads state only the embedded runtime builds
-    let command = "list_agents";
+    let command = "list_memory_namespaces";
 
     // WHEN the gate is asked before the body runs
     let refusal = gate(LinkMode::Attached, command);
@@ -39,11 +39,11 @@ fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error()
     let fr = error.for_display(UiLocale::Fr);
     let en = error.for_display(UiLocale::En);
     assert!(
-        fr.contains("list_agents") && fr.contains("en service"),
+        fr.contains("list_memory_namespaces") && fr.contains("en service"),
         "{fr}"
     );
     assert!(
-        en.contains("list_agents") && en.contains("as a service"),
+        en.contains("list_memory_namespaces") && en.contains("as a service"),
         "{en}"
     );
 }
@@ -57,12 +57,24 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
         .filter(|command| gate(LinkMode::Attached, command).is_err())
         .collect();
 
-    // THEN none is refused, and the chat surface of the story is among them
+    // THEN none is refused, and the chat, agents, tasks, approvals and
+    // questions to the user are among them
     assert!(refused.is_empty(), "refused: {refused:?}");
     for command in [
         "send_chat_message",
         "pause_chat_session",
         "list_chat_sessions",
+        "list_agents",
+        "install_agent",
+        "start_agent",
+        "stop_agent",
+        "list_tasks",
+        "get_task_timeline",
+        "cancel_task",
+        "list_pending_approvals",
+        "resume_task",
+        "list_pending_user_inputs",
+        "respond_user_input",
         "start_variant_download",
     ] {
         assert!(
@@ -76,7 +88,7 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
 fn test_the_embedded_mode_lets_every_command_through() {
     // GIVEN the runtime running in this process
     // WHEN a command not routed is gated
-    let verdict = gate(LinkMode::Embedded, "list_agents");
+    let verdict = gate(LinkMode::Embedded, "list_memory_namespaces");
 
     // THEN it runs as it always did
     assert!(verdict.is_ok());
@@ -272,4 +284,115 @@ fn test_liveness_emits_a_heartbeat_on_answer_and_names_the_loss_once() {
     assert_eq!(liveness_signal(false, true), Some(Liveness::Heartbeat));
     assert_eq!(liveness_signal(true, false), Some(Liveness::Lost));
     assert_eq!(liveness_signal(false, false), None);
+}
+
+// ── Agents, tasks, approvals and questions to the user ──────────────────
+
+#[tokio::test]
+async fn test_the_daemon_agent_view_reads_as_the_list_the_window_draws() {
+    // GIVEN a daemon answering one installed agent, not started
+    let server = MockServer::start().await;
+    let row = serde_json::json!([{
+        "id": null, "name": "veille", "version": "1.0.0", "enabled": true,
+        "runtime_status": null, "installed_at": "2026-10-02T00:00:00Z",
+        "description": null, "tags": [], "tools_required": [], "tools_optional": [],
+        "execution_mode": "auto", "install_path": "/a/agent.py", "supports_a2a": false,
+        "skills": [], "agent_type": null, "examples": [], "limitations": [],
+        "setup_notes": null, "agent_class": null, "memory_namespace": null,
+        "shared_memory_namespaces": []
+    }]);
+    Mock::given(method("GET"))
+        .and(path("/api/v1/agents/installed"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(row))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the attached arm reads it as the command's own type
+    let agents: Vec<crate::commands::agents::AgentListItem> =
+        client.get("/api/v1/agents/installed").await.unwrap();
+
+    // THEN the agent comes back installed and stopped
+    assert_eq!(agents.len(), 1);
+    assert_eq!(agents[0].name, "veille");
+    assert!(agents[0].runtime_status.is_none());
+}
+
+#[tokio::test]
+async fn test_a_task_already_gone_reads_as_a_refusal_with_its_status() {
+    // GIVEN a daemon that no longer knows the task
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/tasks/t-1"))
+        .respond_with(
+            ResponseTemplate::new(404).set_body_json(serde_json::json!({ "error": "not found" })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the attached arm cancels it
+    let result = client
+        .delete::<serde_json::Value>("/api/v1/tasks/t-1")
+        .await;
+
+    // THEN the status survives, which is what turns it into `false`
+    assert!(matches!(
+        result,
+        Err(AttachedError::Refused { status: 404, .. })
+    ));
+}
+
+#[tokio::test]
+async fn test_a_daemon_pending_approval_reads_as_the_inbox_entry() {
+    // GIVEN a daemon answering one pending approval with the fields only it
+    // carries, the skill and the typed payload
+    let server = MockServer::start().await;
+    let pending = serde_json::json!([{
+        "task_id": "t-7", "agent_name": "veille", "skill_id": "digest",
+        "prompt": "Envoyer ?", "context": {}, "payload": null,
+        "suspended_at": "2026-10-02T00:00:00Z"
+    }]);
+    Mock::given(method("GET"))
+        .and(path("/api/v1/approvals/pending"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(pending))
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the attached arm reads it as the command's own type
+    let approvals: Vec<crate::commands::hitl::PendingApproval> =
+        client.get("/api/v1/approvals/pending").await.unwrap();
+
+    // THEN the entry the inbox draws comes back
+    assert_eq!(approvals.len(), 1);
+    assert_eq!(approvals[0].task_id, "t-7");
+    assert_eq!(approvals[0].prompt, "Envoyer ?");
+}
+
+#[tokio::test]
+async fn test_an_answer_to_a_question_is_posted_to_the_daemon() {
+    // GIVEN a daemon waiting for the answer to one question
+    let server = MockServer::start().await;
+    let body = serde_json::json!({ "answers": [{ "id": "q1", "value": "oui", "skipped": false }] });
+    Mock::given(method("POST"))
+        .and(path("/api/v1/user-inputs/r%201/answer"))
+        .and(body_json(body.clone()))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "status": "answered" })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the attached arm answers it, its id encoded as a path segment
+    let path = format!("/api/v1/user-inputs/{}/answer", segment("r 1"));
+    let answered: serde_json::Value = client.post(&path, &body).await.unwrap();
+
+    // THEN the daemon received the answers
+    assert_eq!(answered["status"], "answered");
 }
