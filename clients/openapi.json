@@ -3265,6 +3265,109 @@
         }
       }
     },
+    "/api/v1/llm/registry/card": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/registry/card?id=...&lang=...`",
+        "operationId": "get_model_card",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Identifier of the card, for example qwen3/Qwen3-8B",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "description": "Language of the texts, fr or en; English when absent",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The card in the asked language, English when that language is not written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No kept catalogue, or no card with that identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The kept copy was refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/registry/cards": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/registry/cards?lang=...`",
+        "operationId": "list_model_cards",
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "description": "Language of the texts, fr or en; English when absent",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The cards of the catalogue, or an empty catalogue with the reason",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCardsResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The index was refused: its signature does not hold or it is not an index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/registry/model/{org}/{repo}": {
       "get": {
         "tags": [
@@ -3327,6 +3430,78 @@
           },
           "502": {
             "description": "Upstream HuggingFace error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/registry/readme": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/registry/readme?repo=...`",
+        "operationId": "get_model_readme",
+        "parameters": [
+          {
+            "name": "repo",
+            "in": "query",
+            "description": "The repository, owner/name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The README as text, with the repository, its owner and its licence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadmeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The repository identifier is not owner/name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The repository has no README",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The README is larger than 512 KiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "README unavailable offline",
             "content": {
               "application/json": {
                 "schema": {
@@ -10028,6 +10203,46 @@
           }
         }
       },
+      "ModelCardsResponse": {
+        "type": "object",
+        "description": "The catalogue's cards, or why there are none.",
+        "required": [
+          "status",
+          "cards",
+          "publishers"
+        ],
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Every card, in the asked language."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A sentence for the user when the catalogue is empty."
+          },
+          "origin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where the index came from when `status` is `ok`: `primary`, `mirror`\nor `cache`."
+          },
+          "publishers": {
+            "type": "object",
+            "description": "The official publishers and the recognised converters."
+          },
+          "status": {
+            "type": "string",
+            "description": "`ok`, `offline` (nothing answered and no copy is kept), `disabled`\n(turned off by configuration or policy) or `no_trusted_key` (this build\ncarries no distribution key)."
+          }
+        }
+      },
       "ModelInfo": {
         "type": "object",
         "description": "Description of a model file on disk.",
@@ -10366,6 +10581,41 @@
           "value": {
             "type": "string",
             "description": "The secret. Stored, never answered back."
+          }
+        }
+      },
+      "ReadmeResponse": {
+        "type": "object",
+        "description": "A README, as text.",
+        "required": [
+          "repo",
+          "author",
+          "source_url",
+          "text"
+        ],
+        "properties": {
+          "author": {
+            "type": "string",
+            "description": "Its owner."
+          },
+          "license": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The licence its front matter declares."
+          },
+          "repo": {
+            "type": "string",
+            "description": "The repository, `owner/name`."
+          },
+          "source_url": {
+            "type": "string",
+            "description": "The page of the repository."
+          },
+          "text": {
+            "type": "string",
+            "description": "The text."
           }
         }
       },

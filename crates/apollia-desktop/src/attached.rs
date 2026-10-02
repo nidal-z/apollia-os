@@ -32,7 +32,8 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// `start_variant_download` needs no route over HTTP: it never reads the
 /// runtime, only the Hub, the models folder and its index, which the daemon
 /// shares since it listens on this machine. [`run`] manages the download
-/// manager it holds.
+/// manager it holds. `list_model_cards` needs none either: it reads the model
+/// registry, the data directory and its `apollia.toml`, never the runtime.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "create_chat_session",
     "get_chat_session",
@@ -61,6 +62,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "respond_user_input_rejected",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
+    // Models: the signed cards of the catalogue, read when it opens.
+    "list_model_cards",
 ];
 
 /// Encodes one path segment of a daemon route.

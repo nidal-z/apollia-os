@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "qwen3.5/Qwen3.5-35B-A3B",
+  "kind": "language",
+  "label": "Qwen3.5 35B A3B",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B",
+  "description": {
+    "fr": "Modèle Qwen3.5 à experts : seule une petite partie du modèle travaille à chaque mot, ce qui le rend rapide pour sa taille. Il lui faut toutefois la mémoire de l'ensemble.",
+    "en": "A mixture-of-experts Qwen3.5 model: only a small part of it works on each word, which makes it fast for its size. It still needs the memory of the whole."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B/tree/main"
+  },
+  "memory": {
+    "min_gb": 22.1,
+    "source": "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/blob/main/Qwen3.5-35B-A3B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 20,
+    "source": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": true,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "Qwen/Qwen3.5-35B-A3B",
+    "unsloth/Qwen3.5-35B-A3B-GGUF",
+    "bartowski/Qwen_Qwen3.5-35B-A3B-GGUF",
+    "lmstudio-community/Qwen3.5-35B-A3B-GGUF",
+    "mlx-community/Qwen3.5-35B-A3B-4bit"
+  ],
+  "template": "registry/models/templates/qwen3.5.jinja"
+}

@@ -1,0 +1,1312 @@
+{
+  "schema_version": 1,
+  "cards": [
+    {
+      "id": "gemma2/gemma-2-9b-it",
+      "kind": "language",
+      "label": "Gemma 2 9B",
+      "publisher": "Google",
+      "license": {
+        "id": "gemma",
+        "source": "https://huggingface.co/google/gemma-2-9b-it"
+      },
+      "source_url": "https://huggingface.co/google/gemma-2-9b-it",
+      "description": {
+        "fr": "Ancienne génération Gemma, conservée pour la conversation simple ; ni outils ni images.",
+        "en": "An older Gemma generation, kept for plain conversation; neither tools nor images."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/unsloth/gemma-2-9b-it/tree/main"
+      },
+      "memory": {
+        "min_gb": 5.8,
+        "source": "https://huggingface.co/bartowski/gemma-2-9b-it-GGUF/blob/main/gemma-2-9b-it-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": "https://huggingface.co/unsloth/gemma-2-9b-it/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "google/gemma-2-9b-it",
+        "bartowski/gemma-2-9b-it-GGUF",
+        "mlx-community/gemma-2-9b-it-4bit"
+      ]
+    },
+    {
+      "id": "gemma3/gemma-3-12b-it",
+      "kind": "language",
+      "label": "Gemma 3 12B",
+      "publisher": "Google",
+      "license": {
+        "id": "gemma",
+        "source": "https://huggingface.co/google/gemma-3-12b-it"
+      },
+      "source_url": "https://huggingface.co/google/gemma-3-12b-it",
+      "description": {
+        "fr": "Modèle Gemma 3 de taille moyenne, bon en rédaction et en lecture d'images, sans appel d'outils.",
+        "en": "A mid-sized Gemma 3 model, good at writing and reading images, without tool calls."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": true,
+        "source": "https://huggingface.co/unsloth/gemma-3-12b-it/tree/main"
+      },
+      "memory": {
+        "min_gb": 7.4,
+        "source": "https://huggingface.co/unsloth/gemma-3-12b-it-GGUF/blob/main/gemma-3-12b-it-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "top_p": 0.95,
+        "top_k": 64,
+        "source": "https://huggingface.co/unsloth/gemma-3-12b-it/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "google/gemma-3-12b-it",
+        "google/gemma-3-12b-it-GGUF",
+        "unsloth/gemma-3-12b-it-GGUF",
+        "bartowski/gemma-3-12b-it-GGUF",
+        "mlx-community/gemma-3-12b-it-4bit"
+      ]
+    },
+    {
+      "id": "gemma3/gemma-3-27b-it",
+      "kind": "language",
+      "label": "Gemma 3 27B",
+      "publisher": "Google",
+      "license": {
+        "id": "gemma",
+        "source": "https://huggingface.co/google/gemma-3-27b-it"
+      },
+      "source_url": "https://huggingface.co/google/gemma-3-27b-it",
+      "description": {
+        "fr": "Le plus grand Gemma 3 de la sélection : rédaction soignée et lecture d'images, sans appel d'outils, pour un poste bien doté.",
+        "en": "The largest Gemma 3 of the selection: careful writing and image reading, without tool calls, for a well-equipped machine."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": true,
+        "source": "https://huggingface.co/unsloth/gemma-3-27b-it/tree/main"
+      },
+      "memory": {
+        "min_gb": 16.6,
+        "source": "https://huggingface.co/unsloth/gemma-3-27b-it-GGUF/blob/main/gemma-3-27b-it-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "top_p": 0.95,
+        "top_k": 64,
+        "source": "https://huggingface.co/unsloth/gemma-3-27b-it/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "google/gemma-3-27b-it",
+        "google/gemma-3-27b-it-GGUF",
+        "unsloth/gemma-3-27b-it-GGUF",
+        "bartowski/gemma-3-27b-it-GGUF",
+        "mlx-community/gemma-3-27b-it-4bit"
+      ]
+    },
+    {
+      "id": "gemma3/gemma-3-4b-it",
+      "kind": "language",
+      "label": "Gemma 3 4B",
+      "publisher": "Google",
+      "license": {
+        "id": "gemma",
+        "source": "https://huggingface.co/google/gemma-3-4b-it"
+      },
+      "source_url": "https://huggingface.co/google/gemma-3-4b-it",
+      "description": {
+        "fr": "Petit modèle Gemma 3 qui lit les images ; son gabarit ne prévoit pas d'outils, il convient donc à la conversation et à la description d'images.",
+        "en": "A small Gemma 3 model that reads images; its template has no tools, so it suits conversation and describing images."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": true,
+        "source": "https://huggingface.co/unsloth/gemma-3-4b-it/tree/main"
+      },
+      "memory": {
+        "min_gb": 2.5,
+        "source": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/blob/main/gemma-3-4b-it-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "top_p": 0.95,
+        "top_k": 64,
+        "source": "https://huggingface.co/unsloth/gemma-3-4b-it/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "google/gemma-3-4b-it",
+        "google/gemma-3-4b-it-GGUF",
+        "unsloth/gemma-3-4b-it-GGUF",
+        "bartowski/gemma-3-4b-it-GGUF",
+        "mlx-community/gemma-3-4b-it-4bit"
+      ]
+    },
+    {
+      "id": "gemma4/gemma-4-12b-it",
+      "kind": "language",
+      "label": "Gemma 4 12B",
+      "publisher": "Google",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/google/gemma-4-12B-it"
+      },
+      "source_url": "https://huggingface.co/google/gemma-4-12B-it",
+      "description": {
+        "fr": "Modèle Gemma 4 de taille moyenne : images, outils et réflexion sur demande, pour un usage polyvalent sur un poste de 16 Go.",
+        "en": "A mid-sized Gemma 4 model: images, tools and thinking on request, for versatile use on a 16 GB machine."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/google/gemma-4-12B-it/tree/main"
+      },
+      "memory": {
+        "min_gb": 7.2,
+        "source": "https://huggingface.co/unsloth/gemma-4-12b-it-GGUF/blob/main/gemma-4-12b-it-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 64,
+        "source": "https://huggingface.co/google/gemma-4-12B-it/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": false,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/google/gemma-4-12B-it/blob/main/chat_template.jinja"
+        }
+      ],
+      "repos": [
+        "google/gemma-4-12B-it",
+        "unsloth/gemma-4-12b-it-GGUF",
+        "ggml-org/gemma-4-12b-it-GGUF",
+        "bartowski/gemma-4-12b-it-GGUF",
+        "mlx-community/gemma-4-12B-it-4bit",
+        "lmstudio-community/gemma-4-12B-it-MLX-4bit"
+      ]
+    },
+    {
+      "id": "gemma4/gemma-4-26B-A4B-it",
+      "kind": "language",
+      "label": "Gemma 4 26B A4B",
+      "publisher": "Google",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/google/gemma-4-26B-A4B-it"
+      },
+      "source_url": "https://huggingface.co/google/gemma-4-26B-A4B-it",
+      "description": {
+        "fr": "Modèle Gemma 4 à experts : rapide pour sa taille, il lit les images, appelle des outils et peut réfléchir sur demande. Il demande la mémoire de l'ensemble.",
+        "en": "A mixture-of-experts Gemma 4 model: fast for its size, it reads images, calls tools and can think on request. It needs the memory of the whole."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/google/gemma-4-26B-A4B-it/tree/main"
+      },
+      "memory": {
+        "min_gb": 17.0,
+        "source": "https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF/blob/main/gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 64,
+        "source": "https://huggingface.co/google/gemma-4-26B-A4B-it/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": false,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/google/gemma-4-26B-A4B-it/blob/main/chat_template.jinja"
+        }
+      ],
+      "repos": [
+        "google/gemma-4-26B-A4B-it",
+        "unsloth/gemma-4-26B-A4B-it-GGUF",
+        "ggml-org/gemma-4-26B-A4B-it-GGUF",
+        "bartowski/gemma-4-26B-A4B-it-GGUF",
+        "mlx-community/gemma-4-26b-a4b-it-4bit",
+        "lmstudio-community/gemma-4-26B-A4B-it-MLX-4bit"
+      ]
+    },
+    {
+      "id": "gemma4/gemma-4-E4B-it",
+      "kind": "language",
+      "label": "Gemma 4 E4B",
+      "publisher": "Google",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/google/gemma-4-E4B-it"
+      },
+      "source_url": "https://huggingface.co/google/gemma-4-E4B-it",
+      "description": {
+        "fr": "Petit modèle Gemma 4 conçu pour les appareils modestes : il lit les images, appelle des outils et peut réfléchir sur demande.",
+        "en": "A small Gemma 4 model designed for modest devices: it reads images, calls tools and can think on request."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/google/gemma-4-E4B-it/tree/main"
+      },
+      "memory": {
+        "min_gb": 5.0,
+        "source": "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/blob/main/gemma-4-E4B-it-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 64,
+        "source": "https://huggingface.co/google/gemma-4-E4B-it/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": false,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/google/gemma-4-E4B-it/blob/main/chat_template.jinja"
+        }
+      ],
+      "repos": [
+        "google/gemma-4-E4B-it",
+        "unsloth/gemma-4-E4B-it-GGUF",
+        "ggml-org/gemma-4-E4B-it-GGUF",
+        "bartowski/gemma-4-E4B-it-GGUF",
+        "mlx-community/gemma-4-e4b-it-4bit",
+        "lmstudio-community/gemma-4-E4B-it-MLX-4bit"
+      ]
+    },
+    {
+      "id": "llama3.1/Llama-3.1-8B-Instruct",
+      "kind": "language",
+      "label": "Llama 3.1 8B Instruct",
+      "publisher": "Meta",
+      "license": {
+        "id": "llama3.1",
+        "source": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct"
+      },
+      "source_url": "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+      "description": {
+        "fr": "Modèle Llama de taille moyenne, répandu et bien connu, qui appelle des outils ; un choix sûr pour un poste de 16 Go.",
+        "en": "A widespread, well-known mid-sized Llama model that calls tools; a safe choice for a 16 GB machine."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/unsloth/Llama-3.1-8B-Instruct/tree/main"
+      },
+      "memory": {
+        "min_gb": 5.0,
+        "source": "https://huggingface.co/unsloth/Llama-3.1-8B-Instruct-GGUF/blob/main/Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.6,
+        "top_p": 0.9,
+        "source": "https://huggingface.co/unsloth/Llama-3.1-8B-Instruct/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "meta-llama/Llama-3.1-8B-Instruct",
+        "bartowski/Llama-3.1-8B-Instruct-GGUF",
+        "unsloth/Llama-3.1-8B-Instruct-GGUF",
+        "mlx-community/Llama-3.1-8B-Instruct-4bit"
+      ]
+    },
+    {
+      "id": "llama3.3/Llama-3.3-70B-Instruct",
+      "kind": "language",
+      "label": "Llama 3.3 70B Instruct",
+      "publisher": "Meta",
+      "license": {
+        "id": "llama3.3",
+        "source": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct"
+      },
+      "source_url": "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+      "description": {
+        "fr": "Grand modèle de Meta, réservé aux postes très dotés : rédaction soignée et suivi fidèle des consignes, avec appel d'outils.",
+        "en": "A large Meta model for well-equipped machines only: careful writing and faithful instruction following, with tool calls."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/unsloth/Llama-3.3-70B-Instruct/tree/main"
+      },
+      "memory": {
+        "min_gb": 42.6,
+        "source": "https://huggingface.co/bartowski/Llama-3.3-70B-Instruct-GGUF/blob/main/Llama-3.3-70B-Instruct-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.6,
+        "top_p": 0.9,
+        "source": "https://huggingface.co/unsloth/Llama-3.3-70B-Instruct/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "meta-llama/Llama-3.3-70B-Instruct",
+        "bartowski/Llama-3.3-70B-Instruct-GGUF",
+        "unsloth/Llama-3.3-70B-Instruct-GGUF",
+        "mlx-community/Llama-3.3-70B-Instruct-4bit"
+      ]
+    },
+    {
+      "id": "mistral-small-3/Mistral-Small-24B-Instruct-2501",
+      "kind": "language",
+      "label": "Mistral Small 3 24B",
+      "publisher": "Mistral AI",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501"
+      },
+      "source_url": "https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501",
+      "description": {
+        "fr": "Modèle de Mistral AI, entreprise française : réponses sobres et précises, très bon en français. Le gabarit publié ne prévoit pas d'outils.",
+        "en": "A model from Mistral AI, a French company: sober, precise answers, very good French. Its published template has no tools."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501/tree/main"
+      },
+      "memory": {
+        "min_gb": 14.4,
+        "source": "https://huggingface.co/bartowski/Mistral-Small-24B-Instruct-2501-GGUF/blob/main/Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.15,
+        "source": "https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "mistralai/Mistral-Small-24B-Instruct-2501",
+        "bartowski/Mistral-Small-24B-Instruct-2501-GGUF",
+        "unsloth/Mistral-Small-24B-Instruct-2501-GGUF",
+        "mlx-community/Mistral-Small-24B-Instruct-2501-4bit"
+      ]
+    },
+    {
+      "id": "multilingual-e5-small",
+      "kind": "embeddings",
+      "label": "Multilingual E5 small",
+      "publisher": "intfloat",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/intfloat/multilingual-e5-small"
+      },
+      "source_url": "https://huggingface.co/intfloat/multilingual-e5-small",
+      "description": {
+        "fr": "Petit modèle d'embeddings multilingue : il transforme vos textes en vecteurs pour la recherche par le sens dans vos documents, en français comme en anglais. Léger, il tourne partout.",
+        "en": "A small multilingual embeddings model: it turns your texts into vectors for search by meaning across your documents, in French as in English. Light, it runs anywhere."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/intfloat/multilingual-e5-small"
+      },
+      "memory": {
+        "min_gb": 0.2,
+        "source": "https://huggingface.co/cstr/multilingual-e5-small-GGUF/blob/main/multilingual-e5-small-q8_0.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "cstr/multilingual-e5-small-GGUF",
+        "intfloat/multilingual-e5-small"
+      ]
+    },
+    {
+      "id": "phi4/phi-4",
+      "kind": "language",
+      "label": "Phi-4",
+      "publisher": "Microsoft",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/microsoft/phi-4"
+      },
+      "source_url": "https://huggingface.co/microsoft/phi-4",
+      "description": {
+        "fr": "Modèle de Microsoft entraîné surtout au raisonnement mathématique et logique ; son gabarit ne prévoit pas d'outils.",
+        "en": "A Microsoft model trained mostly for mathematical and logical reasoning; its template has no tools."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/microsoft/phi-4/tree/main"
+      },
+      "memory": {
+        "min_gb": 9.1,
+        "source": "https://huggingface.co/bartowski/phi-4-GGUF/blob/main/phi-4-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": "https://huggingface.co/microsoft/phi-4/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "microsoft/phi-4",
+        "microsoft/phi-4-gguf",
+        "bartowski/phi-4-GGUF",
+        "unsloth/phi-4-GGUF",
+        "mlx-community/phi-4-4bit"
+      ]
+    },
+    {
+      "id": "qwen2.5/Qwen2.5-14B-Instruct",
+      "kind": "language",
+      "label": "Qwen2.5 14B Instruct",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct",
+      "description": {
+        "fr": "Version plus grande de Qwen2.5 : réponses directes et plus précises, appel d'outils, pour un poste de 16 Go.",
+        "en": "The larger Qwen2.5: direct and more precise answers, tool calls, for a 16 GB machine."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/tree/main"
+      },
+      "memory": {
+        "min_gb": 9.0,
+        "source": "https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-GGUF/blob/main/Qwen2.5-14B-Instruct-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.7,
+        "top_p": 0.8,
+        "top_k": 20,
+        "repetition_penalty": 1.05,
+        "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "Qwen/Qwen2.5-14B-Instruct",
+        "Qwen/Qwen2.5-14B-Instruct-GGUF",
+        "bartowski/Qwen2.5-14B-Instruct-GGUF",
+        "mlx-community/Qwen2.5-14B-Instruct-4bit",
+        "lmstudio-community/Qwen2.5-14B-Instruct-MLX-4bit"
+      ]
+    },
+    {
+      "id": "qwen2.5/Qwen2.5-7B-Instruct",
+      "kind": "language",
+      "label": "Qwen2.5 7B Instruct",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+      "description": {
+        "fr": "Modèle Qwen2.5 éprouvé, sans mode de réflexion : réponses directes, appel d'outils, bonne tenue en français.",
+        "en": "A proven Qwen2.5 model without a thinking mode: direct answers, tool calls, good French."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/tree/main"
+      },
+      "memory": {
+        "min_gb": 4.7,
+        "source": "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/blob/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.7,
+        "top_p": 0.8,
+        "top_k": 20,
+        "repetition_penalty": 1.05,
+        "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/blob/main/generation_config.json"
+      },
+      "author_fields": [],
+      "repos": [
+        "Qwen/Qwen2.5-7B-Instruct",
+        "Qwen/Qwen2.5-7B-Instruct-GGUF",
+        "bartowski/Qwen2.5-7B-Instruct-GGUF",
+        "mlx-community/Qwen2.5-7B-Instruct-4bit",
+        "lmstudio-community/Qwen2.5-7B-Instruct-MLX-4bit"
+      ]
+    },
+    {
+      "id": "qwen3-embedding-0.6b",
+      "kind": "embeddings",
+      "label": "Qwen3 Embedding 0.6B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+      "description": {
+        "fr": "Modèle d'embeddings de Qwen, plus précis pour la recherche par le sens et capable de lire des passages longs ; il demande un peu plus de mémoire.",
+        "en": "An embeddings model from Qwen, more precise for search by meaning and able to read long passages; it needs a little more memory."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B"
+      },
+      "memory": {
+        "min_gb": 0.7,
+        "source": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/blob/main/Qwen3-Embedding-0.6B-Q8_0.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "Qwen/Qwen3-Embedding-0.6B-GGUF",
+        "Qwen/Qwen3-Embedding-0.6B"
+      ]
+    },
+    {
+      "id": "qwen3.5/Qwen3.5-122B-A10B",
+      "kind": "language",
+      "label": "Qwen3.5 122B A10B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B",
+      "description": {
+        "fr": "Le plus grand modèle Qwen3.5 de la sélection, à experts, pour les postes de travail très dotés en mémoire : qualité de réponse élevée sur les tâches complexes.",
+        "en": "The largest Qwen3.5 model of the selection, a mixture of experts, for workstations with a lot of memory: high answer quality on complex tasks."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B/tree/main"
+      },
+      "memory": {
+        "min_gb": 76.6,
+        "source": "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/blob/main/Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00003.gguf"
+      },
+      "defaults": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "source": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B/blob/main/chat_template.jinja"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3.5-122B-A10B",
+        "unsloth/Qwen3.5-122B-A10B-GGUF",
+        "bartowski/Qwen_Qwen3.5-122B-A10B-GGUF",
+        "lmstudio-community/Qwen3.5-122B-A10B-GGUF",
+        "mlx-community/Qwen3.5-122B-A10B-4bit"
+      ]
+    },
+    {
+      "id": "qwen3.5/Qwen3.5-27B",
+      "kind": "language",
+      "label": "Qwen3.5 27B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3.5-27B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3.5-27B",
+      "description": {
+        "fr": "Modèle Qwen3.5 dense et solide, pour les tâches longues qui demandent de la rigueur : raisonnement en plusieurs étapes, synthèses fouillées, agents exigeants. Il demande un poste bien doté.",
+        "en": "A solid dense Qwen3.5 model for long tasks that call for rigour: multi-step reasoning, thorough syntheses, demanding agents. It needs a well-equipped machine."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/Qwen/Qwen3.5-27B/tree/main"
+      },
+      "memory": {
+        "min_gb": 16.8,
+        "source": "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/blob/main/Qwen3.5-27B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "source": "https://huggingface.co/Qwen/Qwen3.5-27B/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3.5-27B/blob/main/chat_template.jinja"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3.5-27B",
+        "unsloth/Qwen3.5-27B-GGUF",
+        "bartowski/Qwen_Qwen3.5-27B-GGUF",
+        "lmstudio-community/Qwen3.5-27B-GGUF",
+        "mlx-community/Qwen3.5-27B-4bit"
+      ]
+    },
+    {
+      "id": "qwen3.5/Qwen3.5-2B",
+      "kind": "language",
+      "label": "Qwen3.5 2B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3.5-2B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3.5-2B",
+      "description": {
+        "fr": "Très petit modèle de la génération Qwen3.5 : rapide sur un ordinateur portable modeste, il convient aux reformulations, aux résumés courts et aux premiers essais. Il lit aussi les images.",
+        "en": "The smallest model of the Qwen3.5 generation: fast on a modest laptop, suited to rewording, short summaries and first trials. It also reads images."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/Qwen/Qwen3.5-2B/tree/main"
+      },
+      "memory": {
+        "min_gb": 1.3,
+        "source": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/blob/main/Qwen3.5-2B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3.5-2B/blob/main/chat_template.jinja"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3.5-2B",
+        "unsloth/Qwen3.5-2B-GGUF",
+        "bartowski/Qwen_Qwen3.5-2B-GGUF",
+        "lmstudio-community/Qwen3.5-2B-GGUF",
+        "mlx-community/Qwen3.5-2B-4bit",
+        "lmstudio-community/Qwen3.5-2B-MLX-4bit"
+      ]
+    },
+    {
+      "id": "qwen3.5/Qwen3.5-35B-A3B",
+      "kind": "language",
+      "label": "Qwen3.5 35B A3B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B",
+      "description": {
+        "fr": "Modèle Qwen3.5 à experts : seule une petite partie du modèle travaille à chaque mot, ce qui le rend rapide pour sa taille. Il lui faut toutefois la mémoire de l'ensemble.",
+        "en": "A mixture-of-experts Qwen3.5 model: only a small part of it works on each word, which makes it fast for its size. It still needs the memory of the whole."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B/tree/main"
+      },
+      "memory": {
+        "min_gb": 22.1,
+        "source": "https://huggingface.co/unsloth/Qwen3.5-35B-A3B-GGUF/blob/main/Qwen3.5-35B-A3B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 20,
+        "source": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3.5-35B-A3B/blob/main/chat_template.jinja"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3.5-35B-A3B",
+        "unsloth/Qwen3.5-35B-A3B-GGUF",
+        "bartowski/Qwen_Qwen3.5-35B-A3B-GGUF",
+        "lmstudio-community/Qwen3.5-35B-A3B-GGUF",
+        "mlx-community/Qwen3.5-35B-A3B-4bit"
+      ]
+    },
+    {
+      "id": "qwen3.5/Qwen3.5-4B",
+      "kind": "language",
+      "label": "Qwen3.5 4B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3.5-4B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3.5-4B",
+      "description": {
+        "fr": "Petit modèle Qwen3.5 polyvalent : il appelle des outils, peut réfléchir avant de répondre et lit les images, avec une empreinte qui tient sur la plupart des postes.",
+        "en": "A small, versatile Qwen3.5 model: it calls tools, can think before answering and reads images, within a footprint most machines can hold."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/Qwen/Qwen3.5-4B/tree/main"
+      },
+      "memory": {
+        "min_gb": 2.8,
+        "source": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/blob/main/Qwen3.5-4B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3.5-4B/blob/main/chat_template.jinja"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3.5-4B",
+        "unsloth/Qwen3.5-4B-GGUF",
+        "bartowski/Qwen_Qwen3.5-4B-GGUF",
+        "lmstudio-community/Qwen3.5-4B-GGUF",
+        "mlx-community/Qwen3.5-4B-4bit",
+        "lmstudio-community/Qwen3.5-4B-MLX-4bit"
+      ]
+    },
+    {
+      "id": "qwen3.5/Qwen3.5-9B",
+      "kind": "language",
+      "label": "Qwen3.5 9B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3.5-9B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3.5-9B",
+      "description": {
+        "fr": "Le bon équilibre de la génération Qwen3.5 pour un usage quotidien : rédaction, analyse de documents et agents qui utilisent des outils, sur un poste de 16 Go.",
+        "en": "The balanced pick of the Qwen3.5 generation for daily work: writing, document analysis and agents that use tools, on a 16 GB machine."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": true,
+        "source": "https://huggingface.co/Qwen/Qwen3.5-9B/tree/main"
+      },
+      "memory": {
+        "min_gb": 5.7,
+        "source": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/blob/main/Qwen3.5-9B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3.5-9B/blob/main/chat_template.jinja"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3.5-9B",
+        "unsloth/Qwen3.5-9B-GGUF",
+        "bartowski/Qwen_Qwen3.5-9B-GGUF",
+        "lmstudio-community/Qwen3.5-9B-GGUF",
+        "mlx-community/Qwen3.5-9B-4bit",
+        "lmstudio-community/Qwen3.5-9B-MLX-4bit"
+      ]
+    },
+    {
+      "id": "qwen3/Qwen3-14B",
+      "kind": "language",
+      "label": "Qwen3 14B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3-14B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3-14B",
+      "description": {
+        "fr": "Modèle Qwen3 plus fourni : réponses plus précises sur les documents longs et les tâches en plusieurs étapes, pour un poste de 16 Go ou plus.",
+        "en": "A fuller Qwen3 model: more precise answers on long documents and multi-step tasks, for a machine with 16 GB or more."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen3-14B/tree/main"
+      },
+      "memory": {
+        "min_gb": 9.1,
+        "source": "https://huggingface.co/Qwen/Qwen3-14B-GGUF/blob/main/Qwen3-14B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "source": "https://huggingface.co/Qwen/Qwen3-14B/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3-14B/blob/main/tokenizer_config.json"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3-14B",
+        "Qwen/Qwen3-14B-GGUF",
+        "unsloth/Qwen3-14B-GGUF",
+        "bartowski/Qwen_Qwen3-14B-GGUF",
+        "Qwen/Qwen3-14B-MLX-4bit",
+        "mlx-community/Qwen3-14B-4bit",
+        "lmstudio-community/Qwen3-14B-MLX-4bit"
+      ]
+    },
+    {
+      "id": "qwen3/Qwen3-30B-A3B",
+      "kind": "language",
+      "label": "Qwen3 30B A3B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3-30B-A3B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3-30B-A3B",
+      "description": {
+        "fr": "Modèle Qwen3 à experts : rapide pour sa taille, car seule une partie travaille à chaque mot, mais il demande la mémoire de l'ensemble.",
+        "en": "A mixture-of-experts Qwen3 model: fast for its size, since only part of it works on each word, but it needs the memory of the whole."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen3-30B-A3B/tree/main"
+      },
+      "memory": {
+        "min_gb": 18.6,
+        "source": "https://huggingface.co/Qwen/Qwen3-30B-A3B-GGUF/blob/main/Qwen3-30B-A3B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "source": "https://huggingface.co/Qwen/Qwen3-30B-A3B/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3-30B-A3B/blob/main/tokenizer_config.json"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3-30B-A3B",
+        "Qwen/Qwen3-30B-A3B-GGUF",
+        "unsloth/Qwen3-30B-A3B-GGUF",
+        "bartowski/Qwen_Qwen3-30B-A3B-GGUF",
+        "Qwen/Qwen3-30B-A3B-MLX-4bit",
+        "mlx-community/Qwen3-30B-A3B-4bit",
+        "lmstudio-community/Qwen3-30B-A3B-MLX-4bit"
+      ]
+    },
+    {
+      "id": "qwen3/Qwen3-4B",
+      "kind": "language",
+      "label": "Qwen3 4B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3-4B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3-4B",
+      "description": {
+        "fr": "Petit modèle Qwen3 qui appelle des outils et peut réfléchir avant de répondre : un bon point de départ sur un poste de 8 Go.",
+        "en": "A small Qwen3 model that calls tools and can think before answering: a good starting point on an 8 GB machine."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen3-4B/tree/main"
+      },
+      "memory": {
+        "min_gb": 2.5,
+        "source": "https://huggingface.co/Qwen/Qwen3-4B-GGUF/blob/main/Qwen3-4B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "source": "https://huggingface.co/Qwen/Qwen3-4B/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3-4B/blob/main/tokenizer_config.json"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3-4B",
+        "Qwen/Qwen3-4B-GGUF",
+        "unsloth/Qwen3-4B-GGUF",
+        "bartowski/Qwen_Qwen3-4B-GGUF",
+        "Qwen/Qwen3-4B-MLX-4bit",
+        "mlx-community/Qwen3-4B-4bit",
+        "lmstudio-community/Qwen3-4B-MLX-4bit"
+      ]
+    },
+    {
+      "id": "qwen3/Qwen3-8B",
+      "kind": "language",
+      "label": "Qwen3 8B",
+      "publisher": "Qwen",
+      "license": {
+        "id": "apache-2.0",
+        "source": "https://huggingface.co/Qwen/Qwen3-8B"
+      },
+      "source_url": "https://huggingface.co/Qwen/Qwen3-8B",
+      "description": {
+        "fr": "Modèle Qwen3 de taille moyenne, à l'aise avec les outils et le raisonnement, pour la rédaction et les agents du quotidien.",
+        "en": "A mid-sized Qwen3 model, at ease with tools and reasoning, for everyday writing and agents."
+      },
+      "capabilities": {
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "source": "https://huggingface.co/Qwen/Qwen3-8B/tree/main"
+      },
+      "memory": {
+        "min_gb": 5.1,
+        "source": "https://huggingface.co/Qwen/Qwen3-8B-GGUF/blob/main/Qwen3-8B-Q4_K_M.gguf"
+      },
+      "defaults": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "source": "https://huggingface.co/Qwen/Qwen3-8B/blob/main/generation_config.json"
+      },
+      "author_fields": [
+        {
+          "name": "enable_thinking",
+          "type": "booleen",
+          "default": true,
+          "explanation": {
+            "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+            "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+          },
+          "source": "https://huggingface.co/Qwen/Qwen3-8B/blob/main/tokenizer_config.json"
+        }
+      ],
+      "repos": [
+        "Qwen/Qwen3-8B",
+        "Qwen/Qwen3-8B-GGUF",
+        "unsloth/Qwen3-8B-GGUF",
+        "bartowski/Qwen_Qwen3-8B-GGUF",
+        "Qwen/Qwen3-8B-MLX-4bit",
+        "mlx-community/Qwen3-8B-4bit",
+        "lmstudio-community/Qwen3-8B-MLX-4bit"
+      ]
+    },
+    {
+      "id": "whisper-base",
+      "kind": "dictation",
+      "label": "Whisper Base",
+      "publisher": "OpenAI",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/openai/whisper-base"
+      },
+      "source_url": "https://huggingface.co/openai/whisper-base",
+      "description": {
+        "fr": "Modèle de dictée léger et équilibré, pour dicter des messages courts sur un poste modeste.",
+        "en": "A light, balanced dictation model for dictating short messages on a modest machine."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/openai/whisper-base"
+      },
+      "memory": {
+        "min_gb": 0.2,
+        "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-base.bin"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openai/whisper-base"
+      ]
+    },
+    {
+      "id": "whisper-large-v3-french",
+      "kind": "dictation",
+      "label": "Whisper Large-v3 French",
+      "publisher": "bofenghuang",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french"
+      },
+      "source_url": "https://huggingface.co/bofenghuang/whisper-large-v3-french",
+      "description": {
+        "fr": "Version du grand modèle de dictée affinée sur le français : meilleure ponctuation et meilleurs noms propres en français.",
+        "en": "A version of the large dictation model fine-tuned on French: better punctuation and proper names in French."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french"
+      },
+      "memory": {
+        "min_gb": 1.1,
+        "source": "https://huggingface.co/bofenghuang/whisper-large-v3-french/blob/main/ggml-model-q5_0.bin"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "bofenghuang/whisper-large-v3-french"
+      ]
+    },
+    {
+      "id": "whisper-large-v3-q5",
+      "kind": "dictation",
+      "label": "Whisper Large-v3",
+      "publisher": "OpenAI",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/openai/whisper-large-v3"
+      },
+      "source_url": "https://huggingface.co/openai/whisper-large-v3",
+      "description": {
+        "fr": "Le modèle de dictée le plus précis de la sélection, plus lent ; pour les transcriptions où chaque mot compte.",
+        "en": "The most precise dictation model of the selection, and slower; for transcripts where every word counts."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/openai/whisper-large-v3"
+      },
+      "memory": {
+        "min_gb": 1.1,
+        "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-large-v3-q5_0.bin"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openai/whisper-large-v3"
+      ]
+    },
+    {
+      "id": "whisper-large-v3-turbo-q5",
+      "kind": "dictation",
+      "label": "Whisper Large-v3 Turbo",
+      "publisher": "OpenAI",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/openai/whisper-large-v3-turbo"
+      },
+      "source_url": "https://huggingface.co/openai/whisper-large-v3-turbo",
+      "description": {
+        "fr": "Le meilleur compromis pour dicter : proche de la qualité du grand modèle, plusieurs fois plus rapide.",
+        "en": "The best trade-off for dictation: close to the large model's quality, several times faster."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/openai/whisper-large-v3-turbo"
+      },
+      "memory": {
+        "min_gb": 0.6,
+        "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-large-v3-turbo-q5_0.bin"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openai/whisper-large-v3-turbo"
+      ]
+    },
+    {
+      "id": "whisper-tiny",
+      "kind": "dictation",
+      "label": "Whisper Tiny",
+      "publisher": "OpenAI",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/openai/whisper-tiny"
+      },
+      "source_url": "https://huggingface.co/openai/whisper-tiny",
+      "description": {
+        "fr": "Le plus petit modèle de dictée : quasi instantané, pour des notes rapides ; la transcription reste approximative.",
+        "en": "The smallest dictation model: almost instant, for quick notes; the transcript stays approximate."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/openai/whisper-tiny"
+      },
+      "memory": {
+        "min_gb": 0.1,
+        "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-tiny.bin"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openai/whisper-tiny"
+      ]
+    }
+  ],
+  "publishers": {
+    "official": [
+      {
+        "publisher": "Qwen",
+        "orgs": [
+          "Qwen"
+        ]
+      },
+      {
+        "publisher": "Mistral AI",
+        "orgs": [
+          "mistralai"
+        ]
+      },
+      {
+        "publisher": "Google",
+        "orgs": [
+          "google"
+        ]
+      },
+      {
+        "publisher": "Meta",
+        "orgs": [
+          "meta-llama"
+        ]
+      },
+      {
+        "publisher": "Microsoft",
+        "orgs": [
+          "microsoft"
+        ]
+      },
+      {
+        "publisher": "NVIDIA",
+        "orgs": [
+          "nvidia"
+        ]
+      },
+      {
+        "publisher": "IBM",
+        "orgs": [
+          "ibm-granite"
+        ]
+      }
+    ],
+    "converters": [
+      "lmstudio-community",
+      "mlx-community",
+      "unsloth",
+      "bartowski"
+    ]
+  }
+}

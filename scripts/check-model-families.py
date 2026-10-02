@@ -13,6 +13,14 @@ classify a HuggingFace owner: the official publishers and the recognised
 converters. A family whose `publisher` is on neither list, or an owner on both,
 is a classification the runtime cannot make.
 
+`registry/models/` holds the model cards the catalogue reads once the
+release pipeline has gathered and signed them
+(`scripts/build_model_registry_index.py`). A card is the text a business user
+reads before choosing a model, so a card with a missing field, a missing
+language or an em-dash is a defect the user sees, and a card whose declared
+capabilities contradict what the runtime computes from the chat template is a
+promise the product does not keep.
+
 Rules, each reported with the entry it names:
 
   families.toml
@@ -36,19 +44,43 @@ Rules, each reported with the entry it names:
     * both lists are non-empty, and no handle sits on both
     * every `publisher` of families.toml is an official publisher
 
+  registry/models
+    * every card file parses, declares `schema_version = 1`, and has a unique
+      `id` and a `kind` among language, embeddings and dictation
+    * every field is present: label, publisher, licence and its source, a
+      `source_url` on huggingface.co, a description in `fr` and in `en`, the
+      three capabilities and their source, a positive minimum memory and its
+      source, the defaults (with a source as soon as one value is given),
+      the author fields (name, type `liste` or `booleen`, values for a list,
+      default, explanation in `fr` and in `en`, source) and its repositories
+    * no card carries an em-dash
+    * a card naming a recorded `template` declares the tools and reasoning
+      capabilities the runtime computes from it: the markers are read from
+      `crates/apollia-llm/src/capabilities.rs`, so the guard and the runtime
+      cannot drift. A recorded copy may replace an em-dash inside a template
+      comment, the one character the prose guard refuses everywhere, and no
+      marker contains one
+    * every variant and every `[[embedding]]` entry of families.toml has its
+      card, and every model of the dictation selection of the onboarding is
+      named by the `selection_files` of a dictation card
+
 Exit codes, read by `just guards`:
 
-  0  both files measured, every rule holds
+  0  every file measured, every rule holds
   1  at least one rule broken
   2  a file is absent, so nothing was measured
 
-`--families PATH` and `--publishers PATH` point the guard at other files, which
-is how `--selftest` checks the guard itself against two faulty fixtures.
+`--families PATH`, `--publishers PATH` and `--registry DIR` point the guard at
+other files, which is how `--selftest` checks the guard itself against six
+faulty fixtures.
 """
 
 import argparse
 import datetime
+import json
 import pathlib
+import re
+import shutil
 import sys
 import tempfile
 import tomllib
@@ -57,6 +89,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 RECOMMEND = ROOT / "crates" / "apollia-llm" / "src" / "recommend"
 FAMILIES = RECOMMEND / "families.toml"
 PUBLISHERS = RECOMMEND / "publishers.toml"
+REGISTRY = ROOT / "registry" / "models"
+CAPABILITIES = ROOT / "crates" / "apollia-llm" / "src" / "capabilities.rs"
+STT_CATALOGUE = (
+    ROOT / "crates" / "apollia-desktop" / "ui" / "src" / "components" / "onboarding"
+    / "onboardingCatalogs.ts"
+)
 SCHEMA_VERSION = 1
 
 
@@ -185,11 +223,182 @@ def check_embeddings(data: dict, today: datetime.date) -> tuple[list[str], int]:
     return faults, len(entries)
 
 
-def run(families: pathlib.Path, publishers: pathlib.Path, today: datetime.date) -> int:
+EM_DASH = chr(0x2014)
+CARD_KINDS = {"language", "embeddings", "dictation"}
+AUTHOR_TYPES = {"liste", "booleen"}
+DEFAULT_KEYS = ("temperature", "top_p", "top_k", "min_p", "repetition_penalty", "presence_penalty")
+
+
+def markers(name: str) -> list[str]:
+    """The marker list `name` of capabilities.rs, as the runtime reads it."""
+    source = CAPABILITIES.read_text(encoding="utf-8")
+    block = re.search(rf"const {name}: &\[&str\] = &\[(.*?)\];", source, re.S)
+    if block is None:
+        return []
+    return [m.lower() for m in re.findall(r'"((?:[^"\\]|\\.)*)"', block.group(1))]
+
+
+def dictation_selection() -> list[str]:
+    """The download addresses of the dictation models the onboarding offers."""
+    if not STT_CATALOGUE.is_file():
+        return []
+    text = STT_CATALOGUE.read_text(encoding="utf-8")
+    start = text.find("CURATED_STT_MODELS")
+    if start < 0:
+        return []
+    block = text[start:text.find("];", start)]
+    return re.findall(r'url: "([^"]+)"', block)
+
+
+def localized(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("fr"), str) and value["fr"].strip() != ""
+        and isinstance(value.get("en"), str) and value["en"].strip() != ""
+    )
+
+
+def check_card(path: pathlib.Path, card: dict, tools_m: list[str], reason_m: list[str]) -> list[str]:
+    """The faults of one card file."""
+    cid = card.get("id") or path.name
+    out: list[str] = []
+    def fault(msg: str) -> None:
+        out.append(f"registry: {cid}: {msg}")
+    if card.get("schema_version") != SCHEMA_VERSION:
+        fault(f"schema_version is not {SCHEMA_VERSION}")
+    if card.get("kind") not in CARD_KINDS:
+        fault(f"kind {card.get('kind')!r} is not one of {sorted(CARD_KINDS)}")
+    for field in ("id", "label", "publisher"):
+        if not str(card.get(field, "")).strip():
+            fault(f"has no {field}")
+    lic = card.get("license") or {}
+    if not lic.get("id") or not lic.get("source"):
+        fault("has no licence or no licence source")
+    if not str(card.get("source_url", "")).startswith("https://huggingface.co/"):
+        fault("source_url is not a huggingface.co page")
+    if not localized(card.get("description")):
+        fault("description lacks a language (fr and en are both required)")
+    caps = card.get("capabilities") or {}
+    for flag in ("tools", "reasoning", "vision"):
+        if not isinstance(caps.get(flag), bool):
+            fault(f"capability {flag} is not declared")
+    if not caps.get("source"):
+        fault("capabilities cite no source")
+    memory = card.get("memory") or {}
+    if not isinstance(memory.get("min_gb"), (int, float)) or memory.get("min_gb", 0) <= 0:
+        fault("minimum memory is not a positive number")
+    if not memory.get("source"):
+        fault("minimum memory cites no source")
+    defaults = card.get("defaults")
+    if not isinstance(defaults, dict) or "source" not in defaults:
+        fault("has no defaults block")
+    else:
+        given = [k for k in DEFAULT_KEYS if k in defaults]
+        for key in given:
+            if not isinstance(defaults[key], (int, float)):
+                fault(f"default {key} is not a number")
+        if given and not defaults.get("source"):
+            fault("defaults cite no source")
+    fields = card.get("author_fields")
+    if not isinstance(fields, list):
+        fault("has no author_fields list")
+        fields = []
+    for field in fields:
+        name = field.get("name", "?")
+        if not field.get("name"):
+            fault("an author field has no name")
+        if field.get("type") not in AUTHOR_TYPES:
+            fault(f"author field {name} type is not one of {sorted(AUTHOR_TYPES)}")
+        if field.get("type") == "liste" and not field.get("values"):
+            fault(f"author field {name} is a list without values")
+        if "default" not in field:
+            fault(f"author field {name} has no default")
+        if not localized(field.get("explanation")):
+            fault(f"author field {name} explanation lacks a language")
+        if not field.get("source"):
+            fault(f"author field {name} cites no source")
+    repos = card.get("repos")
+    if not isinstance(repos, list) or not repos:
+        fault("lists no repository")
+    else:
+        for repo in repos:
+            owner, _, rest = str(repo).partition("/")
+            if not owner or not rest or "/" in rest:
+                fault(f"repository {repo!r} is not owner/name")
+    template = card.get("template")
+    if template is not None:
+        tpl = ROOT / template
+        if not tpl.is_file():
+            fault(f"recorded template {template} is absent")
+        else:
+            text = tpl.read_text(encoding="utf-8").lower()
+            tools = any(m in text for m in tools_m)
+            reasoning = any(m in text for m in reason_m)
+            if caps.get("tools") is not tools:
+                fault(f"declares tools={caps.get('tools')} but the recorded template computes {tools}")
+            if caps.get("reasoning") is not reasoning:
+                fault(f"declares reasoning={caps.get('reasoning')} but the recorded template computes {reasoning}")
+    return out
+
+
+def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, int]:
+    """Return the faults of the card files, how many there are, and how many
+    were checked against a recorded template."""
+    faults: list[str] = []
+    tools_m, reason_m = markers("TOOL_MARKERS"), markers("REASONING_MARKERS")
+    if not tools_m or not reason_m:
+        faults.append("registry: the capability markers of capabilities.rs could not be read")
+    ids: set[str] = set()
+    kinds: dict[str, str] = {}
+    dictation_files: set[str] = set()
+    files = sorted(registry.rglob("*.json"))
+    templated = 0
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        rel = path.relative_to(registry)
+        if EM_DASH in text:
+            faults.append(f"registry: {rel} carries an em-dash")
+        try:
+            card = json.loads(text)
+        except json.JSONDecodeError as err:
+            faults.append(f"registry: {rel} does not parse: {err}")
+            continue
+        cid = card.get("id", "")
+        if cid in ids:
+            faults.append(f"registry: {cid} is defined twice")
+        ids.add(cid)
+        kinds[cid] = card.get("kind", "")
+        dictation_files.update(card.get("selection_files", []))
+        if "template" in card:
+            templated += 1
+        faults += check_card(path, card, tools_m, reason_m)
+    for family in fam.get("family", []):
+        for variant in family.get("variant", []):
+            vid = f"{family.get('id')}/{variant.get('hf_name')}"
+            if kinds.get(vid) != "language":
+                faults.append(f"registry: variant {vid} has no language card")
+    for entry in fam.get("embedding", []):
+        if kinds.get(entry.get("id")) != "embeddings":
+            faults.append(f"registry: embeddings model {entry.get('id')} has no embeddings card")
+    for url in dictation_selection():
+        if url not in dictation_files:
+            faults.append(f"registry: dictation model {url} is named by no dictation card")
+    return faults, len(files), templated
+
+
+def run(
+    families: pathlib.Path,
+    publishers: pathlib.Path,
+    today: datetime.date,
+    registry: pathlib.Path = REGISTRY,
+) -> int:
     for path in (families, publishers):
         if not path.is_file():
             print(f"check-model-families: {path} is absent, nothing measured")
             return 2
+    if not registry.is_dir():
+        print(f"check-model-families: {registry} is absent, nothing measured")
+        return 2
     try:
         pub = tomllib.loads(publishers.read_text(encoding="utf-8"))
         fam = tomllib.loads(families.read_text(encoding="utf-8"))
@@ -201,6 +410,8 @@ def run(families: pathlib.Path, publishers: pathlib.Path, today: datetime.date) 
     faults += fam_faults
     emb_faults, embeddings = check_embeddings(fam, today)
     faults += emb_faults
+    card_faults, cards, templated = check_registry(registry, fam)
+    faults += card_faults
     families_count = len(fam.get("family", []))
     for fault in faults:
         print(f"  {fault}")
@@ -210,13 +421,16 @@ def run(families: pathlib.Path, publishers: pathlib.Path, today: datetime.date) 
     print(
         f"check-model-families: ok, {families_count} families, {measured} variants, "
         f"{embeddings} embeddings models, "
-        f"{len(names)} official publishers, {len(conv)} converters"
+        f"{len(names)} official publishers, {len(conv)} converters, "
+        f"{cards} cards ({templated} checked against a recorded template)"
     )
     return 0
 
 
 def selftest() -> int:
-    """The guard answers 0 on the tree and 1 on each of three faulty tables."""
+    """The guard answers 0 on the tree and 1 on each of six faulty fixtures:
+    three faulty tables, and three faulty cards (a missing language, an
+    em-dash, a capability the recorded template contradicts)."""
     today = datetime.date.today()
     future = (today + datetime.timedelta(days=30)).isoformat()
     tree = FAMILIES.read_text(encoding="utf-8")
@@ -244,6 +458,34 @@ def selftest() -> int:
             if code != 1:
                 print(f"selftest: {label} answered {code}, expected 1")
                 failures += 1
+        templated = next(
+            p for p in sorted(REGISTRY.rglob("*.json"))
+            if "template" in json.loads(p.read_text(encoding="utf-8"))
+        )
+        def no_french(card: dict) -> None:
+            del card["description"]["fr"]
+        def em_dash(card: dict) -> None:
+            card["description"]["en"] += " " + EM_DASH + " fast"
+        def contradicted(card: dict) -> None:
+            card["capabilities"]["tools"] = not card["capabilities"]["tools"]
+        faulty_cards = {
+            "a card without its French description": no_french,
+            "a card carrying an em-dash": em_dash,
+            "a card whose tools capability the template contradicts": contradicted,
+        }
+        for label, spoil in faulty_cards.items():
+            copy = pathlib.Path(tmp) / "registry"
+            if copy.exists():
+                shutil.rmtree(copy)
+            shutil.copytree(REGISTRY, copy)
+            target = copy / templated.relative_to(REGISTRY)
+            card = json.loads(target.read_text(encoding="utf-8"))
+            spoil(card)
+            target.write_text(json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8")
+            code = run(FAMILIES, PUBLISHERS, today, copy)
+            if code != 1:
+                print(f"selftest: {label} answered {code}, expected 1")
+                failures += 1
     print("check-model-families selftest:", "ok" if not failures else f"RED, {failures} miss(es)")
     return 0 if not failures else 1
 
@@ -252,11 +494,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--families", type=pathlib.Path, default=FAMILIES)
     parser.add_argument("--publishers", type=pathlib.Path, default=PUBLISHERS)
+    parser.add_argument("--registry", type=pathlib.Path, default=REGISTRY)
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
     if args.selftest:
         return selftest()
-    return run(args.families, args.publishers, datetime.date.today())
+    return run(args.families, args.publishers, datetime.date.today(), args.registry)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,30 @@
 
 use base64::Engine as _;
 
+/// The distribution public key compiled into this build, as the release
+/// tooling writes it (`cargo tauri signer generate`).
+///
+/// The file is read at compile time from `keys/distribution.key.pub`. It is
+/// empty until the release key is placed there, and an empty file means no key
+/// at all: [`distribution_public_key`] then answers `None` and every verifier
+/// refuses, rather than trusting some other key.
+const DISTRIBUTION_PUBLIC_KEY: &str = include_str!("../keys/distribution.key.pub");
+
+/// The one key distribution metadata is accepted from, or `None` when this
+/// build carries none.
+///
+/// No configuration, environment variable or route can replace it: a mirror
+/// changes where metadata comes from, never who may sign it.
+#[must_use]
+pub fn distribution_public_key() -> Option<&'static str> {
+    let key = DISTRIBUTION_PUBLIC_KEY.trim();
+    if key.is_empty() {
+        None
+    } else {
+        Some(key)
+    }
+}
+
 /// Errors raised while verifying a minisign signature.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -79,10 +103,6 @@ pub enum DistributionError {
 /// assert!(trusted.starts_with("timestamp:"));
 /// # Ok::<(), apollia_signing::distribution::DistributionError>(())
 /// ```
-// TEST-ONLY: no production path verifies distribution metadata yet. The
-// verifiers of the engine digest manifest and of the model registry index are
-// its callers once they exist; until then the only minisign check in
-// production is the desktop updater's own, inside `tauri-plugin-updater`.
 pub fn verify_minisign(
     content: &[u8],
     signature: &str,

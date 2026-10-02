@@ -273,6 +273,9 @@ BILINGUAL_DATA = (
     "crates/apollia-desktop/ui/src/lib/i18n/en.json",
     "crates/apollia-desktop/ui/src/lib/i18n/fr.json",
     "crates/apollia-desktop/ui/src/lib/i18n/glossary.json",
+    # Model cards: one description and one explanation per locale.
+    "crates/apollia-llm/src/model_cards/fixtures/",
+    "registry/models/",
     "scripts/automation/",
 )
 
@@ -300,6 +303,11 @@ FRENCH_DATA: dict[str, int] = {
     # those names. Only `autre` is a word the detector knows.
     "crates/apollia-core/src/hitl_payload.rs": 3,
     "sdk/apollia/hitl.py": 1,
+    # The type of a model card author field is written `liste` or `booleen` in
+    # the card files, and the readers of those files match on those values.
+    "crates/apollia-desktop/ui/src/lib/ipc/modelHub.ts": 1,
+    "crates/apollia-llm/src/model_cards/mod.rs": 1,
+    "scripts/check-model-families.py": 1,
     "crates/apollia-cli/src/commands/chat_stream.rs": 3,
     "crates/apollia-cli/src/commands/chat_stream/classify.rs": 1,
     "crates/apollia-cli/src/commands/run.rs": 2,
@@ -335,6 +343,7 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-core/src/observability.rs": 1,
     "crates/apollia-core/src/utils.rs": 2,
     "crates/apollia-desktop/ui/src/lib/automations/humanize.test.ts": 20,
+    "crates/apollia-llm/src/model_cards/tests.rs": 2,
     "crates/apollia-desktop/ui/src/lib/chat/attachments.test.ts": 1,
     "crates/apollia-desktop/ui/src/lib/i18n/audit-i18n.test.ts": 12,
     "crates/apollia-desktop/ui/src/lib/i18n/i18n-locale-switch.test.ts": 1,

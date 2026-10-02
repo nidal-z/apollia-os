@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "gemma3/gemma-3-4b-it",
+  "kind": "language",
+  "label": "Gemma 3 4B",
+  "publisher": "Google",
+  "license": {
+    "id": "gemma",
+    "source": "https://huggingface.co/google/gemma-3-4b-it"
+  },
+  "source_url": "https://huggingface.co/google/gemma-3-4b-it",
+  "description": {
+    "fr": "Petit modèle Gemma 3 qui lit les images ; son gabarit ne prévoit pas d'outils, il convient donc à la conversation et à la description d'images.",
+    "en": "A small Gemma 3 model that reads images; its template has no tools, so it suits conversation and describing images."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/unsloth/gemma-3-4b-it/tree/main"
+  },
+  "memory": {
+    "min_gb": 2.5,
+    "source": "https://huggingface.co/unsloth/gemma-3-4b-it-GGUF/blob/main/gemma-3-4b-it-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "top_p": 0.95,
+    "top_k": 64,
+    "source": "https://huggingface.co/unsloth/gemma-3-4b-it/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "google/gemma-3-4b-it",
+    "google/gemma-3-4b-it-GGUF",
+    "unsloth/gemma-3-4b-it-GGUF",
+    "bartowski/gemma-3-4b-it-GGUF",
+    "mlx-community/gemma-3-4b-it-4bit"
+  ],
+  "template": "crates/apollia-llm/src/capabilities/fixtures/chat_template_gemma3_4b.jinja"
+}

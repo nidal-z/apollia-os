@@ -253,6 +253,42 @@ transitive crate, and serves to compare a file with what its repository
 declares, not to resist a forger: the TLS connection to the repository carries
 that guarantee, and a file that matches neither identifier is deleted.
 
+### The model registry {#model-registry}
+
+The catalogue of models reads one online index of model cards. A card is a
+short text written for this project, in French and in English: what the model
+is good at, the capabilities its chat template declares, the memory it asks
+for, the sampling values its publisher recommends, the switches its template
+exposes, its licence and the page of its original repository. Every value a
+card repeats from a model repository cites the address it was read from; no
+README text is copied into a card, and a README is read from the repository
+only when the user asks for it, as text, never written to disk. The cards are
+written in this repository, so that a card is added or corrected without a new
+version of the application.
+
+The registry is read under the local-first principle. The index is a static
+file, requested when the catalogue opens and at no other time, by a request
+that carries no body, no query, no cookie and no identifier: the registry
+learns nothing about who reads it, and no user data is sent. It is signed in
+the minisign format by the dedicated distribution key described under
+[Signatures](#signing-schemes), whose public half is compiled into the binary
+and is the only key accepted; an index whose signature does not hold is
+refused, never used. The index is served from object storage operated in
+France, behind a domain of the project, with access logs kept for a short
+period only. When that address does not answer, the same signed index is read
+from the release mirror on GitHub, under the same verification. The last index
+accepted is kept on disk, and the card of a model is copied next to it when it
+is downloaded, so an installed model reads its card offline.
+
+An organisation replaces the address by an internal mirror, or turns the
+registry off, through the `[models]` section of `apollia.toml`.
+A mirror changes where the index comes from, never who may sign it. Without
+network and without a kept copy, the catalogue is empty and says so, nothing is
+recommended, and a model can still be imported from a disk.
+
+The cost is a network source the catalogue depends on: no index ships with the
+application, so a first launch without network has no recommendation.
+
 ## Speech to text {#speech-to-text}
 
 Transcription runs out of process, in a sidecar built on whisper, so a model

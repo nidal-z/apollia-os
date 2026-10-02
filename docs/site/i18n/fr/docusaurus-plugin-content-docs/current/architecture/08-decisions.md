@@ -273,6 +273,45 @@ déclare, non à résister à un faussaire : la connexion TLS au dépôt porte c
 garantie, et un fichier qui ne correspond à aucun des deux identifiants est
 supprimé.
 
+### Le registre des modèles {#model-registry}
+
+Le catalogue des modèles lit un index en ligne de fiches de modèles. Une fiche
+est un texte court rédigé pour ce projet, en français et en anglais : ce que le
+modèle sait bien faire, les capacités que déclare son gabarit de conversation,
+la mémoire qu'il demande, les valeurs d'échantillonnage que recommande son
+éditeur, les réglages qu'expose son gabarit, sa licence et la page de son dépôt
+d'origine. Chaque valeur qu'une fiche reprend d'un dépôt de modèle cite
+l'adresse où elle a été lue ; aucun texte de README n'est recopié dans une
+fiche, et un README n'est lu depuis le dépôt qu'à la demande de l'utilisateur,
+en texte, sans jamais être écrit sur le disque. Les fiches sont écrites dans ce
+dépôt, pour qu'une fiche soit ajoutée ou corrigée sans nouvelle version de
+l'application.
+
+Le registre est lu sous le principe du local d'abord. L'index est un fichier
+statique, demandé à l'ouverture du catalogue et à aucun autre moment, par une
+requête sans corps, sans paramètre, sans cookie et sans identifiant : le
+registre n'apprend rien de qui le lit, et aucune donnée de l'utilisateur n'est
+envoyée. Il est signé au format minisign par la clé de distribution dédiée
+décrite dans [Signatures](#signing-schemes), dont la moitié publique est
+compilée dans le binaire et est la seule clé acceptée ; un index dont la
+signature ne tient pas est refusé, jamais utilisé. L'index est servi depuis un
+stockage objet opéré en France, derrière un domaine du projet, avec des
+journaux d'accès conservés peu de temps. Quand cette adresse ne répond pas, le
+même index signé est lu depuis le miroir des versions publiées sur GitHub, avec
+la même vérification. Le dernier index accepté est gardé sur le disque, et la
+fiche d'un modèle est copiée à côté de lui à son téléchargement : un modèle
+installé lit sa fiche hors ligne.
+
+Une organisation remplace l'adresse par un miroir interne, ou coupe le
+registre, par la section `[models]` d'`apollia.toml`. Un miroir
+change l'origine de l'index, jamais qui peut le signer. Sans réseau et sans
+copie gardée, le catalogue est vide et le dit, rien n'est recommandé, et un
+modèle peut toujours être importé depuis un disque.
+
+Le coût est une source réseau dont dépend le catalogue : aucun index n'est
+livré avec l'application, donc un premier lancement sans réseau n'a pas de
+recommandation.
+
 ## Reconnaissance vocale {#speech-to-text}
 
 La transcription tourne hors processus, dans un sidecar bâti sur whisper, si

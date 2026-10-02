@@ -1,8 +1,7 @@
 //! Apollia OS runtime configuration.
 //!
-//! Nine `apollia.toml` sections are consulted by a loader, the list held by
-//! `apollia_cli::config::KNOWN_SECTIONS` and mirrored by the embedded loader.
-//! Eight of them are defined here:
+//! Ten `apollia.toml` sections are consulted by a loader, the list held by
+//! `apollia_cli::config::KNOWN_SECTIONS`. Nine of them are defined here:
 //! - [`RuntimeConfig`]: `[runtime]`, EventBus and mailbox capacity.
 //! - [`ApiConfig`]: `[api]`, the TCP listener, authentication, TLS, and the
 //!   Unix socket.
@@ -13,8 +12,11 @@
 //! - [`ChatConfig`]: `[chat]`, chat session defaults.
 //! - [`FilesystemConfig`]: `[filesystem]`, the reversible journal and the
 //!   trusted paths.
+//! - [`ModelsConfig`]: `[models]`, the signed index of model cards the
+//!   catalogue reads, its mirror, and the switch that turns it off. Read when
+//!   the catalogue opens, not by the embedded loader.
 //!
-//! The ninth is `[llm]`, whose type lives in `apollia-llm`.
+//! The tenth is `[llm]`, whose type lives in `apollia-llm`.
 //!
 //! The other types in this module are runtime parameters, not `apollia.toml`
 //! sections. No loader deserializes an `[a2a]` or an `[oria]` table, and both
@@ -35,6 +37,7 @@ mod hitl;
 mod hooks;
 mod llm;
 mod mcp;
+mod models;
 mod oria;
 mod permissions;
 mod registry;
@@ -61,6 +64,7 @@ pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
 pub use mcp::{McpConfig, McpToolLoading};
+pub use models::{ModelsConfig, DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL};
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;

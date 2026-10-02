@@ -76,6 +76,7 @@ from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReas
 from .events_response import EventsResponse
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
+from .get_model_card_response_200 import GetModelCardResponse200
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
@@ -103,6 +104,9 @@ from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
 from .message_dto import MessageDto
+from .model_cards_response import ModelCardsResponse
+from .model_cards_response_cards_item import ModelCardsResponseCardsItem
+from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
@@ -121,6 +125,7 @@ from .preset_response_load import PresetResponseLoad
 from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
 from .put_mcp_secret_body import PutMcpSecretBody
+from .readme_response import ReadmeResponse
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
@@ -299,6 +304,7 @@ __all__ = (
     "EventsResponse",
     "FireResponse",
     "ForkSessionRequest",
+    "GetModelCardResponse200",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
@@ -326,6 +332,9 @@ __all__ = (
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MessageDto",
+    "ModelCardsResponse",
+    "ModelCardsResponseCardsItem",
+    "ModelCardsResponsePublishers",
     "ModelInfo",
     "ModelsListResponse",
     "ModelSourceDto",
@@ -344,6 +353,7 @@ __all__ = (
     "PresetResponseRequest",
     "PresetsListResponse",
     "PutMcpSecretBody",
+    "ReadmeResponse",
     "RejectUserInputRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
