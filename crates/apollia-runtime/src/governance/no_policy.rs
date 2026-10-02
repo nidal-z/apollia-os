@@ -206,6 +206,8 @@ mod tests {
             GovernanceEvent::Uninstalled {
                 agent_id: "a1".into(),
                 version: "1.1.0".into(),
+                memory_cleared: true,
+                history_cleared: false,
                 actor: "user".into(),
             },
         ];

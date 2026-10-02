@@ -1388,7 +1388,7 @@ mod tests {
         // THEN Commands::Agent { command: AgentCommand::Uninstall { name } }
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Uninstall { name, confirm } => {
+                AgentCommand::Uninstall { name, confirm, .. } => {
                     assert_eq!(name, "mon-agent");
                     assert!(!confirm, "the confirmation is opt-in, never the default");
                 }
@@ -1407,7 +1407,7 @@ mod tests {
         // THEN the flag is carried on the variant
         match &cli.command {
             Commands::Agent { command } => match command {
-                AgentCommand::Uninstall { name, confirm } => {
+                AgentCommand::Uninstall { name, confirm, .. } => {
                     assert_eq!(name, "mon-agent");
                     assert!(confirm);
                 }

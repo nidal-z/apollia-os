@@ -443,7 +443,7 @@ Agent management (list, start, stop, show, install, uninstall, enable, disable, 
 * `status` - Show a compact runtime-status snapshot for `<agent_id>`
 * `messages` - List in-memory A2A messages for `<agent_id>` (oldest-first within window)
 * `install` - Install an agent permanently from a local path or a Git URL
-* `uninstall` - Uninstall a permanently installed agent
+* `uninstall` - Uninstall an agent installed on its own, through the runtime
 * `enable` - Enable an installed agent (will auto-start on boot)
 * `disable` - Disable an installed agent (will not auto-start on boot)
 * `update` - Update an installed agent with a new Python module
@@ -589,7 +589,9 @@ Accepts a local filesystem path (e.g. `./agents/my-agent.py`) or a Git remote UR
 
 ## `apollia-os agent uninstall`
 
-Uninstall a permanently installed agent
+Uninstall an agent installed on its own, through the runtime.
+
+Removes its definition, its overrides, its model, its triggers, its environment and its files. Its memory and its history are kept unless asked otherwise. An agent of an installed package goes with its package.
 
 **Usage:** `apollia-os agent uninstall [OPTIONS] <NAME>`
 
@@ -599,6 +601,8 @@ Uninstall a permanently installed agent
 
 ###### **Options:**
 
+* `--clear-memory` - Erase the agent's memory instead of keeping it
+* `--clear-history` - Erase the agent's history (tasks, batches) instead of keeping it
 * `--confirm` - Skip the interactive confirmation prompt
 
 
@@ -668,7 +672,7 @@ Manage agent packages (multi-agent bundles described by agent.toml)
 
 * `list` - List all installed agent packages
 * `show` - Show details for an installed package
-* `uninstall` - Uninstall a package and all its agents and triggers
+* `uninstall` - Uninstall a package and everything it installed, through the runtime
 
 
 
@@ -694,7 +698,9 @@ Show details for an installed package
 
 ## `apollia-os agent package uninstall`
 
-Uninstall a package and all its agents and triggers
+Uninstall a package and everything it installed, through the runtime.
+
+Removes its agents with their overrides, models and triggers, its workflows and tools, its environments, its files and the MCP servers it brought; the connections it required stay. The memory and the history of its agents are kept unless asked otherwise.
 
 **Usage:** `apollia-os agent package uninstall [OPTIONS] <NAME>`
 
@@ -704,6 +710,8 @@ Uninstall a package and all its agents and triggers
 
 ###### **Options:**
 
+* `--clear-memory` - Erase the memory of its agents instead of keeping it
+* `--clear-history` - Erase the history of its agents and workflows (tasks, batches, workflow runs) instead of keeping it
 * `--confirm` - Skip the interactive confirmation prompt
 
 

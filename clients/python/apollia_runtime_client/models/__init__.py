@@ -263,6 +263,8 @@ from .trigger_preview import TriggerPreview
 from .trigger_source_input import TriggerSourceInput
 from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
+from .uninstall_report import UninstallReport
+from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
 from .update_channel_request import UpdateChannelRequest
@@ -549,6 +551,8 @@ __all__ = (
     "TriggerSourceInput",
     "TrustedKeyView",
     "TrustKeyRequest",
+    "UninstallReport",
+    "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
     "UpdateChannelRequest",

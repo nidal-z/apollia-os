@@ -91,7 +91,7 @@ pub(super) fn require_repo<B: ExecutionBackend + Clone>(
 /// Reads all definitions, converts them to rich types, and sends them to the engine.
 /// Conversion errors are silently ignored: the trigger stays as-is in the DB but is
 /// not loaded at runtime.
-pub(super) async fn reload_engine_from_repo<B: ExecutionBackend + Clone>(state: &AppState<B>) {
+pub(crate) async fn reload_engine_from_repo<B: ExecutionBackend + Clone>(state: &AppState<B>) {
     let engine = match &state.trigger_engine {
         Some(e) => e.clone(),
         None => return,

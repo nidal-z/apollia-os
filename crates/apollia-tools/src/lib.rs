@@ -95,9 +95,9 @@ pub use registry::{ToolRegistryError, ToolRegistryHandle};
 pub use resolver::{resolve, ResolutionReport, ResolutionStatus, ToolResolutionError};
 pub use sandbox_path::{SandboxPathError, SandboxRoot, SandboxSpec};
 pub use task_repository::{
-    AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, NewBatch, NewWorkflowRun,
-    PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow, TaskDetail,
-    TaskRepoError, TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
+    AgentRunEnd, AgentRunStart, ApprovalInfo, BatchItemRow, BatchRow, HistoryRemoved, NewBatch,
+    NewWorkflowRun, PauseRecord, PausedTaskRow, PersistedTaskSummary, ResolvedApprovalRow,
+    TaskDetail, TaskRepoError, TaskRepository, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow,
 };
 pub use tool_registry::{
     load_governance_snapshot, CredentialEntry, GovernanceSnapshot, ToolCredentialStore,

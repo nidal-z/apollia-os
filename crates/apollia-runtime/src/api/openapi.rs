@@ -333,6 +333,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_packages::list_trusted_keys,
         crate::api::routes_packages::trust_key,
         crate::api::routes_packages::remove_trusted_key,
+        crate::api::routes_packages::uninstall::uninstall_package,
+        crate::api::routes_packages::uninstall::uninstall_agent,
     ),
     components(schemas(
         ApiErrorBody,
@@ -341,6 +343,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_packages::PackageInstallRequest,
         crate::api::routes_packages::TrustKeyRequest,
         crate::api::routes_packages::TrustedKeyView,
+        crate::api::routes_packages::UninstallRequest,
+        crate::packages::UninstallReport,
         crate::packages::PackagePreview,
         crate::packages::InstallReport,
         crate::api::server::router::HealthResponse,

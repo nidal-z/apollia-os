@@ -40,9 +40,10 @@ pub use dto::{
     TriggerSourceInput, UpdateTriggerRequest,
 };
 
+pub(crate) use support::reload_engine_from_repo;
 use support::{
-    map_repo_error, parse_on_busy, reload_engine_from_repo, require_repo, row_to_response,
-    source_detail_kind, source_kind_and_detail,
+    map_repo_error, parse_on_busy, require_repo, row_to_response, source_detail_kind,
+    source_kind_and_detail,
 };
 
 // ─── CRUD Handlers ───────────────────────────────────────────────────────

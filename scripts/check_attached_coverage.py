@@ -64,8 +64,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # the seam (models, MCP servers, connections, notifications, triggers, tools),
 # then at 168 once the commands of the window were named as such, then at 164
 # once the profile had its routes, then at 162 once the settings of the chat
-# became those of the Apollia agent.
-EMBEDDED_ONLY_CEILING = 160
+# became those of the Apollia agent, then at 158 once the uninstall of an agent
+# and of a package went through the runtime.
+EMBEDDED_ONLY_CEILING = 158
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

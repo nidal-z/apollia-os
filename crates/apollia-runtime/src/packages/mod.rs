@@ -22,6 +22,11 @@
 //! it. The user's overrides of an agent survive an update: only the package
 //! definition is replaced.
 //!
+//! [`uninstall_package`] and [`uninstall_agent`] remove what an installation
+//! wrote, the triggers and model of each agent, and the MCP servers the
+//! package brought; the memory and the history of the agents go too when the
+//! user asks.
+//!
 //! A publisher is trusted when the key that signed the package is in the
 //! keyring ([`apollia_tools::TrustedKeyRepository`]); the preview then names
 //! it by the label the user gave. Any other signed package is named by the
@@ -29,11 +34,14 @@
 
 mod install;
 mod preview;
+mod uninstall;
 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_install;
+#[cfg(test)]
+mod tests_uninstall;
 
 use apollia_tools::apo_archive::ApoError;
 
@@ -45,6 +53,10 @@ pub use preview::{
     InstallRefusal, ItemPreview, PackageNotice, PackagePreview, PreviewSources,
     RequiredConnectionPreview, SignaturePreview, SignatureStatus, TriggerPreview, UpdateDiff,
     WorkflowPreview,
+};
+pub use uninstall::{
+    uninstall_agent, uninstall_package, UninstallError, UninstallOptions, UninstallReport,
+    UninstallTargets,
 };
 
 /// Errors of the preview and of the installation of a package.
