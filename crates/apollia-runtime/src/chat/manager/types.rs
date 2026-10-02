@@ -2,9 +2,10 @@ use super::*;
 
 /// Logical identifier of the system agent "Apollia Chat".
 ///
-/// Used as the key for `scope = 'agent'` permission rules and for the
-/// free-chat config persisted in `governance.db`.
-pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
+/// Used as the key for `scope = 'agent'` permission rules, for the standing
+/// consents of Apollia, and for the free-chat config persisted in
+/// `governance.db`. Defined once, in `apollia-permissions`.
+pub const APOLLIA_CHAT_AGENT_ID: &str = apollia_permissions::APOLLIA_AGENT_ID;
 
 /// Subset of the runtime's native-tool config the chat dispatcher needs to
 /// instantiate config-dependent natives (web_search, web_read, http_fetch,
@@ -149,6 +150,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Operator instruction to consume on a resume turn, when this exchange is a
     /// resume carrying a queued injection. `None` for ordinary turns.
     pub(in crate::chat::manager) pending_injection: Option<InjectedInstruction>,
+    /// Backend the session prefers (the free chat's stored choice), tried
+    /// before the default at each call of the turn.
+    pub(in crate::chat::manager) preferred_backend: Option<String>,
 }
 
 /// Resolved tool invoker plus the agent workspace path for a session.

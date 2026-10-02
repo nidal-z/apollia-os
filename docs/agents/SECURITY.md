@@ -176,7 +176,18 @@ Decision outcomes :
 | `ask` | execution paused, HITL prompt issued |
 | `deny` | execution blocked, recorded |
 
-Scopes : `session`, `project`, `global`. The closest scope wins.
+Reach of what is persisted :
+
+- A fine rule targets one agent (`agent`, with its identifier) or every agent
+  (`global`); the rule of the calling agent is consulted before the rule for
+  every agent. No rule targets a project or a single session.
+- An "always" is not a rule: it is a standing consent for one agent and one
+  action family (`apollia_permissions::FamilyConsentStore`, table
+  `family_consents`), permanent or bound to one batch run. The "execute code"
+  family never takes one.
+- Rules written by an older binary are converted once at startup
+  (`apollia_permissions::run_access_upgrade`), and every conversion or removal
+  is recorded in the audit journal as a change of access.
 
 What actually gates a tool call in the shipped runtime :
 

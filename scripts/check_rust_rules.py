@@ -289,6 +289,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # so its tests hold one (`serve_once`) and prove a claimed port cannot be
     # bound twice. Both binds are on port 0, never a reservation released.
     "crates/apollia-desktop/src/startup/tests.rs": 2,
+    # The closed port is the subject: an attached desktop whose daemon has
+    # stopped must get an error back, not wait. The test binds port 0 and
+    # releases it to obtain a port nothing listens on.
+    "crates/apollia-desktop/src/attached/tests.rs": 1,
     # One helper, the transport is the subject: these tests prove that a
     # virtualenv gets built, that pip refuses an altered digest, and that the
     # rewritten command starts. The helper builds the local wheel the
@@ -314,7 +318,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # server holds a port-0 bind for the whole test, never a port released.
     "crates/apollia-runtime/src/api/routes_llm/servers.rs": 1,
     "crates/apollia-runtime/src/api/server.rs": 13,
-    "crates/apollia-runtime/src/api/unreached_by_cli.rs": 1,
+    # The mailbox and the whole-bus event streams never end: each probe reads
+    # its first frame under a deadline, which is what fails it rather than a
+    # hang if the frame never comes.
+    "crates/apollia-runtime/src/api/unreached_by_cli.rs": 2,
     "crates/apollia-runtime/src/chat/builtin_agent/tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its

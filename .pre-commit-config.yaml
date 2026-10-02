@@ -469,6 +469,17 @@ repos:
         files: '^(crates/apollia-connectors/.*|scripts/check_connector_fixtures\.py)$'
         pass_filenames: false
 
+      # The desktop commands that serve a runtime running as a daemon. Each
+      # registered command is routed over HTTP or embedded only, and the second
+      # count is on a descending ratchet: a command added without a route, or a
+      # route added without lowering the ceiling, is refused.
+      - id: check-attached-coverage
+        name: every desktop command is routed for the attached mode or on the ratchet
+        entry: python3 scripts/check_attached_coverage.py
+        language: system
+        files: '^(crates/apollia-desktop/src/.*\.rs|scripts/check_attached_coverage\.py)$'
+        pass_filenames: false
+
       # The generated API clients against the specification they come from. A
       # generated artefact looks authoritative and ages silently: the Python
       # client was committed once and seven operations the specification

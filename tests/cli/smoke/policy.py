@@ -256,6 +256,10 @@ ARGV: dict[str, list[str]] = {
     "agent package uninstall": ["seed-office-pack", "--confirm"],
     "agent stop": ["seed-classifier"],
     "notify events set": ["task.completed"],
+    # Without `--no-load` the leaf hands the definition to launchd, systemd or
+    # Task Scheduler, which act on the operator's real session whatever HOME
+    # says. The write is played; the load is the maintainer's gesture.
+    "service install": ["--no-load"],
 }
 
 # Per-leaf deadline in seconds; DEFAULT_TIMEOUT elsewhere.

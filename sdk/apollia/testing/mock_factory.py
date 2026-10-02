@@ -22,6 +22,7 @@ from apollia._internal.dispatch import dispatch_message, dispatch_skill
 from apollia._internal.manifest import MANIFEST_ATTR
 from apollia.testing.context import (
     MockA2A,
+    MockAgents,
     MockBudget,
     MockDatasources,
     MockEvents,
@@ -30,6 +31,7 @@ from apollia.testing.context import (
     MockSecrets,
     MockStt,
     MockTemplates,
+    MockWorkflows,
     MockWorkspace,
 )
 from apollia.testing.mocks import MockLlmProxy, MockMemory, MockToolProxy
@@ -41,7 +43,7 @@ T = TypeVar("T")
 
 
 class MockContext:
-    """Mock of the full ``Ctx`` Protocol - all 14 service surfaces.
+    """Mock of the ``Ctx`` Protocol: every service surface but ``mail``.
 
     The constructor wires fresh instances of every ``Mock<X>`` service.
     Pre-configure each surface in place::
@@ -63,6 +65,8 @@ class MockContext:
         self.memory = MockMemory()
         self.tools = MockToolProxy()
         self.a2a = MockA2A()
+        self.agents = MockAgents()
+        self.workflows = MockWorkflows()
         self.datasources = MockDatasources()
         self.templates = MockTemplates()
         self.secrets = MockSecrets()

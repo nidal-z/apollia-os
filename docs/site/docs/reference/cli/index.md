@@ -18,6 +18,8 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os agent start`↴](#apollia-os-agent-start)
 * [`apollia-os agent stop`↴](#apollia-os-agent-stop)
 * [`apollia-os agent show`↴](#apollia-os-agent-show)
+* [`apollia-os agent set`↴](#apollia-os-agent-set)
+* [`apollia-os agent reset`↴](#apollia-os-agent-reset)
 * [`apollia-os agent status`↴](#apollia-os-agent-status)
 * [`apollia-os agent messages`↴](#apollia-os-agent-messages)
 * [`apollia-os agent install`↴](#apollia-os-agent-install)
@@ -183,6 +185,9 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os mcp secret delete`↴](#apollia-os-mcp-secret-delete)
 * [`apollia-os mcp server`↴](#apollia-os-mcp-server)
 * [`apollia-os update`↴](#apollia-os-update)
+* [`apollia-os package`↴](#apollia-os-package)
+* [`apollia-os package build`↴](#apollia-os-package-build)
+* [`apollia-os package inspect`↴](#apollia-os-package-inspect)
 * [`apollia-os workspace`↴](#apollia-os-workspace)
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
@@ -196,6 +201,10 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os plan cache stats`↴](#apollia-os-plan-cache-stats)
 * [`apollia-os plan cache clear`↴](#apollia-os-plan-cache-clear)
 * [`apollia-os plan cache evict`↴](#apollia-os-plan-cache-evict)
+* [`apollia-os service`↴](#apollia-os-service)
+* [`apollia-os service install`↴](#apollia-os-service-install)
+* [`apollia-os service uninstall`↴](#apollia-os-service-uninstall)
+* [`apollia-os service status`↴](#apollia-os-service-status)
 * [`apollia-os doctor`↴](#apollia-os-doctor)
 * [`apollia-os inspect`↴](#apollia-os-inspect)
 * [`apollia-os logs`↴](#apollia-os-logs)
@@ -287,10 +296,12 @@ Apollia OS CLI binary (apollia-os)
 * `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
+* `package` - Agent package archives: build a `.apo` from a folder, inspect one
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
+* `service` - Run the runtime as a service of your session (install, uninstall, status)
 * `doctor` - Diagnose the local Apollia environment (no runtime required)
 * `inspect` - Statically inspect a Python agent file (no runtime required)
 * `logs` - Tail or follow the runtime log file
@@ -404,7 +415,9 @@ Agent management (list, start, stop, show, install, uninstall, enable, disable, 
 * `list` - List all agents (installed and/or runtime)
 * `start` - Start (register) a new agent from a Python module path
 * `stop` - Stop (shutdown) a running agent
-* `show` - Display detailed information about an agent
+* `show` - Display detailed information about an agent, with its definition as resolved (package defaults, then your overrides)
+* `set` - Override one field of an agent's definition; a package update keeps it
+* `reset` - Go back to the package defaults: remove every override of an agent, or the override of one field. Recorded in the audit journal
 * `status` - Show a compact runtime-status snapshot for `<agent_id>`
 * `messages` - List in-memory A2A messages for `<agent_id>` (oldest-first within window)
 * `install` - Install an agent permanently from a local path or a Git URL
@@ -429,6 +442,7 @@ List all agents (installed and/or runtime)
 ###### **Options:**
 
 * `--supports-a2a` - Show only A2A-capable agents with their skill descriptors
+* `--definitions` - List the stored agents as resolved (package definition, then your overrides) instead of the runtime inventory
 
 
 
@@ -458,13 +472,46 @@ Stop (shutdown) a running agent
 
 ## `apollia-os agent show`
 
-Display detailed information about an agent
+Display detailed information about an agent, with its definition as resolved (package defaults, then your overrides)
 
 **Usage:** `apollia-os agent show <AGENT_ID>`
 
 ###### **Arguments:**
 
 * `<AGENT_ID>` - Agent identifier
+
+
+
+## `apollia-os agent set`
+
+Override one field of an agent's definition; a package update keeps it.
+
+Fields: `name` and `mission` take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
+
+**Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
+
+###### **Arguments:**
+
+* `<AGENT_ID>` - Agent identifier
+* `<FIELD>` - Field to override: name, mission, examples, access or sources
+* `<VALUES>` - The value, or the items of a list
+
+
+
+## `apollia-os agent reset`
+
+Go back to the package defaults: remove every override of an agent, or the override of one field. Recorded in the audit journal
+
+**Usage:** `apollia-os agent reset [OPTIONS] <AGENT_ID>`
+
+###### **Arguments:**
+
+* `<AGENT_ID>` - Agent identifier
+
+###### **Options:**
+
+* `--field <FIELD>` - Remove only the override of this field
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -2260,7 +2307,7 @@ Permission rule management (list, revoke, audit)
 
 ###### **Subcommands:**
 
-* `list` - List persisted rules (project + global)
+* `list` - List persisted rules, for one agent and for every agent
 * `revoke` - Revoke a rule by identifier, or every matching rule with `--all`
 * `audit` - Show the permission decision history
 * `add` - Add a persisted permission rule for a tool + optional argument prefix
@@ -2269,13 +2316,13 @@ Permission rule management (list, revoke, audit)
 
 ## `apollia-os permissions list`
 
-List persisted rules (project + global)
+List persisted rules, for one agent and for every agent
 
 **Usage:** `apollia-os permissions list [OPTIONS]`
 
 ###### **Options:**
 
-* `--scope <SCOPE>` - Filter by scope: `global`, `project` or `session`
+* `--scope <SCOPE>` - Filter by scope: `agent` or `global`
 * `--tool <TOOL>` - Filter by tool name
 
 
@@ -2288,14 +2335,12 @@ Revoke a rule by identifier, or every matching rule with `--all`
 
 ###### **Arguments:**
 
-* `<ID>` - Numeric identifier of a persisted rule.
-
-   IDs prefixed with `s` denote session-scoped rules; they are not revocable from the CLI (use the desktop app or restart the daemon).
+* `<ID>` - Numeric identifier of a persisted rule
 
 ###### **Options:**
 
 * `--all` - Revoke every rule matching `--scope`
-* `--scope <SCOPE>` - Scope targeted by `--all`: `global` (default) or `project`
+* `--scope <SCOPE>` - Scope targeted by `--all`: `agent` or `global`
 * `--yes` - Skip the interactive confirmation (useful for scripts)
 
 
@@ -2319,7 +2364,7 @@ Show the permission decision history
 
 Add a persisted permission rule for a tool + optional argument prefix.
 
-Persists into `governance.db` directly (no runtime required). Session scope is not supported here because session rules live in the runtime memory; use the chat REPL approval flow instead.
+Persists into `governance.db` directly (no runtime required). The rule applies to one agent (`--scope agent --agent <ID>`) or to every agent (`--scope global`).
 
 **Usage:** `apollia-os permissions add [OPTIONS] --tool <NAME>`
 
@@ -2333,13 +2378,13 @@ Persists into `governance.db` directly (no runtime required). Session scope is n
 
   Possible values: `allow`, `deny`
 
-* `--scope <SCOPE>` - Rule scope: `project` or `global` (session is not persistable)
+* `--scope <SCOPE>` - Rule scope: `agent` (one agent) or `global` (every agent)
 
   Default value: `global`
 
-  Possible values: `project`, `global`
+  Possible values: `agent`, `global`
 
-* `--project-path <PATH>` - Project canonical path (required when `--scope project`)
+* `--agent <ID>` - Agent the rule applies to (required when `--scope agent`)
 
 
 
@@ -2484,7 +2529,7 @@ Reset the configuration to the defaults (empty prompt, no tools)
 
 Manage persisted permission rules scoped to the Apollia Chat agent.
 
-Mirrors the Desktop Settings → Chat permissions panel: lists or deletes rules stored in `governance.db` with `agent_id = apollia:chat`. Rules of scope `session` live in the runtime memory and are not visible here (same caveat as `permissions list`).
+Mirrors the Desktop Settings → Chat permissions panel: lists or deletes rules stored in `governance.db` with `agent_id = apollia:chat`. The authorizations a running chat holds for its session only are not rules and are not visible here.
 
 **Usage:** `apollia-os chat config permissions <COMMAND>`
 
@@ -2994,6 +3039,55 @@ Check for and install updates from GitHub Releases
 
 
 
+## `apollia-os package`
+
+Agent package archives: build a `.apo` from a folder, inspect one
+
+**Usage:** `apollia-os package <COMMAND>`
+
+###### **Subcommands:**
+
+* `build` - Build a `.apo` archive from a package folder
+* `inspect` - Show the manifest, the entries and the signature state of a `.apo` archive
+
+
+
+## `apollia-os package build`
+
+Build a `.apo` archive from a package folder.
+
+Validates `apollia.toml`, refuses a folder whose Python modules define tools or workflows that the manifest does not describe (write the descriptors with `python -m apollia describe <folder>`), and writes the archive. No Python code runs.
+
+**Usage:** `apollia-os package build [OPTIONS] <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Package folder, holding `apollia.toml` at its root
+
+###### **Options:**
+
+* `--sign` - Sign the archive with the author key. The key is read from the secret store under `--key`; it is generated and stored there the first time
+* `--key <LABEL>` - Label of the author key in the secret store
+
+  Default value: `default`
+* `-o`, `--output <FILE>` - Archive to write. Default: `<name>-<version>.apo` in the current folder
+
+
+
+## `apollia-os package inspect`
+
+Show the manifest, the entries and the signature state of a `.apo` archive.
+
+The signature state is `unsigned`, or `signed` with the declared publisher and the fingerprint of the key. A signature that does not match the content is refused with exit 1.
+
+**Usage:** `apollia-os package inspect <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The `.apo` archive
+
+
+
 ## `apollia-os workspace`
 
 Workspace inspection and initialization (status, init)
@@ -3153,6 +3247,56 @@ Evict entries older than `--max-age-days` days (default: 7)
 
   Default value: `7`
 * `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os service`
+
+Run the runtime as a service of your session (install, uninstall, status)
+
+**Usage:** `apollia-os service <COMMAND>`
+
+###### **Subcommands:**
+
+* `install` - Install the runtime as a service of your session and start it
+* `uninstall` - Stop the service and remove its definition
+* `status` - Report whether the service is installed and running
+
+
+
+## `apollia-os service install`
+
+Install the runtime as a service of your session and start it.
+
+macOS: a LaunchAgent; Linux: a systemd user unit; Windows: a task at logon. No administrator right is needed.
+
+**Usage:** `apollia-os service install [OPTIONS]`
+
+###### **Options:**
+
+* `--no-load` - Write the service definition without handing it to the service manager: nothing starts now, the next logon starts it
+
+
+
+## `apollia-os service uninstall`
+
+Stop the service and remove its definition.
+
+Prompts for confirmation unless `--confirm` is passed.
+
+**Usage:** `apollia-os service uninstall [OPTIONS]`
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os service status`
+
+Report whether the service is installed and running
+
+**Usage:** `apollia-os service status`
 
 
 

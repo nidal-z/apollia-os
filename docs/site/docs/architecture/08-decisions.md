@@ -209,6 +209,25 @@ A packaged build stages the engine binary. A source build expects
 is reachable, calls fail with an explicit unavailable reason rather than
 silently falling back to a cloud provider.
 
+On macOS Apple Silicon, models in the MLX format run through a second embedded
+engine, vllm-mlx (Apache 2.0), an OpenAI-compatible server built on MLX with
+continuous batching, prefix caching and native structured output. One version
+is pinned, and the engine is installed by hash into an environment of its own
+inside the bundled Python tree, apart from the packages agents import: the
+engine starts with the bundled interpreter in a mode that keeps the agents'
+packages off its path. Only the dependencies that serving a model imports are
+installed, without resolving the rest of the closure the engine declares.
+Two exclusions follow from that. mlx-embeddings is GPL-3.0 and only backs the
+engine's embeddings endpoint, so it never ships and that endpoint is not
+served; the build and the release check both refuse a bundle that carries it.
+PyTorch, OpenCV, Gradio, SciPy and the audio stack are not imported to serve
+a model, so they are left out. The daemon supervises the engine the way it
+supervises `llama-server`, behind an engine interface that keeps the engine
+replaceable, and it listens on the loopback interface only. The cost is
+weight: the engine and its dependencies add about 150 MB to the macOS disk
+image, and they need macOS 14 or later, the floor of the MLX wheels at the
+pinned version. The Windows and Linux bundles do not carry it.
+
 There is no dedicated cloud provider. A remote model is reached through one
 generic connection to an OpenAI-compatible server, at the address the
 organization designates: a self-hosted vLLM or LM Studio, or a gateway. Any
@@ -369,6 +388,37 @@ tree. `minisign-verify` has no dependency of its own and was already in the tree
 through the updater. A key cannot be revoked other than by changing the set of
 keys a reader trusts.
 
+## Organisation policy {#organisation-policy}
+
+An organisation imposes its rules on a machine by dropping a signed policy in a
+system folder: `/Library/Application Support/Apollia/policy` on macOS,
+`C:\ProgramData\Apollia\policy` on Windows, `/etc/apollia/policy` on Linux. The
+folder holds `policy.toml`, a `SIGNATURE` in the package format above over a
+list of one entry, and `org.pub`, the organisation public key. The runtime reads
+it once, at startup. No folder means no policy: the user is free.
+
+The key sits next to the policy, so the policy is only as authentic as the
+rights on its folder. A folder or file that someone other than the system
+administrator can modify is refused: on Unix the owner must be root and neither
+the others nor a group other than root's may write; on Windows the owner must be
+the Administrators group or the LocalSystem account, and no entry of the access
+list may grant a write to anyone else. A symbolic link is refused on every
+platform. The Windows path is written out rather than read from `%ProgramData%`,
+which the user sets.
+
+The date of signature is a `signed_at` field of `policy.toml`, a date, a time
+and an offset. The signature covers the whole file, so the date is signed and
+the `SIGNATURE` format did not change for it. A file system date was rejected:
+anyone can touch a file.
+
+Reading a Windows owner and access list takes the Win32 security API, which the
+standard library does not expose. `windows-sys` is a direct dependency of the
+permissions crate on Windows only, with the security, authorization and file
+system features. It is the raw binding Microsoft publishes, it has no
+dependency beyond its own linker shim, and the same version was already in the
+tree through other crates, so the lockfile gained no package. The cost is a
+block of FFI code with its own `unsafe` allowance, confined to one module.
+
 ## Command line {#cli}
 
 The CLI is noun-verb. Daily operations are bare verbs; everything else is a noun
@@ -412,6 +462,16 @@ that ends without a word. A refusal opens a window that names what holds the
 port and the gesture to make, and appends the reason to `startup-refused.log` in
 the data directory.
 
+Attached, the desktop builds nothing of a runtime of its own. It reaches the
+daemon over the local HTTP API with the token of the data directory, and
+receives the whole event bus as one stream, `GET /api/v1/events`. It asks the
+health route every two seconds rather than assuming the daemon is there, so an
+unanswered probe shows the runtime as disconnected at once. A command without a
+route yet answers a typed error that names it, instead of reaching for state
+the process never built; `scripts/check_attached_coverage.py` counts the routed
+commands against the registered ones, on a descending ratchet. Quitting the
+attached desktop leaves the daemon serving.
+
 Version 0.3.0 delivers both modes.
 
 ## Agent distribution {#agent-distribution}
@@ -423,6 +483,42 @@ availability dependency of a product whose first promise is running without one.
 Third-party Python dependencies declared by an agent are installed into that
 agent's own virtual environment, after explicit consent, and the operator sees
 the list before it happens.
+
+## Package archive {#package-archive}
+
+An agent package travels as one `.apo` file: a zip archive with the
+`apollia.toml` manifest at its root, the Python modules and resources of the
+package at their relative paths, and, when the author signed it, a `SIGNATURE`
+file (see [Signatures](#signing-schemes)) and a `SIGNATURE.key` file holding the
+public key that made it. The signature covers every other entry. Building the
+archive validates the manifest and refuses a folder whose modules define tools
+or workflows that the manifest does not describe; it runs no Python.
+
+Zip was taken over a `tar.gz`: any operating system opens it without a tool,
+and its central directory lets the manifest be read without decompressing the
+rest, which is what an install preview needs. A `tar.gz` has no index, so
+reading one file means decompressing everything before it, and it would have
+cost the same two direct dependencies (`tar` and `flate2`) for none of that.
+Reading zip with code of
+our own was rejected: an archive parser is an attack surface, and an unaudited
+one is a worse surface than a maintained one.
+
+An archive comes from elsewhere, so reading it is bounded. An entry with an
+absolute path, a `..` component, a backslash or a drive prefix is refused, as is
+a symbolic link and a name that appears twice. The archive is capped at 256 MiB,
+4096 entries, 64 MiB per entry decompressed and 512 MiB decompressed in all, and
+the manifest at 1 MiB. The caps apply to the bytes actually decompressed, not to
+the sizes the archive declares, so a lying header does not lift them. A package
+over any cap is refused at build time too, so what Apollia builds it can read.
+
+The cost is two direct dependencies of the runtime, `zip` and `flate2`, both
+already in the tree through the desktop updater; no crate entered the lock
+file. `zip` is compiled with deflate only: no encryption, no bzip2, lzma, zstd
+or deflate64. `flate2` is declared beside it for one reason, to choose the
+pure-Rust backend (`miniz_oxide`) of that deflate: `zip` leaves the backend to
+the caller, `flate2` refuses to compile without one, and the `deflate` feature
+of `zip` that would pick one itself pulls in `zopfli` and `zlib-rs`, which the
+tree does not hold.
 
 ## Host integration {#host-integration}
 

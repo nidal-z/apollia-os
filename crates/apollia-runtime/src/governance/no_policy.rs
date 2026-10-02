@@ -194,6 +194,7 @@ mod tests {
                 access_id: "send_email".into(),
                 change: AccessChange::Granted,
                 actor: "user".into(),
+                reason: None,
             },
             GovernanceEvent::Updated {
                 agent_id: "a1".into(),
@@ -260,6 +261,7 @@ mod tests {
                 access_id: "send_email".into(),
                 change,
                 actor: "user".into(),
+                reason: None,
             })
             .expect("record");
         }

@@ -316,6 +316,7 @@ impl AgentRunner for BridgeRunner {
         let templates_declared = self.templates_declared.clone();
         let agent_dir = self.agent_dir.clone();
         let secrets_declared = self.secrets_declared.clone();
+        let declared_backend = self.manifest.llm_backend.clone();
         // Live view of the Direct-path budget, shared into ctx.tools and ctx.llm.
         let budget_view = Arc::new(self.budget.to_live_budget_view());
 
@@ -463,6 +464,7 @@ impl AgentRunner for BridgeRunner {
                 ))
             };
 
+            let agent_id_for_model = agent_id.clone();
             let ctx: PyObject = Python::with_gil(|py| {
                 let mut ctx = RuntimeContext::new_with_llm(
                     llm_router,
@@ -482,6 +484,12 @@ impl AgentRunner for BridgeRunner {
                 if let Some(profile) = profile_interface {
                     ctx = ctx.with_profile(profile);
                 }
+                // The model this agent asks for, read again at each `ctx.llm` call.
+                ctx = ctx.with_agent_model(apollia_llm::AgentModelBinding::new(
+                    agent_id_for_model,
+                    declared_backend,
+                    Some(apollia_core::paths::DataFile::System.path(&default_data_dir())),
+                ));
                 if let Some((session_id, message_id)) = chat_target {
                     ctx = ctx.with_chat_target(session_id, message_id);
                 }
@@ -668,7 +676,12 @@ impl ExecutionBackend for AIPProductionBackend {
         engine = wire_engine_with_llm(
             engine,
             self.llm_router.clone(),
-            &self.agent_id,
+            &apollia_llm::AgentModelBinding::new(
+                self.agent_id.clone(),
+                self.manifest.llm_backend.clone(),
+                Some(apollia_core::paths::DataFile::System.path(&default_data_dir())),
+            ),
+            Some(&self.event_bus),
             step_budget_max,
         );
 

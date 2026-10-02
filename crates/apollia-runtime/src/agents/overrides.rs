@@ -1,0 +1,143 @@
+//! Writing the overrides of an agent, each write recorded by governance.
+//!
+//! Every write or removal of an override records an
+//! [`GovernanceEvent::OverrideChanged`]; a change of the access list also
+//! records one [`GovernanceEvent::AccessChanged`] per tool granted or taken
+//! away, so the journal says who gave what to which agent.
+
+use apollia_tools::{AgentRepository, AgentRepositoryError, OverrideField, ResolvedAgent};
+use serde_json::Value;
+
+use crate::governance::{
+    AccessChange, GovernanceContract, GovernanceError, GovernanceEvent, OverrideChange,
+};
+
+/// Errors of an override write.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum AgentOverrideError {
+    /// The agent store refused or failed the write.
+    #[error(transparent)]
+    Store(#[from] AgentRepositoryError),
+    /// The write was stored but its journal entry could not be built.
+    #[error(transparent)]
+    Governance(#[from] GovernanceError),
+}
+
+/// The store and the governance an override write goes through, and who
+/// makes it.
+#[derive(Clone, Copy)]
+pub struct OverrideWriter<'a> {
+    /// The agent store.
+    pub repo: &'a AgentRepository,
+    /// The governance that records each write.
+    pub governance: &'a dyn GovernanceContract,
+    /// Who makes the change, as the journal names it.
+    pub actor: &'a str,
+}
+
+impl OverrideWriter<'_> {
+    /// Sets the user's `value` of `field` for `agent`, and records it.
+    ///
+    /// # Errors
+    ///
+    /// [`AgentOverrideError::Store`] when the agent is unknown, the value does
+    /// not fit the field, or the store fails; [`AgentOverrideError::Governance`]
+    /// when the record cannot be written.
+    pub fn set(
+        &self,
+        agent: &str,
+        field: OverrideField,
+        value: &Value,
+    ) -> Result<(), AgentOverrideError> {
+        let before = access_of(self.repo, agent)?;
+        self.repo.set_override(agent, field, value)?;
+        self.record_change(agent, field, OverrideChange::Set)?;
+        self.record_access_diff(agent, &before, &access_of(self.repo, agent)?)
+    }
+
+    /// Removes the user's value of `field` for `agent`, and records it.
+    /// Removing a field that was not overridden changes nothing and records
+    /// nothing.
+    ///
+    /// Returns whether an override was removed.
+    ///
+    /// # Errors
+    ///
+    /// As [`OverrideWriter::set`].
+    pub fn remove(&self, agent: &str, field: OverrideField) -> Result<bool, AgentOverrideError> {
+        let before = access_of(self.repo, agent)?;
+        if self.repo.remove_override(agent, field)?.is_none() {
+            return Ok(false);
+        }
+        self.record_change(agent, field, OverrideChange::Removed)?;
+        self.record_access_diff(agent, &before, &access_of(self.repo, agent)?)?;
+        Ok(true)
+    }
+
+    /// Back to defaults: removes every override of `agent`, recording each.
+    ///
+    /// Returns the fields that were overridden.
+    ///
+    /// # Errors
+    ///
+    /// As [`OverrideWriter::set`].
+    pub fn reset(&self, agent: &str) -> Result<Vec<OverrideField>, AgentOverrideError> {
+        let before = access_of(self.repo, agent)?;
+        let removed = self.repo.reset_overrides(agent)?;
+        for entry in &removed {
+            self.record_change(agent, entry.field, OverrideChange::Removed)?;
+        }
+        self.record_access_diff(agent, &before, &access_of(self.repo, agent)?)?;
+        Ok(removed.into_iter().map(|entry| entry.field).collect())
+    }
+
+    fn record_change(
+        &self,
+        agent: &str,
+        field: OverrideField,
+        change: OverrideChange,
+    ) -> Result<(), GovernanceError> {
+        self.governance.record(&GovernanceEvent::OverrideChanged {
+            agent_id: agent.to_owned(),
+            field: field.as_str().to_owned(),
+            change,
+            actor: self.actor.to_owned(),
+        })
+    }
+
+    fn record_access_diff(
+        &self,
+        agent: &str,
+        before: &[String],
+        after: &[String],
+    ) -> Result<(), AgentOverrideError> {
+        let granted = after
+            .iter()
+            .filter(|a| !before.contains(a))
+            .map(|a| (a, AccessChange::Granted));
+        let revoked = before
+            .iter()
+            .filter(|a| !after.contains(a))
+            .map(|a| (a, AccessChange::Revoked));
+        for (access_id, change) in granted.chain(revoked) {
+            self.governance.record(&GovernanceEvent::AccessChanged {
+                agent_id: agent.to_owned(),
+                access_id: access_id.clone(),
+                change,
+                actor: self.actor.to_owned(),
+                reason: None,
+            })?;
+        }
+        Ok(())
+    }
+}
+
+fn access_of(repo: &AgentRepository, agent: &str) -> Result<Vec<String>, AgentRepositoryError> {
+    repo.resolved(agent, None)?
+        .map(|resolved: ResolvedAgent| resolved.access)
+        .ok_or_else(|| AgentRepositoryError::NotFound(agent.to_owned()))
+}
+
+#[cfg(test)]
+mod tests;

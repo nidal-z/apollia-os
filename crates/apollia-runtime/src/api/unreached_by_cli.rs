@@ -245,6 +245,20 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             absent_method: Method::GET,
             live_probed: true,
         },
+        UnreachedOp {
+            id: "stream_events",
+            method: Method::GET,
+            path: "/api/v1/events",
+            absent_method: Method::POST,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "pause_session",
+            method: Method::POST,
+            path: "/api/v1/sessions/probe-session/pause",
+            absent_method: Method::GET,
+            live_probed: true,
+        },
     ]
 }
 
@@ -688,6 +702,62 @@ async fn test_mailbox_stream_relays_mailbox_events_and_filters_the_rest() {
         !text.contains("ShutdownRequested"),
         "a non-mailbox event reached the mailbox stream: {text}"
     );
+}
+
+#[tokio::test]
+async fn test_event_stream_relays_every_runtime_event_as_the_bus_carries_it() {
+    // GIVEN an open event stream
+    let dir = tempfile::tempdir().expect("temp dir");
+    let state = base_state(dir.path());
+    let bus = state.event_sender.clone();
+    let router = APIServer::build_router_for_test(state);
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri("/api/v1/events")
+        .body(Body::empty())
+        .expect("build request");
+    let response = router.oneshot(request).await.expect("router response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // WHEN an event no narrower stream forwards is published
+    let _ = bus.send(RuntimeEvent::ShutdownRequested);
+
+    // THEN it reaches the wire as a `runtime` frame holding its serde JSON,
+    // which a client deserializes back into the same event
+    let mut stream = response.into_body().into_data_stream();
+    let frame = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+        .await
+        .expect("stream produced no frame within the deadline")
+        .expect("stream ended before emitting a frame")
+        .expect("frame error");
+    let text = String::from_utf8_lossy(&frame).to_string();
+    assert!(text.contains("event: runtime"), "frame was: {text}");
+    let data = text
+        .lines()
+        .find_map(|line| line.strip_prefix("data: "))
+        .expect("the frame carries a data line");
+    let event: RuntimeEvent = serde_json::from_str(data).expect("the data is a runtime event");
+    assert!(matches!(event, RuntimeEvent::ShutdownRequested));
+}
+
+#[tokio::test]
+async fn test_pause_answers_503_without_the_chat_subsystem() {
+    // GIVEN a runtime started without the chat session manager
+    let dir = tempfile::tempdir().expect("temp dir");
+    let router = APIServer::build_router_for_test(base_state(dir.path()));
+
+    // WHEN the turn of a session is paused
+    let (status, body) = call(
+        router,
+        Method::POST,
+        "/api/v1/sessions/probe-session/pause",
+        Body::empty(),
+    )
+    .await;
+
+    // THEN the caller is told the subsystem is unavailable
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(json_of(&body)["error"].is_string());
 }
 
 #[tokio::test]

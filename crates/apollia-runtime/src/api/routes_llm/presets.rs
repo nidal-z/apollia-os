@@ -446,6 +446,61 @@ pub async fn clear_agent_model<B: ExecutionBackend + Clone>(
     Ok(Json(ClearAgentModelResponse { agent, cleared }))
 }
 
+/// The last time an agent's model was not available, so a call ran on the
+/// default model instead.
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct AgentModelFallbackResponse {
+    /// Agent name.
+    pub agent: String,
+    /// Model the agent asked for: the user's assignment, or the backend its
+    /// manifest declares.
+    pub requested: String,
+    /// Model that served the call instead.
+    pub used: String,
+    /// When it happened, RFC 3339.
+    pub at: String,
+}
+
+/// `GET /api/v1/llm/agents/{agent}/model/fallback`: the last time the agent's
+/// model was not available since the runtime started, for its sheet.
+#[utoipa::path(
+    get,
+    path = "/api/v1/llm/agents/{agent}/model/fallback",
+    tag = "llm",
+    params(("agent" = String, Path, description = "Agent name")),
+    responses(
+        (status = 200, description = "The agent's last fallback", body = AgentModelFallbackResponse),
+        (status = 404, description = "The agent's model has not fallen back since the runtime started", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "No LLM router configured", body = crate::api::openapi::ApiErrorBody),
+    )
+)]
+pub async fn get_agent_model_fallback<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
+    Path(agent): Path<String>,
+) -> Result<Json<AgentModelFallbackResponse>, ApiError> {
+    let router = state.llm_router.read().await.clone().ok_or_else(|| {
+        api_err(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "no LLM router configured".to_string(),
+        )
+    })?;
+    let fallback = router
+        .latest()
+        .agent_model_fallback(&agent)
+        .ok_or_else(|| {
+            api_err(
+                StatusCode::NOT_FOUND,
+                format!("the model of agent '{agent}' has not fallen back"),
+            )
+        })?;
+    Ok(Json(AgentModelFallbackResponse {
+        agent: fallback.agent,
+        requested: fallback.requested,
+        used: fallback.used,
+        at: fallback.at,
+    }))
+}
+
 /// `GET /api/v1/llm/default-model`: the default model of the machine.
 #[utoipa::path(
     get,
@@ -518,6 +573,10 @@ pub fn preset_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(get_agent_model::<B>)
                 .put(set_agent_model::<B>)
                 .delete(clear_agent_model::<B>),
+        )
+        .route(
+            "/api/v1/llm/agents/:agent/model/fallback",
+            get(get_agent_model_fallback::<B>),
         )
         .route(
             "/api/v1/llm/default-model",

@@ -1,0 +1,33 @@
+# Every section and every key of the version 1 organisation policy schema.
+schema_version = 1
+signed_at = 2026-10-02T09:30:00+02:00
+
+[connections]
+allow = ["gmail", "mcp:filesystem", "native:file_io"]
+deny = ["mcp:slack"]
+remote = "deny"
+
+[families]
+deny = ["execute_code", "send_external"]
+
+[inference]
+allowed_servers = ["llama-server", "https://llm.example.internal"]
+remote_endpoints = "deny"
+require_model_hash = true
+
+[settings]
+"chat.max_steps" = 20
+"privacy.telemetry" = false
+"ui.language" = "fr"
+
+[packages]
+require_signature = true
+trusted_publishers = ["d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"]
+
+[journal]
+required = true
+retention_days = 365
+
+[journal.export]
+detail = "forbid"
+daily_summary_dir = "/var/lib/apollia/journal-exports"

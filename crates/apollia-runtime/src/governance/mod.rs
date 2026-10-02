@@ -19,7 +19,11 @@
 //! addition of a connection, failing closed; [`ConnectionGovernance`] carries
 //! that call and the journal of connection events to the places that add,
 //! change or remove a connection.
+//!
+//! [`access_upgrade`] runs, once at startup, the conversion of the rules
+//! persisted before standing consents, and journals every change it makes.
 
+pub mod access_upgrade;
 mod admission;
 mod connection;
 mod contract;
@@ -38,5 +42,7 @@ pub use contract::{
     GovernanceError, InstallSubject,
 };
 pub use no_policy::NoPolicyGovernance;
-pub use record::{governance_run_id, AccessChange, GovernanceEvent, GovernanceRecord};
+pub use record::{
+    governance_run_id, AccessChange, GovernanceEvent, GovernanceRecord, OverrideChange,
+};
 pub use tool_attributes::{tool_attributes, ToolAttributes};

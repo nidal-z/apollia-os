@@ -308,3 +308,143 @@ async fn test_default_model_routes_read_and_set_local_or_server() {
     assert_eq!(defaults.len(), 1);
     assert_eq!(defaults[0]["name"], server["backend"]);
 }
+
+struct Silent;
+
+#[async_trait::async_trait]
+impl apollia_llm::CompletionModel for Silent {
+    async fn complete(
+        &self,
+        _req: apollia_llm::CompletionRequest,
+    ) -> Result<apollia_llm::CompletionResponse, apollia_llm::LlmError> {
+        Err(apollia_llm::LlmError::InferenceError("not called".into()))
+    }
+
+    async fn stream(
+        &self,
+        _req: apollia_llm::CompletionRequest,
+    ) -> Result<
+        std::pin::Pin<
+            Box<
+                dyn futures::Stream<Item = Result<apollia_llm::StreamChunk, apollia_llm::LlmError>>
+                    + Send,
+            >,
+        >,
+        apollia_llm::LlmError,
+    > {
+        Err(apollia_llm::LlmError::InferenceError("not called".into()))
+    }
+
+    fn is_available(&self) -> bool {
+        true
+    }
+    fn backend_name(&self) -> &str {
+        "silent"
+    }
+    fn model_id(&self) -> &str {
+        "silent"
+    }
+}
+
+fn router_of(name: &str) -> apollia_llm::LlmRouter {
+    let mut backends: std::collections::HashMap<String, Arc<dyn apollia_llm::CompletionModel>> =
+        std::collections::HashMap::new();
+    backends.insert(name.to_string(), Arc::new(Silent));
+    apollia_llm::LlmRouter::with_backends(backends, name)
+}
+
+// GIVEN a runtime whose router saw agent `mail` ask for a model it lacks
+// WHEN the fallback route is read for `mail`, for an agent that never fell
+//      back, and on a runtime with no router
+// THEN `mail` reads the model asked for and the one used, the other agent
+//      reads 404, and the runtime without a router reads 503
+#[tokio::test]
+async fn test_agent_model_fallback_route_reads_the_last_fallback() {
+    // GIVEN
+    let state = test_app_state_no_llm();
+    let router = Arc::new(router_of("local"));
+    router.resolve_agent_model("mail", Some("vllm/gone"), None, None);
+    *state.llm_router.write().await = Some(router);
+
+    // WHEN
+    let (found, fallback) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/llm/agents/mail/model/fallback",
+        None,
+    )
+    .await;
+    let (never, _) = call(
+        state.clone(),
+        "GET",
+        "/api/v1/llm/agents/notes/model/fallback",
+        None,
+    )
+    .await;
+    let (no_router, _) = call(
+        test_app_state_no_llm(),
+        "GET",
+        "/api/v1/llm/agents/mail/model/fallback",
+        None,
+    )
+    .await;
+
+    // THEN
+    assert_eq!(found, StatusCode::OK);
+    assert_eq!(fallback["agent"], "mail");
+    assert_eq!(fallback["requested"], "vllm/gone");
+    assert_eq!(fallback["used"], "local");
+    assert!(fallback["at"].as_str().is_some_and(|at| !at.is_empty()));
+    assert_eq!(never, StatusCode::NOT_FOUND);
+    assert_eq!(no_router, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+// GIVEN a runtime whose boot router carries `[llm.routing]` and an agent's
+//       last fallback, held by a running agent, and a `system.db` whose
+//       default is a server backend
+// WHEN POST /api/v1/llm/reload
+// THEN the response says running agents are reached, the agent holding the
+//      boot router reaches the rebuilt one, and the routing and the fallback
+//      survive the reload
+#[tokio::test]
+async fn test_reload_keeps_routing_and_reaches_running_agents() {
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
+    repo.save(&LlmBackendConfig {
+        name: "cloud".into(),
+        provider: LlmProvider::OpenAi,
+        model: "qwen3-32b".into(),
+        config_json: json!({ "api_url": "http://127.0.0.1:9/v1" }),
+        enabled: true,
+        is_default: true,
+    })
+    .unwrap();
+    let mut state = test_app_state_no_llm();
+    state.llm_backend_repo = Some(Arc::new(std::sync::Mutex::new(repo)));
+    let routing = apollia_core::LlmRoutingConfig {
+        precise: "cloud".into(),
+        fast: "cloud".into(),
+        hybrid: None,
+        format_version: 1,
+    };
+    let boot = Arc::new(router_of("cloud").with_routing(routing));
+    boot.resolve_agent_model("mail", Some("gone"), None, None);
+    let held_by_agent = Arc::clone(&boot);
+    *state.llm_router.write().await = Some(boot);
+
+    // WHEN
+    let (status, body) = call(state.clone(), "POST", "/api/v1/llm/reload", None).await;
+
+    // THEN
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["reaches_running_agents"], true);
+    let rebuilt = state.llm_router.read().await.clone().unwrap();
+    let seen = held_by_agent.latest();
+    assert!(Arc::ptr_eq(&seen, &rebuilt));
+    assert_eq!(seen.routing().map(|r| r.precise.as_str()), Some("cloud"));
+    assert_eq!(
+        seen.agent_model_fallback("mail").map(|f| f.requested),
+        Some("gone".to_string())
+    );
+}

@@ -89,7 +89,8 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         authorize_tool as chat_authorize_tool, close_session, create_session,
         fork_session as chat_fork_session, get_session as chat_get_session,
         get_session_todo as chat_get_session_todo, list_recent_sessions, list_session_children,
-        list_sessions, resume_session as chat_resume_session, send_message, stream_session,
+        list_sessions, pause::pause_session, resume_session as chat_resume_session, send_message,
+        stream_session,
     };
     use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
@@ -133,6 +134,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             get(crate::api::openapi::openapi_json),
         )
         .route("/api/v1/shutdown", post(shutdown_handler::<B>))
+        .route(
+            "/api/v1/events",
+            get(crate::api::routes_events::stream_events::<B>),
+        )
         .route("/api/v1/tasks", get(list_tasks::<B>).post(submit_task::<B>))
         .route(
             "/api/v1/tasks/:id",
@@ -231,6 +236,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route("/api/v1/notifications/test", post(test_channels::<B>))
         .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())
+        .merge(crate::api::routes_agent_definitions::agent_definition_routes::<B>())
         .merge(model_hub_routes::<B>())
         .merge(resilience_router::<B>())
         // Chat session routes
@@ -250,6 +256,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             post(chat_authorize_tool::<B>),
         )
         .route("/api/v1/sessions/:id/stream", get(stream_session::<B>))
+        .route("/api/v1/sessions/:id/pause", post(pause_session::<B>))
         .route("/api/v1/sessions/:id/todo", get(chat_get_session_todo::<B>))
         .route(
             "/api/v1/sessions/:id/resume",

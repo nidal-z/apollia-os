@@ -11,7 +11,9 @@ from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
 from .agent_message_dto_payload import AgentMessageDtoPayload
 from .agent_messages_response import AgentMessagesResponse
+from .agent_model_fallback_response import AgentModelFallbackResponse
 from .agent_model_response import AgentModelResponse
+from .agent_origin_dto import AgentOriginDto
 from .agent_response import AgentResponse
 from .agent_response_manifest_type_0 import AgentResponseManifestType0
 from .api_error_body import ApiErrorBody
@@ -116,6 +118,8 @@ from .resilience_status_response import ResilienceStatusResponse
 from .resilience_status_response_circuit_breakers_item import (
     ResilienceStatusResponseCircuitBreakersItem,
 )
+from .resolved_agent_response import ResolvedAgentResponse
+from .resolved_agent_response_definition import ResolvedAgentResponseDefinition
 from .resolved_approval_response import ResolvedApprovalResponse
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
@@ -132,6 +136,8 @@ from .set_approval_body import SetApprovalBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
 from .set_events_request import SetEventsRequest
+from .set_override_request import SetOverrideRequest
+from .set_override_request_value import SetOverrideRequestValue
 from .shutdown_response import ShutdownResponse
 from .sidechain_row import SidechainRow
 from .skill_dto import SkillDto
@@ -215,7 +221,9 @@ __all__ = (
     "AgentMessageDto",
     "AgentMessageDtoPayload",
     "AgentMessagesResponse",
+    "AgentModelFallbackResponse",
     "AgentModelResponse",
+    "AgentOriginDto",
     "AgentResponse",
     "AgentResponseManifestType0",
     "ApiErrorBody",
@@ -318,6 +326,8 @@ __all__ = (
     "ResetResponse",
     "ResilienceStatusResponse",
     "ResilienceStatusResponseCircuitBreakersItem",
+    "ResolvedAgentResponse",
+    "ResolvedAgentResponseDefinition",
     "ResolvedApprovalResponse",
     "ResumeErrorBody",
     "ResumeRequest",
@@ -334,6 +344,8 @@ __all__ = (
     "SetDefaultModelRequest",
     "SetDefaultResponse",
     "SetEventsRequest",
+    "SetOverrideRequest",
+    "SetOverrideRequestValue",
     "ShutdownResponse",
     "SidechainRow",
     "SkillDto",

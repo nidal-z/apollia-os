@@ -23,8 +23,8 @@ use tokio::sync::{mpsc, Mutex as AsyncMutex};
 
 use apollia_core::events::EventBusSender;
 use apollia_llm::{
-    ChatMessage, CompletionRequest, LlmError, LlmRouter, ObservabilityConfig, StepBudgetView,
-    ToolCallHelper,
+    AgentModelBinding, ChatMessage, CompletionRequest, LlmError, LlmRouter, ObservabilityConfig,
+    StepBudgetView, ToolCallHelper,
 };
 
 /// Default bound on how many `map` items call the model at once when the caller
@@ -136,6 +136,9 @@ pub struct LlmProxy {
     agent_id: Option<String>,
     /// Run this proxy belongs to; tags `LlmCallStarted` for audit correlation.
     run_id: Option<apollia_core::events::RunId>,
+    /// The model the agent asks for, resolved again at each call that names
+    /// no backend. `None` leaves the router's default in force.
+    agent_model: Option<AgentModelBinding>,
 }
 
 impl LlmProxy {
@@ -159,7 +162,28 @@ impl LlmProxy {
             task_id: None,
             agent_id: None,
             run_id: None,
+            agent_model: None,
         }
+    }
+
+    /// Binds this proxy to the model its agent asks for: the user's
+    /// assignment, else the manifest's backend, read again at each call.
+    pub fn with_agent_model(mut self, binding: AgentModelBinding) -> Self {
+        self.agent_model = Some(binding);
+        self
+    }
+
+    /// The router in force and the backend of one call: the backend the agent
+    /// names, else the agent's own model resolved now (which falls back to
+    /// the default, and says so, when that model is not available).
+    fn route_call(&self, backend: Option<String>) -> (Arc<LlmRouter>, Option<String>) {
+        let router = self.router.latest();
+        let backend = backend.or_else(|| {
+            self.agent_model
+                .as_ref()
+                .and_then(|binding| binding.resolve(&router, self.event_bus.as_ref()))
+        });
+        (router, backend)
     }
 
     /// Binds this proxy to the current execution identity for observability.
@@ -272,7 +296,7 @@ impl LlmProxy {
     /// Returns an empty string if no backend is configured.
     #[getter]
     fn default_backend(&self) -> String {
-        self.router.default_name().to_string()
+        self.router.latest().default_name().to_string()
     }
 
     /// Simplified LLM call: system prompt + user message.
@@ -312,17 +336,18 @@ impl LlmProxy {
         // constrained call is one call to the model, so it costs exactly what an
         // unconstrained one costs: one step, no more and no less.
         self.charge_step()?;
+        let (router, backend) = self.route_call(backend);
 
         // Emit LlmCallStarted before dispatch.
         let prompt_chars = (system.chars().count() + user.chars().count()) as u64;
         let backend_label = backend
             .as_deref()
-            .unwrap_or_else(|| self.router.default_name())
+            .unwrap_or_else(|| router.default_name())
             .to_string();
         // The model the router will dispatch to, read from the backend it
         // resolves: `complete_with_observability` calls that one backend and
         // no other, so this is the model that answers.
-        let model_id = resolved_model_id(&self.router, backend.as_deref());
+        let model_id = resolved_model_id(&router, backend.as_deref());
         self.emit_started(
             &backend_label,
             &model_id,
@@ -331,7 +356,6 @@ impl LlmProxy {
             response_schema.as_ref(),
         );
 
-        let router = Arc::clone(&self.router);
         let obs = Arc::clone(&self.obs_config);
         let bus = self.event_bus.clone();
         let run_id = self.run_id.clone();
@@ -405,7 +429,7 @@ impl LlmProxy {
         max_tokens: Option<u32>,
         max_concurrency: Option<usize>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let router = Arc::clone(&self.router);
+        let (router, backend) = self.route_call(backend);
         let obs = Arc::clone(&self.obs_config);
         let budget = Arc::clone(&self.budget_view);
         let bus = self.event_bus.clone();
@@ -549,14 +573,15 @@ impl LlmProxy {
                 }
             })
             .sum();
+        let (router, backend) = self.route_call(backend);
         let backend_label = backend
             .as_deref()
-            .unwrap_or_else(|| self.router.default_name())
+            .unwrap_or_else(|| router.default_name())
             .to_string();
         // The model the router will dispatch to, read from the backend it
         // resolves: `complete_with_observability` calls that one backend and
         // no other, so this is the model that answers.
-        let model_id = resolved_model_id(&self.router, backend.as_deref());
+        let model_id = resolved_model_id(&router, backend.as_deref());
         self.emit_started(
             &backend_label,
             &model_id,
@@ -565,7 +590,6 @@ impl LlmProxy {
             response_schema.as_ref(),
         );
 
-        let router = Arc::clone(&self.router);
         let obs = Arc::clone(&self.obs_config);
         let bus = self.event_bus.clone();
         let run_id = self.run_id.clone();
@@ -690,7 +714,7 @@ impl LlmProxy {
             .map(|obj| py_dict_to_chat_message(py, obj))
             .collect::<PyResult<Vec<_>>>()?;
 
-        let router = Arc::clone(&self.router);
+        let (router, backend) = self.route_call(backend);
         let obs = Arc::clone(&self.obs_config);
         let bus = self.event_bus.clone();
 
@@ -1132,5 +1156,100 @@ mod tests {
         assert_eq!(by_default, "qwen3-4b");
         assert_eq!(named, "mistral-medium");
         assert_eq!(unknown, "");
+    }
+
+    struct NoTools;
+
+    #[async_trait::async_trait]
+    impl apollia_llm::ToolInvoker for NoTools {
+        async fn invoke(
+            &self,
+            _tool_name: &str,
+            _arguments: &serde_json::Value,
+        ) -> Result<String, String> {
+            Ok(String::new())
+        }
+    }
+
+    fn named_router(names: &[&'static str], default: &str) -> Arc<LlmRouter> {
+        let backends: std::collections::HashMap<String, Arc<dyn apollia_llm::CompletionModel>> =
+            names
+                .iter()
+                .map(|n| {
+                    (
+                        n.to_string(),
+                        Arc::new(NamedModel(n)) as Arc<dyn apollia_llm::CompletionModel>,
+                    )
+                })
+                .collect();
+        Arc::new(LlmRouter::with_backends(backends, default))
+    }
+
+    fn proxy_on(router: Arc<LlmRouter>, bus: Option<EventBusSender>) -> LlmProxy {
+        LlmProxy::new(
+            router,
+            Arc::new(ToolCallHelper::new(
+                Arc::new(NamedModel("helper")),
+                Arc::new(NoTools),
+            )),
+            Arc::new(StepBudgetView::unlimited()),
+            Arc::new(ObservabilityConfig::default()),
+            bus,
+        )
+    }
+
+    #[test]
+    fn a_call_without_backend_runs_on_the_agents_model() {
+        // GIVEN a proxy bound to an agent whose manifest declares `cloud`, and
+        //       one bound to an agent asking for a model the router lacks
+        let router = named_router(&["local", "cloud"], "local");
+        let (bus, mut rx) = tokio::sync::broadcast::channel(8);
+        let declared = proxy_on(Arc::clone(&router), Some(bus.clone()))
+            .with_agent_model(AgentModelBinding::new("notes", Some("cloud".into()), None));
+        let missing = proxy_on(Arc::clone(&router), Some(bus))
+            .with_agent_model(AgentModelBinding::new("mail", Some("gone".into()), None));
+        let unbound = proxy_on(Arc::clone(&router), None);
+
+        // WHEN a call is routed with and without a backend named
+        let (_, by_agent) = declared.route_call(None);
+        let (_, named) = declared.route_call(Some("local".into()));
+        let (_, fell_back) = missing.route_call(None);
+        let (_, plain) = unbound.route_call(None);
+
+        // THEN the agent's model answers unless the call names one, a missing
+        //      model leaves the default in force and says so, and an agent
+        //      bound to nothing keeps the default
+        assert_eq!(by_agent.as_deref(), Some("cloud"));
+        assert_eq!(named.as_deref(), Some("local"));
+        assert_eq!(fell_back, None);
+        assert_eq!(plain, None);
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(apollia_core::events::RuntimeEvent::LlmAgentModelFallback { ref agent, .. })
+                if agent == "mail"
+        ));
+    }
+
+    #[test]
+    fn a_reload_reaches_a_proxy_built_before_it() {
+        // GIVEN a proxy built on the boot router, whose agent asks for `fresh`,
+        //       a model the boot router does not hold
+        let boot = named_router(&["local"], "local");
+        let proxy = proxy_on(Arc::clone(&boot), None).with_agent_model(AgentModelBinding::new(
+            "notes",
+            Some("fresh".into()),
+            None,
+        ));
+        let (_, before) = proxy.route_call(None);
+
+        // WHEN a reload builds a router holding `fresh` and supersedes the boot one
+        let reloaded = named_router(&["local", "fresh"], "local");
+        boot.supersede(&reloaded);
+        let (router, after) = proxy.route_call(None);
+
+        // THEN the same proxy now routes on the reloaded router, to `fresh`
+        assert_eq!(before, None);
+        assert!(Arc::ptr_eq(&router, &reloaded));
+        assert_eq!(after.as_deref(), Some("fresh"));
     }
 }

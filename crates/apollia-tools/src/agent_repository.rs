@@ -1,11 +1,12 @@
-//! SQLite repository for persisting installed agents.
+//! SQLite repository for the agents of the machine.
 //!
-//! Provides [`AgentRepository`], which stores and retrieves installed agents in
-//! a local SQLite store (`agents.db`). Agents survive restarts and are
-//! auto-loaded at boot.
+//! Provides [`AgentRepository`], which stores and retrieves agents in a local
+//! SQLite store (`agents.db`, table `agents`). Agents survive restarts and
+//! the enabled ones that run Python code are auto-loaded at boot.
 //!
-//! The `007_agent_tables.sql` migration is applied idempotently when
-//! [`AgentRepository::open`] is called.
+//! This module reads and writes the agents that run code
+//! ([`InstalledAgent`]); the definition, the overrides and the resolved agent
+//! are in `crate::agent_overrides`.
 //!
 //! All methods are synchronous because SQLite calls are lightweight, and the
 //! caller is responsible for running them in `spawn_blocking` when needed.
@@ -17,9 +18,18 @@ use apollia_core::AgentManifest;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
-// The `installed_agents` DDL lives in `crate::agents_db`: `agents.db` is
-// shared with the package tables, and `PRAGMA user_version` belongs to the
-// file, so the two repositories migrate through one numbered list.
+// The `agents` DDL lives in `crate::agents_db`: `agents.db` is shared with
+// the package tables, and `PRAGMA user_version` belongs to the file, so the
+// two repositories migrate through one numbered list.
+
+/// Columns of an agent that runs code, in the order [`row_to_installed_agent`]
+/// reads them.
+const CODE_AGENT_COLUMNS: &str = "name, version, install_path, source_path, manifest_json, \
+     enabled, installed_at, updated_at";
+
+/// Rows that describe an agent running code: a declarative agent has no code
+/// columns and is not an [`InstalledAgent`].
+const HAS_CODE: &str = "install_path IS NOT NULL AND manifest_json IS NOT NULL";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -73,6 +83,10 @@ pub enum AgentRepositoryError {
     #[error("manifest serialisation error: {0}")]
     SerdeError(#[from] serde_json::Error),
 
+    /// An override value does not fit its field.
+    #[error(transparent)]
+    InvalidOverride(#[from] crate::agent_definition::OverrideValueError),
+
     /// A `spawn_blocking` task failed (panic in the worker thread).
     #[error("async task error: {0}")]
     SpawnError(String),
@@ -82,10 +96,10 @@ pub enum AgentRepositoryError {
 // Repository
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// SQLite repository for installed agents.
+/// SQLite repository for the agents of the machine.
 ///
-/// Wraps a SQLite connection to `agents.db`. The `007_agent_tables.sql`
-/// migration is applied in [`open`](Self::open). WAL mode is enabled for
+/// Wraps a SQLite connection to `agents.db`, brought to the current schema in
+/// [`open`](Self::open). WAL mode is enabled for
 /// read/write concurrency.
 ///
 /// Clonable via `Arc`; every clone shares the same connection. The async
@@ -96,7 +110,7 @@ pub enum AgentRepositoryError {
 /// [`list_async`]: Self::list_async
 #[derive(Clone)]
 pub struct AgentRepository {
-    conn: Arc<Mutex<Connection>>,
+    pub(crate) conn: Arc<Mutex<Connection>>,
 }
 
 impl AgentRepository {
@@ -119,11 +133,11 @@ impl AgentRepository {
         })
     }
 
-    /// Inserts or updates an installed agent.
+    /// Inserts or updates an agent that runs code.
     ///
-    /// Uses `INSERT OR REPLACE`: if an agent with the same `name` already
-    /// exists, it is fully replaced. The `updated_at` field is updated
-    /// automatically.
+    /// The definition is read again from the manifest and replaces the stored
+    /// one; the user's overrides, the origin and the package link are left in
+    /// place, so an update keeps what the user changed.
     ///
     /// # Errors
     ///
@@ -131,15 +145,27 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn save(&self, agent: &InstalledAgent) -> Result<(), AgentRepositoryError> {
         let manifest_json = serde_json::to_string(&agent.manifest)?;
+        let definition_json =
+            crate::agent_definition::definition_from_manifest(&agent.manifest).to_string();
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         conn.execute(
-            "INSERT OR REPLACE INTO installed_agents \
-                 (name, version, install_path, source_path, manifest_json, \
-                  enabled, installed_at, updated_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO agents \
+                 (name, origin, version, definition_json, install_path, source_path, \
+                  manifest_json, enabled, installed_at, updated_at) \
+             VALUES (?1, 'package', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
+             ON CONFLICT(name) DO UPDATE SET \
+                 version = excluded.version, \
+                 definition_json = excluded.definition_json, \
+                 install_path = excluded.install_path, \
+                 source_path = excluded.source_path, \
+                 manifest_json = excluded.manifest_json, \
+                 enabled = excluded.enabled, \
+                 installed_at = excluded.installed_at, \
+                 updated_at = excluded.updated_at",
             params![
                 &agent.name,
                 &agent.version,
+                &definition_json,
                 agent.install_path.to_string_lossy().as_ref(),
                 agent.source_path.to_string_lossy().as_ref(),
                 &manifest_json,
@@ -161,11 +187,9 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn get(&self, name: &str) -> Result<Option<InstalledAgent>, AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        let mut stmt = conn.prepare(
-            "SELECT name, version, install_path, source_path, manifest_json, \
-                    enabled, installed_at, updated_at \
-             FROM installed_agents WHERE name = ?1",
-        )?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {CODE_AGENT_COLUMNS} FROM agents WHERE name = ?1 AND {HAS_CODE}"
+        ))?;
 
         let mut rows = stmt.query(params![name])?;
         match rows.next()? {
@@ -182,11 +206,9 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn list(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        let mut stmt = conn.prepare(
-            "SELECT name, version, install_path, source_path, manifest_json, \
-                    enabled, installed_at, updated_at \
-             FROM installed_agents ORDER BY name",
-        )?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {CODE_AGENT_COLUMNS} FROM agents WHERE {HAS_CODE} ORDER BY name"
+        ))?;
         collect_agents(&mut stmt, [])
     }
 
@@ -198,15 +220,14 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn list_enabled(&self) -> Result<Vec<InstalledAgent>, AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        let mut stmt = conn.prepare(
-            "SELECT name, version, install_path, source_path, manifest_json, \
-                    enabled, installed_at, updated_at \
-             FROM installed_agents WHERE enabled = 1 ORDER BY name",
-        )?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {CODE_AGENT_COLUMNS} FROM agents \
+             WHERE enabled = 1 AND {HAS_CODE} ORDER BY name"
+        ))?;
         collect_agents(&mut stmt, [])
     }
 
-    /// Deletes an installed agent by name.
+    /// Deletes an agent by name, with its overrides.
     ///
     /// Idempotent operation: returns no error if the agent does not exist.
     ///
@@ -215,10 +236,13 @@ impl AgentRepository {
     /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn delete(&self, name: &str) -> Result<(), AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        conn.execute(
-            "DELETE FROM installed_agents WHERE name = ?1",
+        let tx = conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM agent_overrides WHERE agent = ?1",
             params![name],
         )?;
+        tx.execute("DELETE FROM agents WHERE name = ?1", params![name])?;
+        tx.commit()?;
         Ok(())
     }
 
@@ -233,7 +257,7 @@ impl AgentRepository {
     pub fn set_enabled(&self, name: &str, enabled: bool) -> Result<(), AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let rows_affected = conn.execute(
-            "UPDATE installed_agents SET enabled = ?1, updated_at = datetime('now') \
+            "UPDATE agents SET enabled = ?1, updated_at = datetime('now') \
              WHERE name = ?2",
             params![enabled, name],
         )?;
@@ -430,7 +454,7 @@ mod tests {
         AgentRepository::open(Path::new(":memory:")).expect("failed to open test repo")
     }
 
-    // Migration creates the installed_agents table
+    // Migration creates the agents table
     #[test]
     fn test_open_creates_table() {
         // GIVEN a repository opened on a throwaway database
@@ -438,10 +462,8 @@ mod tests {
         // WHEN the installed-agents table is counted
         let count: i64 = {
             let conn = repo.conn.lock().expect("lock");
-            conn.query_row("SELECT COUNT(*) FROM installed_agents", [], |row| {
-                row.get(0)
-            })
-            .expect("table installed_agents should exist")
+            conn.query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))
+                .expect("table agents should exist")
         };
         // THEN the query runs, so the table exists, and it is empty
         assert_eq!(count, 0);

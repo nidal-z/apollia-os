@@ -474,6 +474,10 @@ def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     types_mod = parse_module(TYPES_PY)
     services, type_to_module = build_service_index(types_mod)
+    # A service the protocol drafts ahead of the bridge is not published: the
+    # reference states what a running agent can call, and nothing binds it yet.
+    unbound = check_ctx_contract.REAL_TREE.services_the_bridge_does_not_bind_yet
+    services = [(attr, annotation) for attr, annotation in services if attr not in unbound]
 
     # Cache parsed context modules and their classes by type name.
     module_classes: dict[str, list[ast.ClassDef]] = {}

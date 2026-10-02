@@ -21,6 +21,18 @@ documentation site.
 | `@skill` | async method | `skill(skill_id, *, description="", dangerous=False, examples=None)` | A2A-exposed, LLM-callable capability |
 | `@on_message` | async method | `on_message(fn)`, no arguments | the agent's single conversational handler |
 | `@orchestrated` | class | `orchestrated(*, system_prompt)` | hand the execution loop to ORIA |
+| `@tool` | async function | `tool(name, description, *, action, examples=None)` | a Python tool a package ships, grantable to any agent |
+| `@workflow` | async function | `workflow(name, description, *, inputs, steps, action)` | a workflow with its steps declared ahead, run as `(ctx, inputs)` |
+
+`@tool` and `@workflow` decorate module-level functions, not methods.
+`action` is one of the five families `apollia.toml` reads (`read`,
+`read_personal`, `write_or_delete`, `send_external`, `execute_code`); every
+family except `read` is sensitive, and sensitivity follows the family alone:
+`@tool` takes no `dangerous` flag. A workflow's `inputs` is a `TypedDict`, and its body opens each step
+with `async with ctx.step("name")`, which refuses a name missing from `steps`.
+`python -m apollia describe <folder>` writes both into the folder's
+`apollia.toml` as `[[tools]]` and `[[workflows]]` descriptors, so reading the
+manifest never runs the code.
 
 Two of those signatures are not what an older reading of this file said.
 `@on_message` takes no `event_kind` and subscribes to nothing: it marks the one
@@ -89,7 +101,7 @@ contract is the `Ctx` Protocol in `sdk/apollia/types.py` plus the
 per-service interface modules in `sdk/apollia/context/*.py`. There are no
 `.pyi` stubs.
 
-`Ctx` exposes the whole Apollia backend through 15 typed services :
+`Ctx` exposes the whole Apollia backend through 17 typed services :
 
 ```python
 @runtime_checkable
@@ -98,6 +110,8 @@ class Ctx(Protocol):
     memory: MemoryInterface
     tools: ToolProxy
     a2a: A2AInterface
+    agents: AgentsInterface
+    workflows: WorkflowsInterface
     mail: MailInterface
     datasources: DatasourcesInterface
     templates: TemplatesInterface
@@ -117,6 +131,8 @@ class Ctx(Protocol):
 | `memory` | `MemoryInterface` | agent-initiated recall and write |
 | `tools` | `ToolProxy` | invoke native and MCP tools |
 | `a2a` | `A2AInterface` | synchronous agent-to-agent RPC |
+| `agents` | `AgentsInterface` | `run(agent_id, message)`, not bound by the runtime yet |
+| `workflows` | `WorkflowsInterface` | `run(workflow_id, inputs)`, not bound by the runtime yet |
 | `mail` | `MailInterface` | durable, auditable inter-agent mailbox |
 | `datasources` | `DatasourcesInterface` | read declared datasources |
 | `templates` | `TemplatesInterface` | render declared templates |
