@@ -37,7 +37,7 @@ PYTHON_BIN="${PYTHON_DIR}/bin/python3.13"
 ENGINE_DIR="${PYTHON_DIR}/engines/mlx"
 SITE_DIR="${ENGINE_DIR}/site-packages"
 # Beside the interpreter archive cache of fetch-python-standalone.sh, which
-# survives a rebuild of python/: the 300 MB of wheels are downloaded once.
+# survives a rebuild of python/: the wheels are downloaded once.
 WHEEL_CACHE="$(dirname "$PYTHON_DIR")/.cache/mlx-engine-wheels"
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
@@ -59,24 +59,37 @@ PLATFORM_ARGS=(
     --abi cp313
 )
 
-echo "==> MLX engine: download the hash-locked closure"
+echo "==> MLX engine: download the hash-locked set"
 mkdir -p "$WHEEL_CACHE"
 # --require-hashes: a wheel whose sum differs from the pinned one is refused,
-# cached copies included, and so is any dependency the file does not pin.
-"$PYTHON_BIN" -m pip download --no-cache-dir --require-hashes \
+# cached copies included. --no-deps: the file is the whole set, pruned on
+# purpose (see its header); the closure vllm-mlx declares is not resolved, so
+# a package left out, mlx-embeddings first, is never fetched.
+"$PYTHON_BIN" -m pip download --no-cache-dir --require-hashes --no-deps \
     "${PLATFORM_ARGS[@]}" -d "$WHEEL_CACHE" -r "$REQUIREMENTS"
 
 echo "==> MLX engine: install into ${SITE_DIR}"
 rm -rf "$ENGINE_DIR"
 mkdir -p "$SITE_DIR"
 "$PYTHON_BIN" -m pip install --no-cache-dir --no-compile --no-index \
-    --find-links "$WHEEL_CACHE" --require-hashes \
+    --find-links "$WHEEL_CACHE" --require-hashes --no-deps \
     "${PLATFORM_ARGS[@]}" --target "$SITE_DIR" -r "$REQUIREMENTS"
 
 # Console scripts carry the absolute path of the build interpreter in their
 # shebang, so they are dead once the tree moves into the .app. The engine is
 # started with `-m`, as above.
 rm -rf "${SITE_DIR}/bin"
+
+# mlx-embeddings is GPL-3.0 and never ships: its absence is checked on the
+# installed tree, not assumed from the requirements file.
+if PYTHONPATH="$SITE_DIR" "$PYTHON_BIN" -S -c '
+import importlib.metadata as md, sys
+sys.exit(0 if any((d.metadata["Name"] or "").lower().replace("_", "-") == "mlx-embeddings"
+                  for d in md.distributions()) else 1)'; then
+    echo "error: mlx-embeddings (GPL-3.0) is installed in ${SITE_DIR}" >&2
+    exit 1
+fi
+echo "==> MLX engine: mlx-embeddings absent"
 
 # The verdict: the server entry point answers with the bundled interpreter,
 # under the isolation contract. A build host that cannot run arm64 code says

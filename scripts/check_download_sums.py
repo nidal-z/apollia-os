@@ -15,7 +15,9 @@ Four surfaces are held to the same rule:
      `packaging/requirements-mlx-engine.txt` (the MLX engine) is pinned with
      `==` and carries at least one `--hash=sha256:`; the script that installs
      each file does so with `--require-hashes`, and the bundle build pins its
-     own pip.
+     own pip. The MLX engine set names none of its excluded packages
+     (MLX_EXCLUDED) and is installed with `--no-deps`, so an excluded package
+     cannot come back through the closure.
   4. The workflow `run:` blocks: a step that downloads with wget, curl or
      Invoke-WebRequest either verifies a sha256 in the same step or sits on
      the named exemption list below, which only ever shrinks.
@@ -51,6 +53,10 @@ REQUIREMENTS = "packaging/requirements-bundled.txt"
 BUNDLE_BUILD = "packaging/build-python-bundle.sh"
 MLX_REQUIREMENTS = "packaging/requirements-mlx-engine.txt"
 MLX_BUILD = "packaging/build-mlx-engine.sh"
+# Packages the MLX engine declares but the bundle never ships. mlx-embeddings
+# is GPL-3.0 and only serves the embeddings endpoint; the engine set is
+# installed with --no-deps so that leaving it out holds.
+MLX_EXCLUDED = ("mlx-embeddings",)
 WORKFLOW_DIR = ".github/workflows"
 SCRIPT_DIRS = ("packaging", "crates/apollia-desktop/scripts")
 
@@ -229,14 +235,23 @@ def requirement_lines(text: str) -> list[str]:
     return logical
 
 
+def _normalize(name: str) -> str:
+    """PEP 503 form of a distribution name: lower case, runs of -_. as -."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
 def check_requirements(
-    req_path: Path, build_path: Path, pip_pinned_by: Path | None = None
+    req_path: Path,
+    build_path: Path,
+    pip_pinned_by: Path | None = None,
+    excluded: tuple[str, ...] = (),
 ) -> int:
     """Pinned and summed lines, a hash-requiring install, and a pinned pip.
 
     `pip_pinned_by` names the script that pins pip when it is not the one
     that installs this file: the MLX engine script runs with the pip the
-    bundle build already pinned.
+    bundle build already pinned. `excluded` names packages that must never
+    ship: no line may pin one, and the install must not resolve the closure.
     """
     print(f"bundled requirements: {req_path.name} pinned and hashed")
     req = _read(req_path)
@@ -262,6 +277,15 @@ def check_requirements(
             problems += 1
         else:
             print(f"  ok     {name}: {len(hashes)} sum(s)")
+        if _normalize(name) in {_normalize(e) for e in excluded}:
+            print(f"  GAP    {name}: excluded package pinned")
+            problems += 1
+    if excluded and "--no-deps" not in build:
+        print(
+            f"  GAP    {build_path.name}: pip without --no-deps would pull "
+            f"the excluded {', '.join(excluded)} back"
+        )
+        problems += 1
     if "--require-hashes" not in build:
         print(f"  GAP    {build_path.name}: pip install without --require-hashes")
         problems += 1
@@ -551,6 +575,47 @@ def selftest() -> int:
             "a second set with no pinned pip anywhere is a gap",
             check_requirements(req, engine_build, pip_pinned_by=build_bad) > 0,
         )
+        nodeps_build = tmp / "build-engine-nodeps.sh"
+        nodeps_build.write_text(
+            "pip install --require-hashes --no-deps --target t -r requirements.txt\n",
+            encoding="utf-8",
+        )
+        control(
+            "a second set installed with --no-deps and no excluded line passes",
+            check_requirements(
+                req, nodeps_build, pip_pinned_by=build_ok, excluded=("evil-pkg",)
+            )
+            == 0,
+        )
+        control(
+            "a set with exclusions installed without --no-deps is a gap",
+            check_requirements(
+                req, engine_build, pip_pinned_by=build_ok, excluded=("evil-pkg",)
+            )
+            > 0,
+        )
+        excluded_req = tmp / "requirements-excluded.txt"
+        excluded_req.write_text(
+            req.read_text(encoding="utf-8")
+            + "Evil_Pkg==1.0 \\\n    --hash=sha256:" + "b" * 64 + "\n",
+            encoding="utf-8",
+        )
+        nodeps_excluded = tmp / "build-engine-excluded.sh"
+        nodeps_excluded.write_text(
+            "pip install --require-hashes --no-deps --target t "
+            "-r requirements-excluded.txt\n",
+            encoding="utf-8",
+        )
+        control(
+            "a set that pins an excluded package is a gap",
+            check_requirements(
+                excluded_req,
+                nodeps_excluded,
+                pip_pinned_by=build_ok,
+                excluded=("evil-pkg",),
+            )
+            > 0,
+        )
         other_build = tmp / "build-other.sh"
         other_build.write_text(
             "pip install pip==99.0\npip install --require-hashes -r other.txt\n",
@@ -620,6 +685,7 @@ def main() -> int:
         REPO_ROOT / MLX_REQUIREMENTS,
         REPO_ROOT / MLX_BUILD,
         pip_pinned_by=REPO_ROOT / BUNDLE_BUILD,
+        excluded=MLX_EXCLUDED,
     )
     problems += check_workflows(REPO_ROOT / WORKFLOW_DIR, EXEMPT_WORKFLOW_STEPS)
     problems += check_fetch_scripts(REPO_ROOT, SCRIPT_DIRS)
