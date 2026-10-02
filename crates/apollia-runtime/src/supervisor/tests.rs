@@ -349,6 +349,13 @@ async fn test_handles_accessible_after_start() {
     // TaskRouterHandle: is clone
     let _cloned = handles.router_handle.clone();
 
+    // Organisation policy: the verdict read at boot from the policy location
+    let location = apollia_permissions::policy_location();
+    assert_eq!(
+        *handles.org_policy,
+        apollia_permissions::load_policy(&location.dir, location.owner)
+    );
+
     // APIServerHandle: can shutdown
     handles.api_handle.shutdown();
 

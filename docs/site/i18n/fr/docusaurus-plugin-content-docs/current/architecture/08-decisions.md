@@ -393,6 +393,41 @@ dépendance propre et était déjà dans l'arbre par le programme de mise à jou
 Une clé ne se révoque qu'en changeant l'ensemble des clés auxquelles un lecteur
 fait confiance.
 
+## Politique de l'organisation {#organisation-policy}
+
+Une organisation impose ses règles à un poste en déposant une politique signée
+dans un dossier système : `/Library/Application Support/Apollia/policy` sous
+macOS, `C:\ProgramData\Apollia\policy` sous Windows, `/etc/apollia/policy` sous
+Linux. Le dossier porte `policy.toml`, un `SIGNATURE` au format des paquets
+ci-dessus sur une liste d'une entrée, et `org.pub`, la clé publique de
+l'organisation. Le runtime le lit une fois, au démarrage. Pas de dossier, pas de
+politique : l'utilisateur est libre.
+
+La clé est rangée à côté de la politique, si bien que la politique ne vaut que
+par les droits de son dossier. Un dossier ou un fichier qu'un autre que
+l'administrateur du système peut modifier est refusé : sous Unix le
+propriétaire doit être root, et ni les autres ni un groupe autre que celui de
+root ne peuvent écrire ; sous Windows le propriétaire doit être le groupe
+Administrateurs ou le compte LocalSystem, et aucune entrée de la liste d'accès
+ne peut accorder une écriture à quelqu'un d'autre. Un lien symbolique est
+refusé partout. Le chemin Windows est écrit en dur plutôt que lu dans
+`%ProgramData%`, que l'utilisateur règle.
+
+La date de signature est un champ `signed_at` de `policy.toml`, une date, une
+heure et un décalage. La signature couvre le fichier entier : la date est donc
+signée, et le format `SIGNATURE` n'a pas changé pour elle. Une date du système
+de fichiers a été écartée : n'importe qui peut toucher un fichier.
+
+Lire le propriétaire et la liste d'accès d'un fichier sous Windows passe par
+l'API de sécurité Win32, que la bibliothèque standard n'expose pas.
+`windows-sys` est une dépendance directe de la crate des permissions sous
+Windows seulement, avec les fonctionnalités de sécurité, d'autorisation et de
+système de fichiers. C'est la liaison brute que publie Microsoft, elle n'a
+d'autre dépendance que sa propre cale d'édition de liens, et la même version
+était déjà dans l'arbre par d'autres crates : le fichier de verrouillage n'a
+gagné aucun paquet. Le coût est un bloc de code FFI avec sa propre permission
+`unsafe`, confiné à un module.
+
 ## Ligne de commande {#cli}
 
 Le CLI est en nom-verbe. Les opérations quotidiennes sont des verbes nus ; tout

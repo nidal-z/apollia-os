@@ -39,6 +39,11 @@ impl Supervisor {
         let mut startup_rx = resilient(startup_rx, "supervisor.startup");
         info!("supervisor.eventbus.ready");
 
+        // Phase 1b: organisation policy, read once here and held for the life
+        // of the runtime. A present but invalid policy is reported, not fatal:
+        // what it shuts down is decided where the policy is applied.
+        let org_policy = Arc::new(read_org_policy());
+
         // Phase 2: AgentRegistry
         info!("supervisor.registry.starting");
         let registry_handle = AgentRegistry::spawn(event_sender.clone());
@@ -575,6 +580,43 @@ impl Supervisor {
             project_repository,
             runner_supervisor,
             llama_server_supervisor,
+            org_policy,
         })
     }
+}
+
+/// Reads the organisation policy and reports the verdict.
+fn read_org_policy() -> apollia_permissions::PolicyVerdict {
+    use apollia_permissions::PolicyVerdict;
+
+    let location = apollia_permissions::policy_location();
+    let verdict = apollia_permissions::load_policy(&location.dir, location.owner);
+    let dir = location.dir.display();
+    match &verdict {
+        PolicyVerdict::Absent => {
+            tracing::event!(tracing::Level::INFO, verdict = verdict.kind(), dir = %dir, "policy.read");
+        }
+        PolicyVerdict::Valid(valid) => {
+            tracing::event!(
+                tracing::Level::INFO,
+                verdict = verdict.kind(),
+                dir = %dir,
+                key_fingerprint = %valid.key_fingerprint,
+                publisher = %valid.publisher,
+                signed_at = %valid.signed_at,
+                "policy.read"
+            );
+        }
+        PolicyVerdict::Invalid(invalid) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                verdict = verdict.kind(),
+                dir = %dir,
+                reason = invalid.reason.as_str(),
+                detail = %invalid.detail,
+                "policy.read"
+            );
+        }
+    }
+    verdict
 }
