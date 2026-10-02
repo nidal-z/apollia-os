@@ -134,6 +134,11 @@ pub struct GgufHeaderFacts {
     pub has_chat_template: bool,
     /// The first bytes of `tokenizer.chat_template`, kept for diagnostics.
     pub chat_template_excerpt: Option<String>,
+    /// Whether the whole chat template renders tools, read before it is cut
+    /// to [`Self::chat_template_excerpt`].
+    pub chat_template_tools: bool,
+    /// Whether the whole chat template opens a reasoning block.
+    pub chat_template_reasoning: bool,
     /// `{arch}.block_count`, the number of transformer layers.
     pub block_count: Option<u64>,
     /// `{arch}.context_length`, the training context window.
@@ -640,6 +645,8 @@ fn read_pair(
         ("tokenizer.ggml.pre", Scalar::Text(s)) => facts.tokenizer_pre = Some(s),
         ("tokenizer.chat_template", Scalar::Text(s)) => {
             facts.has_chat_template = true;
+            facts.chat_template_tools = crate::capabilities::template_handles_tools(&s);
+            facts.chat_template_reasoning = crate::capabilities::template_handles_reasoning(&s);
             facts.chat_template_excerpt = Some(excerpt(&s, CHAT_TEMPLATE_EXCERPT_BYTES));
         }
         (other, Scalar::Unsigned(n)) => {
