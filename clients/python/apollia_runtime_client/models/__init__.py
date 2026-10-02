@@ -64,6 +64,17 @@ from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
+from .engine_channel import EngineChannel
+from .engine_check_response import EngineCheckResponse
+from .engine_entry import EngineEntry
+from .engine_import_request import EngineImportRequest
+from .engine_install_request import EngineInstallRequest
+from .engine_installed_response import EngineInstalledResponse
+from .engine_name import EngineName
+from .engine_settings_body import EngineSettingsBody
+from .engine_source import EngineSource
+from .engine_variant import EngineVariant
+from .engines_response import EnginesResponse
 from .events_response import EventsResponse
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
@@ -197,6 +208,7 @@ from .update_preset_request_load import UpdatePresetRequestLoad
 from .update_preset_request_request import UpdatePresetRequestRequest
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
+from .variant_update import VariantUpdate
 from .verify_chain_report import VerifyChainReport
 from .verify_journal_report import VerifyJournalReport
 
@@ -265,6 +277,17 @@ __all__ = (
     "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
+    "EngineChannel",
+    "EngineCheckResponse",
+    "EngineEntry",
+    "EngineImportRequest",
+    "EngineInstalledResponse",
+    "EngineInstallRequest",
+    "EngineName",
+    "EngineSettingsBody",
+    "EngineSource",
+    "EnginesResponse",
+    "EngineVariant",
     "EventsResponse",
     "FireResponse",
     "ForkSessionRequest",
@@ -394,6 +417,7 @@ __all__ = (
     "UpdatePresetRequestRequest",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",
+    "VariantUpdate",
     "VerifyChainReport",
     "VerifyJournalReport",
 )

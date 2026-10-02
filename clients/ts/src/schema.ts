@@ -508,6 +508,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/engines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_engines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["check_engines"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["import_engines"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["install_engine"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/engines/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_engine_settings"];
+        put: operations["set_engine_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -1207,7 +1287,10 @@ export interface paths {
         put?: never;
         /**
          * `POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.
-         * @description Spawns the server process and registers its tools, then saves the configuration.
+         * @description The addition is first submitted to the connection admission; a refusal
+         *     answers `403 Forbidden` with its reason, before any process is spawned and
+         *     before anything is written to `mcp.db`. Spawns the server process and
+         *     registers its tools, then saves the configuration and journals the addition.
          *     Returns `201 Created` with the server status on success.
          *     Returns `409 Conflict` when a server with the same name is already managed.
          *     Returns `400 Bad Request` for invalid configurations or spawn failures.
@@ -1266,7 +1349,8 @@ export interface paths {
         post?: never;
         /**
          * `DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
-         * @description Shuts down the session, unregisters the server, then removes its database entry.
+         * @description Shuts down the session, unregisters the server, removes its database entry,
+         *     then journals the removal.
          *     Returns `200 OK` with `{"removed": "<name>"}` on success.
          *     Returns `404 Not Found` when no server with the given name is managed.
          *     Returns `503 Service Unavailable` when MCP is not configured.
@@ -1311,8 +1395,8 @@ export interface paths {
         get?: never;
         /**
          * `PUT /api/v1/mcp/servers/:name/config`, Replace a server configuration and restart the session.
-         * @description Removes the current session, starts a new one with the updated configuration, then
-         *     upserts the entry in `mcp.db`.
+         * @description Removes the current session, starts a new one with the updated configuration,
+         *     upserts the entry in `mcp.db`, then journals the change.
          *     Returns `200 OK` with the new [`McpServerStatus`] on success.
          *     Returns `404 Not Found` when no server with `name` is managed.
          *     Returns `400 Bad Request` when the new session fails to start.
@@ -3106,6 +3190,93 @@ export interface components {
             /** @description Name of the deleted server. */
             deleted: string;
         };
+        /**
+         * @description An update channel.
+         * @enum {string}
+         */
+        EngineChannel: "stable" | "preview";
+        /** @description Body of `POST /api/v1/engines/check`. */
+        EngineCheckResponse: {
+            /** @description The channel checked. */
+            channel: components["schemas"]["EngineChannel"];
+            /**
+             * Format: int64
+             * @description Sequence of the manifest just verified.
+             */
+            manifest_sequence: number;
+            /** @description Per variant, whether an update exists. */
+            updates: components["schemas"]["VariantUpdate"][];
+        };
+        /** @description One engine on this machine. */
+        EngineEntry: {
+            /** @description Engine. */
+            engine: components["schemas"]["EngineName"];
+            /** @description Where it lives. */
+            path: string;
+            /** @description Embedded, downloaded or imported. */
+            source: components["schemas"]["EngineSource"];
+            /** @description Upstream tag; unknown for an embedded engine. */
+            tag?: string | null;
+            variant?: null | components["schemas"]["EngineVariant"];
+        };
+        /** @description Body of `POST /api/v1/engines/import`. */
+        EngineImportRequest: {
+            /** @description Directory holding `engines.json`, `engines.json.minisig` and archives. */
+            path: string;
+        };
+        /** @description Body of `POST /api/v1/engines/install`. */
+        EngineInstallRequest: {
+            /** @description Engine to install. */
+            engine: components["schemas"]["EngineName"];
+            /** @description Variant to install; its newest build on the channel is taken. */
+            variant: components["schemas"]["EngineVariant"];
+        };
+        /** @description Engines installed by a request. */
+        EngineInstalledResponse: {
+            /** @description What was installed. */
+            installed: components["schemas"]["EngineEntry"][];
+        };
+        /**
+         * @description An inference engine the store can hold.
+         * @enum {string}
+         */
+        EngineName: "llama-server" | "vllm-mlx";
+        /** @description Body of the settings routes. */
+        EngineSettingsBody: {
+            /** @description Base address manifests and archives are fetched from. */
+            base_url: string;
+            /** @description The followed channel. */
+            channel: components["schemas"]["EngineChannel"];
+        };
+        /**
+         * @description How an engine reached this machine.
+         * @enum {string}
+         */
+        EngineSource: "embedded" | "downloaded" | "imported";
+        /**
+         * @description A build of an engine for one kind of hardware.
+         * @enum {string}
+         */
+        EngineVariant: "cuda" | "vulkan" | "cpu" | "metal";
+        /** @description Body of `GET /api/v1/engines`. */
+        EnginesResponse: {
+            /** @description The followed channel. */
+            channel: components["schemas"]["EngineChannel"];
+            /** @description True when an NVIDIA card is detected and no CUDA engine is installed. */
+            cuda_proposable: boolean;
+            /** @description Engines embedded in the bundle, then installed ones. */
+            engines: components["schemas"]["EngineEntry"][];
+            /**
+             * Format: int64
+             * @description Sequence of the last verified manifest of that channel, if any.
+             */
+            manifest_sequence?: number | null;
+            /**
+             * @description Per variant offered by that manifest for this platform, whether a newer
+             *     build than the installed one exists. Empty until a manifest verified.
+             */
+            updates: components["schemas"]["VariantUpdate"][];
+        };
         /** @description Response for `GET /api/v1/notifications/events`. */
         EventsResponse: {
             /** @description List of global events. */
@@ -4190,6 +4361,19 @@ export interface components {
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
         };
+        /** @description Whether a newer build of one engine variant exists on the channel. */
+        VariantUpdate: {
+            /** @description Engine. */
+            engine: components["schemas"]["EngineName"];
+            /** @description Newest tag installed here, if any. */
+            installed_tag?: string | null;
+            /** @description Newest tag the verified manifest offers. */
+            latest_tag: string;
+            /** @description True when a tag is installed and the manifest offers a newer one. */
+            update_available: boolean;
+            /** @description Variant. */
+            variant: components["schemas"]["EngineVariant"];
+        };
         /** @description Outcome of verifying a run's chain. */
         VerifyChainReport: {
             /**
@@ -5230,6 +5414,255 @@ export interface operations {
             };
             /** @description The provider's OAuth client is not configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_engines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Engines, channel and updates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnginesResponse"];
+                };
+            };
+            /** @description Store files unreadable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    check_engines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Manifest verified, updates per variant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineCheckResponse"];
+                };
+            };
+            /** @description Signature, channel, rollback or format refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The mirror could not be reached */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description This build carries no distribution key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    import_engines: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Engines verified and installed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstalledResponse"];
+                };
+            };
+            /** @description No archive of this platform in the directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Missing or invalid signature, digest or archive refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description This build carries no distribution key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    install_engine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Engine verified and installed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineInstalledResponse"];
+                };
+            };
+            /** @description No such package for this platform */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Signature, digest, rollback or archive refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The mirror could not be reached */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description This build carries no distribution key */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_engine_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Engine store settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineSettingsBody"];
+                };
+            };
+            /** @description Settings file unreadable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_engine_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngineSettingsBody"];
+            };
+        };
+        responses: {
+            /** @description Settings saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngineSettingsBody"];
+                };
+            };
+            /** @description Base address is not http or https */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1285,6 +1285,284 @@
         }
       }
     },
+    "/api/v1/engines": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "list_engines",
+        "responses": {
+          "200": {
+            "description": "Engines, channel and updates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnginesResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store files unreadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/check": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "check_engines",
+        "responses": {
+          "200": {
+            "description": "Manifest verified, updates per variant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signature, channel, rollback or format refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The mirror could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/import": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "import_engines",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Engines verified and installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstalledResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No archive of this platform in the directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing or invalid signature, digest or archive refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/install": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "install_engine",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Engine verified and installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstalledResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such package for this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signature, digest, rollback or archive refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The mirror could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/settings": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "get_engine_settings",
+        "responses": {
+          "200": {
+            "description": "Engine store settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineSettingsBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Settings file unreadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "set_engine_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineSettingsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Settings saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineSettingsBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Base address is not http or https",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/events": {
       "get": {
         "tags": [
@@ -3260,7 +3538,7 @@
           "mcp"
         ],
         "summary": "`POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.",
-        "description": "Spawns the server process and registers its tools, then saves the configuration.\nReturns `201 Created` with the server status on success.\nReturns `409 Conflict` when a server with the same name is already managed.\nReturns `400 Bad Request` for invalid configurations or spawn failures.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "The addition is first submitted to the connection admission; a refusal\nanswers `403 Forbidden` with its reason, before any process is spawned and\nbefore anything is written to `mcp.db`. Spawns the server process and\nregisters its tools, then saves the configuration and journals the addition.\nReturns `201 Created` with the server status on success.\nReturns `409 Conflict` when a server with the same name is already managed.\nReturns `400 Bad Request` for invalid configurations or spawn failures.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "add_server",
         "responses": {
           "201": {
@@ -3394,7 +3672,7 @@
           "mcp"
         ],
         "summary": "`DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.",
-        "description": "Shuts down the session, unregisters the server, then removes its database entry.\nReturns `200 OK` with `{\"removed\": \"<name>\"}` on success.\nReturns `404 Not Found` when no server with the given name is managed.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "Shuts down the session, unregisters the server, removes its database entry,\nthen journals the removal.\nReturns `200 OK` with `{\"removed\": \"<name>\"}` on success.\nReturns `404 Not Found` when no server with the given name is managed.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "remove_server",
         "parameters": [
           {
@@ -3516,7 +3794,7 @@
           "mcp"
         ],
         "summary": "`PUT /api/v1/mcp/servers/:name/config`, Replace a server configuration and restart the session.",
-        "description": "Removes the current session, starts a new one with the updated configuration, then\nupserts the entry in `mcp.db`.\nReturns `200 OK` with the new [`McpServerStatus`] on success.\nReturns `404 Not Found` when no server with `name` is managed.\nReturns `400 Bad Request` when the new session fails to start.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "Removes the current session, starts a new one with the updated configuration,\nupserts the entry in `mcp.db`, then journals the change.\nReturns `200 OK` with the new [`McpServerStatus`] on success.\nReturns `404 Not Found` when no server with `name` is managed.\nReturns `400 Bad Request` when the new session fails to start.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "update_server_config",
         "parameters": [
           {
@@ -8332,6 +8610,218 @@
           }
         }
       },
+      "EngineChannel": {
+        "type": "string",
+        "description": "An update channel.",
+        "enum": [
+          "stable",
+          "preview"
+        ]
+      },
+      "EngineCheckResponse": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/engines/check`.",
+        "required": [
+          "channel",
+          "manifest_sequence",
+          "updates"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/EngineChannel",
+            "description": "The channel checked."
+          },
+          "manifest_sequence": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sequence of the manifest just verified.",
+            "minimum": 0
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantUpdate"
+            },
+            "description": "Per variant, whether an update exists."
+          }
+        }
+      },
+      "EngineEntry": {
+        "type": "object",
+        "description": "One engine on this machine.",
+        "required": [
+          "engine",
+          "path",
+          "source"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine."
+          },
+          "path": {
+            "type": "string",
+            "description": "Where it lives."
+          },
+          "source": {
+            "$ref": "#/components/schemas/EngineSource",
+            "description": "Embedded, downloaded or imported."
+          },
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Upstream tag; unknown for an embedded engine."
+          },
+          "variant": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EngineVariant",
+                "description": "Variant; unknown for an embedded engine whose build is not stated."
+              }
+            ]
+          }
+        }
+      },
+      "EngineImportRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/engines/import`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory holding `engines.json`, `engines.json.minisig` and archives."
+          }
+        }
+      },
+      "EngineInstallRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/engines/install`.",
+        "required": [
+          "engine",
+          "variant"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine to install."
+          },
+          "variant": {
+            "$ref": "#/components/schemas/EngineVariant",
+            "description": "Variant to install; its newest build on the channel is taken."
+          }
+        }
+      },
+      "EngineInstalledResponse": {
+        "type": "object",
+        "description": "Engines installed by a request.",
+        "required": [
+          "installed"
+        ],
+        "properties": {
+          "installed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngineEntry"
+            },
+            "description": "What was installed."
+          }
+        }
+      },
+      "EngineName": {
+        "type": "string",
+        "description": "An inference engine the store can hold.",
+        "enum": [
+          "llama-server",
+          "vllm-mlx"
+        ]
+      },
+      "EngineSettingsBody": {
+        "type": "object",
+        "description": "Body of the settings routes.",
+        "required": [
+          "channel",
+          "base_url"
+        ],
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "description": "Base address manifests and archives are fetched from."
+          },
+          "channel": {
+            "$ref": "#/components/schemas/EngineChannel",
+            "description": "The followed channel."
+          }
+        }
+      },
+      "EngineSource": {
+        "type": "string",
+        "description": "How an engine reached this machine.",
+        "enum": [
+          "embedded",
+          "downloaded",
+          "imported"
+        ]
+      },
+      "EngineVariant": {
+        "type": "string",
+        "description": "A build of an engine for one kind of hardware.",
+        "enum": [
+          "cuda",
+          "vulkan",
+          "cpu",
+          "metal"
+        ]
+      },
+      "EnginesResponse": {
+        "type": "object",
+        "description": "Body of `GET /api/v1/engines`.",
+        "required": [
+          "engines",
+          "channel",
+          "updates",
+          "cuda_proposable"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/EngineChannel",
+            "description": "The followed channel."
+          },
+          "cuda_proposable": {
+            "type": "boolean",
+            "description": "True when an NVIDIA card is detected and no CUDA engine is installed."
+          },
+          "engines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngineEntry"
+            },
+            "description": "Engines embedded in the bundle, then installed ones."
+          },
+          "manifest_sequence": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Sequence of the last verified manifest of that channel, if any.",
+            "minimum": 0
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantUpdate"
+            },
+            "description": "Per variant offered by that manifest for this platform, whether a newer\nbuild than the installed one exists. Empty until a manifest verified."
+          }
+        }
+      },
       "EventsResponse": {
         "type": "object",
         "description": "Response for `GET /api/v1/notifications/events`.",
@@ -10729,6 +11219,41 @@
           }
         }
       },
+      "VariantUpdate": {
+        "type": "object",
+        "description": "Whether a newer build of one engine variant exists on the channel.",
+        "required": [
+          "engine",
+          "variant",
+          "latest_tag",
+          "update_available"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine."
+          },
+          "installed_tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Newest tag installed here, if any."
+          },
+          "latest_tag": {
+            "type": "string",
+            "description": "Newest tag the verified manifest offers."
+          },
+          "update_available": {
+            "type": "boolean",
+            "description": "True when a tag is installed and the manifest offers a newer one."
+          },
+          "variant": {
+            "$ref": "#/components/schemas/EngineVariant",
+            "description": "Variant."
+          }
+        }
+      },
       "VerifyChainReport": {
         "type": "object",
         "description": "Outcome of verifying a run's chain.",
@@ -10878,6 +11403,10 @@
     {
       "name": "model_hub",
       "description": "Hardware profiling and model registry"
+    },
+    {
+      "name": "engines",
+      "description": "Inference engines: channel, verified download and import"
     },
     {
       "name": "resilience",

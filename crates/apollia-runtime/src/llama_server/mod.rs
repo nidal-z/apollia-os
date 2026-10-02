@@ -655,17 +655,19 @@ fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
     let ext = if cfg!(windows) { ".exe" } else { "" };
     let name = format!("llama-server{ext}");
 
-    // Explicit override wins: `APOLLIA_LLAMA_SERVER_BIN=/path/to/llama-server`.
-    if let Some(bin) = std::env::var_os("APOLLIA_LLAMA_SERVER_BIN") {
-        let path = PathBuf::from(bin);
-        if path.is_file() {
-            tracing::info!(path = %path.display(), "llama.server.binary.from_env");
-            return Ok(path);
-        }
-        tracing::warn!(
-            path = %path.display(),
-            detail = "falling back to auto-detection", "llama.server.binary.env_invalid"
-        );
+    let store_root = apollia_core::paths::data_dir().map(|d| crate::engine_store::store_root(&d));
+    if let Some(path) = env_or_store_binary(
+        std::env::var_os("APOLLIA_LLAMA_SERVER_BIN").map(PathBuf::from),
+        store_root.as_deref(),
+        &name,
+        || {
+            matches!(
+                apollia_llm::hardware::detect().accelerator,
+                apollia_llm::AcceleratorProfile::Cuda { .. }
+            )
+        },
+    ) {
+        return Ok(path);
     }
 
     if let Ok(exe) = std::env::current_exe() {
@@ -715,6 +717,32 @@ fn locate_llama_server_binary() -> Result<PathBuf, LlamaServerError> {
     )))
 }
 
+/// The two sources that come before the embedded engine.
+///
+/// An explicit override wins: `APOLLIA_LLAMA_SERVER_BIN=/path/to/llama-server`.
+/// Then the engine store: its newest verified CUDA build, on a machine where an
+/// NVIDIA card is detected. `None` leaves the choice to the embedded engine.
+fn env_or_store_binary(
+    env_bin: Option<PathBuf>,
+    store_root: Option<&std::path::Path>,
+    name: &str,
+    nvidia_detected: impl FnOnce() -> bool,
+) -> Option<PathBuf> {
+    if let Some(path) = env_bin {
+        if path.is_file() {
+            tracing::info!(path = %path.display(), "llama.server.binary.from_env");
+            return Some(path);
+        }
+        tracing::warn!(
+            path = %path.display(),
+            detail = "falling back to auto-detection", "llama.server.binary.env_invalid"
+        );
+    }
+    let path = crate::engine_store::preferred_llama_server(store_root?, name, nvidia_detected)?;
+    tracing::info!(path = %path.display(), "llama.server.binary.from_engine_store");
+    Some(path)
+}
+
 /// Minimal `PATH` lookup, avoiding a dependency on an external `which` crate.
 fn which_on_path(name: &str) -> Result<PathBuf, LlamaServerError> {
     let path_var = std::env::var_os("PATH")
@@ -757,6 +785,9 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
 }
 
 /// Fixtures shared by the supervisor's test modules.
+#[cfg(test)]
+mod locate_tests;
+
 #[cfg(test)]
 mod test_support {
     use std::path::PathBuf;

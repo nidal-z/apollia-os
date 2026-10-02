@@ -247,6 +247,24 @@ environ 150 Mo à l'image disque macOS, et ils demandent macOS 14 ou plus
 récent, plancher des roues MLX à la version épinglée. Les paquets Windows et
 Linux ne le portent pas.
 
+Les moteurs ont leur propre canal de mise à jour et ne suivent pas la version
+d'Apollia. Le moteur embarqué sert chaque machine dès le premier lancement ; une
+version accélérée, CUDA sur une machine dotée d'une carte NVIDIA, se télécharge
+à la demande, ou s'importe depuis un disque sans réseau, et le lanceur prend
+alors la version installée la plus récente de cette variante plutôt que le
+moteur embarqué. Tout téléchargement ou import de moteur est précédé de la
+vérification d'un manifeste d'empreintes signé au format minisign avec une clé
+de distribution dédiée. Chaque canal, stable ou préversion, publie un tel
+manifeste, qui liste chaque archive de moteur avec son SHA-256. La moitié
+publique de cette clé est compilée dans le binaire et c'est la seule clé
+acceptée. Aucune archive n'est demandée avant que la signature tienne, une
+archive dont l'empreinte diffère du manifeste est supprimée, et un manifeste
+plus ancien que le dernier accepté sur son canal est refusé. Un miroir peut
+remplacer l'adresse d'où viennent manifestes et archives ; il ne peut pas
+remplacer la clé. Les archives de moteur se lisent au format zip, celui déjà lu
+pour les paquets d'agents. L'environnement du moteur MLX figure dans le même
+manifeste et s'installe par la même vérification.
+
 Il n'y a aucun fournisseur cloud dédié. Un modèle distant se joint par une seule
 connexion générique à un serveur compatible OpenAI, à l'adresse que
 l'organisation désigne : un vLLM ou un LM Studio auto-hébergé, ou une
