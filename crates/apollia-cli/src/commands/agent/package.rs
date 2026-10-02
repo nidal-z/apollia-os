@@ -120,7 +120,7 @@ pub(in crate::commands::agent) async fn run_package_uninstall(
         let _ = agent_repo.delete(agent_name);
     }
 
-    // Delete package from PackageRepository (cascades package_agents).
+    // Delete package from PackageRepository, with its package_items.
     if let Err(e) = pkg_repo.delete(name) {
         return print_error_and_exit(&format!("failed to delete package: {e}"), json);
     }

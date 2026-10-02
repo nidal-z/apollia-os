@@ -59,6 +59,13 @@ say so.
 `chat-config` -> `chat config`, `plan-cache` -> `plan cache`, `user-memory` ->
 `profile`; `hitl` removed (use `task list --pending-approval`).
 
+**`service`** (`install`, `uninstall`, `status`) is the one noun that acts on
+the operator's session rather than on `~/.apollia`: it hands a definition to
+launchd, the systemd user manager or Task Scheduler. `install --no-load` writes
+the definition and stops there; it is the only form the end-to-end suite, the
+smoke sweep and the `--json` probe may drive, since a load reaches the real
+session whatever `HOME` says.
+
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 
 ---

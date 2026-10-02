@@ -46,8 +46,9 @@ ROUTED_SOURCE = Path("crates/apollia-desktop/src/attached.rs")
 
 # The ceiling of commands that only serve the embedded runtime. It goes down as
 # commands are routed, and never up. Measured at 244 of 249 when the attached
-# mode first served the chat and the event bus.
-EMBEDDED_ONLY_CEILING = 244
+# mode first served the chat and the event bus, then at 229 once it served the
+# agents, the tasks, the approvals and the questions an agent asks the user.
+EMBEDDED_ONLY_CEILING = 229
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

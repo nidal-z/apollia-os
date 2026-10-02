@@ -89,6 +89,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/agent-definitions`: every stored agent, resolved. */
+        get: operations["list_agent_definitions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-definitions/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/agent-definitions/{name}`: one agent, resolved. */
+        get: operations["get_agent_definition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-definitions/{name}/overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/agent-definitions/{name}/overrides`: back to defaults,
+         *     every override of the agent removed.
+         */
+        delete: operations["reset_agent_overrides"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-definitions/{name}/overrides/{field}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/agent-definitions/{name}/overrides/{field}`: set the user's
+         *     value of a field. Kept through every update of the package.
+         */
+        put: operations["set_agent_override"];
+        post?: never;
+        /**
+         * `DELETE /api/v1/agent-definitions/{name}/overrides/{field}`: remove the
+         *     user's value of a field; the package default applies again.
+         */
+        delete: operations["remove_agent_override"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents": {
         parameters: {
             query?: never;
@@ -120,6 +198,27 @@ export interface paths {
          *     Returns 400 Bad Request if the Python module is invalid.
          */
         post: operations["start_agent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/installed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/agents/installed`. */
+        get: operations["list_installed_agents"];
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/agents/installed`.
+         * @description Emits `RuntimeEvent::AgentInstalled` once the agent is recorded.
+         */
+        post: operations["install_agent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -468,6 +567,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connectors/imap/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/connectors/imap/accounts`: verify a mailbox, then store it. */
+        post: operations["add_imap_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/imap/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/connectors/imap/test`: verify a mailbox without storing it. */
+        post: operations["test_imap_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/oauth/complete": {
         parameters: {
             query?: never;
@@ -587,6 +720,26 @@ export interface paths {
          *     goes back to the model its package declares, or to the default.
          */
         delete: operations["clear_agent_model"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/agents/{agent}/model/fallback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/llm/agents/{agent}/model/fallback`: the last time the agent's
+         *     model was not available since the runtime started, for its sheet.
+         */
+        get: operations["get_agent_model_fallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -782,6 +935,23 @@ export interface paths {
          *     declared server the single default of the machine.
          */
         put: operations["set_default_model"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/embeddings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/embeddings?language_model_bytes=...` */
+        get: operations["list_embedding_models"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -1207,7 +1377,10 @@ export interface paths {
         put?: never;
         /**
          * `POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.
-         * @description Spawns the server process and registers its tools, then saves the configuration.
+         * @description The addition is first submitted to the connection admission; a refusal
+         *     answers `403 Forbidden` with its reason, before any process is spawned and
+         *     before anything is written to `mcp.db`. Spawns the server process and
+         *     registers its tools, then saves the configuration and journals the addition.
          *     Returns `201 Created` with the server status on success.
          *     Returns `409 Conflict` when a server with the same name is already managed.
          *     Returns `400 Bad Request` for invalid configurations or spawn failures.
@@ -1266,7 +1439,8 @@ export interface paths {
         post?: never;
         /**
          * `DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
-         * @description Shuts down the session, unregisters the server, then removes its database entry.
+         * @description Shuts down the session, unregisters the server, removes its database entry,
+         *     then journals the removal.
          *     Returns `200 OK` with `{"removed": "<name>"}` on success.
          *     Returns `404 Not Found` when no server with the given name is managed.
          *     Returns `503 Service Unavailable` when MCP is not configured.
@@ -1311,8 +1485,8 @@ export interface paths {
         get?: never;
         /**
          * `PUT /api/v1/mcp/servers/:name/config`, Replace a server configuration and restart the session.
-         * @description Removes the current session, starts a new one with the updated configuration, then
-         *     upserts the entry in `mcp.db`.
+         * @description Removes the current session, starts a new one with the updated configuration,
+         *     upserts the entry in `mcp.db`, then journals the change.
          *     Returns `200 OK` with the new [`McpServerStatus`] on success.
          *     Returns `404 Not Found` when no server with `name` is managed.
          *     Returns `400 Bad Request` when the new session fails to start.
@@ -2084,6 +2258,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tasks/summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/tasks/summaries`. */
+        get: operations["list_task_summaries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks/{id}": {
         parameters: {
             query?: never;
@@ -2468,6 +2659,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user-inputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/user-inputs`. */
+        get: operations["list_pending_user_inputs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user-inputs/{id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handler for `POST /api/v1/user-inputs/{id}/answer`. */
+        post: operations["answer_user_input"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user-inputs/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handler for `POST /api/v1/user-inputs/{id}/reject`. */
+        post: operations["reject_user_input"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/{id}": {
         parameters: {
             query?: never;
@@ -2593,6 +2835,23 @@ export interface components {
             /** @description Messages sorted by `sent_at` descending (most recent first). */
             messages: components["schemas"]["AgentMessageDto"][];
         };
+        /**
+         * @description The last time an agent's model was not available, so a call ran on the
+         *     default model instead.
+         */
+        AgentModelFallbackResponse: {
+            /** @description Agent name. */
+            agent: string;
+            /** @description When it happened, RFC 3339. */
+            at: string;
+            /**
+             * @description Model the agent asked for: the user's assignment, or the backend its
+             *     manifest declares.
+             */
+            requested: string;
+            /** @description Model that served the call instead. */
+            used: string;
+        };
         /** @description The model assigned to an agent. */
         AgentModelResponse: {
             /** @description Agent name. */
@@ -2607,6 +2866,11 @@ export interface components {
              */
             preset_id?: number | null;
         };
+        /**
+         * @description Where an agent comes from.
+         * @enum {string}
+         */
+        AgentOriginDto: "package" | "interface";
         /** @description Response body for agent operations. */
         AgentResponse: {
             /** @description Agent identifier (UUID v4). */
@@ -2623,6 +2887,20 @@ export interface components {
             supports_a2a: boolean;
             /** @description Agent version from manifest. */
             version?: string | null;
+        };
+        /** @description Skill declared by an agent in its manifest. */
+        AgentSkillView: {
+            /** @description Short skill description. */
+            description: string;
+            /** @description Unique skill identifier (e.g. `"read-excel"`). */
+            id: string;
+            /** @description Human-readable skill name. */
+            name: string;
+        };
+        /** @description Request body for `POST /api/v1/user-inputs/{id}/answer`. */
+        AnswerUserInputRequest: {
+            /** @description One answer per question, matched by the question `id`. */
+            answers: Record<string, never>[];
         };
         /**
          * @description Canonical error body for every non-2xx response in the spec.
@@ -2871,7 +3149,10 @@ export interface components {
         Connection: {
             /** @description Account the connection acts as, when it has one. */
             account?: string | null;
-            /** @description Stable identifier: `mcp:<server>`, `native:<provider>:<account>`. */
+            /**
+             * @description Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,
+             *     `imap:<address>`.
+             */
             id: string;
             /** @description Kind of connection. */
             kind: components["schemas"]["ConnectionKind"];
@@ -2892,7 +3173,7 @@ export interface components {
          * @description The kind of thing a connection plugs in.
          * @enum {string}
          */
-        ConnectionKind: "native" | "mcp" | "folder";
+        ConnectionKind: "native" | "imap" | "mcp" | "folder";
         /**
          * @description Whether a connection can be used right now.
          * @enum {string}
@@ -2950,6 +3231,21 @@ export interface components {
             days: number;
             /** @description Per-backend/model cost breakdown. */
             rows: components["schemas"]["CostSummaryRow"][];
+        };
+        /** @description The language model the recommendation was made beside. */
+        CountedLanguageModel: {
+            /** @description Identifier of the installed model; absent for a size given by query. */
+            id?: string | null;
+            /**
+             * Format: int64
+             * @description Size of its weights in bytes.
+             */
+            size_bytes: number;
+            /**
+             * @description `query` when the caller gave its size, `installed` when it is the
+             *     largest language model of the model index.
+             */
+            source: string;
         };
         /** @description Request body for `POST /api/v1/notifications/channels`. */
         CreateChannelRequest: {
@@ -3106,6 +3402,24 @@ export interface components {
             /** @description Name of the deleted server. */
             deleted: string;
         };
+        /** @description The embeddings category of the registry, and the entry for this machine. */
+        EmbeddingModelsResponse: {
+            /** @description The machine the recommendation was made for. */
+            hardware: components["schemas"]["HardwareResponse"];
+            language_model?: null | components["schemas"]["CountedLanguageModel"];
+            /**
+             * @description Every entry of the category: repository, file, size, digest,
+             *     dimensions, context, pooling and prefixes.
+             */
+            models: Record<string, never>[];
+            /**
+             * @description Why: `fits_beside` or `no_room_beside`, with the footprints compared,
+             *     in gibibytes.
+             */
+            reason?: Record<string, never> | null;
+            /** @description Identifier of the entry recommended for this machine. */
+            recommended?: string | null;
+        };
         /** @description Response for `GET /api/v1/notifications/events`. */
         EventsResponse: {
             /** @description List of global events. */
@@ -3152,6 +3466,53 @@ export interface components {
             /** @description The version of the runtime answering, as its crate declares it. */
             version: string;
         };
+        /**
+         * @description Body of both mailbox routes. Deliberately without `Debug`: it carries the
+         *     password.
+         */
+        ImapAccountBody: {
+            /** @description Address of the mailbox. */
+            email: string;
+            /** @description IMAP server; filled from the address for a known provider. */
+            host?: string | null;
+            /** @description Application password. Kept in the secret store, never answered. */
+            password: string;
+            /**
+             * Format: int32
+             * @description IMAP port, implicit TLS; the provider's, else 993.
+             */
+            port?: number | null;
+            /** @description Identifier sent at login; the address when absent. */
+            username?: string | null;
+        };
+        /** @description A verified mailbox, as both routes answer it. */
+        ImapAccountResponse: {
+            /** @description Identifier of the connection, `imap:<address>`. */
+            connectionId: string;
+            /** @description Address of the mailbox. */
+            email: string;
+            /** @description IMAP server. */
+            host: string;
+            /**
+             * Format: int32
+             * @description IMAP port.
+             */
+            port: number;
+            /** @description Identifier sent at login. */
+            username: string;
+        };
+        /** @description A refused mailbox: the message and its stable code. */
+        ImapErrorBody: {
+            /**
+             * @description Stable code: `invalid_email`, `unknown_provider`, `invalid_host`,
+             *     `invalid_port`, `invalid_password`, `unreachable`, `tls`,
+             *     `credentials_rejected`, `protocol`, `admission_refused`,
+             *     `secret_store`, `index`.
+             */
+            code: string;
+            /** @description What went wrong, for a person. */
+            error: string;
+        };
         /** @description Request body for `POST /api/v1/agents/:name/messages`. */
         InjectMessageBody: {
             /**
@@ -3166,6 +3527,74 @@ export interface components {
         InjectMessageResponse: {
             /** @description Identifier assigned to the injected message. */
             message_id: string;
+        };
+        /** @description Request body for `POST /api/v1/agents/installed`. */
+        InstallAgentRequest: {
+            /** @description Path of the Python module on this machine. */
+            path: string;
+        };
+        /** @description Response body for an install. */
+        InstallAgentResponse: {
+            /** @description Install path on disk. */
+            install_path: string;
+            /** @description Unique name of the installed agent. */
+            name: string;
+            /** @description Semver version of the agent. */
+            version: string;
+        };
+        /** @description One agent of the machine: installed, running, or both. */
+        InstalledAgentView: {
+            /** @description Name of the Python class of the agent. */
+            agent_class?: string | null;
+            /** @description Semantic role: `"worker"`, `"assistant"`, `"system"`, or `None`. */
+            agent_type?: string | null;
+            /** @description Description from the manifest. */
+            description?: string | null;
+            /** @description Whether the agent loads at boot. */
+            enabled: boolean;
+            /** @description Prompt examples of typical uses. */
+            examples: string[];
+            /** @description Execution mode (`"auto"`, `"direct"`, `"orchestrated"`). */
+            execution_mode?: string | null;
+            /** @description Runtime identifier, `None` when installed but not started. */
+            id?: string | null;
+            /**
+             * @description Install path on disk, `None` for an agent started without being
+             *     installed.
+             */
+            install_path?: string | null;
+            /**
+             * @description Install timestamp (RFC 3339), `None` for an agent started without
+             *     being installed.
+             */
+            installed_at?: string | null;
+            /** @description What the agent does not do. */
+            limitations: string[];
+            /** @description Primary memory namespace, as the manifest declares it. */
+            memory_namespace?: string | null;
+            /** @description Unique agent name. */
+            name: string;
+            /**
+             * @description Runtime state (`"active"`, `"degraded"`, `"stopped"`...), `None` when
+             *     not started.
+             */
+            runtime_status?: string | null;
+            /** @description Configuration needed before the first use. */
+            setup_notes?: string | null;
+            /** @description Shared memory namespaces the agent reads. */
+            shared_memory_namespaces: string[];
+            /** @description Declared skills. */
+            skills: components["schemas"]["AgentSkillView"][];
+            /** @description Whether the agent takes part in agent-to-agent calls. */
+            supports_a2a: boolean;
+            /** @description Free-form tags for routing and discovery. */
+            tags: string[];
+            /** @description Tools the agent uses when present. */
+            tools_optional: string[];
+            /** @description Tools the agent requires. */
+            tools_required: string[];
+            /** @description Semver version. */
+            version: string;
         };
         /** @description Request body for `POST /api/v1/a2a/invoke`. */
         InvokeRequest: {
@@ -3381,6 +3810,19 @@ export interface components {
             suspended_at: string;
             task_id: string;
         };
+        /** @description Snapshot of a pending `ask_user` request, safe to send across the IPC boundary. */
+        PendingUserInputView: {
+            /** @description Optional context string from the agent. */
+            context?: string | null;
+            /** @description ISO-8601 timestamp when the request was registered. */
+            created_at: string;
+            /** @description Questions serialised as JSON (Vec<UserQuestion>). */
+            questions_json: string;
+            /** @description Unique request identifier. */
+            request_id: string;
+            /** @description Chat session that owns this request. */
+            session_id: string;
+        };
         /** @description Request body for `POST /api/v1/llm/ping`. */
         PingRequest: {
             /** @description Backend name to ping; uses the router default if `null` or omitted. */
@@ -3474,6 +3916,11 @@ export interface components {
             /** @description The secret. Stored, never answered back. */
             value: string;
         };
+        /** @description Request body for `POST /api/v1/user-inputs/{id}/reject`. */
+        RejectUserInputRequest: {
+            /** @description Why the user declined to answer. */
+            reason: string;
+        };
         /** @description Success response body for reload. */
         ReloadResponse: {
             /** @description Number of active triggers after reload. */
@@ -3494,13 +3941,11 @@ export interface components {
             /**
              * @description Whether the rebuilt router reaches agents that are already running.
              *
-             *     `false` today, and not a transient state: the agent execution path reads
-             *     its router from a `OnceLock` populated at boot, a different cell from the
-             *     one this route rewrites. A reload therefore reaches chat and this API,
-             *     and an already-running agent keeps the router it started with until the
-             *     daemon restarts. Reported rather than hidden, because the failure it
-             *     produces on the Python side, `'NoneType' object has no attribute
-             *     'complete'`, names none of this.
+             *     `true`: the router this one replaces is superseded by it, and an agent
+             *     started before the reload reads the router in force at each call
+             *     (`LlmRouter::latest`), so it picks the reload up without a restart.
+             *     Kept in the response so a client that warned about the opposite can
+             *     tell the two runtimes apart.
              */
             reaches_running_agents: boolean;
         };
@@ -3513,6 +3958,37 @@ export interface components {
         ResilienceStatusResponse: {
             /** @description Snapshot for every tool the runtime has seen at least one event for. */
             circuit_breakers: Record<string, never>[];
+        };
+        /** @description An agent in force: its definition, then the user's overrides. */
+        ResolvedAgentResponse: {
+            /** @description Tools granted. */
+            access: string[];
+            /** @description The definition as the package declares it, before any override. */
+            definition: Record<string, never>;
+            /** @description Whether the agent is active. */
+            enabled: boolean;
+            /** @description Example requests. */
+            examples: string[];
+            /** @description Identifier. */
+            id: string;
+            /** @description What the agent is for, used as its instructions. */
+            mission: string;
+            model?: null | components["schemas"]["AgentModelResponse"];
+            /** @description Display name. */
+            name: string;
+            /** @description Where the agent comes from. */
+            origin: components["schemas"]["AgentOriginDto"];
+            /**
+             * @description Fields whose value is the user's rather than the package's:
+             *     `name`, `mission`, `examples`, `access`, `sources`.
+             */
+            overridden: string[];
+            /** @description Package the agent came with. */
+            package?: string | null;
+            /** @description Sources checked. */
+            sources: string[];
+            /** @description Version of the definition. */
+            version: string;
         };
         /** @description One resolved HITL approval entry. */
         ResolvedApprovalResponse: {
@@ -3676,6 +4152,14 @@ export interface components {
         SetEventsRequest: {
             /** @description New list of global events. */
             events: string[];
+        };
+        /** @description Body of `PUT /api/v1/agent-definitions/{name}/overrides/{field}`. */
+        SetOverrideRequest: {
+            /**
+             * @description The user's value: a string for `name` and `mission`, a list of strings
+             *     for `examples`, `access` and `sources`.
+             */
+            value: Record<string, never>;
         };
         /** @description Response body for the shutdown endpoint. */
         ShutdownResponse: {
@@ -3888,6 +4372,28 @@ export interface components {
             task_id: string;
             /** @description Token budget accumulated over all LLM calls for this task. */
             token_budget?: Record<string, never> | null;
+        };
+        /** @description One task of the view. */
+        TaskSummary: {
+            /** @description Runtime identifier of the agent, empty for a task read from the store. */
+            agent_id: string;
+            /** @description Name of the agent. */
+            agent_name: string;
+            /** @description ISO 8601 creation date, empty when the store has no row yet. */
+            created_at: string;
+            /**
+             * Format: int64
+             * @description Execution duration in milliseconds.
+             */
+            duration_ms?: number | null;
+            /** @description Unique task identifier. */
+            id: string;
+            /** @description The first characters of the input. */
+            input_preview: string;
+            /** @description Output text, as the store kept it. */
+            output_text?: string | null;
+            /** @description Current status. */
+            status: string;
         };
         /**
          * @description Body for [`test_live_server`]: the optional read-only probe to run against
@@ -4416,6 +4922,216 @@ export interface operations {
             };
         };
     };
+    list_agent_definitions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stored agents, by identifier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"][];
+                };
+            };
+            /** @description Store error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_agent_definition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agent in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_agent_overrides: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Back to defaults; the agent in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_agent_override: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+                /** @description name, mission, examples, access or sources */
+                field: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description Override set; the agent in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Unknown field, or a value of the wrong shape */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    remove_agent_override: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+                /** @description name, mission, examples, access or sources */
+                field: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Override removed, or there was none; the agent in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Unknown field */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_agents: {
         parameters: {
             query?: {
@@ -4472,6 +5188,77 @@ export interface operations {
             };
             /** @description Invalid agent module */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_installed_agents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Installed agents with their runtime state, then agents started without being installed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstalledAgentView"][];
+                };
+            };
+            /** @description agents.db or the registry cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    install_agent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstallAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallAgentResponse"];
+                };
+            };
+            /** @description File absent or module refused */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The install cannot be written */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5128,6 +5915,126 @@ export interface operations {
             };
         };
     };
+    add_imap_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImapAccountBody"];
+            };
+        };
+        responses: {
+            /** @description Mailbox verified and connected */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapAccountResponse"];
+                };
+            };
+            /** @description Unusable address, server, port or password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description Refused by the connection admission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The server refused the identifier or the password */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The secret store or the mailbox list could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The server is unreachable, its TLS failed, or it answered outside the protocol */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+        };
+    };
+    test_imap_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImapAccountBody"];
+            };
+        };
+        responses: {
+            /** @description The mailbox accepted the identifier and password */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapAccountResponse"];
+                };
+            };
+            /** @description Unusable address, server, port or password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The server refused the identifier or the password */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The server is unreachable, its TLS failed, or it answered outside the protocol */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+        };
+    };
     complete_connector_consent: {
         parameters: {
             query?: never;
@@ -5414,6 +6321,47 @@ export interface operations {
                 };
             };
             /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_agent_model_fallback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent name */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agent's last fallback */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentModelFallbackResponse"];
+                };
+            };
+            /** @description The agent's model has not fallen back since the runtime started */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No LLM router configured */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -5981,6 +6929,38 @@ export interface operations {
             };
             /** @description Backend repository not available */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_embedding_models: {
+        parameters: {
+            query?: {
+                /** @description Size of the language model to fit beside; the largest installed one when absent */
+                language_model_bytes?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The embeddings models and the one recommended for this machine */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingModelsResponse"];
+                };
+            };
+            /** @description The shipped registry table is invalid */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8865,6 +9845,40 @@ export interface operations {
             };
         };
     };
+    list_task_summaries: {
+        parameters: {
+            query?: {
+                /** @description Keep only the tasks in this status (`working`, `completed`...). */
+                status?: string;
+                /** @description Keep only the tasks of this agent, by runtime identifier. */
+                agent_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tasks of the running process, then the recent stored ones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskSummary"][];
+                };
+            };
+            /** @description Task router unavailable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_task: {
         parameters: {
             query?: never;
@@ -9803,6 +10817,121 @@ export interface operations {
                 };
             };
             /** @description Trigger engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_pending_user_inputs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Questions waiting for the user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingUserInputView"][];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    answer_user_input: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerUserInputRequest"];
+            };
+        };
+        responses: {
+            /** @description Answers delivered to the agent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such pending request, or the agent stopped waiting */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reject_user_input: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectUserInputRequest"];
+            };
+        };
+        responses: {
+            /** @description The agent is told the user declined */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such pending request, or the agent stopped waiting */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

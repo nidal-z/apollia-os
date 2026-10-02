@@ -80,7 +80,9 @@ pub use hitl_payload::{
 pub use hitl_request::{HitlRequest, ImpactLevel, RiskAnalysis};
 pub use inference_server::InferenceServer;
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
-pub use manifest::{AgentManifest, AgentSkill, MemoryConfig};
+pub use manifest::{
+    AgentManifest, AgentModelDefaults, AgentSkill, MemoryConfig, PackageRequestSettings,
+};
 pub use mcp_health::{McpHealth, McpHealthSeverity};
 pub use notebook::{CellType, JupyterCell, NotebookEditOp};
 pub use observability::{truncate_with_marker, ObservabilityConfig};

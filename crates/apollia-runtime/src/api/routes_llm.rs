@@ -560,7 +560,7 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
 // ─────────────────────────────────────────────
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::coordinator::ExecutionBackend;
     use crate::eventbus::EventBus;
@@ -577,7 +577,7 @@ mod tests {
 
     /// Minimal `ExecutionBackend` for tests, never actually executed.
     #[derive(Clone)]
-    pub(super) struct MockBackend;
+    pub(crate) struct MockBackend;
 
     impl ExecutionBackend for MockBackend {
         fn execute(
@@ -598,7 +598,7 @@ mod tests {
     }
 
     /// Build a minimal `AppState` with `llm_router = None`.
-    pub(super) fn test_app_state_no_llm() -> AppState<MockBackend> {
+    pub(crate) fn test_app_state_no_llm() -> AppState<MockBackend> {
         let (event_tx, _event_rx) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =

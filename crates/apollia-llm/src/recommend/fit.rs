@@ -533,6 +533,53 @@ pub fn max_context_for(
     Some((low / 1024) * 1024).filter(|n| *n > 0)
 }
 
+/// The shape the engine allocates for `slots` parallel slots sharing one
+/// unified key/value buffer, each holding the full window of `per_slot`.
+///
+/// `per_slot.n_ctx` is the window one request may use. Under `--kv-unified`
+/// the engine sizes one buffer for every sequence, so the context it is
+/// launched with is that window times the slot count, and the sliding-window
+/// cache grows with the slot count as `cache_layout` already models.
+#[must_use]
+pub fn parallel_shape(per_slot: &RuntimeShape, slots: u32) -> RuntimeShape {
+    let slots = slots.max(1);
+    RuntimeShape {
+        n_ctx: per_slot.n_ctx.saturating_mul(slots),
+        n_parallel: slots,
+        ..*per_slot
+    }
+}
+
+/// How many parallel slots this model can be served with on this machine.
+///
+/// The answer is the largest count, from `ceiling` down to two, at which the
+/// weights plus one full window of cache per slot still grade as
+/// [`CompatibilityBadge::Fits`]: within the budget on a machine without an
+/// accelerator or with unified memory, and with every layer still on the card
+/// on a discrete one, so a second slot never pushes a layer off the
+/// accelerator. When no count above one fits, or the header did not carry the
+/// fields the cache formula needs, the answer is one, which is what the engine
+/// was launched with before the count was planned.
+#[must_use]
+pub fn max_parallel_for(
+    file_size_bytes: u64,
+    facts: &GgufHeaderFacts,
+    profile: &HardwareProfile,
+    per_slot: &RuntimeShape,
+    ceiling: u32,
+) -> u32 {
+    if cache_layout(facts, per_slot).is_none() {
+        return 1;
+    }
+    (2..=ceiling)
+        .rev()
+        .find(|slots| {
+            let shape = parallel_shape(per_slot, *slots);
+            assess_fit(file_size_bytes, facts, profile, &shape).badge == CompatibilityBadge::Fits
+        })
+        .unwrap_or(1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1013,5 +1060,82 @@ mod tests {
         let windowed = 3 * u64::from(layout.window_cells) * 4 * (256 + 256) * 2;
         let full = 32_768u64 * 4 * (512 + 512) * 2;
         assert_eq!(layout.bytes, windowed + full);
+    }
+
+    #[test]
+    fn a_large_budget_serves_the_ceiling_of_parallel_slots() {
+        // GIVEN Qwen3 14B, nine gibibytes of weights, on a machine whose
+        // budget holds its weights and eight full windows of cache
+        let facts = qwen3_14b();
+        let weights = 9 * 1024 * 1024 * 1024;
+        let profile = profile_with_budget(200.0);
+
+        // WHEN the slot count is planned under a ceiling of eight
+        let slots = max_parallel_for(weights, &facts, &profile, &RuntimeShape::default(), 8);
+
+        // THEN it is the ceiling
+        assert_eq!(slots, 8);
+    }
+
+    #[test]
+    fn a_tight_budget_keeps_a_single_slot() {
+        // GIVEN the same model on a budget that holds its weights and one
+        // window of cache (about 14.8 GiB) but not a second window (about 20)
+        let facts = qwen3_14b();
+        let weights = 9 * 1024 * 1024 * 1024;
+        let profile = profile_with_budget(16.0);
+
+        // WHEN the slot count is planned
+        let slots = max_parallel_for(weights, &facts, &profile, &RuntimeShape::default(), 8);
+
+        // THEN it stays at one
+        assert_eq!(slots, 1);
+    }
+
+    #[test]
+    fn a_middle_budget_serves_as_many_slots_as_their_windows_fit() {
+        // GIVEN the same model on a budget between three and four windows
+        let facts = qwen3_14b();
+        let weights = 9 * 1024 * 1024 * 1024;
+        let per_slot = RuntimeShape::default();
+        let window = gib(kv_cache_bytes(&facts, &per_slot).expect("a cache"));
+        let fixed = gib(weights) + overhead_gb(gib(weights), false);
+        let profile = profile_with_budget(fixed + 3.5 * window);
+
+        // WHEN the slot count is planned
+        let slots = max_parallel_for(weights, &facts, &profile, &per_slot, 8);
+
+        // THEN three windows fit and a fourth does not
+        assert_eq!(slots, 3);
+    }
+
+    #[test]
+    fn an_unreadable_header_keeps_a_single_slot() {
+        // GIVEN no header facts at all, on a large budget
+        let facts = GgufHeaderFacts::default();
+        let profile = profile_with_budget(200.0);
+
+        // WHEN the slot count is planned
+        let slots = max_parallel_for(1 << 30, &facts, &profile, &RuntimeShape::default(), 8);
+
+        // THEN nothing is guessed: one slot, as before the count was planned
+        assert_eq!(slots, 1);
+    }
+
+    #[test]
+    fn the_parallel_shape_holds_one_window_per_slot() {
+        // GIVEN the runtime's per-request window
+        let per_slot = RuntimeShape::default();
+
+        // WHEN it is widened to four slots, and to a nonsensical zero
+        let four = parallel_shape(&per_slot, 4);
+        let zero = parallel_shape(&per_slot, 0);
+
+        // THEN the engine context is four windows and the slot count follows,
+        // and zero is read as one
+        assert_eq!(four.n_ctx, 4 * 32_768);
+        assert_eq!(four.n_parallel, 4);
+        assert_eq!(four.n_ubatch, per_slot.n_ubatch);
+        assert_eq!(zero, per_slot);
     }
 }

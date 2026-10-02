@@ -236,6 +236,16 @@ check         "agent update e2e-hello <path>"      "${Q[@]}" agent update e2e-he
 check         "agent stop e2e-hello"               "${Q[@]}" agent stop e2e-hello
 check         "agent disable e2e-hello"            "${Q[@]}" agent disable e2e-hello
 check         "agent enable e2e-hello"             "${Q[@]}" agent enable e2e-hello
+# Overrides of a seeded agent: set, read back resolved, then back to defaults.
+# Placed after the empty-journal audit checks: every write is journaled.
+check_content "agent list --definitions has apollia-chat" "apollia-chat" "${Q[@]}" agent list --definitions
+check_content "agent set mission"                  "Answer in one line." "${Q[@]}" agent set apollia-chat mission "Answer in one line."
+check_content "agent show carries the override"    "Answer in one line." "${Q[@]}" agent show apollia-chat
+check_exit    "agent reset without --confirm → 1"  1 "${Q[@]}" agent reset apollia-chat
+check         "agent reset --field mission"        "${Q[@]}" agent reset apollia-chat --field mission --confirm
+check         "agent reset --confirm"              "${Q[@]}" agent reset apollia-chat --confirm
+check_exit    "agent set unknown agent → 1"        1 "${Q[@]}" agent set e2e-ghost-agent mission "x"
+check         "audit verify (overrides journaled)"  "${Q[@]}" audit verify
 check         "agent package list"                 "${Q[@]}" agent package list
 check_content "agent package list has seed-office-pack" "seed-office-pack" "${Q[@]}" agent package show seed-office-pack
 check         "agent create scaffold --type react" "$BIN" agent create e2e-scaffold --type react

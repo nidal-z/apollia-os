@@ -390,6 +390,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         hook_executor,
         cancel,
         pending_injection,
+        preferred_backend,
     } = params;
 
     // In deferred mode, snapshot the aggregated tool index once. The synthetic
@@ -495,7 +496,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     .with_hook_executor(hook_executor)
     .with_pending_injection(pending_injection)
     .with_tool_turn_temperature(tool_turn_temperature)
-    .with_prefix_checker(prefix_checker);
+    .with_prefix_checker(prefix_checker)
+    .with_preferred_backend(preferred_backend);
 
     // Inject project context on first message OR right after the
     // session was linked to a project (consumed flag).

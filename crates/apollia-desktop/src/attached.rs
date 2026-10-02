@@ -28,13 +28,45 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 
 /// The commands that serve the attached mode. Every other registered command
 /// answers [`AttachedError::NotRouted`] while the runtime is a daemon.
+///
+/// `start_variant_download` needs no route over HTTP: it never reads the
+/// runtime, only the Hub, the models folder and its index, which the daemon
+/// shares since it listens on this machine. [`run`] manages the download
+/// manager it holds.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "create_chat_session",
     "get_chat_session",
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
+    // Agents: the registry, the install, the start and the stop.
+    "agent_status_snapshot",
+    "install_agent",
+    "list_agents",
+    "start_agent",
+    "stop_agent",
+    // Tasks: the list, the launch, the detail, the cancellation.
+    "cancel_task",
+    "get_task_timeline",
+    "list_tasks",
+    "submit_task",
+    // Approvals: the pending and resolved ones, and the decision that resumes
+    // the task.
+    "list_pending_approvals",
+    "list_resolved_approvals",
+    "resume_task",
+    // The questions an agent asked the user.
+    "list_pending_user_inputs",
+    "respond_user_input",
+    "respond_user_input_rejected",
+    // Models: the download of a whole variant from the Hub.
+    "start_variant_download",
 ];
+
+/// Encodes one path segment of a daemon route.
+pub(crate) fn segment(value: &str) -> std::borrow::Cow<'_, str> {
+    urlencoding::encode(value)
+}
 
 /// Where the runtime this application drives lives.
 #[derive(Clone)]
@@ -169,6 +201,10 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeLink::Attached(client))
+        .manage(
+            std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))
+                as crate::commands::model_hub::SharedDownloadManager,
+        )
         .on_menu_event(|app, event| {
             if event.id().as_ref() == crate::tray::MENU_QUIT_APP {
                 crate::tray::initiate_quit(app);

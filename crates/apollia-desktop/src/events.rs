@@ -340,6 +340,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::LlmResponseCaptured { .. }
         | RuntimeEvent::LlmCallFailed { .. }
         | RuntimeEvent::LlmFallbackTriggered { .. }
+        | RuntimeEvent::LlmAgentModelFallback { .. }
         | RuntimeEvent::TokenBudgetUpdated { .. }
         | RuntimeEvent::CostCeilingReached { .. } => "llm-changed",
 

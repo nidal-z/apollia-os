@@ -23,6 +23,7 @@ from apollia._internal.manifest import (
     find_on_message_handler,
     find_orchestrated_config,
 )
+from apollia._internal.model_defaults import check_model_defaults
 from apollia._internal.module_registry import expose_to_module
 from apollia.errors import AgentConfigError
 
@@ -124,6 +125,7 @@ def agent(  # NOSONAR S107: public decorator API surface
     autonomy_level: str | None = None,
     max_concurrent_tasks: int = 1,
     mailbox: bool | tuple[str, ...] = False,
+    model: dict[str, Any] | None = None,
 ) -> Callable[[C], C]:
     """Declare a class as an Apollia agent.
 
@@ -159,6 +161,13 @@ def agent(  # NOSONAR S107: public decorator API surface
             (default) refuses every ``ctx.mail`` call. ``True`` allows messaging
             any registered agent; a tuple restricts sends to a recipient
             allowlist, e.g. ``mailbox=("worker-a", "worker-b")``.
+        model: Model defaults the agent's package recommends, in the shape
+            ``apollia.toml`` reads under ``[agents.defaults.model]``:
+            ``{"model": str, "preset": str, "request": {...}}``, every key
+            optional. ``request`` takes ``temperature``, ``top_p``, ``top_k``,
+            ``repetition_penalty``, ``max_tokens`` and ``seed``; at each call
+            they apply over the model's own defaults and under the preset the
+            user chose for the agent. An unknown key is refused.
 
     The decorator:
 
@@ -198,6 +207,7 @@ def agent(  # NOSONAR S107: public decorator API surface
     _check_optional_dict("step_budget", step_budget)
     _check_optional_str("agent_type", agent_type)
     autonomy_level_v = _check_autonomy_level(autonomy_level)
+    model_v = check_model_defaults(model)
 
     def decorator(cls: C) -> C:
         if not isinstance(cls, type):
@@ -231,6 +241,7 @@ def agent(  # NOSONAR S107: public decorator API surface
             autonomy_level=autonomy_level_v,
             max_concurrent_tasks=max_concurrent_tasks,
             mailbox=mailbox,
+            model=model_v,
         )
 
         skills_registry = getattr(cls, SKILLS_REGISTRY_ATTR, {}) or {}
@@ -267,6 +278,7 @@ def agent(  # NOSONAR S107: public decorator API surface
                 "agent_type": agent_type,
                 "autonomy_level": autonomy_level_v,
                 "max_concurrent_tasks": max_concurrent_tasks,
+                "model": model_v,
             },
         )
 

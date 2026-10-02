@@ -14,6 +14,7 @@
 //! regardless of which feature is enabled.
 
 pub mod backends;
+pub mod capabilities;
 pub mod context_window;
 pub mod downloader;
 pub mod gguf_probe;
@@ -30,6 +31,7 @@ pub mod pricing;
 pub mod reasoning_markers;
 pub mod recommend;
 pub mod repository;
+pub mod request_defaults;
 pub mod retry;
 pub mod router;
 pub mod routing_level;
@@ -55,9 +57,11 @@ pub use meta_orchestrator::{
 };
 
 pub use apollia_core::config::LlmRoutingConfig;
+pub use capabilities::{Capabilities, VisionEngine};
 #[cfg(feature = "cloud")]
 pub use downloader::{
     DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
+    VariantDownload,
 };
 pub use gguf_probe::{parse_header, GgufHeaderFacts, GgufParseError};
 #[cfg(feature = "cloud")]
@@ -67,7 +71,11 @@ pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
 #[cfg(feature = "cloud")]
 pub use hf_registry::{
     CompatIssue, GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache,
-    HfRegistryClient, HfSearchFilter, SearchPage,
+    HfRegistryClient, HfSearchFilter, SearchPage, VariantError, VariantFile, VariantPlan,
+    VariantSelector,
+};
+pub use model_index::import::{
+    check_import, ImportCheck, ImportCheckError, ImportRule as ModelImportRule,
 };
 pub use model_index::{
     IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelIndexError, ModelOrigin,
@@ -84,7 +92,8 @@ pub use repository::{
 };
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
 pub use router::{
-    BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig, ServerEndpoint,
+    AgentModelBinding, AgentModelFallback, BackendConfig, BackendKind, LlmConfig, LlmRouter,
+    ObservabilityConfig, ServerEndpoint,
 };
 pub use routing_level::{EscalationSignal, LlmRoutingLevel};
 pub use schema_validate::{

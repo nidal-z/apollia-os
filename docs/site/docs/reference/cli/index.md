@@ -18,6 +18,8 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os agent start`↴](#apollia-os-agent-start)
 * [`apollia-os agent stop`↴](#apollia-os-agent-stop)
 * [`apollia-os agent show`↴](#apollia-os-agent-show)
+* [`apollia-os agent set`↴](#apollia-os-agent-set)
+* [`apollia-os agent reset`↴](#apollia-os-agent-reset)
 * [`apollia-os agent status`↴](#apollia-os-agent-status)
 * [`apollia-os agent messages`↴](#apollia-os-agent-messages)
 * [`apollia-os agent install`↴](#apollia-os-agent-install)
@@ -199,6 +201,10 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os plan cache stats`↴](#apollia-os-plan-cache-stats)
 * [`apollia-os plan cache clear`↴](#apollia-os-plan-cache-clear)
 * [`apollia-os plan cache evict`↴](#apollia-os-plan-cache-evict)
+* [`apollia-os service`↴](#apollia-os-service)
+* [`apollia-os service install`↴](#apollia-os-service-install)
+* [`apollia-os service uninstall`↴](#apollia-os-service-uninstall)
+* [`apollia-os service status`↴](#apollia-os-service-status)
 * [`apollia-os doctor`↴](#apollia-os-doctor)
 * [`apollia-os inspect`↴](#apollia-os-inspect)
 * [`apollia-os logs`↴](#apollia-os-logs)
@@ -295,6 +301,7 @@ Apollia OS CLI binary (apollia-os)
 * `review` - Automated code or plan review via the apollia-review agent
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
+* `service` - Run the runtime as a service of your session (install, uninstall, status)
 * `doctor` - Diagnose the local Apollia environment (no runtime required)
 * `inspect` - Statically inspect a Python agent file (no runtime required)
 * `logs` - Tail or follow the runtime log file
@@ -408,7 +415,9 @@ Agent management (list, start, stop, show, install, uninstall, enable, disable, 
 * `list` - List all agents (installed and/or runtime)
 * `start` - Start (register) a new agent from a Python module path
 * `stop` - Stop (shutdown) a running agent
-* `show` - Display detailed information about an agent
+* `show` - Display detailed information about an agent, with its definition as resolved (package defaults, then your overrides)
+* `set` - Override one field of an agent's definition; a package update keeps it
+* `reset` - Go back to the package defaults: remove every override of an agent, or the override of one field. Recorded in the audit journal
 * `status` - Show a compact runtime-status snapshot for `<agent_id>`
 * `messages` - List in-memory A2A messages for `<agent_id>` (oldest-first within window)
 * `install` - Install an agent permanently from a local path or a Git URL
@@ -433,6 +442,7 @@ List all agents (installed and/or runtime)
 ###### **Options:**
 
 * `--supports-a2a` - Show only A2A-capable agents with their skill descriptors
+* `--definitions` - List the stored agents as resolved (package definition, then your overrides) instead of the runtime inventory
 
 
 
@@ -462,13 +472,46 @@ Stop (shutdown) a running agent
 
 ## `apollia-os agent show`
 
-Display detailed information about an agent
+Display detailed information about an agent, with its definition as resolved (package defaults, then your overrides)
 
 **Usage:** `apollia-os agent show <AGENT_ID>`
 
 ###### **Arguments:**
 
 * `<AGENT_ID>` - Agent identifier
+
+
+
+## `apollia-os agent set`
+
+Override one field of an agent's definition; a package update keeps it.
+
+Fields: `name` and `mission` take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
+
+**Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
+
+###### **Arguments:**
+
+* `<AGENT_ID>` - Agent identifier
+* `<FIELD>` - Field to override: name, mission, examples, access or sources
+* `<VALUES>` - The value, or the items of a list
+
+
+
+## `apollia-os agent reset`
+
+Go back to the package defaults: remove every override of an agent, or the override of one field. Recorded in the audit journal
+
+**Usage:** `apollia-os agent reset [OPTIONS] <AGENT_ID>`
+
+###### **Arguments:**
+
+* `<AGENT_ID>` - Agent identifier
+
+###### **Options:**
+
+* `--field <FIELD>` - Remove only the override of this field
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -3204,6 +3247,56 @@ Evict entries older than `--max-age-days` days (default: 7)
 
   Default value: `7`
 * `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os service`
+
+Run the runtime as a service of your session (install, uninstall, status)
+
+**Usage:** `apollia-os service <COMMAND>`
+
+###### **Subcommands:**
+
+* `install` - Install the runtime as a service of your session and start it
+* `uninstall` - Stop the service and remove its definition
+* `status` - Report whether the service is installed and running
+
+
+
+## `apollia-os service install`
+
+Install the runtime as a service of your session and start it.
+
+macOS: a LaunchAgent; Linux: a systemd user unit; Windows: a task at logon. No administrator right is needed.
+
+**Usage:** `apollia-os service install [OPTIONS]`
+
+###### **Options:**
+
+* `--no-load` - Write the service definition without handing it to the service manager: nothing starts now, the next logon starts it
+
+
+
+## `apollia-os service uninstall`
+
+Stop the service and remove its definition.
+
+Prompts for confirmation unless `--confirm` is passed.
+
+**Usage:** `apollia-os service uninstall [OPTIONS]`
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os service status`
+
+Report whether the service is installed and running
+
+**Usage:** `apollia-os service status`
 
 
 

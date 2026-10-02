@@ -22,8 +22,8 @@ use super::apollia_data_dir;
 ///
 /// Cleanup order:
 /// 1. Snapshot of DB metadata (tolerant lookup: best-effort).
-/// 2. Delete `installed_agents` (cascade).
-/// 3. Delete `installed_packages` (cascade on `package_agents`).
+/// 2. Delete the `agents` rows, with their overrides.
+/// 3. Delete `installed_packages`, with its `package_items`.
 /// 4. In-memory runtime deregistration + emit `AgentUninstalled`.
 /// 5. Filesystem removal: `install_root` + per-agent worker venv.
 /// 6. If no trace is found anywhere, return an error to tell the frontend there
@@ -57,7 +57,7 @@ pub async fn uninstall_agent_package(
     // that might correspond to it).
     let mut errors: Vec<String> = Vec::new();
 
-    // ── Step 2: delete installed_agents rows (idempotent) ────────────────────
+    // ── Step 2: delete the agents rows (idempotent) ──────────────────────────
     {
         let agent_repo = agent_repo_state.lock().map_err(|_| "repo lock poisoned")?;
         for agent_name in &agent_names {

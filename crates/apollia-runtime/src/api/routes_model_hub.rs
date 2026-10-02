@@ -4,6 +4,7 @@
 //! - `GET /api/v1/llm/registry/search`          , search HuggingFace GGUF models
 //! - `GET /api/v1/llm/registry/model/:org/:repo`, model metadata + file list
 //! - `GET /api/v1/llm/recommend`                 , models ranked for this machine
+//! - `GET /api/v1/llm/embeddings`                , embeddings models, and the one for this machine
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -16,6 +17,8 @@ use apollia_llm::AcceleratorProfile;
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+
+pub mod embeddings;
 
 // ─────────────────────────────────────────────
 // Response types
@@ -305,7 +308,12 @@ pub async fn recommend_models<B: ExecutionBackend + Clone>(
 
 /// Build the axum sub-router for Model Hub endpoints.
 pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
-    let router = Router::new().route("/api/v1/llm/hardware", get(get_hardware::<B>));
+    let router = Router::new()
+        .route("/api/v1/llm/hardware", get(get_hardware::<B>))
+        .route(
+            "/api/v1/llm/embeddings",
+            get(embeddings::list_embedding_models::<B>),
+        );
 
     #[cfg(feature = "cloud")]
     let router = router

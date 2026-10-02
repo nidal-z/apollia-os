@@ -304,6 +304,15 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
                 secret_store,
                 secrets_declared,
             ))
+            // The model this agent asks for, read again at each `ctx.llm` call.
+            .with_agent_model(apollia_llm::AgentModelBinding::new(
+                agent_name,
+                manifest.llm_backend.clone(),
+                Some(
+                    self.data_dir
+                        .join(apollia_core::paths::DataFile::System.file_name()),
+                ),
+            ))
             // Bind the context to the task so ctx.log() labels the persisted
             // RuntimeEvent::AgentLog entries.
             .with_task_id(task.task_id.clone())
@@ -398,6 +407,7 @@ pub(super) async fn task_tool_executors(
     };
     executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
     executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
+    executors.extend(apollia_runtime::connectors_bridge::build_imap_executors());
     executors
 }
 
@@ -460,6 +470,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,

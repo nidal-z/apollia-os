@@ -30,6 +30,7 @@ use crate::coordinator::ExecutionBackend;
 
 pub mod pause;
 mod sse;
+pub mod user_inputs;
 
 use sse::chat_event_to_sse;
 
@@ -785,6 +786,7 @@ mod tests {
                 system_prompt: None,
                 tools_requiring_approval: vec![],
                 llm_backend: None,
+                model: None,
                 packages: vec![],
                 memory_config: None,
                 agent_type: None,
@@ -1138,5 +1140,40 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(json["session_id"], session_id);
         assert_eq!(json["items"], serde_json::json!([]));
+    }
+
+    #[tokio::test]
+    async fn test_user_inputs_are_listed_and_an_unknown_one_is_refused() {
+        // GIVEN a router whose chat manager holds no pending question
+        let dir = tempfile::tempdir().expect("tempdir");
+        let router = test_router_with_chat(&dir);
+
+        // WHEN the questions are listed, then an unknown one is answered
+        let list = Request::builder()
+            .uri("/api/v1/user-inputs")
+            .body(Body::empty())
+            .unwrap();
+        let listed = router.clone().oneshot(list).await.unwrap();
+        let body = serde_json::json!({ "answers": [{ "id": "q1", "value": "oui" }] });
+        let answer = Request::builder()
+            .method("POST")
+            .uri("/api/v1/user-inputs/ghost/answer")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let answered = router.oneshot(answer).await.unwrap();
+
+        // THEN the list is empty, and the answer names the missing request
+        assert_eq!(listed.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(listed.into_body(), 4096)
+            .await
+            .unwrap();
+        assert_eq!(bytes.as_ref(), b"[]");
+        assert_eq!(answered.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let bytes = axum::body::to_bytes(answered.into_body(), 4096)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(json["error"].as_str().unwrap().contains("ghost"), "{json}");
     }
 }
