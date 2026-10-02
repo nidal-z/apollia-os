@@ -74,7 +74,10 @@ def sync_detailed(
 ) -> Response[Any | ApiErrorBody]:
     """`POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.
 
-     Spawns the server process and registers its tools, then saves the configuration.
+     The addition is first submitted to the connection admission; a refusal
+    answers `403 Forbidden` with its reason, before any process is spawned and
+    before anything is written to `mcp.db`. Spawns the server process and
+    registers its tools, then saves the configuration and journals the addition.
     Returns `201 Created` with the server status on success.
     Returns `409 Conflict` when a server with the same name is already managed.
     Returns `400 Bad Request` for invalid configurations or spawn failures.
@@ -103,7 +106,10 @@ def sync(
 ) -> Any | ApiErrorBody | None:
     """`POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.
 
-     Spawns the server process and registers its tools, then saves the configuration.
+     The addition is first submitted to the connection admission; a refusal
+    answers `403 Forbidden` with its reason, before any process is spawned and
+    before anything is written to `mcp.db`. Spawns the server process and
+    registers its tools, then saves the configuration and journals the addition.
     Returns `201 Created` with the server status on success.
     Returns `409 Conflict` when a server with the same name is already managed.
     Returns `400 Bad Request` for invalid configurations or spawn failures.
@@ -128,7 +134,10 @@ async def asyncio_detailed(
 ) -> Response[Any | ApiErrorBody]:
     """`POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.
 
-     Spawns the server process and registers its tools, then saves the configuration.
+     The addition is first submitted to the connection admission; a refusal
+    answers `403 Forbidden` with its reason, before any process is spawned and
+    before anything is written to `mcp.db`. Spawns the server process and
+    registers its tools, then saves the configuration and journals the addition.
     Returns `201 Created` with the server status on success.
     Returns `409 Conflict` when a server with the same name is already managed.
     Returns `400 Bad Request` for invalid configurations or spawn failures.
@@ -155,7 +164,10 @@ async def asyncio(
 ) -> Any | ApiErrorBody | None:
     """`POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.
 
-     Spawns the server process and registers its tools, then saves the configuration.
+     The addition is first submitted to the connection admission; a refusal
+    answers `403 Forbidden` with its reason, before any process is spawned and
+    before anything is written to `mcp.db`. Spawns the server process and
+    registers its tools, then saves the configuration and journals the addition.
     Returns `201 Created` with the server status on success.
     Returns `409 Conflict` when a server with the same name is already managed.
     Returns `400 Bad Request` for invalid configurations or spawn failures.

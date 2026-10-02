@@ -13,7 +13,7 @@ releases.
 ## 1. Command shape
 
 Every command is `apollia-os <noun> <verb> [args]`, except the bare-verb
-whitelist below. The tree carries 200 leaves today; read it with
+whitelist below. The tree carries 202 leaves today; read it with
 `apollia-os --help` recursively, never from memory.
 
 **Verb taxonomy.** Every leaf's last token belongs to one of the categories
@@ -30,7 +30,7 @@ the same commit as the command.
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
 | report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `hardware`, `recommend`, `schema`, `anchor`, `inspect`, `trace`, `version`, `digest` |
-| action | `run`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
+| action | `run`, `build`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
 **One verb per intent.** `show` is the only entity-detail read (it absorbed
@@ -58,6 +58,13 @@ say so.
 **Folded / renamed nouns:** `mcp-server` -> `mcp server`,
 `chat-config` -> `chat config`, `plan-cache` -> `plan cache`, `user-memory` ->
 `profile`; `hitl` removed (use `task list --pending-approval`).
+
+**`service`** (`install`, `uninstall`, `status`) is the one noun that acts on
+the operator's session rather than on `~/.apollia`: it hands a definition to
+launchd, the systemd user manager or Task Scheduler. `install --no-load` writes
+the definition and stops there; it is the only form the end-to-end suite, the
+smoke sweep and the `--json` probe may drive, since a load reaches the real
+session whatever `HOME` says.
 
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 

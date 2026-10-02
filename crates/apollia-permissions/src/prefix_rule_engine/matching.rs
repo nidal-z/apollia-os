@@ -1,10 +1,9 @@
-//! Prefix matching, row decoding, and the in-session scan.
+//! Prefix matching and row decoding.
 //!
 //! Split out of `prefix_rule_engine.rs`: the engine and its SQLite handle stay
 //! in the parent, the pure predicates it consults on every decision live here.
 
 use crate::error::PermissionError;
-use std::path::PathBuf;
 
 use crate::prefix_rule_engine::{PermissionScope, PrefixRule, RuleAction};
 
@@ -50,42 +49,6 @@ pub(super) fn code_executor_prefix_matches(
         (Some(_), None) => false,
     }
 }
-pub(super) fn match_in_session(
-    tool_name: &str,
-    first_arg: Option<&str>,
-    session_rules: &[PrefixRule],
-    now: i64,
-) -> Option<(i64, RuleAction)> {
-    let mut candidates: Vec<&PrefixRule> = session_rules
-        .iter()
-        .filter(|r| r.tool_name == tool_name)
-        .filter(|r| {
-            if is_expired(r.expires_at, now) {
-                tracing::warn!(
-                    rule_id = r.id,
-                    tool = %tool_name,
-                    "permission.session_rule.expired.ignored"
-                );
-                false
-            } else {
-                true
-            }
-        })
-        .collect();
-
-    candidates.sort_by(|a, b| {
-        let la = a.arg_prefix.as_deref().map(str::len).unwrap_or(0);
-        let lb = b.arg_prefix.as_deref().map(str::len).unwrap_or(0);
-        lb.cmp(&la)
-    });
-
-    for rule in candidates {
-        if prefix_matches(tool_name, rule.arg_prefix.as_deref(), first_arg) {
-            return Some((rule.id, rule.action.clone()));
-        }
-    }
-    None
-}
 pub(super) fn row_to_rule(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<Result<PrefixRule, PermissionError>> {
@@ -96,9 +59,8 @@ pub(super) fn row_to_rule(
     let created_at: i64 = row.get(4)?;
     let created_by_agent: Option<String> = row.get(5)?;
     let scope_str: String = row.get(6)?;
-    let project_path_str: Option<String> = row.get(7)?;
-    let agent_id: Option<String> = row.get(8)?;
-    let expires_at: Option<i64> = row.get(9)?;
+    let agent_id: Option<String> = row.get(7)?;
+    let expires_at: Option<i64> = row.get(8)?;
 
     Ok((|| -> Result<PrefixRule, PermissionError> {
         Ok(PrefixRule {
@@ -109,7 +71,6 @@ pub(super) fn row_to_rule(
             created_at,
             created_by_agent,
             scope: PermissionScope::from_db_str(&scope_str)?,
-            project_path: project_path_str.map(PathBuf::from),
             agent_id,
             expires_at,
         })

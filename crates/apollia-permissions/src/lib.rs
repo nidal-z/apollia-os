@@ -23,21 +23,42 @@
 //! Anything the chat path does not auto-approve asks a human, through the HITL
 //! flow of `apollia-runtime`.
 //!
+//! [`org_policy`] reads and verifies the signed organisation policy that IT
+//! drops in a system folder; [`load_policy`] answers whether it is absent,
+//! valid or invalid, and nothing in this crate applies it yet.
+//!
+//! [`FamilyConsentStore`] holds the standing consents ("always" for one agent
+//! and one action family, permanent or for one batch run), and
+//! [`run_access_upgrade`] converts, once, the rules persisted before them.
+//!
 //! [`PermissionAuditLog`] reads the `permission_audit` table of `governance.db`
 //! for the `apollia permissions audit` command and for the desktop audit view.
 //! Nothing in this crate writes to that table.
 
+pub mod access_upgrade;
 pub mod audit_log;
 pub mod error;
 pub mod executor_guard;
+pub mod family_consent;
 pub mod governance_schema;
+pub mod org_policy;
 pub mod prefix_rule_engine;
 
+pub use access_upgrade::{
+    run_access_upgrade, AccessUpgradeReport, UpgradeChange, UpgradeEntry, ALL_AGENTS,
+};
 pub use audit_log::{PermissionAuditEntry, PermissionAuditLog};
 pub use error::PermissionError;
 pub use executor_guard::{is_code_executor, is_single_simple_command, CODE_EXECUTOR_TOOLS};
+pub use family_consent::{
+    ConsentFamily, ConsentScope, FamilyConsent, FamilyConsentStore, APOLLIA_AGENT_ID,
+};
 pub use governance_schema::{
     open_governance_schema, GOVERNANCE_MIGRATIONS, GOVERNANCE_SCHEMA_VERSION,
+};
+pub use org_policy::{
+    load_policy, parse_policy, policy_location, OrgPolicy, OwnerRequirement, PolicyInvalid,
+    PolicyInvalidReason, PolicyLocation, PolicySchemaError, PolicyVerdict, ValidPolicy,
 };
 pub use prefix_rule_engine::{
     extract_first_arg, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction, ScopeContext,

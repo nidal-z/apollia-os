@@ -453,3 +453,28 @@ fn test_to_toml_with_null_in_input_schema_is_a_serialize_error() {
         "{err:?}"
     );
 }
+
+#[test]
+fn test_the_manifest_the_python_sdk_writes_is_read_as_written() {
+    // GIVEN the manifest `python -m apollia describe` writes for the SDK's
+    // example package; the SDK test suite holds that file equal to its output
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../sdk/tests/fixtures/invoice_pkg_described.toml");
+    let text = std::fs::read_to_string(&path).expect("the SDK fixture is in the tree");
+
+    // WHEN it is parsed with the strict schema
+    let m = parse(&text).expect("the SDK writes nothing the schema refuses");
+
+    // THEN every descriptor is read, with its family, steps and inputs
+    let tools: Vec<(&str, bool)> = m
+        .tools
+        .iter()
+        .map(|t| (t.name.as_str(), t.is_sensitive()))
+        .collect();
+    assert_eq!(tools, [("extract_totals", false), ("file_totals", true)]);
+    let workflow = &m.workflows[0];
+    assert_eq!(workflow.name, "close-month");
+    assert_eq!(workflow.steps, ["extract", "file"]);
+    assert_eq!(workflow.action, ActionFamily::WriteOrDelete);
+    assert!(workflow.inputs.is_some());
+}

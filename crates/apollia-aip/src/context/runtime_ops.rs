@@ -280,6 +280,15 @@ impl RuntimeContext {
         self.chat_message_id = Some(message_id.into());
         self
     }
+    /// Binds `ctx.llm` to the model this agent asks for: the user's
+    /// assignment, else the manifest's backend, resolved again at each call
+    /// that names no backend. A context without `ctx.llm` is left unchanged.
+    pub fn with_agent_model(mut self, binding: apollia_llm::AgentModelBinding) -> Self {
+        if let Some(llm) = self.llm.take() {
+            self.llm = Some(llm.with_agent_model(binding));
+        }
+        self
+    }
     /// Binds this context to the current task id.
     ///
     /// Must be called before `bridge.call_run()` so that `ctx.log()` can tag

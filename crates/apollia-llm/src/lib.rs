@@ -86,7 +86,8 @@ pub use repository::{
 };
 pub use retry::{IsCancelled, IsRetryable, RetryPolicy};
 pub use router::{
-    BackendConfig, BackendKind, LlmConfig, LlmRouter, ObservabilityConfig, ServerEndpoint,
+    AgentModelBinding, AgentModelFallback, BackendConfig, BackendKind, LlmConfig, LlmRouter,
+    ObservabilityConfig, ServerEndpoint,
 };
 pub use routing_level::{EscalationSignal, LlmRoutingLevel};
 pub use schema_validate::{

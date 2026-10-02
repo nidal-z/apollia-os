@@ -218,6 +218,284 @@
         }
       }
     },
+    "/api/v1/agent-definitions": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`GET /api/v1/agent-definitions`: every stored agent, resolved.",
+        "operationId": "list_agent_definitions",
+        "responses": {
+          "200": {
+            "description": "Stored agents, by identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResolvedAgentResponse"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-definitions/{name}": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`GET /api/v1/agent-definitions/{name}`: one agent, resolved.",
+        "operationId": "get_agent_definition",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The agent in force",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedAgentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-definitions/{name}/overrides": {
+      "delete": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`DELETE /api/v1/agent-definitions/{name}/overrides`: back to defaults,\nevery override of the agent removed.",
+        "operationId": "reset_agent_overrides",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Back to defaults; the agent in force",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedAgentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-definitions/{name}/overrides/{field}": {
+      "put": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`PUT /api/v1/agent-definitions/{name}/overrides/{field}`: set the user's\nvalue of a field. Kept through every update of the package.",
+        "operationId": "set_agent_override",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "field",
+            "in": "path",
+            "description": "name, mission, examples, access or sources",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetOverrideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Override set; the agent in force",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedAgentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unknown field, or a value of the wrong shape",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`DELETE /api/v1/agent-definitions/{name}/overrides/{field}`: remove the\nuser's value of a field; the package default applies again.",
+        "operationId": "remove_agent_override",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "field",
+            "in": "path",
+            "description": "name, mission, examples, access or sources",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Override removed, or there was none; the agent in force",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedAgentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unknown field",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Audit journal not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agents": {
       "get": {
         "tags": [
@@ -1285,6 +1563,24 @@
         }
       }
     },
+    "/api/v1/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "`GET /api/v1/events`, every runtime event as SSE.",
+        "description": "Each `runtime` frame carries one event of the bus serialized as the bus\ncarries it; a `lagged` frame reports how many events this subscriber\nmissed. The stream stays open until the client disconnects.",
+        "operationId": "stream_events",
+        "responses": {
+          "200": {
+            "description": "SSE stream of every runtime event: `runtime` frames carry one event each, `lagged` frames the count of events dropped for this subscriber",
+            "content": {
+              "text/event-stream": {}
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "tags": [
@@ -1475,6 +1771,58 @@
           },
           "503": {
             "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/agents/{agent}/model/fallback": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`GET /api/v1/llm/agents/{agent}/model/fallback`: the last time the agent's\nmodel was not available since the runtime started, for its sheet.",
+        "operationId": "get_agent_model_fallback",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The agent's last fallback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentModelFallbackResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The agent's model has not fallen back since the runtime started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No LLM router configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -3242,7 +3590,7 @@
           "mcp"
         ],
         "summary": "`POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.",
-        "description": "Spawns the server process and registers its tools, then saves the configuration.\nReturns `201 Created` with the server status on success.\nReturns `409 Conflict` when a server with the same name is already managed.\nReturns `400 Bad Request` for invalid configurations or spawn failures.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "The addition is first submitted to the connection admission; a refusal\nanswers `403 Forbidden` with its reason, before any process is spawned and\nbefore anything is written to `mcp.db`. Spawns the server process and\nregisters its tools, then saves the configuration and journals the addition.\nReturns `201 Created` with the server status on success.\nReturns `409 Conflict` when a server with the same name is already managed.\nReturns `400 Bad Request` for invalid configurations or spawn failures.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "add_server",
         "responses": {
           "201": {
@@ -3376,7 +3724,7 @@
           "mcp"
         ],
         "summary": "`DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.",
-        "description": "Shuts down the session, unregisters the server, then removes its database entry.\nReturns `200 OK` with `{\"removed\": \"<name>\"}` on success.\nReturns `404 Not Found` when no server with the given name is managed.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "Shuts down the session, unregisters the server, removes its database entry,\nthen journals the removal.\nReturns `200 OK` with `{\"removed\": \"<name>\"}` on success.\nReturns `404 Not Found` when no server with the given name is managed.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "remove_server",
         "parameters": [
           {
@@ -3498,7 +3846,7 @@
           "mcp"
         ],
         "summary": "`PUT /api/v1/mcp/servers/:name/config`, Replace a server configuration and restart the session.",
-        "description": "Removes the current session, starts a new one with the updated configuration, then\nupserts the entry in `mcp.db`.\nReturns `200 OK` with the new [`McpServerStatus`] on success.\nReturns `404 Not Found` when no server with `name` is managed.\nReturns `400 Bad Request` when the new session fails to start.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "Removes the current session, starts a new one with the updated configuration,\nupserts the entry in `mcp.db`, then journals the change.\nReturns `200 OK` with the new [`McpServerStatus`] on success.\nReturns `404 Not Found` when no server with `name` is managed.\nReturns `400 Bad Request` when the new session fails to start.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "update_server_config",
         "parameters": [
           {
@@ -4897,6 +5245,51 @@
           },
           "409": {
             "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/pause": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/:id/pause`, pause the turn in flight.",
+        "operationId": "pause_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Turn paused, or no turn was in flight"
+          },
+          "404": {
+            "description": "Session not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -7059,6 +7452,34 @@
           }
         }
       },
+      "AgentModelFallbackResponse": {
+        "type": "object",
+        "description": "The last time an agent's model was not available, so a call ran on the\ndefault model instead.",
+        "required": [
+          "agent",
+          "requested",
+          "used",
+          "at"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Agent name."
+          },
+          "at": {
+            "type": "string",
+            "description": "When it happened, RFC 3339."
+          },
+          "requested": {
+            "type": "string",
+            "description": "Model the agent asked for: the user's assignment, or the backend its\nmanifest declares."
+          },
+          "used": {
+            "type": "string",
+            "description": "Model that served the call instead."
+          }
+        }
+      },
       "AgentModelResponse": {
         "type": "object",
         "description": "The model assigned to an agent.",
@@ -7089,6 +7510,14 @@
             "description": "The preset chosen for the agent; `null` leaves the model's default."
           }
         }
+      },
+      "AgentOriginDto": {
+        "type": "string",
+        "description": "Where an agent comes from.",
+        "enum": [
+          "package",
+          "interface"
+        ]
       },
       "AgentResponse": {
         "type": "object",
@@ -9076,7 +9505,7 @@
           },
           "reaches_running_agents": {
             "type": "boolean",
-            "description": "Whether the rebuilt router reaches agents that are already running.\n\n`false` today, and not a transient state: the agent execution path reads\nits router from a `OnceLock` populated at boot, a different cell from the\none this route rewrites. A reload therefore reaches chat and this API,\nand an already-running agent keeps the router it started with until the\ndaemon restarts. Reported rather than hidden, because the failure it\nproduces on the Python side, `'NoneType' object has no attribute\n'complete'`, names none of this."
+            "description": "Whether the rebuilt router reaches agents that are already running.\n\n`true`: the router this one replaces is superseded by it, and an agent\nstarted before the reload reads the router in force at each call\n(`LlmRouter::latest`), so it picks the reload up without a restart.\nKept in the response so a client that warned about the opposite can\ntell the two runtimes apart."
           }
         }
       },
@@ -9109,6 +9538,99 @@
               "type": "object"
             },
             "description": "Snapshot for every tool the runtime has seen at least one event for."
+          }
+        }
+      },
+      "ResolvedAgentResponse": {
+        "type": "object",
+        "description": "An agent in force: its definition, then the user's overrides.",
+        "required": [
+          "id",
+          "origin",
+          "version",
+          "enabled",
+          "name",
+          "mission",
+          "examples",
+          "access",
+          "sources",
+          "overridden",
+          "definition"
+        ],
+        "properties": {
+          "access": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tools granted."
+          },
+          "definition": {
+            "type": "object",
+            "description": "The definition as the package declares it, before any override."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the agent is active."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Example requests."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier."
+          },
+          "mission": {
+            "type": "string",
+            "description": "What the agent is for, used as its instructions."
+          },
+          "model": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AgentModelResponse",
+                "description": "The model assigned to the agent, if any."
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "origin": {
+            "$ref": "#/components/schemas/AgentOriginDto",
+            "description": "Where the agent comes from."
+          },
+          "overridden": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`."
+          },
+          "package": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Package the agent came with."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sources checked."
+          },
+          "version": {
+            "type": "string",
+            "description": "Version of the definition."
           }
         }
       },
@@ -9452,6 +9974,19 @@
               "type": "string"
             },
             "description": "New list of global events."
+          }
+        }
+      },
+      "SetOverrideRequest": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/agent-definitions/{name}/overrides/{field}`.",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "object",
+            "description": "The user's value: a string for `name` and `mission`, a list of strings\nfor `examples`, `access` and `sources`."
           }
         }
       },
@@ -10763,6 +11298,10 @@
     {
       "name": "health",
       "description": "Liveness and lifecycle"
+    },
+    {
+      "name": "events",
+      "description": "The runtime event bus as a stream"
     },
     {
       "name": "tasks",

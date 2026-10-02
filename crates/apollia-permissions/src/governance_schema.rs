@@ -1,7 +1,8 @@
 //! Versioned schema of `governance.db`, shared by every store in the file.
 //!
-//! `governance.db` gathers the runtime governance tables: `permission_rules`
-//! and `permission_audit` (owned by this crate), plus `tools`,
+//! `governance.db` gathers the runtime governance tables: `permission_rules`,
+//! `permission_audit`, `family_consents` and `governance_upgrades` (owned by
+//! this crate), plus `tools`,
 //! `tool_credentials` and `chat_libre_config` (owned by `apollia-tools`,
 //! whose `GovernanceDb` reuses this list). `PRAGMA user_version` belongs to
 //! the database file, not to a table, so the three openers
@@ -15,13 +16,13 @@ use rusqlite::Connection;
 use apollia_core::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `governance.db`.
-pub const GOVERNANCE_SCHEMA_VERSION: u32 = 1;
+pub const GOVERNANCE_SCHEMA_VERSION: u32 = 2;
 
 /// Numbered migration steps of `governance.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`GOVERNANCE_SCHEMA_VERSION`].
-pub const GOVERNANCE_MIGRATIONS: &[Migration] = &[migrate_v1];
+pub const GOVERNANCE_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -126,6 +127,37 @@ fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
          BEFORE DELETE ON permission_audit BEGIN
              SELECT RAISE(ABORT, 'permission_audit is append-only');
          END;",
+    )
+}
+
+/// v2: the store of standing consents ("always", per agent and action family)
+/// and the marker of the one-shot access upgrade.
+///
+/// `family_consents` holds one row per (agent, family, scope): `scope` is
+/// `permanent` or `lot:<id>`, so every row of one batch run goes in one
+/// statement. `governance_upgrades` names the data upgrades still to run; the
+/// row inserted here is consumed by
+/// [`crate::access_upgrade::run_access_upgrade`], which needs the tool
+/// descriptors and therefore runs in the runtime, not in this step.
+fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS family_consents (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id    TEXT NOT NULL,
+            family      TEXT NOT NULL,
+            scope       TEXT NOT NULL,
+            granted_at  INTEGER NOT NULL,
+            granted_by  TEXT NOT NULL,
+            UNIQUE(agent_id, family, scope)
+        );
+        CREATE INDEX IF NOT EXISTS idx_family_consents_scope ON family_consents(scope);
+
+        CREATE TABLE IF NOT EXISTS governance_upgrades (
+            name     TEXT PRIMARY KEY,
+            done_at  INTEGER
+        );
+        INSERT OR IGNORE INTO governance_upgrades (name, done_at)
+            VALUES ('access_upgrade', NULL);",
     )
 }
 

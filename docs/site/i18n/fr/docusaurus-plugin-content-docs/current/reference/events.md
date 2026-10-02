@@ -154,6 +154,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | Variante | Charge utile |
 |---|---|
 | `CostCeilingReached` | champs nommés |
+| `LlmAgentModelFallback` | champs nommés |
 | `LlmCallCompleted` | champs nommés |
 | `LlmCallFailed` | champs nommés |
 | `LlmFallbackTriggered` | champs nommés |

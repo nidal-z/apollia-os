@@ -25,6 +25,18 @@ pub enum AccessChange {
     Granted,
     /// The access was taken from the agent.
     Revoked,
+    /// The access was kept with another reach.
+    Rescoped,
+}
+
+/// What happened to a local override.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverrideChange {
+    /// The user's value was written.
+    Set,
+    /// The user's value was removed; the package default applies again.
+    Removed,
 }
 
 /// An event governance records: who did what to which agent.
@@ -39,8 +51,11 @@ pub enum GovernanceEvent {
         access_id: String,
         /// Whether it was granted or revoked.
         change: AccessChange,
-        /// Who made the change (a user, `policy`, `package`).
+        /// Who made the change (a user, `policy`, `package`, `upgrade`).
         actor: String,
+        /// Why the change was made, when the actor states it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
     },
     /// An agent was installed.
     Installed {
@@ -66,6 +81,18 @@ pub enum GovernanceEvent {
         /// Who updated it.
         actor: String,
     },
+    /// A local override of an agent was set or removed.
+    OverrideChanged {
+        /// Agent whose override changed.
+        agent_id: String,
+        /// Overridden field (`name`, `mission`, `examples`, `access`,
+        /// `sources`).
+        field: String,
+        /// Whether the value was written or removed.
+        change: OverrideChange,
+        /// Who made the change.
+        actor: String,
+    },
     /// An agent was uninstalled.
     Uninstalled {
         /// Uninstalled agent.
@@ -84,7 +111,8 @@ impl GovernanceEvent {
             GovernanceEvent::AccessChanged { agent_id, .. }
             | GovernanceEvent::Installed { agent_id, .. }
             | GovernanceEvent::Updated { agent_id, .. }
-            | GovernanceEvent::Uninstalled { agent_id, .. } => agent_id,
+            | GovernanceEvent::Uninstalled { agent_id, .. }
+            | GovernanceEvent::OverrideChanged { agent_id, .. } => agent_id,
         }
     }
 
@@ -95,6 +123,7 @@ impl GovernanceEvent {
             GovernanceEvent::Installed { .. } => JournalEntryKind::AgentInstalled,
             GovernanceEvent::Updated { .. } => JournalEntryKind::AgentUpdated,
             GovernanceEvent::Uninstalled { .. } => JournalEntryKind::AgentUninstalled,
+            GovernanceEvent::OverrideChanged { .. } => JournalEntryKind::AgentOverrideChanged,
         }
     }
 }
@@ -141,6 +170,7 @@ mod tests {
                     access_id: "web_fetch".into(),
                     change: AccessChange::Granted,
                     actor: "user".into(),
+                    reason: None,
                 },
                 JournalEntryKind::AccessChanged,
             ),
@@ -171,6 +201,15 @@ mod tests {
                 },
                 JournalEntryKind::AgentUninstalled,
             ),
+            (
+                GovernanceEvent::OverrideChanged {
+                    agent_id: "a1".into(),
+                    field: "mission".into(),
+                    change: OverrideChange::Set,
+                    actor: "user".into(),
+                },
+                JournalEntryKind::AgentOverrideChanged,
+            ),
         ];
         for (event, kind) in events {
             // WHEN the draft is built
@@ -195,6 +234,7 @@ mod tests {
             access_id: "mcp:github".into(),
             change: AccessChange::Revoked,
             actor: "policy".into(),
+            reason: None,
         };
         // WHEN the draft is built
         let draft = GovernanceRecord::draft(&event, "2026-01-01T00:00:00Z".into()).expect("draft");

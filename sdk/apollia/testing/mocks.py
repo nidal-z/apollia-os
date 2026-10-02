@@ -235,6 +235,9 @@ class MockLlmProxy:
         # One entry per `complete` / `chat` call, the schema it carried or
         # `None`. Lets a test assert the agent asked for the shape it claims to.
         self.schemas: list[dict[str, Any] | None] = []
+        # One entry per `complete` / `chat` call, the sampling settings it fixed
+        # (those left to None are absent), as the real proxy would send them.
+        self.sampling: list[dict[str, Any]] = []
         # Tracking for ReAct loop unit tests. Each call to
         # ``run_tools`` appends an entry capturing the messages, tools
         # list and ``max_iterations`` the agent passed in.
@@ -253,6 +256,13 @@ class MockLlmProxy:
         temperature: float | None = None,
         max_tokens: int | None = None,
         seed: int | None = None,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        min_p: float | None = None,
+        presence_penalty: float | None = None,
+        frequency_penalty: float | None = None,
+        repeat_penalty: float | None = None,
+        stop: list[str] | None = None,
         schema: dict[str, Any] | None = None,
     ) -> MockLlmResponse | StructuredValue:
         """Consume and return the next queued response.
@@ -271,7 +281,25 @@ class MockLlmProxy:
             StructuredOutputError: If ``schema`` is given and the queued entry
                 cannot answer it. See :meth:`_structured_value`.
         """
-        _ = (backend, temperature, max_tokens, seed)  # sampling overrides ignored
+        _ = backend
+        self.sampling.append(
+            {
+                key: value
+                for key, value in {
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "seed": seed,
+                    "top_p": top_p,
+                    "top_k": top_k,
+                    "min_p": min_p,
+                    "presence_penalty": presence_penalty,
+                    "frequency_penalty": frequency_penalty,
+                    "repeat_penalty": repeat_penalty,
+                    "stop": stop,
+                }.items()
+                if value is not None
+            }
+        )
         self.prompts.append(messages)
         self.schemas.append(schema)
         self.call_count += 1

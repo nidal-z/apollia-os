@@ -26,13 +26,11 @@ class ReloadRouterResponse:
             default (str): Default backend name reported by the router (empty when no backends).
             reaches_running_agents (bool): Whether the rebuilt router reaches agents that are already running.
 
-                `false` today, and not a transient state: the agent execution path reads
-                its router from a `OnceLock` populated at boot, a different cell from the
-                one this route rewrites. A reload therefore reaches chat and this API,
-                and an already-running agent keeps the router it started with until the
-                daemon restarts. Reported rather than hidden, because the failure it
-                produces on the Python side, `'NoneType' object has no attribute
-                'complete'`, names none of this.
+                `true`: the router this one replaces is superseded by it, and an agent
+                started before the reload reads the router in force at each call
+                (`LlmRouter::latest`), so it picks the reload up without a restart.
+                Kept in the response so a client that warned about the opposite can
+                tell the two runtimes apart.
     """
 
     backends: list[ReloadRouterResponseBackendsItem]

@@ -128,10 +128,14 @@ check_json    "permissions list --json"             "$BIN" permissions list --js
 check         "permissions audit (seeded rows)"     "$BIN" permissions audit --limit 10
 check         "permissions add web_search global"   "$BIN" permissions add --tool web_search_e2e --scope global
 check_content "permissions list shows the new rule" "web_search_e2e" "$BIN" permissions list
-check_exit    "permissions add project w/o path"  1 "$BIN" permissions add --tool file_write --scope project
+check_exit    "permissions add --scope project refused → 1" 1 "$BIN" permissions add --tool file_write --scope project
+check_exit    "permissions add --scope agent w/o --agent → 1" 1 "$BIN" permissions add --tool file_write --scope agent
+check         "permissions add agent rule"          "$BIN" permissions add --tool http_fetch_e2e --scope agent --agent e2e-agent
+check_content "permissions list --scope agent has it" "http_fetch_e2e" "$BIN" permissions list --scope agent
+check_exit    "permissions list --scope session → 1" 1 "$BIN" permissions list --scope session
 check         "permissions add deny"                "$BIN" permissions add --tool risky_tool --action deny --scope global
 check         "permissions revoke 1 --yes"          "$BIN" permissions revoke 1 --yes
-check_exit    "permissions revoke session-prefix → 1" 1 "$BIN" permissions revoke s42 --yes
+check_exit    "permissions revoke non-numeric id → 1" 1 "$BIN" permissions revoke s42 --yes
 
 # ── A.7 memory (5 seeded namespaces) ────────────────────────────────────────
 section "A.7 memory"
@@ -264,6 +268,51 @@ check        "plan cache evict --max-age-days 7"     "$BIN" plan cache evict --m
 check        "workspace status"                      "$BIN" workspace status
 check        "workspace init --force (scratch cwd)"  bash -c "cd '$SCRATCH' && '$BIN' workspace init --force"
 
+# ── A.13a package archives (.apo, files only) ───────────────────────────────
+# A package folder is written here, built into an archive, and read back. The
+# signed build stores its author key through the file secret store the suite
+# forces (APOLLIA_TOKEN_STORAGE=file), under the seeded HOME.
+section "A.13a package archives"
+PKG="$SCRATCH/pkg"; /bin/mkdir -p "$PKG/tools"
+cat > "$PKG/apollia.toml" <<'TOML'
+[package]
+name = "e2e-pkg"
+version = "0.1.0"
+publisher = "E2E Publisher"
+sdk = ">=0.3"
+
+[[tools]]
+name = "ping"
+module = "tools/ping.py"
+description = "Answer pong."
+action = "read"
+inputs = { type = "object" }
+TOML
+printf "@tool(name='ping')\nasync def ping(ctx, inputs):\n    return 'pong'\n" > "$PKG/tools/ping.py"
+check      "package build (unsigned)"                     "$BIN" package build "$PKG" -o "$SCRATCH/e2e.apo"
+check_json_field "package inspect: unsigned"  "d['signature']['state']"  "unsigned"  "$BIN" package inspect "$SCRATCH/e2e.apo" --json
+check_json_field "package inspect: manifest name" "d['manifest']['package']['name']" "e2e-pkg" "$BIN" package inspect "$SCRATCH/e2e.apo" --json
+check_json_field "package inspect: entries" "' '.join(e['path'] for e in d['entries'])" "apollia.toml tools/ping.py" "$BIN" package inspect "$SCRATCH/e2e.apo" --json
+check_content "package inspect (human) lists the module" "tools/ping.py" "$BIN" package inspect "$SCRATCH/e2e.apo"
+check_json_field "package build --sign: signed" "d['signature']['state']" "signed" "$BIN" package build "$PKG" --sign -o "$SCRATCH/e2e-signed.apo" --json
+check_json_field "package inspect: publisher" "d['signature']['publisher']" "E2E Publisher" "$BIN" package inspect "$SCRATCH/e2e-signed.apo" --json
+# Rewriting one entry after signing must turn the archive into a refusal.
+"${E2E_PYTHON:-python3}" - "$SCRATCH/e2e-signed.apo" "$SCRATCH/e2e-tampered.apo" <<'PY'
+import sys, zipfile
+src, dst = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(src) as zin, zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
+    for info in zin.infolist():
+        data = zin.read(info.filename)
+        if info.filename == "tools/ping.py":
+            data = b"import os\n"
+        zout.writestr(info.filename, data)
+PY
+check_exit "package inspect (tampered after signing) → 1" 1 "$BIN" package inspect "$SCRATCH/e2e-tampered.apo"
+# A module defining a workflow the manifest does not describe: descriptors missing.
+printf "@workflow(name='report', steps=['a'])\nasync def report(ctx, inputs):\n    pass\n" > "$PKG/tools/report.py"
+check_exit "package build (undescribed module) → 1" 1 "$BIN" package build "$PKG" -o "$SCRATCH/e2e-bad.apo"
+check_exit "package inspect (not an archive) → 1"   1 "$BIN" package inspect "$PKG/apollia.toml"
+
 # ── A.13 exit-code contract (runtime-bound commands, daemon OFF → 2) ─────────
 section "A.13 exit-code contract (daemon off)"
 OFFSOCK="$RUN_TMP/off.sock"
@@ -289,9 +338,51 @@ check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model re
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
+# The definition and overrides of an agent live behind the runtime, which
+# journals every write: daemon off, each leaf refuses with 2, and a field or a
+# value the CLI can judge alone is refused with 1 before any call.
+check_exit   "agent show (off) → 2"            2     "$BIN" --socket "$OFFSOCK" agent show apollia-chat
+check_exit   "agent list --definitions (off) → 2" 2  "$BIN" --socket "$OFFSOCK" agent list --definitions
+check_exit   "agent set (off) → 2"             2     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission "Answer briefly."
+check_exit   "agent reset (off) → 2"           2     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --confirm
+check_exit   "agent set unknown field → 1"     1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat model qwen3
+check_exit   "agent set two missions → 1"      1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission one two
+check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --field model --confirm
 # Usage errors are exit 1 by contract (1 = usage, 2 = runtime): a script can
 # tell a typo from a stopped daemon.
 check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus
+
+# ── A.13b service (definition written, never loaded) ────────────────────────
+# `service install --no-load` writes the user-session definition under the
+# seeded HOME and stops there: launchd, systemd and Task Scheduler act on the
+# operator's real session whatever HOME says, so loading is the manual gesture.
+# `status` and `uninstall` match the manager's answer against this definition
+# file, so a service another home installed is neither reported nor stopped.
+# XDG_CONFIG_HOME is dropped so the Linux unit lands under the seeded HOME.
+section "A.13b service"
+case "$(uname -s)" in
+    Darwin) SVC_DEF="$HOME/Library/LaunchAgents/com.apollia.os.plist" ;;
+    Linux)  SVC_DEF="$HOME/.config/systemd/user/apollia-os.service" ;;
+    *)      SVC_DEF="$DATA/service/apollia-os.xml" ;;
+esac
+check_json_field "service status before install: not_installed" "d['state']" "not_installed" env -u XDG_CONFIG_HOME "$BIN" service status --json
+check        "service install --no-load"             env -u XDG_CONFIG_HOME "$BIN" service install --no-load
+[[ -f "$SVC_DEF" ]] && _pass "service install wrote the definition in place" || _fail "service install wrote the definition in place" "absent: $SVC_DEF"
+# The Windows XML is UTF-16, which grep does not read; the Rust tests pin it.
+if [[ "$(uname -s)" == Darwin || "$(uname -s)" == Linux ]]; then
+    BIN_ABS=$("${E2E_PYTHON:-python3}" -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$BIN")
+    if /usr/bin/grep -qF "$BIN_ABS" "$SVC_DEF" && /usr/bin/grep -qE '(<string>start</string>|" start$)' "$SVC_DEF"; then
+        _pass "service definition runs the absolute binary with start"
+    else
+        _fail "service definition runs the absolute binary with start" "binary $BIN_ABS or start missing in $SVC_DEF"
+    fi
+fi
+check_json_field "service status: installed"        "d['installed']" "True"    env -u XDG_CONFIG_HOME "$BIN" service status --json
+check_json_field "service status: stopped"          "d['state']"     "stopped" env -u XDG_CONFIG_HOME "$BIN" service status --json
+check_exit   "service uninstall (no --confirm) → 1" 1 env -u XDG_CONFIG_HOME "$BIN" service uninstall
+check        "service uninstall --confirm"           env -u XDG_CONFIG_HOME "$BIN" service uninstall --confirm
+[[ ! -f "$SVC_DEF" ]] && _pass "service uninstall removed the definition" || _fail "service uninstall removed the definition" "still present: $SVC_DEF"
+check_exit   "service uninstall (absent) → 1"      1 env -u XDG_CONFIG_HOME "$BIN" service uninstall --confirm
 
 # ── A.14 un-exercised VARIANTS (every leaf itself has a real invocation) ─────
 # Coverage counts real invocations only (scripts/check_cli_e2e_coverage.py), so

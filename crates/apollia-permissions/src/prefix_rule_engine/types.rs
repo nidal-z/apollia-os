@@ -3,8 +3,6 @@
 //! Split out of `prefix_rule_engine.rs`: the engine stays in the parent, the
 //! types it stores and returns live here.
 
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
 
 use crate::error::PermissionError;
@@ -35,26 +33,16 @@ impl RuleAction {
         }
     }
 }
-/// Scope of a permission rule.
+/// Scope of a permission rule: one agent, or every agent.
 ///
-/// Determines where the rule is stored and how it is filtered during evaluation.
+/// A rule never targets a project or a single session: a fine rule binds a
+/// tool (and an optional argument prefix) for one agent or for all of them.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PermissionScope {
-    /// Rule living only in memory, for the duration of one chat session.
-    ///
-    /// Disappears when the process stops. Never persisted to SQLite.
-    Session,
-    /// Rule persisted and filtered by the canonical path of the current project.
-    ///
-    /// Applies only to invocations issued from the matching project.
-    Project,
-    /// Rule persisted and filtered by the identity of the current agent.
-    ///
-    /// Applies to any invocation issued by the agent whose `agent_id` matches.
-    /// Independent of the project: an agent can run outside a project.
+    /// Rule applying to the agent whose `agent_id` matches.
     Agent,
-    /// Rule persisted and applying to any project.
+    /// Rule applying to every agent.
     #[default]
     Global,
 }
@@ -62,35 +50,27 @@ impl PermissionScope {
     /// Textual representation stored in the database.
     pub fn as_str(&self) -> &'static str {
         match self {
-            PermissionScope::Session => "session",
-            PermissionScope::Project => "project",
             PermissionScope::Agent => "agent",
             PermissionScope::Global => "global",
         }
     }
 
-    /// Parse the value stored in the database, defaulting to `Global` for null columns.
+    /// Parse the value stored in the database.
     pub(crate) fn from_db_str(s: &str) -> Result<Self, PermissionError> {
         match s {
-            "session" => Ok(PermissionScope::Session),
-            "project" => Ok(PermissionScope::Project),
             "agent" => Ok(PermissionScope::Agent),
             "global" => Ok(PermissionScope::Global),
             other => Err(PermissionError::InvalidRule(format!(
-                "unknown scope '{other}', expected 'session' | 'project' | 'agent' | 'global'"
+                "unknown scope '{other}', expected 'agent' | 'global'"
             ))),
         }
     }
 }
 /// Evaluation context for scope-aware rule matching.
 ///
-/// Passed to the `PrefixRuleEngine` to filter `Project`/`Agent` rules.
+/// Passed to the `PrefixRuleEngine` to select the `Agent` rules of the caller.
 #[derive(Debug, Clone, Default)]
 pub struct ScopeContext {
-    /// Scope of the current invocation (informational, not used for filtering).
-    pub scope: PermissionScope,
-    /// Canonical path of the current project (`None` when outside a project).
-    pub project_path: Option<PathBuf>,
     /// Identifier of the current agent (`None` when outside an agent context).
     pub agent_id: Option<String>,
 }
@@ -114,8 +94,6 @@ pub struct PrefixRule {
     pub created_by_agent: Option<String>,
     /// Scope of the rule.
     pub scope: PermissionScope,
-    /// Canonical project path (set when `scope == Project`).
-    pub project_path: Option<PathBuf>,
     /// Agent identifier (set when `scope == Agent`).
     pub agent_id: Option<String>,
     /// Unix expiration timestamp (None = permanent rule).
@@ -131,7 +109,6 @@ impl Default for PrefixRule {
             created_at: 0,
             created_by_agent: None,
             scope: PermissionScope::Global,
-            project_path: None,
             agent_id: None,
             expires_at: None,
         }

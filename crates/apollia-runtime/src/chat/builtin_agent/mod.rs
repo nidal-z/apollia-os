@@ -285,6 +285,10 @@ pub struct BuiltInChatAgent {
     /// Optional per-invocation prefix-rule checker. `None` keeps the previous
     /// behavior: a miss on the name-only set goes straight to HITL.
     prefix_checker: Option<Arc<PrefixChecker>>,
+    /// Backend the owning session prefers. Each call of the turn routes to it
+    /// when the router can reach it, and to the default otherwise (said with
+    /// `LlmAgentModelFallback`). `None` routes to the default.
+    preferred_backend: Option<String>,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.

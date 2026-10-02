@@ -183,6 +183,43 @@ async def test_mock_llm_proxy_chat_accepts_sampling_overrides():
 
 
 @pytest.mark.asyncio
+async def test_mock_llm_proxy_complete_accepts_every_request_sampling_setting():
+    """complete() takes the request sampling settings of the real proxy."""
+    # GIVEN a proxy with two queued responses
+    proxy = MockLlmProxy([{"content": "tuned"}, {"content": "plain"}])
+
+    # WHEN complete() fixes every request sampling setting, then none
+    tuned = await proxy.complete(
+        [{"role": "user", "content": "x"}],
+        top_p=0.5,
+        top_k=40,
+        min_p=0.25,
+        presence_penalty=0.75,
+        frequency_penalty=-0.5,
+        repeat_penalty=1.125,
+        stop=["END"],
+    )
+    plain = await proxy.complete([{"role": "user", "content": "x"}])
+
+    # THEN the keywords are accepted, and the mock records exactly the
+    # settings fixed, the ones the real proxy would send
+    assert tuned.content == "tuned"
+    assert plain.content == "plain"
+    assert proxy.sampling == [
+        {
+            "top_p": 0.5,
+            "top_k": 40,
+            "min_p": 0.25,
+            "presence_penalty": 0.75,
+            "frequency_penalty": -0.5,
+            "repeat_penalty": 1.125,
+            "stop": ["END"],
+        },
+        {},
+    ]
+
+
+@pytest.mark.asyncio
 async def test_mock_llm_proxy_assert_called_count_failure():
     """assert_called_count raises when actual differs from expected."""
     # GIVEN a proxy that was completed once

@@ -118,6 +118,7 @@ SKIP = {
     "update": "outbound HTTPS to the GitHub releases API",
     "llm chat": "one-shot inference: needs a loaded model",
     "stt model download": "outbound HTTPS whisper model download",
+    "service install": "loads the daemon into the operator's real session service manager",
 }
 
 

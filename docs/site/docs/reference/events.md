@@ -141,6 +141,7 @@ the event carries announces a request that is already settled.
 | Variant | Payload | What it reports |
 |---|---|---|
 | `CostCeilingReached` | named fields | The hybrid routing cost ceiling was reached while `HardStop` is active. |
+| `LlmAgentModelFallback` | named fields | The model assigned to an agent is not available, so the call runs on the default model. |
 | `LlmCallCompleted` | named fields | An LLM call finished, emitted by `complete_with_observability()`. |
 | `LlmCallFailed` | named fields | An LLM call failed, emitted by `complete_with_observability()` when the |
 | `LlmFallbackTriggered` | named fields | The LLM router switched to a secondary backend. |

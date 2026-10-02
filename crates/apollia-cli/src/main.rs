@@ -35,6 +35,7 @@ use commands::mcp::McpCommand;
 use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
+use commands::package::PackageCommand;
 use commands::permissions::PermissionsCommand;
 use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
@@ -310,6 +311,13 @@ enum Commands {
     /// Check for and install updates from GitHub Releases.
     Update(commands::update::UpdateArgs),
 
+    /// Agent package archives: build a `.apo` from a folder, inspect one.
+    Package {
+        /// Package subcommand.
+        #[command(subcommand)]
+        command: PackageCommand,
+    },
+
     /// Workspace inspection and initialization (status, init).
     Workspace {
         /// Workspace subcommand.
@@ -332,6 +340,13 @@ enum Commands {
         /// Plan subcommand.
         #[command(subcommand)]
         command: commands::plan_cache::PlanCommand,
+    },
+
+    /// Run the runtime as a service of your session (install, uninstall, status).
+    Service {
+        /// Service subcommand.
+        #[command(subcommand)]
+        command: commands::service::ServiceCommand,
     },
 
     /// Diagnose the local Apollia environment (no runtime required).
@@ -718,11 +733,13 @@ fn main() {
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
             Commands::Update(args) => commands::update::run(&args, "Apollia-OS", json).await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
+            Commands::Package { command } => commands::package::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
             Commands::Resilience { command } => {
                 commands::resilience::run(&command, cli.socket, json).await
             }
             Commands::Plan { command } => commands::plan_cache::run_plan(&command, json),
+            Commands::Service { command } => commands::service::run(&command, json),
             Commands::Doctor => commands::doctor::run(cli.socket, json).await,
             Commands::Inspect { path } => commands::inspect::run(&path, json, no_color),
             Commands::Logs(args) => commands::logs::run(&args, json).await,
@@ -1257,7 +1274,8 @@ mod tests {
                 assert!(matches!(
                     command,
                     AgentCommand::List {
-                        supports_a2a: false
+                        supports_a2a: false,
+                        definitions: false
                     }
                 ));
                 assert!(!cli.json);

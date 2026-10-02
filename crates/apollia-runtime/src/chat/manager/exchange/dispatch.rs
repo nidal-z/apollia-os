@@ -84,6 +84,7 @@ impl ChatSessionManager {
                 session.history[..session.history.len().saturating_sub(1)].to_vec();
             let session_plan_mode = session.plan_mode;
             let session_plan_phase = session.plan_phase;
+            let preferred_backend = session.llm_backend.clone();
             let is_companion = session.mode == ChatMode::Companion;
             let inject_project_context = is_first_message || force_inject_project_context;
             // On the first message, enrich the system prompt with cross-session context.
@@ -207,6 +208,7 @@ impl ChatSessionManager {
                 hook_executor: self.hook_executor.clone(),
                 cancel,
                 pending_injection,
+                preferred_backend,
             }));
         }
 
