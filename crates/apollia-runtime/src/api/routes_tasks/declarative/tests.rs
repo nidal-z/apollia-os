@@ -12,7 +12,9 @@ use apollia_llm::types::{
 };
 use apollia_llm::LlmRouter;
 use apollia_mcp::session::LoadingMode;
-use apollia_tools::{AgentOrigin, StoredAgent, TaskRepository, ToolRegistryHandle};
+use apollia_tools::{
+    AgentOrigin, AgentRepository, StoredAgent, TaskRepository, ToolRegistryHandle,
+};
 use axum::body::Body;
 use axum::http::Request;
 use axum::routing::{get, post};

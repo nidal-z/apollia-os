@@ -41,6 +41,53 @@ pub enum AgentTaskError {
     Executor(#[from] ChatError),
 }
 
+/// Why an agent could not be resolved.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum AgentResolveError {
+    /// `agents.db` could not be opened or read.
+    #[error("cannot read agents.db: {0}")]
+    Agents(String),
+    /// The model store could not be read.
+    #[error("cannot read the model store: {0}")]
+    Models(String),
+}
+
+/// The agent `name` as resolved, when it is stored in `agents.db` under
+/// `data_dir` and runs no code, with its model read from `models`. `None` for
+/// an agent that runs code and for an unknown name.
+///
+/// # Errors
+///
+/// [`AgentResolveError`] when `agents.db` or the model store cannot be read.
+pub fn resolve_without_code(
+    data_dir: &std::path::Path,
+    models: Option<&apollia_core::LlmBackendRepository>,
+    name: &str,
+) -> Result<Option<ResolvedAgent>, AgentResolveError> {
+    let path = apollia_core::paths::DataFile::Agents.path(data_dir);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let repo = apollia_tools::AgentRepository::open(&path)
+        .map_err(|e| AgentResolveError::Agents(e.to_string()))?;
+    let runs_code = repo
+        .get(name)
+        .map_err(|e| AgentResolveError::Agents(e.to_string()))?
+        .is_some();
+    if runs_code {
+        return Ok(None);
+    }
+    let model = match models {
+        Some(models) => models
+            .agent_model(name)
+            .map_err(|e| AgentResolveError::Models(e.to_string()))?,
+        None => None,
+    };
+    repo.resolved(name, model, crate::agents::global_default_autonomy())
+        .map_err(|e| AgentResolveError::Agents(e.to_string()))
+}
+
 /// What an agent run outside a conversation goes through.
 pub struct AgentTaskLauncher<B: ExecutionBackend> {
     /// Follows the task, and cancels it.
@@ -87,6 +134,33 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
         input: &serde_json::Value,
         message: String,
     ) -> Result<TaskId, AgentTaskError> {
+        self.start(agent, input, message, None).await
+    }
+
+    /// Run `agent` on `message` as [`Self::launch`] does, and also return
+    /// where the end of the run is reported once it is recorded.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::launch`].
+    pub async fn launch_watched(
+        &self,
+        agent: &ResolvedAgent,
+        input: &serde_json::Value,
+        message: String,
+    ) -> Result<(TaskId, oneshot::Receiver<AgentRunOutcome>), AgentTaskError> {
+        let (tx, rx) = oneshot::channel();
+        let task_id = self.start(agent, input, message, Some(tx)).await?;
+        Ok((task_id, rx))
+    }
+
+    async fn start(
+        &self,
+        agent: &ResolvedAgent,
+        input: &serde_json::Value,
+        message: String,
+        watcher: Option<oneshot::Sender<AgentRunOutcome>>,
+    ) -> Result<TaskId, AgentTaskError> {
         if !agent.enabled {
             return Err(AgentTaskError::Disabled(agent.id.clone()));
         }
@@ -130,6 +204,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
             agent_id,
             cancel: cancel.clone(),
             started: Instant::now(),
+            watcher,
         };
         let (done_tx, done_rx) = oneshot::channel();
         let started = self
@@ -170,6 +245,16 @@ struct RunFinish<B: ExecutionBackend> {
     agent_id: AgentId,
     cancel: CancellationToken,
     started: Instant,
+    watcher: Option<oneshot::Sender<AgentRunOutcome>>,
+}
+
+/// How a run ended, as recorded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentRunOutcome {
+    /// `completed`, `failed` or `canceled`.
+    pub status: &'static str,
+    /// The answer, or the failure.
+    pub output: String,
 }
 
 impl<B: ExecutionBackend> RunFinish<B> {
@@ -212,7 +297,7 @@ impl<B: ExecutionBackend> RunFinish<B> {
                 agent_id: self.agent_id.clone(),
                 task_id: self.task_id.clone(),
                 success: status == "completed",
-                output: Some(output),
+                output: Some(output.clone()),
             });
         }
         tracing::event!(
@@ -223,6 +308,9 @@ impl<B: ExecutionBackend> RunFinish<B> {
             "agent.task.finished"
         );
         let _ = self.router.run_ended(&self.task_id).await;
+        if let Some(watcher) = self.watcher {
+            let _ = watcher.send(AgentRunOutcome { status, output });
+        }
     }
 }
 
