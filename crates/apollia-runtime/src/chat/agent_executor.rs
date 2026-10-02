@@ -15,6 +15,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use apollia_core::{AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, RunId, StepBudgetConfig};
 use apollia_llm::{LlmRouter, ToolInvoker};
@@ -58,8 +59,6 @@ pub struct AgentRunSpec {
 impl AgentRunSpec {
     /// Read a resolved agent: its mission, its granted tools, its model, its
     /// autonomy tier.
-    // TEST-ONLY: no agent runs outside a conversation yet, and the one agent
-    // that runs in it, Apollia, still reads its spec from the session.
     pub fn from_resolved(agent: &ResolvedAgent) -> Self {
         Self {
             agent_id: agent.id.clone(),
@@ -124,7 +123,8 @@ pub struct AgentExecutorDeps {
 
 /// Settings of the conversation the run belongs to. The default is a run
 /// outside any conversation: no workspace, no deferred tool index, plan mode
-/// off, no hook, no injected instruction, no prefix rule.
+/// off, no hook, no injected instruction, no prefix rule, and an approval that
+/// waits for the human however long it takes.
 #[derive(Default)]
 pub struct SessionWiring {
     /// Working directory named in the prompt and used by the tools.
@@ -145,6 +145,9 @@ pub struct SessionWiring {
     pub tool_turn_temperature: Option<f32>,
     /// Per-invocation permission rules consulted before a human approval.
     pub prefix_checker: Option<Arc<PrefixChecker>>,
+    /// Delay after which a pending tool approval is refused; `None` never
+    /// refuses on its own.
+    pub approval_timeout: Option<Duration>,
 }
 
 /// One exchange to run.
@@ -242,6 +245,7 @@ impl AgentExecutor {
         .with_pending_injection(wiring.pending_injection)
         .with_tool_turn_temperature(wiring.tool_turn_temperature)
         .with_prefix_checker(wiring.prefix_checker)
+        .with_approval_timeout(wiring.approval_timeout)
         .with_preferred_backend(spec.model.clone());
         Self {
             spec,

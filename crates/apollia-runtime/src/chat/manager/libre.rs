@@ -515,6 +515,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             pending_injection,
             tool_turn_temperature,
             prefix_checker,
+            approval_timeout: Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT),
         },
         &runtime_budget,
         cancel,
@@ -566,7 +567,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
 
 /// Resolve the native invoker for a session and wrap it in a composite invoker
 /// when an A2A invoker is configured.
-async fn build_session_invoker(
+pub(in crate::chat::manager) async fn build_session_invoker(
     workspace_params: WorkspaceResolutionParams,
     a2a_for_agent: &Option<Arc<A2AInvoker>>,
     hook_executor: Option<Arc<HookExecutor>>,

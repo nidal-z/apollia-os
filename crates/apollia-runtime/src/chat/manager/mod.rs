@@ -210,6 +210,7 @@ struct ChatSessionManager {
 }
 
 mod actor;
+mod agent_task;
 mod authz;
 mod command;
 mod control;
@@ -245,6 +246,7 @@ pub(in crate::chat::manager) use types::{
     ResolvedSessionInvoker, WorkspaceResolutionParams,
 };
 
+pub use agent_task::AgentTaskRun;
 pub use command::ChatCommand;
 pub use handle::ChatSessionManagerHandle;
 pub use types::{

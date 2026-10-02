@@ -476,3 +476,44 @@ fn test_spec_reads_the_overridden_tier_then_the_global_default() {
     assert_eq!(from_override.autonomy, AutonomyLevel::LongAutonomous);
     assert_eq!(from_default.autonomy, global);
 }
+
+// GIVEN a resolved agent
+// WHEN one executor is built with the wiring of a run outside any
+//      conversation, and one with an approval delay as the chat sets it
+// THEN the first never refuses a pending approval on its own, the second
+//      refuses it after that delay
+#[tokio::test]
+async fn test_run_outside_a_conversation_waits_on_its_approvals() {
+    // GIVEN
+    let (router, _, _) = two_backend_router();
+    let (bus, _) = tokio::sync::broadcast::channel(16);
+    let spec = AgentRunSpec::from_resolved(&resolved_agent("assigned", AutonomyLevel::Assisted));
+
+    // WHEN
+    let off_chat = AgentExecutor::new(
+        spec.clone(),
+        deps(Arc::clone(&router), bus.clone()),
+        ApolliaContext::default(),
+        SessionWiring::default(),
+        &ceiling(),
+        CancellationToken::new(),
+    );
+    let in_chat = AgentExecutor::new(
+        spec,
+        deps(router, bus),
+        ApolliaContext::default(),
+        SessionWiring {
+            approval_timeout: Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT),
+            ..SessionWiring::default()
+        },
+        &ceiling(),
+        CancellationToken::new(),
+    );
+
+    // THEN
+    assert_eq!(off_chat.agent().approval_timeout(), None);
+    assert_eq!(
+        in_chat.agent().approval_timeout(),
+        Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT)
+    );
+}

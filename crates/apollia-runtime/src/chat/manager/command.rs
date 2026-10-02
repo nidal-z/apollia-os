@@ -154,6 +154,13 @@ pub enum ChatCommand {
         /// snapshot with `plan: None` for a known session that has no plan yet.
         reply: oneshot::Sender<Result<ChatPlanSnapshot, ChatError>>,
     },
+    /// Run an agent on one message, outside any conversation.
+    RunAgentTask {
+        /// The run.
+        run: super::agent_task::AgentTaskRun,
+        /// Answered once the run has started.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
     /// Cooperatively pause the active ReAct turn for a session.
     PauseSession {
         /// Target session.
