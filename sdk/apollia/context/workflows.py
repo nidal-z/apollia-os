@@ -10,8 +10,11 @@ class WorkflowsInterface(Protocol):
     A workflow is a possible step of another workflow. ``inputs`` must match
     the ``TypedDict`` the called workflow declares.
 
-    The runtime does not bind this service yet: reading ``ctx.workflows`` on
-    a runtime context raises ``AttributeError`` until it does.
+    ``workflow_id`` is ``<package>/<workflow>``, or the bare name of a
+    workflow of the caller's package. The runtime binds this service in a
+    workflow run: the called workflow runs nested in the caller, stopped with
+    it and spending from its budget, three levels deep at most. Reading
+    ``ctx.workflows`` on any other runtime context raises ``AttributeError``.
     """
 
     # REASON(ANN401): the return is whatever the called workflow returns, a

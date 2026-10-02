@@ -166,6 +166,7 @@ fn supervisor_config(
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     }
 }
 

@@ -875,6 +875,7 @@ mod tests {
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
+            workflows: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -932,6 +933,7 @@ mod tests {
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
+            workflows: None,
         }
     }
 
@@ -1052,6 +1054,7 @@ mod tests {
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
+            workflows: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -1142,6 +1145,7 @@ mod tests {
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
+            workflows: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -1476,6 +1480,7 @@ mod tests {
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
+            workflows: None,
         };
         let app = Router::new()
             .route(
@@ -1607,6 +1612,7 @@ mod tests {
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
+            workflows: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

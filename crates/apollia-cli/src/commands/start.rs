@@ -151,6 +151,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         hooks_file_config,
         chat_file_config,
         filesystem_file_config,
+        workflows_file_config,
     ) = match loaded_config {
         Some(cfg) => (
             cfg.llm,
@@ -162,8 +163,9 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             cfg.hooks,
             cfg.chat,
             cfg.filesystem,
+            cfg.workflows,
         ),
-        None => (None, None, None, None, None, None, None, None, None),
+        None => (None, None, None, None, None, None, None, None, None, None),
     };
 
     let llm_label = llm_config
@@ -275,6 +277,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         plan_mode_default: chat_config.plan_mode_default,
         chat_default_workspace: chat_config.default_workspace.clone(),
         chat_tool_turn_temperature: chat_config.tool_turn_temperature,
+        workflows_config: workflows_file_config.unwrap_or_default(),
         filesystem_trusted_paths: filesystem_config.resolved_trusted_paths(),
     };
     let supervisor = Supervisor::new(config);
@@ -406,6 +409,12 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         &data_dir_for_package_tools,
         &handles.tool_registry_handle,
         handles.chat_manager.as_ref(),
+    )
+    .await;
+    // The workflows of the installed packages, read from the same manifests.
+    apollia_aip::package_tools::workflows::attach(
+        &data_dir_for_package_tools,
+        handles.workflows.as_ref(),
     )
     .await;
 

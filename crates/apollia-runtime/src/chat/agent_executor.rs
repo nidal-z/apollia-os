@@ -177,7 +177,7 @@ pub struct AgentExecutor {
     spec: AgentRunSpec,
     agent: BuiltInChatAgent,
     level_config: AutonomyLevelConfig,
-    budget: StepBudget,
+    budget: Arc<StepBudget>,
     verification: Option<VerificationLoop>,
     critic: Option<CriticPass>,
     cancel: CancellationToken,
@@ -205,7 +205,10 @@ impl AgentExecutor {
         cancel: CancellationToken,
     ) -> Self {
         let level_config = AutonomyConfig::default().level_config(spec.autonomy);
-        let budget = StepBudget::from_capped(&level_config.budget, runtime_ceiling);
+        let budget = Arc::new(StepBudget::from_capped(
+            &level_config.budget,
+            runtime_ceiling,
+        ));
         let (verification, critic) = if level_config.run_verification {
             (
                 Some(VerificationLoop::new(Vec::new(), Vec::new())),
@@ -258,6 +261,15 @@ impl AgentExecutor {
             past_sessions: apollia.past_sessions,
             project: apollia.project,
         }
+    }
+
+    /// Run on `budget` instead of the tier's own: the budget of the caller,
+    /// when a workflow step runs this agent, so that the agent spends from
+    /// what the workflow was given and stops when it is spent.
+    #[must_use]
+    pub fn with_shared_budget(mut self, budget: Arc<StepBudget>) -> Self {
+        self.budget = budget;
+        self
     }
 
     /// The agent this executor runs.

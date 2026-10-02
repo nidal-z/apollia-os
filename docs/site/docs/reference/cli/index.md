@@ -202,6 +202,11 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os batch run`↴](#apollia-os-batch-run)
 * [`apollia-os batch status`↴](#apollia-os-batch-status)
 * [`apollia-os batch list`↴](#apollia-os-batch-list)
+* [`apollia-os workflow`↴](#apollia-os-workflow)
+* [`apollia-os workflow run`↴](#apollia-os-workflow-run)
+* [`apollia-os workflow status`↴](#apollia-os-workflow-status)
+* [`apollia-os workflow logs`↴](#apollia-os-workflow-logs)
+* [`apollia-os workflow cancel`↴](#apollia-os-workflow-cancel)
 * [`apollia-os resilience`↴](#apollia-os-resilience)
 * [`apollia-os resilience list`↴](#apollia-os-resilience-list)
 * [`apollia-os resilience show`↴](#apollia-os-resilience-show)
@@ -315,6 +320,7 @@ Apollia OS CLI binary (apollia-os)
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
 * `batch` - Run an agent on every item of a source (run, status, list)
+* `workflow` - Run the workflows of installed packages (run, status, logs, cancel)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
@@ -3283,6 +3289,84 @@ List the batches, newest first
 * `--limit <LIMIT>` - At most this many batches
 
   Default value: `50`
+
+
+
+## `apollia-os workflow`
+
+Run the workflows of installed packages (run, status, logs, cancel)
+
+**Usage:** `apollia-os workflow <COMMAND>`
+
+###### **Subcommands:**
+
+* `run` - Run a workflow, in the runtime
+* `status` - Show a run: its status, its result and each of its steps
+* `logs` - The runs of a workflow, newest first
+* `cancel` - Stop a run: its step in progress is interrupted, the next ones never start
+
+
+
+## `apollia-os workflow run`
+
+Run a workflow, in the runtime
+
+**Usage:** `apollia-os workflow run [OPTIONS] <WORKFLOW>`
+
+###### **Arguments:**
+
+* `<WORKFLOW>` - The workflow, `<package>/<workflow>`
+
+###### **Options:**
+
+* `--input <KEY=VALUE>` - An input, as `key=value`; repeatable. A value is read as the type the workflow declares for it
+* `--wait` - Follow the run to its end; exit 3 when it fails or is stopped
+
+
+
+## `apollia-os workflow status`
+
+Show a run: its status, its result and each of its steps
+
+**Usage:** `apollia-os workflow status <RUN_ID>`
+
+###### **Arguments:**
+
+* `<RUN_ID>` - The run id `workflow run` printed
+
+
+
+## `apollia-os workflow logs`
+
+The runs of a workflow, newest first
+
+**Usage:** `apollia-os workflow logs [OPTIONS] <WORKFLOW>`
+
+###### **Arguments:**
+
+* `<WORKFLOW>` - The workflow, `<package>/<workflow>`
+
+###### **Options:**
+
+* `--limit <LIMIT>` - At most this many runs
+
+  Default value: `50`
+
+
+
+## `apollia-os workflow cancel`
+
+Stop a run: its step in progress is interrupted, the next ones never start
+
+**Usage:** `apollia-os workflow cancel [OPTIONS] <RUN_ID>`
+
+###### **Arguments:**
+
+* `<RUN_ID>` - The run id
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 

@@ -876,6 +876,7 @@ mod tests {
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
             batches: None,
+            workflows: None,
         };
 
         APIServer::build_router_for_test(state)

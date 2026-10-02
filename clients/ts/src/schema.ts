@@ -2884,6 +2884,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflow-runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/workflow-runs/{id}`: a run with its steps. */
+        get: operations["get_workflow_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflow-runs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/workflow-runs/{id}/cancel`: stop a run.
+         * @description The step in progress is interrupted; the answer comes once the run has
+         *     ended, `canceled`, its remaining steps `not_started`.
+         */
+        post: operations["cancel_workflow_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/{package}/{workflow}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/workflows/{package}/{workflow}/runs`: the history of a
+         *     workflow, newest first.
+         */
+        get: operations["list_workflow_runs"];
+        put?: never;
+        /**
+         * `POST /api/v1/workflows/{package}/{workflow}/runs`: run a workflow.
+         * @description The inputs are checked and the run recorded, with its declared steps,
+         *     before the answer; the run goes on in the background.
+         */
+        post: operations["launch_workflow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/{id}": {
         parameters: {
             query?: never;
@@ -5092,6 +5155,72 @@ export interface components {
              * @description Number of distinct runs covered by the global chain.
              */
             runs_checked: number;
+        };
+        /** @description Error body of the workflow routes. */
+        WorkflowErrorResponse: {
+            /** @description What went wrong. */
+            error: string;
+            /** @description The input at fault, when an input was refused. */
+            field?: string | null;
+        };
+        /** @description Body of `POST /api/v1/workflows/{package}/{workflow}/runs`. */
+        WorkflowLaunch: {
+            /**
+             * @description The inputs, checked against the schema the workflow declares. A text
+             *     value given for a field of another type is read as that type when it
+             *     parses as one.
+             */
+            inputs?: Record<string, never>;
+        };
+        /** @description A run with its steps. */
+        WorkflowRunDetailView: {
+            run: components["schemas"]["WorkflowRunView"];
+            steps: components["schemas"]["WorkflowStepView"][];
+        };
+        /** @description The runs of a workflow, newest first. */
+        WorkflowRunListView: {
+            runs: components["schemas"]["WorkflowRunView"][];
+        };
+        /** @description A workflow run: what it was launched with, its status and its result. */
+        WorkflowRunView: {
+            /**
+             * Format: int32
+             * @description 1 for a run started on its own, one more per nested call.
+             */
+            depth: number;
+            endedAt?: string | null;
+            /** @description Why it failed or stopped. */
+            error?: string | null;
+            inputs: Record<string, never>;
+            /** @description What the workflow returned. */
+            output?: Record<string, never> | null;
+            /** @description The run whose step started this one, when one did. */
+            parentRunId?: string | null;
+            runId: string;
+            startedAt: string;
+            /** @description `running`, `completed`, `failed` or `canceled`. */
+            status: string;
+            /** @description `<package>/<workflow>`. */
+            workflowId: string;
+        };
+        /** @description One declared step of a run. */
+        WorkflowStepView: {
+            endedAt?: string | null;
+            error?: string | null;
+            name: string;
+            /** @description What the agent or workflow the step ran last returned. */
+            output?: string | null;
+            /**
+             * Format: int32
+             * @description Its position among the declared steps, from 0.
+             */
+            rank: number;
+            startedAt?: string | null;
+            /**
+             * @description `pending`, `running`, `completed`, `failed`, `canceled` or
+             *     `not_started`.
+             */
+            status: string;
         };
     };
     responses: never;
@@ -11752,6 +11881,190 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_workflow_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The run and its steps */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunDetailView"];
+                };
+            };
+            /** @description No such run */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description Workflow engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_workflow_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The run, stopped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunView"];
+                };
+            };
+            /** @description No such run */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description The run already ended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description Workflow engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+        };
+    };
+    list_workflow_runs: {
+        parameters: {
+            query?: {
+                /** @description At most this many runs, 50 when absent. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Package that declares the workflow */
+                package: string;
+                /** @description Workflow name in the package */
+                workflow: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The runs of the workflow */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunListView"];
+                };
+            };
+            /** @description Workflow engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+        };
+    };
+    launch_workflow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package that declares the workflow */
+                package: string;
+                /** @description Workflow name in the package */
+                workflow: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowLaunch"];
+            };
+        };
+        responses: {
+            /** @description Run launched */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunView"];
+                };
+            };
+            /** @description An input does not fit the schema; `field` names it */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description No installed workflow by that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description Workflow engine or package host unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
                 };
             };
         };

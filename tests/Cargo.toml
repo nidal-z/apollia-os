@@ -163,3 +163,8 @@ path = "integration/test_a2a_guards.rs"
 name = "test_package_tools"
 path = "integration/test_package_tools.rs"
 required-features = ["python-tests"]
+
+[[test]]
+name = "test_package_workflows"
+path = "integration/test_package_workflows.rs"
+required-features = ["python-tests"]

@@ -377,6 +377,11 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::VerificationCompleted { .. }
         | RuntimeEvent::PlanCacheHit { .. } => "task-changed",
 
+        // ── Workflow steps ───────────────────────────────────────────────
+        RuntimeEvent::WorkflowStepStarted { .. }
+        | RuntimeEvent::WorkflowStepCompleted { .. }
+        | RuntimeEvent::WorkflowStepFailed { .. } => "task-changed",
+
         // ── Circuit breaker ──────────────────────────────────────────────
         RuntimeEvent::ToolCircuitBroken { .. } | RuntimeEvent::ToolCircuitRestored { .. } => {
             "system"
