@@ -2258,3 +2258,8 @@ mod miri_pure {
         assert_eq!(super::effective_memory_namespace("mem", Some("")), "mem");
     }
 }
+
+#[cfg(test)]
+mod access {
+    mod tests;
+}

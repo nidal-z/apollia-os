@@ -142,7 +142,8 @@ impl ExecutionBackend for NoopBackend {
 pub(super) struct AIPProductionBackend {
     pub(super) bridge: Arc<AIPBridge>,
     pub(super) agent_id: String,
-    pub(super) allowed_tools: Vec<String>,
+    /// The access list of the agent, read when each run starts.
+    pub(super) access: apollia_tools::GrantedAccess,
     pub(super) llm_router: Option<Arc<LlmRouter>>,
     pub(super) event_bus: EventBusSender,
     pub(super) pending_approvals: Option<Arc<PendingApprovals>>,
@@ -196,7 +197,7 @@ impl Clone for AIPProductionBackend {
         Self {
             bridge: Arc::clone(&self.bridge),
             agent_id: self.agent_id.clone(),
-            allowed_tools: self.allowed_tools.clone(),
+            access: self.access.clone(),
             llm_router: self.llm_router.clone(),
             event_bus: self.event_bus.clone(),
             tool_registry: self.tool_registry.clone(),
@@ -620,7 +621,7 @@ impl ExecutionBackend for AIPProductionBackend {
             llm_router: self.llm_router.clone(),
             event_bus: self.event_bus.clone(),
             agent_id: self.agent_id.clone(),
-            allowed_tools: self.allowed_tools.clone(),
+            allowed_tools: self.access.current(),
             tool_registry: self.tool_registry.clone(),
             audit_trail: self.audit_trail.clone(),
             memory_namespace: self.memory_namespace.clone(),

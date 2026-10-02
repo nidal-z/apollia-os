@@ -156,7 +156,7 @@ impl OverrideField {
     }
 
     /// JSON pointer of the field in a definition.
-    fn pointer(self) -> &'static str {
+    pub(crate) fn pointer(self) -> &'static str {
         match self {
             OverrideField::Name => "/name",
             OverrideField::Mission => "/mission",
