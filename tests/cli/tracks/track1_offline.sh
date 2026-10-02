@@ -403,6 +403,10 @@ check_exit   "agent reset (off) → 2"           2     "$BIN" --socket "$OFFSOCK
 check_exit   "agent set unknown field → 1"     1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat model qwen3
 check_exit   "agent set two missions → 1"      1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission one two
 check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --field model --confirm
+# An agent without code runs in the runtime too, by the same `run` leaf: daemon
+# off, it refuses with 2 before any call, whatever the agent.
+check_exit   "run agent without code (off) → 2" 2    "$BIN" --socket "$OFFSOCK" run seed-ledger "Reconcile March."
+check_exit   "run agent without code --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json run seed-ledger "Reconcile March."
 # Usage errors are exit 1 by contract (1 = usage, 2 = runtime): a script can
 # tell a typo from a stopped daemon.
 check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus

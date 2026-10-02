@@ -90,8 +90,8 @@ mod todo_compaction_tests;
 #[cfg(test)]
 mod verification_wire_tests;
 
-/// Default timeout for chat tool approval requests (5 minutes).
-const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
+/// Delay after which a tool approval of a conversation is refused (5 minutes).
+pub(crate) const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Maximum number of read-only tool calls executed concurrently within a single
 /// agent turn. Write calls and read-only calls awaiting approval stay
@@ -293,6 +293,9 @@ pub struct BuiltInChatAgent {
     /// Identifier of the agent this loop runs for, named in the model
     /// resolution and its fallback event. Defaults to the Apollia agent.
     agent_id: String,
+    /// Delay after which a pending tool approval is refused. `None` waits for
+    /// the human however long it takes.
+    approval_timeout: Option<Duration>,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.

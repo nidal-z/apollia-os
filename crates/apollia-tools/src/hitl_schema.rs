@@ -13,13 +13,13 @@ use rusqlite::Connection;
 use apollia_core::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `hitl.db`.
-pub const HITL_SCHEMA_VERSION: u32 = 2;
+pub const HITL_SCHEMA_VERSION: u32 = 3;
 
 /// Numbered migration steps of `hitl.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`HITL_SCHEMA_VERSION`].
-pub const HITL_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
+pub const HITL_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -98,6 +98,17 @@ fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
         conn,
         "ALTER TABLE task_approvals ADD COLUMN answer_json TEXT",
     )?;
+    Ok(())
+}
+
+/// v3: the whole input of a task.
+///
+/// `input_text` is cut at the observability limit; a task run outside the
+/// coordinators also keeps its input whole, as JSON, so it can be read back
+/// or run again as it was given. Nullable: a task without it is one that
+/// predates the column or ran through a coordinator.
+fn migrate_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
+    add_column_if_missing(conn, "ALTER TABLE tasks ADD COLUMN input_json TEXT")?;
     Ok(())
 }
 
