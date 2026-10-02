@@ -20,6 +20,9 @@ use crate::registry::AgentRegistryError;
 
 use apollia_core::{AgentManifest, ProcessState};
 
+/// The installed agents of the machine and their install route.
+pub mod installed;
+
 /// Trait for loading and validating Python agent modules.
 ///
 /// Abstracts away the PyO3-based AIP loading so that `apollia-runtime` does

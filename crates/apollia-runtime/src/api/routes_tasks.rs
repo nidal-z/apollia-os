@@ -14,6 +14,8 @@ use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
 mod pause;
+/// The task list an operator reads, history included.
+pub mod summaries;
 pub use pause::ResumeErrorBody;
 use pause::{check_resume, plain};
 

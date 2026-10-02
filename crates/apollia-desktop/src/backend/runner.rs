@@ -367,6 +367,7 @@ impl AgentRunner for BridgeRunner {
             // `UnknownTool`.
             extra_executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
             extra_executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
+            extra_executors.extend(apollia_runtime::connectors_bridge::build_imap_executors());
 
             let dispatcher = Arc::new(build_dispatcher_with(
                 &NativeDispatcherConfig {
