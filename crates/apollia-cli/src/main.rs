@@ -342,6 +342,13 @@ enum Commands {
         command: commands::plan_cache::PlanCommand,
     },
 
+    /// Run the runtime as a service of your session (install, uninstall, status).
+    Service {
+        /// Service subcommand.
+        #[command(subcommand)]
+        command: commands::service::ServiceCommand,
+    },
+
     /// Diagnose the local Apollia environment (no runtime required).
     ///
     /// Verifies the Apollia home directory, the config file, local SQLite
@@ -732,6 +739,7 @@ fn main() {
                 commands::resilience::run(&command, cli.socket, json).await
             }
             Commands::Plan { command } => commands::plan_cache::run_plan(&command, json),
+            Commands::Service { command } => commands::service::run(&command, json),
             Commands::Doctor => commands::doctor::run(cli.socket, json).await,
             Commands::Inspect { path } => commands::inspect::run(&path, json, no_color),
             Commands::Logs(args) => commands::logs::run(&args, json).await,

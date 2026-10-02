@@ -342,6 +342,38 @@ check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK
 # tell a typo from a stopped daemon.
 check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus
 
+# ── A.13b service (definition written, never loaded) ────────────────────────
+# `service install --no-load` writes the user-session definition under the
+# seeded HOME and stops there: launchd, systemd and Task Scheduler act on the
+# operator's real session whatever HOME says, so loading is the manual gesture.
+# `status` and `uninstall` match the manager's answer against this definition
+# file, so a service another home installed is neither reported nor stopped.
+# XDG_CONFIG_HOME is dropped so the Linux unit lands under the seeded HOME.
+section "A.13b service"
+case "$(uname -s)" in
+    Darwin) SVC_DEF="$HOME/Library/LaunchAgents/com.apollia.os.plist" ;;
+    Linux)  SVC_DEF="$HOME/.config/systemd/user/apollia-os.service" ;;
+    *)      SVC_DEF="$DATA/service/apollia-os.xml" ;;
+esac
+check_json_field "service status before install: not_installed" "d['state']" "not_installed" env -u XDG_CONFIG_HOME "$BIN" service status --json
+check        "service install --no-load"             env -u XDG_CONFIG_HOME "$BIN" service install --no-load
+[[ -f "$SVC_DEF" ]] && _pass "service install wrote the definition in place" || _fail "service install wrote the definition in place" "absent: $SVC_DEF"
+# The Windows XML is UTF-16, which grep does not read; the Rust tests pin it.
+if [[ "$(uname -s)" == Darwin || "$(uname -s)" == Linux ]]; then
+    BIN_ABS=$("${E2E_PYTHON:-python3}" -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$BIN")
+    if /usr/bin/grep -qF "$BIN_ABS" "$SVC_DEF" && /usr/bin/grep -qE '(<string>start</string>|" start$)' "$SVC_DEF"; then
+        _pass "service definition runs the absolute binary with start"
+    else
+        _fail "service definition runs the absolute binary with start" "binary $BIN_ABS or start missing in $SVC_DEF"
+    fi
+fi
+check_json_field "service status: installed"        "d['installed']" "True"    env -u XDG_CONFIG_HOME "$BIN" service status --json
+check_json_field "service status: stopped"          "d['state']"     "stopped" env -u XDG_CONFIG_HOME "$BIN" service status --json
+check_exit   "service uninstall (no --confirm) → 1" 1 env -u XDG_CONFIG_HOME "$BIN" service uninstall
+check        "service uninstall --confirm"           env -u XDG_CONFIG_HOME "$BIN" service uninstall --confirm
+[[ ! -f "$SVC_DEF" ]] && _pass "service uninstall removed the definition" || _fail "service uninstall removed the definition" "still present: $SVC_DEF"
+check_exit   "service uninstall (absent) → 1"      1 env -u XDG_CONFIG_HOME "$BIN" service uninstall --confirm
+
 # ── A.14 un-exercised VARIANTS (every leaf itself has a real invocation) ─────
 # Coverage counts real invocations only (scripts/check_cli_e2e_coverage.py), so
 # a skip line justifies nothing anymore. The lines below record the variants

@@ -199,6 +199,10 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os plan cache stats`↴](#apollia-os-plan-cache-stats)
 * [`apollia-os plan cache clear`↴](#apollia-os-plan-cache-clear)
 * [`apollia-os plan cache evict`↴](#apollia-os-plan-cache-evict)
+* [`apollia-os service`↴](#apollia-os-service)
+* [`apollia-os service install`↴](#apollia-os-service-install)
+* [`apollia-os service uninstall`↴](#apollia-os-service-uninstall)
+* [`apollia-os service status`↴](#apollia-os-service-status)
 * [`apollia-os doctor`↴](#apollia-os-doctor)
 * [`apollia-os inspect`↴](#apollia-os-inspect)
 * [`apollia-os logs`↴](#apollia-os-logs)
@@ -295,6 +299,7 @@ Apollia OS CLI binary (apollia-os)
 * `review` - Automated code or plan review via the apollia-review agent
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
+* `service` - Run the runtime as a service of your session (install, uninstall, status)
 * `doctor` - Diagnose the local Apollia environment (no runtime required)
 * `inspect` - Statically inspect a Python agent file (no runtime required)
 * `logs` - Tail or follow the runtime log file
@@ -3204,6 +3209,56 @@ Evict entries older than `--max-age-days` days (default: 7)
 
   Default value: `7`
 * `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os service`
+
+Run the runtime as a service of your session (install, uninstall, status)
+
+**Usage:** `apollia-os service <COMMAND>`
+
+###### **Subcommands:**
+
+* `install` - Install the runtime as a service of your session and start it
+* `uninstall` - Stop the service and remove its definition
+* `status` - Report whether the service is installed and running
+
+
+
+## `apollia-os service install`
+
+Install the runtime as a service of your session and start it.
+
+macOS: a LaunchAgent; Linux: a systemd user unit; Windows: a task at logon. No administrator right is needed.
+
+**Usage:** `apollia-os service install [OPTIONS]`
+
+###### **Options:**
+
+* `--no-load` - Write the service definition without handing it to the service manager: nothing starts now, the next logon starts it
+
+
+
+## `apollia-os service uninstall`
+
+Stop the service and remove its definition.
+
+Prompts for confirmation unless `--confirm` is passed.
+
+**Usage:** `apollia-os service uninstall [OPTIONS]`
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
+
+
+
+## `apollia-os service status`
+
+Report whether the service is installed and running
+
+**Usage:** `apollia-os service status`
 
 
 
