@@ -78,6 +78,31 @@ impl AgentRepository {
         Ok(())
     }
 
+    /// Makes `name`, stored as an agent that runs code, a declarative agent
+    /// of `package`: its code columns are cleared and it is owned by the
+    /// package, so that the package installs over it as over its own agent.
+    /// Its overrides and its enabled state are left as they are. Returns
+    /// whether a row changed: `false` for an unknown name or an agent that
+    /// runs no code.
+    ///
+    /// # Errors
+    ///
+    /// [`AgentRepositoryError::Sqlite`].
+    pub fn adopt_into_package(
+        &self,
+        name: &str,
+        package: &str,
+    ) -> Result<bool, AgentRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let changed = conn.execute(
+            "UPDATE agents SET origin = 'package', package = ?2, install_path = NULL, \
+                 source_path = NULL, manifest_json = NULL, updated_at = datetime('now') \
+             WHERE name = ?1 AND install_path IS NOT NULL",
+            params![name, package],
+        )?;
+        Ok(changed > 0)
+    }
+
     // TEST-ONLY: an update of an agent that runs code goes through
     // `AgentRepository::save`, which replaces the definition and keeps the
     // overrides the same way; no production path updates a declarative agent

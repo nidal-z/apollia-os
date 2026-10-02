@@ -15,7 +15,8 @@ use serde::Serialize;
 
 use crate::governance::{GovernanceContract, GovernanceEvent};
 use crate::packages::preview::{
-    build, PackageNotice, PackagePreview, PreviewSources, SignaturePreview, SignatureStatus,
+    build, PackageNotice, PackageOrigin, PackagePreview, PreviewSources, SignaturePreview,
+    SignatureStatus,
 };
 use crate::packages::PackageError;
 
@@ -31,6 +32,8 @@ pub struct InstallOptions {
     pub allow_downgrade: bool,
     /// Who installs, as the journal names it.
     pub actor: String,
+    /// Where the package comes from; only the caller can say it is embedded.
+    pub origin: PackageOrigin,
 }
 
 /// Adds and removes the MCP servers a package brings, through the same path
@@ -129,7 +132,7 @@ pub fn prepare(
         Err(other) => return Err(other.into()),
     };
     let manifest = archive.manifest().clone();
-    let preview = build(&manifest, signature, sources)?;
+    let preview = build(&manifest, signature, sources, options.origin)?;
 
     match &preview.refusal {
         Some(crate::packages::InstallRefusal::Downgrade { .. }) if options.allow_downgrade => {}

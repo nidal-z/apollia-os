@@ -59,6 +59,9 @@ pub struct RuntimeHandle {
     /// Admission policy and journal of connection events. The desktop admits
     /// and journals a native account through it, the HTTP routes the rest.
     pub connection_governance: crate::governance::ConnectionGovernance,
+    /// The audit journal, through which the desktop records the packages its
+    /// binary ships when it installs them. `None` when it could not be opened.
+    pub audit_journal: Option<crate::audit_journal::AuditJournalHandle>,
     /// Read access to the TaskRepository.
     pub task_repository: Option<Arc<TaskRepository>>,
     /// Pending approvals.
@@ -578,6 +581,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         trigger_engine: handles.trigger_engine,
         audit_trail: handles.audit_trail,
         connection_governance: handles.connection_governance,
+        audit_journal: handles.audit_journal,
         task_repository: handles.task_repository,
         pending_approvals: handles.pending_approvals,
         plan_gates: handles.plan_gates,

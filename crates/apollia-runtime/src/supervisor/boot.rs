@@ -646,6 +646,7 @@ impl Supervisor {
             trigger_engine,
             audit_trail: audit_trail_handle,
             connection_governance,
+            audit_journal: audit_journal_handle,
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),
             plan_gates: plan_gates.clone(),

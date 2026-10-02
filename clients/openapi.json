@@ -14968,6 +14968,10 @@
       "description": "Agent inventory and lifecycle"
     },
     {
+      "name": "packages",
+      "description": "Package preview, installation, and trusted publisher keys"
+    },
+    {
       "name": "a2a",
       "description": "Agent-to-agent skill invocation"
     },
