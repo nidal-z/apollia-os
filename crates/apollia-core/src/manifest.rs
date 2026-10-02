@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::budget::StepBudgetConfig;
 
+mod model_defaults;
+
+pub use model_defaults::{AgentModelDefaults, PackageRequestSettings};
+
 /// Default value for `AgentManifest::max_concurrent_tasks`.
 fn default_max_concurrent_tasks() -> u32 {
     1
@@ -140,6 +144,12 @@ pub struct AgentManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
     pub llm_backend: Option<String>,
+    /// Model defaults the agent's package declares (`@agent(model=...)` in the
+    /// SDK, `[agents.defaults.model]` in `apollia.toml`). Its `request` is the
+    /// package level of the request settings: above the model's own defaults,
+    /// below the preset the user chose for the agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<AgentModelDefaults>,
     /// pip packages to install in this agent's Python venv.
     ///
     /// Standard pip syntax: `"openpyxl>=3.1.0"`, `"pandas==2.1.4"`, `"requests"`.
@@ -337,6 +347,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,
@@ -383,6 +394,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,
@@ -442,6 +454,55 @@ mod tests {
         });
         let manifest: AgentManifest = serde_json::from_value(json).unwrap();
         assert_eq!(manifest.llm_backend, Some("local-code".to_string()));
+    }
+
+    #[test]
+    fn the_package_request_settings_are_read_from_the_manifest() {
+        // GIVEN a manifest the SDK built with `@agent(model={...})`
+        let json = serde_json::json!({
+            "name": "notes",
+            "version": "1.0.0",
+            "description": "test",
+            "tools_required": [],
+            "model": {
+                "model": "qwen3-8b",
+                "preset": "balanced",
+                "request": {"temperature": 0.2, "top_k": 40, "repetition_penalty": 1.05,
+                            "max_tokens": 2048, "seed": 7, "top_p": 0.9}
+            }
+        });
+
+        // WHEN it is deserialized
+        let manifest: AgentManifest = serde_json::from_value(json).unwrap();
+
+        // THEN its package request settings are there, field by field
+        let model = manifest.model.unwrap();
+        assert_eq!(model.preset.as_deref(), Some("balanced"));
+        let request = model.request.unwrap();
+        assert_eq!(request.temperature, Some(0.2));
+        assert_eq!(request.top_p, Some(0.9));
+        assert_eq!(request.top_k, Some(40));
+        assert_eq!(request.repetition_penalty, Some(1.05));
+        assert_eq!(request.max_tokens, Some(2048));
+        assert_eq!(request.seed, Some(7));
+    }
+
+    #[test]
+    fn a_misspelt_request_setting_is_refused() {
+        // GIVEN a manifest whose request settings carry an unknown key
+        let json = serde_json::json!({
+            "name": "notes",
+            "version": "1.0.0",
+            "description": "test",
+            "tools_required": [],
+            "model": {"request": {"temprature": 0.2}}
+        });
+
+        // WHEN it is deserialized
+        let result = serde_json::from_value::<AgentManifest>(json);
+
+        // THEN it is refused rather than read without the setting
+        assert!(result.is_err());
     }
 
     // GIVEN a manifest JSON without the "llm_backend" key
@@ -534,6 +595,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec!["smtp".into(), "bash_executor".into()],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,

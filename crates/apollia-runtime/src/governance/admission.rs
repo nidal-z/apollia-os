@@ -72,6 +72,21 @@ impl AdmissionRequest {
         }
     }
 
+    /// The request describing the mailbox `account`: remote unless its server
+    /// is on this machine, Apollia's own client (the selection), and the
+    /// family of its read tools.
+    #[must_use]
+    pub fn for_imap_account(account: &apollia_connectors::imap::ImapAccount) -> Self {
+        let descriptors = crate::connectors_bridge::imap_tool_descriptors();
+        Self {
+            kind: ConnectionKind::Imap,
+            name: account.email.clone(),
+            remote: crate::connections::is_remote_host(&account.host),
+            provenance: Provenance::Selection,
+            families: distinct(descriptors.iter().map(|d| d.family)),
+        }
+    }
+
     /// The request describing the folder at `path`: on this machine, chosen by
     /// the user, its tools those of the native file tools.
     ///

@@ -16,15 +16,19 @@ use thiserror::Error;
 
 use crate::hardware::{CompatibilityBadge, HardwareProfile};
 
+mod card;
 mod compat;
 mod parse;
+mod variant;
 
 use compat::compat_from_model_type;
 pub use compat::HfModelTypeCache;
 use parse::{
     build_gguf_files, build_search_url, extract_base_model_from_json, lfs_sha256_by_path,
-    parse_model_list_item, parse_next_link, reevaluate_gguf_compat, resolve_model_type,
+    parse_model_list_item, parse_next_link, reevaluate_gguf_compat, resolve_config_facts,
 };
+use variant::plan_variant;
+pub use variant::{VariantError, VariantFile, VariantPlan, VariantSelector};
 
 /// Errors of the HuggingFace client.
 #[derive(Debug, Error)]
@@ -59,6 +63,10 @@ pub enum HfError {
         /// Path of the file inside the repository.
         path: String,
     },
+
+    /// The repository tree holds no complete variant for the request.
+    #[error(transparent)]
+    Variant(#[from] VariantError),
 }
 
 /// Metadata card for a HuggingFace model.
@@ -92,6 +100,15 @@ pub struct HfModelCard {
     pub compatibility_issue: Option<CompatIssue>,
     /// HF model type from `config.json` (e.g. `"LlamaForCausalLM"`).
     pub model_type: Option<String>,
+    /// What the model can do: tools and reasoning from its chat template,
+    /// vision when the repository publishes a projector (GGUF) or declares a
+    /// `vision_config` (MLX). A search result carries vision alone.
+    #[serde(default)]
+    pub capabilities: crate::capabilities::Capabilities,
+    /// The short list of variants, at most one per level, each sized and
+    /// graded for this machine. Empty on a search result, which has no sizes.
+    #[serde(default)]
+    pub variants: Vec<crate::recommend::ModelVariant>,
 }
 
 /// Reasons a model is incompatible with llama.cpp.
@@ -125,6 +142,11 @@ pub struct HfFile {
     /// search result only lists names).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
+    /// Quantisation the file name declares (`Q4_K_M`, `BF16`), read here so
+    /// no surface has to parse a file name. `None` for a projector and a name
+    /// that declares none.
+    #[serde(default)]
+    pub quantization: Option<String>,
 }
 
 /// Recommended generation parameters from `generation_config.json`.
@@ -178,6 +200,11 @@ pub(crate) struct TreeEntry {
     size: u64,
     #[serde(rename = "type")]
     entry_type: String,
+    /// Git object identifier: for a file committed outside LFS, the SHA-1 of
+    /// the blob (`blob <size>\0` then the content); for an LFS file, the
+    /// identifier of its pointer, never of its content.
+    #[serde(default)]
+    oid: Option<String>,
     /// Present only for a file stored through LFS.
     #[serde(default)]
     lfs: Option<TreeLfs>,
@@ -375,18 +402,21 @@ impl HfRegistryClient {
         // Re-evaluate NoGgufFiles based on authoritative tree data.
         reevaluate_gguf_compat(&mut card);
 
-        // Determine model_type: prefer cache, then config_resp.
-        let model_type =
-            resolve_model_type(cached_model_type, config_resp, type_cache, repo_id).await;
+        // What config.json says: prefer cache, then config_resp.
+        let config = resolve_config_facts(cached_model_type, config_resp, type_cache, repo_id)
+            .await
+            .unwrap_or_default();
 
-        card.model_type = model_type.clone();
+        card.model_type = config.model_type.clone();
 
         // Refine compat with model_type only if pipeline_tag didn't already flag an issue.
         if card.compatibility_issue.is_none() {
-            if let Some(ref mt) = model_type {
+            if let Some(ref mt) = config.model_type {
                 card.compatibility_issue = compat_from_model_type(mt);
             }
         }
+
+        card::fill(&mut card, &meta_json, &tree_entries, &config, hardware);
 
         Ok(card)
     }
@@ -430,6 +460,32 @@ impl HfRegistryClient {
     /// - [`HfError::NoPublishedSha256`] when the file is absent from the tree
     ///   or not stored through LFS.
     pub async fn lfs_sha256(&self, repo_id: &str, path: &str) -> Result<String, HfError> {
+        let entries = self.tree(repo_id).await?;
+        lfs_sha256_by_path(&entries)
+            .remove(path)
+            .ok_or_else(|| HfError::NoPublishedSha256 {
+                repo_id: repo_id.to_string(),
+                path: path.to_string(),
+            })
+    }
+
+    /// Every file of one variant of `repo_id`, with where each lands and the
+    /// reference its download is checked against.
+    ///
+    /// # Errors
+    /// The errors of reading the tree (as [`Self::lfs_sha256`]), and
+    /// [`HfError::Variant`] when the tree holds no complete variant.
+    pub async fn variant_plan(
+        &self,
+        repo_id: &str,
+        selector: &VariantSelector,
+    ) -> Result<VariantPlan, HfError> {
+        let entries = self.tree(repo_id).await?;
+        Ok(plan_variant(&self.cdn_base, repo_id, &entries, selector)?)
+    }
+
+    /// The recursive tree of `main`.
+    async fn tree(&self, repo_id: &str) -> Result<Vec<TreeEntry>, HfError> {
         let url = format!(
             "{}/models/{repo_id}/tree/main?recursive=true",
             self.api_base
@@ -450,15 +506,9 @@ impl HfRegistryClient {
             }
             _ => {}
         }
-        let entries: Vec<TreeEntry> = apollia_core::net::read_capped_json(resp, HF_MAX_JSON_BYTES)
+        apollia_core::net::read_capped_json(resp, HF_MAX_JSON_BYTES)
             .await
-            .map_err(|e| HfError::Body(e.to_string()))?;
-        lfs_sha256_by_path(&entries)
-            .remove(path)
-            .ok_or_else(|| HfError::NoPublishedSha256 {
-                repo_id: repo_id.to_string(),
-                path: path.to_string(),
-            })
+            .map_err(|e| HfError::Body(e.to_string()))
     }
 
     /// Fetch the recommended generation parameters from `generation_config.json`.

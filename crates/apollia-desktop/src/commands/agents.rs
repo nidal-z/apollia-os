@@ -1,19 +1,21 @@
 //! Tauri IPC commands for agent management.
 //!
 //! Each command delegates to the embedded runtime handles for runtime agents
-//! (list/start/stop) and to the [`AgentRepository`] + [`AgentLoader`]
+//! (list/start/stop) and to the [`AgentRepository`] + `AgentLoader`
 //! for persistence operations (install/uninstall/enable/disable/update).
+//! The registry, the install, the start and the stop also serve a desktop
+//! attached to a daemon, through the routes of `/api/v1/agents`.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use apollia_core::ProcessState;
-use apollia_runtime::embedded::RuntimeHandle;
-use apollia_tools::AgentRepository;
+use apollia_runtime::api::routes_agents::installed::merge_agent_views;
+use apollia_tools::{AgentRepository, InstalledAgent};
 use serde::Serialize;
-use tauri::State;
+use tauri::{Manager, State};
 
 use super::http_post_json;
+use crate::attached::RuntimeLink;
 
 /// The state-changing commands live in `lifecycle`, the agent-to-agent mailbox
 /// view in `messages`.
@@ -24,16 +26,12 @@ pub mod messages;
 // Response types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Response to an agent install or update.
-#[derive(Debug, Serialize)]
-pub struct InstallAgentResponse {
-    /// Unique name of the installed agent.
-    pub name: String,
-    /// Semver version of the agent.
-    pub version: String,
-    /// Install path on disk.
-    pub install_path: String,
-}
+/// Response to an agent install. The daemon answers the same body.
+pub use apollia_runtime::api::routes_agents::installed::InstallAgentResponse;
+
+/// One agent of the machine, installed agents and running ones merged. The
+/// daemon answers the same view, built by the same function.
+pub use apollia_runtime::api::routes_agents::installed::InstalledAgentView as AgentListItem;
 
 /// What happened to the live runtime instance while an agent's module was
 /// replaced.
@@ -72,91 +70,9 @@ pub struct UpdateAgentResponse {
     pub restart_error: Option<String>,
 }
 
-/// Skill declared by a worker agent in its manifest.
-#[derive(Debug, Serialize)]
-pub struct AgentSkillView {
-    /// Unique skill identifier (e.g. `"read-excel"`).
-    pub id: String,
-    /// Human-readable skill name.
-    pub name: String,
-    /// Short skill description.
-    pub description: String,
-}
-
-/// Item in the enriched agent list.
-///
-/// Merges installed agents (persisted in `agents.db`) with agents active in
-/// the runtime, giving the frontend a unified view.
-#[derive(Debug, Serialize)]
-pub struct AgentListItem {
-    /// Runtime UUID of the agent (`None` if installed but not loaded).
-    pub id: Option<String>,
-    /// Unique agent name.
-    pub name: String,
-    /// Semver version.
-    pub version: String,
-    /// Whether the agent is enabled for loading at boot.
-    pub enabled: bool,
-    /// Runtime state (`"active"`, `"degraded"`, `"stopped"`, or `None` if not loaded).
-    pub runtime_status: Option<String>,
-    /// Install timestamp (RFC 3339, `None` for runtime-only agents).
-    pub installed_at: Option<String>,
-    /// Human-readable agent description (from the manifest).
-    pub description: Option<String>,
-    /// Free-form tags for routing/discovery.
-    pub tags: Vec<String>,
-    /// Tools required by the agent.
-    pub tools_required: Vec<String>,
-    /// Optional tools for the agent.
-    pub tools_optional: Vec<String>,
-    /// Execution mode (`"auto"`, `"direct"`, `"orchestrated"`).
-    pub execution_mode: Option<String>,
-    /// Install path on disk (`None` for runtime-only agents).
-    pub install_path: Option<String>,
-    /// Whether the agent supports inter-agent communication (A2A).
-    pub supports_a2a: bool,
-    /// Declared A2A skills (empty if `supports_a2a` is `false`).
-    pub skills: Vec<AgentSkillView>,
-    /// Semantic role of the agent: `"worker"` | `"assistant"` | `"system"` | `None`.
-    /// Used by the UI to categorize agents independently of `supports_a2a`.
-    pub agent_type: Option<String>,
-    /// Prompt examples illustrating typical uses (empty = not provided).
-    pub examples: Vec<String>,
-    /// Explicit limitations: what the agent does not do (empty = not provided).
-    pub limitations: Vec<String>,
-    /// Configuration note required before first use (`None` = no prerequisite).
-    pub setup_notes: Option<String>,
-    /// Name of the agent's source Python class (e.g. `"VeilleIaAgent"`,
-    /// `"ApolliaGuide"`, `"DocxWorker"`).
-    /// Filled in by the AIP validator. `None` for agents built outside the
-    /// PyO3 pipeline.
-    pub agent_class: Option<String>,
-    /// Primary memory namespace declared in the manifest. `None` = the agent
-    /// has no access to persistent memory.
-    ///
-    /// Several agents from the same package often share the same namespace
-    /// (convention: all declare `memory_namespace = "<package-slug>"`), so this
-    /// value is never derived from `name` on the UI side; it must come from the
-    /// manifest to match the SQLite key.
-    pub memory_namespace: Option<String>,
-    /// Shared memory namespaces the agent can read from.
-    pub shared_memory_namespaces: Vec<String>,
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// Converts a `ProcessState` into a string for the frontend.
-fn state_to_string(state: &ProcessState) -> String {
-    match state {
-        ProcessState::Initializing => "initializing".to_string(),
-        ProcessState::Active => "active".to_string(),
-        ProcessState::Degraded => "degraded".to_string(),
-        ProcessState::Stopping => "stopping".to_string(),
-        ProcessState::Stopped => "stopped".to_string(),
-    }
-}
 
 /// Resolves the `~/.apollia/` directory.
 fn apollia_data_dir() -> PathBuf {
@@ -171,36 +87,24 @@ fn now_rfc3339() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
-/// Recursively copy `.py` files and Python sub-packages from *src_dir* into *dst_dir*.
-///
-/// Skips *exclude* (the main agent file already copied as `agent.py`).
-/// A directory is considered a Python package if it contains `__init__.py`.
-fn copy_python_tree(
-    src_dir: &std::path::Path,
-    dst_dir: &std::path::Path,
-    exclude: &std::path::Path,
-) {
-    let Ok(entries) = std::fs::read_dir(src_dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path == exclude {
-            continue;
-        }
-        if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("py") {
-            if let Some(name) = path.file_name() {
-                let _ = std::fs::copy(&path, dst_dir.join(name));
-            }
-        } else if path.is_dir() && path.join("__init__.py").exists() {
-            // Python package: copy recursively.
-            if let Some(dir_name) = path.file_name() {
-                let sub_dst = dst_dir.join(dir_name);
-                let _ = std::fs::create_dir_all(&sub_dst);
-                copy_python_tree(&path, &sub_dst, exclude);
-            }
-        }
-    }
+/// The repository of `agents.db`, managed only when the runtime runs in this
+/// process.
+fn agent_repository(
+    app: &tauri::AppHandle,
+) -> Result<State<'_, Arc<std::sync::Mutex<AgentRepository>>>, String> {
+    app.try_state()
+        .ok_or_else(|| "agent repository not available".to_string())
+}
+
+/// Every row of `agents.db`, read off the async threads.
+async fn installed_agents(app: &tauri::AppHandle) -> Result<Vec<InstalledAgent>, String> {
+    let repo = Arc::clone(agent_repository(app)?.inner());
+    tokio::task::spawn_blocking(move || {
+        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
+        repo.list().map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking failed: {e}"))?
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -211,142 +115,39 @@ fn copy_python_tree(
 ///
 /// Installed agents (persisted in `agents.db`) are enriched with their runtime
 /// state when currently loaded. Runtime-only agents (started manually via
-/// `start_agent`) also appear in the list.
+/// `start_agent`) also appear in the list. Attached to a daemon, the daemon
+/// builds the same view.
 #[tauri::command]
 pub async fn list_agents(
-    runtime: State<'_, RuntimeHandle>,
-    repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
+    link: State<'_, RuntimeLink>,
+    app: tauri::AppHandle,
 ) -> Result<Vec<AgentListItem>, String> {
-    // Fetch installed agents from SQLite (sync, lightweight).
-    let installed = tokio::task::spawn_blocking({
-        let repo = Arc::clone(&repo);
-        move || {
-            let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-            repo.list().map_err(|e| e.to_string())
+    let runtime = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            return Ok(remote.get("/api/v1/agents/installed").await?);
         }
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
-
-    // Fetch runtime agents.
+    };
+    let installed = installed_agents(&app).await?;
     let runtime_entries = runtime
         .registry_handle
         .list_agents()
         .await
         .map_err(|e| e.to_string())?;
-
-    let mut items: Vec<AgentListItem> = Vec::new();
-
-    // Build items from installed agents, enriching with runtime status.
-    for agent in &installed {
-        let runtime_entry = runtime_entries
-            .iter()
-            .find(|e| e.manifest.name == agent.name);
-
-        // Prefer the runtime manifest when the agent is loaded. Package
-        // installation (`install_agent_package`) stores a stub manifest with
-        // hardcoded defaults (memory_namespace=None, tools_required=[], ...)
-        // because it never reads the per-agent Python file. The runtime, on
-        // the other hand, has the real manifest parsed by apollia-aip when
-        // the agent was started. Falling back to the SQLite manifest only
-        // when the agent isn't loaded keeps offline metadata available.
-        let manifest = runtime_entry
-            .map(|e| &e.manifest)
-            .unwrap_or(&agent.manifest);
-        items.push(AgentListItem {
-            id: runtime_entry.map(|e| e.id.to_string()),
-            name: agent.name.clone(),
-            version: agent.version.clone(),
-            enabled: agent.enabled,
-            runtime_status: runtime_entry.map(|e| state_to_string(&e.process_state)),
-            installed_at: Some(agent.installed_at.clone()),
-            description: if manifest.description.is_empty() {
-                None
-            } else {
-                Some(manifest.description.clone())
-            },
-            tags: manifest.tags.clone(),
-            tools_required: manifest.tools_required.clone(),
-            tools_optional: manifest.tools_optional.clone(),
-            execution_mode: Some(manifest.execution_mode.clone()),
-            install_path: Some(agent.install_path.to_string_lossy().to_string()),
-            supports_a2a: manifest.supports_a2a,
-            skills: manifest
-                .skills
-                .iter()
-                .map(|s| AgentSkillView {
-                    id: s.id.clone(),
-                    name: s.name.clone(),
-                    description: s.description.clone(),
-                })
-                .collect(),
-            agent_type: manifest.agent_type.clone(),
-            examples: manifest.examples.clone(),
-            limitations: manifest.limitations.clone(),
-            setup_notes: manifest.setup_notes.clone(),
-            agent_class: manifest.agent_class.clone(),
-            memory_namespace: manifest.memory_namespace.clone(),
-            shared_memory_namespaces: manifest.shared_memory_namespaces.clone(),
-        });
-    }
-
-    // Add runtime-only agents not in the installed list.
-    for entry in &runtime_entries {
-        let already_listed = installed.iter().any(|i| i.name == entry.manifest.name);
-        if !already_listed {
-            let manifest = &entry.manifest;
-            items.push(AgentListItem {
-                id: Some(entry.id.to_string()),
-                name: manifest.name.clone(),
-                version: manifest.version.clone(),
-                enabled: true,
-                runtime_status: Some(state_to_string(&entry.process_state)),
-                installed_at: None,
-                description: if manifest.description.is_empty() {
-                    None
-                } else {
-                    Some(manifest.description.clone())
-                },
-                tags: manifest.tags.clone(),
-                tools_required: manifest.tools_required.clone(),
-                tools_optional: manifest.tools_optional.clone(),
-                execution_mode: Some(manifest.execution_mode.clone()),
-                install_path: None,
-                supports_a2a: manifest.supports_a2a,
-                skills: manifest
-                    .skills
-                    .iter()
-                    .map(|s| AgentSkillView {
-                        id: s.id.clone(),
-                        name: s.name.clone(),
-                        description: s.description.clone(),
-                    })
-                    .collect(),
-                agent_type: manifest.agent_type.clone(),
-                examples: manifest.examples.clone(),
-                limitations: manifest.limitations.clone(),
-                setup_notes: manifest.setup_notes.clone(),
-                agent_class: manifest.agent_class.clone(),
-                memory_namespace: manifest.memory_namespace.clone(),
-                shared_memory_namespaces: manifest.shared_memory_namespaces.clone(),
-            });
-        }
-    }
-
-    Ok(items)
+    Ok(merge_agent_views(&installed, &runtime_entries))
 }
 
 /// Lightweight snapshot of the live status of all agents.
 ///
-/// Projects the runtime state (`ProcessState`) onto the 4 statuses exposed to
-/// the QuickPicker (`online` / `busy` / `offline` / `error`). Used for fast
-/// frontend polling without loading the full [`list_agents`] payload.
+/// Projects the runtime state onto the 4 statuses exposed to the QuickPicker
+/// (`online` / `busy` / `offline` / `error`), read from the same view as
+/// [`list_agents`] so both modes answer it.
 ///
 /// Mapping:
-/// - `Active`   → `"online"`
-/// - `Degraded` → `"error"` (last run failed)
-/// - `Stopping` | `Stopped` | not loaded → `"offline"`
-/// - `Initializing` → `"busy"`
+/// - `active`   → `"online"`
+/// - `degraded` → `"error"` (last run failed)
+/// - `stopping` | `stopped` | not loaded → `"offline"`
+/// - `initializing` → `"busy"`
 #[derive(Debug, Serialize)]
 pub struct AgentStatusSnapshot {
     /// Unique agent name.
@@ -357,59 +158,26 @@ pub struct AgentStatusSnapshot {
 
 #[tauri::command]
 pub async fn agent_status_snapshot(
-    runtime: State<'_, RuntimeHandle>,
-    repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
+    link: State<'_, RuntimeLink>,
+    app: tauri::AppHandle,
 ) -> Result<Vec<AgentStatusSnapshot>, String> {
-    let installed = tokio::task::spawn_blocking({
-        let repo = Arc::clone(&repo);
-        move || {
-            let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-            repo.list().map_err(|e| e.to_string())
-        }
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
-
-    let runtime_entries = runtime
-        .registry_handle
-        .list_agents()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let mut items: Vec<AgentStatusSnapshot> = Vec::new();
-
-    for agent in &installed {
-        let status = runtime_entries
-            .iter()
-            .find(|e| e.manifest.name == agent.name)
-            .map(|e| process_state_to_ui_status(&e.process_state))
-            .unwrap_or_else(|| "offline".to_string());
-        items.push(AgentStatusSnapshot {
-            name: agent.name.clone(),
-            status,
-        });
-    }
-
-    for entry in &runtime_entries {
-        if !installed.iter().any(|i| i.name == entry.manifest.name) {
-            items.push(AgentStatusSnapshot {
-                name: entry.manifest.name.clone(),
-                status: process_state_to_ui_status(&entry.process_state),
-            });
-        }
-    }
-
-    Ok(items)
+    Ok(list_agents(link, app)
+        .await?
+        .into_iter()
+        .map(|item| AgentStatusSnapshot {
+            status: runtime_status_to_ui_status(item.runtime_status.as_deref()).to_string(),
+            name: item.name,
+        })
+        .collect())
 }
 
-fn process_state_to_ui_status(state: &ProcessState) -> String {
-    match state {
-        ProcessState::Active => "online",
-        ProcessState::Degraded => "error",
-        ProcessState::Initializing => "busy",
-        ProcessState::Stopping | ProcessState::Stopped => "offline",
+fn runtime_status_to_ui_status(runtime_status: Option<&str>) -> &'static str {
+    match runtime_status {
+        Some("active") => "online",
+        Some("degraded") => "error",
+        Some("initializing") => "busy",
+        _ => "offline",
     }
-    .to_string()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -421,18 +189,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_state_to_string_all_variants() {
-        // GIVEN all ProcessState variants
-        // WHEN converted to string
-        // THEN each produces the expected snake_case representation
-        assert_eq!(state_to_string(&ProcessState::Initializing), "initializing");
-        assert_eq!(state_to_string(&ProcessState::Active), "active");
-        assert_eq!(state_to_string(&ProcessState::Degraded), "degraded");
-        assert_eq!(state_to_string(&ProcessState::Stopping), "stopping");
-        assert_eq!(state_to_string(&ProcessState::Stopped), "stopped");
+    fn test_the_runtime_status_maps_onto_the_four_picker_statuses() {
+        // GIVEN every runtime status the view carries, and an agent not loaded
+        // WHEN projected for the QuickPicker
+        // THEN each lands on its status and anything not live reads offline
+        assert_eq!(runtime_status_to_ui_status(Some("active")), "online");
+        assert_eq!(runtime_status_to_ui_status(Some("degraded")), "error");
+        assert_eq!(runtime_status_to_ui_status(Some("initializing")), "busy");
+        assert_eq!(runtime_status_to_ui_status(Some("stopping")), "offline");
+        assert_eq!(runtime_status_to_ui_status(Some("stopped")), "offline");
+        assert_eq!(runtime_status_to_ui_status(None), "offline");
     }
 
-    // InstallAgentResponse serialization
     #[test]
     fn test_install_agent_response_serialization() {
         // GIVEN an InstallAgentResponse

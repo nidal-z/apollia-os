@@ -6,34 +6,43 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use apollia_core::{EventBusSender, ProcessState};
+use apollia_runtime::api::routes_agents::installed::{copy_python_tree, place_agent};
 use apollia_runtime::api::routes_agents::AgentLoader;
 use apollia_runtime::embedded::RuntimeHandle;
 use apollia_tools::{AgentRepository, InstalledAgent};
-use tauri::State;
+use tauri::{Manager, State};
 
 use super::{
-    apollia_data_dir, copy_python_tree, http_post_json, now_rfc3339, restart_outcome,
+    agent_repository, apollia_data_dir, http_post_json, now_rfc3339, restart_outcome,
     InstallAgentResponse, UpdateAgentResponse,
 };
+use crate::attached::{segment, RuntimeLink};
 
 /// Starts an agent from a Python file.
 ///
 /// Delegates to `POST /api/v1/agents` because loading Python requires
 /// `AgentLoader` and `BackendFactory`, which are not on `RuntimeHandle`.
-/// Returns the new agent's `AgentId` (UUID).
+/// Returns the new agent's `AgentId` (UUID). Attached to a daemon, the same
+/// route is reached over the daemon's API.
 #[tauri::command]
-pub async fn start_agent(
-    runtime: State<'_, RuntimeHandle>,
-    path: String,
-) -> Result<String, String> {
-    start_agent_inner(runtime.api_port, &path).await
+pub async fn start_agent(link: State<'_, RuntimeLink>, path: String) -> Result<String, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(runtime) => start_agent_inner(runtime.api_port, &path).await,
+        RuntimeLink::Attached(remote) => {
+            let body = serde_json::json!({ "agent_path": path });
+            agent_id_of(&remote.post("/api/v1/agents", &body).await?)
+        }
+    }
 }
 
 /// Inner logic for [`start_agent`], callable without Tauri `State`.
 async fn start_agent_inner(api_port: u16, path: &str) -> Result<String, String> {
     let body = serde_json::json!({ "agent_path": path });
-    let resp = http_post_json(api_port, "/api/v1/agents", &body).await?;
+    agent_id_of(&http_post_json(api_port, "/api/v1/agents", &body).await?)
+}
 
+/// The `agent_id` of a start answer.
+fn agent_id_of(resp: &serde_json::Value) -> Result<String, String> {
     resp.get("agent_id")
         .and_then(|v| v.as_str())
         .map(String::from)
@@ -55,10 +64,18 @@ fn is_running(state: &ProcessState) -> bool {
 ///
 /// Delegates directly to the registry and TaskRouter handles, bypassing the
 /// REST API; the full cycle is replicated to guarantee event ordering on the
-/// EventBus.
+/// EventBus. Attached to a daemon, `DELETE /api/v1/agents/{id}` runs the
+/// same cycle there.
 #[tauri::command]
-pub async fn stop_agent(runtime: State<'_, RuntimeHandle>, agent_id: String) -> Result<(), String> {
-    stop_agent_inner(&runtime, &agent_id).await
+pub async fn stop_agent(link: State<'_, RuntimeLink>, agent_id: String) -> Result<(), String> {
+    match link.inner() {
+        RuntimeLink::Embedded(runtime) => stop_agent_inner(runtime, &agent_id).await,
+        RuntimeLink::Attached(remote) => {
+            let path = format!("/api/v1/agents/{}", segment(&agent_id));
+            let _: serde_json::Value = remote.delete(&path).await?;
+            Ok(())
+        }
+    }
 }
 
 /// Inner logic for [`stop_agent`], callable without Tauri `State`.
@@ -112,68 +129,24 @@ async fn stop_agent_inner(runtime: &RuntimeHandle, agent_id: &str) -> Result<(),
 ///
 /// Validates the Python module via `AgentLoader`, copies the file to
 /// `~/.apollia/agents/<name>/agent.py`, and persists the entry in `agents.db`.
-/// Emits a `RuntimeEvent::AgentInstalled` on the EventBus.
+/// Emits a `RuntimeEvent::AgentInstalled` on the EventBus. Attached to a
+/// daemon, the daemon validates, copies and records it.
 #[tauri::command]
 pub async fn install_agent(
     path: String,
-    loader: State<'_, Arc<dyn AgentLoader>>,
-    repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
-    event_bus: State<'_, EventBusSender>,
+    link: State<'_, RuntimeLink>,
+    app: tauri::AppHandle,
 ) -> Result<InstallAgentResponse, String> {
-    let source_path = PathBuf::from(&path);
-    if !source_path.exists() {
-        return Err(format!("file not found: {path}"));
+    if let RuntimeLink::Attached(remote) = link.inner() {
+        let body = serde_json::json!({ "path": path });
+        return Ok(remote.post("/api/v1/agents/installed", &body).await?);
     }
-
-    let canonical = source_path
-        .canonicalize()
-        .map_err(|e| format!("cannot resolve path {path}: {e}"))?;
-
-    // Validate the Python module. A rejection here carries the Python error
-    // verbatim (a missing decorator argument, a bad import), which is the only
-    // thing that tells the operator what to change. Log it: without this line
-    // the refusal reached the window as one generic sentence and left nothing
-    // behind on either side.
-    let manifest = loader.load_and_validate(&canonical).map_err(|e| {
-        tracing::warn!(
-            path = %canonical.display(),
-            cause = %e,
-            "agent.install.rejected"
-        );
-        e
-    })?;
-
-    let data_dir = apollia_data_dir();
-    let agents_dir = data_dir.join("agents").join(&manifest.name);
-    std::fs::create_dir_all(&agents_dir)
-        .map_err(|e| format!("cannot create directory {}: {e}", agents_dir.display()))?;
-
-    let install_path = agents_dir.join("agent.py");
-    std::fs::copy(&canonical, &install_path).map_err(|e| {
-        format!(
-            "cannot copy {} to {}: {e}",
-            canonical.display(),
-            install_path.display()
-        )
-    })?;
-
-    // Copy sibling .py files and Python sub-packages from the source directory
-    // so local imports (e.g. `from assistants.shared import ...`) resolve at runtime.
-    if let Some(source_dir) = canonical.parent() {
-        copy_python_tree(source_dir, &agents_dir, &canonical);
-    }
-
-    let now = now_rfc3339();
-    let agent = InstalledAgent {
-        name: manifest.name.clone(),
-        version: manifest.version.clone(),
-        install_path: install_path.clone(),
-        source_path: canonical,
-        manifest,
-        enabled: true,
-        installed_at: now.clone(),
-        updated_at: now,
-    };
+    let loader = app
+        .try_state::<Arc<dyn AgentLoader>>()
+        .ok_or_else(|| "agent loader not available".to_string())?;
+    let repo = agent_repository(&app)?;
+    let agent =
+        place_agent(loader.as_ref(), &apollia_data_dir(), &path).map_err(|e| e.to_string())?;
 
     let agent_for_db = agent.clone();
     let repo_clone = Arc::clone(&repo);
@@ -187,15 +160,17 @@ pub async fn install_agent(
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
 
-    let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentInstalled {
-        name: agent.name.clone(),
-        version: agent.version.clone(),
-    });
+    if let Some(event_bus) = app.try_state::<EventBusSender>() {
+        let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentInstalled {
+            name: agent.name.clone(),
+            version: agent.version.clone(),
+        });
+    }
 
     Ok(InstallAgentResponse {
         name: agent.name,
         version: agent.version,
-        install_path: install_path.to_string_lossy().to_string(),
+        install_path: agent.install_path.to_string_lossy().to_string(),
     })
 }
 

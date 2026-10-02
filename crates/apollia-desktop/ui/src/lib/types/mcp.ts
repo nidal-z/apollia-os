@@ -242,7 +242,7 @@ export interface ConnectionOrigin {
 }
 
 /** Kind of thing a connection plugs in. */
-export type ConnectionKind = "native" | "mcp" | "folder";
+export type ConnectionKind = "native" | "imap" | "mcp" | "folder";
 
 /** Whether a connection can be used right now. */
 export type ConnectionState =

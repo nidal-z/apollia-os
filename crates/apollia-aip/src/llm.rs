@@ -6,14 +6,17 @@
 //! module at the end of this file.
 
 mod convert;
+mod sampling;
 mod stream;
 
 use std::sync::Arc;
 
+use apollia_llm::request_defaults::RequestDefaults;
 use convert::{
     inject_temporal_context_into_messages, json_to_py, llm_err_to_py, prepend_context_blocks,
     py_dict_to_chat_message, py_dict_to_tool_spec, py_object_to_json,
 };
+use sampling::{complete_request, RequestSampling};
 use stream::{emit_llm_capture, forward_stream, resolved_model_id, PyTokenStream, StreamForward};
 
 use pyo3::exceptions::PyRuntimeError;
@@ -186,6 +189,15 @@ impl LlmProxy {
         (router, backend)
     }
 
+    /// The request settings a call on `backend` starts from: the agent's three
+    /// levels resolved now, or none for a proxy bound to no agent.
+    fn request_defaults(&self, router: &LlmRouter, backend: Option<&str>) -> RequestDefaults {
+        self.agent_model
+            .as_ref()
+            .map(|binding| binding.request_defaults(router, backend))
+            .unwrap_or_default()
+    }
+
     /// Binds this proxy to the current execution identity for observability.
     /// Without this setter, `LlmCallStarted` events are not emitted (but
     /// `complete_with_observability` still emits `LlmCallCompleted` /
@@ -337,6 +349,7 @@ impl LlmProxy {
         // unconstrained one costs: one step, no more and no less.
         self.charge_step()?;
         let (router, backend) = self.route_call(backend);
+        let defaults = self.request_defaults(&router, backend.as_deref());
 
         // Emit LlmCallStarted before dispatch.
         let prompt_chars = (system.chars().count() + user.chars().count()) as u64;
@@ -367,7 +380,7 @@ impl LlmProxy {
             // back to its training cutoff for "today"-type queries nor guesses
             // the host OS. Mirrors what Chat Libre's `build_system_prompt` does.
             let system_with_context = prepend_context_blocks(&system);
-            let req = CompletionRequest {
+            let mut req = CompletionRequest {
                 messages: vec![
                     ChatMessage::system(system_with_context),
                     ChatMessage::user(user),
@@ -378,6 +391,7 @@ impl LlmProxy {
                 response_schema: response_schema.clone(),
                 ..Default::default()
             };
+            defaults.apply_to(&mut req);
             let resp = router
                 .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                 .await
@@ -430,6 +444,7 @@ impl LlmProxy {
         max_concurrency: Option<usize>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let (router, backend) = self.route_call(backend);
+        let defaults = self.request_defaults(&router, backend.as_deref());
         let obs = Arc::clone(&self.obs_config);
         let budget = Arc::clone(&self.budget_view);
         let bus = self.event_bus.clone();
@@ -449,6 +464,7 @@ impl LlmProxy {
                 let sem = Arc::clone(&sem);
                 let backend = backend.clone();
                 let system_prefix = system_prefix.clone();
+                let defaults = defaults.clone();
                 async move {
                     // Bound in-flight calls; the owned permit (no borrow across
                     // the await) is held for the item's duration. The semaphore is
@@ -461,12 +477,13 @@ impl LlmProxy {
                         return (index, Err("budget exhausted".to_string()));
                     }
                     budget.increment_steps();
-                    let req = CompletionRequest {
+                    let mut req = CompletionRequest {
                         messages: vec![ChatMessage::system(system_prefix), ChatMessage::user(item)],
                         temperature,
                         max_tokens,
                         ..Default::default()
                     };
+                    defaults.apply_to(&mut req);
                     let res = router
                         .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                         .await
@@ -512,8 +529,10 @@ impl LlmProxy {
     ///
     /// Returns `PyValueError` if a message dict is invalid (missing or unknown role).
     ///
-    /// `temperature`, `max_tokens`, and `seed` are optional sampling overrides;
-    /// when left `None` the per-model defaults apply.
+    /// `temperature`, `max_tokens`, `seed`, `top_p`, `top_k`, `min_p`,
+    /// `presence_penalty`, `frequency_penalty`, `repeat_penalty` and `stop` are
+    /// optional sampling overrides; each one left `None` is not sent, and the
+    /// engine keeps its own default.
     ///
     /// # Structured output
     ///
@@ -535,7 +554,7 @@ impl LlmProxy {
     // Flat parameters mirror the Python-facing signature (see `chat`).
     // REASON: mirrors the Python keyword signature of `ctx.llm.complete`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None, schema = None))]
+    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None, top_p = None, top_k = None, min_p = None, presence_penalty = None, frequency_penalty = None, repeat_penalty = None, stop = None, schema = None))]
     fn complete<'py>(
         &self,
         py: Python<'py>,
@@ -544,8 +563,27 @@ impl LlmProxy {
         temperature: Option<f32>,
         max_tokens: Option<u32>,
         seed: Option<u64>,
+        top_p: Option<f32>,
+        top_k: Option<u32>,
+        min_p: Option<f32>,
+        presence_penalty: Option<f32>,
+        frequency_penalty: Option<f32>,
+        repeat_penalty: Option<f32>,
+        stop: Option<Vec<String>>,
         schema: Option<PyObject>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let sampling = RequestSampling {
+            temperature,
+            max_tokens,
+            seed,
+            top_p,
+            top_k,
+            min_p,
+            presence_penalty,
+            frequency_penalty,
+            repeat_penalty,
+            stop,
+        };
         // Synchronous conversion before crossing the async boundary.
         let chat_messages = messages
             .iter()
@@ -574,6 +612,7 @@ impl LlmProxy {
             })
             .sum();
         let (router, backend) = self.route_call(backend);
+        let defaults = self.request_defaults(&router, backend.as_deref());
         let backend_label = backend
             .as_deref()
             .unwrap_or_else(|| router.default_name())
@@ -601,18 +640,7 @@ impl LlmProxy {
             // Otherwise insert a fresh system message at index 0. Keeps
             // multi-turn agent calls grounded on the real wall clock.
             let messages = inject_temporal_context_into_messages(chat_messages);
-            let req = CompletionRequest {
-                messages,
-                temperature,
-                // Default a cap when the agent does not set one: an unbounded
-                // completion lets a local model run to context-fill and appear
-                // to hang forever (the onboarding-agent symptom). An agent that
-                // needs a longer answer passes max_tokens explicitly.
-                max_tokens: max_tokens.or(Some(4096)),
-                seed,
-                response_schema: response_schema.clone(),
-                ..Default::default()
-            };
+            let req = complete_request(messages, sampling, response_schema.clone(), &defaults);
             let resp = router
                 .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                 .await
@@ -715,6 +743,7 @@ impl LlmProxy {
             .collect::<PyResult<Vec<_>>>()?;
 
         let (router, backend) = self.route_call(backend);
+        let defaults = self.request_defaults(&router, backend.as_deref());
         let obs = Arc::clone(&self.obs_config);
         let bus = self.event_bus.clone();
 
@@ -736,6 +765,7 @@ impl LlmProxy {
                     temperature,
                     max_tokens,
                     seed,
+                    defaults,
                     tx,
                 })
                 .await;

@@ -91,6 +91,7 @@ fn test_two_mcp_servers_and_one_google_account_are_three_connections_with_tools(
             ConnectorProvider::Google,
             vec!["ada@example.com".to_owned()],
         )],
+        imap_accounts: Vec::new(),
     };
 
     // WHEN the connections are listed
@@ -119,6 +120,46 @@ fn test_two_mcp_servers_and_one_google_account_are_three_connections_with_tools(
     assert_eq!(notion.tools[0].id, "mcp:notion/notion-search");
     assert_eq!(notion.tools[0].family, ActionFamily::ReadPersonal);
     assert_eq!(notion.tools[0].family_source, FamilySource::Selection);
+}
+
+#[test]
+fn test_imap_mailbox_is_a_connection_with_its_read_tools() {
+    // GIVEN a Gmail mailbox and a mailbox served on this machine
+    let account = |email: &str, host: &str| apollia_connectors::imap::ImapAccount {
+        email: email.to_owned(),
+        host: host.to_owned(),
+        port: 993,
+        username: email.to_owned(),
+    };
+    let sources = ConnectionSources {
+        imap_accounts: vec![
+            account("ana@gmail.com", "imap.gmail.com"),
+            account("ana@home.lan", "127.0.0.1"),
+        ],
+        ..ConnectionSources::default()
+    };
+
+    // WHEN the connections are listed
+    let list = assemble(&sources);
+
+    // THEN each is a mailbox connection labelled by its provider or server,
+    // remote unless its server is local, with three read tools pre-checked
+    assert_eq!(list.len(), 2);
+    let gmail = by_id(&list, "imap:ana@gmail.com");
+    assert_eq!(gmail.kind, ConnectionKind::Imap);
+    assert_eq!(gmail.label, "Gmail");
+    assert_eq!(gmail.account.as_deref(), Some("ana@gmail.com"));
+    assert!(gmail.remote);
+    assert_eq!(gmail.tools.len(), 3);
+    assert!(gmail
+        .tools
+        .iter()
+        .all(|t| t.family == ActionFamily::ReadPersonal && !t.prechecked));
+    let home = by_id(&list, "imap:ana@home.lan");
+    assert_eq!(home.label, "127.0.0.1");
+    assert!(!home.remote);
+    assert!(!is_remote_host("localhost"));
+    assert!(!is_remote_host("::1"));
 }
 
 #[test]

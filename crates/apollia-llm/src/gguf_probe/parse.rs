@@ -134,6 +134,11 @@ pub struct GgufHeaderFacts {
     pub has_chat_template: bool,
     /// The first bytes of `tokenizer.chat_template`, kept for diagnostics.
     pub chat_template_excerpt: Option<String>,
+    /// Whether the whole chat template renders tools, read before it is cut
+    /// to [`Self::chat_template_excerpt`].
+    pub chat_template_tools: bool,
+    /// Whether the whole chat template opens a reasoning block.
+    pub chat_template_reasoning: bool,
     /// `{arch}.block_count`, the number of transformer layers.
     pub block_count: Option<u64>,
     /// `{arch}.context_length`, the training context window.
@@ -188,6 +193,10 @@ pub struct GgufHeaderFacts {
     /// Non-zero marks a layer that attends to the short window. Empty when the
     /// file carries a period, or nothing at all.
     pub sliding_window_per_layer: Vec<u64>,
+    /// `{arch}.pooling_type`, how the engine reduces a text to one vector:
+    /// 1 mean, 2 first token, 3 last token, 4 rank. Only an embeddings or a
+    /// reranking model carries it; a chat model has no use for it.
+    pub pooling_type: Option<u64>,
     /// `true` when the buffer ended before every declared pair was walked.
     pub truncated: bool,
 }
@@ -530,6 +539,7 @@ const ARCH_SUFFIXES: &[&str] = &[
     "expert_count",
     "expert_used_count",
     "full_attention_interval",
+    "pooling_type",
 ];
 
 fn is_wanted(key: &str) -> bool {
@@ -609,6 +619,7 @@ pub fn parse_header(bytes: &[u8]) -> Result<GgufHeaderFacts, GgufParseError> {
     facts.full_attention_interval = by_suffix.get("full_attention_interval").copied();
     facts.key_length_swa = by_suffix.get("attention.key_length_swa").copied();
     facts.value_length_swa = by_suffix.get("attention.value_length_swa").copied();
+    facts.pooling_type = by_suffix.get("pooling_type").copied();
 
     Ok(facts)
 }
@@ -640,6 +651,8 @@ fn read_pair(
         ("tokenizer.ggml.pre", Scalar::Text(s)) => facts.tokenizer_pre = Some(s),
         ("tokenizer.chat_template", Scalar::Text(s)) => {
             facts.has_chat_template = true;
+            facts.chat_template_tools = crate::capabilities::template_handles_tools(&s);
+            facts.chat_template_reasoning = crate::capabilities::template_handles_reasoning(&s);
             facts.chat_template_excerpt = Some(excerpt(&s, CHAT_TEMPLATE_EXCERPT_BYTES));
         }
         (other, Scalar::Unsigned(n)) => {

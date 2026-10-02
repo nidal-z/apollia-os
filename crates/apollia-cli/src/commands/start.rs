@@ -834,6 +834,7 @@ agent = A()
             system_prompt: Some("You are a planning assistant.".to_string()),
             tools_requiring_approval: vec![],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,

@@ -103,6 +103,7 @@ fn pre_installed_agent(name: &str, installed_at: &str) -> InstalledAgent {
         system_prompt: None,
         tools_requiring_approval: vec![],
         llm_backend: None,
+        model: None,
         packages: vec![],
         memory_config: None,
         agent_type: None,

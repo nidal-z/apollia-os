@@ -14,8 +14,8 @@ export type ConnectionListState =
   | { status: "ready"; connections: Connection[] }
   | { status: "error"; message: string };
 
-/** Order of the kinds in the list: accounts, then servers, then folders. */
-const KIND_ORDER: Record<ConnectionKind, number> = { native: 0, mcp: 1, folder: 2 };
+/** Order of the kinds in the list: accounts, mailboxes, servers, folders. */
+const KIND_ORDER: Record<ConnectionKind, number> = { native: 0, imap: 1, mcp: 2, folder: 3 };
 
 /** Sort connections by kind, then label, then account. */
 export function sortConnections(connections: readonly Connection[]): Connection[] {

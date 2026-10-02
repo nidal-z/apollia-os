@@ -13,7 +13,7 @@
   import { listFlip, rowIn } from "$lib/design/listMotion";
   import { listNavigation } from "$lib/components/operator/listNavigation";
   import type { HumanizedError } from "$lib/errors/humanize";
-  import type { DownloadProgress, HfFile, HfModelCard } from "$lib/ipc/modelHub";
+  import type { DownloadProgress, HfModelCard } from "$lib/ipc/modelHub";
   import type { GgufGroup } from "./helpers";
   import ModelResultCard from "./ModelResultCard.svelte";
 
@@ -31,7 +31,6 @@
     downloads: DownloadProgress[];
     onToggle: (repoId: string) => void;
     onDownloadGroup: (group: GgufGroup) => void;
-    onDownloadFile: (file: HfFile) => void;
     onLoadMore: () => void;
     onRetry: () => void;
     onClearFilters: () => void;
@@ -51,7 +50,6 @@
     downloads,
     onToggle,
     onDownloadGroup,
-    onDownloadFile,
     onLoadMore,
     onRetry,
     onClearFilters,
@@ -83,7 +81,6 @@
           {downloads}
           {onToggle}
           {onDownloadGroup}
-          {onDownloadFile}
         />
       </div>
     {/each}

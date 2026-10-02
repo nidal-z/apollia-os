@@ -407,6 +407,7 @@ pub(super) async fn task_tool_executors(
     };
     executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
     executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
+    executors.extend(apollia_runtime::connectors_bridge::build_imap_executors());
     executors
 }
 
@@ -469,6 +470,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,

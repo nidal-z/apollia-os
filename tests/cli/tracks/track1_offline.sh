@@ -174,6 +174,28 @@ check        "connector drive folder set"            "$BIN" connector drive fold
 check        "connector drive folder reset"          "$BIN" connector drive folder reset alice@example.invalid --confirm
 check        "connector drive folder picked list"    "$BIN" connector drive folder picked list alice@example.invalid
 check        "connector drive folder picked remove"  "$BIN" connector drive folder picked remove alice@example.invalid ghost-folder-id --confirm
+# IMAP mailbox: offline, no keychain. `list` reads the seeded data dir (no
+# mailbox); `add` without a password stops before the secret store; `test`
+# refuses an unknown domain before any connection, and reports a closed
+# loopback port as unreachable. Each failure carries its typed code.
+check        "connector imap list"                   "$BIN" connector imap list
+check_json   "connector imap list --json"            "$BIN" connector imap list --json
+imap_case() {
+    local label=$1 code=$2; shift 2
+    local out rc
+    out=$("$@" 2>&1); rc=$?
+    if [[ $rc -eq 1 ]] && printf '%s' "$out" | /usr/bin/grep -q "\"$code: "; then
+        _pass "$label → 1 ($code)"
+    else
+        _fail "$label → 1 ($code)" "got $rc | out: ${out:0:300}" "$rc"
+    fi
+}
+imap_case "connector imap add (no password)" missing_password \
+    env -u APOLLIA_IMAP_PASSWORD "$BIN" connector imap add ana@gmail.com --json
+imap_case "connector imap test (unknown domain)" unknown_provider \
+    env APOLLIA_IMAP_PASSWORD=e2e "$BIN" connector imap test ana@example.invalid --json
+imap_case "connector imap test (closed port)" unreachable \
+    env APOLLIA_IMAP_PASSWORD=e2e "$BIN" connector imap test ana@example.invalid --host 127.0.0.1 --port 9 --json
 # Revoking an absent account exits 0: the storage contract is idempotent
 # ("Returns Ok(()) even if the token was already gone",
 # crates/apollia-auth/src/multi_account.rs, delete). The same contract is
