@@ -4,12 +4,15 @@
 //! identifier, with one cancellation token and one progress stream: the
 //! listener sees the bytes of the whole variant against its total size, one
 //! `Completed` when the last file is checked, and one `Failed` or `Cancelled`
-//! otherwise. Each file is checked on the way, against its SHA-256 when the
-//! repository publishes one and against its declared size otherwise.
+//! otherwise. Each file is checked on the way: against its SHA-256 when the
+//! repository stores it through LFS, and against its declared size and its git
+//! blob identifier when it is a small file committed outside LFS.
 
 use std::path::PathBuf;
 use std::sync::{Arc, PoisonError};
 
+use sha1::{Digest, Sha1};
+use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -152,7 +155,22 @@ async fn fetch_all(
                 actual: outcome.bytes,
             });
         }
-        all_sha_verified &= outcome.integrity_verified;
+        let git_oid_verified = match file.git_oid.as_deref() {
+            Some(expected) if file.sha256.is_none() => {
+                let actual = git_blob_oid(&outcome.dest_path).await?;
+                if actual != expected {
+                    remove_quietly(id, &outcome.dest_path).await;
+                    return Err(DownloadError::GitOidMismatch {
+                        file: file.dest_name.clone(),
+                        expected: expected.to_owned(),
+                        actual,
+                    });
+                }
+                true
+            }
+            _ => false,
+        };
+        all_sha_verified &= outcome.integrity_verified || git_oid_verified;
         if i == 0 && plan.format == ModelFormat::Gguf {
             model_sha256 = Some(outcome.sha256.clone());
         }
@@ -207,6 +225,24 @@ fn aggregate(
     })
 }
 
+/// The git blob identifier of the file at `path`: the SHA-1 of
+/// `blob <size>\0` followed by the content, as git and HuggingFace compute it.
+async fn git_blob_oid(path: &std::path::Path) -> Result<String, DownloadError> {
+    let mut file = tokio::fs::File::open(path).await?;
+    let size = file.metadata().await?.len();
+    let mut hasher = Sha1::new();
+    hasher.update(format!("blob {size}\0").as_bytes());
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf).await?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
 async fn remove_quietly(id: &DownloadId, path: &std::path::Path) {
     if let Err(e) = tokio::fs::remove_file(path).await {
         tracing::event!(
@@ -214,7 +250,7 @@ async fn remove_quietly(id: &DownloadId, path: &std::path::Path) {
             id = %id,
             path = %path.display(),
             error = %e,
-            "llm.download.size_mismatch.remove_failed"
+            "llm.download.variant_file.remove_failed"
         );
     }
 }

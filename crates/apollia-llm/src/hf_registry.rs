@@ -185,6 +185,11 @@ pub(crate) struct TreeEntry {
     size: u64,
     #[serde(rename = "type")]
     entry_type: String,
+    /// Git object identifier: for a file committed outside LFS, the SHA-1 of
+    /// the blob (`blob <size>\0` then the content); for an LFS file, the
+    /// identifier of its pointer, never of its content.
+    #[serde(default)]
+    oid: Option<String>,
     /// Present only for a file stored through LFS.
     #[serde(default)]
     lfs: Option<TreeLfs>,

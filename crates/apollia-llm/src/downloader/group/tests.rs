@@ -20,8 +20,18 @@ fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
+/// The git blob identifier of `bytes`, computed here independently of the
+/// code under test.
+fn git_oid_hex(bytes: &[u8]) -> String {
+    let mut hasher = sha1::Sha1::new();
+    hasher.update(format!("blob {}\0", bytes.len()).as_bytes());
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
 /// One file of the fake repository: its path in the repository, where it
-/// lands, its content, and whether the repository publishes its SHA-256.
+/// lands, its content, and whether the repository stores it through LFS (a
+/// SHA-256) or outside it (a git blob identifier).
 struct Fake {
     repo_path: &'static str,
     dest: &'static str,
@@ -49,6 +59,7 @@ async fn serve_plan(
             url: format!("{}{at}", server.uri()),
             size_bytes: f.body.len() as u64,
             sha256: f.lfs.then(|| sha256_hex(f.body)),
+            git_oid: (!f.lfs).then(|| git_oid_hex(f.body)),
         });
     }
     let total_bytes = planned.iter().map(|f| f.size_bytes).sum();
@@ -224,7 +235,7 @@ async fn test_gguf_variant_with_projector_is_one_indexed_model_with_its_annex() 
 
 #[tokio::test]
 async fn test_mlx_variant_is_one_download_and_one_indexed_folder() {
-    // GIVEN a fake MLX repository, its small files published without a digest
+    // GIVEN a fake MLX repository, its small files published with a git blob identifier only
     let files = [
         Fake {
             repo_path: "model.safetensors",
@@ -252,11 +263,11 @@ async fn test_mlx_variant_is_one_download_and_one_indexed_folder() {
     // WHEN the variant is downloaded
     let (result, events) = run(plan, dir.path()).await;
 
-    // THEN one aggregated download completes under the folder
+    // THEN one aggregated download completes under the folder, every file checked by a digest
     let done = result.expect("variant download");
     assert!(
-        !done.integrity_verified,
-        "two files were checked by size only"
+        done.integrity_verified,
+        "the small files are checked by their git blob identifier"
     );
     let model = dir.path().join("Small-4bit");
     assert_one_aggregated_stream(&events, &model, total);
@@ -307,7 +318,7 @@ async fn test_variant_file_with_a_wrong_digest_fails_the_whole_variant_once() {
 
 #[tokio::test]
 async fn test_variant_file_without_digest_and_wrong_size_is_refused() {
-    // GIVEN an MLX file published without a digest whose size differs from the declared one
+    // GIVEN an MLX file committed outside LFS whose size differs from the declared one
     let files = [
         Fake {
             repo_path: "model.safetensors",
@@ -339,4 +350,65 @@ async fn test_variant_file_without_digest_and_wrong_size_is_refused() {
         })
     ));
     assert!(!dir.path().join("S/config.json").exists());
+}
+
+#[tokio::test]
+async fn test_variant_file_outside_lfs_with_a_wrong_git_oid_is_refused() {
+    // GIVEN an MLX file committed outside LFS, of the declared size, whose content
+    // does not match the git blob identifier its repository publishes
+    let files = [
+        Fake {
+            repo_path: "model.safetensors",
+            dest: "S/model.safetensors",
+            body: b"weights",
+            lfs: true,
+        },
+        Fake {
+            repo_path: "config.json",
+            dest: "S/config.json",
+            body: b"{}",
+            lfs: false,
+        },
+    ];
+    let (_server, mut plan) = serve_plan(ModelFormat::Mlx, "S", &files).await;
+    let published = git_oid_hex(b"[]");
+    plan.files[1].git_oid = Some(published.clone());
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    // WHEN the variant is downloaded
+    let (result, events) = run(plan, dir.path()).await;
+
+    // THEN the git blob check refuses it, removes the file, and the variant fails once
+    match result {
+        Err(DownloadError::GitOidMismatch {
+            expected, actual, ..
+        }) => {
+            assert_eq!(expected, published);
+            assert_eq!(actual, git_oid_hex(b"{}"));
+        }
+        other => panic!("expected a git blob mismatch, got {other:?}"),
+    }
+    assert!(!dir.path().join("S/config.json").exists());
+    let failed = events
+        .iter()
+        .filter(|e| e.status == DownloadStatus::Failed)
+        .count();
+    assert_eq!(failed, 1);
+    assert!(events.iter().all(|e| e.status != DownloadStatus::Completed));
+}
+
+#[test]
+fn test_git_oid_matches_the_identifier_git_publishes() {
+    // GIVEN the content "hello\n", whose blob git names ce013625030ba8dba906f756967f9e9ca394464a
+    let path = tempfile::NamedTempFile::new().expect("tempfile");
+    std::fs::write(path.path(), b"hello\n").expect("write");
+
+    // WHEN its git blob identifier is computed
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .expect("runtime");
+    let oid = rt.block_on(git_blob_oid(path.path())).expect("oid");
+
+    // THEN it is the identifier `git hash-object` prints
+    assert_eq!(oid, "ce013625030ba8dba906f756967f9e9ca394464a");
 }

@@ -53,8 +53,13 @@ pub struct VariantFile {
     /// Size the repository tree declares, in bytes.
     pub size_bytes: u64,
     /// SHA-256 the repository publishes for the content (LFS files). `None`
-    /// for a small file committed outside LFS, which is checked by its size.
+    /// for a small file committed outside LFS, checked by `git_oid` instead.
     pub sha256: Option<String>,
+    /// Git blob identifier (SHA-1 of `blob <size>\0` then the content) of a
+    /// file committed outside LFS, the only digest the repository publishes
+    /// for it. `None` for an LFS file.
+    #[serde(default)]
+    pub git_oid: Option<String>,
 }
 
 /// Everything to fetch for one variant.
@@ -118,6 +123,15 @@ pub enum VariantError {
         /// Path of the file inside the repository.
         path: String,
     },
+    /// A file publishes neither a SHA-256 nor a git blob identifier, so its
+    /// download cannot be checked.
+    #[error("no published digest for '{path}' in repository '{repo_id}'")]
+    NoPublishedDigest {
+        /// Repository (`org/name`).
+        repo_id: String,
+        /// Path of the file inside the repository.
+        path: String,
+    },
 }
 
 /// Plan the download of one variant of `repo_id` from its tree.
@@ -127,7 +141,7 @@ pub enum VariantError {
 ///
 /// # Errors
 /// A [`VariantError`] when the selector does not name a complete variant, or
-/// when a weights file publishes no SHA-256.
+/// when a weights file publishes no SHA-256 or another file no digest at all.
 pub(crate) fn plan_variant(
     base_url: &str,
     repo_id: &str,
@@ -329,13 +343,33 @@ fn planned_file(
             path: entry.path.clone(),
         });
     }
+    let git_oid = if sha256.is_none() {
+        let oid = entry.oid.as_deref().and_then(normalize_git_oid);
+        if oid.is_none() {
+            return Err(VariantError::NoPublishedDigest {
+                repo_id: repo_id.to_owned(),
+                path: entry.path.clone(),
+            });
+        }
+        oid
+    } else {
+        None
+    };
     Ok(VariantFile {
         repo_path: entry.path.clone(),
         dest_name,
         url: format!("{base_url}/{repo_id}/resolve/main/{}", entry.path),
         size_bytes: entry.size,
         sha256,
+        git_oid,
     })
+}
+
+/// A git SHA-1 object identifier, lowercased, or `None` when `raw` is not 40
+/// hexadecimal characters.
+fn normalize_git_oid(raw: &str) -> Option<String> {
+    let lower = raw.trim().to_ascii_lowercase();
+    (lower.len() == 40 && lower.bytes().all(|b| b.is_ascii_hexdigit())).then_some(lower)
 }
 
 fn finish(

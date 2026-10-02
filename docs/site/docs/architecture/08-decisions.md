@@ -219,6 +219,21 @@ to Apollia. When `system.db` is migrated, backends that pointed at the OpenAI,
 Anthropic or Mistral APIs are deleted, and backends that point at a self-hosted
 server are kept unchanged.
 
+### Checking a downloaded model {#model-download-integrity}
+
+Every file of a model downloaded from HuggingFace is checked against the
+identifier the repository publishes for it before the model is recorded. A
+file stored through LFS (weights, projector, large tokenizer) is checked
+against the SHA-256 of its content. A small file committed outside LFS
+(`config.json`, `tokenizer_config.json` and the like in an MLX repository) has
+no published SHA-256: HuggingFace publishes only its git blob identifier, the
+SHA-1 of `blob <size>\0` followed by the content. Such a file is checked
+against that identifier, which is why `sha1` is a direct dependency of
+`apollia-llm`. It comes from the same RustCrypto family as `sha2`, adds no
+transitive crate, and serves to compare a file with what its repository
+declares, not to resist a forger: the TLS connection to the repository carries
+that guarantee, and a file that matches neither identifier is deleted.
+
 ## Speech to text {#speech-to-text}
 
 Transcription runs out of process, in a sidecar built on whisper, so a model

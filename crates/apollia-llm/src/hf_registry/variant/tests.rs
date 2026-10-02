@@ -15,7 +15,7 @@ fn lfs(path: &str, size: u64, c: char) -> serde_json::Value {
 }
 
 fn plain(path: &str, size: u64) -> serde_json::Value {
-    json!({ "type": "file", "path": path, "size": size, "oid": "0123456789abcdef" })
+    json!({ "type": "file", "path": path, "size": size, "oid": "0123456789abcdef0123456789abcdef01234567" })
 }
 
 fn tree(entries: Vec<serde_json::Value>) -> Vec<TreeEntry> {
@@ -184,15 +184,20 @@ fn test_plan_mlx_takes_every_file_of_the_repository_in_one_folder() {
     assert_eq!(plan.format, ModelFormat::Mlx);
     assert_eq!(plan.model_path, "Small-4bit");
     assert_eq!(plan.total_bytes, 124);
-    // AND the weights carry their SHA-256, the small files only their size
+    // AND the weights carry their SHA-256, the small files their git blob identifier
     let config = plan
         .files
         .iter()
         .find(|f| f.repo_path == "config.json")
         .expect("config");
     assert_eq!(config.sha256, None);
+    assert_eq!(
+        config.git_oid.as_deref(),
+        Some("0123456789abcdef0123456789abcdef01234567")
+    );
     assert_eq!(config.size_bytes, 2);
     assert!(plan.files[0].sha256.is_some());
+    assert_eq!(plan.files[0].git_oid, None);
 }
 
 #[test]
@@ -205,4 +210,22 @@ fn test_plan_mlx_refuses_a_repository_without_weights() {
 
     // THEN it is refused
     assert!(matches!(result, Err(VariantError::NotMlx { .. })));
+}
+
+#[test]
+fn test_plan_mlx_file_without_any_published_digest_is_refused() {
+    // GIVEN an MLX repository whose small file carries neither LFS nor a git identifier
+    let t = tree(vec![
+        json!({ "type": "file", "path": "config.json", "size": 2 }),
+        lfs("model.safetensors", 50, 'b'),
+    ]);
+
+    // WHEN the repository is planned as an MLX variant
+    let result = plan_variant(BASE, "org/repo", &t, &VariantSelector::Mlx);
+
+    // THEN it is refused, since that file could not be checked
+    assert!(matches!(
+        result,
+        Err(VariantError::NoPublishedDigest { .. })
+    ));
 }

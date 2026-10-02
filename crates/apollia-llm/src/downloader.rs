@@ -79,6 +79,20 @@ pub enum DownloadError {
         /// Size received.
         actual: u64,
     },
+    /// A file committed outside LFS does not match the git blob identifier
+    /// its repository publishes. The file has been deleted.
+    #[error(
+        "integrity check failed for '{file}': expected git blob {expected}, got {actual}; \
+         the file was deleted"
+    )]
+    GitOidMismatch {
+        /// Destination filename.
+        file: String,
+        /// Published git blob identifier.
+        expected: String,
+        /// Git blob identifier of the bytes received.
+        actual: String,
+    },
 }
 
 /// Unique identifier of a download.
