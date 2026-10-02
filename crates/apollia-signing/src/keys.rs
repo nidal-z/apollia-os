@@ -96,6 +96,12 @@ impl PublicKey {
         self.inner.to_bytes()
     }
 
+    /// Returns the 32 raw key bytes as 64 lowercase hexadecimal characters,
+    /// the form of an `org.pub` file.
+    pub fn to_hex(&self) -> String {
+        hex::encode(self.inner.to_bytes())
+    }
+
     /// Returns the stable fingerprint of the key.
     ///
     /// The fingerprint is the SHA-256 digest of the 32 raw key bytes, written

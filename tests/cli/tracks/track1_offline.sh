@@ -313,6 +313,33 @@ printf "@workflow(name='report', steps=['a'])\nasync def report(ctx, inputs):\n 
 check_exit "package build (undescribed module) → 1" 1 "$BIN" package build "$PKG" -o "$SCRATCH/e2e-bad.apo"
 check_exit "package inspect (not an archive) → 1"   1 "$BIN" package inspect "$PKG/apollia.toml"
 
+# ── A.13b organisation policy (files only) ──────────────────────────────────
+# The key pair and the policy folder are prepared under the scratch folder;
+# nothing is written to the system policy folder. `policy show` reads the
+# system folder, absent on a test machine, so it answers "none".
+section "A.13b organisation policy"
+POLKEYS="$SCRATCH/policy-keys"; POL="$SCRATCH/policy"
+check_content "policy keygen prints the fingerprint" '^[0-9a-f]{64}$' "$BIN" policy keygen --out "$POLKEYS" -q
+check_content "policy keygen: org.key is 0600" '^0o600$' "${E2E_PYTHON:-python3}" -c 'import os,sys;print(oct(os.stat(sys.argv[1]).st_mode & 0o777))' "$POLKEYS/org.key"
+check_exit "policy keygen (key already there) → 1" 1 "$BIN" policy keygen --out "$POLKEYS"
+check_content "policy init writes policy.toml" 'policy\.toml$' "$BIN" policy init "$POL" -q
+check_json_field "policy sign: publisher" "d['publisher']" "E2E IT" "$BIN" policy sign --key "$POLKEYS/org.key" --publisher "E2E IT" "$POL" --json
+check_json_field "policy verify: valid" "d['verdict']" "valid" "$BIN" policy verify "$POL" --json
+check_content "policy verify (human)" '^valid$' "$BIN" policy verify "$POL"
+# One byte of the signed policy is altered: the signature no longer holds.
+"${E2E_PYTHON:-python3}" - "$POL/policy.toml" <<'PY'
+import sys
+path = sys.argv[1]
+data = bytearray(open(path, "rb").read())
+data[0] ^= 0x01
+open(path, "wb").write(bytes(data))
+PY
+check_exit "policy verify (one byte altered) → 1" 1 "$BIN" policy verify "$POL"
+check_content "policy verify --json (one byte altered): reason" '"reason": "signature"' bash -c "'$BIN' policy verify '$POL' --json; true"
+check_exit "policy verify (missing folder) → 1" 1 "$BIN" policy verify "$SCRATCH/no-such-policy"
+check_content "policy show: none" '^none$' "$BIN" policy show
+check_json_field "policy show --json: none" "d['state']" "none" "$BIN" policy show --json
+
 # ── A.13 exit-code contract (runtime-bound commands, daemon OFF → 2) ─────────
 section "A.13 exit-code contract (daemon off)"
 OFFSOCK="$RUN_TMP/off.sock"

@@ -13,7 +13,7 @@ releases.
 ## 1. Command shape
 
 Every command is `apollia-os <noun> <verb> [args]`, except the bare-verb
-whitelist below. The tree carries 202 leaves today; read it with
+whitelist below. The tree carries 207 leaves today; read it with
 `apollia-os --help` recursively, never from memory.
 
 **Verb taxonomy.** Every leaf's last token belongs to one of the categories
@@ -30,7 +30,7 @@ the same commit as the command.
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
 | report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `hardware`, `recommend`, `schema`, `anchor`, `inspect`, `trace`, `version`, `digest` |
-| action | `run`, `build`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
+| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
 **One verb per intent.** `show` is the only entity-detail read (it absorbed
@@ -60,6 +60,11 @@ say so.
 `profile`; `hitl` removed (use `task list --pending-approval`).
 
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
+
+**`policy`** prepares the organisation policy on files alone (`keygen`,
+`init`, `sign`, `verify`, `show`) and never reaches the runtime: the policy is
+read by the runtime at startup, not served by it. No leaf writes into the
+system policy folder; IT deploys the prepared folder with its own tools.
 
 ---
 

@@ -37,6 +37,7 @@ use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
 use commands::package::PackageCommand;
 use commands::permissions::PermissionsCommand;
+use commands::policy::PolicyCommand;
 use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
 use commands::stt::SttCommand;
@@ -316,6 +317,13 @@ enum Commands {
         /// Package subcommand.
         #[command(subcommand)]
         command: PackageCommand,
+    },
+
+    /// Organisation policy: create the key, write, sign, verify, show.
+    Policy {
+        /// Policy subcommand.
+        #[command(subcommand)]
+        command: PolicyCommand,
     },
 
     /// Workspace inspection and initialization (status, init).
@@ -727,6 +735,7 @@ fn main() {
             Commands::Update(args) => commands::update::run(&args, "Apollia-OS", json).await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
             Commands::Package { command } => commands::package::run(&command, json),
+            Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
             Commands::Resilience { command } => {
                 commands::resilience::run(&command, cli.socket, json).await

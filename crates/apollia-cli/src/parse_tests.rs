@@ -22,6 +22,7 @@ use crate::commands::mcp::McpCommand;
 use crate::commands::memory::{MemoryCommand, MemoryType};
 use crate::commands::package::PackageCommand as ApoPackageCommand;
 use crate::commands::permissions::PermissionsCommand;
+use crate::commands::policy::PolicyCommand;
 use crate::commands::project::{ProjectAgentsCommand, ProjectCommand, ProjectTemplatesCommand};
 use crate::commands::task::TaskCommand;
 use crate::commands::tools::{
@@ -1373,4 +1374,104 @@ fn test_cli_parses_package_inspect() {
         panic!("expected package inspect");
     };
     assert_eq!(file, std::path::PathBuf::from("lone.apo"));
+}
+
+// ─── policy ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cli_parses_policy_keygen() {
+    // GIVEN "apollia-os policy keygen --out ./keys"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "policy", "keygen", "--out", "./keys"]);
+    // THEN the output folder is carried
+    let Commands::Policy {
+        command: PolicyCommand::Keygen { out },
+    } = cli.command
+    else {
+        panic!("expected policy keygen");
+    };
+    assert_eq!(out, std::path::PathBuf::from("./keys"));
+}
+
+#[test]
+fn test_cli_parses_policy_init() {
+    // GIVEN "apollia-os policy init ./policy"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "policy", "init", "./policy"]);
+    // THEN the folder is carried
+    let Commands::Policy {
+        command: PolicyCommand::Init { dir },
+    } = cli.command
+    else {
+        panic!("expected policy init");
+    };
+    assert_eq!(dir, std::path::PathBuf::from("./policy"));
+}
+
+#[test]
+fn test_cli_parses_policy_sign() {
+    // GIVEN "apollia-os policy sign --key ./keys/org.key ./policy"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "policy",
+        "sign",
+        "--key",
+        "./keys/org.key",
+        "./policy",
+    ]);
+    // THEN the key, the folder and the default publisher are carried
+    let Commands::Policy {
+        command:
+            PolicyCommand::Sign {
+                key,
+                publisher,
+                dir,
+            },
+    } = cli.command
+    else {
+        panic!("expected policy sign");
+    };
+    assert_eq!(key, std::path::PathBuf::from("./keys/org.key"));
+    assert_eq!(dir, std::path::PathBuf::from("./policy"));
+    assert_eq!(publisher, crate::commands::policy::DEFAULT_PUBLISHER);
+}
+
+#[test]
+fn test_cli_parses_policy_verify() {
+    // GIVEN "apollia-os policy verify ./policy --json"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "policy", "verify", "./policy", "--json"]);
+    // THEN the folder is carried and --json is global
+    assert!(cli.json);
+    let Commands::Policy {
+        command: PolicyCommand::Verify { dir },
+    } = cli.command
+    else {
+        panic!("expected policy verify");
+    };
+    assert_eq!(dir, std::path::PathBuf::from("./policy"));
+}
+
+#[test]
+fn test_cli_parses_policy_show() {
+    // GIVEN "apollia-os policy show"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "policy", "show"]);
+    // THEN the show leaf is selected
+    assert!(matches!(
+        cli.command,
+        Commands::Policy {
+            command: PolicyCommand::Show
+        }
+    ));
+}
+
+#[test]
+fn test_cli_policy_sign_requires_a_key() {
+    // GIVEN "apollia-os policy sign ./policy" without --key
+    // WHEN the top-level parser reads it
+    let result = Cli::try_parse_from(["apollia-os", "policy", "sign", "./policy"]);
+    // THEN it is a usage error
+    assert!(result.is_err());
 }

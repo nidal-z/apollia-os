@@ -186,6 +186,12 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os package`↴](#apollia-os-package)
 * [`apollia-os package build`↴](#apollia-os-package-build)
 * [`apollia-os package inspect`↴](#apollia-os-package-inspect)
+* [`apollia-os policy`↴](#apollia-os-policy)
+* [`apollia-os policy keygen`↴](#apollia-os-policy-keygen)
+* [`apollia-os policy init`↴](#apollia-os-policy-init)
+* [`apollia-os policy sign`↴](#apollia-os-policy-sign)
+* [`apollia-os policy verify`↴](#apollia-os-policy-verify)
+* [`apollia-os policy show`↴](#apollia-os-policy-show)
 * [`apollia-os workspace`↴](#apollia-os-workspace)
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
@@ -291,6 +297,7 @@ Apollia OS CLI binary (apollia-os)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
 * `package` - Agent package archives: build a `.apo` from a folder, inspect one
+* `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
@@ -3042,6 +3049,93 @@ The signature state is `unsigned`, or `signed` with the declared publisher and t
 ###### **Arguments:**
 
 * `<FILE>` - The `.apo` archive
+
+
+
+## `apollia-os policy`
+
+Organisation policy: create the key, write, sign, verify, show
+
+**Usage:** `apollia-os policy <COMMAND>`
+
+###### **Subcommands:**
+
+* `keygen` - Create the organisation key pair in a folder
+* `init` - Write a commented `policy.toml` that imposes nothing, dated now
+* `sign` - Sign the `policy.toml` of a folder with the organisation private key
+* `verify` - Check a policy folder: schema, signature, and rights in the system folder
+* `show` - Show the policy the runtime reads at startup, or none
+
+
+
+## `apollia-os policy keygen`
+
+Create the organisation key pair in a folder.
+
+Writes `org.key`, the private key, readable by its owner only from the moment it is created, and `org.pub`, the public key; prints the fingerprint of the public key. Existing files are never replaced. Keep `org.key` off the workstations.
+
+**Usage:** `apollia-os policy keygen --out <DIR>`
+
+###### **Options:**
+
+* `--out <DIR>` - Folder that receives `org.key` and `org.pub`, created when missing
+
+
+
+## `apollia-os policy init`
+
+Write a commented `policy.toml` that imposes nothing, dated now.
+
+The folder is created when missing; an existing `policy.toml` is never replaced.
+
+**Usage:** `apollia-os policy init <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Policy folder
+
+
+
+## `apollia-os policy sign`
+
+Sign the `policy.toml` of a folder with the organisation private key.
+
+Writes `SIGNATURE` and `org.pub` next to it, replacing earlier ones. A policy that breaks the schema is not signed.
+
+**Usage:** `apollia-os policy sign [OPTIONS] --key <FILE> <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Policy folder
+
+###### **Options:**
+
+* `--key <FILE>` - The organisation private key, as written by `policy keygen`
+* `--publisher <NAME>` - Publisher name declared in the signature
+
+  Default value: `Organisation`
+
+
+
+## `apollia-os policy verify`
+
+Check a policy folder: schema, signature, and rights in the system folder.
+
+The rights are checked when the folder is the one the runtime reads. A folder that does not hold is refused with exit 1; `--json` carries the verdict, the reason (`schema`, `signature`, `key`, `owner`, or `missing` when the folder does not exist) and its detail.
+
+**Usage:** `apollia-os policy verify <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Policy folder
+
+
+
+## `apollia-os policy show`
+
+Show the policy the runtime reads at startup, or none
+
+**Usage:** `apollia-os policy show`
 
 
 
