@@ -151,7 +151,6 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-desktop/src/commands/user_memory.rs": 1,
     "crates/apollia-desktop/src/main.rs": 6,
     "crates/apollia-desktop/src/stt/flow.rs": 3,
-    "crates/apollia-llm/src/backends/vertex.rs": 1,
     "crates/apollia-llm/src/downloader.rs": 1,
     "crates/apollia-llm/src/meta_orchestrator.rs": 1,
     "crates/apollia-llm/src/repository.rs": 1,
@@ -279,6 +278,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # test holds the second site, and it is the one that proves the first can
     # fail. Windows only.
     "crates/apollia-desktop/src/process_job.rs": 2,
+    # The port is the subject: the startup decision is the claim of a port,
+    # so its tests hold one (`serve_once`) and prove a claimed port cannot be
+    # bound twice. Both binds are on port 0, never a reservation released.
+    "crates/apollia-desktop/src/startup/tests.rs": 2,
     # One helper, the transport is the subject: these tests prove that a
     # virtualenv gets built, that pip refuses an altered digest, and that the
     # rewritten command starts. The helper builds the local wheel the
@@ -298,10 +301,19 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-oria/src/budget.rs": 5,
     "crates/apollia-oria/src/engine.rs": 10,
     "crates/apollia-oria/src/resilience.rs": 3,
-    "crates/apollia-runtime/src/api/server.rs": 12,
+    # One helper, the transport is the subject: the routes call a declared
+    # inference server over HTTP, and the tests read what that server received
+    # (the `Authorization` header, the `model` of a completion). The fake
+    # server holds a port-0 bind for the whole test, never a port released.
+    "crates/apollia-runtime/src/api/routes_llm/servers.rs": 1,
+    "crates/apollia-runtime/src/api/server.rs": 13,
     "crates/apollia-runtime/src/api/unreached_by_cli.rs": 1,
     "crates/apollia-runtime/src/chat/builtin_agent/tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
+    # The process is the subject: unloading a resident model has to stop its
+    # child, and `kill -0` on the pid is the one observable left once the
+    # supervisor has taken and reaped the handle. One helper, two tests.
+    "crates/apollia-runtime/src/llama_server/loaded.rs": 1,
     "crates/apollia-runtime/src/llama_server/mod.rs": 1,
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,

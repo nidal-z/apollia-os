@@ -1,5 +1,6 @@
 // ─── MCP integrations and registry ───
 
+import type { ActionFamily, FamilySource } from "$lib/tools/action-family";
 import type { ErrorCategory } from "./reasoning";
 
 export interface McpServerStatusView {
@@ -224,4 +225,52 @@ export interface McpServerConfigInput {
   transport: string;
   requires_approval: boolean;
   tags: string[];
+  /** Where the connection was found. The desktop records the selection itself. */
+  origin?: ConnectionOrigin;
+}
+
+// ── Connections ─────────────────────────────────────────────────────────────
+
+/** Where a connection was found before it was added. */
+export type ConnectionProvenance = "selection" | "registry" | "custom" | "package";
+
+/** Origin sent with an MCP server configuration when it is added. */
+export interface ConnectionOrigin {
+  provenance: ConnectionProvenance;
+  /** Recorded for a registry entry; the desktop decides it for the selection. */
+  official?: boolean;
+}
+
+/** Kind of thing a connection plugs in. */
+export type ConnectionKind = "native" | "mcp" | "folder";
+
+/** Whether a connection can be used right now. */
+export type ConnectionState =
+  | "connected"
+  | "degraded"
+  | "needs_reauth"
+  | "unavailable"
+  | "stopped";
+
+/** One tool a connection brings. */
+export interface ConnectionTool {
+  id: string;
+  family: ActionFamily;
+  familySource: FamilySource;
+  /** Offered checked when the connection is granted to an agent. */
+  prechecked: boolean;
+}
+
+/** One connection, whatever its kind (`list_connections`). */
+export interface Connection {
+  id: string;
+  kind: ConnectionKind;
+  label: string;
+  account: string | null;
+  provenance: ConnectionProvenance;
+  /** Sends data off this machine; computed by the runtime. */
+  remote: boolean;
+  official: boolean;
+  state: ConnectionState;
+  tools: ConnectionTool[];
 }

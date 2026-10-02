@@ -87,6 +87,7 @@ async fn test_runtime_starts_without_llm_router() {
         agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
+        connection_governance: Default::default(),
         backend: NeverMockBackend,
         llm_router: empty_shared_llm_router(), // no LLM configured
         trigger_engine: None,
@@ -117,6 +118,7 @@ async fn test_runtime_starts_without_llm_router() {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        secret_store: apollia_runtime::inference_servers::default_store_opener(),
     };
 
     // WHEN the APIServer starts
@@ -124,6 +126,7 @@ async fn test_runtime_starts_without_llm_router() {
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: Some(port),
+            tcp_listener: None,
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
             tls_cert_path: None,
@@ -215,7 +218,6 @@ async fn test_runtime_continues_after_llm_init_failure() {
         routing: None,
         pricing_overrides: HashMap::new(),
         cost_alert_threshold_usd: None,
-        vertex: None,
         runner: apollia_core::config::LlmRunnerConfig::default(),
     };
 
@@ -245,6 +247,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
+        connection_governance: Default::default(),
         backend: NeverMockBackend,
         llm_router: empty_shared_llm_router(),
         trigger_engine: None,
@@ -275,12 +278,14 @@ async fn test_runtime_continues_after_llm_init_failure() {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        secret_store: apollia_runtime::inference_servers::default_store_opener(),
     };
 
     let api = APIServer::new(
         APIServerConfig {
             socket_path: socket_path.clone(),
             tcp_port: Some(port),
+            tcp_listener: None,
             bind_addr: "127.0.0.1".to_string(),
             api_token: None,
             tls_cert_path: None,

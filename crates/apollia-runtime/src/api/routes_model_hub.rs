@@ -30,11 +30,18 @@ pub struct HardwareResponse {
     #[schema(value_type = Object)]
     pub accelerator: AcceleratorProfile,
     pub memory_budget_gb: f64,
+    /// What a model can occupy on this machine, in GB rounded to the tenth:
+    /// the card plus the usable share of system memory on a discrete
+    /// accelerator, the memory budget otherwise. A model under it is one the
+    /// estimator does not call too large.
+    pub total_capacity_gb: f64,
 }
 
 impl From<HardwareProfile> for HardwareResponse {
     fn from(p: HardwareProfile) -> Self {
+        let total_capacity_gb = apollia_llm::recommend::estimated_capacity_gb(&p);
         Self {
+            total_capacity_gb,
             total_ram_gb: p.total_ram_gb,
             available_ram_gb: p.available_ram_gb,
             cpu_model: p.cpu_model,
@@ -310,4 +317,39 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route("/api/v1/llm/recommend", get(recommend_models::<B>));
 
     router
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_hardware_body_carries_the_capacity_the_estimator_grades_against() {
+        // GIVEN a machine with a 12 GB dedicated card and 64 GB of system memory
+        let profile = HardwareProfile {
+            total_ram_gb: 64.0,
+            available_ram_gb: 40.0,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 16,
+            accelerator: AcceleratorProfile::Cuda {
+                device_name: "test".to_owned(),
+                vram_gb: 12.0,
+                compute_capability: (8, 9),
+            },
+            memory_budget_gb: 12.0,
+        };
+        let expected =
+            apollia_llm::recommend::MemoryArchitecture::of(&profile).total_capacity_gb(&profile);
+
+        // WHEN the route's body is built and serialized as the route sends it
+        let body =
+            serde_json::to_value(HardwareResponse::from(profile)).expect("the body serializes");
+
+        // THEN the capacity is the card plus the usable share of system memory
+        // (12 + 64 x 0.6 = 50.4), the figure `total_capacity_gb` computes,
+        // rounded to the tenth
+        assert_eq!(body["total_capacity_gb"], serde_json::json!(50.4));
+        assert!((expected - 50.4).abs() < 0.05);
+        assert_eq!(body["memory_budget_gb"], serde_json::json!(12.0));
+    }
 }

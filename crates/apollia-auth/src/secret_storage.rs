@@ -248,6 +248,40 @@ fn sanitise(s: &str) -> String {
     out
 }
 
+// ─── In-memory backend (tests only) ──────────────────────────────────────────
+
+/// Test-only [`SecretStore`] holding its entries in memory, so a unit test
+/// exercises the store contract without touching the operator's keychain.
+#[cfg(test)]
+#[derive(Default)]
+pub(crate) struct MemorySecretStore {
+    entries: std::sync::Mutex<std::collections::HashMap<(String, String), String>>,
+}
+
+#[cfg(test)]
+impl SecretStore for MemorySecretStore {
+    fn set(&self, service: &str, user: &str, value: &str) -> Result<(), AuthError> {
+        let mut entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
+        entries.insert((service.to_owned(), user.to_owned()), value.to_owned());
+        Ok(())
+    }
+
+    fn get(&self, service: &str, user: &str) -> Result<Option<String>, AuthError> {
+        let entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
+        Ok(entries.get(&(service.to_owned(), user.to_owned())).cloned())
+    }
+
+    fn delete(&self, service: &str, user: &str) -> Result<(), AuthError> {
+        let mut entries = self.entries.lock().unwrap_or_else(|e| e.into_inner());
+        entries.remove(&(service.to_owned(), user.to_owned()));
+        Ok(())
+    }
+
+    fn backend_id(&self) -> &'static str {
+        "memory"
+    }
+}
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

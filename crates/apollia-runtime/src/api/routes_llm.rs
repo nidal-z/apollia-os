@@ -12,6 +12,9 @@
 //! - `PUT    /api/v1/llm/backends/:name`          , update backend
 //! - `DELETE /api/v1/llm/backends/:name`          , delete backend
 //! - `POST   /api/v1/llm/backends/:name/set-default`, mark as default
+//! - `GET    /api/v1/llm/loaded-models`           , list resident local models
+//! - `POST   /api/v1/llm/loaded-models/unload`    , unload one resident model
+//! - presets, the model of each agent and the default model: see [`presets`]
 
 use std::time::Instant;
 
@@ -29,6 +32,9 @@ use crate::coordinator::ExecutionBackend;
 
 pub mod backends;
 pub mod costs;
+pub mod loaded;
+pub mod presets;
+pub mod servers;
 
 use backends::{
     create_llm_backend, delete_llm_backend, get_llm_backend, list_llm_backends, reload_llm_router,
@@ -257,8 +263,11 @@ pub async fn ping_llm_backend<B: ExecutionBackend + Clone>(
         .unwrap_or_else(|| router.default_name())
         .to_owned();
 
+    // One token is enough to prove the backend answers; without a cap the
+    // diagnostic paid for a whole generation.
     let ping_req = CompletionRequest {
         messages: vec![ChatMessage::user("ping")],
+        max_tokens: Some(1),
         ..Default::default()
     };
     let obs = ObservabilityConfig::default();
@@ -516,6 +525,8 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
 /// - `PUT    /api/v1/llm/backends/:name`               , update backend
 /// - `DELETE /api/v1/llm/backends/:name`               , delete backend
 /// - `POST   /api/v1/llm/backends/:name/set-default`   , mark as default
+/// - `GET    /api/v1/llm/loaded-models`                , list resident local models
+/// - `POST   /api/v1/llm/loaded-models/unload`         , unload one resident model
 pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
         .route("/api/v1/llm/status", get(get_llm_status::<B>))
@@ -539,6 +550,9 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             post(set_default_llm_backend::<B>),
         )
         .route("/api/v1/llm/reload", post(reload_llm_router::<B>))
+        .merge(loaded::loaded_model_routes::<B>())
+        .merge(servers::server_routes::<B>())
+        .merge(presets::preset_routes::<B>())
 }
 
 // ─────────────────────────────────────────────
@@ -563,7 +577,7 @@ mod tests {
 
     /// Minimal `ExecutionBackend` for tests, never actually executed.
     #[derive(Clone)]
-    struct MockBackend;
+    pub(super) struct MockBackend;
 
     impl ExecutionBackend for MockBackend {
         fn execute(
@@ -584,7 +598,7 @@ mod tests {
     }
 
     /// Build a minimal `AppState` with `llm_router = None`.
-    fn test_app_state_no_llm() -> AppState<MockBackend> {
+    pub(super) fn test_app_state_no_llm() -> AppState<MockBackend> {
         let (event_tx, _event_rx) = EventBus::new();
         let registry_handle = AgentRegistry::spawn(event_tx.clone());
         let router_handle: TaskRouterHandle<MockBackend> =
@@ -606,6 +620,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -626,6 +641,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         }
     }
 
@@ -1016,12 +1032,19 @@ mod tests {
 
     // ── CRUD backend tests ────────────────────────────────────────────────
 
-    /// Build a test `AppState` with a real in-memory `LlmBackendRepository`.
+    /// Build a test `AppState` with a real in-memory `LlmBackendRepository`
+    /// and a file secret store inside `dir`, never the operator's keychain.
     fn test_app_state_with_repo(dir: &tempfile::TempDir) -> AppState<MockBackend> {
         let db_path = dir.path().join("system.db");
         let repo = LlmBackendRepository::open(&db_path).expect("open system.db");
         let mut state = test_app_state_no_llm();
         state.llm_backend_repo = Some(Arc::new(std::sync::Mutex::new(repo)));
+        let secrets = dir.path().join("secrets");
+        state.secret_store = Arc::new(move || {
+            apollia_auth::AgeFileSecretStore::new(secrets.clone(), "test-passphrase".into())
+                .map(|s| Box::new(s) as Box<dyn apollia_auth::SecretStore>)
+                .map_err(|e| e.to_string())
+        });
         state
     }
 
@@ -1077,14 +1100,15 @@ mod tests {
         assert_eq!(backends.len(), 2);
     }
 
-    // GIVEN a runtime without "test-backend"
-    // WHEN POST /api/v1/llm/backends with valid body
-    // THEN 201 + backend is in the list
+    // GIVEN a runtime without "test-backend", its secret store a throwaway file store
+    // WHEN POST /api/v1/llm/backends with valid body and a key in clear
+    // THEN 201, and the key sits in the store the state holds
     #[tokio::test]
     async fn test_create_persists_new_backend() {
         // GIVEN
         let dir = tempfile::tempdir().unwrap();
         let state = test_app_state_with_repo(&dir);
+        let state_store = Arc::clone(&state.secret_store);
         let app_router = llm_routes::<MockBackend>().with_state(state);
 
         // WHEN
@@ -1109,6 +1133,11 @@ mod tests {
         let json = body_json(resp).await;
         assert_eq!(json["name"], "test-backend");
         assert_eq!(json["provider"], "openai");
+        let stored = (state_store)()
+            .unwrap()
+            .get(crate::backend_keys::BACKEND_SECRET_SERVICE, "test-backend")
+            .unwrap();
+        assert_eq!(stored.as_deref(), Some("sk-test"));
     }
 
     // GIVEN backend "a" marked is_default=true

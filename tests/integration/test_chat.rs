@@ -246,6 +246,7 @@ fn build_chat_app_state(
         agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
+        connection_governance: Default::default(),
         backend: MockBackend,
         llm_router: apollia_runtime::api::server::shared_llm_router_from(Some(llm_router)),
         trigger_engine: None,
@@ -276,6 +277,7 @@ fn build_chat_app_state(
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        secret_store: apollia_runtime::inference_servers::default_store_opener(),
     };
 
     (state, event_rx)
@@ -298,6 +300,7 @@ async fn start_chat_server(
     let config = APIServerConfig {
         socket_path: socket_path.clone(),
         tcp_port: Some(port),
+        tcp_listener: None,
         bind_addr: "127.0.0.1".to_string(),
         api_token: None,
         tls_cert_path: None,

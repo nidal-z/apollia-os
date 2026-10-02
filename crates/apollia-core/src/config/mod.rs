@@ -38,6 +38,7 @@ mod mcp;
 mod oria;
 mod permissions;
 mod registry;
+mod retired;
 mod runtime;
 mod tools;
 mod triggers;
@@ -58,13 +59,12 @@ pub use filesystem::{FilesystemConfig, JournalConfig};
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
 pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
-pub use llm::{
-    CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig, VertexConfig,
-};
+pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig, LlmRunnerConfig};
 pub use mcp::{McpConfig, McpToolLoading};
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
 pub use registry::RegistryConfig;
+pub use retired::{retired_keys_in, warn_retired_keys, RetiredKey, RETIRED_KEYS};
 pub use runtime::RuntimeConfig;
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;

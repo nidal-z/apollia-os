@@ -64,6 +64,59 @@ fn native_tool_descriptors_all_pass_validation() {
     }
 }
 
+/// The action family of every native tool, copied from the product decision
+/// that fixes it. A divergence between this table and a descriptor is a tool
+/// whose family changed without the decision changing with it.
+const NATIVE_TOOL_FAMILIES: &[(&str, apollia_tools::ActionFamily)] = &[
+    ("file_read", apollia_tools::ActionFamily::Read),
+    ("file_list", apollia_tools::ActionFamily::Read),
+    ("file_glob", apollia_tools::ActionFamily::Read),
+    ("file_grep", apollia_tools::ActionFamily::Read),
+    ("notebook_read", apollia_tools::ActionFamily::Read),
+    ("web_search", apollia_tools::ActionFamily::Read),
+    ("web_read", apollia_tools::ActionFamily::Read),
+    ("mcp_resources_list", apollia_tools::ActionFamily::Read),
+    ("mcp_resources_read", apollia_tools::ActionFamily::Read),
+    ("memory_search", apollia_tools::ActionFamily::ReadPersonal),
+    ("file_write", apollia_tools::ActionFamily::WriteOrDelete),
+    ("file_edit", apollia_tools::ActionFamily::WriteOrDelete),
+    ("notebook_edit", apollia_tools::ActionFamily::WriteOrDelete),
+    ("http_fetch", apollia_tools::ActionFamily::SendExternal),
+    ("bash_executor", apollia_tools::ActionFamily::ExecuteCode),
+    ("python_executor", apollia_tools::ActionFamily::ExecuteCode),
+    ("ask_user", apollia_tools::ActionFamily::Exempt),
+];
+
+#[test]
+fn every_registered_native_tool_carries_the_decided_family() {
+    // GIVEN every native descriptor registered at boot, the MCP resource
+    // tools included
+    let mut descriptors = native_tool_descriptors();
+    descriptors.extend(apollia_mcp::mcp_resources::mcp_resource_descriptors());
+    assert!(!descriptors.is_empty());
+
+    for d in descriptors {
+        // WHEN its family is looked up in the decided table
+        let expected = NATIVE_TOOL_FAMILIES
+            .iter()
+            .find(|(name, _)| *name == d.name)
+            .map(|(_, family)| *family);
+
+        // THEN the tool is in the table, carries the decided family, and that
+        // family is fixed in Apollia's code
+        let Some(expected) = expected else {
+            panic!("native tool `{}` has no decided family", d.name);
+        };
+        assert_eq!(d.family, expected, "family of `{}`", d.name);
+        assert_eq!(
+            d.family_source,
+            apollia_tools::FamilySource::Builtin,
+            "family source of `{}`",
+            d.name
+        );
+    }
+}
+
 #[test]
 fn mcp_phase3b_toml_absent_returns_empty() {
     // GIVEN a path that does not exist
@@ -139,6 +192,7 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
             socket_path,
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -328,6 +382,7 @@ async fn test_startup_timeout_rollback() {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -417,6 +472,7 @@ async fn test_start_without_llm_config_succeeds() {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -503,6 +559,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         tool_registry_handle: None,
         audit_trail: None,
         audit_journal: None,
+        connection_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,
@@ -523,6 +580,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        secret_store: crate::inference_servers::default_store_opener(),
     };
 
     // WHEN the AppState is cloned
@@ -548,6 +606,7 @@ async fn test_supervisor_starts_with_zero_triggers() {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -621,6 +680,7 @@ async fn test_no_notifications_section_starts_ok() {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -710,6 +770,7 @@ async fn test_trigger_engine_loads_from_sqlite() {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,
@@ -971,6 +1032,7 @@ async fn test_story187_appstate_contains_repos() {
             socket_path: socket_path.clone(),
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port: Some(port),
+            tcp_listener: None,
             api_token: None,
             tls_cert_path: None,
             tls_key_path: None,

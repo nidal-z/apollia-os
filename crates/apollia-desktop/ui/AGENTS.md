@@ -306,6 +306,11 @@ Rules :
 - Namespace by key prefix : `transcriptions.*`, `agents.*`, `settings.*`.
 - Pluralization via ICU MessageFormat where Svelte-i18n supports it,
   otherwise compose at the call site.
+- The interface vocabulary is data, in `src/lib/i18n/glossary.json`: one object
+  per locale (`fr`, `en`), each with `objects` and `screens` (the official word
+  per id, same ids in both), `developer_mode`, `chat_steps_panel`, `banned` (terms
+  kept out outside developer mode), `banned_synonyms` (`assistant` for agent),
+  `permitted_formats` and `exemptions`. Use those words; never ban a word inline.
 
 ---
 

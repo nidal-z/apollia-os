@@ -181,6 +181,8 @@ export interface HardwareProfileView {
   cpu_model: string;
   cpu_cores: number;
   memory_budget_gb: number;
+  /** What a model can occupy here, GB to the tenth. */
+  total_capacity_gb: number;
   accelerator: { kind: string; [key: string]: unknown };
 }
 
@@ -191,10 +193,42 @@ export interface HardwareProfileView {
  * network means no catalogue, and telling the operator their machine runs
  * nothing would be a different and false claim.
  */
+/** One size of a curated generation, with the repositories that carry it. */
+export interface SelectionVariant {
+  name: string;
+  params_b: number;
+  gguf_repos: string[];
+  /** Empty when no MLX conversion exists. */
+  mlx_repos: string[];
+}
+
+/** One generation of the editorial selection, read from the binary. */
+export interface SelectionFamily {
+  id: string;
+  label: string;
+  publisher: string;
+  released: string;
+  license: string;
+  tool_calling: "none" | "prompted" | "native";
+  superseded: boolean;
+  variants: SelectionVariant[];
+}
+
+/** Every outcome carries the editorial selection, offline included. */
 export type RecommendOutcome =
-  | { status: "ok"; models: RecommendedModel[]; hardware: HardwareProfileView }
-  | { status: "unreachable"; detail: string; hardware: HardwareProfileView }
-  | { status: "empty"; hardware: HardwareProfileView };
+  | {
+      status: "ok";
+      models: RecommendedModel[];
+      hardware: HardwareProfileView;
+      selection: SelectionFamily[];
+    }
+  | {
+      status: "unreachable";
+      detail: string;
+      hardware: HardwareProfileView;
+      selection: SelectionFamily[];
+    }
+  | { status: "empty"; hardware: HardwareProfileView; selection: SelectionFamily[] };
 
 export async function recommendModels(params?: {
   hf_token?: string | null;

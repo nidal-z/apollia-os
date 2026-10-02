@@ -102,6 +102,9 @@ export interface ConnectorConfigInputs {
  * `forTest` is the one difference between the two: a test connection needs the
  * literal secret the operator just typed, while an install stores a
  * `${APOLLIA_SECRET:...}` placeholder the transport resolves at each request.
+ *
+ * Every catalogue entry is sent as coming from the registry; the desktop
+ * records the ones that match the curated selection as such.
  */
 export function buildConnectorConfig(
   inputs: ConnectorConfigInputs,
@@ -153,6 +156,7 @@ export function buildConnectorConfig(
       env,
       requires_approval: approvalLevel === "ask",
       tags: [],
+      origin: { provenance: "registry" },
     };
   }
   if (connectionMode === "package" && pkg) {
@@ -185,6 +189,7 @@ export function buildConnectorConfig(
       transport: pkg.transport?.type ?? "stdio",
       requires_approval: approvalLevel === "ask",
       tags: [],
+      origin: { provenance: "registry" },
     };
   }
   return null;

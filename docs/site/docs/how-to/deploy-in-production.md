@@ -149,10 +149,10 @@ response.
 ## Verify after deploy
 
 ```sh
-# Liveness. The TCP listener requires the bearer token on every path but the
-# webhook one, so the health check carries it too.
-curl -H "Authorization: Bearer $(cat ~/.apollia/api-token)" \
-  http://127.0.0.1:7771/api/v1/health             # {"status":"ok"}
+# Liveness. The health route is the one API path served without the bearer
+# token; it reveals the product marker and the version only.
+curl -s http://127.0.0.1:7771/api/v1/health
+# {"status":"ok","product":"apollia-os","version":"<runtime version>"}
 
 # Runtime and agent status
 apollia-os status

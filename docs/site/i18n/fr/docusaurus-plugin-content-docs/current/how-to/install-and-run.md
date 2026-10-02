@@ -173,8 +173,8 @@ export PATH="$PWD/target/debug:$PATH"
 Sur Windows, le binaire est `target\debug\apollia-os.exe` ; ajoutez
 `target\debug` à votre `PATH` de façon équivalente.
 
-Cette compilation dialogue avec les backends cloud Anthropic, compatibles
-OpenAI, ou Vertex, et sert les modèles GGUF locaux via le `llama-server`
+Cette compilation dialogue avec les serveurs compatibles OpenAI et Ollama,
+et sert les modèles GGUF locaux via le `llama-server`
 embarqué. Sur une build depuis les sources, ce moteur doit se trouver sur
 votre `PATH`, ce qui est couvert dans la dernière section.
 

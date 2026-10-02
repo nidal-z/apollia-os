@@ -4,10 +4,9 @@ use crate::exit_codes;
 
 use super::McpSecretCommand;
 
-/// Same keychain service name the Desktop uses for MCP server secrets.
-/// Mirrors `SecretStore::new()` in `apollia-desktop/src/mcp/secret_store.rs`
-/// so CLI writes are read transparently by the daemon.
-pub(super) const MCP_SECRET_SERVICE: &str = "apollia-mcp";
+/// Service the desktop, the runtime and the CLI all store MCP server secrets
+/// under, so CLI writes are read transparently by the daemon.
+pub(super) const MCP_SECRET_SERVICE: &str = apollia_mcp::config::MCP_STATIC_SECRET_SERVICE;
 
 pub(super) fn mcp_secret_key(server: &str, env_var: &str) -> String {
     format!("{server}:{env_var}")

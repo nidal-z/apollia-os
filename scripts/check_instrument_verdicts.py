@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Pin that five declared instruments answer the question they are asked.
+"""Pin that six declared instruments answer the question they are asked.
 
 `scripts/check_guard_verdicts.py` pins a different property: that a command
-declared a guard *can* render a negative verdict. The five instruments here all
+declared a guard *can* render a negative verdict. The six instruments here all
 render one. The verdict is plausible, and it is about something else:
 
   - `just _bundle-python` was asked whether the Python bundle link was laid
@@ -23,6 +23,13 @@ render one. The verdict is plausible, and it is about something else:
     relative `APOLLIA_BIN` was carried unresolved through every assertion but
     the one that changes directory first, and failed on that one, so the red
     named an assertion rather than a malformed input.
+  - This file was asked which tree it judges. Under parallel worktrees a red
+    was read with "run from" naming another worktree than the one it was
+    launched in. The file was not the cause: its root comes from its own path,
+    never from the working directory, and the line came from a log whose name
+    two concurrent runs shared in one scratch directory. The pair pins the
+    property anyway: nothing else would catch a root later resolved from the
+    working directory, the one shape that would make the misreading true.
 
 Each instrument carries a pair in both directions on the same subject: the
 command answers green on a conforming subject and red on a deliberately faulty
@@ -53,6 +60,7 @@ What this file does not see, declared rather than discovered:
 
 Usage:
     python3 scripts/check_instrument_verdicts.py
+    python3 scripts/check_instrument_verdicts.py --print-root
 """
 
 import argparse
@@ -774,6 +782,98 @@ def check_cli_suite(pair: Pair) -> None:
         )
 
 
+# ── Site 6, the tree this file judges ────────────────────────────────────────
+
+# The two lines that resolve where this file stands, each with the faulty form
+# the red direction plants: a root read from the working directory, and the
+# path of this file named without that root, which would otherwise refuse to
+# be computed against it.
+RESOLUTION = {
+    "REPO_ROOT = Path(__file__).resolve().parents[1]\n": "REPO_ROOT = Path.cwd()\n",
+    "SELF = Path(__file__).resolve().relative_to(REPO_ROOT).as_posix()\n": (
+        'SELF = "scripts/" + Path(__file__).name\n'
+    ),
+}
+
+
+def _plant(tree: Path, source: str) -> Path:
+    """Lay this file, under `source`, and its one import in `tree/scripts`."""
+    scripts = tree / "scripts"
+    scripts.mkdir(parents=True)
+    planted = scripts / Path(__file__).name
+    planted.write_text(source, encoding="utf-8")
+    shutil.copy(REPO_ROOT / "scripts/worktree_verdicts.py", scripts)
+    return planted
+
+
+def _roots_told(source: str, base: Path) -> list[tuple[Path, int, str]]:
+    """Launch two planted copies at once, each from the other's directory.
+
+    Returns, per tree, the tree, the exit code and what the copy printed. Both
+    processes run concurrently, which is how a fleet launches the guard, and
+    each one's working directory is the other tree, so a root taken from the
+    working directory rather than from the file names the wrong one.
+    """
+    left, right = (base / "left").resolve(), (base / "right").resolve()
+    copies = {tree: _plant(tree, source) for tree in (left, right)}
+    running = [
+        (
+            tree,
+            subprocess.Popen(
+                [sys.executable, str(copies[tree]), "--print-root"],
+                cwd=other,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            ),
+        )
+        for tree, other in ((left, right), (right, left))
+    ]
+    told = []
+    for tree, process in running:
+        out, _ = process.communicate()
+        told.append((tree, process.returncode, out.strip()))
+    return told
+
+
+def _each_names_its_own(told: list[tuple[Path, int, str]]) -> bool:
+    return all(code == 0 and out == f"run from {tree}" for tree, code, out in told)
+
+
+def check_own_root(pair: Pair) -> None:
+    announce(pair)
+    source = Path(__file__).read_text(encoding="utf-8")
+    drifted = [line.strip() for line in RESOLUTION if source.count(line) != 1]
+    if drifted:
+        pair.zero_coverage(
+            f"{SELF} no longer carries exactly one of {drifted}, so neither the "
+            "planted copy nor its faulty variant would be the resolution this "
+            "pair is about"
+        )
+        return
+
+    with tempfile.TemporaryDirectory() as tmp:
+        told = _roots_told(source, Path(tmp))
+        pair.case(
+            "green",
+            "two copies launched at once, each from the other's tree, each name their own",
+            _each_names_its_own(told),
+            f"told {told}",
+        )
+
+    faulty = source
+    for line, fault in RESOLUTION.items():
+        faulty = faulty.replace(line, fault)
+    with tempfile.TemporaryDirectory() as tmp:
+        told = _roots_told(faulty, Path(tmp))
+        pair.case(
+            "red",
+            "the same launch with the root taken from the working directory names the other tree",
+            all(code == 0 for _, code, _ in told) and not _each_names_its_own(told),
+            f"the detector accepted a root resolved from the working directory: {told}",
+        )
+
+
 # ── The count ────────────────────────────────────────────────────────────────
 
 PAIRS = [
@@ -793,6 +893,10 @@ PAIRS = [
     (
         Pair("tests/cli/cli-e2e.sh", "does the command line behave?"),
         check_cli_suite,
+    ),
+    (
+        Pair(SELF, "which tree does this guard judge?"),
+        check_own_root,
     ),
 ]
 
@@ -845,5 +949,13 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    argparse.ArgumentParser(description=__doc__.splitlines()[0]).parse_args()
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--print-root",
+        action="store_true",
+        help="print the tree this file judges and exit, without running a pair",
+    )
+    if parser.parse_args().print_root:
+        print(f"run from {REPO_ROOT}")
+        sys.exit(0)
     sys.exit(main())
