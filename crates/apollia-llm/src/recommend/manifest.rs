@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// The table as shipped in the binary.
-static EMBEDDED_TOML: &str = include_str!("families.toml");
+pub(super) static EMBEDDED_TOML: &str = include_str!("families.toml");
 
 /// Failure to load or validate the generation table.
 #[derive(Debug, Error)]
@@ -41,6 +41,16 @@ pub enum ManifestError {
     /// The supersession graph loops.
     #[error("supersession cycle through family '{0}'")]
     Cycle(String),
+
+    /// An `[[embedding]]` entry carries a value no download can be checked
+    /// against.
+    #[error("embeddings entry '{id}' is invalid: {reason}")]
+    InvalidEmbedding {
+        /// The entry's id.
+        id: String,
+        /// What is wrong with it.
+        reason: String,
+    },
 
     /// The table declares a schema version this build does not read.
     #[error("model family table declares schema version {found}, this build reads {expected}")]

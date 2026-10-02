@@ -193,6 +193,10 @@ pub struct GgufHeaderFacts {
     /// Non-zero marks a layer that attends to the short window. Empty when the
     /// file carries a period, or nothing at all.
     pub sliding_window_per_layer: Vec<u64>,
+    /// `{arch}.pooling_type`, how the engine reduces a text to one vector:
+    /// 1 mean, 2 first token, 3 last token, 4 rank. Only an embeddings or a
+    /// reranking model carries it; a chat model has no use for it.
+    pub pooling_type: Option<u64>,
     /// `true` when the buffer ended before every declared pair was walked.
     pub truncated: bool,
 }
@@ -535,6 +539,7 @@ const ARCH_SUFFIXES: &[&str] = &[
     "expert_count",
     "expert_used_count",
     "full_attention_interval",
+    "pooling_type",
 ];
 
 fn is_wanted(key: &str) -> bool {
@@ -614,6 +619,7 @@ pub fn parse_header(bytes: &[u8]) -> Result<GgufHeaderFacts, GgufParseError> {
     facts.full_attention_interval = by_suffix.get("full_attention_interval").copied();
     facts.key_length_swa = by_suffix.get("attention.key_length_swa").copied();
     facts.value_length_swa = by_suffix.get("attention.value_length_swa").copied();
+    facts.pooling_type = by_suffix.get("pooling_type").copied();
 
     Ok(facts)
 }

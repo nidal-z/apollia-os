@@ -33,6 +33,20 @@ pub enum Blocker {
         architecture: String,
     },
 
+    /// The header declares a pooling type: the file reduces a text to one
+    /// vector, which is what an embeddings model does and a chat model never
+    /// does.
+    ///
+    /// Raised on an architecture that also generates text, where the
+    /// architecture alone cannot tell the two apart: Qwen3 Embedding names the
+    /// same `qwen3` architecture as the Qwen3 chat models.
+    PooledOutput {
+        /// The `general.architecture` value read from the header.
+        architecture: String,
+        /// The `{arch}.pooling_type` value read from the header.
+        pooling_type: u64,
+    },
+
     /// The pre-tokenizer identifier is absent from this build's chain.
     ///
     /// The engine aborts the load with `unknown pre-tokenizer type`. Reported
@@ -187,6 +201,17 @@ pub fn assess(facts: &GgufHeaderFacts) -> Verdict {
         }
         None => false,
     };
+
+    let already_not_generative = !blockers.is_empty();
+    match facts.pooling_type {
+        Some(pooling_type) if pooling_type != 0 && !already_not_generative => {
+            blockers.push(Blocker::PooledOutput {
+                architecture: facts.architecture.clone().unwrap_or_default(),
+                pooling_type,
+            });
+        }
+        _ => {}
+    }
 
     match facts.tokenizer_pre.as_deref() {
         // The pre-tokenizer only blocks when the tables proved they know this

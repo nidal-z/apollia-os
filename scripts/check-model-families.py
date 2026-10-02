@@ -23,6 +23,14 @@ Rules, each reported with the entry it names:
       or an `mlx_repos` entry of its own
     * every `mlx_repos` entry is `owner/name`, and its owner is on one of the
       two lists of publishers.toml
+    * every `[[embedding]]` entry has a unique id, a `source`, an ISO
+      `released` not later than today, a `repo` that is `owner/name`, a `.gguf`
+      `file`, a positive `size_bytes`, `dimensions` and `context_length`, a
+      `pooling` among mean, cls and last, both prefixes, and a `sha256` of 64
+      lowercase hexadecimal digits: the digest is what the download is checked
+      against, so an entry without one could not be verified. Its publisher is
+      not held to publishers.toml: the pinned digest, not the owner, is what
+      vouches for a community conversion
   publishers.toml
     * the file parses and declares `schema_version = 1`
     * both lists are non-empty, and no handle sits on both
@@ -128,6 +136,55 @@ def check_families(
     return faults, measured
 
 
+EMBEDDING_FIELDS = (
+    "id", "label", "publisher", "released", "license", "repo", "file",
+    "quantization", "size_bytes", "sha256", "architecture", "dimensions",
+    "context_length", "pooling", "query_prefix", "passage_prefix", "source",
+)
+POOLINGS = {"mean", "cls", "last"}
+HEX = set("0123456789abcdef")
+
+
+def check_embeddings(data: dict, today: datetime.date) -> tuple[list[str], int]:
+    """Return the faults of the `[[embedding]]` entries and how many there are."""
+    faults: list[str] = []
+    entries = data.get("embedding", [])
+    seen: set[str] = set()
+    for entry in entries:
+        eid = entry.get("id", "?")
+        if eid in seen:
+            faults.append(f"families.toml: embedding {eid} is defined twice")
+        seen.add(eid)
+        for field in EMBEDDING_FIELDS:
+            if field not in entry:
+                faults.append(f"families.toml: embedding {eid} has no {field}")
+        if not entry.get("source"):
+            faults.append(f"families.toml: embedding {eid} cites no source")
+        released = entry.get("released", "")
+        try:
+            date = datetime.date.fromisoformat(str(released))
+        except ValueError:
+            faults.append(f"families.toml: embedding {eid} released {released!r} is not an ISO date")
+        else:
+            if date > today:
+                faults.append(f"families.toml: embedding {eid} released {released} is in the future")
+        owner, _, rest = str(entry.get("repo", "")).partition("/")
+        if not owner or not rest or "/" in rest:
+            faults.append(f"families.toml: embedding {eid} repo {entry.get('repo')!r} is not owner/name")
+        if not str(entry.get("file", "")).endswith(".gguf"):
+            faults.append(f"families.toml: embedding {eid} file is not a .gguf")
+        for field in ("size_bytes", "dimensions", "context_length"):
+            value = entry.get(field)
+            if not isinstance(value, int) or value <= 0:
+                faults.append(f"families.toml: embedding {eid} {field} is not a positive integer")
+        if entry.get("pooling") not in POOLINGS:
+            faults.append(f"families.toml: embedding {eid} pooling {entry.get('pooling')!r} is not one of {sorted(POOLINGS)}")
+        digest = str(entry.get("sha256", ""))
+        if len(digest) != 64 or not set(digest) <= HEX:
+            faults.append(f"families.toml: embedding {eid} sha256 is not 64 lowercase hexadecimal digits")
+    return faults, len(entries)
+
+
 def run(families: pathlib.Path, publishers: pathlib.Path, today: datetime.date) -> int:
     for path in (families, publishers):
         if not path.is_file():
@@ -142,6 +199,8 @@ def run(families: pathlib.Path, publishers: pathlib.Path, today: datetime.date) 
     faults, names, orgs, conv = check_publishers(pub)
     fam_faults, measured = check_families(fam, names, orgs | conv, today)
     faults += fam_faults
+    emb_faults, embeddings = check_embeddings(fam, today)
+    faults += emb_faults
     families_count = len(fam.get("family", []))
     for fault in faults:
         print(f"  {fault}")
@@ -150,22 +209,27 @@ def run(families: pathlib.Path, publishers: pathlib.Path, today: datetime.date) 
         return 1
     print(
         f"check-model-families: ok, {families_count} families, {measured} variants, "
+        f"{embeddings} embeddings models, "
         f"{len(names)} official publishers, {len(conv)} converters"
     )
     return 0
 
 
 def selftest() -> int:
-    """The guard answers 0 on the tree and 1 on each of two faulty tables."""
+    """The guard answers 0 on the tree and 1 on each of three faulty tables."""
     today = datetime.date.today()
     future = (today + datetime.timedelta(days=30)).isoformat()
     tree = FAMILIES.read_text(encoding="utf-8")
     first_source = next(line for line in tree.splitlines() if line.startswith("source = "))
     first_released = next(line for line in tree.splitlines() if line.startswith("released = "))
+    first_digest = next(line for line in tree.splitlines() if line.startswith("sha256 = "))
     faulty = {
         "a variant without source": tree.replace(first_source + "\n", "", 1),
         "a release dated in the future": tree.replace(
             first_released, f'released = "{future}"', 1
+        ),
+        "an embeddings entry without a full digest": tree.replace(
+            first_digest, 'sha256 = "abc"', 1
         ),
     }
     failures = 0

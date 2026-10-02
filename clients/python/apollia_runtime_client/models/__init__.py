@@ -50,6 +50,7 @@ from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
+from .counted_language_model import CountedLanguageModel
 from .create_channel_request import CreateChannelRequest
 from .create_channel_request_config import CreateChannelRequestConfig
 from .create_llm_backend_request import CreateLlmBackendRequest
@@ -69,6 +70,9 @@ from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
+from .embedding_models_response import EmbeddingModelsResponse
+from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
+from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
 from .events_response import EventsResponse
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
@@ -269,6 +273,7 @@ __all__ = (
     "ConnectorAccountResponse",
     "CostsResponse",
     "CostSummaryRow",
+    "CountedLanguageModel",
     "CreateChannelRequest",
     "CreateChannelRequestConfig",
     "CreateLlmBackendRequest",
@@ -288,6 +293,9 @@ __all__ = (
     "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
+    "EmbeddingModelsResponse",
+    "EmbeddingModelsResponseModelsItem",
+    "EmbeddingModelsResponseReasonType0",
     "EventsResponse",
     "FireResponse",
     "ForkSessionRequest",

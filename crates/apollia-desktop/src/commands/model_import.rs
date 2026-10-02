@@ -2,7 +2,8 @@
 //!
 //! The import checks the model before copying it (`apollia_llm::check_import`):
 //! its structure, then its SHA-256 against the digests the index already
-//! holds as verified. A match marks the origin verified; otherwise the model
+//! holds as verified and the digests the registry pins for its embeddings
+//! models. A match marks the origin verified; otherwise the model
 //! enters with an unverified origin, unless the `models.import.require_verified`
 //! setting of `apollia.toml` asks for a refusal.
 
@@ -116,7 +117,7 @@ pub(crate) fn import_model_file_into(
         check_extension(&source, allowed_extensions)?;
     }
 
-    let known = super::model_index::current(dir)
+    let mut known = super::model_index::current(dir)
         .map(|index| {
             index
                 .verified_digests()
@@ -125,6 +126,7 @@ pub(crate) fn import_model_file_into(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    known.extend(registry_digests());
     let known_refs: Vec<&str> = known.iter().map(String::as_str).collect();
     let check = apollia_llm::check_import(&source, &known_refs, rule)?;
 
@@ -180,6 +182,26 @@ fn check_extension(source: &Path, allowed_extensions: &[String]) -> Result<(), I
         name,
         expected: allowed_extensions.join(", "),
     })
+}
+
+/// The digests the registry pins for its embeddings models: a copy of one of
+/// those files brought on a key is the file the registry would have fetched.
+fn registry_digests() -> Vec<String> {
+    match apollia_llm::recommend::EmbeddingCatalogue::embedded() {
+        Ok(catalogue) => catalogue
+            .models()
+            .iter()
+            .map(|m| m.sha256.clone())
+            .collect(),
+        Err(e) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %e,
+                "model.import.registry.unreadable"
+            );
+            Vec::new()
+        }
+    }
 }
 
 /// Copy every file of an MLX folder, sub-folders included. Symbolic links are
