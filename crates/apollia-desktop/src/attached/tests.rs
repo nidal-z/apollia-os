@@ -492,3 +492,23 @@ fn test_models_mcp_connections_and_notifications_pass_the_gate_attached() {
     // THEN none answers that the service makes it unavailable
     assert!(refused.is_empty(), "refused: {refused:?}");
 }
+
+#[test]
+fn test_a_window_command_runs_attached_and_carries_its_reason() {
+    // GIVEN the commands of the window, which read no state of the runtime
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = WINDOW_COMMANDS
+        .iter()
+        .map(|(name, _)| *name)
+        .filter(|name| gate(LinkMode::Attached, name).is_err())
+        .collect();
+
+    // THEN none is refused, each says why it needs no route, and none is
+    // also on the routed list
+    assert!(refused.is_empty(), "refused: {refused:?}");
+    for (name, reason) in WINDOW_COMMANDS {
+        assert!(!reason.trim().is_empty(), "{name} gives no reason");
+        assert!(!ROUTED_COMMANDS.contains(name), "{name} is listed twice");
+    }
+    assert!(gate(LinkMode::Attached, "quit_app").is_ok());
+}

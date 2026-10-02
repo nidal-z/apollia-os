@@ -7,18 +7,25 @@ runtime over the HTTP API, and a command written against the embedded handle
 is refused by the gate of `crates/apollia-desktop/src/attached.rs` with a typed
 error. Which commands are routed is the list `ROUTED_COMMANDS` of that file;
 which commands exist is every `generate_handler!` block of the desktop crate.
+A few commands belong to the window rather than to the runtime (quit, restart,
+update, the microphones of this machine): they read no runtime state and serve
+both modes as they are. They are the list `WINDOW_COMMANDS` of the same file,
+each entry a name and the reason it needs no route, and this guard prints them
+with their reasons.
 
-This guard classifies each registered command as `routed` or `embedded only`,
-prints the two counts, and holds the second on a descending ratchet:
+This guard classifies each registered command as `routed`, `window` or
+`embedded only`, prints the counts, and holds the last on a descending ratchet:
 
   grew      more commands are embedded only than the ceiling allows. A command
             was added without a route, and the attached mode lost ground.
   stale     fewer are embedded only than the ceiling says. A command was
             routed; the ceiling goes down in the same commit, so the progress
             cannot be spent later by an unrouted addition.
-  unknown   a routed name no `generate_handler!` block registers: the gate
-            would let through a command that does not exist, and the count of
-            routed commands would be inflated by it.
+  unknown   a routed or window name no `generate_handler!` block registers:
+            the gate would let through a command that does not exist, and the
+            count of served commands would be inflated by it.
+  reasonless a window command without its reason: the exception would be a
+            hole nobody can check.
 
 Exit codes:
   0  the counts match the ceiling and every routed name is registered.
@@ -43,14 +50,20 @@ import check_tauri_ipc_callers as ipc_callers  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RUST_SUBTREE = Path("crates/apollia-desktop/src")
 ROUTED_SOURCE = Path("crates/apollia-desktop/src/attached.rs")
+WINDOW_CONST = re.compile(
+    r"\bconst\s+WINDOW_COMMANDS\s*:\s*&\[\(&str,\s*&str\)\]\s*=\s*&\[(?P<body>.*?)\];",
+    re.DOTALL,
+)
+WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?\s*\)')
 
 # The ceiling of commands that only serve the embedded runtime. It goes down as
 # commands are routed, and never up. Measured at 244 of 249 when the attached
 # mode first served the chat and the event bus, then at 229 once it served the
 # agents, the tasks, the approvals and the questions an agent asks the user,
 # then at 182 once every command whose body is one runtime route went through
-# the seam (models, MCP servers, connections, notifications, triggers, tools).
-EMBEDDED_ONLY_CEILING = 182
+# the seam (models, MCP servers, connections, notifications, triggers, tools),
+# then at 168 once the commands of the window were named as such.
+EMBEDDED_ONLY_CEILING = 168
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",
@@ -70,6 +83,17 @@ def routed_commands(root: Path) -> list[str] | None:
     return STRING_LITERAL.findall(match.group("body"))
 
 
+def window_commands(root: Path) -> list[tuple[str, str]]:
+    """The `(name, reason)` entries of `WINDOW_COMMANDS`, empty when absent."""
+    source = root / ROUTED_SOURCE
+    if not source.is_file():
+        return []
+    match = WINDOW_CONST.search(source.read_text(encoding="utf-8"))
+    if match is None:
+        return []
+    return WINDOW_ENTRY.findall(match.group("body"))
+
+
 def measure(root: Path, ceiling: int) -> tuple[int, list[str]]:
     """Exit code and report lines for the tree at `root`."""
     entries, unread, _blocks = ipc_callers.registrations(root / RUST_SUBTREE)
@@ -79,7 +103,9 @@ def measure(root: Path, ceiling: int) -> tuple[int, list[str]]:
     if not registered:
         return 2, ["check_attached_coverage: no generate_handler! entry read, nothing measured"]
     if routed is None:
-        return 2, [f"check_attached_coverage: no ROUTED_COMMANDS in {ROUTED_SOURCE}, nothing measured"]
+        return 2, [
+            f"check_attached_coverage: no ROUTED_COMMANDS in {ROUTED_SOURCE}, nothing measured"
+        ]
 
     defects: list[str] = []
     for site in unread:
@@ -90,8 +116,23 @@ def measure(root: Path, ceiling: int) -> tuple[int, list[str]]:
     unknown = sorted(set(routed) - set(registered))
     for name in unknown:
         defects.append(f"unknown: {name} is routed but no generate_handler! block registers it")
+    window = window_commands(root)
+    window_names = [name for name, _ in window]
+    for name in sorted({name for name in window_names if window_names.count(name) > 1}):
+        defects.append(f"window twice: {name}")
+    for name in sorted(set(window_names) & set(routed)):
+        defects.append(f"both routed and window: {name}")
+    for name in sorted(set(window_names) - set(registered)):
+        defects.append(
+            f"unknown: {name} is a window command but no generate_handler! block registers it"
+        )
+    for name, reason in window:
+        if not reason.strip():
+            defects.append(f"reasonless: the window command {name} gives no reason")
     routed_registered = sorted(set(routed) & set(registered))
-    embedded_only = [name for name in registered if name not in set(routed)]
+    window_registered = sorted(set(window_names) & set(registered))
+    served = set(routed) | set(window_names)
+    embedded_only = [name for name in registered if name not in served]
     count = len(embedded_only)
     if count > ceiling:
         defects.append(
@@ -106,8 +147,11 @@ def measure(root: Path, ceiling: int) -> tuple[int, list[str]]:
 
     lines.append(
         f"check_attached_coverage: {len(registered)} registered commands, "
-        f"{len(routed_registered)} routed, {count} embedded only (ceiling {ceiling})"
+        f"{len(routed_registered)} routed, {len(window_registered)} window, "
+        f"{count} embedded only (ceiling {ceiling})"
     )
+    for name, reason in window:
+        lines.append(f"  window: {name}, {reason}")
     if defects:
         lines.extend(f"  {defect}" for defect in defects)
         return 1, lines
@@ -118,7 +162,12 @@ def measure(root: Path, ceiling: int) -> tuple[int, list[str]]:
 # ── selftest ─────────────────────────────────────────────────────────────────
 
 
-def _subject(root: Path, registered: list[str], routed: list[str] | None) -> None:
+def _subject(
+    root: Path,
+    registered: list[str],
+    routed: list[str] | None,
+    window: list[tuple[str, str]] | None = None,
+) -> None:
     src = root / RUST_SUBTREE
     src.mkdir(parents=True, exist_ok=True)
     entries = "".join(f"        commands::{name},\n" for name in registered)
@@ -128,8 +177,10 @@ def _subject(root: Path, registered: list[str], routed: list[str] | None) -> Non
     )
     if routed is not None:
         names = "".join(f'    "{name}",\n' for name in routed)
+        pairs = "".join(f'    ("{name}", "{reason}"),\n' for name, reason in window or [])
         (root / ROUTED_SOURCE).write_text(
-            f"pub(crate) const ROUTED_COMMANDS: &[&str] = &[\n{names}];\n",
+            f"pub(crate) const ROUTED_COMMANDS: &[&str] = &[\n{names}];\n"
+            f"pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[\n{pairs}];\n",
             encoding="utf-8",
         )
 
@@ -137,25 +188,61 @@ def _subject(root: Path, registered: list[str], routed: list[str] | None) -> Non
 def selftest() -> int:
     cases: list[tuple[str, bool]] = []
 
-    def run(registered: list[str], routed: list[str] | None, ceiling: int) -> tuple[int, str]:
+    def run(
+        registered: list[str],
+        routed: list[str] | None,
+        ceiling: int,
+        window: list[tuple[str, str]] | None = None,
+    ) -> tuple[int, str]:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _subject(root, registered, routed)
+            _subject(root, registered, routed, window)
             code, lines = measure(root, ceiling)
             return code, "\n".join(lines)
 
     code, text = run(["a", "b", "c"], ["a"], 2)
-    cases.append(("a tree at its ceiling passes", code == 0 and "1 routed, 2 embedded only" in text))
+    cases.append(
+        (
+            "a tree at its ceiling passes",
+            code == 0 and "1 routed, 0 window, 2 embedded only" in text,
+        )
+    )
     code, text = run(["a", "b", "c", "d"], ["a"], 2)
     cases.append(("an unrouted addition is reported as grown", code == 1 and "grew:" in text))
     code, text = run(["a", "b", "c"], ["a", "b"], 2)
-    cases.append(("a routed command asks for the ceiling to go down", code == 1 and "stale:" in text))
+    cases.append(
+        ("a routed command asks for the ceiling to go down", code == 1 and "stale:" in text)
+    )
     code, text = run(["a", "b", "c"], ["a", "ghost"], 2)
-    cases.append(("a routed name nothing registers is reported", code == 1 and "unknown: ghost" in text))
+    cases.append(
+        ("a routed name nothing registers is reported", code == 1 and "unknown: ghost" in text)
+    )
     code, _ = run(["a", "b"], None, 2)
     cases.append(("a missing ROUTED_COMMANDS measures nothing", code == 2))
     code, _ = run([], ["a"], 0)
     cases.append(("a tree without registrations measures nothing", code == 2))
+    code, text = run(["a", "b", "c"], ["a"], 1, [("b", "closes the window")])
+    cases.append(
+        (
+            "a window command is not embedded only and is printed with its reason",
+            code == 0 and "1 window, 1 embedded only" in text and "b, closes the window" in text,
+        )
+    )
+    code, text = run(["a", "b"], ["a"], 0, [("b", " ")])
+    cases.append(
+        ("a window command without a reason is refused", code == 1 and "reasonless: " in text)
+    )
+    code, text = run(["a", "b"], ["a"], 1, [("ghost", "why")])
+    cases.append(
+        ("a window name nothing registers is reported", code == 1 and "unknown: ghost" in text)
+    )
+    code, text = run(["a", "b"], ["a", "b"], 0, [("b", "why")])
+    cases.append(
+        (
+            "a command both routed and window is refused",
+            code == 1 and "both routed and window: b" in text,
+        )
+    )
 
     failed = [name for name, held in cases if not held]
     for name in failed:

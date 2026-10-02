@@ -112,6 +112,69 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "verify_audit_run",
 ];
 
+/// The commands that belong to the window, not to the runtime: they read no
+/// state of the runtime and serve the attached mode as they are, each with the
+/// reason it needs no route. `scripts/check_attached_coverage.py` reads the
+/// reasons and refuses an entry without one.
+pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
+    (
+        "app_restart",
+        "relaunches this window, which attaches again at startup",
+    ),
+    (
+        "quit_app",
+        "closes this window and leaves the daemon serving",
+    ),
+    (
+        "check_for_update",
+        "asks the update endpoint about this application",
+    ),
+    (
+        "install_update",
+        "replaces this application, not the daemon",
+    ),
+    (
+        "get_cli_status",
+        "reads the command-line link this application installs",
+    ),
+    (
+        "install_cli",
+        "links the command line bundled with this application",
+    ),
+    (
+        "uninstall_cli",
+        "removes the command-line link this application installed",
+    ),
+    (
+        "link_preview",
+        "fetches the card of a link the window shows",
+    ),
+    (
+        "list_audio_input_devices",
+        "lists the microphones of this machine",
+    ),
+    (
+        "open_config_in_editor",
+        "opens the configuration file in the editor of this machine",
+    ),
+    (
+        "automation_script",
+        "drives this window in a development build",
+    ),
+    (
+        "automation_capture",
+        "captures this window in a development build",
+    ),
+    (
+        "automation_resize",
+        "resizes this window in a development build",
+    ),
+    (
+        "automation_finish",
+        "ends the run driving this window in a development build",
+    ),
+];
+
 /// Encodes one path segment of a daemon route.
 pub(crate) fn segment(value: &str) -> std::borrow::Cow<'_, str> {
     urlencoding::encode(value)
@@ -186,10 +249,13 @@ impl From<AttachedError> for String {
 ///
 /// # Errors
 ///
-/// [`AttachedError::NotRouted`] for a command outside [`ROUTED_COMMANDS`] while
-/// the runtime is a daemon.
+/// [`AttachedError::NotRouted`] for a command outside [`ROUTED_COMMANDS`] and
+/// [`WINDOW_COMMANDS`] while the runtime is a daemon.
 pub(crate) fn gate(mode: LinkMode, command: &str) -> Result<(), AttachedError> {
-    if mode == LinkMode::Embedded || ROUTED_COMMANDS.contains(&command) {
+    if mode == LinkMode::Embedded
+        || ROUTED_COMMANDS.contains(&command)
+        || WINDOW_COMMANDS.iter().any(|(name, _)| *name == command)
+    {
         return Ok(());
     }
     Err(AttachedError::NotRouted {
@@ -248,6 +314,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeLink::Attached(client))
         .on_menu_event(|app, event| {
