@@ -190,7 +190,7 @@ async fn running_tool_completes_before_loop_stops() {
             "go",
             &[],
             "",
-            &[],
+            &["bash_executor".to_string()],
             &authorized,
             &approvals,
             &budget,
@@ -213,6 +213,69 @@ async fn running_tool_completes_before_loop_stops() {
     );
     assert_eq!(resp.turn_outcome(), TurnOutcome::Paused);
     assert_eq!(resp.tool_calls.len(), 1, "the completed tool is recorded");
+    tool_registry.shutdown().await;
+}
+
+// A pre-authorization spares a granted tool its approval; it never makes a
+// tool the agent is not granted callable.
+#[tokio::test]
+async fn pre_authorized_tool_not_granted_is_not_run() {
+    // GIVEN a model that calls bash_executor, pre-authorized for the session
+    // but absent from the access list of the agent
+    let model: Arc<dyn CompletionModel> = Arc::new(OneToolThenText {
+        iteration: AtomicU32::new(0),
+    });
+    let tool_registry = ToolRegistryHandle::start();
+    let completed = Arc::new(AtomicBool::new(false));
+    let invoker: Arc<dyn ToolInvoker> = Arc::new(SlowRecordingInvoker {
+        completed: completed.clone(),
+        cancel_on_invoke: None,
+    });
+    let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
+        llm_router: make_router(model),
+        tool_registry: tool_registry.clone(),
+        tool_invoker: invoker,
+        event_bus: make_event_bus(),
+        user_memory: None,
+        a2a_invoker: None,
+        todo: None,
+        plan: None,
+    });
+    let budget = StepBudget::with_max(10);
+    let approvals = PendingChatApprovals::new();
+    let mut authorized = HashSet::new();
+    authorized.insert("bash_executor".to_string());
+
+    // WHEN the turn runs with an empty access list
+    let resp = agent
+        .execute(
+            "sess-not-granted",
+            "msg-1",
+            &RunId::new(),
+            "go",
+            &[],
+            "",
+            &[],
+            &authorized,
+            &approvals,
+            &budget,
+            None,
+            DEFAULT_CONTEXT_WINDOW_SIZE,
+            None,
+            None,
+            None,
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("the turn ends");
+
+    // THEN the tool never ran
+    assert!(!completed.load(Ordering::SeqCst));
+    assert!(resp
+        .tool_calls
+        .iter()
+        .all(|c| !matches!(c.status, ToolCallStatus::Executed)));
     tool_registry.shutdown().await;
 }
 

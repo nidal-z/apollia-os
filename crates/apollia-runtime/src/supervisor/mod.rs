@@ -48,6 +48,8 @@ mod bundled;
 mod lifecycle;
 mod persistence;
 
+#[cfg(test)]
+pub(crate) use bundled::register_builtin_tools;
 pub(crate) use persistence::resolve_home;
 
 pub use bootstrap::watch;

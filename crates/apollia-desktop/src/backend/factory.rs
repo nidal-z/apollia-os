@@ -57,6 +57,8 @@ pub struct ProductionBackendFactory {
     /// Shared plan cache, forwarded to each per-agent engine. Without it the
     /// engine's cache lookup and store both return on their first line.
     pub plan_cache: Arc<std::sync::OnceLock<Arc<std::sync::Mutex<PlanCacheRepository>>>>,
+    /// The agent store each run reads the access list of its agent from.
+    pub agents_db: Option<std::path::PathBuf>,
 }
 
 impl AgentBackendFactory for ProductionBackendFactory {
@@ -122,7 +124,8 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 .map_err(|e| e.to_string())?;
             let validated =
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
-            let allowed_tools = validated.manifest.tools_required.clone();
+            let access =
+                apollia_tools::GrantedAccess::new(self.agents_db.clone(), &validated.manifest);
             let memory_namespace = validated.manifest.memory_namespace.clone();
             let user_memory_write = validated.manifest.user_memory_write;
             // Capture the declarations and the agent directory to wire up
@@ -136,7 +139,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
             Ok(AIPProductionBackend {
                 bridge,
                 agent_id: agent_id.clone(),
-                allowed_tools,
+                access,
                 llm_router,
                 event_bus,
                 tool_registry,

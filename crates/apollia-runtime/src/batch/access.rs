@@ -40,10 +40,14 @@ pub(crate) struct KnownTool {
 }
 
 /// The descriptors known without a running server: the native tools, the
-/// connector operations, the MCP resource tools.
+/// connector operations under their bare name, the MCP resource tools. The
+/// tool of a connected account (`conn:<provider>:<account>/<operation>`) is
+/// read through its operation, see [`lookup`].
 pub(crate) fn known_tools() -> HashMap<String, KnownTool> {
     let mut descriptors: Vec<ToolDescriptor> = apollia_tools::tools::native_descriptors();
-    descriptors.extend(crate::connectors_bridge::all_connector_descriptors());
+    descriptors.extend(crate::connectors_bridge::google_tool_descriptors());
+    descriptors.extend(crate::connectors_bridge::microsoft_tool_descriptors());
+    descriptors.extend(crate::connectors_bridge::imap_tool_descriptors());
     descriptors.extend(apollia_mcp::mcp_resources::mcp_resource_descriptors());
     descriptors
         .into_iter()
@@ -57,6 +61,16 @@ pub(crate) fn known_tools() -> HashMap<String, KnownTool> {
             )
         })
         .collect()
+}
+
+/// What `tools` says about the access `id`. The tool of a connected account
+/// takes the family and the description of its operation, the account only
+/// choosing which token the call runs with.
+fn lookup<'a>(tools: &'a HashMap<String, KnownTool>, id: &str) -> Option<&'a KnownTool> {
+    tools.get(id).or_else(|| {
+        crate::connectors_bridge::connection_tools::parse_connection_tool(id)
+            .and_then(|tool| tools.get(&tool.operation))
+    })
 }
 
 fn family_name(family: ActionFamily) -> String {
@@ -83,7 +97,7 @@ pub(crate) fn classify(
         .access
         .iter()
         .map(|id| {
-            let tool = tools.get(id);
+            let tool = lookup(tools, id);
             DeclaredAccess {
                 access_id: id.clone(),
                 permits: tool
@@ -109,9 +123,7 @@ pub(crate) fn classify(
     effective
         .into_iter()
         .map(|(access_id, permits, sensitive)| {
-            let family = tools
-                .get(&access_id)
-                .map_or(ActionFamily::Unclassified, |t| t.family);
+            let family = lookup(tools, &access_id).map_or(ActionFamily::Unclassified, |t| t.family);
             let grantable = family
                 .consent_family()
                 .is_some_and(|f| f != apollia_permissions::ConsentFamily::ExecuteCode);
@@ -275,5 +287,26 @@ mod tests {
             matches!(plain, Err(BatchError::Invalid(m)) if m.contains("not a sensitive access"))
         );
         assert!(matches!(code, Err(BatchError::Invalid(m)) if m.contains("execute_code")));
+    }
+
+    #[test]
+    fn test_the_tool_of_a_connected_account_is_classified_by_its_operation() {
+        // GIVEN an agent granted the sending tool of one connected Google account
+        let tool = crate::connectors_bridge::connection_tools::account_descriptors(
+            apollia_auth::ConnectorProvider::Google,
+            "ada@example.com",
+        )
+        .into_iter()
+        .find(|d| d.family == ActionFamily::SendExternal)
+        .map(|d| d.name)
+        .unwrap();
+        let agent = agent(&[tool.as_str()]);
+        // WHEN its accesses are classified against the descriptors known at launch
+        let listed = sensitive(&classify(&agent, &known_tools(), None));
+        // THEN the account's tool takes the family of its operation and can be granted
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].access_id, tool);
+        assert_eq!(listed[0].family, "send_external");
+        assert!(listed[0].grantable);
     }
 }

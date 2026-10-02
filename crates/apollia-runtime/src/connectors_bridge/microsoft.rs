@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use apollia_auth::{AccountId, AuthManager, ConnectorProvider, MicrosoftScope};
+use apollia_auth::{AccountId, ConnectorProvider, MicrosoftScope};
 use apollia_connectors::error::ConnectorError;
 use apollia_connectors::microsoft::calendar::{
     EventAttendee as MsEventAttendee, EventBody as MsEventBody, EventDateTime as MsEventDateTime,
@@ -18,6 +18,7 @@ use apollia_tools::executor::{ToolExecutionError, ToolExecutor as DispatchableEx
 use serde_json::{json, Value};
 use tokio::sync::OnceCell;
 
+use crate::connectors_bridge::connection_tools::connection_tool_name;
 use crate::connectors_bridge::{
     get_auth, get_str, get_str_array, get_str_opt, get_u32_or, parse_rfc3339,
 };
@@ -43,34 +44,18 @@ async fn get_microsoft_connector() -> Result<Arc<MicrosoftConnector>, String> {
         .cloned()
 }
 
-async fn ms_resolve_account(auth: &Arc<AuthManager>) -> Result<AccountId, String> {
-    let accounts = auth
-        .list_accounts(ConnectorProvider::Microsoft)
-        .await
-        .map_err(|e| format!("auth: {e}"))?;
-    if accounts.len() > 1 {
-        tracing::warn!(
-            count = accounts.len(),
-            detail = "using the first",
-            "connector.microsoft.accounts.ambiguous"
-        );
-    }
-    accounts.into_iter().next().ok_or_else(|| {
-        "no Microsoft account connected - open Settings > Integrations to sign in".to_string()
-    })
-}
-
+/// The token of `account` for `scopes`. The account is the one the tool was
+/// published for: no other account is ever chosen in its place.
 async fn ms_bearer_for(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     scopes: &[MicrosoftScope],
 ) -> Result<(AccountId, String), String> {
-    let account = ms_resolve_account(auth).await?;
     let token = connector
-        .bearer(&account, scopes)
+        .bearer(account, scopes)
         .await
         .map_err(|e| format!("token: {e}"))?;
-    Ok((account, token))
+    Ok((account.clone(), token))
 }
 
 fn ms_refresh_closure(
@@ -132,38 +117,41 @@ fn build_ms_event_draft(input: &Value) -> Result<MsEventDraft, String> {
     })
 }
 
-async fn dispatch_microsoft_tool(tool_name: &str, input: &Value) -> Result<Value, String> {
+async fn dispatch_microsoft_tool(
+    tool_name: &str,
+    account: &AccountId,
+    input: &Value,
+) -> Result<Value, String> {
     let connector = get_microsoft_connector().await?;
-    let auth = get_auth().await?;
     match tool_name {
-        "outlook.search" => outlook_search(&connector, &auth, input).await,
-        "outlook.get" => outlook_get(&connector, &auth, input).await,
-        "outlook.send" => outlook_send(&connector, &auth, input).await,
-        "outlook.reply" => outlook_reply(&connector, &auth, input).await,
-        "outlook.list_folders" => outlook_list_folders(&connector, &auth).await,
-        "outlook.move" => outlook_move(&connector, &auth, input).await,
-        "outlook_cal.list_events" => outlook_cal_list_events(&connector, &auth, input).await,
-        "outlook_cal.get_event" => outlook_cal_get_event(&connector, &auth, input).await,
-        "outlook_cal.create_event" => outlook_cal_create_event(&connector, &auth, input).await,
-        "outlook_cal.update_event" => outlook_cal_update_event(&connector, &auth, input).await,
-        "outlook_cal.delete_event" => outlook_cal_delete_event(&connector, &auth, input).await,
-        "onedrive.search" => onedrive_search(&connector, &auth, input).await,
-        "onedrive.get_metadata" => onedrive_get_metadata(&connector, &auth, input).await,
-        "onedrive.download" => onedrive_download(&connector, &auth, input).await,
-        "onedrive.list_recent" => onedrive_list_recent(&connector, &auth, input).await,
+        "outlook.search" => outlook_search(&connector, account, input).await,
+        "outlook.get" => outlook_get(&connector, account, input).await,
+        "outlook.send" => outlook_send(&connector, account, input).await,
+        "outlook.reply" => outlook_reply(&connector, account, input).await,
+        "outlook.list_folders" => outlook_list_folders(&connector, account).await,
+        "outlook.move" => outlook_move(&connector, account, input).await,
+        "outlook_cal.list_events" => outlook_cal_list_events(&connector, account, input).await,
+        "outlook_cal.get_event" => outlook_cal_get_event(&connector, account, input).await,
+        "outlook_cal.create_event" => outlook_cal_create_event(&connector, account, input).await,
+        "outlook_cal.update_event" => outlook_cal_update_event(&connector, account, input).await,
+        "outlook_cal.delete_event" => outlook_cal_delete_event(&connector, account, input).await,
+        "onedrive.search" => onedrive_search(&connector, account, input).await,
+        "onedrive.get_metadata" => onedrive_get_metadata(&connector, account, input).await,
+        "onedrive.download" => onedrive_download(&connector, account, input).await,
+        "onedrive.list_recent" => onedrive_list_recent(&connector, account, input).await,
         other => Err(format!("unknown microsoft tool: {other}")),
     }
 }
 
 async fn outlook_search(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let query = get_str(input, "query")?;
     let top = get_u32_or(input, "top", 10);
     let scopes = [MicrosoftScope::MailRead];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let msgs = connector
         .mail()
@@ -175,12 +163,12 @@ async fn outlook_search(
 
 async fn outlook_get(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let message_id = get_str(input, "message_id")?;
     let scopes = [MicrosoftScope::MailRead];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let msg = connector
         .mail()
@@ -192,7 +180,7 @@ async fn outlook_get(
 
 async fn outlook_send(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let to = get_str_array(input, "to");
@@ -210,7 +198,7 @@ async fn outlook_send(
         bcc_recipients: ms_recipients(get_str_array(input, "bcc")),
     };
     let scopes = [MicrosoftScope::MailSend];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .mail()
@@ -222,13 +210,13 @@ async fn outlook_send(
 
 async fn outlook_reply(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let message_id = get_str(input, "message_id")?;
     let comment = get_str(input, "comment")?;
     let scopes = [MicrosoftScope::MailSend];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .mail()
@@ -240,10 +228,10 @@ async fn outlook_reply(
 
 async fn outlook_list_folders(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
 ) -> Result<Value, String> {
     let scopes = [MicrosoftScope::MailRead];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let folders = connector
         .mail()
@@ -255,13 +243,13 @@ async fn outlook_list_folders(
 
 async fn outlook_move(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let message_id = get_str(input, "message_id")?;
     let destination = get_str(input, "destination_folder_id")?;
     let scopes = [MicrosoftScope::MailReadWrite];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let moved = connector
         .mail()
@@ -273,7 +261,7 @@ async fn outlook_move(
 
 async fn outlook_cal_list_events(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let start_after = match get_str_opt(input, "start_after") {
@@ -290,7 +278,7 @@ async fn outlook_cal_list_events(
         top: Some(get_u32_or(input, "top", 25)),
     };
     let scopes = [MicrosoftScope::CalendarRead];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let events = connector
         .calendar()
@@ -302,12 +290,12 @@ async fn outlook_cal_list_events(
 
 async fn outlook_cal_get_event(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let event_id = get_str(input, "event_id")?;
     let scopes = [MicrosoftScope::CalendarRead];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let event = connector
         .calendar()
@@ -319,12 +307,12 @@ async fn outlook_cal_get_event(
 
 async fn outlook_cal_create_event(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let draft = build_ms_event_draft(input)?;
     let scopes = [MicrosoftScope::CalendarWrite];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let event = connector
         .calendar()
@@ -336,13 +324,13 @@ async fn outlook_cal_create_event(
 
 async fn outlook_cal_update_event(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let event_id = get_str(input, "event_id")?;
     let draft = build_ms_event_draft(input)?;
     let scopes = [MicrosoftScope::CalendarWrite];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let event = connector
         .calendar()
@@ -354,12 +342,12 @@ async fn outlook_cal_update_event(
 
 async fn outlook_cal_delete_event(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let event_id = get_str(input, "event_id")?;
     let scopes = [MicrosoftScope::CalendarWrite];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .calendar()
@@ -371,13 +359,13 @@ async fn outlook_cal_delete_event(
 
 async fn onedrive_search(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let query = get_str(input, "query")?;
     let top = get_u32_or(input, "top", 10);
     let scopes = [MicrosoftScope::FilesRead];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let items = connector
         .onedrive()
@@ -389,12 +377,12 @@ async fn onedrive_search(
 
 async fn onedrive_get_metadata(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let item_id = get_str(input, "item_id")?;
     let scopes = [MicrosoftScope::FilesRead];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let item = connector
         .onedrive()
@@ -406,12 +394,12 @@ async fn onedrive_get_metadata(
 
 async fn onedrive_download(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let item_id = get_str(input, "item_id")?;
     let scopes = [MicrosoftScope::FilesRead];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let bytes = connector
         .onedrive()
@@ -431,12 +419,12 @@ async fn onedrive_download(
 
 async fn onedrive_list_recent(
     connector: &Arc<MicrosoftConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let top = get_u32_or(input, "top", 10);
     let scopes = [MicrosoftScope::FilesRead];
-    let (account, token) = ms_bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = ms_bearer_for(connector, account, &scopes).await?;
     let refresh = ms_refresh_closure(connector.clone(), account, scopes.to_vec());
     let items = connector
         .onedrive()
@@ -446,13 +434,17 @@ async fn onedrive_list_recent(
     serde_json::to_value(&items).map_err(|e| e.to_string())
 }
 
+/// One Microsoft 365 operation of one connected account, named
+/// `conn:microsoft:<account>/<operation>`.
 struct MicrosoftOpExecutor {
     op_id: &'static str,
+    account: AccountId,
+    name: String,
 }
 
 impl DispatchableExecutor for MicrosoftOpExecutor {
     fn name(&self) -> &str {
-        self.op_id
+        &self.name
     }
 
     fn is_read_only(&self) -> bool {
@@ -475,7 +467,7 @@ impl DispatchableExecutor for MicrosoftOpExecutor {
         input: Value,
     ) -> Pin<Box<dyn Future<Output = Result<Value, ToolExecutionError>> + Send + '_>> {
         Box::pin(async move {
-            dispatch_microsoft_tool(self.op_id, &input)
+            dispatch_microsoft_tool(self.op_id, &self.account, &input)
                 .await
                 .map_err(|msg| ToolExecutionError::ExecutionFailed {
                     code: "microsoft".into(),
@@ -485,26 +477,53 @@ impl DispatchableExecutor for MicrosoftOpExecutor {
     }
 }
 
-/// Build one [`ToolExecutor`] per Microsoft 365 op for the shared dispatcher.
-pub fn build_microsoft_executors() -> Vec<Box<dyn DispatchableExecutor>> {
-    [
-        "outlook.search",
-        "outlook.get",
-        "outlook.send",
-        "outlook.reply",
-        "outlook.list_folders",
-        "outlook.move",
-        "outlook_cal.list_events",
-        "outlook_cal.get_event",
-        "outlook_cal.create_event",
-        "outlook_cal.update_event",
-        "outlook_cal.delete_event",
-        "onedrive.search",
-        "onedrive.get_metadata",
-        "onedrive.download",
-        "onedrive.list_recent",
-    ]
-    .into_iter()
-    .map(|id| Box::new(MicrosoftOpExecutor { op_id: id }) as Box<dyn DispatchableExecutor>)
-    .collect()
+/// Every Microsoft 365 operation, in the order the executors are built.
+const MICROSOFT_OPERATIONS: [&str; 15] = [
+    "outlook.search",
+    "outlook.get",
+    "outlook.send",
+    "outlook.reply",
+    "outlook.list_folders",
+    "outlook.move",
+    "outlook_cal.list_events",
+    "outlook_cal.get_event",
+    "outlook_cal.create_event",
+    "outlook_cal.update_event",
+    "outlook_cal.delete_event",
+    "onedrive.search",
+    "onedrive.get_metadata",
+    "onedrive.download",
+    "onedrive.list_recent",
+];
+
+/// Build one [`ToolExecutor`] per Microsoft 365 operation and per connected
+/// account in `accounts`, each named `conn:microsoft:<account>/<operation>`
+/// and bound to that account's token.
+pub fn build_microsoft_executors(accounts: &[AccountId]) -> Vec<Box<dyn DispatchableExecutor>> {
+    microsoft_op_executors(accounts)
+        .into_iter()
+        .map(|executor| Box::new(executor) as Box<dyn DispatchableExecutor>)
+        .collect()
 }
+
+fn microsoft_op_executors(accounts: &[AccountId]) -> Vec<MicrosoftOpExecutor> {
+    accounts
+        .iter()
+        .flat_map(|account| {
+            MICROSOFT_OPERATIONS
+                .into_iter()
+                .map(move |op_id| MicrosoftOpExecutor {
+                    op_id,
+                    account: account.clone(),
+                    name: connection_tool_name(
+                        ConnectorProvider::Microsoft,
+                        account.as_str(),
+                        op_id,
+                    ),
+                })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests;

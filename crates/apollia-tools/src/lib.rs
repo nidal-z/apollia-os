@@ -35,6 +35,7 @@ pub mod dispatcher_invoker;
 pub mod executor;
 pub mod file_path_extractor;
 pub mod governance_db;
+pub mod granted_access;
 pub mod hitl_schema;
 pub mod host_env;
 pub mod journal;
@@ -69,11 +70,13 @@ pub use governance_db::{
     GovernanceDb, GovernanceError, GOVERNANCE_DB_FILENAME, LEGACY_BACKUP_FILENAME,
     LEGACY_PERMISSIONS_FILENAME,
 };
+pub use granted_access::GrantedAccess;
 pub use journal::{
     list_sessions, rollback_session, JournalEntry, JournalError, JournalWriter, JournalWriterHandle,
 };
 pub use native_dispatcher::{
-    build_dispatcher_with, build_native_dispatcher, NativeDispatcherConfig, UnavailableTool,
+    build_dispatcher_with, build_native_dispatcher, is_disabled, NativeDispatcherConfig,
+    UnavailableTool,
 };
 pub use package_repository::{
     InstalledPackage, PackageItem, PackageItemKind, PackageRepository, PackageRepositoryError,

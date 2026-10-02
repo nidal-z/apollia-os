@@ -114,12 +114,11 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             Arc::new(NoopToolInvoker),
         ));
 
-        let allowed_tools: Vec<String> = manifest
-            .tools_required
-            .iter()
-            .chain(manifest.tools_optional.iter())
-            .cloned()
-            .collect();
+        let allowed_tools = apollia_tools::GrantedAccess::new(
+            Some(apollia_core::paths::DataFile::Agents.path(&self.data_dir)),
+            &manifest,
+        )
+        .current();
 
         let memory_base_dir = self.data_dir.join("memory");
         let snapshot = load_governance_snapshot(&self.data_dir).unwrap_or_else(|e| {
@@ -190,7 +189,11 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
 
         // Augment allowed_tools with live A2A virtual skills so the ToolProxy
         // accepts `a2a:*` calls (the registry filter would otherwise reject them).
-        let mut allowed_tools = allowed_tools;
+        // An access to a connector tool without its account names the single
+        // connected account, or nothing.
+        let mut allowed_tools =
+            apollia_runtime::connectors_bridge::resolve_connector_access(agent_name, allowed_tools)
+                .await;
         if let Some(ref invoker) = a2a_invoker {
             let descriptors = apollia_runtime::a2a::A2AToolsProvider::new(Arc::clone(invoker))
                 .build_tool_descriptors()
@@ -405,9 +408,7 @@ pub(super) async fn task_tool_executors(
         }
         None => Vec::new(),
     };
-    executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
-    executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
-    executors.extend(apollia_runtime::connectors_bridge::build_imap_executors());
+    executors.extend(apollia_runtime::connectors_bridge::build_connector_executors().await);
     executors
 }
 

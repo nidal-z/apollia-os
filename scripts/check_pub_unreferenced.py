@@ -162,7 +162,7 @@ TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "get_choice@apollia-memory", "get_covered_topics@apollia-memory", "get_last_onboarding_session@apollia-memory",
     "get_onboarding_skipped@apollia-memory", "get_state@apollia-triggers", "global_tracker_clear@apollia-memory",
     "handle_budget_update@apollia-notifications", "has_reasoner@apollia-oria", "in_memory@apollia-mcp",
-    "into_tool_filter@apollia-runtime", "is_enabled@apollia-tools", "language_footer@apollia-prompts",
+    "is_enabled@apollia-tools", "language_footer@apollia-prompts",
     "list_entries@apollia-memory", "list_extras@apollia-memory", "load_step_provenance@apollia-oria",
     "log_plan_choice@apollia-memory", "maybe_purge@apollia-memory", "new_for_test@apollia-runtime",
     "new_with_cwd@apollia-oria", "new_with_workspace@apollia-runtime", "notify_agent_free@apollia-triggers",
@@ -176,7 +176,6 @@ TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "tracked_turns@apollia-memory", "try_with_default_backends@apollia-tools", "validate_id@apollia-triggers",
     "with_consequences@apollia-core", "with_index_path@apollia-auth", "with_max_output_chars@apollia-tools",
     "with_namespace@apollia-aip", "with_pattern@apollia-tools", "with_produced_plan@apollia-runtime",
-    "with_storage@apollia-auth",
 ])
 
 

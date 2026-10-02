@@ -31,6 +31,7 @@ pub mod llama_server_backend;
 pub mod llm_timings;
 pub mod mailbox;
 pub mod observability;
+pub mod package_tools;
 pub mod perf_trace;
 pub mod plan_approval;
 pub mod profile;
@@ -39,7 +40,6 @@ pub mod registry;
 pub mod replay;
 pub mod router;
 pub mod runner_supervisor;
-pub mod session;
 pub mod session_metrics;
 pub mod session_replay;
 pub mod shutdown;
@@ -79,7 +79,6 @@ pub use a2a::{
 // Chat subsystem
 pub use chat::ChatSessionManagerHandle;
 
-pub use session::SessionConfig;
 pub use session_metrics::{SessionMetricsActor, SessionMetricsStore};
 
 pub use stt::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};

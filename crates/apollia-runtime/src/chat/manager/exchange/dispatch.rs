@@ -79,7 +79,11 @@ impl ChatSessionManager {
                 }
             };
             let system_prompt = session.system_prompt.clone();
-            let available_tools = session.available_tools.clone();
+            // The Apollia agent is offered its granted accesses, read on every
+            // message so a change on its card applies to open conversations.
+            let available_tools =
+                super::super::apollia_agent::apollia_access(self.governance_db_path.as_deref())
+                    .unwrap_or_else(|| session.available_tools.clone());
             // Live merge: governance.db is re-read on every message so Apollia
             // Chat config changes (auto-authorized tools, agent-scoped rules)
             // apply to already-open Libre sessions without closing/reopening the
@@ -120,6 +124,11 @@ impl ChatSessionManager {
 
             let pending_user_inputs_for_session = self.pending_user_inputs.clone();
             let mcp_handle_for_session = self.mcp_handle.clone();
+            let package_tools = package_executors(
+                &self.package_tools,
+                apollia_tools::APOLLIA_AGENT_ID,
+                &cancel,
+            );
             let chat_tools_config_for_session = self.chat_tools_config.clone();
             let mcp_loading = self.mcp_loading;
             let tool_search_limit = self.tool_search_limit;
@@ -162,6 +171,7 @@ impl ChatSessionManager {
                 project_repo_for_session,
                 pending_user_inputs_for_session,
                 mcp_handle_for_session,
+                package_tools,
                 chat_tools_config_for_session,
                 mcp_loading,
                 tool_search_limit,

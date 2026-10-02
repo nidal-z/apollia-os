@@ -95,10 +95,14 @@ struct Fixture {
     _dir: tempfile::TempDir,
 }
 
-/// A connector operation that sends outside the machine: a sensitive access
-/// that can be granted for a batch.
+/// The tool of a connected account that sends outside the machine: a
+/// sensitive access that can be granted for a batch.
 fn sending_tool() -> String {
-    crate::connectors_bridge::all_connector_descriptors()
+    let accounts = [(
+        apollia_auth::ConnectorProvider::Google,
+        vec!["ada@example.com".to_owned()],
+    )];
+    crate::connectors_bridge::connector_descriptors_for(&accounts)
         .into_iter()
         .find(|d| d.family == ActionFamily::SendExternal)
         .map(|d| d.name)

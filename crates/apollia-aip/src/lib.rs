@@ -36,6 +36,7 @@ pub mod mail;
 pub mod memory;
 pub mod notify;
 pub mod package_loader;
+pub mod package_tools;
 #[allow(clippy::useless_conversion)]
 pub mod profile;
 pub mod python_provider;

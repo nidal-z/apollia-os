@@ -174,6 +174,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     // Open AgentRepository for auto-load at boot.
     let data_dir = apollia_core::paths::data_dir_under(home);
     let data_dir_for_chat = data_dir.clone();
+    let data_dir_for_package_tools = data_dir.clone();
     let agent_repository: Option<apollia_tools::AgentRepository> = {
         let db_path = data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
         match apollia_tools::AgentRepository::open(&db_path) {
@@ -398,6 +399,15 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     if let Some(ref repo) = agent_repository_for_rewire {
         rewire_auto_loaded_agents(repo, &factory_for_rewire, &handles, &handles.event_sender).await;
     }
+
+    // The Python tools of the installed packages join the registry, read from
+    // their manifests; each module is imported on its first call only.
+    apollia_aip::package_tools::attach(
+        &data_dir_for_package_tools,
+        &handles.tool_registry_handle,
+        handles.chat_manager.as_ref(),
+    )
+    .await;
 
     let elapsed = start.elapsed();
     // Query the registry for an accurate count instead of hard-coding the old
@@ -740,8 +750,8 @@ agent = A()
         let backend = AIPProductionBackend {
             bridge,
             agent_id: "regression-orch-full".to_string(),
+            access: apollia_tools::GrantedAccess::new(None, &manifest_snapshot),
             manifest: manifest_snapshot,
-            allowed_tools: vec![],
             llm_router: None,
             event_bus,
             pending_approvals: None,

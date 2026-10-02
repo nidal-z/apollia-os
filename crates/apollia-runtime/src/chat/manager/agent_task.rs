@@ -53,6 +53,7 @@ struct AgentTaskWiring {
     tool_search_limit: usize,
     hook_executor: Option<Arc<HookExecutor>>,
     hitl: HitlInvokerParams,
+    package_tools: Option<Arc<dyn crate::package_tools::PackageToolHost>>,
 }
 
 impl ChatSessionManager {
@@ -88,6 +89,7 @@ impl ChatSessionManager {
             tool_search_limit: self.tool_search_limit,
             hook_executor: self.hook_executor.clone(),
             hitl,
+            package_tools: self.package_tools.clone(),
         };
         info!(task_id = %run.task_id, agent = %run.spec.agent_id, "agent.task.started");
         tokio::spawn(run_agent_task(wiring, run));
@@ -164,6 +166,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         .as_deref()
         .map(super::dispatcher::effective_disabled_tools)
         .unwrap_or_default();
+    let mcp_index = super::disabled::only_granted(mcp_index, &spec.granted_tools);
     let (granted, mcp_index) = super::disabled::without_disabled(
         std::mem::take(&mut spec.granted_tools),
         mcp_index,
@@ -187,6 +190,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             mcp_loading: wiring.mcp_loading,
             mcp_index: mcp_index.clone(),
             tool_search_limit: wiring.tool_search_limit,
+            package_tools: super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel),
         },
         &wiring.a2a_invoker,
         wiring.hook_executor.clone(),
