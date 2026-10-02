@@ -118,8 +118,11 @@ impl CompletionModel for Scripted {
 }
 
 /// `books/close` returns `{"closed": true}`; `books/ask` runs the
-/// accountant in its step; `books/wait` waits until it is stopped.
-struct Host;
+/// accountant in its step; `books/wait` signals `waiting` once it is
+/// running, then waits until it is stopped.
+struct Host {
+    waiting: Arc<tokio::sync::Notify>,
+}
 
 impl WorkflowHost for Host {
     fn describe(&self, workflow_id: &str) -> Option<WorkflowDescriptor> {
@@ -146,6 +149,7 @@ impl WorkflowHost for Host {
     }
 
     fn run(&self, call: WorkflowCall) -> BoxFuture<'static, Result<Value, String>> {
+        let waiting = Arc::clone(&self.waiting);
         Box::pin(async move {
             call.services.step_started("step".into()).await?;
             let outcome = match call.workflow.id.as_str() {
@@ -155,6 +159,7 @@ impl WorkflowHost for Host {
                     .await
                     .map(Value::String),
                 "books/wait" => {
+                    waiting.notify_one();
                     call.cancel.cancelled().await;
                     Err("stopped".to_string())
                 }
@@ -216,6 +221,7 @@ struct Fixture {
     repository: Arc<TaskRepository>,
     offered: Offered,
     a2a: Arc<A2AInvoker>,
+    waiting: Arc<tokio::sync::Notify>,
     _dir: tempfile::TempDir,
 }
 
@@ -328,7 +334,13 @@ async fn fixture() -> Fixture {
         StepBudgetConfig::default(),
         Some(Arc::clone(&agents)),
     );
-    engine.set_host(Arc::new(Host)).await.unwrap();
+    let waiting = Arc::new(tokio::sync::Notify::new());
+    engine
+        .set_host(Arc::new(Host {
+            waiting: Arc::clone(&waiting),
+        }))
+        .await
+        .unwrap();
     chat.set_composer(Arc::new(RuntimeComposer::new(
         Arc::clone(&agents),
         engine.clone(),
@@ -367,6 +379,7 @@ async fn fixture() -> Fixture {
         repository,
         offered,
         a2a,
+        waiting,
         _dir: dir,
     }
 }
@@ -381,10 +394,7 @@ impl Fixture {
             .launch_watched(&resolved, &json!({"message": "Go"}), "Go".into())
             .await
             .unwrap();
-        tokio::time::timeout(std::time::Duration::from_secs(20), end)
-            .await
-            .unwrap()
-            .unwrap()
+        end.await.unwrap()
     }
 
     /// The tools offered to the requests of the agent of `mission`.
@@ -515,16 +525,12 @@ async fn stopping_the_caller_stops_the_workflow_it_called() {
         .composer
         .run_workflow("books/wait".into(), json!({}), caller);
     let stop = async {
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        fx.waiting.notified().await;
         token.cancel();
     };
 
-    // WHEN the caller is stopped
-    let (outcome, ()) = tokio::time::timeout(std::time::Duration::from_secs(10), async {
-        tokio::join!(call, stop)
-    })
-    .await
-    .unwrap();
+    // WHEN the caller is stopped once the workflow is waiting
+    let (outcome, ()) = tokio::join!(call, stop);
 
     // THEN the workflow inherited the token: it ended canceled
     assert!(outcome.unwrap_err().contains("canceled"));
