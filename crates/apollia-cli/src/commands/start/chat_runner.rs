@@ -398,6 +398,7 @@ pub(super) async fn task_tool_executors(
     };
     executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
     executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
+    executors.extend(apollia_runtime::connectors_bridge::build_imap_executors());
     executors
 }
 

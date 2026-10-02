@@ -250,6 +250,32 @@ restricted scopes require a verification process the project has not completed,
 so a Google connection asks the operator to supply their own client credentials.
 The asymmetry is deliberate, and it is stated where an operator meets it.
 
+## Documents and sources {#documents-and-sources}
+
+A mailbox connects over IMAP with an application password, so any provider is
+reachable, Gmail included, without an OAuth client and without a relay. The
+client is `async-imap` (MIT or Apache-2.0), on the Tokio runtime, over the
+`tokio-rustls` TLS stack the runtime already carries; it brings no OpenSSL.
+Messages are decoded by `mail-parser` (Apache-2.0 or MIT), which has no
+dependency outside Rust. The server certificate is checked against the root
+certificates of the system, read by `rustls-native-certs` (Apache-2.0, ISC or
+MIT), already present in the build through the HTTP client and now a direct
+dependency.
+
+The access is read-only, and it is enforced in the client rather than promised:
+folders open with `EXAMINE`, never `SELECT`, messages are fetched with
+`BODY.PEEK` so they stay unread, and no command that writes (`STORE`,
+`EXPUNGE`, `COPY`, `MOVE`, `APPEND`) is ever sent. Sending, moving or deleting
+mail is out of reach. The password lives in the configured secret store, never
+in the connection list, a log or the journal; because `async-imap` traces the
+commands it sends through the `log` facade, a login included, every binary
+turns its log target off.
+
+The cost is named: two crates and their small trees (`imap-proto`, `hashify`,
+`stop-token`, `async-channel`) enter every build, for a protocol whose
+servers vary in how strictly they follow it. A server that misreads a command
+answers a typed protocol error rather than a crash.
+
 ## Agent-to-agent messaging {#agent-messaging}
 
 A director agent delegates to worker agents by skill identifier, over a durable

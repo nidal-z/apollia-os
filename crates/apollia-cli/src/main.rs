@@ -484,6 +484,14 @@ fn init_tracing(cli: &Cli) {
     };
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(filter_str));
+    // The IMAP library traces the commands it sends, a login's password
+    // included; its target stays off whatever `RUST_LOG` asks.
+    let env_filter = match apollia_connectors::imap::LOG_DIRECTIVE
+        .parse::<tracing_subscriber::filter::Directive>()
+    {
+        Ok(directive) => env_filter.add_directive(directive),
+        Err(_) => env_filter,
+    };
 
     // Route diagnostics to stderr so they never corrupt stdout payloads
     // (notably `--json`): in-process commands (e.g. `mcp set-approval`) emit

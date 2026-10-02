@@ -1153,6 +1153,148 @@
         }
       }
     },
+    "/api/v1/connectors/imap/accounts": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/connectors/imap/accounts`: verify a mailbox, then store it.",
+        "operationId": "add_imap_mailbox",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImapAccountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Mailbox verified and connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapAccountResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unusable address, server, port or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The server refused the identifier or the password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The secret store or the mailbox list could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The server is unreachable, its TLS failed, or it answered outside the protocol",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/imap/test": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/connectors/imap/test`: verify a mailbox without storing it.",
+        "operationId": "test_imap_mailbox",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImapAccountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The mailbox accepted the identifier and password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapAccountResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unusable address, server, port or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The server refused the identifier or the password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The server is unreachable, its TLS failed, or it answered outside the protocol",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/oauth/complete": {
       "post": {
         "tags": [
@@ -3242,7 +3384,7 @@
           "mcp"
         ],
         "summary": "`POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.",
-        "description": "Spawns the server process and registers its tools, then saves the configuration.\nReturns `201 Created` with the server status on success.\nReturns `409 Conflict` when a server with the same name is already managed.\nReturns `400 Bad Request` for invalid configurations or spawn failures.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "The addition is first submitted to the connection admission; a refusal\nanswers `403 Forbidden` with its reason, before any process is spawned and\nbefore anything is written to `mcp.db`. Spawns the server process and\nregisters its tools, then saves the configuration and journals the addition.\nReturns `201 Created` with the server status on success.\nReturns `409 Conflict` when a server with the same name is already managed.\nReturns `400 Bad Request` for invalid configurations or spawn failures.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "add_server",
         "responses": {
           "201": {
@@ -3376,7 +3518,7 @@
           "mcp"
         ],
         "summary": "`DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.",
-        "description": "Shuts down the session, unregisters the server, then removes its database entry.\nReturns `200 OK` with `{\"removed\": \"<name>\"}` on success.\nReturns `404 Not Found` when no server with the given name is managed.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "Shuts down the session, unregisters the server, removes its database entry,\nthen journals the removal.\nReturns `200 OK` with `{\"removed\": \"<name>\"}` on success.\nReturns `404 Not Found` when no server with the given name is managed.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "remove_server",
         "parameters": [
           {
@@ -3498,7 +3640,7 @@
           "mcp"
         ],
         "summary": "`PUT /api/v1/mcp/servers/:name/config`, Replace a server configuration and restart the session.",
-        "description": "Removes the current session, starts a new one with the updated configuration, then\nupserts the entry in `mcp.db`.\nReturns `200 OK` with the new [`McpServerStatus`] on success.\nReturns `404 Not Found` when no server with `name` is managed.\nReturns `400 Bad Request` when the new session fails to start.\nReturns `503 Service Unavailable` when MCP is not configured.",
+        "description": "Removes the current session, starts a new one with the updated configuration,\nupserts the entry in `mcp.db`, then journals the change.\nReturns `200 OK` with the new [`McpServerStatus`] on success.\nReturns `404 Not Found` when no server with `name` is managed.\nReturns `400 Bad Request` when the new session fails to start.\nReturns `503 Service Unavailable` when MCP is not configured.",
         "operationId": "update_server_config",
         "parameters": [
           {
@@ -7717,7 +7859,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`."
+            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,\n`imap:<address>`."
           },
           "kind": {
             "$ref": "#/components/schemas/ConnectionKind",
@@ -7757,6 +7899,7 @@
         "description": "The kind of thing a connection plugs in.",
         "enum": [
           "native",
+          "imap",
           "mcp",
           "folder"
         ]
@@ -8373,6 +8516,100 @@
           "version": {
             "type": "string",
             "description": "The version of the runtime answering, as its crate declares it."
+          }
+        }
+      },
+      "ImapAccountBody": {
+        "type": "object",
+        "description": "Body of both mailbox routes. Deliberately without `Debug`: it carries the\npassword.",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Address of the mailbox."
+          },
+          "host": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "IMAP server; filled from the address for a known provider."
+          },
+          "password": {
+            "type": "string",
+            "description": "Application password. Kept in the secret store, never answered."
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "IMAP port, implicit TLS; the provider's, else 993.",
+            "minimum": 0
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier sent at login; the address when absent."
+          }
+        }
+      },
+      "ImapAccountResponse": {
+        "type": "object",
+        "description": "A verified mailbox, as both routes answer it.",
+        "required": [
+          "connectionId",
+          "email",
+          "host",
+          "port",
+          "username"
+        ],
+        "properties": {
+          "connectionId": {
+            "type": "string",
+            "description": "Identifier of the connection, `imap:<address>`."
+          },
+          "email": {
+            "type": "string",
+            "description": "Address of the mailbox."
+          },
+          "host": {
+            "type": "string",
+            "description": "IMAP server."
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "IMAP port.",
+            "minimum": 0
+          },
+          "username": {
+            "type": "string",
+            "description": "Identifier sent at login."
+          }
+        }
+      },
+      "ImapErrorBody": {
+        "type": "object",
+        "description": "A refused mailbox: the message and its stable code.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable code: `invalid_email`, `unknown_provider`, `invalid_host`,\n`invalid_port`, `invalid_password`, `unreachable`, `tls`,\n`credentials_rejected`, `protocol`, `admission_refused`,\n`secret_store`, `index`."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for a person."
           }
         }
       },
