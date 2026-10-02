@@ -25,6 +25,14 @@ use crate::secret_storage::SecretStore;
 /// Kept as a constant so callers cannot drift; tests pin its value.
 pub const MCP_OAUTH_SERVICE: &str = "apollia-mcp-oauth";
 
+/// Keychain / age-file service slot for the OAuth client ids an operator
+/// registered with an MCP authorisation server (pre-registered clients).
+///
+/// `user` is the environment variable the catalogue names for that client id
+/// (for example `APOLLIA_FIGMA_CLIENT_ID`). Shared by the desktop and the CLI
+/// so both binaries read and write the same entries.
+pub const MCP_CLIENT_ID_SERVICE: &str = "apollia-mcp-client-ids";
+
 /// Persisted state of a successful MCP OAuth handshake.
 ///
 /// Carries every piece of information the orchestrator needs to:

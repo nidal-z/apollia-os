@@ -24,7 +24,7 @@ use futures::{Stream, StreamExt};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::llama_server::LlamaServerSupervisor;
+use crate::llama_server::{LlamaServerSupervisor, ModelLease};
 
 /// `CompletionModel` backed by the embedded `llama-server`.
 pub struct LlamaServerBackend {
@@ -74,9 +74,11 @@ impl LlamaServerBackend {
     }
 
     /// Ensure the server is serving this backend's model, then return an OpenAI
-    /// client pointed at its current base URL (rebuilt only when the URL changed).
-    async fn ready_client(&self) -> Result<Arc<OpenAICompatibleClient>, LlmError> {
-        let base = self
+    /// client pointed at its current base URL (rebuilt only when the URL changed),
+    /// with the lease that keeps the model from being unloaded mid-request. The
+    /// caller holds the lease until the answer is complete.
+    async fn ready_client(&self) -> Result<(Arc<OpenAICompatibleClient>, ModelLease), LlmError> {
+        let lease = self
             .supervisor
             .ensure_model(self.model_path.clone(), self.n_ctx)
             .await
@@ -84,11 +86,12 @@ impl LlamaServerBackend {
                 backend: self.backend_name.clone(),
                 reason: format!("llama-server: {e}"),
             })?;
+        let base = lease.base_url().to_owned();
 
         let mut guard = self.client.lock().await;
         if let Some((url, client)) = guard.as_ref() {
             if url == &base {
-                return Ok(Arc::clone(client));
+                return Ok((Arc::clone(client), lease));
             }
         }
         let cfg = ApiBackendConfig {
@@ -113,14 +116,15 @@ impl LlamaServerBackend {
             self.cancel.clone(),
         ));
         *guard = Some((base, Arc::clone(&client)));
-        Ok(client)
+        Ok((client, lease))
     }
 }
 
 #[async_trait::async_trait]
 impl CompletionModel for LlamaServerBackend {
     async fn complete(&self, req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
-        let response = self.ready_client().await?.complete(req).await?;
+        let (client, _lease) = self.ready_client().await?;
+        let response = client.complete(req).await?;
         if let Some(timings) = response.engine_timings.as_ref() {
             crate::llm_timings::observe_timings(&self.backend_name, &self.model_id, timings);
         }
@@ -131,12 +135,17 @@ impl CompletionModel for LlamaServerBackend {
         &self,
         req: CompletionRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
-        let inner = self.ready_client().await?.stream(req).await?;
+        let (client, lease) = self.ready_client().await?;
+        let inner = client.stream(req).await?;
         // Observe in passing rather than consuming: the chunk continues
         // downstream so the turn decomposition can attribute it to an iteration.
         let backend = self.backend_name.clone();
         let model = self.model_id.clone();
+        // The lease travels inside the stream: the model stays in use until the
+        // consumer has drained or dropped the answer, not merely until the
+        // first byte arrived.
         let observed = inner.inspect(move |item| {
+            let _held = &lease;
             if let Ok(StreamChunk::Timings(timings)) = item {
                 crate::llm_timings::observe_timings(&backend, &model, timings);
             }

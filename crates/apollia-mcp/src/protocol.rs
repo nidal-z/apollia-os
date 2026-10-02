@@ -161,11 +161,64 @@ pub struct ServerInfo {
 pub struct McpToolDefinition {
     /// Unique tool name within the server (e.g. `"search_pages"`).
     pub name: String,
+    /// Human-readable display name (e.g. `"Search pages"`), when declared.
+    #[serde(default)]
+    pub title: Option<String>,
     /// Human-readable description of what the tool does.
     pub description: Option<String>,
     /// JSON Schema describing the tool's input arguments.
     #[serde(rename = "inputSchema")]
     pub input_schema: serde_json::Value,
+    /// Behaviour hints the server declares for the tool, when it declares any.
+    ///
+    /// Untrusted: a server may describe a tool as read-only and write anyway.
+    /// The hints classify a tool, they never authorise one.
+    #[serde(default, deserialize_with = "lenient_annotations")]
+    pub annotations: Option<McpToolAnnotations>,
+}
+
+/// The behaviour hints of a tool (`annotations` in `tools/list`).
+///
+/// Every hint is optional. A hint the server omits, or sends with a value that
+/// is not a boolean, reads as absent; a hint this build does not know is
+/// ignored. Neither case fails the `tools/list` response, so one malformed
+/// annotation cannot hide the rest of the server's tools.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct McpToolAnnotations {
+    /// `readOnlyHint`: the tool does not modify its environment.
+    pub read_only_hint: Option<bool>,
+    /// `destructiveHint`: the tool may perform destructive updates.
+    pub destructive_hint: Option<bool>,
+    /// `idempotentHint`: repeated calls with the same arguments have no
+    /// additional effect.
+    pub idempotent_hint: Option<bool>,
+    /// `openWorldHint`: the tool interacts with an open world of external
+    /// entities.
+    pub open_world_hint: Option<bool>,
+}
+
+impl McpToolAnnotations {
+    /// Read the hints from an `annotations` value; `None` unless it is an object.
+    #[must_use]
+    pub fn from_value(value: &serde_json::Value) -> Option<Self> {
+        let object = value.as_object()?;
+        let hint = |key: &str| object.get(key).and_then(serde_json::Value::as_bool);
+        Some(Self {
+            read_only_hint: hint("readOnlyHint"),
+            destructive_hint: hint("destructiveHint"),
+            idempotent_hint: hint("idempotentHint"),
+            open_world_hint: hint("openWorldHint"),
+        })
+    }
+}
+
+/// Deserialize `annotations` without ever failing the enclosing tool.
+fn lenient_annotations<'de, D>(deserializer: D) -> Result<Option<McpToolAnnotations>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(McpToolAnnotations::from_value(&value))
 }
 
 /// Result of a `tools/list` request.
@@ -578,5 +631,65 @@ mod tests {
         // THEN
         assert_eq!(value["name"], "ping");
         assert!(value["arguments"].is_null());
+    }
+    #[test]
+    fn test_tool_definition_reads_title_and_annotations() {
+        // GIVEN a tools/list entry carrying a title and the four hints
+        let json_str = r#"{
+            "name": "search_pages",
+            "title": "Search pages",
+            "inputSchema": {"type": "object"},
+            "annotations": {
+                "readOnlyHint": true,
+                "destructiveHint": false,
+                "idempotentHint": true,
+                "openWorldHint": false
+            }
+        }"#;
+        // WHEN it is deserialized
+        let tool: McpToolDefinition = serde_json::from_str(json_str).unwrap();
+        // THEN the title and every hint are kept
+        assert_eq!(tool.title.as_deref(), Some("Search pages"));
+        assert_eq!(
+            tool.annotations,
+            Some(McpToolAnnotations {
+                read_only_hint: Some(true),
+                destructive_hint: Some(false),
+                idempotent_hint: Some(true),
+                open_world_hint: Some(false),
+            })
+        );
+    }
+
+    #[test]
+    fn test_tool_definition_without_annotations_is_accepted() {
+        // GIVEN a tools/list entry with no title and no annotations
+        let json_str = r#"{"name": "echo", "inputSchema": {"type": "object"}}"#;
+        // WHEN it is deserialized
+        let tool: McpToolDefinition = serde_json::from_str(json_str).unwrap();
+        // THEN both read as absent
+        assert_eq!(tool.title, None);
+        assert_eq!(tool.annotations, None);
+    }
+
+    #[test]
+    fn test_unknown_or_malformed_annotations_are_ignored() {
+        // GIVEN an entry whose annotations hold an unknown hint and a hint that
+        //       is not a boolean, and an entry whose annotations are not an object
+        let unknown = r#"{
+            "name": "a",
+            "inputSchema": {},
+            "annotations": {"teleportHint": true, "readOnlyHint": "yes", "destructiveHint": true}
+        }"#;
+        let not_object = r#"{"name": "b", "inputSchema": {}, "annotations": [true]}"#;
+        // WHEN each is deserialized
+        let a: McpToolDefinition = serde_json::from_str(unknown).unwrap();
+        let b: McpToolDefinition = serde_json::from_str(not_object).unwrap();
+        // THEN neither fails: the unknown hint is dropped, the malformed one
+        //      reads as absent, the well-formed one is kept
+        let hints = a.annotations.unwrap();
+        assert_eq!(hints.read_only_hint, None);
+        assert_eq!(hints.destructive_hint, Some(true));
+        assert_eq!(b.annotations, None);
     }
 }

@@ -27,6 +27,15 @@ use apollia_mcp::McpServerRepository;
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+use crate::governance::{AdmissionDecision, AdmissionRequest, ConnectionEvent};
+
+/// Who the connection journal names for a change made through these routes.
+const ROUTE_ACTOR: &str = "api";
+
+/// Connection identifier of the MCP server `name`.
+fn mcp_connection_id(name: &str) -> String {
+    format!("mcp:{name}")
+}
 
 /// Build the MCP router with all server management routes.
 ///
@@ -280,7 +289,10 @@ pub(crate) async fn restart_server<B: ExecutionBackend + Clone>(
 
 /// `POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.
 ///
-/// Spawns the server process and registers its tools, then saves the configuration.
+/// The addition is first submitted to the connection admission; a refusal
+/// answers `403 Forbidden` with its reason, before any process is spawned and
+/// before anything is written to `mcp.db`. Spawns the server process and
+/// registers its tools, then saves the configuration and journals the addition.
 /// Returns `201 Created` with the server status on success.
 /// Returns `409 Conflict` when a server with the same name is already managed.
 /// Returns `400 Bad Request` for invalid configurations or spawn failures.
@@ -292,6 +304,7 @@ pub(crate) async fn restart_server<B: ExecutionBackend + Clone>(
     responses(
         (status = 201, description = "Server added and persisted"),
         (status = 400, description = "Invalid configuration or spawn failure", body = crate::api::openapi::ApiErrorBody),
+        (status = 403, description = "Refused by the connection admission", body = crate::api::openapi::ApiErrorBody),
         (status = 409, description = "Server already exists", body = crate::api::openapi::ApiErrorBody),
         (status = 500, description = "Repository error", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "MCP not configured", body = crate::api::openapi::ApiErrorBody),
@@ -303,6 +316,11 @@ pub(crate) async fn add_server<B: ExecutionBackend + Clone>(
 ) -> Result<(StatusCode, Json<McpServerStatus>), JsonError> {
     let handle = require_mcp_handle(&state)?;
     let repo = require_mcp_repo(&state)?;
+
+    let request = AdmissionRequest::for_mcp_server(&config);
+    if let AdmissionDecision::Refused { reason } = state.connection_governance.admit(&request) {
+        return Err(json_err(StatusCode::FORBIDDEN, reason));
+    }
 
     let status = handle.add_server(config.clone()).await.map_err(|e| {
         let code = if e.to_string().contains("already exists") {
@@ -325,12 +343,23 @@ pub(crate) async fn add_server<B: ExecutionBackend + Clone>(
             .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     }
 
+    state
+        .connection_governance
+        .record_or_warn(&ConnectionEvent::Added {
+            connection_id: mcp_connection_id(&config.name),
+            kind: request.kind,
+            remote: request.remote,
+            provenance: request.provenance,
+            actor: ROUTE_ACTOR.to_owned(),
+        });
+
     Ok((StatusCode::CREATED, Json(status)))
 }
 
 /// `DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
 ///
-/// Shuts down the session, unregisters the server, then removes its database entry.
+/// Shuts down the session, unregisters the server, removes its database entry,
+/// then journals the removal.
 /// Returns `200 OK` with `{"removed": "<name>"}` on success.
 /// Returns `404 Not Found` when no server with the given name is managed.
 /// Returns `503 Service Unavailable` when MCP is not configured.
@@ -371,6 +400,13 @@ pub(crate) async fn remove_server<B: ExecutionBackend + Clone>(
             .delete(&name)
             .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     }
+
+    state
+        .connection_governance
+        .record_or_warn(&ConnectionEvent::Removed {
+            connection_id: mcp_connection_id(&name),
+            actor: ROUTE_ACTOR.to_owned(),
+        });
 
     Ok(Json(serde_json::json!({"removed": name})))
 }
@@ -512,8 +548,8 @@ pub(crate) async fn test_live_server<B: ExecutionBackend + Clone>(
 
 /// `PUT /api/v1/mcp/servers/:name/config`, Replace a server configuration and restart the session.
 ///
-/// Removes the current session, starts a new one with the updated configuration, then
-/// upserts the entry in `mcp.db`.
+/// Removes the current session, starts a new one with the updated configuration,
+/// upserts the entry in `mcp.db`, then journals the change.
 /// Returns `200 OK` with the new [`McpServerStatus`] on success.
 /// Returns `404 Not Found` when no server with `name` is managed.
 /// Returns `400 Bad Request` when the new session fails to start.
@@ -585,6 +621,14 @@ pub(crate) async fn update_server_config<B: ExecutionBackend + Clone>(
             .save(&config)
             .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     }
+
+    state
+        .connection_governance
+        .record_or_warn(&ConnectionEvent::Modified {
+            connection_id: mcp_connection_id(&name),
+            remote: crate::connections::is_remote(&config.transport, config.url.as_deref()),
+            actor: ROUTE_ACTOR.to_owned(),
+        });
 
     Ok(Json(status))
 }
@@ -689,6 +733,9 @@ pub(crate) async fn set_server_approval<B: ExecutionBackend + Clone>(
             )
         })
 }
+
+#[cfg(test)]
+mod governance_tests;
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 

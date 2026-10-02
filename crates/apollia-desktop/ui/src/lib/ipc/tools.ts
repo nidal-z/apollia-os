@@ -8,6 +8,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import type { ToolSummary } from "$lib/types";
+import type { ActionFamily, FamilySource } from "$lib/tools/action-family";
 
 /**
  * Full contract of a tool, as returned by `describe_tool`.
@@ -25,6 +26,10 @@ export interface ToolDescriptor {
   input_schema: unknown;
   output_schema: unknown;
   permissions: string[];
+  /** Action family; `unclassified` when the runtime published none. */
+  family: ActionFamily;
+  /** Origin of `family`. */
+  family_source: FamilySource;
 }
 
 /**

@@ -52,7 +52,8 @@ pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
 pub use descriptor::{
-    ApprovalRiskLevel, McpTransport, ToolDescriptor, ToolDescriptorError, ToolKind,
+    ActionFamily, ApprovalRiskLevel, FamilySource, McpTransport, ToolDescriptor,
+    ToolDescriptorError, ToolKind,
 };
 pub use executor::{
     SessionToolFilter, ToolBatchCall, ToolDispatcher, ToolExecutionError, ToolExecutor,

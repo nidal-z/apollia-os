@@ -332,10 +332,16 @@ de configuration.
 L'API HTTP écoute sur une socket Unix et sur un port TCP ; le daemon lie les deux
 à chaque démarrage, et le numéro de port est la seule chose que `--port` décide.
 La socket Unix relève de la confiance locale et s'appuie sur les permissions du
-système de fichiers. Le TCP exige un jeton porteur sur tous les chemins, et le lier à une
-adresse non locale sans TLS est une erreur de démarrage plutôt qu'un
-avertissement : un attachement distant non sécurisé est la seule erreur qu'on ne
-peut pas défaire une fois que le trafic est passé.
+système de fichiers. Le TCP exige un jeton porteur sur tous les chemins
+`/api/v1` sauf un, et le lier à une adresse non locale sans TLS est une erreur de
+démarrage plutôt qu'un avertissement : un attachement distant non sécurisé est la
+seule erreur qu'on ne peut pas défaire une fois que le trafic est passé.
+
+L'exception est `GET /api/v1/health`, qui répond sans jeton et ne révèle que le
+marqueur de produit et la version du runtime, rien d'autre. Un processus qui
+trouve le port pris ne détient aucun jeton de cette installation, et ce qu'il doit
+savoir, c'est si le détenteur est un runtime Apollia et dans quelle version.
+Toutes les autres routes `/api/v1` gardent le jeton.
 
 ## Signatures {#signing-schemes}
 
@@ -403,6 +409,31 @@ Tout texte visible par l'utilisateur passe par la couche d'internationalisation,
 avec des entrées anglaises et françaises parallèles. Couleurs, espacements et
 typographie viennent des jetons de design ; une valeur codée en dur qui double un
 jeton est une valeur qui ne suivra pas un changement de thème.
+
+### Le runtime dans la fenêtre ou à côté {#desktop-runtime-modes}
+
+Le runtime tourne à l'un de deux endroits : dans le processus du bureau, ou comme
+démon séparé, `apollia-os start` installé comme service de l'utilisateur, auquel
+le bureau se rattache. Le démon est ce qui laisse les agents et le travail
+planifié continuer fenêtre fermée, et c'est le même runtime, pas un second.
+
+Le port TCP décide. Au lancement, avant l'interpréteur Python, toute base et tout
+écouteur, le bureau prend le port du runtime. L'obtenir veut dire qu'aucun
+runtime ne sert la machine : le bureau en démarre un dans son propre processus,
+sur cet écouteur même, qui n'est jamais relâché entre la décision et le service.
+Ne pas l'obtenir veut dire que quelque chose tient le port, et le bureau lui
+demande `GET /api/v1/health`, dont le corps porte un marqueur de produit et une
+version : un runtime Apollia compatible est rattaché, tout le reste est refusé.
+Une sonde suivie d'une liaison a été écartée, parce que l'instant entre les deux
+appartient au premier processus qui prend le port.
+
+Refusé : deux runtimes sur une machine, le rattachement à un écouteur qui ne se
+dit pas Apollia ou à un runtime dont la version majeure ou mineure diffère, et
+un lancement qui s'arrête sans un mot. Un refus ouvre une fenêtre qui nomme ce
+qui tient le port et le geste à faire, et ajoute la raison à
+`startup-refused.log` dans le dossier de données.
+
+La version 0.3.0 livre les deux modes.
 
 ## Distribution des agents {#agent-distribution}
 

@@ -681,6 +681,8 @@ guards:
     guards=(
       "scripts/automation/tools/validate.py"
       "scripts/check_agents_md.py"
+      "scripts/check-model-families.py"
+      "scripts/check-model-families.py --selftest"
       "scripts/check_automation_derived.py"
       "scripts/check_ci_workflows.py"
       "scripts/check_claim_anchors.py"

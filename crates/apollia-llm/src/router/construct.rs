@@ -12,8 +12,7 @@ use apollia_core::events::EventBusSender;
 use apollia_core::{LlmBackendConfig, LlmBackendRepository, LlmRoutingConfig};
 
 use crate::router::backends::{
-    build_backend, insert_vertex_backend, insert_vertex_backend_with_bus, instantiate_from_config,
-    load_backend_with_bus, resolve_default_backend,
+    build_backend, instantiate_from_config, load_backend_with_bus, resolve_default_backend,
 };
 use crate::router::config::LlmConfig;
 use crate::router::validate_routing;
@@ -27,8 +26,8 @@ impl LlmRouter {
     /// No production path calls this: the daemon builds its router from
     /// `system.db` through
     /// [`from_repository_with_override`](Self::from_repository_with_override).
-    /// Everything this constructor reads and that one does not, `[llm.vertex]`
-    /// and `[llm.pricing_overrides]`, is therefore inert on a running daemon.
+    /// What this constructor reads and that one does not,
+    /// `[llm.pricing_overrides]`, is therefore inert on a running daemon.
     ///
     /// Iterates over `config.backends` and tries to instantiate each backend.
     /// For `Api`: resolves the API key; if missing, logs `tracing::warn!` and
@@ -69,10 +68,6 @@ impl LlmRouter {
             }
         }
 
-        // Vertex AI is instantiated separately from [llm.vertex] when enabled = true.
-        #[cfg(feature = "cloud")]
-        insert_vertex_backend(&mut backends, config, &cancellation_token);
-
         // The default backend must be available after the loop.
         if !backends.contains_key(&config.default) {
             return Err(LlmError::BackendUnavailable {
@@ -87,6 +82,7 @@ impl LlmRouter {
             backends,
             default: config.default.clone(),
             routing: config.routing.clone(),
+            servers: Default::default(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         })
@@ -125,10 +121,6 @@ impl LlmRouter {
             load_backend_with_bus(&mut backends, backend_cfg, &cancellation_token, &bus);
         }
 
-        // Vertex AI is instantiated separately from [llm.vertex] when enabled = true.
-        #[cfg(feature = "cloud")]
-        insert_vertex_backend_with_bus(&mut backends, config, &cancellation_token, &bus);
-
         if !backends.contains_key(&config.default) {
             return Err(LlmError::BackendUnavailable {
                 backend: config.default.clone(),
@@ -142,6 +134,7 @@ impl LlmRouter {
             backends,
             default: config.default.clone(),
             routing: config.routing.clone(),
+            servers: Default::default(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::new(
                 bus,
@@ -172,6 +165,7 @@ impl LlmRouter {
             backends,
             default,
             routing: None,
+            servers: Default::default(),
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         }
@@ -240,6 +234,7 @@ impl LlmRouter {
             backends,
             default,
             routing: None,
+            servers: Default::default(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         })
@@ -330,6 +325,7 @@ impl LlmRouter {
             backends,
             default,
             routing: None,
+            servers: Default::default(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         })
@@ -360,6 +356,7 @@ impl LlmRouter {
             backends: HashMap::new(),
             default: String::new(),
             routing: None,
+            servers: Default::default(),
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         }

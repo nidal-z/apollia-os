@@ -1031,6 +1031,40 @@
         }
       }
     },
+    "/api/v1/connections": {
+      "get": {
+        "tags": [
+          "connections"
+        ],
+        "summary": "`GET /api/v1/connections`: every connection, whatever its kind, with its\nprovenance, its remote attribute and its tools.",
+        "operationId": "list_connections",
+        "responses": {
+          "200": {
+            "description": "Every connection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Connection"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A store could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/accounts": {
       "get": {
         "tags": [
@@ -1157,6 +1191,16 @@
               }
             }
           },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
             "description": "No pending consent for this state",
             "content": {
@@ -1259,7 +1303,10 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {}
+        ]
       }
     },
     "/api/v1/hooks": {
@@ -1273,6 +1320,168 @@
         "responses": {
           "200": {
             "description": "Registered lifecycle hook handlers in declaration order"
+          }
+        }
+      }
+    },
+    "/api/v1/llm/agents/{agent}/model": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`GET /api/v1/llm/agents/{agent}/model`: the model the user assigned to an agent.",
+        "operationId": "get_agent_model",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The agent's model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentModelResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No model assigned to this agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`PUT /api/v1/llm/agents/{agent}/model`: assign a model, and optionally a\npreset of it, to an agent. Kept apart from the installed package.",
+        "operationId": "set_agent_model",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAgentModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentModelResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Preset not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Empty model, undeclared server, or a preset of another model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`DELETE /api/v1/llm/agents/{agent}/model`: remove the assignment; the agent\ngoes back to the model its package declares, or to the default.",
+        "operationId": "clear_agent_model",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assignment removed, or there was none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearAgentModelResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -1871,6 +2080,106 @@
         }
       }
     },
+    "/api/v1/llm/default-model": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`GET /api/v1/llm/default-model`: the default model of the machine.",
+        "operationId": "get_default_model",
+        "responses": {
+          "200": {
+            "description": "The default model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultModelResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No default model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`PUT /api/v1/llm/default-model`: make a local model or a model of a\ndeclared server the single default of the machine.",
+        "operationId": "set_default_model",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDefaultModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Default model set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefaultModelResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Backend not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A model of the wrong kind, or an undeclared server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/hardware": {
       "get": {
         "tags": [
@@ -1885,6 +2194,99 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HardwareResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/loaded-models": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `GET /api/v1/llm/loaded-models`.",
+        "operationId": "list_loaded_models",
+        "responses": {
+          "200": {
+            "description": "Resident local models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadedModelsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/loaded-models/unload": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `POST /api/v1/llm/loaded-models/unload`.",
+        "description": "Stops the model and frees its memory. Refused with 409 while it is\nanswering a request, so an unload never cuts an answer short.",
+        "operationId": "unload_loaded_model",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnloadModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model unloaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnloadModelResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty model path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model not loaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Model in use, a response is in progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine on this host",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -1927,6 +2329,260 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/presets": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`GET /api/v1/llm/presets`: every preset, or those of one model.",
+        "operationId": "list_llm_presets",
+        "parameters": [
+          {
+            "name": "model_source",
+            "in": "query",
+            "description": "Only the presets of a model running here.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ModelSourceDto"
+            }
+          },
+          {
+            "name": "model_id",
+            "in": "query",
+            "description": "Only the presets of this model.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Presets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresetsListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Only one of model_source and model_id given",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`POST /api/v1/llm/presets`: create a preset for a model.",
+        "operationId": "create_llm_preset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePresetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Preset created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresetResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The model already has a preset of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Empty name or model, or a system prompt among the settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/presets/{id}": {
+      "put": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`PUT /api/v1/llm/presets/{id}`: replace a preset's name and settings.",
+        "operationId": "update_llm_preset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Preset identifier",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePresetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Preset updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresetResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Preset not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The model already has a preset of that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Empty name, or a system prompt among the settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`DELETE /api/v1/llm/presets/{id}`: delete a preset. An agent that had\nchosen it goes back to its model's default preset.",
+        "operationId": "delete_llm_preset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Preset identifier",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preset deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletePresetResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Preset not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -2170,6 +2826,251 @@
         }
       }
     },
+    "/api/v1/llm/servers": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`GET /api/v1/llm/servers`: every declared server, without its key.",
+        "operationId": "list_llm_servers",
+        "responses": {
+          "200": {
+            "description": "Declared servers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServersListResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`POST /api/v1/llm/servers`: declare (or replace) a server. The key goes to\nthe secret store; the server's models become routable at once.",
+        "operationId": "create_llm_server",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Server saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid name or address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Repository or secret store not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/servers/test": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`POST /api/v1/llm/servers/test`: list the models of a server that is not\nsaved, to check the address and the key before saving. Writes nothing.",
+        "operationId": "test_llm_server",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The server answered with its models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestServerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The address is not an HTTP URL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Unreachable, key refused, or not an OpenAI-compatible server; `kind` says which",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/servers/{name}": {
+      "delete": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`DELETE /api/v1/llm/servers/{name}`: forget a server and its key.",
+        "operationId": "delete_llm_server",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Server name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Server deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteServerResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Repository or secret store not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/servers/{name}/models": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`GET /api/v1/llm/servers/{name}/models`: the models of a declared server,\neach with the name it routes by.",
+        "operationId": "list_llm_server_models",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Server name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The server's models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerModelsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Server not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Unreachable, key refused, or not an OpenAI-compatible server; `kind` says which",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Repository or key not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/status": {
       "get": {
         "tags": [
@@ -2349,6 +3250,16 @@
           },
           "400": {
             "description": "Invalid configuration or spawn failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the connection admission",
             "content": {
               "application/json": {
                 "schema": {
@@ -6148,6 +7059,37 @@
           }
         }
       },
+      "AgentModelResponse": {
+        "type": "object",
+        "description": "The model assigned to an agent.",
+        "required": [
+          "agent",
+          "model_source",
+          "model_id"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Agent name."
+          },
+          "model_id": {
+            "type": "string",
+            "description": "The model: a local registry identifier, or `<server>/<model>`."
+          },
+          "model_source": {
+            "$ref": "#/components/schemas/ModelSourceDto",
+            "description": "Where the model runs."
+          },
+          "preset_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The preset chosen for the agent; `null` leaves the model's default."
+          }
+        }
+      },
       "AgentResponse": {
         "type": "object",
         "description": "Response body for agent operations.",
@@ -6621,6 +7563,24 @@
           }
         }
       },
+      "ClearAgentModelResponse": {
+        "type": "object",
+        "description": "Body of `DELETE /api/v1/llm/agents/{agent}/model`.",
+        "required": [
+          "agent",
+          "cleared"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Agent name."
+          },
+          "cleared": {
+            "type": "boolean",
+            "description": "Whether an assignment existed."
+          }
+        }
+      },
       "ClearCacheResponse": {
         "type": "object",
         "description": "Response body for `POST /api/v1/plan-cache/clear`.",
@@ -6731,6 +7691,112 @@
           "provider": {
             "type": "string",
             "description": "Provider identifier."
+          }
+        }
+      },
+      "Connection": {
+        "type": "object",
+        "description": "One connection, whatever its kind.",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "provenance",
+          "remote",
+          "official",
+          "state",
+          "tools"
+        ],
+        "properties": {
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Account the connection acts as, when it has one."
+          },
+          "id": {
+            "type": "string",
+            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ConnectionKind",
+            "description": "Kind of connection."
+          },
+          "label": {
+            "type": "string",
+            "description": "Name shown to the user: the server name, or the provider."
+          },
+          "official": {
+            "type": "boolean",
+            "description": "Published by the service's own publisher."
+          },
+          "provenance": {
+            "type": "string",
+            "description": "Where the connection was found before it was added."
+          },
+          "remote": {
+            "type": "boolean",
+            "description": "Sends data off this machine. Computed, see [`is_remote`]."
+          },
+          "state": {
+            "$ref": "#/components/schemas/ConnectionState",
+            "description": "Whether it can be used right now."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectionTool"
+            },
+            "description": "Tools the connection brings."
+          }
+        }
+      },
+      "ConnectionKind": {
+        "type": "string",
+        "description": "The kind of thing a connection plugs in.",
+        "enum": [
+          "native",
+          "mcp",
+          "folder"
+        ]
+      },
+      "ConnectionState": {
+        "type": "string",
+        "description": "Whether a connection can be used right now.",
+        "enum": [
+          "connected",
+          "degraded",
+          "needs_reauth",
+          "unavailable",
+          "stopped"
+        ]
+      },
+      "ConnectionTool": {
+        "type": "object",
+        "description": "One tool a connection brings.",
+        "required": [
+          "id",
+          "family",
+          "familySource",
+          "prechecked"
+        ],
+        "properties": {
+          "family": {
+            "type": "string",
+            "description": "Action family of the tool."
+          },
+          "familySource": {
+            "type": "string",
+            "description": "Where the family comes from."
+          },
+          "id": {
+            "type": "string",
+            "description": "Tool identifier as the tool registry names it (`mcp:notion/search`,\n`gmail.send`)."
+          },
+          "prechecked": {
+            "type": "boolean",
+            "description": "Offered checked when the connection is granted to an agent."
           }
         }
       },
@@ -6898,7 +7964,71 @@
           },
           "provider": {
             "type": "string",
-            "description": "Provider identifier: `\"llama-cpp\"`, `\"openai\"`, `\"mistral\"`, `\"anthropic\"`, `\"ollama\"`."
+            "description": "Provider identifier: `\"llama-cpp\"`, `\"openai\"` (OpenAI-compatible server), `\"ollama\"`."
+          }
+        }
+      },
+      "CreatePresetRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/llm/presets`.",
+        "required": [
+          "name",
+          "model_source",
+          "model_id"
+        ],
+        "properties": {
+          "is_model_default": {
+            "type": "boolean",
+            "description": "Make it the default preset of its model (default: `false`)."
+          },
+          "load": {
+            "type": "object",
+            "description": "Load settings. Never a system prompt."
+          },
+          "model_id": {
+            "type": "string",
+            "description": "The model the preset is attached to. Fixed once created."
+          },
+          "model_source": {
+            "$ref": "#/components/schemas/ModelSourceDto",
+            "description": "Where the model runs."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name, unique among the presets of the model."
+          },
+          "request": {
+            "type": "object",
+            "description": "Request settings. Unknown fields, a system prompt among them, are refused."
+          }
+        }
+      },
+      "CreateServerRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/llm/servers`.",
+        "required": [
+          "name",
+          "base_url"
+        ],
+        "properties": {
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Key, when the server asks for one. Written to the secret store."
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Base address, with or without the trailing `/v1`."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server's models are routable (default: `true`)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique name, pattern `^[a-z0-9_-]+$`."
           }
         }
       },
@@ -7036,6 +8166,29 @@
           }
         }
       },
+      "DefaultModelResponse": {
+        "type": "object",
+        "description": "The default model of the machine.",
+        "required": [
+          "backend",
+          "model_source",
+          "model_id"
+        ],
+        "properties": {
+          "backend": {
+            "type": "string",
+            "description": "Name of the backend that holds the default, the name the router routes by."
+          },
+          "model_id": {
+            "type": "string",
+            "description": "The model, in the form `PUT` accepts."
+          },
+          "model_source": {
+            "$ref": "#/components/schemas/ModelSourceDto",
+            "description": "Where the model runs."
+          }
+        }
+      },
       "DelegateRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/a2a/delegate`.",
@@ -7076,6 +8229,20 @@
           }
         }
       },
+      "DeletePresetResponse": {
+        "type": "object",
+        "description": "Body of `DELETE /api/v1/llm/presets/{id}`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier of the deleted preset."
+          }
+        }
+      },
       "DeleteResponse": {
         "type": "object",
         "description": "Response for `DELETE /api/v1/triggers/:id`.",
@@ -7086,6 +8253,19 @@
           "deleted": {
             "type": "string",
             "description": "Identifier of the deleted trigger."
+          }
+        }
+      },
+      "DeleteServerResponse": {
+        "type": "object",
+        "description": "Body of `DELETE /api/v1/llm/servers/{name}`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "string",
+            "description": "Name of the deleted server."
           }
         }
       },
@@ -7140,7 +8320,8 @@
           "cpu_model",
           "cpu_cores",
           "accelerator",
-          "memory_budget_gb"
+          "memory_budget_gb",
+          "total_capacity_gb"
         ],
         "properties": {
           "accelerator": {
@@ -7162,6 +8343,11 @@
             "type": "number",
             "format": "double"
           },
+          "total_capacity_gb": {
+            "type": "number",
+            "format": "double",
+            "description": "What a model can occupy on this machine, in GB rounded to the tenth:\nthe card plus the usable share of system memory on a discrete\naccelerator, the memory budget otherwise. A model under it is one the\nestimator does not call too large."
+          },
           "total_ram_gb": {
             "type": "number",
             "format": "double"
@@ -7172,11 +8358,21 @@
         "type": "object",
         "description": "Response body for the health endpoint.",
         "required": [
-          "status"
+          "status",
+          "product",
+          "version"
         ],
         "properties": {
+          "product": {
+            "type": "string",
+            "description": "Always [`PRODUCT_MARKER`]: what lets a caller that finds the port\ntaken tell an Apollia runtime from any other listener."
+          },
           "status": {
             "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "The version of the runtime answering, as its crate declares it."
           }
         }
       },
@@ -7414,6 +8610,96 @@
           }
         }
       },
+      "LoadedModelDto": {
+        "type": "object",
+        "description": "One resident model.",
+        "required": [
+          "model",
+          "modelPath",
+          "port",
+          "nCtx",
+          "nGpuLayers",
+          "loadedAt",
+          "lastUsedAt",
+          "activeRequests"
+        ],
+        "properties": {
+          "activeRequests": {
+            "type": "integer",
+            "description": "Requests being answered right now. An unload is refused above zero.",
+            "minimum": 0
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "description": "When a request last used the model, RFC 3339."
+          },
+          "loadedAt": {
+            "type": "string",
+            "description": "When the model finished loading, RFC 3339."
+          },
+          "model": {
+            "type": "string",
+            "description": "Display name, the model file name without its extension."
+          },
+          "modelPath": {
+            "type": "string",
+            "description": "Path the model was loaded from; the key an unload takes."
+          },
+          "nCtx": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Context window in tokens.",
+            "minimum": 0
+          },
+          "nGpuLayers": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Layers placed on the GPU."
+          },
+          "nParallel": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Requests the process may serve in parallel; absent when the engine\ndefault applies.",
+            "minimum": 0
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Loopback port of the process serving it.",
+            "minimum": 0
+          }
+        }
+      },
+      "LoadedModelsResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/llm/loaded-models`.",
+        "required": [
+          "engineAvailable",
+          "maxLoaded",
+          "models"
+        ],
+        "properties": {
+          "engineAvailable": {
+            "type": "boolean",
+            "description": "Whether a local engine exists on this host. `false` means nothing can\never be loaded, not merely that nothing is."
+          },
+          "maxLoaded": {
+            "type": "integer",
+            "description": "How many models may stay resident at once; `0` without an engine.",
+            "minimum": 0
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LoadedModelDto"
+            },
+            "description": "The resident models, most recently used first."
+          }
+        }
+      },
       "LogsResponse": {
         "type": "object",
         "description": "Response for `GET /api/v1/triggers/:id/logs`.",
@@ -7472,6 +8758,14 @@
             "minimum": 0
           }
         }
+      },
+      "ModelSourceDto": {
+        "type": "string",
+        "description": "Where a model runs.",
+        "enum": [
+          "local",
+          "server"
+        ]
       },
       "ModelsListResponse": {
         "type": "object",
@@ -7670,6 +8964,66 @@
           "run_id": {
             "type": "string",
             "description": "Run identifier whose gate was resolved."
+          }
+        }
+      },
+      "PresetResponse": {
+        "type": "object",
+        "description": "One preset.",
+        "required": [
+          "id",
+          "name",
+          "model_source",
+          "model_id",
+          "load",
+          "request",
+          "is_model_default"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier."
+          },
+          "is_model_default": {
+            "type": "boolean",
+            "description": "Whether this is the default preset of its model."
+          },
+          "load": {
+            "type": "object",
+            "description": "Load settings, applied over the automatic computation."
+          },
+          "model_id": {
+            "type": "string",
+            "description": "The model: a local registry identifier, or `<server>/<model>`."
+          },
+          "model_source": {
+            "$ref": "#/components/schemas/ModelSourceDto",
+            "description": "Where the model runs."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name, unique among the presets of the model."
+          },
+          "request": {
+            "type": "object",
+            "description": "Request settings: `temperature`, `max_tokens`, `stop`, `top_k`,\n`top_p`, `min_p`, `repeat_penalty`, `presence_penalty`, `json_schema`."
+          }
+        }
+      },
+      "PresetsListResponse": {
+        "type": "object",
+        "description": "Body of `GET /api/v1/llm/presets`.",
+        "required": [
+          "presets"
+        ],
+        "properties": {
+          "presets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PresetResponse"
+            },
+            "description": "Presets, sorted by model then name."
           }
         }
       },
@@ -7894,6 +9248,154 @@
           }
         }
       },
+      "ServerModel": {
+        "type": "object",
+        "description": "One model of a declared server.",
+        "required": [
+          "id",
+          "route",
+          "context_short"
+        ],
+        "properties": {
+          "context_short": {
+            "type": "boolean",
+            "description": "Whether that window is shorter than the one an agent is expected to\nhave. Nothing is changed on the server: its administrator decides."
+          },
+          "context_window": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Context window the server serves the model with, in tokens, read on\nthe server (`/api/show` on Ollama, `max_model_len` on vLLM). Absent\nwhen the server exposes none.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier the server gives the model."
+          },
+          "route": {
+            "type": "string",
+            "description": "Name to address it by, `<server>/<model>`."
+          }
+        }
+      },
+      "ServerModelsResponse": {
+        "type": "object",
+        "description": "Body of `GET /api/v1/llm/servers/{name}/models`.",
+        "required": [
+          "server",
+          "models"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerModel"
+            },
+            "description": "Models the server offers, in its order."
+          },
+          "server": {
+            "type": "string",
+            "description": "Server name."
+          }
+        }
+      },
+      "ServerProbeErrorResponse": {
+        "type": "object",
+        "description": "Body of a failed server call: a readable message and a stable kind.",
+        "required": [
+          "error",
+          "kind"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable message."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`unreachable`, `key_refused` or `not_openai_compatible`."
+          }
+        }
+      },
+      "ServerResponse": {
+        "type": "object",
+        "description": "One declared server. The key is never part of it.",
+        "required": [
+          "name",
+          "base_url",
+          "has_key",
+          "enabled"
+        ],
+        "properties": {
+          "api_key_env": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Environment variable holding the key, for a migrated `${VAR}` key."
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Base address."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server's models are routable."
+          },
+          "has_key": {
+            "type": "boolean",
+            "description": "Whether a key is held for this server."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique name, the first segment of `<server>/<model>`."
+          }
+        }
+      },
+      "ServersListResponse": {
+        "type": "object",
+        "description": "Body of `GET /api/v1/llm/servers`.",
+        "required": [
+          "servers"
+        ],
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerResponse"
+            },
+            "description": "Every declared server, sorted by name."
+          }
+        }
+      },
+      "SetAgentModelRequest": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/llm/agents/{agent}/model`.",
+        "required": [
+          "model_source",
+          "model_id"
+        ],
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "description": "The model: a local registry identifier, or `<server>/<model>` of a\ndeclared server."
+          },
+          "model_source": {
+            "$ref": "#/components/schemas/ModelSourceDto",
+            "description": "Where the model runs."
+          },
+          "preset_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "A preset of that same model, or `null` for the model's default."
+          }
+        }
+      },
       "SetApprovalBody": {
         "type": "object",
         "description": "Request body for `PATCH /api/v1/mcp/servers/:name/approval`.",
@@ -7903,6 +9405,24 @@
         "properties": {
           "requires_approval": {
             "type": "boolean"
+          }
+        }
+      },
+      "SetDefaultModelRequest": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/llm/default-model`.",
+        "required": [
+          "model_source",
+          "model_id"
+        ],
+        "properties": {
+          "model_id": {
+            "type": "string",
+            "description": "`local`: the name of a local engine backend. `server`: `<server>/<model>`\nof a declared server, or the name of a server backend."
+          },
+          "model_source": {
+            "$ref": "#/components/schemas/ModelSourceDto",
+            "description": "Where the model runs."
           }
         }
       },
@@ -8386,6 +9906,42 @@
               "null"
             ],
             "description": "Read-only probe declared for this connector, when any."
+          }
+        }
+      },
+      "TestServerRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/llm/servers/test`.",
+        "required": [
+          "base_url"
+        ],
+        "properties": {
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Key, when the server asks for one. Used for this call only."
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Base address, with or without the trailing `/v1`."
+          }
+        }
+      },
+      "TestServerResponse": {
+        "type": "object",
+        "description": "Body of a successful `POST /api/v1/llm/servers/test`.",
+        "required": [
+          "models"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers of the models the server offers, in its order."
           }
         }
       },
@@ -8928,6 +10484,38 @@
         ],
         "description": "Trigger source description used in create/update requests."
       },
+      "UnloadModelRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/llm/loaded-models/unload`.",
+        "required": [
+          "modelPath"
+        ],
+        "properties": {
+          "modelPath": {
+            "type": "string",
+            "description": "Path of the model to unload, as the list reports it."
+          }
+        }
+      },
+      "UnloadModelResponse": {
+        "type": "object",
+        "description": "Response body for `POST /api/v1/llm/loaded-models/unload`.",
+        "required": [
+          "modelPath",
+          "stopped"
+        ],
+        "properties": {
+          "modelPath": {
+            "type": "string",
+            "description": "The model that was unloaded."
+          },
+          "stopped": {
+            "type": "integer",
+            "description": "Processes stopped: one, or more when the model ran with several\ncontext windows.",
+            "minimum": 0
+          }
+        }
+      },
       "UpdateChannelRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/notifications/channels/:id`.\n\nThe `label` field uses a double `Option`:\n- absent from JSON: `None`, keep the existing label;\n- `null`: `Some(None)`, clear the label;\n- `\"text\"`: `Some(Some(\"text\"))`, replace it.",
@@ -9009,6 +10597,31 @@
           "provider": {
             "type": "string",
             "description": "Provider identifier."
+          }
+        }
+      },
+      "UpdatePresetRequest": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/llm/presets/{id}`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "is_model_default": {
+            "type": "boolean",
+            "description": "Make it the default preset of its model (default: `false`)."
+          },
+          "load": {
+            "type": "object",
+            "description": "Load settings. Never a system prompt."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name, unique among the presets of the model."
+          },
+          "request": {
+            "type": "object",
+            "description": "Request settings. Unknown fields, a system prompt among them, are refused."
           }
         }
       },
@@ -9137,7 +10750,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Token read from `<data_dir>/api-token`, generated on first start and sent as `Authorization: Bearer <token>`. Enforced on the TCP listener by `TokenAuthLayer`, on every route except `POST /webhooks/{id}`, which authenticates its caller with an HMAC-SHA256 signature instead. Requests arriving on the Unix socket bypass the check: the socket file is mode 0600, so its permissions carry the same rule. Setting `[api] require_token = false` in `apollia.toml` removes the layer from the TCP listener altogether."
+        "description": "Token read from `<data_dir>/api-token`, generated on first start and sent as `Authorization: Bearer <token>`. Enforced on the TCP listener by `TokenAuthLayer`, on every route except two: `GET /api/v1/health`, which reveals the product marker and the version only, and `POST /webhooks/{id}`, which authenticates its caller with an HMAC-SHA256 signature instead. Requests arriving on the Unix socket bypass the check: the socket file is mode 0600, so its permissions carry the same rule. Setting `[api] require_token = false` in `apollia.toml` removes the layer from the TCP listener altogether."
       }
     }
   },
@@ -9206,6 +10819,10 @@
     {
       "name": "mcp",
       "description": "MCP servers and resources"
+    },
+    {
+      "name": "connections",
+      "description": "Everything plugged into this machine, in one list"
     },
     {
       "name": "connectors",

@@ -23,6 +23,10 @@ const MAX_TOOL_NAME_LEN: usize = 128;
 /// are truncated on a UTF-8 boundary.
 const MAX_DESCRIPTION_LEN: usize = 8 * 1024;
 
+/// Maximum retained length of a tool title, in bytes. A title is a display
+/// name, a few words at most; longer ones are truncated on a UTF-8 boundary.
+const MAX_TITLE_LEN: usize = 256;
+
 /// Maximum retained length of the server `instructions` string, in bytes.
 pub(crate) const MAX_INSTRUCTIONS_LEN: usize = 16 * 1024;
 
@@ -33,7 +37,7 @@ pub(crate) const MAX_INSTRUCTIONS_LEN: usize = 16 * 1024;
 /// unambiguous; rejecting control and whitespace characters prevents forged
 /// tracing lines. Uppercase and `.` are allowed so that real-world tool names
 /// (`GetWeather`, `notion.search`) are not rejected.
-fn is_valid_tool_name(name: &str) -> bool {
+pub(crate) fn is_valid_tool_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= MAX_TOOL_NAME_LEN
         && name
@@ -74,7 +78,9 @@ fn truncate_on_boundary(mut s: String, max_len: usize) -> String {
 ///   registry key and a `tools/call` argument, so a malformed one cannot be
 ///   silently rewritten). The raw name is never logged: it is the forgery
 ///   vector this guard exists to contain.
-/// - Each description is stripped of control characters and truncated.
+/// - Each title and description is stripped of control characters and
+///   truncated; the title is free text shown to the user, so it gets the
+///   description's treatment under its own, shorter cap.
 /// - The batch is capped at `max_tools`; tools beyond the cap are dropped.
 ///
 /// Individual rejections are fail-open: a server with some malformed tools
@@ -93,6 +99,7 @@ pub(crate) fn sanitize_tool_definitions(
         if !is_valid_tool_name(&tool.name) {
             continue;
         }
+        tool.title = sanitize_free_text(tool.title, MAX_TITLE_LEN);
         tool.description = sanitize_free_text(tool.description, MAX_DESCRIPTION_LEN);
         out.push(tool);
     }
@@ -115,8 +122,10 @@ mod tests {
     fn tool(name: &str, description: Option<&str>) -> McpToolDefinition {
         McpToolDefinition {
             name: name.to_string(),
+            title: None,
             description: description.map(str::to_string),
             input_schema: json!({"type": "object"}),
+            annotations: None,
         }
     }
 
@@ -228,5 +237,36 @@ mod tests {
         assert_eq!(out[0].description.as_deref(), Some("Echo the input"));
         assert_eq!(out[1].name, "add");
         assert_eq!(out[1].description.as_deref(), Some("Add two numbers"));
+    }
+
+    #[test]
+    fn title_is_bounded_like_a_description() {
+        // GIVEN tools whose titles carry control characters, exceed the cap,
+        //       or hold nothing but control characters
+        let mut noisy = tool("noisy", None);
+        noisy.title = Some("Search\n\u{7}pages".to_string());
+        let mut long = tool("long", None);
+        long.title = Some("\u{e9}".repeat(MAX_TITLE_LEN));
+        let mut blank = tool("blank", None);
+        blank.title = Some("\n\t".to_string());
+        // WHEN the batch is sanitized
+        let out = sanitize_tool_definitions(vec![noisy, long, blank], "srv", 256);
+        // THEN control characters are stripped, the long title is truncated on
+        //      a character boundary, and the blank one reads as absent
+        assert_eq!(out[0].title.as_deref(), Some("Searchpages"));
+        let truncated = out[1].title.as_deref().unwrap();
+        assert!(truncated.len() <= MAX_TITLE_LEN && !truncated.is_empty());
+        assert_eq!(out[2].title, None);
+    }
+
+    #[test]
+    fn legitimate_title_passes_through_unchanged() {
+        // GIVEN a tool with an ordinary title
+        let mut t = tool("search_pages", None);
+        t.title = Some("Search pages".to_string());
+        // WHEN sanitized
+        let out = sanitize_tool_definitions(vec![t], "srv", 256);
+        // THEN the title is kept as is
+        assert_eq!(out[0].title.as_deref(), Some("Search pages"));
     }
 }
