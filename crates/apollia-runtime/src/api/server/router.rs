@@ -79,11 +79,15 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_a2a::{
         delegate, get_task_sidechains, invoke_by_skill, list_a2a_agents, list_a2a_skills,
     };
+    use crate::api::routes_agents::installed::{install_agent, list_installed_agents};
     use crate::api::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
     use crate::api::routes_approvals::{list_pending_approvals, list_resolved_approvals};
     use crate::api::routes_audit::{
         get_audit_anchor, get_audit_stats, list_audit, list_audit_journal, post_replay_run,
         show_audit_run, verify_audit_journal, verify_audit_run,
+    };
+    use crate::api::routes_chat::user_inputs::{
+        answer_user_input, list_pending_user_inputs, reject_user_input,
     };
     use crate::api::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
@@ -114,6 +118,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         delete_transcription, get_stt_config, list_models, list_transcriptions, reload_stt_engine,
         stt_status, transcribe_audio, update_stt_config,
     };
+    use crate::api::routes_tasks::summaries::list_task_summaries;
     use crate::api::routes_tasks::{
         cancel_task, get_task, list_tasks, resume_task, submit_plan_decision, submit_task,
     };
@@ -138,6 +143,8 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
             get(crate::api::routes_events::stream_events::<B>),
         )
         .route("/api/v1/tasks", get(list_tasks::<B>).post(submit_task::<B>))
+        // Registered before /:id so the static segment is never read as an id.
+        .route("/api/v1/tasks/summaries", get(list_task_summaries::<B>))
         .route(
             "/api/v1/tasks/:id",
             get(get_task::<B>).delete(cancel_task::<B>),
@@ -170,6 +177,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/agents",
             get(list_agents::<B>).post(start_agent::<B>),
+        )
+        .route(
+            "/api/v1/agents/installed",
+            get(list_installed_agents::<B>).post(install_agent::<B>),
         )
         .route(
             "/api/v1/agents/:id",
@@ -264,6 +275,16 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route(
             "/api/v1/sessions/:id/children",
             get(list_session_children::<B>),
+        )
+        // Questions an agent asked the user
+        .route("/api/v1/user-inputs", get(list_pending_user_inputs::<B>))
+        .route(
+            "/api/v1/user-inputs/:id/answer",
+            post(answer_user_input::<B>),
+        )
+        .route(
+            "/api/v1/user-inputs/:id/reject",
+            post(reject_user_input::<B>),
         )
         // STT routes
         .route("/api/v1/stt/status", get(stt_status::<B>))

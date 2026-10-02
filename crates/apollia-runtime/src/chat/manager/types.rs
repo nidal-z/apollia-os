@@ -227,7 +227,7 @@ pub(in crate::chat::manager) struct RegisterUserInputReplyParams {
 }
 
 /// Snapshot of a pending `ask_user` request, safe to send across the IPC boundary.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct PendingUserInputView {
     /// Unique request identifier.
     pub request_id: String,

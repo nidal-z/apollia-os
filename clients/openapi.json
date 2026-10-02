@@ -301,6 +301,90 @@
         }
       }
     },
+    "/api/v1/agents/installed": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Handler for `GET /api/v1/agents/installed`.",
+        "operationId": "list_installed_agents",
+        "responses": {
+          "200": {
+            "description": "Installed agents with their runtime state, then agents started without being installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstalledAgentView"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db or the registry cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "Handler for `POST /api/v1/agents/installed`.",
+        "description": "Emits `RuntimeEvent::AgentInstalled` once the agent is recorded.",
+        "operationId": "install_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstallAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Agent installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallAgentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "File absent or module refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The install cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agents/{id}": {
       "get": {
         "tags": [
@@ -5635,6 +5719,60 @@
         }
       }
     },
+    "/api/v1/tasks/summaries": {
+      "get": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Handler for `GET /api/v1/tasks/summaries`.",
+        "operationId": "list_task_summaries",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Keep only the tasks in this status (`working`, `completed`...).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "agent_id",
+            "in": "query",
+            "description": "Keep only the tasks of this agent, by runtime identifier.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tasks of the running process, then the recent stored ones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskSummary"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Task router unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}": {
       "get": {
         "tags": [
@@ -6832,6 +6970,150 @@
         }
       }
     },
+    "/api/v1/user-inputs": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/user-inputs`.",
+        "operationId": "list_pending_user_inputs",
+        "responses": {
+          "200": {
+            "description": "Questions waiting for the user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PendingUserInputView"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/user-inputs/{id}/answer": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/user-inputs/{id}/answer`.",
+        "operationId": "answer_user_input",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Request id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerUserInputRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Answers delivered to the agent"
+          },
+          "500": {
+            "description": "No such pending request, or the agent stopped waiting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/user-inputs/{id}/reject": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/user-inputs/{id}/reject`.",
+        "operationId": "reject_user_input",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Request id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectUserInputRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The agent is told the user declined"
+          },
+          "500": {
+            "description": "No such pending request, or the agent stopped waiting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhooks/{id}": {
       "post": {
         "tags": [
@@ -7202,6 +7484,45 @@
               "null"
             ],
             "description": "Agent version from manifest."
+          }
+        }
+      },
+      "AgentSkillView": {
+        "type": "object",
+        "description": "Skill declared by an agent in its manifest.",
+        "required": [
+          "id",
+          "name",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Short skill description."
+          },
+          "id": {
+            "type": "string",
+            "description": "Unique skill identifier (e.g. `\"read-excel\"`)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable skill name."
+          }
+        }
+      },
+      "AnswerUserInputRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/user-inputs/{id}/answer`.",
+        "required": [
+          "answers"
+        ],
+        "properties": {
+          "answers": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "One answer per question, matched by the question `id`."
           }
         }
       },
@@ -8472,6 +8793,196 @@
           }
         }
       },
+      "InstallAgentRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/agents/installed`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path of the Python module on this machine."
+          }
+        }
+      },
+      "InstallAgentResponse": {
+        "type": "object",
+        "description": "Response body for an install.",
+        "required": [
+          "name",
+          "version",
+          "install_path"
+        ],
+        "properties": {
+          "install_path": {
+            "type": "string",
+            "description": "Install path on disk."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique name of the installed agent."
+          },
+          "version": {
+            "type": "string",
+            "description": "Semver version of the agent."
+          }
+        }
+      },
+      "InstalledAgentView": {
+        "type": "object",
+        "description": "One agent of the machine: installed, running, or both.",
+        "required": [
+          "name",
+          "version",
+          "enabled",
+          "tags",
+          "tools_required",
+          "tools_optional",
+          "supports_a2a",
+          "skills",
+          "examples",
+          "limitations",
+          "shared_memory_namespaces"
+        ],
+        "properties": {
+          "agent_class": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the Python class of the agent."
+          },
+          "agent_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Semantic role: `\"worker\"`, `\"assistant\"`, `\"system\"`, or `None`."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Description from the manifest."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the agent loads at boot."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Prompt examples of typical uses."
+          },
+          "execution_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Execution mode (`\"auto\"`, `\"direct\"`, `\"orchestrated\"`)."
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Runtime identifier, `None` when installed but not started."
+          },
+          "install_path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Install path on disk, `None` for an agent started without being\ninstalled."
+          },
+          "installed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Install timestamp (RFC 3339), `None` for an agent started without\nbeing installed."
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the agent does not do."
+          },
+          "memory_namespace": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Primary memory namespace, as the manifest declares it."
+          },
+          "name": {
+            "type": "string",
+            "description": "Unique agent name."
+          },
+          "runtime_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Runtime state (`\"active\"`, `\"degraded\"`, `\"stopped\"`...), `None` when\nnot started."
+          },
+          "setup_notes": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Configuration needed before the first use."
+          },
+          "shared_memory_namespaces": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Shared memory namespaces the agent reads."
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentSkillView"
+            },
+            "description": "Declared skills."
+          },
+          "supports_a2a": {
+            "type": "boolean",
+            "description": "Whether the agent takes part in agent-to-agent calls."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Free-form tags for routing and discovery."
+          },
+          "tools_optional": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tools the agent uses when present."
+          },
+          "tools_required": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tools the agent requires."
+          },
+          "version": {
+            "type": "string",
+            "description": "Semver version."
+          }
+        }
+      },
       "InvokeRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/a2a/invoke`.",
@@ -8903,6 +9414,41 @@
           }
         }
       },
+      "PendingUserInputView": {
+        "type": "object",
+        "description": "Snapshot of a pending `ask_user` request, safe to send across the IPC boundary.",
+        "required": [
+          "request_id",
+          "session_id",
+          "questions_json",
+          "created_at"
+        ],
+        "properties": {
+          "context": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional context string from the agent."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO-8601 timestamp when the request was registered."
+          },
+          "questions_json": {
+            "type": "string",
+            "description": "Questions serialised as JSON (Vec<UserQuestion>)."
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Unique request identifier."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Chat session that owns this request."
+          }
+        }
+      },
       "PingRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/llm/ping`.",
@@ -9100,6 +9646,19 @@
           "value": {
             "type": "string",
             "description": "The secret. Stored, never answered back."
+          }
+        }
+      },
+      "RejectUserInputRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/user-inputs/{id}/reject`.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Why the user declined to answer."
           }
         }
       },
@@ -9956,6 +10515,60 @@
               "null"
             ],
             "description": "Token budget accumulated over all LLM calls for this task."
+          }
+        }
+      },
+      "TaskSummary": {
+        "type": "object",
+        "description": "One task of the view.",
+        "required": [
+          "id",
+          "agent_id",
+          "agent_name",
+          "status",
+          "input_preview",
+          "created_at"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "description": "Runtime identifier of the agent, empty for a task read from the store."
+          },
+          "agent_name": {
+            "type": "string",
+            "description": "Name of the agent."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation date, empty when the store has no row yet."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Execution duration in milliseconds.",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "description": "Unique task identifier."
+          },
+          "input_preview": {
+            "type": "string",
+            "description": "The first characters of the input."
+          },
+          "output_text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Output text, as the store kept it."
+          },
+          "status": {
+            "type": "string",
+            "description": "Current status."
           }
         }
       },
