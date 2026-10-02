@@ -73,6 +73,10 @@ def sync_detailed(
     and a client that picks one as its own name gets the task it meant either
     way.
 
+    A live `invocation_id` that names a workflow invoked through
+    `POST /api/v1/a2a/invoke` stops that run: the answer carries the run id and
+    the status the run ended with.
+
     Args:
         id (str):
 
@@ -113,6 +117,10 @@ def sync(
     and a client that picks one as its own name gets the task it meant either
     way.
 
+    A live `invocation_id` that names a workflow invoked through
+    `POST /api/v1/a2a/invoke` stops that run: the answer carries the run id and
+    the status the run ended with.
+
     Args:
         id (str):
 
@@ -147,6 +155,10 @@ async def asyncio_detailed(
     over a task of the same spelling, which costs nothing: task ids are UUIDs
     and a client that picks one as its own name gets the task it meant either
     way.
+
+    A live `invocation_id` that names a workflow invoked through
+    `POST /api/v1/a2a/invoke` stops that run: the answer carries the run id and
+    the status the run ended with.
 
     Args:
         id (str):
@@ -185,6 +197,10 @@ async def asyncio(
     over a task of the same spelling, which costs nothing: task ids are UUIDs
     and a client that picks one as its own name gets the task it meant either
     way.
+
+    A live `invocation_id` that names a workflow invoked through
+    `POST /api/v1/a2a/invoke` stops that run: the answer carries the run id and
+    the status the run ended with.
 
     Args:
         id (str):

@@ -12,7 +12,7 @@ pub mod sidechain;
 pub mod telemetry;
 pub mod tools_provider;
 
-pub use aliases::InvocationAliases;
+pub use aliases::{AliasTarget, InvocationAliases};
 pub use compatibility::{check_compatibility, A2ACompatibilityWarning, CompatSeverity, SemVer};
 pub use telemetry::{
     A2ASkillTelemetry, A2AStepProvenance, InvocationRecord, TelemetryHandle, TelemetryStore,

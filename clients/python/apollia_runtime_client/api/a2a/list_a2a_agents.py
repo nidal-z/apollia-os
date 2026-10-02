@@ -57,7 +57,8 @@ def sync_detailed(
     """Handler for `GET /api/v1/a2a/agents`.
 
      Returns all agents with `supports_a2a = true` in active or degraded state,
-    along with their declared skills.
+    along with their declared skills, then the enabled agents that take a
+    message and the installed workflows.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -83,7 +84,8 @@ def sync(
     """Handler for `GET /api/v1/a2a/agents`.
 
      Returns all agents with `supports_a2a = true` in active or degraded state,
-    along with their declared skills.
+    along with their declared skills, then the enabled agents that take a
+    message and the installed workflows.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -105,7 +107,8 @@ async def asyncio_detailed(
     """Handler for `GET /api/v1/a2a/agents`.
 
      Returns all agents with `supports_a2a = true` in active or degraded state,
-    along with their declared skills.
+    along with their declared skills, then the enabled agents that take a
+    message and the installed workflows.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -129,7 +132,8 @@ async def asyncio(
     """Handler for `GET /api/v1/a2a/agents`.
 
      Returns all agents with `supports_a2a = true` in active or degraded state,
-    along with their declared skills.
+    along with their declared skills, then the enabled agents that take a
+    message and the installed workflows.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

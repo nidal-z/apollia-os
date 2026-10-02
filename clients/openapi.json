@@ -16,7 +16,7 @@
           "a2a"
         ],
         "summary": "Handler for `GET /api/v1/a2a/agents`.",
-        "description": "Returns all agents with `supports_a2a = true` in active or degraded state,\nalong with their declared skills.",
+        "description": "Returns all agents with `supports_a2a = true` in active or degraded state,\nalong with their declared skills, then the enabled agents that take a\nmessage and the installed workflows.",
         "operationId": "list_a2a_agents",
         "responses": {
           "200": {
@@ -120,7 +120,7 @@
           "a2a"
         ],
         "summary": "Handler for `POST /api/v1/a2a/invoke`.",
-        "description": "Invokes a Worker Agent by skill ID via the [`A2AInvoker`].\nReturns 503 if the invoker is not initialized.\nReturns 404 if the skill is not found, 503 if the agent is not active.",
+        "description": "Invokes a Worker Agent by skill ID via the [`A2AInvoker`], or an agent\nthat takes a message (`agent:<id>`) or a workflow\n(`workflow:<package>/<name>`), and answers once it has ended.\nReturns 503 if the invoker is not initialized.\nReturns 404 if the skill is not found, 503 if the agent is not active,\n400 if the input does not fit what the target takes.",
         "operationId": "invoke_by_skill",
         "requestBody": {
           "content": {
@@ -143,8 +143,18 @@
               }
             }
           },
+          "400": {
+            "description": "The input does not fit the agent or the workflow",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Skill not found",
+            "description": "Skill, agent or workflow not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -155,6 +165,16 @@
           },
           "409": {
             "description": "Invocation cancelled through its client-supplied id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The agent or the workflow failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -192,7 +212,7 @@
           "a2a"
         ],
         "summary": "Handler for `GET /api/v1/a2a/skills`.",
-        "description": "Returns the flat list of all available A2A skills via the [`A2AInvoker`].\nReturns 503 if the invoker is not initialized.",
+        "description": "Returns the flat list of all available A2A skills via the [`A2AInvoker`],\nthen one entry per enabled agent that takes a message and one per\ninstalled workflow. Returns 503 if the invoker is not initialized.",
         "operationId": "list_a2a_skills",
         "responses": {
           "200": {
@@ -7215,7 +7235,7 @@
           "tasks"
         ],
         "summary": "Handler for `DELETE /api/v1/tasks/{id}`.",
-        "description": "Cancels a running task. Returns 404 if the task does not exist.\n\n`id` is a task id, or the `invocation_id` a client gave a synchronous\n`POST /api/v1/a2a/invoke` that is still running. The second form exists\nbecause that route answers only once the worker has finished, so its task id\nreaches the caller too late to cancel anything; the name the caller chose is\nbound to the task from the moment it is submitted. A name that resolves wins\nover a task of the same spelling, which costs nothing: task ids are UUIDs\nand a client that picks one as its own name gets the task it meant either\nway.",
+        "description": "Cancels a running task. Returns 404 if the task does not exist.\n\n`id` is a task id, or the `invocation_id` a client gave a synchronous\n`POST /api/v1/a2a/invoke` that is still running. The second form exists\nbecause that route answers only once the worker has finished, so its task id\nreaches the caller too late to cancel anything; the name the caller chose is\nbound to the task from the moment it is submitted. A name that resolves wins\nover a task of the same spelling, which costs nothing: task ids are UUIDs\nand a client that picks one as its own name gets the task it meant either\nway.\n\nA live `invocation_id` that names a workflow invoked through\n`POST /api/v1/a2a/invoke` stops that run: the answer carries the run id and\nthe status the run ended with.",
         "operationId": "cancel_task",
         "parameters": [
           {
@@ -8867,12 +8887,24 @@
           "name",
           "version",
           "state",
-          "skills"
+          "skills",
+          "kind"
         ],
         "properties": {
           "agent_id": {
             "type": "string",
-            "description": "Unique agent identifier (UUID v4)."
+            "description": "Unique identifier: the registry UUID of an agent whose code declares\nskills, `agent:<id>` for an agent that takes a message,\n`workflow:<package>/<name>` for a workflow."
+          },
+          "input_schema": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "JSON Schema of the input of an agent that takes a message or of a\nworkflow; `null` for an agent whose skills each declare their own."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`skill` for an agent whose code declares skills, `agent` for an agent\nthat takes a message, `workflow` for a workflow."
           },
           "name": {
             "type": "string",
@@ -8883,7 +8915,7 @@
             "items": {
               "$ref": "#/components/schemas/A2aSkillDto"
             },
-            "description": "Skills declared by this agent."
+            "description": "Skills declared by this agent. An agent that takes a message and a\nworkflow each carry one, the entry `invoke` takes."
           },
           "state": {
             "type": "string",
@@ -8949,7 +8981,8 @@
           "name",
           "description",
           "input_modes",
-          "output_modes"
+          "output_modes",
+          "kind"
         ],
         "properties": {
           "description": {
@@ -8966,6 +8999,17 @@
               "type": "string"
             },
             "description": "Supported input modes (e.g. `[\"text\", \"data\"]`)."
+          },
+          "input_schema": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "JSON Schema of the input `invoke` takes, when the entry declares one."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`skill`, `agent` or `workflow`: what `id` launches through\n`POST /api/v1/a2a/invoke`."
           },
           "name": {
             "type": "string",
@@ -11429,7 +11473,7 @@
           },
           "input": {
             "type": "object",
-            "description": "JSON payload passed to the Worker Agent as input."
+            "description": "JSON payload passed as input: the skill's payload, `{\"message\": ...}`\n(or a bare string) for an agent, the typed inputs of a workflow."
           },
           "invocation_id": {
             "type": [
@@ -11440,7 +11484,7 @@
           },
           "skill_id": {
             "type": "string",
-            "description": "Target skill identifier (e.g. `\"read-excel\"`)."
+            "description": "What to launch, as the card names it: a skill id (e.g.\n`\"read-excel\"`), `agent:<id>` or `workflow:<package>/<name>`."
           },
           "timeout_secs": {
             "type": [
@@ -13238,6 +13282,10 @@
             ],
             "description": "Apollia schema for the payload fields (cf. `AgentSkill::input_schema`).\nUsed by `generate_a2a_tool_specs` to expose the worker's real contract\nto the LLM (instead of a generic schema)."
           },
+          "kind": {
+            "type": "string",
+            "description": "What `skill_id` launches: `skill` for a skill an agent's code declares,\n`agent` for an agent that takes a message (`agent:<id>`), `workflow`\nfor a workflow that takes typed inputs (`workflow:<package>/<name>`)."
+          },
           "skill_id": {
             "type": "string",
             "description": "Skill identifier."
@@ -14982,6 +15030,10 @@
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
+    },
+    {
+      "name": "packages",
+      "description": "Package preview, installation, and trusted publisher keys"
     }
   ]
 }
