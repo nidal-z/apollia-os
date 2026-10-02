@@ -51,7 +51,7 @@ impl GovernanceContract for NoPolicyGovernance {
         let draft = GovernanceRecord::draft(event, ts)?;
         tracing::event!(
             tracing::Level::DEBUG,
-            agent_id = %event.agent_id(),
+            subject_id = %event.subject_id(),
             kind = %draft.kind.tag(),
             "governance.recorded"
         );

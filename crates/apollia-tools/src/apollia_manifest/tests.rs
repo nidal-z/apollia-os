@@ -201,35 +201,6 @@ fn test_action_family_sensitive_is_every_family_but_read() {
     assert_eq!(sensitive, [false, true, true, true, true]);
 }
 
-#[test]
-fn test_mcp_server_decl_has_exactly_the_keys_of_mcp_server_config() {
-    // GIVEN a server config from mcp.toml, without its file-format version
-    let config: apollia_mcp::config::McpServerConfig = toml::from_str(
-        "name = \"ledger\"\ncommand = \"uvx\"\nurl = \"http://x\"\ntags = [\"t\"]\n",
-    )
-    .expect("config parses");
-    let mut table = toml::Value::try_from(&config).expect("config serialises");
-    if let Some(t) = table.as_table_mut() {
-        t.remove("format_version");
-        t.insert("args".into(), toml::Value::Array(vec!["a".into()]));
-        let mut env = toml::Table::new();
-        env.insert("K".into(), "v".into());
-        t.insert("env".into(), toml::Value::Table(env));
-    }
-
-    // WHEN it is read as a package MCP server, then written back and read as a config
-    let decl: McpServerDecl = table.clone().try_into().expect("decl accepts every key");
-    let back: apollia_mcp::config::McpServerConfig =
-        toml::from_str(&toml::to_string(&decl).expect("decl serialises")).expect("config reads");
-    let mut back_table = toml::Value::try_from(&back).expect("serialises");
-    if let Some(t) = back_table.as_table_mut() {
-        t.remove("format_version");
-    }
-
-    // THEN both directions agree key for key
-    assert_eq!(back_table, table);
-}
-
 // ── Criterion 2: validation, one test per rule ───────────────────────────
 
 #[test]
@@ -506,4 +477,24 @@ fn test_the_manifest_the_python_sdk_writes_is_read_as_written() {
     assert_eq!(workflow.steps, ["extract", "file"]);
     assert_eq!(workflow.action, ActionFamily::WriteOrDelete);
     assert!(workflow.inputs.is_some());
+}
+
+#[test]
+fn test_is_older_version_compares_semver_and_ignores_what_does_not_parse() {
+    // GIVEN pairs of incoming and installed versions
+    let cases = [
+        ("1.0.0", "1.1.0", true),
+        ("1.2.0", "1.1.0", false),
+        ("1.1.0", "1.1.0", false),
+        ("1.10.0", "1.9.0", false),
+        ("not-a-version", "1.0.0", false),
+    ];
+
+    for (incoming, installed, expected) in cases {
+        // WHEN they are compared
+        let older = is_older_version(incoming, installed);
+
+        // THEN only a strictly lower semver version is older
+        assert_eq!(older, expected, "{incoming} against {installed}");
+    }
 }

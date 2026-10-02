@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 ///                                 ^                            ^
 ///                            (missing optional            (fatal error,
 ///                             tools)                       skip to Stopping)
+///
+/// A `Stopped` agent goes back to `Initializing` when a task reaches it: an
+/// installed agent is loaded on demand, so a stop parks it rather than
+/// retiring it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProcessState {
@@ -34,6 +38,7 @@ impl ProcessState {
     /// - `Degraded` -> `Active` (recovery)
     /// - `Degraded` -> `Stopping` (stop requested)
     /// - `Stopping` -> `Stopped` (end of task drain)
+    /// - `Stopped` -> `Initializing` (a task reached a parked agent)
     pub fn can_transition_to(&self, target: &ProcessState) -> bool {
         matches!(
             (self, target),
@@ -44,6 +49,7 @@ impl ProcessState {
                 | (ProcessState::Degraded, ProcessState::Active)
                 | (ProcessState::Degraded, ProcessState::Stopping)
                 | (ProcessState::Stopping, ProcessState::Stopped)
+                | (ProcessState::Stopped, ProcessState::Initializing)
         )
     }
 }
@@ -96,13 +102,13 @@ mod tests {
         assert!(ProcessState::Degraded.can_transition_to(&ProcessState::Active));
         assert!(ProcessState::Degraded.can_transition_to(&ProcessState::Stopping));
         assert!(ProcessState::Stopping.can_transition_to(&ProcessState::Stopped));
+        assert!(ProcessState::Stopped.can_transition_to(&ProcessState::Initializing));
     }
 
     #[test]
     fn test_can_transition_to_invalid() {
         // GIVEN / WHEN / THEN: invalid transitions refused
         assert!(!ProcessState::Stopped.can_transition_to(&ProcessState::Active));
-        assert!(!ProcessState::Stopped.can_transition_to(&ProcessState::Initializing));
         assert!(!ProcessState::Initializing.can_transition_to(&ProcessState::Stopped));
         assert!(!ProcessState::Active.can_transition_to(&ProcessState::Initializing));
     }

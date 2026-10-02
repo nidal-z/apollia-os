@@ -1,6 +1,7 @@
 use super::*;
 
 use super::bootstrap::{migrate_mcp_from_toml, start_mcp_manager};
+use crate::on_demand::{BackendLoader, OnDemandBackend};
 
 impl Supervisor {
     /// Create a new Supervisor with the given configuration.
@@ -342,9 +343,15 @@ impl Supervisor {
         router
     }
 
-    /// Phase 11: load every enabled installed agent, register it, install its
-    /// venv packages, and wire an [`ExecutionCoordinator`] into the router.
-    /// Errors are logged, never fatal.
+    /// Phase 11: make every enabled installed agent available, without
+    /// importing any of them.
+    ///
+    /// Each agent is registered from the manifest its store holds, and its
+    /// coordinator gets an [`OnDemandBackend`]: the Python module is imported
+    /// by the first task that reaches the agent, and released once the agent
+    /// has gone `agent_idle_unload_secs` without a call. A disabled agent is
+    /// not registered, so a task to it is refused. Errors are logged, never
+    /// fatal.
     pub(in crate::supervisor) async fn auto_load_installed_agents<
         B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>,
     >(
@@ -368,8 +375,8 @@ impl Supervisor {
         }
     }
 
-    /// Load and wire a single installed agent. Skips disabled agents and logs
-    /// (never propagates) any per-agent failure.
+    /// Register a single installed agent on demand. Skips disabled agents and
+    /// logs (never propagates) any per-agent failure.
     async fn load_one_installed_agent<
         B: ExecutionBackend + Clone + From<crate::coordinator::DynBackend>,
     >(
@@ -380,18 +387,7 @@ impl Supervisor {
             warn!(name = %agent.name, "agent.autoload.skipped");
             return;
         }
-        let manifest = match ctx.agent_loader.load_and_validate(&agent.install_path) {
-            Ok(m) => m,
-            Err(e) => {
-                warn!(name = %agent.name, error = %e, "agent.load.failed");
-                let _ = ctx.event_sender.send(RuntimeEvent::AgentLoadFailed {
-                    name: agent.name.clone(),
-                    error: e.to_string(),
-                });
-                return;
-            }
-        };
-
+        let manifest = agent.manifest.clone();
         let max_concurrent = manifest.max_concurrent_tasks;
         let agent_name = manifest.name.clone();
 
@@ -428,11 +424,19 @@ impl Supervisor {
                 );
         }
 
-        // Create ExecutionCoordinator with backend factory.
+        // The backend is built by the first task, not here.
         let agent_backend: B = match ctx.backend_factory {
             Some(factory) => {
-                let dyn_backend = factory.create_for_agent(&agent.install_path, &agent.manifest);
-                B::from(dyn_backend)
+                let factory = Arc::clone(factory);
+                let install_path = agent.install_path.clone();
+                let stored = agent.manifest.clone();
+                let loader: BackendLoader =
+                    Arc::new(move || factory.create_for_agent(&install_path, &stored));
+                B::from(crate::coordinator::DynBackend::new(OnDemandBackend::spawn(
+                    &agent_name,
+                    loader,
+                    ctx.idle_unload,
+                )))
             }
             None => ctx.base_backend.clone(),
         };
@@ -454,7 +458,7 @@ impl Supervisor {
             .register_coordinator(agent_id.clone(), coordinator)
             .await;
 
-        info!(name = %agent_name, id = %agent_id, "agent.autoloaded");
+        info!(name = %agent_name, id = %agent_id, "agent.available");
     }
 
     /// Install an agent's pip packages into its venv. Returns `Some(reason)`

@@ -14,27 +14,10 @@ import type {
   MemoryEntry,
 } from "$lib/types";
 
-/** Start an installed agent from its on-disk entry path. */
-export async function startAgent(path: string): Promise<void> {
-  return invoke<void>("start_agent", { path });
-}
-
-/** Stop a running agent by its runtime id. */
-export async function stopAgent(agentId: string): Promise<void> {
-  return invoke<void>("stop_agent", { agentId });
-}
-
-/** Enable an agent for auto-start at boot. */
-export async function enableAgent(name: string): Promise<void> {
-  return invoke<void>("enable_agent", { name });
-}
-
-/** Disable an agent's auto-start at boot. */
-export async function disableAgent(name: string): Promise<void> {
-  return invoke<void>("disable_agent", { name });
-}
-
-/** Install a standalone agent from a `.py` entry path. */
+/**
+ * Install a standalone agent from a `.py` entry path. The agent is available
+ * at once: nothing starts or stops it, its first task loads it.
+ */
 export async function installAgent(path: string): Promise<void> {
   return invoke<void>("install_agent", { path });
 }

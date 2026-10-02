@@ -1,5 +1,4 @@
-import { writable, get } from "svelte/store";
-import { t } from "svelte-i18n";
+import { writable } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentPackageListItem,
@@ -62,14 +61,18 @@ export async function getPackageDetail(name: string): Promise<AgentPackageDetail
   return invoke<AgentPackageDetailView>("get_agent_package_detail", { name });
 }
 
-/** Overview of the aggregated runtime state of one package. */
+/** Overview of the aggregated availability of one package. */
 export interface PackageRuntimeState {
   totalAgents: number;
-  runningAgents: number;
+  availableAgents: number;
   totalTriggers: number;
   enabledTriggers: number;
-  /** "running" when every agent is active, "stopped" when none runs, "partial" otherwise. */
-  status: "running" | "stopped" | "partial";
+  /**
+   * "available" when every agent can take a task, "unavailable" when none
+   * can, "partial" otherwise. An agent is never started nor stopped: only one
+   * switched off from the command line is unavailable.
+   */
+  status: "available" | "unavailable" | "partial";
 }
 
 /** Computes the aggregated state of a package from the agent and trigger snapshots. */
@@ -81,140 +84,21 @@ export function packageRuntimeState(
   const names = new Set(pkg.agents.map((a) => a.name));
   const pkgAgents = agentsSnap.filter((a) => names.has(a.name));
   const pkgTriggers = triggersSnap.filter((t) => names.has(t.agent));
-  const running = pkgAgents.filter(
-    (a) => a.runtime_status === "active" || a.runtime_status === "degraded",
-  ).length;
+  const available = pkgAgents.filter((a) => a.installed_at === null || a.enabled).length;
   const enabled = pkgTriggers.filter((t) => t.enabled).length;
   let status: PackageRuntimeState["status"];
-  if (pkgAgents.length === 0) {
-    status = "stopped";
-  } else if (running === 0) {
-    status = "stopped";
-  } else if (running === pkgAgents.length) {
-    status = "running";
+  if (available === 0) {
+    status = "unavailable";
+  } else if (available === pkgAgents.length) {
+    status = "available";
   } else {
     status = "partial";
   }
   return {
     totalAgents: pkgAgents.length,
-    runningAgents: running,
+    availableAgents: available,
     totalTriggers: pkgTriggers.length,
     enabledTriggers: enabled,
     status,
   };
-}
-
-/**
- * Starts every dependency of a package, in this order:
- *   1. triggers (activation)
- *   2. workers
- *   3. assistants / director
- *
- * Individual errors are collected and returned without interrupting the sequence.
- */
-export async function startPackage(
-  pkg: AgentPackageListItem,
-  agentsSnap: AgentListItem[],
-  triggersSnap: TriggerStatus[],
-): Promise<{ errors: string[] }> {
-  const errors: string[] = [];
-  const names = new Set(pkg.agents.map((a) => a.name));
-
-  // 1. Triggers
-  for (const tr of triggersSnap.filter((t) => names.has(t.agent))) {
-    if (tr.enabled) continue;
-    try {
-      await invoke("set_trigger_enabled", { id: tr.id, enabled: true });
-    } catch (e) {
-      errors.push(
-        get(t)("agents.package_start_errors.trigger", {
-          values: { id: tr.id, error: String(e) },
-        }),
-      );
-    }
-  }
-
-  // 2. Workers, then 3. Assistants / director - two ordered passes.
-  const isRunning = (a: AgentListItem) =>
-    a.runtime_status === "active" || a.runtime_status === "degraded";
-
-  const pkgRoles = new Map(pkg.agents.map((a) => [a.name, a.role] as const));
-  const ordered = agentsSnap
-    .filter((a) => names.has(a.name))
-    .sort((x, y) => {
-      const rx = pkgRoles.get(x.name) === "worker" ? 0 : 1;
-      const ry = pkgRoles.get(y.name) === "worker" ? 0 : 1;
-      return rx - ry;
-    });
-
-  for (const agent of ordered) {
-    if (isRunning(agent)) continue;
-    if (!agent.install_path) {
-      errors.push(
-        get(t)("agents.package_start_errors.missing_install_path", {
-          values: { name: agent.name },
-        }),
-      );
-      continue;
-    }
-    try {
-      await invoke("start_agent", { path: agent.install_path });
-    } catch (e) {
-      errors.push(`${agent.name} : ${String(e)}`);
-    }
-  }
-
-  return { errors };
-}
-
-/**
- * Stops every dependency of a package, in the reverse order:
- *   1. assistants / director
- *   2. workers
- *   3. triggers (disabling)
- */
-export async function stopPackage(
-  pkg: AgentPackageListItem,
-  agentsSnap: AgentListItem[],
-  triggersSnap: TriggerStatus[],
-): Promise<{ errors: string[] }> {
-  const errors: string[] = [];
-  const names = new Set(pkg.agents.map((a) => a.name));
-
-  const isRunning = (a: AgentListItem) =>
-    a.runtime_status === "active" || a.runtime_status === "degraded";
-
-  const pkgRoles = new Map(pkg.agents.map((a) => [a.name, a.role] as const));
-  const ordered = agentsSnap
-    .filter((a) => names.has(a.name))
-    .sort((x, y) => {
-      // Assistants/director first, then workers.
-      const rx = pkgRoles.get(x.name) === "worker" ? 1 : 0;
-      const ry = pkgRoles.get(y.name) === "worker" ? 1 : 0;
-      return rx - ry;
-    });
-
-  for (const agent of ordered) {
-    if (!isRunning(agent) || !agent.id) continue;
-    try {
-      await invoke("stop_agent", { agentId: agent.id });
-    } catch (e) {
-      errors.push(`${agent.name} : ${String(e)}`);
-    }
-  }
-
-  for (const tr of triggersSnap.filter((t) => names.has(t.agent))) {
-    if (!tr.enabled) continue;
-    try {
-      await invoke("set_trigger_enabled", { id: tr.id, enabled: false });
-    } catch (e) {
-      errors.push(
-        get(t)("agents.package_start_errors.trigger", {
-          values: { id: tr.id, error: String(e) },
-        }),
-      );
-    }
-  }
-
-  return { errors };
 }

@@ -143,7 +143,7 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-desktop/src/commands/agent_packages/install.rs": 2,
     "crates/apollia-desktop/src/commands/agent_packages/uninstall.rs": 2,
     "crates/apollia-desktop/src/commands/agents.rs": 1,
-    "crates/apollia-desktop/src/commands/agents/lifecycle.rs": 4,
+    "crates/apollia-desktop/src/commands/agents/lifecycle.rs": 2,
     "crates/apollia-desktop/src/commands/llm.rs": 1,
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
     "crates/apollia-desktop/src/commands/onboarding/memory.rs": 1,

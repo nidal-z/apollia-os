@@ -16,7 +16,6 @@ apollia-runtime       = { workspace = true }
 apollia-workspace     = { workspace = true }
 apollia-notifications = { workspace = true }
 apollia-stt           = { workspace = true, default-features = false }
-apollia-signing       = { workspace = true }
 hound                 = { workspace = true }
 tokio          = { workspace = true }
 chrono         = { workspace = true }
@@ -33,13 +32,6 @@ pyo3                = { workspace = true }
 pyo3-async-runtimes = { workspace = true }
 serde_yaml          = { workspace = true }
 minijinja           = { workspace = true }
-zip                 = { workspace = true }
-flate2              = { workspace = true }
-
-# flate2 is never named in the code: it is declared only to give zip's deflate
-# its pure-Rust backend, a feature selection cargo-machete cannot see.
-[package.metadata.cargo-machete]
-ignored = ["flate2"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
