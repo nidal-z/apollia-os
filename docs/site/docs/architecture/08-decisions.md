@@ -241,9 +241,12 @@ is the only key accepted. No archive is requested before the signature holds,
 an archive whose digest differs from the manifest is deleted, and a manifest
 older than the last one accepted on its channel is refused. A mirror can replace
 the address manifests and archives are fetched from; it cannot replace the key.
-Engine archives are read as zip, the format already read for agent packages. The
-MLX engine environment is listed in the same manifest and installed through the
-same verification.
+Engine archives are read as zip only, the format already read for agent
+packages, and no other archive format is parsed. Upstream builds published as
+`.tar.gz`, those for macOS and Linux among them, are repackaged as zip by the
+release pipeline that publishes the manifest, and the manifest carries the
+digest of that zip. The MLX engine environment is listed in the same manifest
+and installed through the same verification.
 
 There is no dedicated cloud provider. A remote model is reached through one
 generic connection to an OpenAI-compatible server, at the address the

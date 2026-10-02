@@ -261,9 +261,12 @@ acceptée. Aucune archive n'est demandée avant que la signature tienne, une
 archive dont l'empreinte diffère du manifeste est supprimée, et un manifeste
 plus ancien que le dernier accepté sur son canal est refusé. Un miroir peut
 remplacer l'adresse d'où viennent manifestes et archives ; il ne peut pas
-remplacer la clé. Les archives de moteur se lisent au format zip, celui déjà lu
-pour les paquets d'agents. L'environnement du moteur MLX figure dans le même
-manifeste et s'installe par la même vérification.
+remplacer la clé. Les archives de moteur se lisent au format zip seul, celui déjà
+lu pour les paquets d'agents, et aucun autre format d'archive n'est analysé. Les
+versions amont publiées en `.tar.gz`, dont celles pour macOS et Linux, sont
+reconditionnées en zip par la chaîne de publication qui produit le manifeste, et
+le manifeste porte l'empreinte de ce zip. L'environnement du moteur MLX figure
+dans le même manifeste et s'installe par la même vérification.
 
 Il n'y a aucun fournisseur cloud dédié. Un modèle distant se joint par une seule
 connexion générique à un serveur compatible OpenAI, à l'adresse que

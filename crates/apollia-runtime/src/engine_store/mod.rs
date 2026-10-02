@@ -33,7 +33,9 @@
 //!   `cpu` or `metal`; `platform` is `<os>-<arch>`, with `os` in `macos`,
 //!   `linux`, `windows` and `arch` in `x64`, `arm64`.
 //! - `url` is relative to the manifest: no scheme, no host, no parent step. It
-//!   ends in `.zip`, the only archive format read.
+//!   ends in `.zip`, the only archive format read. An upstream build shipped
+//!   as `.tar.gz` (macOS, Linux) is repackaged as zip by the pipeline that
+//!   publishes the manifest, and `sha256` is the digest of that zip.
 //! - `sequence` strictly identifies a manifest within its channel. The store
 //!   remembers the highest one it accepted per channel and refuses a lower
 //!   one, so an old manifest cannot bring back an old engine.
