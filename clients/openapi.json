@@ -1285,6 +1285,24 @@
         }
       }
     },
+    "/api/v1/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "`GET /api/v1/events`, every runtime event as SSE.",
+        "description": "Each `runtime` frame carries one event of the bus serialized as the bus\ncarries it; a `lagged` frame reports how many events this subscriber\nmissed. The stream stays open until the client disconnects.",
+        "operationId": "stream_events",
+        "responses": {
+          "200": {
+            "description": "SSE stream of every runtime event: `runtime` frames carry one event each, `lagged` frames the count of events dropped for this subscriber",
+            "content": {
+              "text/event-stream": {}
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "tags": [
@@ -4897,6 +4915,51 @@
           },
           "409": {
             "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/pause": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/:id/pause`, pause the turn in flight.",
+        "operationId": "pause_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Turn paused, or no turn was in flight"
+          },
+          "404": {
+            "description": "Session not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -10763,6 +10826,10 @@
     {
       "name": "health",
       "description": "Liveness and lifecycle"
+    },
+    {
+      "name": "events",
+      "description": "The runtime event bus as a stream"
     },
     {
       "name": "tasks",

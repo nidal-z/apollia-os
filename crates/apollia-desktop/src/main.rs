@@ -2,9 +2,10 @@
 //!
 //! The Apollia runtime runs embedded inside the Tauri process via
 //! [`apollia_runtime::init_embedded()`], on the TCP port this process claims
-//! at startup (see [`startup`]); a runtime already serving that port is named
-//! in a refusal window instead. The Unix socket remains active so the CLI can
-//! be used alongside the desktop app.
+//! at startup (see [`startup`]); when a compatible runtime already serves that
+//! port, the application attaches to it instead (see [`attached`]), and any
+//! other holder is named in a refusal window. The Unix socket remains active
+//! so the CLI can be used alongside the desktop app.
 //!
 //! `unsafe_code` is allowed by this crate's manifest for one production site,
 //! the window-handle cast to `isize` in `commands/automation.rs`, and for
@@ -13,11 +14,13 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+mod attached;
 mod backend;
 mod bootstrap;
 mod bundled_agents;
 mod commands;
 mod events;
+mod handlers;
 pub mod i18n;
 pub mod mcp;
 mod process_job;
@@ -77,16 +80,27 @@ fn main() {
         startup::read_token(&apollia_data_dir).as_deref(),
     ) {
         startup::StartupDecision::Launch(listener) => listener,
-        // The attached mode is not delivered yet: a runtime already serving
-        // is named, with the gesture, instead of being attached to.
-        startup::StartupDecision::Attach { version } => startup::refuse(
-            &startup::RefusalReason::AttachNotYetAvailable {
-                port: startup::RUNTIME_PORT,
-                version,
-            },
-            &apollia_data_dir,
-            tauri_context(),
-        ),
+        // A compatible runtime already serves: attach to it over its API,
+        // with the token of this installation, and build nothing of our own.
+        startup::StartupDecision::Attach { version } => {
+            match startup::read_token(&apollia_data_dir) {
+                Some(token) => {
+                    tracing::event!(
+                        tracing::Level::INFO,
+                        version = %version,
+                        "desktop.startup.attach"
+                    );
+                    attached::run(startup::RUNTIME_PORT, token, tauri_context())
+                }
+                None => startup::refuse(
+                    &startup::RefusalReason::TokenRefused {
+                        port: startup::RUNTIME_PORT,
+                    },
+                    &apollia_data_dir,
+                    tauri_context(),
+                ),
+            }
+        }
         startup::StartupDecision::Refuse(reason) => {
             startup::refuse(&reason, &apollia_data_dir, tauri_context())
         }
@@ -366,6 +380,7 @@ fn main() {
         // is the canonical replacement.
         .plugin(tauri_plugin_opener::init())
         .manage(runtime_handle.clone())
+        .manage(attached::RuntimeLink::Embedded(Box::new(runtime_handle.clone())))
         .manage(agent_repo)
         .manage(pkg_repo)
         .manage(agent_loader)
@@ -476,268 +491,10 @@ fn main() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::agent_packages::preview_agent_package,
-            commands::agent_packages::install::install_agent_package,
-            commands::agent_packages::list_agent_packages,
-            commands::agent_packages::get_agent_package_detail,
-            commands::agent_packages::uninstall::uninstall_agent_package,
-            commands::agents::list_agents,
-            commands::agents::agent_status_snapshot,
-            commands::agents::messages::list_agent_messages,
-            commands::agents::lifecycle::start_agent,
-            commands::agents::lifecycle::stop_agent,
-            commands::agents::lifecycle::install_agent,
-            commands::agents::lifecycle::uninstall_agent,
-            commands::agents::lifecycle::enable_agent,
-            commands::agents::lifecycle::disable_agent,
-            commands::agents::lifecycle::update_agent,
-            commands::tasks::list_tasks,
-            commands::tasks::submit_task,
-            commands::tasks::delete_task,
-            commands::tasks::get_task_timeline,
-            commands::tasks::get_delegation_tree,
-            commands::hitl::list_pending_approvals,
-            commands::hitl::list_resolved_approvals,
-            commands::hitl::resume_task,
-            commands::hitl::add_permission_prefix_rule,
-            commands::hitl::respond_hitl_filesystem,
-            commands::integrations::oauth_start_flow,
-            commands::integrations::oauth_complete_flow,
-            commands::integrations::oauth_disconnect,
-            commands::integrations::oauth_get_status,
-            commands::integrations::credentials::oauth_list_client_ids,
-            commands::integrations::credentials::oauth_set_client_id,
-            commands::integrations::credentials::oauth_set_client_secret,
-            commands::integrations::credentials::oauth_import_client_json,
-            commands::integrations::credentials::oauth_list_drive_folders,
-            commands::integrations::credentials::oauth_set_drive_folder,
-            commands::integrations::credentials::oauth_reset_drive_folder,
-            commands::integrations::credentials::oauth_set_api_key,
-            commands::integrations::credentials::oauth_test_client,
-            commands::llm::list_llm_backends,
-            commands::llm::create_llm_backend,
-            commands::llm::update_llm_backend,
-            commands::llm::delete_llm_backend,
-            commands::llm::set_default_llm_backend,
-            commands::llm::ping_llm_backend,
-            commands::llm::get_llm_cost_stats,
-            commands::llm::get_cost_alert_threshold,
-            commands::llm::reload_llm,
-            commands::llm::reload_llm_from_db,
-            commands::llm_loaded::list_loaded_models,
-            commands::llm_loaded::unload_loaded_model,
-            commands::model_hub::get_hardware_profile,
-            commands::recommend::recommend_models,
-            commands::model_hub::search_hf_models,
-            commands::model_hub::get_hf_model,
-            commands::model_hub::start_model_download,
-            commands::model_hub::cancel_model_download,
-            commands::model_hub::list_installed_models,
-            commands::model_hub::delete_installed_model,
-            commands::model_hub::import_model_file,
-            commands::meta_automation::meta_parse_automation,
-            commands::meta_next_steps::meta_generate_next_steps,
-            commands::meta_rewrite::meta_rewrite_input,
-            commands::mcp_coaching::meta_generate_capabilities_coaching,
-            commands::triggers::list_triggers,
-            commands::triggers::set_trigger_enabled,
-            commands::triggers::fire_trigger,
-            commands::triggers::get_trigger_logs,
-            commands::triggers::create_trigger,
-            commands::triggers::update_trigger,
-            commands::triggers::delete_trigger,
-            commands::triggers::get_trigger_definition,
-            commands::memory::list_memory_namespaces,
-            commands::memory::list_memory_entries,
-            commands::memory::search_memory,
-            commands::memory::delete_memory_entry,
-            commands::memory::get_injected_memory_entries,
-            commands::notifications::list_notification_channels,
-            commands::notifications::test_notification_channel,
-            commands::notifications::get_notification_logs,
-            commands::notifications::list_runtime_activity,
-            commands::notifications::create_notification_channel,
-            commands::notifications::update_notification_channel,
-            commands::notifications::delete_notification_channel,
-            commands::notifications::get_notification_events,
-            commands::notifications::set_notification_events,
-            commands::observability::plan_cache::clear_plan_cache,
-            commands::observability::get_global_timeline,
-            commands::observability::audit::get_llm_daily_costs,
-            commands::observability::mailbox::list_mailbox_messages,
-            commands::observability::plan_cache::get_plan_cache_stats,
-            commands::observability::audit::get_tool_audit_trail,
-            commands::observability::audit::verify_audit_run,
-            commands::observability::audit::get_active_hooks,
-            commands::trace::get_task_trace,
-            commands::config::get_config,
-            commands::updates::check_for_update,
-            commands::updates::install_update,
-            commands::config::get_observability_config,
-            commands::config::set_observability_config,
-            commands::config::open_config_in_editor,
-            commands::config::lifecycle::reset_onboarding,
-            commands::config::lifecycle::clear_all_memories,
-            commands::config::lifecycle::clear_logs,
-            commands::config::lifecycle::factory_reset,
-            commands::config::lifecycle::app_restart,
-            commands::config::lifecycle::quit_app,
-            commands::config::lifecycle::mark_onboarded,
-            commands::config::system::get_system_info,
-            commands::config::system::get_security_posture,
-            commands::config::system::get_python_interpreter,
-            commands::config::system::set_python_interpreter,
-            commands::config::system::setup_local_llm,
-            commands::tools::list_tools,
-            commands::tools::describe_tool,
-            commands::tool_governance::governance_list_tools,
-            commands::tool_governance::governance_set_tool_enabled,
-            commands::tool_governance::governance_get_tool_config,
-            commands::tool_governance::governance_set_tool_config,
-            commands::tool_governance::governance_list_credentials,
-            commands::tool_governance::governance_set_credential,
-            commands::tool_governance::governance_delete_credential,
-            commands::tool_governance::governance_test_credential,
-            commands::tool_governance::governance_list_permission_rules,
-            commands::tool_governance::governance_revoke_permission_rule,
-            commands::tool_governance::governance_revoke_all_rules,
-            commands::tool_governance::governance_list_audit,
-            commands::chat::create_chat_session,
-            commands::chat::list_chat_sessions,
-            commands::chat::get_chat_session,
-            commands::chat::chat_session_metrics,
-            commands::chat::delete_chat_session,
-            commands::chat::rename_chat_session,
-            commands::chat::title::generate_chat_session_name,
-            commands::chat::update_chat_session,
-            commands::chat::send_chat_message,
-            commands::chat::regenerate_chat_response,
-            commands::chat::edit_and_resend_chat_message,
-            commands::chat::pause_chat_session,
-            commands::chat::authorize_chat_tool,
-            commands::chat_libre::get_chat_libre_config,
-            commands::chat_libre::update_chat_libre_config,
-            commands::chat_libre::list_chat_permission_rules,
-            commands::chat_libre::delete_chat_permission_rule,
-            commands::chat_libre::list_active_chat_session_authorizations,
-            commands::chat_libre::revoke_chat_session_authorization,
-            commands::chat::respond_user_input,
-            commands::chat::respond_user_input_rejected,
-            commands::chat::list_pending_user_inputs,
-            commands::chat::list_chat_approval_history,
-            commands::chat::link_chat_to_project,
-            commands::chat::list_chats_by_project,
-            commands::chat::list_a2a_skills,
-            commands::chat::export::export_conversation,
-            commands::chat::export::reveal_session_path,
-            commands::artifacts::save_artifact,
-            commands::artifacts::list_artifacts,
-            commands::artifacts::update_artifact,
-            commands::artifacts::delete_artifact,
-            commands::onboarding::get_onboarding_state,
-            commands::onboarding::check_onboarding_finalized,
-            commands::onboarding::finalize_onboarding_chat,
-            commands::onboarding::advance_onboarding_phase,
-            commands::onboarding::set_onboarding_profile,
-            commands::onboarding::trigger_onboarding,
-            commands::onboarding::resume_onboarding,
-            commands::onboarding::dismiss_onboarding,
-            commands::permissions_proposals::list_proposed_permission_rules,
-            commands::permissions_proposals::apply_proposed_permission_rule,
-            commands::permissions_proposals::dismiss_proposed_permission_rule,
-            commands::onboarding::ai_setup::get_ai_setup_info,
-            commands::onboarding::ai_setup::scan_for_gguf_models,
-            commands::onboarding::ai_setup::scan_for_whisper_models,
-            commands::onboarding::ai_setup::setup_whisper_model,
-            commands::onboarding::companion::get_companion_context,
-            commands::onboarding::companion::create_companion_session,
-            commands::onboarding::companion::set_companion_enabled,
-            commands::onboarding::companion::get_companion_enabled,
-            commands::user_memory::get_profile,
-            commands::user_memory::set_profile_entry,
-            commands::user_memory::delete_profile_entry,
-            commands::user_memory::reset_user_profile,
-            commands::user_memory::get_conversation_stats,
-            commands::stt::get_stt_config,
-            commands::stt::update_stt_config,
-            commands::stt::list_audio_input_devices,
-            commands::stt::reload_stt,
-            commands::stt::get_stt_status,
-            commands::stt::list_transcriptions,
-            commands::stt::delete_transcription,
-            commands::stt::transcribe_file,
-            commands::stt::list_stt_models,
-            commands::stt::start_tour_recording,
-            commands::stt::stop_tour_recording,
-            commands::mcp::catalog::list_mcp_enrichments,
-            commands::connections::list_connections,
-            commands::mcp::list_mcp_servers,
-            commands::mcp::list_mcp_resources,
-            commands::mcp::get_mcp_server_detail,
-            commands::mcp::add_mcp_server,
-            commands::mcp::remove_mcp_server,
-            commands::mcp::get_mcp_server_raw_config,
-            commands::mcp::update_mcp_server_config,
-            commands::mcp::test_mcp_connection,
-            commands::mcp::test_mcp_live_server,
-            commands::mcp::oauth::mcp_oauth_discover,
-            commands::mcp::oauth::mcp_oauth_resolve_client_id,
-            commands::mcp::oauth::mcp_oauth_login,
-            commands::mcp::restart_mcp_server,
-            commands::mcp::discovery::fetch_mcp_registry,
-            commands::mcp::discovery::fetch_mcp_curated,
-            commands::mcp::store_mcp_secret,
-            commands::mcp::delete_mcp_secret,
-            commands::mcp::set_mcp_server_approval,
-            commands::plan_mode::submit_plan_decision,
-            commands::plan_mode::get_plan_mode_default,
-            commands::plan_mode::set_plan_mode,
-            commands::plan_mode::approve_plan,
-            commands::plan_mode::reject_plan,
-            commands::plan_mode::list_plan_mutations,
-            commands::plan_mode::get_chat_plan,
-            // Tasks
-            commands::tasks::cancel_task,
-            // Memory
-            commands::memory::clear_memory,
-            commands::memory::purge_memory,
-            commands::memory::memory_export_namespace,
-            commands::memory::memory_import_namespace,
-            // Observability
-            commands::observability::audit::get_audit_stats,
-            // Updates
-            // Projects
-            commands::projects::suggest_workspace_path,
-            commands::projects::list_projects,
-            commands::projects::get_project,
-            commands::projects::create_project,
-            commands::projects::update_project,
-            commands::projects::delete_project,
-            commands::projects::upload_project_document,
-            commands::projects::delete_project_document,
-            commands::projects::get_project_snapshot,
-            commands::projects::add_project_agent,
-            commands::projects::remove_project_agent,
-            commands::projects::list_project_agents,
-            commands::projects::set_project_provider,
-            commands::projects::remove_project_provider,
-            commands::projects::toggle_project_provider,
-            commands::link_preview::link_preview,
-            // CLI install
-            commands::cli::get_cli_status,
-            commands::cli::install_cli,
-            commands::cli::uninstall_cli,
-            // Automation harness (dev-only, absent from release builds)
-            #[cfg(debug_assertions)]
-            commands::automation::automation_script,
-            #[cfg(debug_assertions)]
-            commands::automation::automation_capture,
-            #[cfg(debug_assertions)]
-            commands::automation::automation_resize,
-            #[cfg(debug_assertions)]
-            commands::automation::automation_finish,
-        ])
+        .invoke_handler(attached::gated(
+            attached::LinkMode::Embedded,
+            handlers::commands(),
+        ))
         .build(tauri_context());
 
     or_exit(app, "build the Tauri application").run(|app, event| {

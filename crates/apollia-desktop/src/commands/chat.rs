@@ -11,6 +11,8 @@ use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::attached::RuntimeLink;
+
 /// Automatic session naming lives in `title`, the on-disk export in `export`.
 pub mod export;
 pub mod title;
@@ -95,15 +97,21 @@ pub struct ChatMessageView {
 /// Creates a new chat session (Libre or Agent mode).
 #[tauri::command]
 pub async fn create_chat_session(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     request: CreateSessionRequest,
 ) -> Result<ChatSessionSummary, String> {
+    let mode = parse_chat_mode(&request.mode)?;
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            let info = remote.create_session(&request).await?;
+            return Ok(session_info_to_summary(&info));
+        }
+    };
     let manager = state
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
-
-    let mode = parse_chat_mode(&request.mode)?;
 
     let info = manager
         .create_session(apollia_runtime::chat::manager::CreateSessionParams {
@@ -122,17 +130,25 @@ pub async fn create_chat_session(
 /// Lists chat sessions, optionally filtered by status.
 #[tauri::command]
 pub async fn list_chat_sessions(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     status: Option<String>,
 ) -> Result<Vec<ChatSessionSummary>, String> {
-    let manager = match state.chat_manager.as_ref() {
-        Some(m) => m,
-        None => return Ok(Vec::new()),
-    };
-
     let status_filter = match status.as_deref() {
         Some(s) => Some(parse_session_status(s)?),
         None => None,
+    };
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            let sessions = remote
+                .list_sessions(status_filter.as_ref().map(SessionStatus::as_sql))
+                .await?;
+            return Ok(sessions.iter().map(session_info_to_summary).collect());
+        }
+    };
+    let manager = match state.chat_manager.as_ref() {
+        Some(m) => m,
+        None => return Ok(Vec::new()),
     };
 
     let sessions = manager.list_sessions(status_filter).await;
@@ -145,9 +161,17 @@ pub async fn list_chat_sessions(
 /// Gets a single chat session with full message history.
 #[tauri::command]
 pub async fn get_chat_session(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
 ) -> Result<ChatSessionDetail, String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            return Ok(session_detail_to_flat(
+                remote.get_session(&session_id).await?,
+            ));
+        }
+    };
     let manager = state
         .chat_manager
         .as_ref()
@@ -249,10 +273,16 @@ pub async fn rename_chat_session(
 /// Sends a user message and launches the async response generation.
 #[tauri::command]
 pub async fn send_chat_message(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
     content: String,
 ) -> Result<String, String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            return Ok(remote.send_message(&session_id, &content).await?);
+        }
+    };
     let manager = state
         .chat_manager
         .as_ref()
@@ -316,9 +346,13 @@ pub async fn edit_and_resend_chat_message(
 /// active this is a no-op. The frontend finalizes the streamed partial on ack.
 #[tauri::command]
 pub async fn pause_chat_session(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
 ) -> Result<(), String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => return Ok(remote.pause_session(&session_id).await?),
+    };
     let manager = state
         .chat_manager
         .as_ref()

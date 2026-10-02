@@ -405,6 +405,16 @@ that ends without a word. A refusal opens a window that names what holds the
 port and the gesture to make, and appends the reason to `startup-refused.log` in
 the data directory.
 
+Attached, the desktop builds nothing of a runtime of its own. It reaches the
+daemon over the local HTTP API with the token of the data directory, and
+receives the whole event bus as one stream, `GET /api/v1/events`. It asks the
+health route every two seconds rather than assuming the daemon is there, so an
+unanswered probe shows the runtime as disconnected at once. A command without a
+route yet answers a typed error that names it, instead of reaching for state
+the process never built; `scripts/check_attached_coverage.py` counts the routed
+commands against the registered ones, on a descending ratchet. Quitting the
+attached desktop leaves the daemon serving.
+
 Version 0.3.0 delivers both modes.
 
 ## Agent distribution {#agent-distribution}

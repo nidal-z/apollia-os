@@ -439,6 +439,17 @@ un lancement qui s'arrête sans un mot. Un refus ouvre une fenêtre qui nomme ce
 qui tient le port et le geste à faire, et ajoute la raison à
 `startup-refused.log` dans le dossier de données.
 
+Rattaché, le bureau ne construit aucun runtime à lui. Il joint le démon par
+l'API HTTP locale avec le jeton du dossier de données, et reçoit tout le bus
+d'événements en un flux, `GET /api/v1/events`. Il interroge la route de santé
+toutes les deux secondes plutôt que de supposer le démon présent, si bien
+qu'une sonde sans réponse montre aussitôt le runtime déconnecté. Une commande
+encore sans route répond une erreur typée qui la nomme, au lieu d'aller chercher
+un état que le processus n'a jamais construit ;
+`scripts/check_attached_coverage.py` compte les commandes routées face aux
+commandes enregistrées, sur un cliquet descendant. Quitter le bureau rattaché
+laisse le démon servir.
+
 La version 0.3.0 livre les deux modes.
 
 ## Distribution des agents {#agent-distribution}

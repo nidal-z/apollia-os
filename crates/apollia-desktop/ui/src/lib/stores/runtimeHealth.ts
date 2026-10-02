@@ -7,6 +7,11 @@
  * in - attempting `refreshAll()` until a fresh heartbeat (or any runtime
  * event) is observed.
  *
+ * Attached to a runtime that runs as a service, the backend asks the
+ * runtime rather than assuming it, and emits `runtime:lost` on the first
+ * unanswered probe: the store turns disconnected at once instead of waiting
+ * for the heartbeat timeout.
+ *
  * Consumers subscribe to `runtimeHealth` to render the persistent
  * `RuntimeDisconnectedBanner`.
  */
@@ -43,6 +48,7 @@ let watchdog: ReturnType<typeof setTimeout> | null = null;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let unlistenHeartbeat: UnlistenFn | null = null;
 let unlistenRuntimeEvent: UnlistenFn | null = null;
+let unlistenLost: UnlistenFn | null = null;
 let destroyed = false;
 
 function markConnected(): void {
@@ -152,6 +158,19 @@ export function startRuntimeHealthMonitor(): () => void {
     else unlistenHeartbeat = fn;
   });
 
+  // The runtime stopped answering: say so now, not after the grace window.
+  void listen("runtime:lost", () => {
+    if (destroyed || muted) return;
+    if (watchdog !== null) {
+      clearTimeout(watchdog);
+      watchdog = null;
+    }
+    onHeartbeatMissed();
+  }).then((fn) => {
+    if (destroyed) fn();
+    else unlistenLost = fn;
+  });
+
   // Any runtime event is proof the bridge is alive, even if the explicit
   // heartbeat channel is not wired yet on the backend.
   void listen("runtime-event", () => {
@@ -179,6 +198,10 @@ export function startRuntimeHealthMonitor(): () => void {
     if (unlistenRuntimeEvent !== null) {
       unlistenRuntimeEvent();
       unlistenRuntimeEvent = null;
+    }
+    if (unlistenLost !== null) {
+      unlistenLost();
+      unlistenLost = null;
     }
   };
 }

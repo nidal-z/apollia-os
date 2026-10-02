@@ -125,17 +125,18 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    fn attach_refusal() -> RefusalReason {
-        RefusalReason::AttachNotYetAvailable {
+    fn incompatible_refusal() -> RefusalReason {
+        RefusalReason::IncompatibleRuntime {
             port: 7771,
             version: "0.2.0-preview".to_owned(),
+            ours: "0.3.0",
         }
     }
 
     #[test]
     fn test_the_refusal_names_the_running_runtime_and_the_gesture() {
-        // GIVEN a desktop launched while `apollia-os start` serves
-        let reason = attach_refusal();
+        // GIVEN a desktop launched while `apollia-os start` serves another version
+        let reason = incompatible_refusal();
         let log = PathBuf::from("/data/startup-refused.log");
 
         // WHEN the window text is composed, in each language
@@ -160,7 +161,7 @@ mod tests {
         append_refusal(&log, &RefusalReason::ForeignListener { port: 7771 }).unwrap();
 
         // WHEN a second refusal is recorded
-        append_refusal(&log, &attach_refusal()).unwrap();
+        append_refusal(&log, &incompatible_refusal()).unwrap();
 
         // THEN both lines are there, the last one naming the runtime
         let content = std::fs::read_to_string(&log).unwrap();
@@ -168,7 +169,7 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert!(lines[0].contains("not answer as an Apollia runtime"));
         assert!(lines[1].contains("0.2.0-preview"));
-        assert!(lines[1].contains("cannot attach to it yet"));
+        assert!(lines[1].contains("cannot drive it"));
     }
 
     #[test]
