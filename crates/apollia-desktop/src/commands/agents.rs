@@ -114,9 +114,9 @@ async fn installed_agents(app: &tauri::AppHandle) -> Result<Vec<InstalledAgent>,
 /// Lists all agents, merging installed agents and runtime agents.
 ///
 /// Installed agents (persisted in `agents.db`) are enriched with their runtime
-/// state when currently loaded. Runtime-only agents (started manually via
-/// `start_agent`) also appear in the list. Attached to a daemon, the daemon
-/// builds the same view.
+/// state when registered. Runtime-only agents (registered through
+/// `POST /api/v1/agents`) also appear in the list. Attached to a daemon, the
+/// daemon builds the same view.
 #[tauri::command]
 pub async fn list_agents(
     link: State<'_, RuntimeLink>,
@@ -144,10 +144,13 @@ pub async fn list_agents(
 /// [`list_agents`] so both modes answer it.
 ///
 /// Mapping:
-/// - `active`   → `"online"`
+/// - an installed agent switched off from the command line → `"offline"`
 /// - `degraded` → `"error"` (last run failed)
-/// - `stopping` | `stopped` | not loaded → `"offline"`
 /// - `initializing` → `"busy"`
+/// - anything else → `"online"`: an agent is loaded by its first task, so
+///   one stopped or not loaded yet still answers
+///
+/// The stopped and stopping states never reach the window.
 #[derive(Debug, Serialize)]
 pub struct AgentStatusSnapshot {
     /// Unique agent name.
@@ -165,18 +168,20 @@ pub async fn agent_status_snapshot(
         .await?
         .into_iter()
         .map(|item| AgentStatusSnapshot {
-            status: runtime_status_to_ui_status(item.runtime_status.as_deref()).to_string(),
+            status: ui_status(&item).to_string(),
             name: item.name,
         })
         .collect())
 }
 
-fn runtime_status_to_ui_status(runtime_status: Option<&str>) -> &'static str {
-    match runtime_status {
-        Some("active") => "online",
+fn ui_status(item: &AgentListItem) -> &'static str {
+    if item.installed_at.is_some() && !item.enabled {
+        return "offline";
+    }
+    match item.runtime_status.as_deref() {
         Some("degraded") => "error",
         Some("initializing") => "busy",
-        _ => "offline",
+        _ => "online",
     }
 }
 
@@ -188,17 +193,61 @@ fn runtime_status_to_ui_status(runtime_status: Option<&str>) -> &'static str {
 mod tests {
     use super::*;
 
+    fn item(enabled: bool, installed: bool, runtime_status: Option<&str>) -> AgentListItem {
+        AgentListItem {
+            id: None,
+            name: "mailer".to_string(),
+            version: "1.0.0".to_string(),
+            enabled,
+            runtime_status: runtime_status.map(str::to_string),
+            installed_at: installed.then(|| "2026-10-02T10:00:00Z".to_string()),
+            description: None,
+            tags: vec![],
+            tools_required: vec![],
+            tools_optional: vec![],
+            execution_mode: None,
+            install_path: None,
+            supports_a2a: false,
+            skills: vec![],
+            agent_type: None,
+            examples: vec![],
+            limitations: vec![],
+            setup_notes: None,
+            agent_class: None,
+            memory_namespace: None,
+            shared_memory_namespaces: vec![],
+        }
+    }
+
     #[test]
-    fn test_the_runtime_status_maps_onto_the_four_picker_statuses() {
-        // GIVEN every runtime status the view carries, and an agent not loaded
-        // WHEN projected for the QuickPicker
-        // THEN each lands on its status and anything not live reads offline
-        assert_eq!(runtime_status_to_ui_status(Some("active")), "online");
-        assert_eq!(runtime_status_to_ui_status(Some("degraded")), "error");
-        assert_eq!(runtime_status_to_ui_status(Some("initializing")), "busy");
-        assert_eq!(runtime_status_to_ui_status(Some("stopping")), "offline");
-        assert_eq!(runtime_status_to_ui_status(Some("stopped")), "offline");
-        assert_eq!(runtime_status_to_ui_status(None), "offline");
+    fn test_the_picker_never_reads_a_stopped_agent_as_offline() {
+        // GIVEN an enabled installed agent in every runtime state the view
+        // carries, including stopped, stopping and not loaded yet, and one
+        // switched off from the command line
+        let states = [
+            Some("active"),
+            Some("stopping"),
+            Some("stopped"),
+            None,
+            Some("degraded"),
+            Some("initializing"),
+        ];
+
+        // WHEN each is projected for the QuickPicker
+        let projected: Vec<&str> = states
+            .iter()
+            .map(|state| ui_status(&item(true, true, *state)))
+            .collect();
+        let switched_off = ui_status(&item(false, true, None));
+
+        // THEN an agent loaded on demand is online whether loaded or not, a
+        // degraded one errors, a starting one is busy, and only the switched
+        // off one is offline
+        assert_eq!(
+            projected,
+            vec!["online", "online", "online", "online", "error", "busy"]
+        );
+        assert_eq!(switched_off, "offline");
     }
 
     #[test]

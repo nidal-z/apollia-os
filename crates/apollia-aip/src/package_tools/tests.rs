@@ -8,7 +8,7 @@ use apollia_tools::{
 };
 use pyo3::prelude::*;
 
-use super::{dotted_module, PackageTools};
+use super::{dotted_module, executor::module_prefix, PackageTools};
 use crate::apollia_manifest::{self, ApolliaManifest};
 
 const COMPLETE: &str =
@@ -138,4 +138,104 @@ fn test_module_path_stays_inside_the_package() {
     for ((module, expected), got) in cases.iter().zip(dotted) {
         assert_eq!(got.as_deref(), *expected, "{module}");
     }
+}
+
+/// A working module for `extract_totals`, which counts its own imports in
+/// the file `__COUNT__`.
+const COUNTING_MODULE: &str = r#"
+import pathlib
+import types
+
+COUNT = pathlib.Path(__COUNT__)
+COUNT.write_text(str(int(COUNT.read_text()) + 1) if COUNT.exists() else "1")
+
+
+async def extract_totals(path):
+    return {"path": path}
+
+
+extract_totals.__apollia_tool__ = types.SimpleNamespace(name="extract_totals")
+"#;
+
+fn modules_under(prefix: &str) -> usize {
+    Python::with_gil(|py| -> PyResult<usize> {
+        let keys: Vec<String> = py
+            .import("sys")?
+            .getattr("modules")?
+            .call_method0("keys")?
+            .try_iter()?
+            .filter_map(|k| k.ok()?.extract().ok())
+            .collect();
+        Ok(keys.iter().filter(|k| k.starts_with(prefix)).count())
+    })
+    .unwrap()
+}
+
+// GIVEN a stored package whose tool was called once, its module imported
+// WHEN the idle check runs nine minutes, then ten minutes and one second,
+//      after the call, with a ten-minute delay
+// THEN the package stays loaded the first time; the second time it is
+//      unloaded, its function released and its module out of `sys.modules`;
+//      and a later call imports the module again
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_a_package_is_unloaded_after_ten_minutes_without_a_call() {
+    // GIVEN
+    pyo3::prepare_freethreaded_python();
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("invoices-idle");
+    std::fs::create_dir_all(root.join("tools")).unwrap();
+    let count = dir.path().join("imports");
+    let module = COUNTING_MODULE.replace("__COUNT__", &format!("{:?}", count.to_string_lossy()));
+    std::fs::write(root.join("tools/extract.py"), module).unwrap();
+    let repo = PackageRepository::open(&dir.path().join("agents.db")).unwrap();
+    let json = serde_json::to_string(&manifest()).unwrap();
+    repo.save(&package(&root, "invoices", json)).unwrap();
+    repo.link_item("invoices", PackageItemKind::Tool, "extract_totals")
+        .unwrap();
+    let tools = PackageTools::read(&repo, dir.path().join("venvs")).unwrap();
+    let cancel = apollia_runtime::coordinator::CancellationToken::new();
+    let call = |tools: &PackageTools| {
+        use apollia_runtime::package_tools::PackageToolHost;
+        let executor = tools.executors("clerk", &cancel).remove(0);
+        async move { executor.execute(serde_json::json!({"path": "a.pdf"})).await }
+    };
+    let answer = call(&tools).await.unwrap();
+    assert_eq!(answer["path"], "a.pdf");
+    let called_at = std::time::Instant::now();
+    let prefix = module_prefix(&root);
+    let ten_minutes = std::time::Duration::from_secs(600);
+    assert!(tools.is_loaded("invoices"));
+    assert_eq!(modules_under(&prefix), 1);
+
+    // WHEN
+    let after_nine = {
+        let tools = tools.clone();
+        tokio::task::spawn_blocking(move || {
+            tools.unload_idle(called_at + std::time::Duration::from_secs(540), ten_minutes)
+        })
+        .await
+        .unwrap()
+    };
+
+    // THEN
+    assert!(after_nine.is_empty());
+    assert!(tools.is_loaded("invoices"));
+
+    // WHEN
+    let after_ten = {
+        let tools = tools.clone();
+        tokio::task::spawn_blocking(move || {
+            tools.unload_idle(called_at + std::time::Duration::from_secs(601), ten_minutes)
+        })
+        .await
+        .unwrap()
+    };
+
+    // THEN
+    assert_eq!(after_ten, vec!["invoices".to_string()]);
+    assert!(!tools.is_loaded("invoices"));
+    assert_eq!(modules_under(&prefix), 0);
+    let again = call(&tools).await.unwrap();
+    assert_eq!(again["path"], "a.pdf");
+    assert_eq!(std::fs::read_to_string(&count).unwrap(), "2");
 }

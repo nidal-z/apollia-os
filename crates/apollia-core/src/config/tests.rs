@@ -956,3 +956,26 @@ fn test_config_module_doc_lists_only_sections_a_loader_reads() {
         "the module doc bullet list does not match the sections a loader reads"
     );
 }
+
+#[test]
+fn test_agent_idle_unload_defaults_to_ten_minutes_and_is_a_setting() {
+    // GIVEN a `[runtime]` section without the key, and one that sets it
+    let default: RuntimeConfig = toml::from_str("").expect("valid toml");
+    let set: RuntimeConfig = toml::from_str("agent_idle_unload_secs = 1800").expect("valid toml");
+    let too_short = RuntimeConfig {
+        agent_idle_unload_secs: 1,
+        ..Default::default()
+    };
+
+    // WHEN they are read and validated
+    let too_short_result = too_short.validate();
+
+    // THEN the default is ten minutes, the setting is honoured, and a delay
+    // below ten seconds is refused at startup
+    assert_eq!(default.agent_idle_unload_secs, 600);
+    assert_eq!(set.agent_idle_unload_secs, 1800);
+    assert!(
+        matches!(too_short_result, Err(ConfigError::OutOfBounds { ref key, .. }) if key == "runtime.agent_idle_unload_secs"),
+        "expected OutOfBounds, got: {too_short_result:?}"
+    );
+}

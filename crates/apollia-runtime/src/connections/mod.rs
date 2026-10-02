@@ -63,7 +63,7 @@ pub enum ConnectionState {
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionTool {
     /// Tool identifier as the tool registry names it (`mcp:notion/search`,
-    /// `gmail.send`).
+    /// `conn:google:ada@example.com/gmail.send`).
     pub id: String,
     /// Action family of the tool.
     #[schema(value_type = String)]

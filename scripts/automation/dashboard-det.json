@@ -320,52 +320,6 @@
       "label": "04b-agent-sheet"
     },
     {
-      "kind": "waitFor",
-      "testid": "agent-detail-stop-btn",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-stop-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-stop-confirm",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-stop-confirm",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 1500
-    },
-    {
-      "kind": "screenshot",
-      "label": "04c-agent-sheet-stopped"
-    },
-    {
-      "kind": "setChecked",
-      "testid": "agent-detail-enabled-toggle",
-      "checked": false
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
-      "kind": "setChecked",
-      "testid": "agent-detail-enabled-toggle",
-      "checked": true
-    },
-    {
-      "kind": "sleep",
-      "ms": 500
-    },
-    {
       "kind": "click",
       "testid": "agent-detail-logs-btn",
       "timeoutMs": 3000
@@ -735,7 +689,7 @@
     }
   ],
   "notes": [
-    "The agent sheet (AgentDetail, opened from the agents-at-work card) is driven for stop + confirm, the auto-start toggle, the logs sheet and its copy button, and the activity row. agent-detail-start-btn stays unplayed here: the dashboard hands the sheet a snapshot (`detailAgent = agent`, routes/Dashboard.svelte:43-46) that the agents store refresh after the stop never updates, so the status the sheet reads stays active and canStartAgent never turns true. The same button is played on the agents page (agents-det, Settings tab), where the selection is derived from the store.",
+    "The agent sheet (AgentDetail, opened from the agents-at-work card) is driven for the logs sheet and its copy button, and the activity row. It carries no start, stop nor auto-start control: an agent is loaded by its first task and released once idle.",
     "agent-message-item and agent-detail-memory-link are played in builder mode on the seed-classifier sheet (the only seeded manifest with supports_a2a, and the messages seed-msg-1 / seed-msg-3 are addressed to it), in two separate blocks that each open the sheet afresh: the earlier run that chained the two in one block froze the app with no further IPC line in the log. The memory link goes last in the builder section so a recurrence is attributable.",
     "dashboard-inbox-more is played through a stub: list_pending_approvals reads the in-memory PendingApprovals set that no seed reaches (crates/apollia-desktop/src/commands/hitl.rs, list_pending_approvals), so the block resolves it with six PendingApproval values (the type it imitates: task_id, agent_name, prompt, context, suspended_at, same file) and lets the inbox route consume the stub (Inbox.svelte loadData writes the pendingApprovals store directly), then returns to the dashboard where PendingDecisionsCard shows five rows (PENDING_BLOCK_LIMIT, routes/Dashboard.svelte) and the overflow link. The stub stays armed until the click has landed on the inbox so a watchdog refreshAll during the block cannot empty the store under the assertion; it is cleared right after, the inbox is remounted so the real (empty) list resets the store, and the block ends on the dashboard with the link gone."
   ]

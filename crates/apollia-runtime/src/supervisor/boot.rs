@@ -52,7 +52,11 @@ impl Supervisor {
         // Phase 3: ToolRegistry + native tool registration
         info!("supervisor.tool_registry.starting");
         let tool_registry_handle = ToolRegistryHandle::start();
-        register_builtin_tools(&tool_registry_handle).await;
+        register_builtin_tools(
+            &tool_registry_handle,
+            &crate::connectors_bridge::connected_accounts().await,
+        )
+        .await;
 
         // Phase 3b: MCP Client Manager, reads server list from mcp.db (SQLite).
         //
@@ -576,13 +580,12 @@ impl Supervisor {
 
         // Phase 11: Auto-load installed agents
         //
-        // After AllReady, load all enabled agents from the repository,
-        // validate via AgentLoader, register in AgentRegistry, transition to
-        // Active, create an ExecutionCoordinator, and register in TaskRouter.
-        // This mirrors the full start_agent flow from routes_agents.rs.
-        // Errors are logged but never block the boot (graceful degradation).
+        // After AllReady, register every enabled agent from the manifest its
+        // store holds, transition it to Active, and give the TaskRouter a
+        // coordinator whose backend imports the agent on its first task.
+        // Nothing is imported here. Errors are logged but never block the
+        // boot (graceful degradation).
         Self::auto_load_installed_agents(AutoLoadCtx {
-            agent_loader: &agent_loader_for_autoload,
             backend_factory: &backend_factory_for_autoload,
             base_backend: &backend_for_autoload,
             registry_handle: &registry_handle,
@@ -592,6 +595,7 @@ impl Supervisor {
             agent_repository: self.config.agent_repository.as_ref(),
             data_dir: &self.config.data_dir,
             obs_config: &self.config.obs_config,
+            idle_unload: Duration::from_secs(self.config.runtime_config.agent_idle_unload_secs),
         })
         .await;
 
