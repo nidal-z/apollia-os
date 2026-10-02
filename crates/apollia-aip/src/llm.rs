@@ -6,6 +6,7 @@
 //! module at the end of this file.
 
 mod convert;
+mod sampling;
 mod stream;
 
 use std::sync::Arc;
@@ -14,6 +15,7 @@ use convert::{
     inject_temporal_context_into_messages, json_to_py, llm_err_to_py, prepend_context_blocks,
     py_dict_to_chat_message, py_dict_to_tool_spec, py_object_to_json,
 };
+use sampling::{complete_request, RequestSampling};
 use stream::{emit_llm_capture, forward_stream, resolved_model_id, PyTokenStream, StreamForward};
 
 use pyo3::exceptions::PyRuntimeError;
@@ -512,8 +514,10 @@ impl LlmProxy {
     ///
     /// Returns `PyValueError` if a message dict is invalid (missing or unknown role).
     ///
-    /// `temperature`, `max_tokens`, and `seed` are optional sampling overrides;
-    /// when left `None` the per-model defaults apply.
+    /// `temperature`, `max_tokens`, `seed`, `top_p`, `top_k`, `min_p`,
+    /// `presence_penalty`, `frequency_penalty`, `repeat_penalty` and `stop` are
+    /// optional sampling overrides; each one left `None` is not sent, and the
+    /// engine keeps its own default.
     ///
     /// # Structured output
     ///
@@ -535,7 +539,7 @@ impl LlmProxy {
     // Flat parameters mirror the Python-facing signature (see `chat`).
     // REASON: mirrors the Python keyword signature of `ctx.llm.complete`; a params struct has no Python-side constructor.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None, schema = None))]
+    #[pyo3(signature = (messages, *, backend = None, temperature = None, max_tokens = None, seed = None, top_p = None, top_k = None, min_p = None, presence_penalty = None, frequency_penalty = None, repeat_penalty = None, stop = None, schema = None))]
     fn complete<'py>(
         &self,
         py: Python<'py>,
@@ -544,8 +548,27 @@ impl LlmProxy {
         temperature: Option<f32>,
         max_tokens: Option<u32>,
         seed: Option<u64>,
+        top_p: Option<f32>,
+        top_k: Option<u32>,
+        min_p: Option<f32>,
+        presence_penalty: Option<f32>,
+        frequency_penalty: Option<f32>,
+        repeat_penalty: Option<f32>,
+        stop: Option<Vec<String>>,
         schema: Option<PyObject>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let sampling = RequestSampling {
+            temperature,
+            max_tokens,
+            seed,
+            top_p,
+            top_k,
+            min_p,
+            presence_penalty,
+            frequency_penalty,
+            repeat_penalty,
+            stop,
+        };
         // Synchronous conversion before crossing the async boundary.
         let chat_messages = messages
             .iter()
@@ -601,18 +624,7 @@ impl LlmProxy {
             // Otherwise insert a fresh system message at index 0. Keeps
             // multi-turn agent calls grounded on the real wall clock.
             let messages = inject_temporal_context_into_messages(chat_messages);
-            let req = CompletionRequest {
-                messages,
-                temperature,
-                // Default a cap when the agent does not set one: an unbounded
-                // completion lets a local model run to context-fill and appear
-                // to hang forever (the onboarding-agent symptom). An agent that
-                // needs a longer answer passes max_tokens explicitly.
-                max_tokens: max_tokens.or(Some(4096)),
-                seed,
-                response_schema: response_schema.clone(),
-                ..Default::default()
-            };
+            let req = complete_request(messages, sampling, response_schema.clone());
             let resp = router
                 .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                 .await
