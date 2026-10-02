@@ -2,22 +2,21 @@
   /**
    * PackageDetail - detail pane for a selected package.
    *
-   * Header (signature-gradient icon, uninstall with a two-step confirm, a
-   * start-all / stop-all primary action, aggregated status badges) plus an
-   * underline TabBar routing to the overview / agents / triggers panes.
+   * Header (signature-gradient icon, uninstall with a two-step confirm,
+   * aggregated status badges) plus an underline TabBar routing to the
+   * overview / agents / triggers panes. A package is never started nor
+   * stopped: its agents are loaded by their first task.
    */
   import { t } from "svelte-i18n";
-  import { AlertTriangle, Package, Play, Square, Trash2 } from "lucide-svelte";
+  import { AlertTriangle, Package, Trash2 } from "lucide-svelte";
   import { DetailHeader, StatusDot } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { Spinner } from "$lib/components/ui/progress";
   import { TabBar } from "$lib/components/ui/tabs";
   import { RouteTransition } from "$lib/components/ui/route-transition";
   import { agents } from "$lib/stores/agents";
   import { triggers } from "$lib/stores/sse";
   import { packageRuntimeState } from "$lib/stores/agentPackages";
-  import type { AgentActions } from "./useAgentActions.svelte";
   import {
     packageStatusColor,
     packageStatusLabel,
@@ -33,12 +32,11 @@
   interface Props {
     pkg: AgentPackageListItem;
     detail: AgentPackageDetailView | null;
-    agentActions: AgentActions;
     onSelectAgent: (name: string) => void;
     onUninstall: (name: string) => void;
   }
 
-  let { pkg, detail, agentActions, onSelectAgent, onUninstall }: Props = $props();
+  let { pkg, detail, onSelectAgent, onUninstall }: Props = $props();
 
   let tab = $state<PackageTab>("overview");
   let confirmUninstall = $state(false);
@@ -54,11 +52,6 @@
   });
 
   const pkgState = $derived(packageRuntimeState(pkg, $agents, $triggers));
-  const running = $derived(
-    pkgState.status === "running" || pkgState.status === "partial",
-  );
-  const busy = $derived(agentActions.busyKeys[`pkg:${pkg.name}`] === true);
-  const toggleDisabled = $derived(busy || pkg.root_missing || pkg.agents.length === 0);
   const triggerCount = $derived(
     (() => {
       const names = new Set(pkg.agents.map((a) => a.name));
@@ -75,7 +68,7 @@
   {#snippet leading()}
     <span
       class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg {pkgState.status ===
-      'running'
+      'available'
         ? 'bg-gradient-primary text-primary-foreground shadow-elev-2'
         : 'border border-border bg-surface-1 text-primary'}"
     >
@@ -96,23 +89,6 @@
         {#snippet icon()}<Trash2 size={12} />{/snippet}
         {$t("agents.uninstall")}
       </Button>
-      <Button
-        variant="primary-solid"
-        size="sm"
-        onclick={() => agentActions.togglePackageRuntime(pkg)}
-        disabled={toggleDisabled}
-      >
-        {#snippet icon()}
-          {#if busy}
-            <Spinner size={12} />
-          {:else if running}
-            <Square size={12} fill="currentColor" />
-          {:else}
-            <Play size={12} fill="currentColor" />
-          {/if}
-        {/snippet}
-        {running ? $t("agents.stop_all") : $t("agents.start_all")}
-      </Button>
     {/if}
   {/snippet}
   {#snippet footer()}
@@ -120,7 +96,7 @@
       {#snippet icon()}
         <StatusDot
           color={packageStatusColor(pkgState)}
-          glow={pkgState.status === "running"}
+          glow={pkgState.status === "available"}
           size={5}
         />
       {/snippet}
@@ -128,7 +104,7 @@
     </Badge>
     <Badge size="sm" variant="neutral">v{pkg.version}</Badge>
     <Badge size="sm" variant="neutral">
-      {pkgState.runningAgents}/{pkgState.totalAgents} {$t("agents.agents_word")}
+      {pkgState.availableAgents}/{pkgState.totalAgents} {$t("agents.agents_word")}
     </Badge>
     <Badge size="sm" variant="neutral">
       {pkgState.enabledTriggers}/{pkgState.totalTriggers} {$t("agents.triggers_word")}

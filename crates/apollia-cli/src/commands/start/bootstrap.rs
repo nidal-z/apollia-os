@@ -7,6 +7,7 @@ use apollia_core::{ResilientReceiver, RuntimeEvent};
 use apollia_runtime::api::routes_agents::AgentBackendFactory;
 use apollia_runtime::coordinator::{DynBackend, ExecutionCoordinator};
 use apollia_runtime::eventbus::EventBusSender;
+use apollia_runtime::on_demand::{BackendLoader, OnDemandBackend};
 
 use super::factory::find_config_file;
 use super::StartError;
@@ -55,19 +56,19 @@ pub(super) fn set_lock_if_some<T>(lock: &std::sync::OnceLock<T>, value: Option<T
     }
 }
 
-/// Rewire every auto-loaded enabled agent so its TaskRouter coordinator uses
-/// a real `AIPProductionBackend` instead of the `NoopBackend` fallback that
-/// Supervisor Phase 11 installs when the factory OnceLocks are still empty.
+/// Rewire every auto-loaded enabled agent once the factory's OnceLocks are
+/// populated, so that no task can ever reach a backend built before them.
 ///
-/// This compensates for the construction order: the factory is built before
-/// the Supervisor runs, but the Supervisor populates the runtime handles
-/// only as part of its startup. Calling `register_coordinator` here is
+/// The coordinator gets a fresh [`OnDemandBackend`]: nothing is imported
+/// here, the module of the agent is imported by its first task and released
+/// after `idle_unload` without a call. Calling `register_coordinator` is
 /// idempotent: the router replaces the existing entry in its `HashMap`.
 pub(super) async fn rewire_auto_loaded_agents(
     repo: &apollia_tools::AgentRepository,
     factory: &Arc<dyn AgentBackendFactory>,
     handles: &apollia_runtime::supervisor::SupervisorHandles<DynBackend>,
     event_sender: &EventBusSender,
+    idle_unload: std::time::Duration,
 ) {
     let installed = match repo.list_enabled() {
         Ok(rows) => rows,
@@ -108,7 +109,17 @@ pub(super) async fn rewire_auto_loaded_agents(
                 continue;
             }
         };
-        let dyn_backend = factory.create_for_agent(&agent.install_path, &agent.manifest);
+        let loader: BackendLoader = {
+            let factory = Arc::clone(factory);
+            let install_path = agent.install_path.clone();
+            let manifest = agent.manifest.clone();
+            Arc::new(move || factory.create_for_agent(&install_path, &manifest))
+        };
+        let dyn_backend = DynBackend::new(OnDemandBackend::spawn(
+            &agent.manifest.name,
+            loader,
+            idle_unload,
+        ));
         let mut coordinator = ExecutionCoordinator::new(
             agent_id.clone(),
             agent.manifest.max_concurrent_tasks,

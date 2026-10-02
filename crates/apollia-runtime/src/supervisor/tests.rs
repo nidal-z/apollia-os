@@ -1276,50 +1276,6 @@ async fn test_autoload_skips_disabled() {
     shutdown_handles(handles, &socket_path).await;
 }
 
-// A failing agent does not block the boot.
-#[tokio::test]
-async fn test_autoload_corrupted_agent_continues() {
-    // GIVEN 2 enabled agents, 1 with a "corrupted" file
-    let repo = open_test_repo();
-    let mut valid = test_installed_agent("valid-agent", true);
-    valid.install_path = PathBuf::from("/tmp/agents/valid-agent/agent.py");
-    repo.save(&valid).expect("save valid");
-
-    let mut corrupted = test_installed_agent("corrupted-agent", true);
-    corrupted.install_path = PathBuf::from("/tmp/agents/corrupted/agent.py");
-    repo.save(&corrupted).expect("save corrupted");
-
-    let reserved_port = reserve_port();
-    let port = reserved_port.port();
-    let socket_path = temp_socket_path();
-    let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
-    config.agent_repository = Some(repo);
-
-    // Release the probe listener only now, right before the bind it protects.
-    reserved_port.release();
-    let supervisor = Supervisor::new(config);
-
-    // We cannot subscribe before start() to capture AgentLoadFailed because
-    // event_sender is created inside start(). Instead we verify that the boot
-    // succeeds and the valid agent is loaded.
-
-    // WHEN the Supervisor starts with a loader that fails for "corrupted"
-    let handles = supervisor
-        .start(MockBackend, Arc::new(FailingAgentLoader), None, None)
-        .await
-        .expect("start() should succeed despite corrupted agent");
-
-    // THEN the valid agent is registered
-    let agents = handles
-        .registry_handle
-        .list_agents()
-        .await
-        .expect("list_agents should succeed");
-    assert_eq!(agents.len(), 1, "only the valid agent should be registered");
-
-    shutdown_handles(handles, &socket_path).await;
-}
-
 // No installed agents means a normal boot.
 #[tokio::test]
 async fn test_autoload_no_agents_no_error() {
@@ -1763,4 +1719,111 @@ fn test_bundled_agents_skip_existing() {
     assert_eq!(agents.len(), 4, "4 agents total (1 existing + 3 new)");
     let excel_count = agents.iter().filter(|a| a.name == "excel-worker").count();
     assert_eq!(excel_count, 1, "excel-worker should not be duplicated");
+}
+
+/// An [`AgentLoader`] that counts its calls: each one is an import.
+struct CountingLoader(Arc<std::sync::atomic::AtomicUsize>);
+
+impl AgentLoader for CountingLoader {
+    fn load_and_validate(
+        &self,
+        path: &std::path::Path,
+    ) -> Result<apollia_core::AgentManifest, String> {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        FailingAgentLoader.load_and_validate(path)
+    }
+}
+
+/// A backend factory that counts its calls: each one is an import of the
+/// agent's module and the bridge around it.
+struct CountingFactory(Arc<std::sync::atomic::AtomicUsize>);
+
+impl crate::api::routes_agents::AgentBackendFactory for CountingFactory {
+    fn create_for_agent(
+        &self,
+        _agent_path: &std::path::Path,
+        _manifest: &apollia_core::AgentManifest,
+    ) -> crate::coordinator::DynBackend {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        crate::coordinator::DynBackend::new(MockBackend)
+    }
+}
+
+// A broken agent does not block the boot: no agent is even read there.
+#[tokio::test]
+async fn test_boot_imports_no_agent_module_and_the_first_task_loads_it() {
+    // GIVEN two enabled installed agents, one of them with a broken module,
+    // and a loader and a backend factory that count every import
+    let repo = open_test_repo();
+    repo.save(&test_installed_agent("agent-a", true))
+        .expect("save a");
+    let mut corrupted = test_installed_agent("agent-b", true);
+    corrupted.install_path = PathBuf::from("/tmp/agents/corrupted/agent.py");
+    repo.save(&corrupted).expect("save corrupted");
+    let loads = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let builds = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+    let reserved_port = reserve_port();
+    let port = reserved_port.port();
+    let socket_path = temp_socket_path();
+    let (mut config, _tmp_dir) = test_config(port, socket_path.clone());
+    config.agent_repository = Some(repo);
+    reserved_port.release();
+    let supervisor = Supervisor::new(config);
+
+    // WHEN the Supervisor starts
+    let handles = supervisor
+        .start(
+            crate::coordinator::DynBackend::new(MockBackend),
+            Arc::new(CountingLoader(Arc::clone(&loads))),
+            Some(Arc::new(CountingFactory(Arc::clone(&builds)))),
+            None,
+        )
+        .await
+        .expect("start() should succeed");
+
+    // THEN no module was imported, and both agents are available, the
+    // broken one included: its module only fails when a task reaches it
+    assert_eq!(loads.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(builds.load(std::sync::atomic::Ordering::SeqCst), 0);
+    let agents = handles
+        .registry_handle
+        .list_agents()
+        .await
+        .expect("list_agents should succeed");
+    assert_eq!(agents.len(), 2);
+    assert!(agents
+        .iter()
+        .all(|a| a.process_state == ProcessState::Active));
+
+    // WHEN a task reaches one of them
+    handles
+        .router_handle
+        .submit("agent-a", apollia_core::AIPInput::default())
+        .await
+        .expect("a task to an available agent is dispatched");
+
+    // THEN that agent alone is loaded, by the task
+    let loaded = poll_until_async(Duration::from_secs(5), || {
+        let builds = Arc::clone(&builds);
+        async move { builds.load(std::sync::atomic::Ordering::SeqCst) == 1 }
+    })
+    .await;
+    assert!(loaded, "the first task builds the agent's backend");
+    assert_eq!(loads.load(std::sync::atomic::Ordering::SeqCst), 0);
+
+    shutdown_handles_dyn(handles, &socket_path).await;
+}
+
+/// [`shutdown_handles`] for a supervisor started on [`crate::coordinator::DynBackend`].
+async fn shutdown_handles_dyn(
+    handles: SupervisorHandles<crate::coordinator::DynBackend>,
+    socket_path: &std::path::Path,
+) {
+    handles.trigger_engine.shutdown().await;
+    handles.api_handle.shutdown();
+    handles.router_handle.shutdown();
+    handles.tool_registry_handle.shutdown().await;
+    handles.registry_handle.shutdown();
+    let _ = std::fs::remove_file(socket_path);
 }

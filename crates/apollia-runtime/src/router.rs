@@ -13,6 +13,7 @@ use crate::eventbus::EventBusSender;
 use crate::registry::AgentRegistryHandle;
 
 mod external;
+mod parked;
 pub use external::TrackedRun;
 
 /// Task submission errors.
@@ -23,7 +24,7 @@ pub enum SubmitError {
     #[error("agent '{0}' not ready (still initializing)")]
     AgentNotReady(AgentId),
 
-    /// The agent is stopping or stopped.
+    /// The agent is stopping, or stopped with nothing left to load it from.
     #[error("agent '{0}' unavailable (stopping or stopped)")]
     AgentUnavailable(AgentId),
 
@@ -105,8 +106,13 @@ enum RouterMessage<B: ExecutionBackend> {
         agent_id: AgentId,
         coordinator: ExecutionCoordinator<B>,
     },
-    /// Remove an agent's coordinator (agent stopping).
+    /// Park an agent's coordinator (agent stopping): it leaves the dispatch
+    /// table, its backend unloads, and the next task to the agent brings it
+    /// back.
     UnregisterCoordinator { agent_id: AgentId },
+    /// Drop an agent's coordinator for good, parked or not (agent
+    /// uninstalled).
+    ForgetCoordinator { agent_id: AgentId },
     /// Get the latest session budget snapshot.
     GetBudget {
         reply: oneshot::Sender<Option<TokenBudget>>,
@@ -126,6 +132,9 @@ struct TaskRouter<B: ExecutionBackend> {
     /// Subscription to the EventBus for receiving TaskCompleted/TaskFailed events.
     event_rx: tokio::sync::broadcast::Receiver<apollia_core::RuntimeEvent>,
     coordinators: HashMap<AgentId, ExecutionCoordinator<B>>,
+    /// Coordinators of stopped agents, their backend unloaded, kept so that a
+    /// task to the agent loads it again instead of being refused.
+    parked: HashMap<AgentId, ExecutionCoordinator<B>>,
     task_statuses: HashMap<TaskId, TaskStatus>,
     /// Maps each task to the agent that runs it (for GET /api/v1/tasks list).
     task_agents: HashMap<TaskId, AgentId>,
@@ -213,11 +222,20 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                         }
                         RouterMessage::RegisterCoordinator { agent_id, coordinator } => {
                             info!(agent_id = %agent_id, "router.coordinator.registered");
+                            self.parked.remove(&agent_id);
                             self.coordinators.insert(agent_id, coordinator);
                         }
                         RouterMessage::UnregisterCoordinator { agent_id } => {
-                            info!(agent_id = %agent_id, "router.coordinator.removed");
+                            if let Some(coordinator) = self.coordinators.remove(&agent_id) {
+                                coordinator.unload();
+                                self.parked.insert(agent_id.clone(), coordinator);
+                            }
+                            info!(agent_id = %agent_id, "router.coordinator.parked");
+                        }
+                        RouterMessage::ForgetCoordinator { agent_id } => {
                             self.coordinators.remove(&agent_id);
+                            self.parked.remove(&agent_id);
+                            info!(agent_id = %agent_id, "router.coordinator.removed");
                         }
                         RouterMessage::GetBudget { reply } => {
                             let _ = reply.send(self.latest_budget.clone());
@@ -338,8 +356,11 @@ impl<B: ExecutionBackend> TaskRouter<B> {
             ProcessState::Initializing => {
                 return Err(SubmitError::AgentNotReady(agent_id));
             }
-            ProcessState::Stopping | ProcessState::Stopped => {
+            ProcessState::Stopping => {
                 return Err(SubmitError::AgentUnavailable(agent_id));
+            }
+            ProcessState::Stopped => {
+                self.reload_parked(&agent_id).await?;
             }
             ProcessState::Degraded => {
                 warn!(agent_id = %agent_id, "task.submitted.degraded_agent");
@@ -517,6 +538,7 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             event_bus,
             event_rx,
             coordinators: HashMap::new(),
+            parked: HashMap::new(),
             task_statuses: HashMap::new(),
             task_agents: HashMap::new(),
             task_runs: HashMap::new(),
@@ -653,10 +675,22 @@ impl<B: ExecutionBackend> TaskRouterHandle<B> {
             .map_err(|_| SubmitError::ActorDead)
     }
 
-    /// Remove an agent's coordinator.
+    /// Park an agent's coordinator: no task is dispatched to it any more and
+    /// its backend unloads, until a task to the agent loads it again.
     pub async fn unregister_coordinator(&self, agent_id: &AgentId) -> Result<(), SubmitError> {
         self.tx
             .send(RouterMessage::UnregisterCoordinator {
+                agent_id: agent_id.clone(),
+            })
+            .await
+            .map_err(|_| SubmitError::ActorDead)
+    }
+
+    /// Drop an agent's coordinator for good, for an agent that is no longer
+    /// installed.
+    pub async fn forget_coordinator(&self, agent_id: &AgentId) -> Result<(), SubmitError> {
+        self.tx
+            .send(RouterMessage::ForgetCoordinator {
                 agent_id: agent_id.clone(),
             })
             .await
@@ -1126,8 +1160,94 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_submit_to_stopped_agent_rejected() {
-        // GIVEN an agent registered in Stopped state
+    async fn test_submit_to_a_stopped_agent_loads_it_instead_of_refusing() {
+        // GIVEN an active agent with a coordinator, then stopped the way the
+        // stop route does it: Stopping, coordinator out, Stopped
+        let (router, registry, _rx) = setup_test_env().await;
+        let agent_id =
+            register_agent_in_state(&registry, "agent-parked", ProcessState::Active).await;
+        let (event_tx, _) = broadcast::channel(64);
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::success());
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Stopping)
+            .await
+            .expect("transition to Stopping failed");
+        router
+            .unregister_coordinator(&agent_id)
+            .await
+            .expect("unregister coordinator failed");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Stopped)
+            .await
+            .expect("transition to Stopped failed");
+
+        // WHEN a task is submitted to it, by name
+        let result = router.submit("agent-parked", AIPInput::default()).await;
+
+        // THEN the task is dispatched and the agent is active again
+        let task_id = result.expect("a task to a stopped agent loads it");
+        let state = registry
+            .get_agent(agent_id.as_str())
+            .await
+            .expect("registry alive")
+            .expect("agent still registered")
+            .process_state;
+        assert_eq!(state, ProcessState::Active);
+        let status = router
+            .get_status(task_id.as_str())
+            .await
+            .expect("router alive");
+        assert!(status.is_some(), "the dispatched task is tracked");
+    }
+
+    #[tokio::test]
+    async fn test_a_forgotten_agent_is_not_loaded_again() {
+        // GIVEN a stopped agent whose coordinator was then forgotten, as an
+        // uninstall does
+        let (router, registry, _rx) = setup_test_env().await;
+        let agent_id = register_agent_in_state(&registry, "agent-gone", ProcessState::Active).await;
+        let (event_tx, _) = broadcast::channel(64);
+        let coordinator =
+            ExecutionCoordinator::new(agent_id.clone(), 1, event_tx, MockBackend::success());
+        router
+            .register_coordinator(agent_id.clone(), coordinator)
+            .await
+            .expect("register coordinator failed");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Stopping)
+            .await
+            .expect("transition to Stopping failed");
+        router
+            .unregister_coordinator(&agent_id)
+            .await
+            .expect("unregister coordinator failed");
+        registry
+            .update_state(agent_id.as_str(), ProcessState::Stopped)
+            .await
+            .expect("transition to Stopped failed");
+        router
+            .forget_coordinator(&agent_id)
+            .await
+            .expect("forget coordinator failed");
+
+        // WHEN a task is submitted to it
+        let result = router.submit(agent_id.as_str(), AIPInput::default()).await;
+
+        // THEN it is refused
+        assert!(matches!(
+            result.expect_err("should fail"),
+            SubmitError::AgentUnavailable(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_submit_to_stopped_agent_without_coordinator_rejected() {
+        // GIVEN an agent registered in Stopped state, never given a coordinator
         let (router, registry, _rx) = setup_test_env().await;
         let agent_id =
             register_agent_in_state(&registry, "agent-stopped", ProcessState::Stopped).await;

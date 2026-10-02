@@ -313,9 +313,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         | RuntimeEvent::AgentStopped(_)
         | RuntimeEvent::AgentLoadFailed { .. }
         | RuntimeEvent::AgentInstalled { .. }
-        | RuntimeEvent::AgentUninstalled { .. }
-        | RuntimeEvent::AgentEnabled { .. }
-        | RuntimeEvent::AgentDisabled { .. } => "agent-changed",
+        | RuntimeEvent::AgentUninstalled { .. } => "agent-changed",
 
         // ── Task lifecycle ───────────────────────────────────────────────
         RuntimeEvent::TaskStarted { .. }
@@ -730,8 +728,6 @@ mod tests {
                 version: "1.0.0".into(),
             },
             RuntimeEvent::AgentUninstalled { name: "a".into() },
-            RuntimeEvent::AgentEnabled { name: "a".into() },
-            RuntimeEvent::AgentDisabled { name: "a".into() },
             RuntimeEvent::TaskStarted {
                 agent_id: "a".into(),
                 task_id: "t".into(),
