@@ -165,7 +165,7 @@ impl RunServices {
     }
 
     async fn agent(&self, agent: String, message: String) -> Result<String, String> {
-        self.nested_depth()?;
+        let depth = self.nested_depth()?;
         let runner = self
             .agents
             .clone()
@@ -177,6 +177,7 @@ impl RunServices {
                 Nesting {
                     parent: self.cancel.clone(),
                     budget: Arc::clone(&self.budget),
+                    depth,
                 },
             )
             .await?;
@@ -195,32 +196,15 @@ impl RunServices {
             repository: Arc::clone(&self.repository),
         };
         let parent = ParentRun {
-            run_id: self.run_id.clone(),
-            workflow_id: self.workflow_id.clone(),
+            run_id: Some(self.run_id.clone()),
+            workflow_id: Some(self.workflow_id.clone()),
             depth: self.depth,
             cancel: self.cancel.clone(),
             budget: Arc::clone(&self.budget),
         };
-        let launched = engine
-            .start(&workflow, inputs, Some(parent))
-            .await
-            .map_err(|e| e.to_string())?;
-        let end = launched
-            .end
-            .await
-            .map_err(|_| format!("the run of {workflow} was dropped"))?;
-        match end.row.status.as_str() {
-            "completed" => {
-                let output = end.row.output.unwrap_or(Value::Null);
-                self.record_output(output.to_string());
-                Ok(output)
-            }
-            status => Err(format!(
-                "{} {status}: {}",
-                end.row.workflow_id,
-                end.row.error.unwrap_or_default()
-            )),
-        }
+        let output = engine.run_nested(&workflow, inputs, parent).await?;
+        self.record_output(output.to_string());
+        Ok(output)
     }
 }
 

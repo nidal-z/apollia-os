@@ -1,11 +1,13 @@
 """Contains all the data models used in inputs/outputs"""
 
 from .a2a_agent_dto import A2AAgentDto
+from .a2a_agent_dto_input_schema_type_0 import A2AAgentDtoInputSchemaType0
 from .a2a_agents_response import A2AAgentsResponse
 from .a2a_delegate_result import A2ADelegateResult
 from .a2a_invocation_result import A2AInvocationResult
 from .a2a_invocation_result_result import A2AInvocationResultResult
 from .a2a_skill_dto import A2ASkillDto
+from .a2a_skill_dto_input_schema_type_0 import A2ASkillDtoInputSchemaType0
 from .a2a_skills_response import A2ASkillsResponse
 from .access_preview import AccessPreview
 from .added_access import AddedAccess
@@ -293,11 +295,13 @@ from .workflow_step_view import WorkflowStepView
 
 __all__ = (
     "A2AAgentDto",
+    "A2AAgentDtoInputSchemaType0",
     "A2AAgentsResponse",
     "A2ADelegateResult",
     "A2AInvocationResult",
     "A2AInvocationResultResult",
     "A2ASkillDto",
+    "A2ASkillDtoInputSchemaType0",
     "A2ASkillsResponse",
     "AccessPreview",
     "AddedAccess",

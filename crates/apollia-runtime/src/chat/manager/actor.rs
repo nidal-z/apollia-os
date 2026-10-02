@@ -303,6 +303,10 @@ impl ChatSessionManager {
                     info!("chat.package_tools.set");
                     self.package_tools = Some(host);
                 }
+                ChatCommand::SetComposer { composer } => {
+                    info!("chat.composer.set");
+                    self.composer = Some(composer);
+                }
                 ChatCommand::ResolveFsHitl {
                     request_id,
                     decision,

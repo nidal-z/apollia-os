@@ -38,6 +38,11 @@ def _parse_response(
 
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ApiErrorBody.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 404:
         response_404 = ApiErrorBody.from_dict(response.json())
 
@@ -47,6 +52,11 @@ def _parse_response(
         response_409 = ApiErrorBody.from_dict(response.json())
 
         return response_409
+
+    if response.status_code == 502:
+        response_502 = ApiErrorBody.from_dict(response.json())
+
+        return response_502
 
     if response.status_code == 503:
         response_503 = ApiErrorBody.from_dict(response.json())
@@ -82,9 +92,12 @@ def sync_detailed(
 ) -> Response[A2AInvocationResult | ApiErrorBody]:
     """Handler for `POST /api/v1/a2a/invoke`.
 
-     Invokes a Worker Agent by skill ID via the [`A2AInvoker`].
+     Invokes a Worker Agent by skill ID via the [`A2AInvoker`], or an agent
+    that takes a message (`agent:<id>`) or a workflow
+    (`workflow:<package>/<name>`), and answers once it has ended.
     Returns 503 if the invoker is not initialized.
-    Returns 404 if the skill is not found, 503 if the agent is not active.
+    Returns 404 if the skill is not found, 503 if the agent is not active,
+    400 if the input does not fit what the target takes.
 
     Args:
         body (InvokeRequest): Request body for `POST /api/v1/a2a/invoke`.
@@ -115,9 +128,12 @@ def sync(
 ) -> A2AInvocationResult | ApiErrorBody | None:
     """Handler for `POST /api/v1/a2a/invoke`.
 
-     Invokes a Worker Agent by skill ID via the [`A2AInvoker`].
+     Invokes a Worker Agent by skill ID via the [`A2AInvoker`], or an agent
+    that takes a message (`agent:<id>`) or a workflow
+    (`workflow:<package>/<name>`), and answers once it has ended.
     Returns 503 if the invoker is not initialized.
-    Returns 404 if the skill is not found, 503 if the agent is not active.
+    Returns 404 if the skill is not found, 503 if the agent is not active,
+    400 if the input does not fit what the target takes.
 
     Args:
         body (InvokeRequest): Request body for `POST /api/v1/a2a/invoke`.
@@ -143,9 +159,12 @@ async def asyncio_detailed(
 ) -> Response[A2AInvocationResult | ApiErrorBody]:
     """Handler for `POST /api/v1/a2a/invoke`.
 
-     Invokes a Worker Agent by skill ID via the [`A2AInvoker`].
+     Invokes a Worker Agent by skill ID via the [`A2AInvoker`], or an agent
+    that takes a message (`agent:<id>`) or a workflow
+    (`workflow:<package>/<name>`), and answers once it has ended.
     Returns 503 if the invoker is not initialized.
-    Returns 404 if the skill is not found, 503 if the agent is not active.
+    Returns 404 if the skill is not found, 503 if the agent is not active,
+    400 if the input does not fit what the target takes.
 
     Args:
         body (InvokeRequest): Request body for `POST /api/v1/a2a/invoke`.
@@ -174,9 +193,12 @@ async def asyncio(
 ) -> A2AInvocationResult | ApiErrorBody | None:
     """Handler for `POST /api/v1/a2a/invoke`.
 
-     Invokes a Worker Agent by skill ID via the [`A2AInvoker`].
+     Invokes a Worker Agent by skill ID via the [`A2AInvoker`], or an agent
+    that takes a message (`agent:<id>`) or a workflow
+    (`workflow:<package>/<name>`), and answers once it has ended.
     Returns 503 if the invoker is not initialized.
-    Returns 404 if the skill is not found, 503 if the agent is not active.
+    Returns 404 if the skill is not found, 503 if the agent is not active,
+    400 if the input does not fit what the target takes.
 
     Args:
         body (InvokeRequest): Request body for `POST /api/v1/a2a/invoke`.

@@ -57,7 +57,6 @@ fn agent(registry: ToolRegistryHandle) -> BuiltInChatAgent {
         tool_invoker: Arc::new(NoInvoker),
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -119,7 +118,6 @@ async fn test_catalog_adds_only_the_tools_of_the_loop() {
         tool_invoker: Arc::new(NoInvoker),
         event_bus: tokio::sync::broadcast::channel(8).0,
         user_memory: None,
-        a2a_invoker: None,
         todo: Some(todo),
         plan: None,
     })
@@ -144,5 +142,97 @@ async fn test_catalog_offers_a_granted_deferred_mcp_tool() {
 
     assert_eq!(names(&catalog), vec!["mcp:notion/search", "tool_search"]);
     assert!(catalog.callable.contains("mcp:notion/search"));
+    assert_eq!(catalog.callable.len(), 2);
+}
+
+/// Knows the agent `accountant` and the workflow `books/close`.
+struct Books;
+
+impl crate::composition::Composer for Books {
+    fn agent_mission(&self, agent: String) -> crate::workflows::BoxFuture<'_, Option<String>> {
+        Box::pin(async move {
+            matches!(agent.as_str(), "accountant" | "writer").then(|| format!("{agent} mission"))
+        })
+    }
+
+    fn workflow(
+        &self,
+        workflow: String,
+    ) -> crate::workflows::BoxFuture<'_, Option<crate::workflows::WorkflowDescriptor>> {
+        Box::pin(async move {
+            (workflow == "books/close").then(|| crate::workflows::WorkflowDescriptor {
+                id: workflow,
+                version: "1.0.0".into(),
+                description: "Close the books.".into(),
+                steps: vec![],
+                input_schema: None,
+            })
+        })
+    }
+
+    fn run_agent(
+        &self,
+        _: String,
+        _: String,
+        _: crate::composition::CallerRun,
+    ) -> crate::workflows::BoxFuture<'_, Result<String, String>> {
+        Box::pin(async { Err("not called".into()) })
+    }
+
+    fn run_workflow(
+        &self,
+        _: String,
+        _: serde_json::Value,
+        _: crate::composition::CallerRun,
+    ) -> crate::workflows::BoxFuture<'_, Result<serde_json::Value, String>> {
+        Box::pin(async { Err("not called".into()) })
+    }
+}
+
+// GIVEN an agent granted no agent and no workflow, with a composer that
+// knows both
+// WHEN the catalog of a turn is built
+// THEN no call to an agent or a workflow is offered or callable
+#[tokio::test]
+async fn test_catalog_offers_no_call_without_a_grant() {
+    let registry = registry_of(&["file_read"]).await;
+    let agent = agent(registry)
+        .with_agent_id("writer")
+        .with_composer(Some(Arc::new(Books)));
+
+    let catalog = agent.catalog(&["file_read".to_string()]).await;
+
+    assert_eq!(names(&catalog), vec!["file_read"]);
+    assert!(!catalog
+        .callable
+        .iter()
+        .any(|n| crate::composition::is_call_access(n)));
+}
+
+// GIVEN an agent granted another agent, a workflow, itself and an unknown agent
+// WHEN the catalog of a turn is built
+// THEN the agent and the workflow are offered and callable; itself and the
+// unknown one are neither
+#[tokio::test]
+async fn test_catalog_offers_the_granted_agents_and_workflows_but_never_itself() {
+    let registry = registry_of(&[]).await;
+    let agent = agent(registry)
+        .with_agent_id("writer")
+        .with_composer(Some(Arc::new(Books)));
+    let granted = vec![
+        "agent:accountant".to_string(),
+        "workflow:books/close".to_string(),
+        "agent:writer".to_string(),
+        "agent:ghost".to_string(),
+    ];
+
+    let catalog = agent.catalog(&granted).await;
+
+    assert_eq!(
+        names(&catalog),
+        vec!["agent:accountant", "workflow:books/close"]
+    );
+    assert!(!catalog.callable.contains("agent:writer"));
+    assert!(!catalog.callable.contains("agent:ghost"));
     assert_eq!(catalog.callable.len(), 2);
 }

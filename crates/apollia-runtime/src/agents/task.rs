@@ -201,7 +201,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
     }
 
     /// Run `agent` on `message` on behalf of a caller that is itself running,
-    /// a workflow step: the run stops when `nesting.parent` is cancelled and
+    /// a workflow step or an agent granted this one: the run stops when `nesting.parent` is cancelled and
     /// spends from `nesting.budget`. Returns as [`Self::launch_watched`].
     ///
     /// # Errors
@@ -243,9 +243,13 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
         let task_id = TaskId::new_v4();
         let run_id = RunId::new();
         let agent_id = AgentId::from(agent.id.as_str());
-        let (cancel, budget) = match nesting {
-            Some(nesting) => (nesting.parent.child_token(), Some(nesting.budget)),
-            None => (CancellationToken::new(), None),
+        let (cancel, budget, depth) = match nesting {
+            Some(nesting) => (
+                nesting.parent.child_token(),
+                Some(nesting.budget),
+                nesting.depth,
+            ),
+            None => (CancellationToken::new(), None, 1),
         };
 
         if let Some(repo) = &self.repository {
@@ -296,6 +300,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 cancel,
                 done: done_tx,
                 budget,
+                depth,
             })
             .await;
         if let Err(e) = started {
@@ -327,6 +332,9 @@ pub struct Nesting {
     pub parent: CancellationToken,
     /// The budget of the caller, which the run spends from.
     pub budget: Arc<apollia_oria::budget::StepBudget>,
+    /// The level of the run in the nesting, its caller's plus one; a run
+    /// started on its own is level 1.
+    pub depth: u32,
 }
 
 /// What the end of a run is reported to.

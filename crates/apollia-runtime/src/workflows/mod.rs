@@ -67,6 +67,8 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub struct WorkflowDescriptor {
     /// `<package>/<workflow>`.
     pub id: String,
+    /// The version of the package that declares it.
+    pub version: String,
     /// What the workflow does.
     pub description: String,
     /// The declared steps, in order.
@@ -113,6 +115,9 @@ pub trait WorkflowHost: Send + Sync {
     /// The workflow `workflow_id`, `<package>/<workflow>`, when an installed
     /// package declares it.
     fn describe(&self, workflow_id: &str) -> Option<WorkflowDescriptor>;
+
+    /// Every workflow the installed packages declare, by identifier.
+    fn list(&self) -> Vec<WorkflowDescriptor>;
 
     /// Run `call` to its end and return what the workflow returned, or why
     /// it failed.
@@ -206,11 +211,13 @@ pub(crate) struct RunEnd {
     pub row: WorkflowRunRow,
 }
 
-/// The run a nested call is made from.
+/// The run a nested call is made from: a workflow run, or an agent run that
+/// was granted the workflow, which has neither a run of `workflow_runs` nor a
+/// package to read a bare name in.
 #[derive(Clone)]
 pub(crate) struct ParentRun {
-    pub run_id: String,
-    pub workflow_id: String,
+    pub run_id: Option<String>,
+    pub workflow_id: Option<String>,
     pub depth: u32,
     pub cancel: CancellationToken,
     pub budget: Arc<apollia_oria::budget::StepBudget>,
@@ -234,9 +241,16 @@ pub(crate) enum WorkflowCommand {
         run_id: String,
         reply: oneshot::Sender<Result<WorkflowRunRow, WorkflowError>>,
     },
+    Catalogue {
+        reply: oneshot::Sender<Vec<WorkflowDescriptor>>,
+    },
     Ended {
         run_id: String,
         row: Option<WorkflowRunRow>,
+    },
+    Describe {
+        workflow: String,
+        reply: oneshot::Sender<Option<WorkflowDescriptor>>,
     },
 }
 
@@ -338,6 +352,61 @@ impl WorkflowHandle {
             .await
             .map_err(|_| WorkflowError::Stopped)?;
         rx.await.map_err(|_| WorkflowError::Stopped)?
+    }
+
+    /// The workflow `workflow`, `<package>/<workflow>`, when an installed
+    /// package declares it; `None` too while no host is attached.
+    pub async fn describe(&self, workflow: &str) -> Option<WorkflowDescriptor> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(WorkflowCommand::Describe {
+                workflow: workflow.to_string(),
+                reply,
+            })
+            .await
+            .ok()?;
+        rx.await.ok().flatten()
+    }
+
+    /// Runs `workflow` on `inputs` nested in `parent`, and returns what it
+    /// returned, or why it did not complete.
+    pub(crate) async fn run_nested(
+        &self,
+        workflow: &str,
+        inputs: Value,
+        parent: ParentRun,
+    ) -> Result<Value, String> {
+        let launched = self
+            .start(workflow, inputs, Some(parent))
+            .await
+            .map_err(|e| e.to_string())?;
+        let end = launched
+            .end
+            .await
+            .map_err(|_| format!("the run of {workflow} was dropped"))?;
+        match end.row.status.as_str() {
+            "completed" => Ok(end.row.output.unwrap_or(Value::Null)),
+            status => Err(format!(
+                "{} {status}: {}",
+                end.row.workflow_id,
+                end.row.error.unwrap_or_default()
+            )),
+        }
+    }
+
+    /// Every workflow that can be launched, by identifier; none while the
+    /// package host is not attached.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkflowError::Stopped`].
+    pub async fn catalogue(&self) -> Result<Vec<WorkflowDescriptor>, WorkflowError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(WorkflowCommand::Catalogue { reply })
+            .await
+            .map_err(|_| WorkflowError::Stopped)?;
+        rx.await.map_err(|_| WorkflowError::Stopped)
     }
 
     /// Stops a running run and returns it once it has ended.

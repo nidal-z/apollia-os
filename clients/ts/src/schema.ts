@@ -14,7 +14,8 @@ export interface paths {
         /**
          * Handler for `GET /api/v1/a2a/agents`.
          * @description Returns all agents with `supports_a2a = true` in active or degraded state,
-         *     along with their declared skills.
+         *     along with their declared skills, then the enabled agents that take a
+         *     message and the installed workflows.
          */
         get: operations["list_a2a_agents"];
         put?: never;
@@ -57,9 +58,12 @@ export interface paths {
         put?: never;
         /**
          * Handler for `POST /api/v1/a2a/invoke`.
-         * @description Invokes a Worker Agent by skill ID via the [`A2AInvoker`].
+         * @description Invokes a Worker Agent by skill ID via the [`A2AInvoker`], or an agent
+         *     that takes a message (`agent:<id>`) or a workflow
+         *     (`workflow:<package>/<name>`), and answers once it has ended.
          *     Returns 503 if the invoker is not initialized.
-         *     Returns 404 if the skill is not found, 503 if the agent is not active.
+         *     Returns 404 if the skill is not found, 503 if the agent is not active,
+         *     400 if the input does not fit what the target takes.
          */
         post: operations["invoke_by_skill"];
         delete?: never;
@@ -77,8 +81,9 @@ export interface paths {
         };
         /**
          * Handler for `GET /api/v1/a2a/skills`.
-         * @description Returns the flat list of all available A2A skills via the [`A2AInvoker`].
-         *     Returns 503 if the invoker is not initialized.
+         * @description Returns the flat list of all available A2A skills via the [`A2AInvoker`],
+         *     then one entry per enabled agent that takes a message and one per
+         *     installed workflow. Returns 503 if the invoker is not initialized.
          */
         get: operations["list_a2a_skills"];
         put?: never;
@@ -2610,6 +2615,10 @@ export interface paths {
          *     over a task of the same spelling, which costs nothing: task ids are UUIDs
          *     and a client that picks one as its own name gets the task it meant either
          *     way.
+         *
+         *     A live `invocation_id` that names a workflow invoked through
+         *     `POST /api/v1/a2a/invoke` stops that run: the answer carries the run id and
+         *     the status the run ended with.
          */
         delete: operations["cancel_task"];
         options?: never;
@@ -3133,11 +3142,28 @@ export interface components {
         };
         /** @description Entry in the A2A agent list. */
         A2aAgentDto: {
-            /** @description Unique agent identifier (UUID v4). */
+            /**
+             * @description Unique identifier: the registry UUID of an agent whose code declares
+             *     skills, `agent:<id>` for an agent that takes a message,
+             *     `workflow:<package>/<name>` for a workflow.
+             */
             agent_id: string;
+            /**
+             * @description JSON Schema of the input of an agent that takes a message or of a
+             *     workflow; `null` for an agent whose skills each declare their own.
+             */
+            input_schema?: Record<string, never> | null;
+            /**
+             * @description `skill` for an agent whose code declares skills, `agent` for an agent
+             *     that takes a message, `workflow` for a workflow.
+             */
+            kind: string;
             /** @description Agent name as declared in its manifest. */
             name: string;
-            /** @description Skills declared by this agent. */
+            /**
+             * @description Skills declared by this agent. An agent that takes a message and a
+             *     workflow each carry one, the entry `invoke` takes.
+             */
             skills: components["schemas"]["A2aSkillDto"][];
             /** @description Current process state (`active`, `degraded`, etc.). */
             state: string;
@@ -3176,6 +3202,13 @@ export interface components {
             id: string;
             /** @description Supported input modes (e.g. `["text", "data"]`). */
             input_modes: string[];
+            /** @description JSON Schema of the input `invoke` takes, when the entry declares one. */
+            input_schema?: Record<string, never> | null;
+            /**
+             * @description `skill`, `agent` or `workflow`: what `id` launches through
+             *     `POST /api/v1/a2a/invoke`.
+             */
+            kind: string;
             /** @description Human-readable skill name. */
             name: string;
             /** @description Supported output modes (e.g. `["text", "file"]`). */
@@ -4169,7 +4202,10 @@ export interface components {
         InvokeRequest: {
             /** @description Caller name (Director Agent), used for observability. */
             caller?: string | null;
-            /** @description JSON payload passed to the Worker Agent as input. */
+            /**
+             * @description JSON payload passed as input: the skill's payload, `{"message": ...}`
+             *     (or a bare string) for an agent, the typed inputs of a workflow.
+             */
             input: Record<string, never>;
             /**
              * @description A name the client chooses for this invocation, so it can cancel it.
@@ -4185,7 +4221,10 @@ export interface components {
              *     runs normally and the journal says so (`a2a.invocation_id.taken`).
              */
             invocation_id?: string | null;
-            /** @description Target skill identifier (e.g. `"read-excel"`). */
+            /**
+             * @description What to launch, as the card names it: a skill id (e.g.
+             *     `"read-excel"`), `agent:<id>` or `workflow:<package>/<name>`.
+             */
             skill_id: string;
             /**
              * Format: int64
@@ -4970,12 +5009,14 @@ export interface components {
             agent_name: string;
             /** @description Skill description. */
             description: string;
-            /**
-             * @description Apollia schema for the payload fields (cf. `AgentSkill::input_schema`).
-             *     Used by `generate_a2a_tool_specs` to expose the worker's real contract
-             *     to the LLM (instead of a generic schema).
-             */
+            /** @description Apollia schema for the payload fields (cf. `AgentSkill::input_schema`). */
             input_schema?: Record<string, never> | null;
+            /**
+             * @description What `skill_id` launches: `skill` for a skill an agent's code declares,
+             *     `agent` for an agent that takes a message (`agent:<id>`), `workflow`
+             *     for a workflow that takes typed inputs (`workflow:<package>/<name>`).
+             */
+            kind?: string;
             /** @description Skill identifier. */
             skill_id: string;
             /** @description Human-readable skill name. */
@@ -5824,7 +5865,16 @@ export interface operations {
                     "application/json": components["schemas"]["A2AInvocationResult"];
                 };
             };
-            /** @description Skill not found */
+            /** @description The input does not fit the agent or the workflow */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Skill, agent or workflow not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5835,6 +5885,15 @@ export interface operations {
             };
             /** @description Invocation cancelled through its client-supplied id */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The agent or the workflow failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };

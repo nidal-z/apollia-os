@@ -71,10 +71,15 @@ impl WorkflowHost for Host {
     fn describe(&self, workflow_id: &str) -> Option<WorkflowDescriptor> {
         (workflow_id == "books/close").then(|| WorkflowDescriptor {
             id: workflow_id.into(),
+            version: "1.0.0".into(),
             description: "Close the books.".into(),
             steps: vec!["ask".into(), "file".into()],
             input_schema: None,
         })
+    }
+
+    fn list(&self) -> Vec<WorkflowDescriptor> {
+        self.describe("books/close").into_iter().collect()
     }
 
     fn run(&self, call: WorkflowCall) -> BoxFuture<'static, Result<Value, String>> {

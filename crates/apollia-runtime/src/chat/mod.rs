@@ -26,11 +26,11 @@ pub mod todo_tool;
 pub mod turn_router;
 pub mod types;
 
-pub use a2a_tools::{generate_a2a_tool_specs, CompositeToolInvoker};
+pub use a2a_tools::CompositeToolInvoker;
 pub use agent_chat::{AgentChatExecutor, ChatAgentRunner};
 pub use agent_executor::{
-    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, ProjectContextSource, RunInput,
-    SessionWiring,
+    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition,
+    ProjectContextSource, RunInput, SessionWiring,
 };
 pub use builtin_agent::{
     BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, NativeChatToolInvoker,
