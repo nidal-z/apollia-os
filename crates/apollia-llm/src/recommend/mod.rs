@@ -18,7 +18,9 @@
 //!
 //! The same table is also the editorial selection an operator sees first
 //! ([`catalogue`]), and [`publishers`] says which HuggingFace owners are the
-//! official publishers and which are recognised converters.
+//! official publishers and which are recognised converters. The same file
+//! holds the embeddings category ([`embeddings`]): models that turn a text into
+//! a vector, refused as chat engines and offered on their own.
 //!
 //! The division of labour with the Hub is the point. `hf_registry` is the
 //! catalogue: which repositories exist, what their files weigh, which are
@@ -29,6 +31,7 @@
 //! `families.toml` supplies the order.
 
 pub mod catalogue;
+pub mod embeddings;
 pub mod fit;
 pub mod llama_support;
 pub mod manifest;
@@ -39,12 +42,17 @@ pub mod quant;
 pub mod rank;
 #[cfg(feature = "cloud")]
 pub mod resolve;
+pub mod variants;
 pub mod verdict;
 
 pub use catalogue::{SelectionFamily, SelectionVariant};
+pub use embeddings::{
+    EmbeddingCatalogue, EmbeddingModel, EmbeddingReason, EmbeddingRecommendation, Pooling,
+};
 pub use fit::{
-    assess_fit, cache_layout, estimate_memory, grade, kv_cache_bytes, max_context_for, CacheKind,
-    CacheLayout, FitAssessment, MemoryEstimate, RuntimeShape,
+    assess_fit, cache_layout, estimate_memory, grade, kv_cache_bytes, max_context_for,
+    max_parallel_for, parallel_shape, CacheKind, CacheLayout, FitAssessment, MemoryEstimate,
+    RuntimeShape,
 };
 pub use llama_support::LLAMA_CPP_TAG;
 pub use manifest::{Family, FamilyManifest, ManifestError, ToolCalling, Variant};
@@ -57,4 +65,9 @@ pub use quant::Quant;
 pub use rank::{rank, FileCandidate, Matched, Reason, Recommendation};
 #[cfg(feature = "cloud")]
 pub use resolve::{resolve, ResolveError, ResolveOptions};
+pub use variants::{
+    assess_variants, gguf_file_quantization, gguf_quantization, gguf_variants, mark_downloaded,
+    mlx_quantization, mlx_variant, recommend as recommend_variant, ModelVariant, QuantLevel,
+    RepoFile,
+};
 pub use verdict::{assess, shard_count_of, Blocker, Caveat, Verdict};

@@ -104,9 +104,36 @@ pub(super) fn compat_from_model_type(model_type: &str) -> Option<CompatIssue> {
     }
     Some(CompatIssue::UnknownArchitecture)
 }
-pub(super) async fn extract_model_type(
+/// What a repository's `config.json` says that the catalogue reads.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct ConfigFacts {
+    /// `model_type`.
+    pub(crate) model_type: Option<String>,
+    /// A `vision_config` block is present.
+    pub(crate) vision: bool,
+    /// The precision of an MLX conversion, when it is an offered level.
+    pub(crate) mlx_quantization: Option<(crate::recommend::QuantLevel, String)>,
+}
+
+impl ConfigFacts {
+    /// Read the facts from the text of a `config.json`.
+    pub(crate) fn from_json(text: &str) -> Self {
+        let model_type = serde_json::from_str::<serde_json::Value>(text)
+            .ok()
+            .and_then(|v| v.get("model_type")?.as_str().map(String::from));
+        Self {
+            model_type,
+            vision: crate::capabilities::mlx_config_has_vision(text),
+            mlx_quantization: crate::recommend::mlx_quantization(text),
+        }
+    }
+}
+
+/// The facts of a `config.json` response; `None` when it is absent or not
+/// readable.
+pub(super) async fn extract_config_facts(
     resp: Result<reqwest::Response, reqwest::Error>,
-) -> Option<String> {
+) -> Option<ConfigFacts> {
     let r = resp.ok()?;
     if !r.status().is_success() {
         return None;
@@ -115,15 +142,14 @@ pub(super) async fn extract_model_type(
         apollia_core::net::read_capped_json(r, apollia_core::net::MAX_METADATA_BYTES)
             .await
             .ok()?;
-    json.get("model_type")
-        .and_then(|v| v.as_str())
-        .map(String::from)
+    Some(ConfigFacts::from_json(&json.to_string()))
 }
 pub(super) struct CachedModelType {
-    model_type: Option<String>,
+    facts: Option<ConfigFacts>,
     cached_at: std::time::Instant,
 }
-/// Session cache of HF model types (from `config.json`).
+/// Session cache of what a repository's `config.json` says (model type,
+/// vision tower, MLX precision).
 ///
 /// Avoids refetching `config.json` each time a card is opened. TTL 24h,
 /// stored as Tauri state (`Arc<HfModelTypeCache>`).
@@ -143,25 +169,46 @@ impl HfModelTypeCache {
         }
     }
 
-    pub(super) async fn get(&self, repo_id: &str) -> Option<Option<String>> {
+    pub(super) async fn get(&self, repo_id: &str) -> Option<Option<ConfigFacts>> {
         let guard = self.entries.read().await;
         guard.get(repo_id).and_then(|e| {
             if e.cached_at.elapsed().as_secs() < MODEL_TYPE_CACHE_TTL_SECS {
-                Some(e.model_type.clone())
+                Some(e.facts.clone())
             } else {
                 None
             }
         })
     }
 
-    pub(super) async fn set(&self, repo_id: &str, model_type: Option<String>) {
+    pub(super) async fn set(&self, repo_id: &str, facts: Option<ConfigFacts>) {
         let mut guard = self.entries.write().await;
         guard.insert(
             repo_id.to_string(),
             CachedModelType {
-                model_type,
+                facts,
                 cached_at: std::time::Instant::now(),
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn both_embeddings_models_stay_refused_by_the_chat_registry() {
+        // GIVEN the pipeline tags the Hub gives multilingual-e5-small and
+        // Qwen3-Embedding-0.6B
+        let tags = [Some("sentence-similarity"), Some("feature-extraction")];
+
+        for tag in tags {
+            // WHEN the chat registry reads each tag
+            let issue = compat_from_pipeline_tag(tag);
+
+            // THEN it still refuses the model as a chat model; the embeddings
+            // category takes it through its own entries, never through a search
+            assert_eq!(issue, Some(CompatIssue::EmbeddingModel), "{tag:?}");
+        }
     }
 }

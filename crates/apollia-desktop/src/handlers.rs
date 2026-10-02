@@ -69,7 +69,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::model_hub::cancel_model_download,
         commands::model_hub::list_installed_models,
         commands::model_hub::delete_installed_model,
-        commands::model_hub::import_model_file,
+        commands::model_import::import_model_file,
         commands::meta_automation::meta_parse_automation,
         commands::meta_next_steps::meta_generate_next_steps,
         commands::meta_rewrite::meta_rewrite_input,

@@ -21,6 +21,7 @@ mod config;
 mod engine_facts;
 mod loaded;
 mod ngl;
+mod parallel;
 mod projector;
 
 pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError};
@@ -520,6 +521,9 @@ impl LlamaServerSupervisor {
         // backend's own window, then the default.
         config.n_ctx = n_ctx;
 
+        // The slot count first: the offload plan sizes the cache those slots
+        // hold. See `parallel` for why a single slot was wrong.
+        parallel::apply_parallel_plan(&mut config);
         // The count is planned from the model and the machine on a discrete
         // accelerator; see `ngl` for why the literal 999 was wrong there.
         ngl::apply_offload_plan(&mut config);
@@ -537,6 +541,7 @@ impl LlamaServerSupervisor {
             n_batch = %display_opt(config.n_batch.as_ref()),
             n_ubatch = %display_opt(config.n_ubatch.as_ref()),
             n_parallel = %display_opt(config.n_parallel.as_ref()),
+            kv_unified = config.kv_unified,
             cont_batching = %display_opt(config.cont_batching.as_ref()),
             cache_type_k = %display_opt(config.cache_type_k.as_ref()),
             cache_type_v = %display_opt(config.cache_type_v.as_ref()),
@@ -560,6 +565,7 @@ impl LlamaServerSupervisor {
             "n_batch": config.n_batch,
             "n_ubatch": config.n_ubatch,
             "n_parallel": config.n_parallel,
+            "kv_unified": config.kv_unified,
             "cont_batching": config.cont_batching,
             "cache_type_k": config.cache_type_k,
             "cache_type_v": config.cache_type_v,

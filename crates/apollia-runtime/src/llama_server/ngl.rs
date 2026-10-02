@@ -42,7 +42,7 @@ pub(super) fn apply_offload_plan(config: &mut LlamaServerConfig) {
 /// So this only ever speaks for a discrete device, which is the only case where
 /// the unconditional 999 was wrong.
 fn plan_gpu_layers(config: &LlamaServerConfig) -> Option<i32> {
-    use apollia_llm::recommend::{MemoryArchitecture, RuntimeShape};
+    use apollia_llm::recommend::MemoryArchitecture;
 
     let path = std::path::Path::new(&config.model_path);
     let weights_bytes = std::fs::metadata(path).ok()?.len();
@@ -66,12 +66,7 @@ fn plan_gpu_layers(config: &LlamaServerConfig) -> Option<i32> {
         }
     };
 
-    let shape = RuntimeShape {
-        n_ctx: config.n_ctx,
-        kv_element_bytes: kv_element_bytes(config.cache_type_k.as_deref()),
-        n_parallel: config.n_parallel.unwrap_or(1),
-        n_ubatch: config.n_ubatch.unwrap_or(512),
-    };
+    let shape = runtime_shape(config);
 
     // The same assessment that grades the model in the Hub and the ranking, so
     // a model shown as fitting is the one launched with every layer offloaded.
@@ -88,11 +83,26 @@ fn plan_gpu_layers(config: &LlamaServerConfig) -> Option<i32> {
     i32::try_from(plan.n_gpu_layers).ok()
 }
 
+/// The footprint settings the engine is launched with, as the recommender
+/// reads them.
+///
+/// The context is [`LlamaServerConfig::engine_n_ctx`], not the per-request
+/// window: under a unified buffer the engine allocates one window per slot, and
+/// the plan has to count the cache it will actually hold.
+pub(super) fn runtime_shape(config: &LlamaServerConfig) -> apollia_llm::recommend::RuntimeShape {
+    apollia_llm::recommend::RuntimeShape {
+        n_ctx: config.engine_n_ctx(),
+        kv_element_bytes: kv_element_bytes(config.cache_type_k.as_deref()),
+        n_parallel: config.n_parallel.unwrap_or(1),
+        n_ubatch: config.n_ubatch.unwrap_or(512),
+    }
+}
+
 /// Bytes per key/value cache element implied by the configured cache type.
 ///
 /// The engine defaults to `f16` when `-ctk` is not given, which is what the
 /// runtime ships.
-fn kv_element_bytes(cache_type_k: Option<&str>) -> u32 {
+pub(super) fn kv_element_bytes(cache_type_k: Option<&str>) -> u32 {
     match cache_type_k {
         Some("q8_0") | Some("q8_1") => 1,
         Some("f32") => 4,

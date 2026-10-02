@@ -14,6 +14,7 @@
 //! regardless of which feature is enabled.
 
 pub mod backends;
+pub mod capabilities;
 pub mod context_window;
 pub mod downloader;
 pub mod gguf_probe;
@@ -56,6 +57,7 @@ pub use meta_orchestrator::{
 };
 
 pub use apollia_core::config::LlmRoutingConfig;
+pub use capabilities::{Capabilities, VisionEngine};
 #[cfg(feature = "cloud")]
 pub use downloader::{
     DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
@@ -71,6 +73,9 @@ pub use hf_registry::{
     CompatIssue, GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache,
     HfRegistryClient, HfSearchFilter, SearchPage, VariantError, VariantFile, VariantPlan,
     VariantSelector,
+};
+pub use model_index::import::{
+    check_import, ImportCheck, ImportCheckError, ImportRule as ModelImportRule,
 };
 pub use model_index::{
     IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelIndexError, ModelOrigin,

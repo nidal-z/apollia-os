@@ -225,3 +225,28 @@ fn keeps_only_an_excerpt_of_a_long_chat_template() {
     assert!(excerpt.len() <= 240);
     assert!(template.starts_with(&excerpt));
 }
+
+#[test]
+fn reads_tools_and_reasoning_past_the_excerpt_of_the_template() {
+    // GIVEN a template whose tool and reasoning markers sit past the excerpt
+    let template = format!(
+        "{}{{% if tools %}}<tool_call>{{% endif %}}<think>",
+        "{% for message in messages %}".repeat(20)
+    );
+    let bytes = HeaderBuilder::new()
+        .string("general.architecture", "qwen3")
+        .string("tokenizer.chat_template", &template)
+        .build();
+
+    // WHEN the header is read
+    let facts = parse_header(&bytes).expect("a well-formed header reads");
+
+    // THEN both are found in the whole template, not only the excerpt
+    let excerpt = facts
+        .chat_template_excerpt
+        .clone()
+        .expect("an excerpt is kept");
+    assert!(!excerpt.contains("tools"));
+    assert!(facts.chat_template_tools);
+    assert!(facts.chat_template_reasoning);
+}

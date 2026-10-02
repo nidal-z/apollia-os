@@ -4,7 +4,8 @@
    *
    * Lists files found under the models directory (`list_installed_models`) with
    * a guarded delete: an `in_use` model has its delete disabled, and deleting
-   * routes through the parent's ConfirmDialog (never an implicit removal).
+   * routes through the parent's ConfirmDialog (never an implicit removal). A
+   * model whose digest matched no known one carries an "unverified origin" mark.
    */
   import { t } from "svelte-i18n";
   import { HardDrive, Trash2 } from "lucide-svelte";
@@ -14,6 +15,7 @@
   import SettingsSection from "../SettingsSection.svelte";
   import type { InstalledModel } from "$lib/ipc/modelHub";
   import { formatSizeBytes } from "./helpers";
+  import { unverifiedOriginKey } from "./origin";
 
   interface Props {
     models: InstalledModel[];
@@ -77,6 +79,15 @@
               {#if model.in_use}
                 <Badge variant="primary" title={model.used_by ?? ""} data-testid="installed-model-inuse-{model.name}">
                   {$t("settings.model_hub.installed.in_use")}
+                </Badge>
+              {/if}
+              {#if unverifiedOriginKey(model)}
+                <Badge
+                  variant="warning"
+                  title={$t("settings.model_hub.installed.unverified_origin_help")}
+                  data-testid="installed-model-unverified-{model.name}"
+                >
+                  {$t(unverifiedOriginKey(model) ?? "")}
                 </Badge>
               {/if}
             </div>

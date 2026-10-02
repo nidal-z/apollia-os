@@ -7,15 +7,15 @@
 //! - [`start_variant_download`]: downloads a whole variant (parts, projector,
 //!   MLX folder) as one download
 //! - [`cancel_model_download`]: cancels an in-progress download
+//!
+//! The import of a model from a disk lives in `model_import`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use apollia_core::LlmBackendRepository;
 use apollia_llm::hardware::detect as detect_hardware;
-use apollia_llm::{
-    AcceleratorProfile, HardwareProfile, IndexedModel, ModelCategory, ModelFormat, ModelOrigin,
-};
+use apollia_llm::{AcceleratorProfile, HardwareProfile, IndexedModel, ModelCategory, ModelFormat};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
 use tokio::sync::Mutex;
@@ -153,9 +153,12 @@ pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Valu
 
 /// Fetches the full metadata for a HuggingFace model.
 ///
-/// Includes the list of GGUF files with size and compatibility badge, the
-/// recommended generation parameters from `generation_config.json`, and the
-/// architecture type from `config.json` (with a 24h session cache).
+/// Includes the list of GGUF files with size, quantisation and compatibility
+/// badge, the capabilities of the model, its short list of variants (each
+/// sized, graded, marked when fully offloaded or already downloaded, one of
+/// them recommended), the recommended generation parameters from
+/// `generation_config.json`, and the architecture type from `config.json`
+/// (with a 24h session cache).
 #[tauri::command]
 pub async fn get_hf_model(
     cache: State<'_, Arc<apollia_llm::HfModelTypeCache>>,
@@ -175,6 +178,15 @@ pub async fn get_hf_model(
     // Best-effort fetch of generation_config.json (separate from config.json)
     if let Some(gen_config) = client.get_generation_config(&repo_id).await {
         card.generation_config = Some(gen_config);
+    }
+
+    // Which variants are already on this machine: read from the model index,
+    // best-effort, since a card is still worth showing without it.
+    let dir = models_dir();
+    if let Ok(Ok(index)) =
+        tokio::task::spawn_blocking(move || super::model_index::current(&dir)).await
+    {
+        apollia_llm::recommend::mark_downloaded(&mut card.variants, &index);
     }
 
     serde_json::to_value(card).map_err(|e| format!("serialization error: {e}"))
@@ -240,8 +252,19 @@ pub async fn start_model_download(
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
+            let digest = progress.sha256.clone();
+            let verified = progress.integrity_verified;
             tauri::async_runtime::spawn_blocking(move || {
-                super::model_index::record_download(&models_dir(), &path, repo, file);
+                super::model_index::record_download(
+                    &models_dir(),
+                    &path,
+                    repo,
+                    file,
+                    super::model_index::DownloadDigest {
+                        sha256: digest,
+                        verified,
+                    },
+                );
             });
         }
         let _ = app.emit("model-download-progress", &progress);
@@ -292,8 +315,19 @@ pub async fn start_variant_download(
             let path = progress.dest_path.clone();
             let repo = Some(repo_id.clone());
             let file = origin_file.clone();
+            let digest = progress.sha256.clone();
+            let verified = progress.integrity_verified;
             tauri::async_runtime::spawn_blocking(move || {
-                super::model_index::record_download(&models_dir(), &path, repo, file);
+                super::model_index::record_download(
+                    &models_dir(),
+                    &path,
+                    repo,
+                    file,
+                    super::model_index::DownloadDigest {
+                        sha256: digest,
+                        verified,
+                    },
+                );
             });
         }
         let _ = app.emit("model-download-progress", &progress);
@@ -368,10 +402,16 @@ pub struct InstalledModelView {
     pub modified_at: Option<String>,
     /// When the model was pinned to the top of the list, RFC 3339.
     pub pinned_at: Option<String>,
+    /// Whether the weights matched a published or already verified digest.
+    /// False for a model imported from a disk with an unknown digest.
+    pub origin_verified: bool,
     /// True when an LLM backend or the STT config references this file.
     pub in_use: bool,
     /// Human-readable owner when `in_use` (e.g. `LLM backend 'local-code'`).
     pub used_by: Option<String>,
+    /// What the model can do, vision included only when the engine can read
+    /// an image for it. `None` until the index has been rebuilt by this build.
+    pub capabilities: Option<apollia_llm::Capabilities>,
 }
 
 /// A model file referenced by the active configuration.
@@ -382,11 +422,11 @@ struct ModelRef {
     label: String,
 }
 
-fn home_dir() -> PathBuf {
+pub(super) fn home_dir() -> PathBuf {
     apollia_core::paths::home_dir_or_temp()
 }
 
-fn models_dir() -> PathBuf {
+pub(super) fn models_dir() -> PathBuf {
     apollia_core::paths::data_dir_under(home_dir()).join("models")
 }
 
@@ -489,8 +529,10 @@ fn installed_view(model: &IndexedModel, refs: &[ModelRef]) -> InstalledModelView
         parameters: model.parameters.clone(),
         modified_at: model.modified_at.map(|t| t.to_rfc3339()),
         pinned_at: model.pinned_at.map(|t| t.to_rfc3339()),
+        origin_verified: model.origin_verified,
         in_use: owner.is_some(),
         used_by: owner,
+        capabilities: model.capabilities.clone(),
     }
 }
 
@@ -564,107 +606,6 @@ pub async fn delete_installed_model(path: String) -> Result<(), String> {
         .map_err(|e| format!("spawn_blocking failed: {e}"))?
 }
 
-/// Error raised while importing a user-selected model file into the managed
-/// models directory.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum ImportModelError {
-    /// The chosen source path does not point to a regular file.
-    #[error("source file not found: {0}")]
-    NotFound(String),
-    /// The file extension is not among the accepted ones.
-    #[error("unsupported file type '{name}' (expected: {expected})")]
-    BadExtension {
-        /// Basename of the rejected file.
-        name: String,
-        /// Comma-separated list of accepted extensions.
-        expected: String,
-    },
-    /// The source path has no usable file name component.
-    #[error("invalid source file name")]
-    BadFileName,
-    /// The models directory could not be created.
-    #[error("failed to create models directory: {0}")]
-    CreateDir(#[source] std::io::Error),
-    /// The file copy into the models directory failed.
-    #[error("failed to copy model file: {0}")]
-    Copy(#[source] std::io::Error),
-}
-
-/// Copies a user-selected model file into `~/.apollia/models/`.
-///
-/// The native file picker lives on the frontend (Tauri dialog plugin); this
-/// command receives the chosen `source_path` and the `allowed_extensions` the
-/// caller expects (`gguf` for an LLM, `bin`/`gguf` for a Whisper model),
-/// validates the file, then copies it into the managed models directory
-/// (created if missing). The copy is deliberately non-destructive: the source
-/// is left in place. A source that already resides in the models directory is a
-/// no-op. Returns the destination path so the caller can select it after a
-/// re-scan.
-#[tauri::command]
-pub async fn import_model_file(
-    source_path: String,
-    allowed_extensions: Vec<String>,
-) -> Result<String, String> {
-    tokio::task::spawn_blocking(move || {
-        import_model_file_into(&source_path, &allowed_extensions, &models_dir())
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
-    .map_err(|e| e.to_string())
-}
-
-fn import_model_file_into(
-    source_path: &str,
-    allowed_extensions: &[String],
-    dir: &Path,
-) -> Result<String, ImportModelError> {
-    let source = PathBuf::from(source_path);
-    if !source.is_file() {
-        return Err(ImportModelError::NotFound(source_path.to_string()));
-    }
-
-    let ext = source
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_ascii_lowercase())
-        .unwrap_or_default();
-    if !allowed_extensions
-        .iter()
-        .any(|a| a.eq_ignore_ascii_case(&ext))
-    {
-        let name = source
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        return Err(ImportModelError::BadExtension {
-            name,
-            expected: allowed_extensions.join(", "),
-        });
-    }
-
-    let file_name = source.file_name().ok_or(ImportModelError::BadFileName)?;
-    std::fs::create_dir_all(dir).map_err(ImportModelError::CreateDir)?;
-    let dest = dir.join(file_name);
-
-    // `std::fs::copy` streams the file (it does not buffer the whole payload in
-    // memory), which matters for multi-gigabyte GGUF weights.
-    if dest != source {
-        std::fs::copy(&source, &dest).map_err(ImportModelError::Copy)?;
-    }
-
-    tracing::info!(dest = %dest.display(), "model.file.imported");
-    if let Err(e) = super::model_index::record(dir, &dest, ModelOrigin::Import) {
-        tracing::event!(
-            tracing::Level::WARN,
-            path = %dest.display(),
-            error = %e,
-            "model.index.record.failed"
-        );
-    }
-    Ok(dest.display().to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -736,24 +677,6 @@ mod tests {
         assert_eq!(expand_tilde(absolute), PathBuf::from(absolute));
     }
 
-    // GIVEN a GGUF file outside the models folder, picked by the operator
-    // WHEN it is imported
-    // THEN the copy is in the model index, with an import origin
-    #[test]
-    fn test_an_import_adds_its_entry_to_the_index() {
-        let tmp = tempfile::tempdir().unwrap();
-        let source = tmp.path().join("picked.gguf");
-        std::fs::write(&source, b"GGUF").unwrap();
-        let dir = tmp.path().join("models");
-
-        import_model_file_into(&source.to_string_lossy(), &["gguf".to_string()], &dir).unwrap();
-
-        let index = super::super::model_index::current(&dir).unwrap();
-        let entry = index.get("picked").unwrap();
-        assert_eq!(entry.path, dir.join("picked.gguf"));
-        assert_eq!(entry.origin, ModelOrigin::Import);
-    }
-
     // GIVEN a GGUF kept in a sub-folder of the models folder, the shape the
     //       listing at the top level used to miss
     // WHEN the installed models are listed
@@ -771,6 +694,43 @@ mod tests {
         assert_eq!(list[0].id, "deep");
         assert_eq!(list[0].name, "deep.gguf");
         assert!(super::super::model_index::index_path(dir).is_file());
+    }
+
+    // GIVEN two indexed models, one whose digest matched its repository and
+    //       one imported with an unknown digest
+    // WHEN the installed models are listed
+    // THEN each carries its origin_verified field, as the index holds it
+    #[test]
+    fn test_the_installed_list_carries_the_verified_origin() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        std::fs::write(dir.join("checked.gguf"), b"GGUF1").unwrap();
+        std::fs::write(dir.join("from-key.gguf"), b"GGUF2").unwrap();
+        super::super::model_index::record_download(
+            dir,
+            &dir.join("checked.gguf"),
+            Some("org/repo".into()),
+            "checked.gguf".into(),
+            super::super::model_index::DownloadDigest {
+                sha256: Some("a".repeat(64)),
+                verified: true,
+            },
+        );
+        super::super::model_index::record_import(
+            dir,
+            &dir.join("from-key.gguf"),
+            "b".repeat(64),
+            false,
+        )
+        .unwrap();
+
+        let list = collect_installed_models_in(dir, &[]).unwrap();
+
+        let json = serde_json::to_value(&list).unwrap();
+        assert_eq!(json[0]["name"], "checked.gguf");
+        assert_eq!(json[0]["origin_verified"], true);
+        assert_eq!(json[1]["name"], "from-key.gguf");
+        assert_eq!(json[1]["origin_verified"], false);
     }
 
     // GIVEN a dictation model saved as .gguf, whose header names whisper

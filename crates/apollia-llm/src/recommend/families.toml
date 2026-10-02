@@ -61,6 +61,35 @@
 # When a new generation lands, add it with `supersedes` pointing at the one it
 # replaces rather than editing the old entry. The chain is what lets a machine
 # that already runs the old model be told a newer one now fits.
+#
+# ── Embeddings ────────────────────────────────────────────────────────────
+#
+# [[embedding]] describes one embeddings model: a model that turns a text into a
+# vector for search by meaning, never one that answers a chat. The two kinds
+# share this file because they share its promise (every fact traceable to a
+# source) and its guard, not its ranking: an embeddings entry is pinned to one
+# file, and the rest of this table never sees it.
+#
+#   id              stable key
+#   label           what the operator reads
+#   publisher       the organisation that trained it
+#   released        ISO date of its first public release
+#   license         SPDX identifier
+#   repo            the HuggingFace repository carrying the GGUF, `owner/name`
+#   file            the GGUF file within it
+#   quantization    the quantisation of that file
+#   size_bytes      its size, as the repository tree reports it
+#   sha256          its SHA-256, read from the repository tree (`lfs.oid`). The
+#                   download is checked against it, and a file imported from a
+#                   disk is recognised by it
+#   architecture    the `general.architecture` its header carries
+#   dimensions      length of the vector it produces
+#   context_length  tokens it reads at most per text
+#   pooling         mean | last | cls, how the engine reduces a text to one
+#                   vector (`--pooling`)
+#   query_prefix    text put before a search query, as its model card asks
+#   passage_prefix  text put before a passage to index, as its model card asks
+#   source          URL the facts above were read from
 
 schema_version = 1
 
@@ -377,3 +406,45 @@ mlx_repos = ["mlx-community/Mistral-Small-24B-Instruct-2501-4bit"]
 agentic = 70
 reasoning = 69
 source = "https://huggingface.co/mistralai/Mistral-Small-24B-Instruct-2501"
+
+# ── Embeddings ────────────────────────────────────────────────────────────
+
+[[embedding]]
+id = "multilingual-e5-small"
+label = "Multilingual E5 small"
+publisher = "intfloat"
+released = "2023-06-30"
+license = "mit"
+repo = "cstr/multilingual-e5-small-GGUF"
+file = "multilingual-e5-small-q8_0.gguf"
+quantization = "Q8_0"
+size_bytes = 131624960
+sha256 = "0a34067a40f25d3149b36885faa62bee0e5284d0f9edc102acfc00e115d953e8"
+architecture = "bert"
+dimensions = 384
+context_length = 512
+pooling = "mean"
+query_prefix = "query: "
+passage_prefix = "passage: "
+source = "https://huggingface.co/intfloat/multilingual-e5-small"
+notes = "Published upstream without a GGUF; this conversion is a community one, trusted through the digest pinned here rather than through its owner."
+
+[[embedding]]
+id = "qwen3-embedding-0.6b"
+label = "Qwen3 Embedding 0.6B"
+publisher = "Qwen"
+released = "2025-06-05"
+license = "apache-2.0"
+repo = "Qwen/Qwen3-Embedding-0.6B-GGUF"
+file = "Qwen3-Embedding-0.6B-Q8_0.gguf"
+quantization = "Q8_0"
+size_bytes = 639150592
+sha256 = "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439"
+architecture = "qwen3"
+dimensions = 1024
+context_length = 32768
+pooling = "last"
+query_prefix = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"
+passage_prefix = ""
+source = "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B"
+notes = "Its header names the qwen3 architecture, the same as the chat models of that generation: only its pooling key tells it apart, which is why the gate reads that key."

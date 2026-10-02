@@ -2703,6 +2703,8 @@
         "total": "{size} on disk",
         "empty": "No models installed yet.",
         "in_use": "In use",
+        "unverified_origin": "unverified origin",
+        "unverified_origin_help": "Its digest matches no published or already verified digest.",
         "delete": "Delete",
         "delete_title": "Delete model?",
         "delete_message": "Permanently delete ''{name}'' from disk? This cannot be undone.",

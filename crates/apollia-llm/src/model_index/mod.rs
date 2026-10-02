@@ -24,6 +24,7 @@
 //! files are gone is dropped, and what the disk cannot tell (origin, digest,
 //! pin, overrides) is carried over from the previous entry.
 
+pub mod import;
 mod overrides;
 mod scan;
 
@@ -126,6 +127,13 @@ pub struct IndexedModel {
     /// Another weights file of the same model to load instead of `path`.
     #[serde(default)]
     pub source_file_override: Option<PathBuf>,
+    /// What the model can do: tools and reasoning from its chat template,
+    /// vision only when the engine can read an image for it (a GGUF with its
+    /// projector attached, an MLX folder whose `config.json` declares a
+    /// `vision_config`). `None` in an index written before it was computed;
+    /// the next rebuild fills it.
+    #[serde(default)]
+    pub capabilities: Option<crate::capabilities::Capabilities>,
 }
 
 impl IndexedModel {
@@ -353,6 +361,45 @@ impl ModelIndex {
         Ok(model)
     }
 
+    /// Store the SHA-256 of the model that owns `path`, and whether it was
+    /// verified against a published or already verified digest. A digest that
+    /// is the pinned file of an embeddings entry of the registry files the
+    /// model as embeddings, whatever its header said.
+    ///
+    /// # Errors
+    /// [`ModelIndexError::NotIndexed`] when no model owns `path`.
+    pub fn set_digest(
+        &mut self,
+        path: &Path,
+        sha256: String,
+        origin_verified: bool,
+    ) -> Result<(), ModelIndexError> {
+        let model = self
+            .models
+            .iter_mut()
+            .find(|m| m.owns(path))
+            .ok_or_else(|| ModelIndexError::NotIndexed {
+                path: path.to_path_buf(),
+            })?;
+        if scan::registry_embedding(&sha256) {
+            model.category = ModelCategory::Embeddings;
+        }
+        model.sha256 = Some(sha256);
+        model.origin_verified = origin_verified;
+        Ok(())
+    }
+
+    /// The digests of the models whose origin is verified: what an import of
+    /// the same weights is compared with.
+    #[must_use]
+    pub fn verified_digests(&self) -> Vec<&str> {
+        self.models
+            .iter()
+            .filter(|m| m.origin_verified)
+            .filter_map(|m| m.sha256.as_deref())
+            .collect()
+    }
+
     /// The model carrying `id`.
     #[must_use]
     pub fn get(&self, id: &str) -> Option<&IndexedModel> {
@@ -437,10 +484,20 @@ struct VersionProbe {
 fn merge(found: scan::FoundModel, id: String, before: Option<&IndexedModel>) -> IndexedModel {
     let unchanged = before
         .is_some_and(|b| b.size_bytes == found.size_bytes && b.modified_at == found.modified_at);
-    let (category, parameters) = match before {
-        Some(b) if unchanged => (b.category, b.parameters.clone()),
+    let (category, parameters, template_caps) = match before {
+        Some(b) if unchanged && b.capabilities.is_some() => (
+            b.category,
+            b.parameters.clone(),
+            b.capabilities.clone().unwrap_or_default(),
+        ),
         _ => scan::read_header(&found),
     };
+    let sha256 = before.filter(|_| unchanged).and_then(|b| b.sha256.clone());
+    let category = match &sha256 {
+        Some(digest) if scan::registry_embedding(digest) => ModelCategory::Embeddings,
+        _ => category,
+    };
+    let capabilities = scan::with_usable_vision(&found, template_caps);
     let source_file_override = before
         .and_then(|b| b.source_file_override.clone())
         .filter(|p| p.is_file());
@@ -453,7 +510,7 @@ fn merge(found: scan::FoundModel, id: String, before: Option<&IndexedModel>) -> 
         annexes: found.annexes,
         size_bytes: found.size_bytes,
         origin: before.map_or(ModelOrigin::Import, |b| b.origin.clone()),
-        sha256: before.filter(|_| unchanged).and_then(|b| b.sha256.clone()),
+        sha256,
         origin_verified: before.is_some_and(|b| unchanged && b.origin_verified),
         category,
         parameters,
@@ -461,5 +518,6 @@ fn merge(found: scan::FoundModel, id: String, before: Option<&IndexedModel>) -> 
         pinned_at: before.and_then(|b| b.pinned_at),
         category_override: before.and_then(|b| b.category_override),
         source_file_override,
+        capabilities: Some(capabilities),
     }
 }
