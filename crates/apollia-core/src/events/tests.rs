@@ -44,12 +44,6 @@ fn test_all_variants_exist_and_clone() {
         RuntimeEvent::AgentUninstalled {
             name: "mon-agent".into(),
         },
-        RuntimeEvent::AgentEnabled {
-            name: "mon-agent".into(),
-        },
-        RuntimeEvent::AgentDisabled {
-            name: "mon-agent".into(),
-        },
         RuntimeEvent::LlmModelLoading {
             backend: "local".into(),
             model_path: "/tmp/model.gguf".into(),

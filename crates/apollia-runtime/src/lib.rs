@@ -31,6 +31,7 @@ pub mod llama_server_backend;
 pub mod llm_timings;
 pub mod mailbox;
 pub mod observability;
+pub mod on_demand;
 pub mod package_tools;
 pub mod perf_trace;
 pub mod plan_approval;

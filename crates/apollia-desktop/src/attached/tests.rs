@@ -66,8 +66,6 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
         "list_chat_sessions",
         "list_agents",
         "install_agent",
-        "start_agent",
-        "stop_agent",
         "list_tasks",
         "get_task_timeline",
         "cancel_task",

@@ -233,6 +233,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 
     // Start all actors via Supervisor (ordered, with timeout + rollback)
     let runtime_config = runtime_file_config.unwrap_or_default();
+    let agent_idle_unload = std::time::Duration::from_secs(runtime_config.agent_idle_unload_secs);
     let hitl_config = hitl_file_config.unwrap_or_default();
     let tools_config = tools_file_config.unwrap_or_default();
     let mcp_config = mcp_file_config.unwrap_or_default();
@@ -392,15 +393,22 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 
     // Rewire auto-loaded agents now that the factory's OnceLocks are populated.
     //
-    // The Supervisor's Phase 11 (auto-load) calls factory.create_for_agent
-    // BEFORE we get a chance to populate the OnceLocks the factory closes
-    // over. As a result every auto-loaded agent is initially registered with
-    // a NoopBackend that fails every task. Iterate the same repository the
-    // Supervisor used and reissue create_for_agent (now wired) + replace the
-    // coordinator in the router. Idempotent: register_coordinator inserts
-    // into a HashMap so the previous entry is dropped cleanly.
+    // The Supervisor's Phase 11 registers every enabled agent on demand
+    // before we get a chance to populate the OnceLocks the factory closes
+    // over; a task arriving in that window would build its backend from
+    // empty locks. Replacing each coordinator with a fresh on-demand one
+    // closes the window. Nothing is imported here. Idempotent:
+    // register_coordinator inserts into a HashMap so the previous entry is
+    // dropped cleanly.
     if let Some(ref repo) = agent_repository_for_rewire {
-        rewire_auto_loaded_agents(repo, &factory_for_rewire, &handles, &handles.event_sender).await;
+        rewire_auto_loaded_agents(
+            repo,
+            &factory_for_rewire,
+            &handles,
+            &handles.event_sender,
+            agent_idle_unload,
+        )
+        .await;
     }
 
     // The Python tools of the installed packages join the registry, read from
@@ -409,6 +417,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         &data_dir_for_package_tools,
         &handles.tool_registry_handle,
         handles.chat_manager.as_ref(),
+        agent_idle_unload,
     )
     .await;
     // The workflows of the installed packages, read from the same manifests.

@@ -116,6 +116,8 @@ impl PackageToolExecutor {
                 message: format!("{}: the arguments must be an object", self.name),
             });
         }
+        self.tool.begin_call();
+        let _ended = CallEnd(Arc::clone(&self.tool));
         let call = Call {
             tool: Arc::clone(&self.tool),
             site_packages: self.site_packages.clone(),
@@ -168,6 +170,16 @@ impl ToolExecutor for PackageToolExecutor {
     }
 }
 
+/// Marks the end of a call when dropped, so a call dropped before it returns
+/// still counts as ended.
+struct CallEnd(Arc<PackageTool>);
+
+impl Drop for CallEnd {
+    fn drop(&mut self) {
+        self.0.end_call();
+    }
+}
+
 fn failure(code: &str, tool: &str, error: impl std::fmt::Display) -> ToolExecutionError {
     ToolExecutionError::ExecutionFailed {
         code: code.to_string(),
@@ -189,12 +201,16 @@ impl Call {
     fn run(&self, py: Python<'_>, slot: &Py<PyDict>) -> Result<String, ToolExecutionError> {
         let name = self.tool.full_name();
         let helpers = helpers(py).map_err(|e| failure("internal", &name, e))?;
-        let function = self
-            .tool
-            .function
-            .get_or_try_init(py, || load(helpers, &self.tool, &self.site_packages))
-            .map_err(|e| failure("load_failed", &name, e))?
-            .bind(py);
+        let function = match self.tool.function(py) {
+            Some(function) => function,
+            None => {
+                let function = load(helpers, &self.tool, &self.site_packages)
+                    .map_err(|e| failure("load_failed", &name, e))?;
+                self.tool.keep_function(py, &function);
+                function
+            }
+        };
+        let function = function.bind(py);
         let ctx = Py::new(py, RuntimeContext::for_package_tool(&self.caller))
             .map_err(|e| failure("internal", &name, e))?;
         let json = py
@@ -272,10 +288,16 @@ fn load(
 }
 
 /// The name a package module is imported under: its dotted name, prefixed by
-/// a digest of the package root.
+/// [`module_prefix`].
 pub(super) fn module_name(root: &std::path::Path, dotted: &str) -> String {
+    format!("{}.{dotted}", module_prefix(root))
+}
+
+/// The prefix every module of the package at `root` is imported under: a
+/// digest of the package root.
+pub(super) fn module_prefix(root: &std::path::Path) -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     root.hash(&mut hasher);
-    format!("apollia_pkg_{:016x}.{dotted}", hasher.finish())
+    format!("apollia_pkg_{:016x}", hasher.finish())
 }
