@@ -77,11 +77,6 @@
     },
     {
       "kind": "waitFor",
-      "testidPrefix": "agent-list-toggle",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
       "testidPrefix": "package-list-row",
       "timeoutMs": 4000
     },
@@ -445,46 +440,6 @@
     },
     {
       "kind": "click",
-      "timeoutMs": 4000,
-      "testid": "agent-list-toggle"
-    },
-    {
-      "kind": "sleep",
-      "ms": 2000
-    },
-    {
-      "kind": "click",
-      "timeoutMs": 4000,
-      "testid": "agent-list-toggle"
-    },
-    {
-      "kind": "sleep",
-      "ms": 2000
-    },
-    {
-      "kind": "click",
-      "timeoutMs": 4000,
-      "testid": "package-list-toggle"
-    },
-    {
-      "kind": "sleep",
-      "ms": 2000
-    },
-    {
-      "kind": "click",
-      "timeoutMs": 4000,
-      "testid": "package-list-toggle"
-    },
-    {
-      "kind": "sleep",
-      "ms": 2000
-    },
-    {
-      "kind": "screenshot",
-      "label": "06e-list-toggles-round-trip"
-    },
-    {
-      "kind": "click",
       "testidPrefix": "agent-list-row",
       "nth": 0,
       "timeoutMs": 2500
@@ -524,11 +479,6 @@
       "timeoutMs": 2500
     },
     {
-      "kind": "waitFor",
-      "testid": "agent-detail-enabled-toggle",
-      "timeoutMs": 2500
-    },
-    {
       "kind": "screenshot",
       "label": "08-agent-settings"
     },
@@ -557,59 +507,6 @@
       "kind": "waitFor",
       "testid": "agent-detail-settings",
       "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-stop-btn",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-stop-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-stop-confirm",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-stop-confirm",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-start-btn",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "agent-detail-stop-btn",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08b-agent-settings-stopped (start offered on a stopped installed agent)"
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-start-btn",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-stop-btn",
-      "timeoutMs": 20000
-    },
-    {
-      "kind": "waitGone",
-      "testid": "agent-detail-start-btn",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "screenshot",
-      "label": "08c-agent-settings-restarted"
     },
     {
       "kind": "click",
@@ -1151,11 +1048,6 @@
     {
       "kind": "waitFor",
       "testid": "agent-detail-settings",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "agent-detail-enabled-toggle",
       "timeoutMs": 2500
     },
     {

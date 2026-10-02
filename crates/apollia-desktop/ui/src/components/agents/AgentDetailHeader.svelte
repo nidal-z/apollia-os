@@ -13,8 +13,7 @@
    * mirrors `PackageDetail`, with the memory option the card carried.
    *
    * `update_agent` had the same fate: registered, never called, so replacing an
-   * agent's file meant uninstall then reinstall, which drops the auto-start
-   * flag. The update picks a new `.py` the same way the install does; the
+   * agent's file meant uninstall then reinstall. The update picks a new `.py` the same way the install does; the
    * failure it reports goes to the route banner through `agentActions`.
    *
    * Replacing the file of a running agent stops it and starts it again, since
@@ -35,7 +34,7 @@
   import type { AgentListItem } from "$lib/types";
   import {
     agentClassLabel,
-    isActive,
+    isAvailable,
     statusColor,
     statusLabel,
     statusTone,
@@ -83,7 +82,9 @@
   // Same set of live states the command checks before cycling the agent, so
   // the warning appears exactly when a restart will happen.
   const runningNow = $derived(
-    isActive(agent) || agent.runtime_status === "initializing",
+    agent.runtime_status === "active" ||
+      agent.runtime_status === "degraded" ||
+      agent.runtime_status === "initializing",
   );
 
   // Neither the memory option nor a pending replacement survives a change of
@@ -245,7 +246,7 @@
         variant="primary-solid"
         size="sm"
         onclick={() => onStartChat(agent.name)}
-        disabled={!isActive(agent)}
+        disabled={!isAvailable(agent)}
       >
         {#snippet icon()}<MessageSquare size={12} />{/snippet}
         {$t("agents.new_chat")}
@@ -257,7 +258,7 @@
       {#snippet icon()}
         <StatusDot
           color={statusColor(agent)}
-          glow={agent.runtime_status === "active"}
+          glow={isAvailable(agent)}
           size={5}
         />
       {/snippet}

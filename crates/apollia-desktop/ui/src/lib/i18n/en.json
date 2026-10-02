@@ -71,11 +71,6 @@
     "edit": "Edit",
     "clear": "Clear",
     "status": {
-      "active": "ACTIVE",
-      "degraded": "DEGRADED",
-      "stopped": "STOPPED",
-      "initializing": "INITIALIZING",
-      "stopping": "STOPPING",
       "ready": "READY",
       "untested": "NOT TESTED",
       "error": "ERROR"
@@ -744,9 +739,6 @@
       "trigger_every": "every {every}",
       "secret_placeholder": "e.g. my-super-secret-key-at-least-32-chars"
     },
-    "stop_confirm": "Stop this agent?",
-    "stopping": "Stopping...",
-    "stop": "Stop",
     "logs": "Logs",
     "logs_title": "Agent Logs",
     "no_tasks": "No tasks found for this agent.",
@@ -768,16 +760,11 @@
     "sort_longest": "Longest",
     "sort_shortest": "Shortest",
     "no_description": "No description available",
-    "not_loaded": "Not loaded",
-    "auto_start_enabled": "Auto-start at boot",
-    "auto_start_disabled": "Will not auto-start on boot",
     "update": "Update",
     "uninstall": "Uninstall",
     "uninstall_confirm_warning": "Permanently delete ''{name}''?",
     "uninstall_delete_memory": "Also delete agent memory and data",
     "uninstall_confirm_action": "Delete",
-    "start": "Start",
-    "starting_agent": "Starting...",
     "create": "Create",
     "page_title": "Assistants",
     "install_package_button": "Install a package",
@@ -795,19 +782,10 @@
     "packages_empty_none_installed": "No package installed.",
     "agents_word": "agents",
     "triggers_word": "triggers",
-    "stop_named": "Stop {name}",
-    "start_named": "Start {name}",
-    "stop_all": "Stop all",
-    "start_all": "Start all",
-    "start_missing_path": "Unable to start {name}: missing install_path.",
-    "package_errors": "Package {name}: {count} error(s) - {first}",
     "pkg_status_partial": "partial",
-    "status_active": "active",
     "status_degraded": "degraded",
-    "status_initializing": "starting…",
-    "status_stopping": "stopping…",
-    "status_stopped": "stopped",
-    "status_not_loaded": "not loaded",
+    "status_available": "available",
+    "status_unavailable": "unavailable",
     "package_default_description": "Apollia agent package.",
     "source_missing": "source missing",
     "tab_overview": "Overview",
@@ -850,7 +828,6 @@
     "memory_view_all": "view all in /memory",
     "activity_not_loaded": "The assistant is not loaded - start it to see its recent activity.",
     "execution_section": "Execution",
-    "auto_start_hint": "Starts automatically with Apollia OS.",
     "loading_assistants": "Loading assistants…",
     "detail_empty_title": "No assistant selected",
     "chat_config": {
@@ -888,11 +865,7 @@
     "update_restart_stop_failed": "The new file is installed, but {name} could not be stopped: it is still running the previous version.",
     "update_restart_stop_failed_action": "Stop the agent, then start it again to load the new version.",
     "update_restart_start_failed": "{name} was stopped to load the new version and did not start again: it is running nothing right now.",
-    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused.",
-    "package_start_errors": {
-      "trigger": "trigger {id}: {error}",
-      "missing_install_path": "{name}: install_path missing"
-    }
+    "update_restart_start_failed_action": "Start the agent again from its row. The cause below says what the runtime refused."
   },
   "tasks": {
     "subtitle": "Track requests sent to your assistants and their results",
@@ -3519,7 +3492,6 @@
     "tool_empty_results": "No results.",
     "a2a_authorize_skill": "Authorize skill",
     "a2a_via_worker": "via worker agent",
-    "a2a_worker_stopped": "stopped",
     "project_selector": "Project",
     "no_project": "No project",
     "quickpicker": {
@@ -4239,8 +4211,6 @@
     "placeholder": "Type a command or search… (Cmd+K)",
     "empty": "No matching commands",
     "seed": {
-      "agents_start_all": "Start all agents",
-      "agents_stop_all": "Stop all agents",
       "toggle_dark": "Toggle dark mode"
     },
     "results_count": "{count, plural, one {# result} other {# results}}",

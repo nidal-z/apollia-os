@@ -42,9 +42,6 @@ impl AgentRepository {
         rows.map(|row| row?.into_stored()).collect()
     }
 
-    // TEST-ONLY: no production path stores a declarative agent yet; an agent
-    // that runs code is stored by `AgentRepository::save`, which writes its
-    // definition the same way and keeps its overrides.
     /// Stores a declarative agent, or replaces the definition of an existing
     /// one.
     ///

@@ -23,6 +23,7 @@ pub mod jsonrpc;
 pub mod manager;
 pub mod mcp_resources;
 pub mod origin;
+pub mod package_server;
 pub mod protocol;
 pub mod registry;
 mod sanitize;

@@ -223,9 +223,6 @@ impl<R: Read + Seek> ApoArchive<R> {
     ///
     /// [`ApoError::TargetExists`], [`ApoError::Io`], and any refusal of
     /// [`ApoArchive::from_reader`] or of the size limits.
-    // TEST-ONLY: no production path unpacks a package yet; the CLI reads the
-    // manifest and the signature only. Installing from an archive is the
-    // caller this was written for, and it extracts through here.
     pub fn extract_to(&mut self, target: &Path) -> Result<(), ApoError> {
         if target.exists() {
             return Err(ApoError::TargetExists {

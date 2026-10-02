@@ -1,8 +1,8 @@
 /**
  * Pure status helpers for the Agents surface.
  *
- * These map an `AgentListItem` runtime status (or a `PackageRuntimeState`) onto
- * the display tokens the UI needs: a human label, a badge tone, a status-dot
+ * These map an `AgentListItem` (or a `PackageRuntimeState`) onto its
+ * availability and the display tokens the UI needs: a human label, a badge tone, a status-dot
  * color, and the short class label. Kept free of Svelte / i18n coupling (the
  * translator is injected) so they are unit-testable in isolation.
  */
@@ -18,46 +18,64 @@ export type Translate = (
 /** Badge / dot tone shared by agents and packages. */
 export type StatusTone = "success" | "warning" | "neutral";
 
-/** True when the agent is running (active or degraded). */
-export function isActive(a: AgentListItem): boolean {
-  return a.runtime_status === "active" || a.runtime_status === "degraded";
+/**
+ * What the Agents surface shows of an agent: available, degraded, or
+ * unavailable.
+ *
+ * An agent is never started nor stopped from the interface: it is loaded by
+ * its first task and released once idle. The runtime states that describe
+ * that cycle (stopped, stopping, not loaded yet) all read "available" here.
+ * Only an installed agent switched off from the command line is unavailable,
+ * and a degraded one stays callable with a warning.
+ */
+export type Availability = "available" | "degraded" | "unavailable";
+
+/** The availability of an agent. */
+export function availability(a: AgentListItem): Availability {
+  if (a.installed_at !== null && !a.enabled) return "unavailable";
+  if (a.runtime_status === "degraded") return "degraded";
+  return "available";
 }
 
-/** True when the agent is idle (stopped or never loaded). */
-export function isIdle(a: AgentListItem): boolean {
-  return a.runtime_status === "stopped" || a.runtime_status === null;
+/** True when a task can reach the agent. */
+export function isAvailable(a: AgentListItem): boolean {
+  return availability(a) !== "unavailable";
 }
 
-/** Human-readable runtime status label. */
+/** Human-readable availability label. */
 export function statusLabel(a: AgentListItem, t: Translate): string {
-  switch (a.runtime_status) {
-    case "active":
-      return t("agents.status_active");
+  switch (availability(a)) {
+    case "available":
+      return t("agents.status_available");
     case "degraded":
       return t("agents.status_degraded");
-    case "initializing":
-      return t("agents.status_initializing");
-    case "stopping":
-      return t("agents.status_stopping");
-    case "stopped":
-      return t("agents.status_stopped");
     default:
-      return t("agents.status_not_loaded");
+      return t("agents.status_unavailable");
   }
 }
 
-/** Badge tone for the runtime status. */
+/** Badge tone for the availability. */
 export function statusTone(a: AgentListItem): StatusTone {
-  if (a.runtime_status === "active") return "success";
-  if (a.runtime_status === "degraded") return "warning";
-  return "neutral";
+  switch (availability(a)) {
+    case "available":
+      return "success";
+    case "degraded":
+      return "warning";
+    default:
+      return "neutral";
+  }
 }
 
 /** Status-dot color as a token reference. */
 export function statusColor(a: AgentListItem): string {
-  if (a.runtime_status === "active") return "hsl(var(--success))";
-  if (a.runtime_status === "degraded") return "hsl(var(--warning))";
-  return "hsl(var(--muted-foreground))";
+  switch (availability(a)) {
+    case "available":
+      return "hsl(var(--success))";
+    case "degraded":
+      return "hsl(var(--warning))";
+    default:
+      return "hsl(var(--muted-foreground))";
+  }
 }
 
 /** Short user-facing label for the Python agent class. */
@@ -78,21 +96,21 @@ export function agentClassLabel(a: AgentListItem): string | null {
 
 /** Badge tone for an aggregated package state. */
 export function packageStatusTone(s: PackageRuntimeState): StatusTone {
-  if (s.status === "running") return "success";
+  if (s.status === "available") return "success";
   if (s.status === "partial") return "warning";
   return "neutral";
 }
 
 /** Human-readable label for an aggregated package state. */
 export function packageStatusLabel(s: PackageRuntimeState, t: Translate): string {
-  if (s.status === "running") return t("agents.status_active");
+  if (s.status === "available") return t("agents.status_available");
   if (s.status === "partial") return t("agents.pkg_status_partial");
-  return t("agents.status_stopped");
+  return t("agents.status_unavailable");
 }
 
 /** Status-dot color for an aggregated package state. */
 export function packageStatusColor(s: PackageRuntimeState): string {
-  if (s.status === "running") return "hsl(var(--success))";
+  if (s.status === "available") return "hsl(var(--success))";
   if (s.status === "partial") return "hsl(var(--warning))";
   return "hsl(var(--muted-foreground))";
 }

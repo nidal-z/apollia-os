@@ -314,8 +314,18 @@ pub(crate) async fn add_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(config): Json<McpServerConfig>,
 ) -> Result<(StatusCode, Json<McpServerStatus>), JsonError> {
-    let handle = require_mcp_handle(&state)?;
-    let repo = require_mcp_repo(&state)?;
+    let status = add_server_to(&state, config).await?;
+    Ok((StatusCode::CREATED, Json(status)))
+}
+
+/// The work of `POST /api/v1/mcp/servers`, shared with the package
+/// installer: admission, spawn, persistence, journal.
+pub(crate) async fn add_server_to<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    config: McpServerConfig,
+) -> Result<McpServerStatus, JsonError> {
+    let handle = require_mcp_handle(state)?;
+    let repo = require_mcp_repo(state)?;
 
     let request = AdmissionRequest::for_mcp_server(&config);
     if let AdmissionDecision::Refused { reason } = state.connection_governance.admit(&request) {
@@ -353,7 +363,7 @@ pub(crate) async fn add_server<B: ExecutionBackend + Clone>(
             actor: ROUTE_ACTOR.to_owned(),
         });
 
-    Ok((StatusCode::CREATED, Json(status)))
+    Ok(status)
 }
 
 /// `DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
@@ -379,10 +389,21 @@ pub(crate) async fn remove_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, JsonError> {
-    let handle = require_mcp_handle(&state)?;
-    let repo = require_mcp_repo(&state)?;
+    remove_server_from(&state, &name).await?;
+    Ok(Json(serde_json::json!({"removed": name})))
+}
 
-    handle.remove_server(&name).await.map_err(|_| {
+/// The work of `DELETE /api/v1/mcp/servers/{name}`, shared with the package
+/// installer, which undoes with it the servers of an installation that
+/// failed.
+pub(crate) async fn remove_server_from<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    name: &str,
+) -> Result<(), JsonError> {
+    let handle = require_mcp_handle(state)?;
+    let repo = require_mcp_repo(state)?;
+
+    handle.remove_server(name).await.map_err(|_| {
         json_err(
             StatusCode::NOT_FOUND,
             format!("server '{}' not found", name),
@@ -397,18 +418,18 @@ pub(crate) async fn remove_server<B: ExecutionBackend + Clone>(
             )
         })?;
         guard
-            .delete(&name)
+            .delete(name)
             .map_err(|e| json_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     }
 
     state
         .connection_governance
         .record_or_warn(&ConnectionEvent::Removed {
-            connection_id: mcp_connection_id(&name),
+            connection_id: mcp_connection_id(name),
             actor: ROUTE_ACTOR.to_owned(),
         });
 
-    Ok(Json(serde_json::json!({"removed": name})))
+    Ok(())
 }
 
 /// Tagged response envelope for `POST /api/v1/mcp/servers/test`.

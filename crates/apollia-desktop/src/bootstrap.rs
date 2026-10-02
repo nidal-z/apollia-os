@@ -8,7 +8,7 @@ use std::sync::Arc;
 use apollia_core::{PendingApprovals, SttConfigRepository, ToolsConfig};
 use apollia_llm::LlmRouter;
 use apollia_memory::user_memory::UserMemoryRepository;
-use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
+use apollia_runtime::api::routes_agents::AgentBackendFactory;
 use apollia_runtime::coordinator::DynBackend;
 use apollia_runtime::embedded::{EmbeddedConfig, RuntimeHandle};
 use apollia_runtime::eventbus::EventBusSender;
@@ -278,17 +278,21 @@ pub(crate) fn populate_runtime_locks(runtime_handle: &RuntimeHandle, locks: Runt
     let _ = locks.tools_config.set(runtime_handle.tools_config.clone());
 }
 
-/// Auto-load every enabled installed agent into the running supervisor.
+/// Make every enabled installed agent available in the running supervisor,
+/// without importing any of them.
 ///
 /// Runs after the `OnceLock`s are populated so the `ProductionBackendFactory`
-/// can build real backends. Failures per agent are logged and skipped: one
-/// broken agent must not abort boot of the others.
+/// can build real backends. Each agent is registered from the manifest its
+/// store holds; its module is imported by the first task that reaches it and
+/// released after `idle_unload` without a call. A disabled agent is not
+/// registered. Failures per agent are logged and skipped: one broken agent
+/// must not abort boot of the others.
 pub(crate) fn auto_load_installed_agents(
     repo: AgentRepository,
     factory: &Arc<dyn AgentBackendFactory>,
     runtime_handle: &RuntimeHandle,
+    idle_unload: std::time::Duration,
 ) {
-    let agent_loader_for_boot: Arc<dyn AgentLoader> = Arc::new(crate::backend::AIPAgentLoader);
     let agents = match repo.list_enabled() {
         Ok(agents) => agents,
         Err(e) => {
@@ -297,62 +301,45 @@ pub(crate) fn auto_load_installed_agents(
         }
     };
 
-    for agent in &agents {
-        if !agent.enabled {
-            continue;
+    // We're on the main thread (not inside Tokio); reuse the current handle
+    // or build a small current-thread runtime to drive the registrations.
+    let rt = match tokio::runtime::Handle::try_current().or_else(|_| {
+        Ok::<_, std::io::Error>(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()?
+                .handle()
+                .clone(),
+        )
+    }) {
+        Ok(handle) => handle,
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                detail = "the auto-load is skipped",
+                "agent.autoload.no_runtime"
+            );
+            return;
         }
-        let manifest = match agent_loader_for_boot.load_and_validate(&agent.install_path) {
-            Ok(m) => m,
-            Err(e) => {
-                tracing::warn!(name = %agent.name, error = %e, "agent.load.failed");
-                let _ = runtime_handle.event_sender.send(
-                    apollia_core::events::RuntimeEvent::AgentLoadFailed {
-                        name: agent.name.clone(),
-                        error: e.to_string(),
-                    },
-                );
-                continue;
-            }
-        };
+    };
+    // The on-demand actors live on the worker runtime, which outlives this
+    // function; the current-thread fallback above would stop with it.
+    let spawner = apollia_runtime::worker_runtime()
+        .map(|worker| worker.handle().clone())
+        .unwrap_or_else(|| rt.clone());
 
-        // Register in AgentRegistry. We're on the main thread (not inside
-        // Tokio); reuse the current handle or build a small current-thread
-        // runtime to drive the async registration to completion.
-        let rt = match tokio::runtime::Handle::try_current().or_else(|_| {
-            Ok::<_, std::io::Error>(
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()?
-                    .handle()
-                    .clone(),
-            )
-        }) {
-            Ok(handle) => handle,
-            Err(e) => {
-                // The contract of this loop is per-agent: a runtime that will
-                // not build is the same class of failure as a manifest that
-                // will not load, and used to abort the boot of every agent.
-                tracing::warn!(
-                    name = %agent.name,
-                    error = %e,
-                    detail = "the auto-load is skipped",
-                    "agent.autoload.no_runtime"
-                );
-                continue;
-            }
-        };
-
+    for agent in agents.into_iter().filter(|agent| agent.enabled) {
         let registry_handle = runtime_handle.registry_handle.clone();
         let router_handle = runtime_handle.router_handle.clone();
         let event_sender = runtime_handle.event_sender.clone();
         let task_repository = runtime_handle.task_repository.clone();
         let factory_ref = factory.clone();
-        let install_path = agent.install_path.clone();
-        let agent_manifest = agent.manifest.clone();
-        let max_concurrent = manifest.max_concurrent_tasks;
-        let agent_name = manifest.name.clone();
+        let spawner = spawner.clone();
 
         rt.block_on(async move {
+            let manifest = agent.manifest.clone();
+            let max_concurrent = manifest.max_concurrent_tasks;
+            let agent_name = manifest.name.clone();
             let agent_id = match registry_handle.register(manifest).await {
                 Ok(id) => id,
                 Err(e) => {
@@ -372,12 +359,19 @@ pub(crate) fn auto_load_installed_agents(
                 return;
             }
 
-            let agent_backend = factory_ref.create_for_agent(&install_path, &agent_manifest);
+            let install_path = agent.install_path.clone();
+            let stored = agent.manifest.clone();
+            let loader: apollia_runtime::on_demand::BackendLoader =
+                Arc::new(move || factory_ref.create_for_agent(&install_path, &stored));
+            let on_demand = {
+                let _entered = spawner.enter();
+                apollia_runtime::on_demand::OnDemandBackend::spawn(&agent_name, loader, idle_unload)
+            };
             let mut coordinator = apollia_runtime::coordinator::ExecutionCoordinator::new(
                 agent_id.clone(),
                 max_concurrent,
                 event_sender,
-                agent_backend,
+                DynBackend::new(on_demand),
             )
             .with_agent_name(agent_name.clone());
             if let Some(ref repo) = task_repository {
@@ -390,7 +384,7 @@ pub(crate) fn auto_load_installed_agents(
             let _ = router_handle
                 .register_coordinator(agent_id.clone(), coordinator)
                 .await;
-            tracing::info!(name = %agent_name, id = %agent_id, "agent.autoloaded");
+            tracing::info!(name = %agent_name, id = %agent_id, "agent.available");
         });
     }
 }

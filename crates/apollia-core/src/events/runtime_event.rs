@@ -51,10 +51,11 @@ pub enum RuntimeEvent {
     /// Shutdown requested (SIGTERM or CLI command).
     ShutdownRequested,
 
-    /// Loading an installed agent failed at boot.
+    /// Loading an installed agent failed.
     ///
-    /// Emitted by the Supervisor during auto-load of installed agents.
-    /// The agent is skipped but the runtime continues (graceful degradation).
+    /// An agent is loaded by its first task, not at boot: this is emitted by
+    /// the backend factory when the module of the agent cannot be loaded.
+    /// The task fails, the runtime continues (graceful degradation).
     AgentLoadFailed {
         /// Name of the agent that failed to load.
         name: String,
@@ -72,16 +73,6 @@ pub enum RuntimeEvent {
     /// An installed agent was removed.
     AgentUninstalled {
         /// Name of the uninstalled agent.
-        name: String,
-    },
-    /// An installed agent was enabled for auto-start at boot.
-    AgentEnabled {
-        /// Name of the enabled agent.
-        name: String,
-    },
-    /// An installed agent was disabled (no longer loaded at boot).
-    AgentDisabled {
-        /// Name of the disabled agent.
         name: String,
     },
 
