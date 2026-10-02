@@ -92,6 +92,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         list_sessions, pause::pause_session, resume_session as chat_resume_session, send_message,
         stream_session,
     };
+    use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
     use crate::api::routes_hooks::list_hooks;
     use crate::api::routes_llm::llm_routes;
@@ -283,6 +284,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(mcp_registry_router::<B>())
         .merge(mcp_secrets_router::<B>())
         // Native connector consent routes
+        .merge(connections_router::<B>())
         .merge(connectors_router::<B>())
         .with_state(state)
 }

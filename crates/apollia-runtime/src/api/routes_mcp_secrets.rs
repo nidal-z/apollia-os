@@ -16,8 +16,16 @@
 //!
 //! A secret may be set before its server exists: `POST /api/v1/mcp/servers`
 //! connects at once, so the value has to be in place first.
+//!
+//! Setting and removing a secret are journaled as connection events, by the
+//! name of the key alone.
 
-use axum::{extract::Path, http::StatusCode, routing::put, Json, Router};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    routing::put,
+    Json, Router,
+};
 use serde::Deserialize;
 
 use apollia_auth::SecretStore;
@@ -26,6 +34,10 @@ use apollia_mcp::config::{is_valid_server_name, MCP_STATIC_SECRET_SERVICE};
 use crate::api::openapi::ApiErrorBody;
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+use crate::governance::{ConnectionEvent, ConnectionGovernance};
+
+/// Who the connection journal names for a secret changed through these routes.
+const ROUTE_ACTOR: &str = "api";
 
 /// Longest secret key accepted.
 const MAX_KEY_LEN: usize = 128;
@@ -43,7 +55,7 @@ const MAX_VALUE_BYTES: usize = 64 * 1024;
 pub fn mcp_secrets_router<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new().route(
         "/api/v1/mcp/servers/:name/secrets/:key",
-        put(put_mcp_secret).delete(delete_mcp_secret),
+        put(put_mcp_secret::<B>).delete(delete_mcp_secret::<B>),
     )
 }
 
@@ -125,6 +137,53 @@ fn remove_secret(store: &dyn SecretStore, store_key: &str) -> Result<(), ApiErro
         .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))
 }
 
+/// Validate a put before the store is opened: the path pair, then the value.
+fn validate_put(name: &str, key: &str, value: &str) -> Result<(), ApiError> {
+    store_key(name, key)?;
+    if value.is_empty() || value.len() > MAX_VALUE_BYTES {
+        return Err(api_err(
+            StatusCode::BAD_REQUEST,
+            "secret value must be non-empty and at most 64 KiB",
+        ));
+    }
+    Ok(())
+}
+
+/// Write the secret of server `name` under `key`, then journal that it was set.
+fn set_and_record(
+    store: &dyn SecretStore,
+    governance: &ConnectionGovernance,
+    name: &str,
+    key: &str,
+    value: &str,
+) -> Result<(), ApiError> {
+    let store_key = store_key(name, key)?;
+    write_secret(store, &store_key, value)?;
+    governance.record_or_warn(&ConnectionEvent::SecretSet {
+        connection_id: format!("mcp:{name}"),
+        key: key.to_owned(),
+        actor: ROUTE_ACTOR.to_owned(),
+    });
+    Ok(())
+}
+
+/// Remove the secret of server `name` under `key`, then journal the removal.
+fn remove_and_record(
+    store: &dyn SecretStore,
+    governance: &ConnectionGovernance,
+    name: &str,
+    key: &str,
+) -> Result<(), ApiError> {
+    let store_key = store_key(name, key)?;
+    remove_secret(store, &store_key)?;
+    governance.record_or_warn(&ConnectionEvent::SecretRemoved {
+        connection_id: format!("mcp:{name}"),
+        key: key.to_owned(),
+        actor: ROUTE_ACTOR.to_owned(),
+    });
+    Ok(())
+}
+
 /// `PUT /api/v1/mcp/servers/:name/secrets/:key`: set the secret a
 /// `${APOLLIA_SECRET:KEY}` placeholder of server `name` resolves to.
 ///
@@ -146,19 +205,20 @@ fn remove_secret(store: &dyn SecretStore, store_key: &str) -> Result<(), ApiErro
         (status = 503, description = "No secret store is available", body = ApiErrorBody),
     )
 )]
-pub(crate) async fn put_mcp_secret(
+pub(crate) async fn put_mcp_secret<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
     Path((name, key)): Path<(String, String)>,
     Json(body): Json<PutMcpSecretBody>,
 ) -> Result<StatusCode, ApiError> {
-    let store_key = store_key(&name, &key)?;
-    if body.value.is_empty() || body.value.len() > MAX_VALUE_BYTES {
-        return Err(api_err(
-            StatusCode::BAD_REQUEST,
-            "secret value must be non-empty and at most 64 KiB",
-        ));
-    }
+    validate_put(&name, &key, &body.value)?;
     let store = open_store()?;
-    write_secret(&*store, &store_key, &body.value)?;
+    set_and_record(
+        &*store,
+        &state.connection_governance,
+        &name,
+        &key,
+        &body.value,
+    )?;
     tracing::info!(server = %name, key = %key, backend = %store.backend_id(), "mcp.secret.stored");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -180,12 +240,13 @@ pub(crate) async fn put_mcp_secret(
         (status = 503, description = "No secret store is available", body = ApiErrorBody),
     )
 )]
-pub(crate) async fn delete_mcp_secret(
+pub(crate) async fn delete_mcp_secret<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
     Path((name, key)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
-    let store_key = store_key(&name, &key)?;
+    store_key(&name, &key)?;
     let store = open_store()?;
-    remove_secret(&*store, &store_key)?;
+    remove_and_record(&*store, &state.connection_governance, &name, &key)?;
     tracing::info!(server = %name, key = %key, backend = %store.backend_id(), "mcp.secret.removed");
     Ok(StatusCode::NO_CONTENT)
 }
@@ -327,16 +388,51 @@ mod tests {
     #[tokio::test]
     async fn test_put_refuses_an_empty_value_before_opening_the_store() {
         // GIVEN a conforming pair and an empty value
-        let path = Path(("notion".to_owned(), "NOTION_API_KEY".to_owned()));
-        let body = Json(PutMcpSecretBody {
-            value: String::new(),
-        });
+        let (name, key, value) = ("notion", "NOTION_API_KEY", "");
 
-        // WHEN it is put
-        let (code, _) = put_mcp_secret(path, body).await.unwrap_err();
+        // WHEN the put is validated, which the handler does before the store
+        let (code, _) = validate_put(name, key, value).unwrap_err();
 
         // THEN it is a bad request
         assert_eq!(code, StatusCode::BAD_REQUEST);
+    }
+
+    // Setting then removing a secret journals both, by the key name alone.
+    #[tokio::test]
+    async fn test_setting_and_removing_a_secret_are_journaled_without_the_value() {
+        // GIVEN a store and connection governance over a journal
+        let store = MemoryStore::default();
+        let path =
+            std::env::temp_dir().join(format!("apollia_secret_gov_{}.db", uuid::Uuid::new_v4()));
+        let journal = crate::audit_journal::AuditJournalHandle::open(&path)
+            .await
+            .expect("journal");
+        let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+
+        // WHEN a secret is set then removed through the route bodies
+        set_and_record(&store, &governance, "notion", "NOTION_API_KEY", "sk-live-9").expect("set");
+        remove_and_record(&store, &governance, "notion", "NOTION_API_KEY").expect("remove");
+
+        // THEN the connection run holds the two events in order
+        let entries = journal
+            .query_run(&crate::governance::connection_run_id("mcp:notion"))
+            .await;
+        let kinds: Vec<_> = entries.iter().map(|e| e.kind.clone()).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                crate::audit_journal::JournalEntryKind::ConnectionSecretSet,
+                crate::audit_journal::JournalEntryKind::ConnectionSecretRemoved,
+            ]
+        );
+        // AND they name the key, never the value
+        assert_eq!(entries[0].payload["key"], "NOTION_API_KEY");
+        assert!(!entries
+            .iter()
+            .any(|e| e.payload.to_string().contains("sk-live-9")));
+
+        journal.shutdown().await;
+        tokio::fs::remove_file(&path).await.ok();
     }
 
     #[test]

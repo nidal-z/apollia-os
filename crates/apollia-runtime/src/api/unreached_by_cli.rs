@@ -328,6 +328,7 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         tool_registry_handle: None,
         audit_trail: None,
         audit_journal: None,
+        connection_governance: Default::default(),
         obs_config: apollia_core::ObservabilityConfig::default(),
         llm_call_repository: None,
         trigger_def_repo: None,
@@ -348,6 +349,7 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        secret_store: crate::inference_servers::default_store_opener(),
     }
 }
 

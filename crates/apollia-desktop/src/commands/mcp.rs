@@ -207,14 +207,19 @@ pub async fn test_mcp_connection(
     serde_json::from_value(json).map_err(|e| format!("failed to parse test result: {e}"))
 }
 
-/// Install a `uvx` server on the bundled interpreter and rewrite its command;
-/// return any other configuration unchanged.
+/// Give a configuration the tool classification of the curated entry it was
+/// made from and the origin it is added under, then install a `uvx` server on the bundled interpreter and
+/// rewrite its command; any other configuration is otherwise unchanged.
 ///
-/// The test before adding goes through here too: it is the first launch, so
-/// the venv it builds is the one the addition then finds and reuses.
+/// The classification is read before the install, which rewrites a `uvx`
+/// command into the path of its entry point. The test before adding goes
+/// through here too: it is the first launch, so the venv it builds is the one
+/// the addition then finds and reuses.
 async fn install_python_server(config: McpServerConfig) -> Result<McpServerConfig, String> {
     let installer = PythonServerInstaller::new(python_server::connections_dir());
     let enrichments = crate::mcp::load_builtin_enrichments();
+    let config = crate::mcp::enrichments::with_selection_classification(config, &enrichments);
+    let config = crate::mcp::origin::with_origin(config, &enrichments);
     python_server::prepare(config, &enrichments, &installer)
         .await
         .map_err(|e| e.to_string())

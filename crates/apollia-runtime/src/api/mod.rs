@@ -9,6 +9,7 @@ pub mod routes_agents;
 pub mod routes_approvals;
 pub mod routes_audit;
 pub mod routes_chat;
+pub mod routes_connections;
 pub mod routes_connectors;
 pub mod routes_events;
 pub mod routes_hooks;

@@ -683,6 +683,8 @@ guards:
       "scripts/check_agents_md.py"
       "scripts/check_attached_coverage.py"
       "scripts/check_attached_coverage.py --selftest"
+      "scripts/check-model-families.py"
+      "scripts/check-model-families.py --selftest"
       "scripts/check_automation_derived.py"
       "scripts/check_ci_workflows.py"
       "scripts/check_claim_anchors.py"

@@ -411,6 +411,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/connections`: every connection, whatever its kind, with its
+         *     provenance, its remote attribute and its tools.
+         */
+        get: operations["list_connections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/accounts": {
         parameters: {
             query?: never;
@@ -542,6 +562,31 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/agents/{agent}/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/agents/{agent}/model`: the model the user assigned to an agent. */
+        get: operations["get_agent_model"];
+        /**
+         * `PUT /api/v1/llm/agents/{agent}/model`: assign a model, and optionally a
+         *     preset of it, to an agent. Kept apart from the installed package.
+         */
+        put: operations["set_agent_model"];
+        post?: never;
+        /**
+         * `DELETE /api/v1/llm/agents/{agent}/model`: remove the assignment; the agent
+         *     goes back to the model its package declares, or to the default.
+         */
+        delete: operations["clear_agent_model"];
         options?: never;
         head?: never;
         patch?: never;
@@ -723,6 +768,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/default-model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/default-model`: the default model of the machine. */
+        get: operations["get_default_model"];
+        /**
+         * `PUT /api/v1/llm/default-model`: make a local model or a model of a
+         *     declared server the single default of the machine.
+         */
+        put: operations["set_default_model"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/hardware": {
         parameters: {
             query?: never;
@@ -798,6 +864,45 @@ export interface paths {
          */
         post: operations["ping_llm_backend"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/presets`: every preset, or those of one model. */
+        get: operations["list_llm_presets"];
+        put?: never;
+        /** `POST /api/v1/llm/presets`: create a preset for a model. */
+        post: operations["create_llm_preset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/presets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** `PUT /api/v1/llm/presets/{id}`: replace a preset's name and settings. */
+        put: operations["update_llm_preset"];
+        post?: never;
+        /**
+         * `DELETE /api/v1/llm/presets/{id}`: delete a preset. An agent that had
+         *     chosen it goes back to its model's default preset.
+         */
+        delete: operations["delete_llm_preset"];
         options?: never;
         head?: never;
         patch?: never;
@@ -895,6 +1000,84 @@ export interface paths {
          *       a local backend, etc.).
          */
         post: operations["reload_llm_router"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/servers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/servers`: every declared server, without its key. */
+        get: operations["list_llm_servers"];
+        put?: never;
+        /**
+         * `POST /api/v1/llm/servers`: declare (or replace) a server. The key goes to
+         *     the secret store; the server's models become routable at once.
+         */
+        post: operations["create_llm_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/servers/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/llm/servers/test`: list the models of a server that is not
+         *     saved, to check the address and the key before saving. Writes nothing.
+         */
+        post: operations["test_llm_server"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/servers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** `DELETE /api/v1/llm/servers/{name}`: forget a server and its key. */
+        delete: operations["delete_llm_server"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/servers/{name}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/llm/servers/{name}/models`: the models of a declared server,
+         *     each with the name it routes by.
+         */
+        get: operations["list_llm_server_models"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2410,6 +2593,20 @@ export interface components {
             /** @description Messages sorted by `sent_at` descending (most recent first). */
             messages: components["schemas"]["AgentMessageDto"][];
         };
+        /** @description The model assigned to an agent. */
+        AgentModelResponse: {
+            /** @description Agent name. */
+            agent: string;
+            /** @description The model: a local registry identifier, or `<server>/<model>`. */
+            model_id: string;
+            /** @description Where the model runs. */
+            model_source: components["schemas"]["ModelSourceDto"];
+            /**
+             * Format: int64
+             * @description The preset chosen for the agent; `null` leaves the model's default.
+             */
+            preset_id?: number | null;
+        };
         /** @description Response body for agent operations. */
         AgentResponse: {
             /** @description Agent identifier (UUID v4). */
@@ -2612,6 +2809,13 @@ export interface components {
              */
             value?: Record<string, never> | null;
         };
+        /** @description Body of `DELETE /api/v1/llm/agents/{agent}/model`. */
+        ClearAgentModelResponse: {
+            /** @description Agent name. */
+            agent: string;
+            /** @description Whether an assignment existed. */
+            cleared: boolean;
+        };
         /** @description Response body for `POST /api/v1/plan-cache/clear`. */
         ClearCacheResponse: {
             /**
@@ -2662,6 +2866,51 @@ export interface components {
             granted_scopes: string[];
             /** @description Provider identifier. */
             provider: string;
+        };
+        /** @description One connection, whatever its kind. */
+        Connection: {
+            /** @description Account the connection acts as, when it has one. */
+            account?: string | null;
+            /** @description Stable identifier: `mcp:<server>`, `native:<provider>:<account>`. */
+            id: string;
+            /** @description Kind of connection. */
+            kind: components["schemas"]["ConnectionKind"];
+            /** @description Name shown to the user: the server name, or the provider. */
+            label: string;
+            /** @description Published by the service's own publisher. */
+            official: boolean;
+            /** @description Where the connection was found before it was added. */
+            provenance: string;
+            /** @description Sends data off this machine. Computed, see [`is_remote`]. */
+            remote: boolean;
+            /** @description Whether it can be used right now. */
+            state: components["schemas"]["ConnectionState"];
+            /** @description Tools the connection brings. */
+            tools: components["schemas"]["ConnectionTool"][];
+        };
+        /**
+         * @description The kind of thing a connection plugs in.
+         * @enum {string}
+         */
+        ConnectionKind: "native" | "mcp" | "folder";
+        /**
+         * @description Whether a connection can be used right now.
+         * @enum {string}
+         */
+        ConnectionState: "connected" | "degraded" | "needs_reauth" | "unavailable" | "stopped";
+        /** @description One tool a connection brings. */
+        ConnectionTool: {
+            /** @description Action family of the tool. */
+            family: string;
+            /** @description Where the family comes from. */
+            familySource: string;
+            /**
+             * @description Tool identifier as the tool registry names it (`mcp:notion/search`,
+             *     `gmail.send`).
+             */
+            id: string;
+            /** @description Offered checked when the connection is granted to an agent. */
+            prechecked: boolean;
         };
         /** @description One connected account, in `GET /api/v1/connectors/accounts`. */
         ConnectorAccountResponse: {
@@ -2737,6 +2986,32 @@ export interface components {
             /** @description Provider identifier: `"llama-cpp"`, `"openai"` (OpenAI-compatible server), `"ollama"`. */
             provider: string;
         };
+        /** @description Body of `POST /api/v1/llm/presets`. */
+        CreatePresetRequest: {
+            /** @description Make it the default preset of its model (default: `false`). */
+            is_model_default?: boolean;
+            /** @description Load settings. Never a system prompt. */
+            load?: Record<string, never>;
+            /** @description The model the preset is attached to. Fixed once created. */
+            model_id: string;
+            /** @description Where the model runs. */
+            model_source: components["schemas"]["ModelSourceDto"];
+            /** @description Name, unique among the presets of the model. */
+            name: string;
+            /** @description Request settings. Unknown fields, a system prompt among them, are refused. */
+            request?: Record<string, never>;
+        };
+        /** @description Body of `POST /api/v1/llm/servers`. */
+        CreateServerRequest: {
+            /** @description Key, when the server asks for one. Written to the secret store. */
+            api_key?: string | null;
+            /** @description Base address, with or without the trailing `/v1`. */
+            base_url: string;
+            /** @description Whether the server's models are routable (default: `true`). */
+            enabled?: boolean;
+            /** @description Unique name, pattern `^[a-z0-9_-]+$`. */
+            name: string;
+        };
         /** @description Request body for `POST /api/v1/sessions`. */
         CreateSessionRequest: {
             /** @description Agent name (required when `mode == "agent"`). */
@@ -2787,6 +3062,15 @@ export interface components {
             /** @description Per-day/backend cost entries. */
             entries: components["schemas"]["DailyCostEntry"][];
         };
+        /** @description The default model of the machine. */
+        DefaultModelResponse: {
+            /** @description Name of the backend that holds the default, the name the router routes by. */
+            backend: string;
+            /** @description The model, in the form `PUT` accepts. */
+            model_id: string;
+            /** @description Where the model runs. */
+            model_source: components["schemas"]["ModelSourceDto"];
+        };
         /** @description Request body for `POST /api/v1/a2a/delegate`. */
         DelegateRequest: {
             /** @description JSON payload passed to the Worker Agent as input. */
@@ -2804,9 +3088,22 @@ export interface components {
             /** @description Name of the deleted backend. */
             deleted: string;
         };
+        /** @description Body of `DELETE /api/v1/llm/presets/{id}`. */
+        DeletePresetResponse: {
+            /**
+             * Format: int64
+             * @description Identifier of the deleted preset.
+             */
+            deleted: number;
+        };
         /** @description Response for `DELETE /api/v1/triggers/:id`. */
         DeleteResponse: {
             /** @description Identifier of the deleted trigger. */
+            deleted: string;
+        };
+        /** @description Body of `DELETE /api/v1/llm/servers/{name}`. */
+        DeleteServerResponse: {
+            /** @description Name of the deleted server. */
             deleted: string;
         };
         /** @description Response for `GET /api/v1/notifications/events`. */
@@ -2833,6 +3130,14 @@ export interface components {
             cpu_model: string;
             /** Format: double */
             memory_budget_gb: number;
+            /**
+             * Format: double
+             * @description What a model can occupy on this machine, in GB rounded to the tenth:
+             *     the card plus the usable share of system memory on a discrete
+             *     accelerator, the memory budget otherwise. A model under it is one the
+             *     estimator does not call too large.
+             */
+            total_capacity_gb: number;
             /** Format: double */
             total_ram_gb: number;
         };
@@ -3041,6 +3346,11 @@ export interface components {
              */
             size_bytes: number;
         };
+        /**
+         * @description Where a model runs.
+         * @enum {string}
+         */
+        ModelSourceDto: "local" | "server";
         /** @description Response body for `GET /api/v1/stt/models`. */
         ModelsListResponse: {
             /** @description Available model files in `~/.apollia/models/`. */
@@ -3130,6 +3440,34 @@ export interface components {
             decision: string;
             /** @description Run identifier whose gate was resolved. */
             run_id: string;
+        };
+        /** @description One preset. */
+        PresetResponse: {
+            /**
+             * Format: int64
+             * @description Identifier.
+             */
+            id: number;
+            /** @description Whether this is the default preset of its model. */
+            is_model_default: boolean;
+            /** @description Load settings, applied over the automatic computation. */
+            load: Record<string, never>;
+            /** @description The model: a local registry identifier, or `<server>/<model>`. */
+            model_id: string;
+            /** @description Where the model runs. */
+            model_source: components["schemas"]["ModelSourceDto"];
+            /** @description Name, unique among the presets of the model. */
+            name: string;
+            /**
+             * @description Request settings: `temperature`, `max_tokens`, `stop`, `top_k`,
+             *     `top_p`, `min_p`, `repeat_penalty`, `presence_penalty`, `json_schema`.
+             */
+            request: Record<string, never>;
+        };
+        /** @description Body of `GET /api/v1/llm/presets`. */
+        PresetsListResponse: {
+            /** @description Presets, sorted by model then name. */
+            presets: components["schemas"]["PresetResponse"][];
         };
         /** @description Body of `PUT /api/v1/mcp/servers/:name/secrets/:key`. */
         PutMcpSecretBody: {
@@ -3249,9 +3587,85 @@ export interface components {
             /** @description Processing status. */
             status: string;
         };
+        /** @description One model of a declared server. */
+        ServerModel: {
+            /**
+             * @description Whether that window is shorter than the one an agent is expected to
+             *     have. Nothing is changed on the server: its administrator decides.
+             */
+            context_short: boolean;
+            /**
+             * Format: int32
+             * @description Context window the server serves the model with, in tokens, read on
+             *     the server (`/api/show` on Ollama, `max_model_len` on vLLM). Absent
+             *     when the server exposes none.
+             */
+            context_window?: number | null;
+            /** @description Identifier the server gives the model. */
+            id: string;
+            /** @description Name to address it by, `<server>/<model>`. */
+            route: string;
+        };
+        /** @description Body of `GET /api/v1/llm/servers/{name}/models`. */
+        ServerModelsResponse: {
+            /** @description Models the server offers, in its order. */
+            models: components["schemas"]["ServerModel"][];
+            /** @description Server name. */
+            server: string;
+        };
+        /** @description Body of a failed server call: a readable message and a stable kind. */
+        ServerProbeErrorResponse: {
+            /** @description Human-readable message. */
+            error: string;
+            /** @description `unreachable`, `key_refused` or `not_openai_compatible`. */
+            kind: string;
+        };
+        /** @description One declared server. The key is never part of it. */
+        ServerResponse: {
+            /** @description Environment variable holding the key, for a migrated `${VAR}` key. */
+            api_key_env?: string | null;
+            /** @description Base address. */
+            base_url: string;
+            /** @description Whether the server's models are routable. */
+            enabled: boolean;
+            /** @description Whether a key is held for this server. */
+            has_key: boolean;
+            /** @description Unique name, the first segment of `<server>/<model>`. */
+            name: string;
+        };
+        /** @description Body of `GET /api/v1/llm/servers`. */
+        ServersListResponse: {
+            /** @description Every declared server, sorted by name. */
+            servers: components["schemas"]["ServerResponse"][];
+        };
+        /** @description Body of `PUT /api/v1/llm/agents/{agent}/model`. */
+        SetAgentModelRequest: {
+            /**
+             * @description The model: a local registry identifier, or `<server>/<model>` of a
+             *     declared server.
+             */
+            model_id: string;
+            /** @description Where the model runs. */
+            model_source: components["schemas"]["ModelSourceDto"];
+            /**
+             * Format: int64
+             * @description A preset of that same model, or `null` for the model's default.
+             */
+            preset_id?: number | null;
+        };
         /** @description Request body for `PATCH /api/v1/mcp/servers/:name/approval`. */
         SetApprovalBody: {
             requires_approval: boolean;
+        };
+        /** @description Body of `PUT /api/v1/llm/default-model`. */
+        SetDefaultModelRequest: {
+            /**
+             * @description `local`: the name of a local engine backend. `server`: `<server>/<model>`
+             *     of a declared server, or the name of a server backend.
+             */
+            model_id: string;
+            /** @description Where the model runs. */
+            model_source: components["schemas"]["ModelSourceDto"];
         };
         /** @description Response body for `POST /api/v1/llm/backends/:name/set-default`. */
         SetDefaultResponse: {
@@ -3482,6 +3896,18 @@ export interface components {
         TestLiveRequest: {
             /** @description Read-only probe declared for this connector, when any. */
             probe?: Record<string, never> | null;
+        };
+        /** @description Body of `POST /api/v1/llm/servers/test`. */
+        TestServerRequest: {
+            /** @description Key, when the server asks for one. Used for this call only. */
+            api_key?: string | null;
+            /** @description Base address, with or without the trailing `/v1`. */
+            base_url: string;
+        };
+        /** @description Body of a successful `POST /api/v1/llm/servers/test`. */
+        TestServerResponse: {
+            /** @description Identifiers of the models the server offers, in its order. */
+            models: string[];
         };
         /**
          * @description A single event in a task's execution timeline.
@@ -3739,6 +4165,17 @@ export interface components {
             model: string;
             /** @description Provider identifier. */
             provider: string;
+        };
+        /** @description Body of `PUT /api/v1/llm/presets/{id}`. */
+        UpdatePresetRequest: {
+            /** @description Make it the default preset of its model (default: `false`). */
+            is_model_default?: boolean;
+            /** @description Load settings. Never a system prompt. */
+            load?: Record<string, never>;
+            /** @description Name, unique among the presets of the model. */
+            name: string;
+            /** @description Request settings. Unknown fields, a system prompt among them, are refused. */
+            request?: Record<string, never>;
         };
         /** @description Request body for `PUT /api/v1/triggers/:id`, trigger update. */
         UpdateTriggerRequest: {
@@ -4592,6 +5029,35 @@ export interface operations {
             };
         };
     };
+    list_connections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every connection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Connection"][];
+                };
+            };
+            /** @description A store could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_connector_accounts: {
         parameters: {
             query?: never;
@@ -4686,6 +5152,15 @@ export interface operations {
             };
             /** @description Empty or oversized state or code */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Refused by the connection admission */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4819,6 +5294,133 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_agent_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent name */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agent's model */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentModelResponse"];
+                };
+            };
+            /** @description No model assigned to this agent */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_agent_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent name */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAgentModelRequest"];
+            };
+        };
+        responses: {
+            /** @description Model assigned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentModelResponse"];
+                };
+            };
+            /** @description Preset not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Empty model, undeclared server, or a preset of another model */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    clear_agent_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent name */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Assignment removed, or there was none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearAgentModelResponse"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
             };
         };
     };
@@ -5299,6 +5901,95 @@ export interface operations {
             };
         };
     };
+    get_default_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The default model */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultModelResponse"];
+                };
+            };
+            /** @description No default model */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_default_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetDefaultModelRequest"];
+            };
+        };
+        responses: {
+            /** @description Default model set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DefaultModelResponse"];
+                };
+            };
+            /** @description Backend not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description A model of the wrong kind, or an undeclared server */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_hardware: {
         parameters: {
             query?: never;
@@ -5428,6 +6119,204 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PingResponse"];
+                };
+            };
+        };
+    };
+    list_llm_presets: {
+        parameters: {
+            query?: {
+                /** @description Only the presets of a model running here. */
+                model_source?: components["schemas"]["ModelSourceDto"];
+                /** @description Only the presets of this model. */
+                model_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Presets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetsListResponse"];
+                };
+            };
+            /** @description Only one of model_source and model_id given */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_llm_preset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePresetRequest"];
+            };
+        };
+        responses: {
+            /** @description Preset created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetResponse"];
+                };
+            };
+            /** @description The model already has a preset of that name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Empty name or model, or a system prompt among the settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_llm_preset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Preset identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePresetRequest"];
+            };
+        };
+        responses: {
+            /** @description Preset updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetResponse"];
+                };
+            };
+            /** @description Preset not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model already has a preset of that name */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Empty name, or a system prompt among the settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_llm_preset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Preset identifier */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Preset deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletePresetResponse"];
+                };
+            };
+            /** @description Preset not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };
@@ -5589,6 +6478,210 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_llm_servers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Declared servers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServersListResponse"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_llm_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateServerRequest"];
+            };
+        };
+        responses: {
+            /** @description Server saved */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerResponse"];
+                };
+            };
+            /** @description Invalid name or address */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Repository or secret store not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    test_llm_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestServerRequest"];
+            };
+        };
+        responses: {
+            /** @description The server answered with its models */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestServerResponse"];
+                };
+            };
+            /** @description The address is not an HTTP URL */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
+                };
+            };
+            /** @description Unreachable, key refused, or not an OpenAI-compatible server; `kind` says which */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_llm_server: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteServerResponse"];
+                };
+            };
+            /** @description Server not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Repository or secret store not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_llm_server_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The server's models */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerModelsResponse"];
+                };
+            };
+            /** @description Server not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
+                };
+            };
+            /** @description Unreachable, key refused, or not an OpenAI-compatible server; `kind` says which */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
+                };
+            };
+            /** @description Repository or key not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
                 };
             };
         };
@@ -5779,6 +6872,15 @@ export interface operations {
             };
             /** @description Invalid configuration or spawn failure */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Refused by the connection admission */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

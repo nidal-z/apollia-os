@@ -305,6 +305,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-oria/src/budget.rs": 5,
     "crates/apollia-oria/src/engine.rs": 10,
     "crates/apollia-oria/src/resilience.rs": 3,
+    # One helper, the transport is the subject: the routes call a declared
+    # inference server over HTTP, and the tests read what that server received
+    # (the `Authorization` header, the `model` of a completion). The fake
+    # server holds a port-0 bind for the whole test, never a port released.
+    "crates/apollia-runtime/src/api/routes_llm/servers.rs": 1,
     "crates/apollia-runtime/src/api/server.rs": 13,
     # The mailbox and the whole-bus event streams never end: each probe reads
     # its first frame under a deadline, which is what fails it rather than a

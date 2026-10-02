@@ -92,6 +92,10 @@ pub struct Variant {
     pub reasoning: Option<u32>,
     /// Where the two scores were read from.
     pub source: Option<String>,
+    /// MLX conversions of this size, full repository ids in preference order.
+    /// Empty when none exists.
+    #[serde(default)]
+    pub mlx_repos: Vec<String>,
 }
 
 /// One model generation.
@@ -114,8 +118,6 @@ pub struct Family {
     pub tool_calling: ToolCalling,
     /// SPDX identifier, or the publisher's own licence name.
     pub license: String,
-    /// The search string that finds this family's GGUF repositories.
-    pub hf_query: String,
     /// GGUF publishers in preference order, with `{model}` as the placeholder.
     #[serde(default)]
     pub repo_patterns: Vec<String>,
@@ -403,7 +405,6 @@ architectures = ["a"]
 supersedes = ["ghost"]
 tool_calling = "native"
 license = "mit"
-hf_query = "a"
 [[family.variant]]
 params_b = 7
 hf_name = "A-7B"
@@ -431,7 +432,6 @@ architectures = ["a"]
 supersedes = ["b"]
 tool_calling = "native"
 license = "mit"
-hf_query = "a"
 [[family.variant]]
 params_b = 7
 hf_name = "A-7B"
@@ -444,7 +444,6 @@ architectures = ["b"]
 supersedes = ["a"]
 tool_calling = "native"
 license = "mit"
-hf_query = "b"
 [[family.variant]]
 params_b = 7
 hf_name = "B-7B"
@@ -469,6 +468,7 @@ hf_name = "B-7B"
             agentic: Some(60),
             reasoning: Some(60),
             source: None,
+            mlx_repos: Vec::new(),
         };
 
         // WHEN both are weighted
