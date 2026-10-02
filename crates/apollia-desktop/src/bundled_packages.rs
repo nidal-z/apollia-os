@@ -42,6 +42,7 @@ const KNOWLEDGE_HEADING: &str = "Knowledge base:";
 
 /// Errors while assembling or installing a package the binary ships.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum BundledPackageError {
     /// The embedded manifest is invalid.
     #[error(transparent)]
