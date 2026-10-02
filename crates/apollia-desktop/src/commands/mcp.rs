@@ -4,18 +4,16 @@
 //! servers, and directly to [`McpRegistryClient`] and the configured
 //! [`apollia_auth::SecretStore`] for registry discovery and secret management.
 
+use crate::attached::RuntimeLink;
 use apollia_auth::SecretStore;
 use apollia_mcp::config::{McpServerConfig, MCP_STATIC_SECRET_SERVICE};
 use apollia_mcp::manager::{
     McpConnectionTestResult, McpResourceSummary, McpServerDetail, McpServerStatus, ProbeSpec,
 };
-use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::mcp::python_server::{self, PythonServerInstaller};
-
-use super::{http_delete_json, http_get_json, http_patch_json, http_post_json, http_put_json};
 
 /// The catalogue shapes live in `catalog`, the two registry fetches in
 /// `discovery`, and the HTTP OAuth path in `oauth`.
@@ -29,9 +27,9 @@ pub mod oauth;
 /// Returns an empty list when no MCP servers are configured.
 #[tauri::command]
 pub async fn list_mcp_servers(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
 ) -> Result<Vec<McpServerStatus>, String> {
-    let json = http_get_json(state.api_port, "/api/v1/mcp/servers").await?;
+    let json = state.get_json("/api/v1/mcp/servers").await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse server list: {e}"))
 }
 
@@ -42,9 +40,9 @@ pub async fn list_mcp_servers(
 /// MCP server is connected.
 #[tauri::command]
 pub async fn list_mcp_resources(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
 ) -> Result<Vec<McpResourceSummary>, String> {
-    let json = http_get_json(state.api_port, "/api/v1/mcp/resources").await?;
+    let json = state.get_json("/api/v1/mcp/resources").await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse resource list: {e}"))
 }
 
@@ -54,11 +52,11 @@ pub async fn list_mcp_resources(
 /// Returns an error when the server is not found or MCP is not configured.
 #[tauri::command]
 pub async fn get_mcp_server_detail(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     name: String,
 ) -> Result<McpServerDetail, String> {
     let path = format!("/api/v1/mcp/servers/{name}");
-    let json = http_get_json(state.api_port, &path).await?;
+    let json = state.get_json(&path).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse server detail: {e}"))
 }
 
@@ -71,13 +69,13 @@ pub async fn get_mcp_server_detail(
 /// own virtualenv, and the persisted command names that venv's entry point.
 #[tauri::command]
 pub async fn add_mcp_server(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     config: McpServerConfig,
 ) -> Result<McpServerStatus, String> {
     let config = install_python_server(config).await?;
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
-    let json = http_post_json(state.api_port, "/api/v1/mcp/servers", &body).await?;
+    let json = state.post_json("/api/v1/mcp/servers", &body).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
@@ -93,12 +91,9 @@ pub async fn add_mcp_server(
 /// orphan keychain entry is preferable to blocking the user from removing
 /// a server they no longer want.
 #[tauri::command]
-pub async fn remove_mcp_server(
-    state: State<'_, RuntimeHandle>,
-    name: String,
-) -> Result<(), String> {
+pub async fn remove_mcp_server(state: State<'_, RuntimeLink>, name: String) -> Result<(), String> {
     let path = format!("/api/v1/mcp/servers/{name}");
-    http_delete_json(state.api_port, &path).await.map(|_| ())?;
+    state.delete_json(&path).await.map(|_| ())?;
 
     // The connection's own directory (a Python server's venv) goes with it.
     if let Err(e) = python_server::remove_connection_dir(&python_server::connections_dir(), &name) {
@@ -133,11 +128,11 @@ pub async fn remove_mcp_server(
 /// the current command/args/env (placeholders, never resolved secrets).
 #[tauri::command]
 pub async fn get_mcp_server_raw_config(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     name: String,
 ) -> Result<McpServerConfig, String> {
     let path = format!("/api/v1/mcp/servers/{name}/raw_config");
-    let json = http_get_json(state.api_port, &path).await?;
+    let json = state.get_json(&path).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse server config: {e}"))
 }
 
@@ -154,7 +149,7 @@ pub async fn get_mcp_server_raw_config(
 /// The `config.name` field must equal `name`; the runtime rejects mismatches.
 #[tauri::command]
 pub async fn update_mcp_server_config(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     name: String,
     config: McpServerConfig,
 ) -> Result<McpServerStatus, String> {
@@ -162,7 +157,7 @@ pub async fn update_mcp_server_config(
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
     let path = format!("/api/v1/mcp/servers/{name}/config");
-    let json = http_put_json(state.api_port, &path, &body).await?;
+    let json = state.put_json(&path, &body).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
@@ -197,13 +192,13 @@ pub enum McpConnectionTestResponse {
 /// MCP HTTP OAuth flow should be driven via [`mcp_oauth_login`].
 #[tauri::command]
 pub async fn test_mcp_connection(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     config: McpServerConfig,
 ) -> Result<McpConnectionTestResponse, String> {
     let config = install_python_server(config).await?;
     let body =
         serde_json::to_value(&config).map_err(|e| format!("failed to serialize config: {e}"))?;
-    let json = http_post_json(state.api_port, "/api/v1/mcp/servers/test", &body).await?;
+    let json = state.post_json("/api/v1/mcp/servers/test", &body).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse test result: {e}"))
 }
 
@@ -232,9 +227,9 @@ async fn install_python_server(config: McpServerConfig) -> Result<McpServerConfi
 /// grant/workspace issues only surface on a real call). Returns `None` when the
 /// server has no matching enrichment or no declared `health_probe`, in which
 /// case the Test reports reachability only.
-async fn resolve_health_probe(api_port: u16, name: &str) -> Option<ProbeSpec> {
+async fn resolve_health_probe(link: &RuntimeLink, name: &str) -> Option<ProbeSpec> {
     let path = format!("/api/v1/mcp/servers/{name}/raw_config");
-    let json = http_get_json(api_port, &path).await.ok()?;
+    let json = link.get_json(&path).await.ok()?;
     let config: McpServerConfig = serde_json::from_value(json).ok()?;
     let enrichments = crate::mcp::enrichments::load_builtin_enrichments();
     let enrichment = enrichments
@@ -256,13 +251,13 @@ async fn resolve_health_probe(api_port: u16, name: &str) -> Option<ProbeSpec> {
 /// "reachable" apart from "actually working".
 #[tauri::command]
 pub async fn test_mcp_live_server(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     name: String,
 ) -> Result<McpConnectionTestResponse, String> {
-    let probe = resolve_health_probe(state.api_port, &name).await;
+    let probe = resolve_health_probe(&state, &name).await;
     let path = format!("/api/v1/mcp/servers/{name}/test");
     let body = serde_json::json!({ "probe": probe });
-    let json = http_post_json(state.api_port, &path, &body).await?;
+    let json = state.post_json(&path, &body).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse test result: {e}"))
 }
 
@@ -273,11 +268,11 @@ pub async fn test_mcp_live_server(
 /// configuration.
 #[tauri::command]
 pub async fn restart_mcp_server(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     name: String,
 ) -> Result<McpServerStatus, String> {
     let path = format!("/api/v1/mcp/servers/{name}/restart");
-    let json = http_post_json(state.api_port, &path, &serde_json::json!({})).await?;
+    let json = state.post_json(&path, &serde_json::json!({})).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 
@@ -303,13 +298,13 @@ pub async fn store_mcp_secret(
 /// Returns the updated server status.
 #[tauri::command]
 pub async fn set_mcp_server_approval(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     name: String,
     requires_approval: bool,
 ) -> Result<McpServerStatus, String> {
     let body = serde_json::json!({ "requires_approval": requires_approval });
     let path = format!("/api/v1/mcp/servers/{name}/approval");
-    let json = http_patch_json(state.api_port, &path, &body).await?;
+    let json = state.patch_json(&path, &body).await?;
     serde_json::from_value(json).map_err(|e| format!("failed to parse server status: {e}"))
 }
 

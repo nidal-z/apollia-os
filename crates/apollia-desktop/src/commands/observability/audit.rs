@@ -1,6 +1,7 @@
 //! The audit tab: the tool invocations recorded in the journal, the daily LLM
 //! cost breakdown, the journal's own integrity check, and the hooks in force.
 
+use crate::attached::RuntimeLink;
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -140,12 +141,12 @@ pub struct LlmDailyCostsResponse {
 /// Delegates to `GET /api/v1/llm/costs/daily?days=N`.
 #[tauri::command]
 pub async fn get_llm_daily_costs(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     days: Option<u32>,
 ) -> Result<LlmDailyCostsResponse, String> {
     let d = days.unwrap_or(7);
     let path = format!("/api/v1/llm/costs/daily?days={d}");
-    let json = http_get_json(state.api_port, &path).await;
+    let json = state.get_json(&path).await;
 
     match json {
         Ok(resp) => {
@@ -188,8 +189,8 @@ pub async fn get_llm_daily_costs(
 /// Calls `GET /api/v1/audit/stats` and returns the raw JSON to avoid
 /// duplicating the data structure on the Tauri side.
 #[tauri::command]
-pub async fn get_audit_stats(state: State<'_, RuntimeHandle>) -> Result<serde_json::Value, String> {
-    http_get_json(state.api_port, "/api/v1/audit/stats").await
+pub async fn get_audit_stats(state: State<'_, RuntimeLink>) -> Result<serde_json::Value, String> {
+    state.get_json("/api/v1/audit/stats").await
 }
 
 // ---------------------------------------------------------------------------
@@ -220,11 +221,11 @@ pub struct AuditVerifyResult {
 /// than a silent "ok" verdict.
 #[tauri::command]
 pub async fn verify_audit_run(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     run_id: String,
 ) -> Result<AuditVerifyResult, String> {
     let path = format!("/api/v1/audit/verify/{run_id}");
-    let json = http_get_json(state.api_port, &path).await?;
+    let json = state.get_json(&path).await?;
 
     let ok = json.get("ok").and_then(|v| v.as_bool()).unwrap_or(false);
     let broken_at = json
@@ -263,10 +264,8 @@ pub async fn verify_audit_run(
 /// summaries (`{ id, type, events, timeout_ms, target }`) for the Builder hooks
 /// view. An empty array is a valid configuration, surfaced as a clean state.
 #[tauri::command]
-pub async fn get_active_hooks(
-    state: State<'_, RuntimeHandle>,
-) -> Result<serde_json::Value, String> {
-    http_get_json(state.api_port, "/api/v1/hooks").await
+pub async fn get_active_hooks(state: State<'_, RuntimeLink>) -> Result<serde_json::Value, String> {
+    state.get_json("/api/v1/hooks").await
 }
 
 #[cfg(test)]

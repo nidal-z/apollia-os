@@ -1,11 +1,9 @@
 //! The ORIA plan cache as the observability view reads it: its statistics, and
 //! the command that empties it.
 
-use apollia_runtime::embedded::RuntimeHandle;
+use crate::attached::RuntimeLink;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-
-use crate::commands::{http_get_json, http_post_json};
 
 // ---------------------------------------------------------------------------
 // Plan Cache Stats
@@ -41,14 +39,15 @@ pub struct ClearCacheResult {
 /// Delegates to `GET /api/v1/plan-cache/stats`.
 #[tauri::command]
 pub async fn get_plan_cache_stats(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
 ) -> Result<PlanCacheStatsView, String> {
-    get_plan_cache_stats_inner(state.api_port).await
+    get_plan_cache_stats_inner(&state).await
 }
 
 /// Inner logic for `get_plan_cache_stats`, testable without Tauri State.
-async fn get_plan_cache_stats_inner(port: u16) -> Result<PlanCacheStatsView, String> {
-    let json = http_get_json(port, "/api/v1/plan-cache/stats")
+async fn get_plan_cache_stats_inner(link: &RuntimeLink) -> Result<PlanCacheStatsView, String> {
+    let json = link
+        .get_json("/api/v1/plan-cache/stats")
         .await
         .map_err(|e| format!("get_plan_cache_stats: {e}"))?;
 
@@ -78,13 +77,14 @@ async fn get_plan_cache_stats_inner(port: u16) -> Result<PlanCacheStatsView, Str
 ///
 /// Delegates to `POST /api/v1/plan-cache/clear`.
 #[tauri::command]
-pub async fn clear_plan_cache(state: State<'_, RuntimeHandle>) -> Result<ClearCacheResult, String> {
-    clear_plan_cache_inner(state.api_port).await
+pub async fn clear_plan_cache(state: State<'_, RuntimeLink>) -> Result<ClearCacheResult, String> {
+    clear_plan_cache_inner(&state).await
 }
 
 /// Inner logic for `clear_plan_cache`, testable without Tauri State.
-async fn clear_plan_cache_inner(port: u16) -> Result<ClearCacheResult, String> {
-    let json = http_post_json(port, "/api/v1/plan-cache/clear", &serde_json::json!({}))
+async fn clear_plan_cache_inner(link: &RuntimeLink) -> Result<ClearCacheResult, String> {
+    let json = link
+        .post_json("/api/v1/plan-cache/clear", &serde_json::json!({}))
         .await
         .map_err(|e| format!("clear_plan_cache: {e}"))?;
 

@@ -5,11 +5,9 @@
 //! (`serde_json::Value`) to avoid duplicating the Rust types already defined in
 //! `apollia-triggers`.
 
-use apollia_runtime::embedded::RuntimeHandle;
+use crate::attached::RuntimeLink;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-
-use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 
 /// Trigger status for display in the UI.
 #[derive(Debug, Serialize)]
@@ -62,8 +60,8 @@ pub struct FireResult {
 ///
 /// Delegates to `GET /api/v1/triggers` on the internal REST API.
 #[tauri::command]
-pub async fn list_triggers(state: State<'_, RuntimeHandle>) -> Result<Vec<TriggerStatus>, String> {
-    let json = http_get_json(state.api_port, "/api/v1/triggers").await?;
+pub async fn list_triggers(state: State<'_, RuntimeLink>) -> Result<Vec<TriggerStatus>, String> {
+    let json = state.get_json("/api/v1/triggers").await?;
 
     let triggers = json
         .get("triggers")
@@ -112,14 +110,14 @@ pub async fn list_triggers(state: State<'_, RuntimeHandle>) -> Result<Vec<Trigge
 /// Delegates to `POST /api/v1/triggers/:id/enable` or `POST /api/v1/triggers/:id/disable`.
 #[tauri::command]
 pub async fn set_trigger_enabled(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     id: String,
     enabled: bool,
 ) -> Result<(), String> {
     let action = if enabled { "enable" } else { "disable" };
     let path = format!("/api/v1/triggers/{id}/{action}");
     let body = serde_json::json!({});
-    http_post_json(state.api_port, &path, &body).await?;
+    state.post_json(&path, &body).await?;
     Ok(())
 }
 
@@ -127,17 +125,11 @@ pub async fn set_trigger_enabled(
 ///
 /// Delegates to `POST /api/v1/triggers/:id/fire`.
 #[tauri::command]
-pub async fn fire_trigger(
-    state: State<'_, RuntimeHandle>,
-    id: String,
-) -> Result<FireResult, String> {
+pub async fn fire_trigger(state: State<'_, RuntimeLink>, id: String) -> Result<FireResult, String> {
     let body = serde_json::json!({});
-    let json = http_post_json(
-        state.api_port,
-        &format!("/api/v1/triggers/{id}/fire"),
-        &body,
-    )
-    .await?;
+    let json = state
+        .post_json(&format!("/api/v1/triggers/{id}/fire"), &body)
+        .await?;
 
     let task_id = json
         .get("task_id")
@@ -153,13 +145,13 @@ pub async fn fire_trigger(
 /// Delegates to `GET /api/v1/triggers/:id/logs?last=N`.
 #[tauri::command]
 pub async fn get_trigger_logs(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     id: String,
     limit: Option<u32>,
 ) -> Result<Vec<TriggerLogEntry>, String> {
     let l = limit.unwrap_or(20);
     let path = format!("/api/v1/triggers/{id}/logs?last={l}");
-    let json = http_get_json(state.api_port, &path).await?;
+    let json = state.get_json(&path).await?;
 
     let entries = json
         .get("entries")
@@ -328,8 +320,8 @@ fn needs_stored_secret(body: &serde_json::Value) -> bool {
 }
 
 /// Reads the secret currently stored for `id`, `None` when there is none.
-async fn fetch_stored_secret(api_port: u16, id: &str) -> Result<Option<String>, String> {
-    let json = http_get_json(api_port, &format!("/api/v1/triggers/{id}")).await?;
+async fn fetch_stored_secret(link: &RuntimeLink, id: &str) -> Result<Option<String>, String> {
+    let json = link.get_json(&format!("/api/v1/triggers/{id}")).await?;
     Ok(json
         .pointer("/source_config/secret")
         .and_then(|v| v.as_str())
@@ -402,12 +394,12 @@ fn parse_trigger_definition(json: &serde_json::Value) -> TriggerDefinitionView {
 /// Delegates to `POST /api/v1/triggers`.
 #[tauri::command]
 pub async fn create_trigger(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     definition: CreateTriggerRequest,
 ) -> Result<TriggerDefinitionView, String> {
     let body = serde_json::to_value(&definition)
         .map_err(|e| format!("failed to serialize request: {e}"))?;
-    let json = http_post_json(state.api_port, "/api/v1/triggers", &body).await?;
+    let json = state.post_json("/api/v1/triggers", &body).await?;
     Ok(parse_trigger_definition(&json))
 }
 
@@ -420,7 +412,7 @@ pub async fn create_trigger(
 /// the payload, which keeps it inside the host process.
 #[tauri::command]
 pub async fn update_trigger(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     id: String,
     definition: UpdateTriggerRequest,
 ) -> Result<TriggerDefinitionView, String> {
@@ -428,14 +420,14 @@ pub async fn update_trigger(
         .map_err(|e| format!("failed to serialize request: {e}"))?;
 
     if needs_stored_secret(&body) {
-        if let Some(secret) = fetch_stored_secret(state.api_port, &id).await? {
+        if let Some(secret) = fetch_stored_secret(&state, &id).await? {
             inject_secret(&mut body, secret);
             tracing::debug!(trigger_id = %id, "triggers.update.secret_preserved");
         }
     }
 
     let path = format!("/api/v1/triggers/{id}");
-    let json = http_put_json(state.api_port, &path, &body).await?;
+    let json = state.put_json(&path, &body).await?;
     Ok(parse_trigger_definition(&json))
 }
 
@@ -445,11 +437,11 @@ pub async fn update_trigger(
 /// stripped from the response, `has_secret` reports its presence instead.
 #[tauri::command]
 pub async fn get_trigger_definition(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     id: String,
 ) -> Result<TriggerDefinitionView, String> {
     let path = format!("/api/v1/triggers/{id}");
-    let json = http_get_json(state.api_port, &path).await?;
+    let json = state.get_json(&path).await?;
     Ok(parse_trigger_definition(&json))
 }
 
@@ -457,9 +449,9 @@ pub async fn get_trigger_definition(
 ///
 /// Delegates to `DELETE /api/v1/triggers/:id`.
 #[tauri::command]
-pub async fn delete_trigger(state: State<'_, RuntimeHandle>, id: String) -> Result<(), String> {
+pub async fn delete_trigger(state: State<'_, RuntimeLink>, id: String) -> Result<(), String> {
     let path = format!("/api/v1/triggers/{id}");
-    http_delete_json(state.api_port, &path).await?;
+    state.delete_json(&path).await?;
     Ok(())
 }
 

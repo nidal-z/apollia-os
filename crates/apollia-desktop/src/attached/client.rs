@@ -139,6 +139,26 @@ impl AttachedClient {
             .await
     }
 
+    /// `PUT path` with a JSON body, its JSON answer read as `T`.
+    pub(crate) async fn put<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &impl serde::Serialize,
+    ) -> Result<T, AttachedError> {
+        self.send_json(self.http.put(self.url(path)).json(body))
+            .await
+    }
+
+    /// `PATCH path` with a JSON body, its JSON answer read as `T`.
+    pub(crate) async fn patch<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &impl serde::Serialize,
+    ) -> Result<T, AttachedError> {
+        self.send_json(self.http.patch(self.url(path)).json(body))
+            .await
+    }
+
     /// `DELETE path`, its JSON answer read as `T`.
     pub(crate) async fn delete<T: DeserializeOwned>(&self, path: &str) -> Result<T, AttachedError> {
         self.send_json(self.http.delete(self.url(path))).await

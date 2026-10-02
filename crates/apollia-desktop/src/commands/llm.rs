@@ -7,13 +7,14 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+use crate::attached::RuntimeLink;
 use apollia_core::LlmBackendRepository;
 use apollia_llm::LlmRouter;
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
+use super::{http_get_json, http_post_json};
 use crate::SharedLlmRouter;
 
 /// Snapshot of the most recent ping result for a single backend.
@@ -174,7 +175,7 @@ pub async fn list_llm_backends(
 /// Delegates to `POST /api/v1/llm/backends`.
 #[tauri::command]
 pub async fn create_llm_backend(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     payload: CreateLlmBackendPayload,
 ) -> Result<LlmBackendView, String> {
     let body = serde_json::json!({
@@ -186,7 +187,7 @@ pub async fn create_llm_backend(
         "is_default": payload.is_default,
     });
 
-    let json = http_post_json(state.api_port, "/api/v1/llm/backends", &body).await?;
+    let json = state.post_json("/api/v1/llm/backends", &body).await?;
     parse_backend_view(json)
 }
 
@@ -195,7 +196,7 @@ pub async fn create_llm_backend(
 /// Delegates to `PUT /api/v1/llm/backends/:name`.
 #[tauri::command]
 pub async fn update_llm_backend(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     name: String,
     payload: UpdateLlmBackendPayload,
 ) -> Result<LlmBackendView, String> {
@@ -208,7 +209,7 @@ pub async fn update_llm_backend(
         "is_default": payload.is_default,
     });
 
-    let json = http_put_json(state.api_port, &path, &body).await?;
+    let json = state.put_json(&path, &body).await?;
     parse_backend_view(json)
 }
 
@@ -217,12 +218,9 @@ pub async fn update_llm_backend(
 /// Delegates to `DELETE /api/v1/llm/backends/:name`.
 /// Returns a 409 error if the backend is the default backend.
 #[tauri::command]
-pub async fn delete_llm_backend(
-    state: State<'_, RuntimeHandle>,
-    name: String,
-) -> Result<(), String> {
+pub async fn delete_llm_backend(state: State<'_, RuntimeLink>, name: String) -> Result<(), String> {
     let path = format!("/api/v1/llm/backends/{name}");
-    http_delete_json(state.api_port, &path).await?;
+    state.delete_json(&path).await?;
     Ok(())
 }
 
@@ -231,12 +229,12 @@ pub async fn delete_llm_backend(
 /// Delegates to `POST /api/v1/llm/backends/:name/set-default`.
 #[tauri::command]
 pub async fn set_default_llm_backend(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     name: String,
 ) -> Result<(), String> {
     let path = format!("/api/v1/llm/backends/{name}/set-default");
     let body = serde_json::json!({});
-    http_post_json(state.api_port, &path, &body).await?;
+    state.post_json(&path, &body).await?;
     Ok(())
 }
 
@@ -309,12 +307,12 @@ pub async fn get_cost_alert_threshold(
 /// Delegates to `GET /api/v1/llm/costs?days=N`.
 #[tauri::command]
 pub async fn get_llm_cost_stats(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     days: Option<u32>,
 ) -> Result<CostStatsResponse, String> {
     let d = days.unwrap_or(7);
     let path = format!("/api/v1/llm/costs?days={d}");
-    let json = http_get_json(state.api_port, &path).await;
+    let json = state.get_json(&path).await;
 
     match json {
         Ok(resp) => {

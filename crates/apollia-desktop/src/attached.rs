@@ -14,6 +14,7 @@
 //! registered command.
 
 mod client;
+mod proxy;
 mod relay;
 
 use apollia_core::EventBusSender;
@@ -54,6 +55,61 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_pending_user_inputs",
     "respond_user_input",
     "respond_user_input_rejected",
+    // Commands whose whole body is a call to a runtime route, served through
+    // the methods of `proxy.rs` in both modes.
+    // Models: the inference servers, the loaded models, the costs.
+    "create_llm_backend",
+    "delete_llm_backend",
+    "get_llm_cost_stats",
+    "list_loaded_models",
+    "set_default_llm_backend",
+    "unload_loaded_model",
+    "update_llm_backend",
+    // MCP servers and the curated catalogue.
+    "add_mcp_server",
+    "fetch_mcp_curated",
+    "get_mcp_server_detail",
+    "get_mcp_server_raw_config",
+    "list_mcp_resources",
+    "list_mcp_servers",
+    "remove_mcp_server",
+    "restart_mcp_server",
+    "set_mcp_server_approval",
+    "test_mcp_connection",
+    "test_mcp_live_server",
+    "update_mcp_server_config",
+    // Connections.
+    "list_connections",
+    // Notifications and the activity feed.
+    "create_notification_channel",
+    "delete_notification_channel",
+    "get_notification_events",
+    "get_notification_logs",
+    "list_notification_channels",
+    "list_runtime_activity",
+    "set_notification_events",
+    "test_notification_channel",
+    "update_notification_channel",
+    // Triggers.
+    "create_trigger",
+    "delete_trigger",
+    "fire_trigger",
+    "get_trigger_definition",
+    "get_trigger_logs",
+    "list_triggers",
+    "set_trigger_enabled",
+    "update_trigger",
+    // Tools, observability, traces and messages between agents.
+    "clear_plan_cache",
+    "describe_tool",
+    "get_active_hooks",
+    "get_audit_stats",
+    "get_llm_daily_costs",
+    "get_plan_cache_stats",
+    "get_task_trace",
+    "list_agent_messages",
+    "list_tools",
+    "verify_audit_run",
 ];
 
 /// Encodes one path segment of a daemon route.

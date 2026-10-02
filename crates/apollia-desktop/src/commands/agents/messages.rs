@@ -1,11 +1,9 @@
 //! The mailbox view of the desktop: the messages one agent received from
 //! another, capped so a runaway exchange cannot fill the window.
 
-use apollia_runtime::embedded::RuntimeHandle;
+use crate::attached::RuntimeLink;
 use serde::Serialize;
 use tauri::State;
-
-use crate::commands::http_get_json;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Agent messages
@@ -35,16 +33,16 @@ const DEFAULT_MESSAGE_LIMIT: u32 = 50;
 /// applies. Delegates to `GET /api/v1/agents/{name}/messages`.
 #[tauri::command]
 pub async fn list_agent_messages(
-    runtime: State<'_, RuntimeHandle>,
+    runtime: State<'_, RuntimeLink>,
     agent_name: String,
     limit: u32,
 ) -> Result<Vec<AgentMessageView>, String> {
-    list_agent_messages_inner(runtime.api_port, &agent_name, limit).await
+    list_agent_messages_inner(&runtime, &agent_name, limit).await
 }
 
 /// Inner logic for `list_agent_messages`, testable without Tauri State.
 async fn list_agent_messages_inner(
-    port: u16,
+    link: &RuntimeLink,
     agent_name: &str,
     limit: u32,
 ) -> Result<Vec<AgentMessageView>, String> {
@@ -57,7 +55,7 @@ async fn list_agent_messages_inner(
     };
 
     let path = format!("/api/v1/agents/{agent_name}/messages?limit={effective}");
-    match http_get_json(port, &path).await {
+    match link.get_json(&path).await {
         Ok(json) => {
             let messages = json
                 .get("messages")
