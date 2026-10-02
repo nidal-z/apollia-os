@@ -65,6 +65,9 @@ def test_all_is_exactly_the_published_surface() -> None:
         "skill",
         "on_message",
         "orchestrated",
+        "tool",
+        "workflow",
+        "WorkflowCtx",
         # ReAct utility
         "react",
         # Exceptions
@@ -186,6 +189,7 @@ def test_public_submodules_are_exact_snapshots() -> None:
         "apollia.types": {
             "A2AInterface",
             "AIPResult",
+            "AgentsInterface",
             "BudgetView",
             "Ctx",
             "DatasourcesInterface",
@@ -209,6 +213,7 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "TemplatesInterface",
             "TextContent",
             "ToolProxy",
+            "WorkflowsInterface",
             "WorkspaceContext",
             "image_from_bytes",
             "image_from_path",
@@ -217,6 +222,7 @@ def test_public_submodules_are_exact_snapshots() -> None:
         },
         "apollia.testing": {
             "MockA2A",
+            "MockAgents",
             "MockBudget",
             "MockContext",
             "MockDatasources",
@@ -230,6 +236,7 @@ def test_public_submodules_are_exact_snapshots() -> None:
             "MockStt",
             "MockTemplates",
             "MockToolProxy",
+            "MockWorkflows",
             "MockWorkspace",
             "assert_emitted_thought",
             "assert_emitted_token",
@@ -276,11 +283,12 @@ def test_public_submodules_are_exact_snapshots() -> None:
             f"{module_name}: added {sorted(published - names)}, removed {sorted(names - published)}"
         )
 
-    # AND the per-service context modules are exactly the fifteen services
+    # AND the per-service context modules are exactly the seventeen services
     context = importlib.import_module("apollia.context")
     submodules = {info.name for info in pkgutil.iter_modules(context.__path__)}
     assert submodules == {
         "a2a",
+        "agents",
         "budget",
         "datasources",
         "events",
@@ -294,5 +302,6 @@ def test_public_submodules_are_exact_snapshots() -> None:
         "stt",
         "templates",
         "tools",
+        "workflows",
         "workspace",
     }

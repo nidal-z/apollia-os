@@ -2,7 +2,7 @@
 
 > **Apollia AgentKit v0.2.0-preview** - Python toolkit for building agents that run on [Apollia OS](https://github.com/Apollia-OS/apollia-os), the Rust runtime for sovereign, local-first AI agent execution.
 
-The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` - a typed runtime context exposing **15 backend services** (LLM, memory, tools, A2A, mail, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
+The SDK is **decorator-first**: an agent is a Python class decorated with `@agent`, with methods marked `@skill`, `@on_message`, or `@orchestrated`. The runtime introspects the class, generates the manifest from your code, validates payloads from your function signatures, and wires `ctx` - a typed runtime context exposing **17 backend services** (LLM, memory, tools, A2A, agents, workflows, mail, datasources, templates, secrets, events, logger, profile, workspace, STT, notify, budget).
 
 **Design philosophy** :
 - Signature **is** the schema (type hints → JSON Schema → runtime validation)
@@ -345,6 +345,10 @@ async def test_read_text_missing_file():
 python -m apollia inspect agents/examples/hello/agent.py
 python -m apollia inspect agents/examples/hello/agent.py --json
 
+# Write the [[tools]] and [[workflows]] of a package's apollia.toml
+# from its @tool and @workflow functions
+python -m apollia describe path/to/package
+
 # Scaffold a new agent
 python -m apollia new my-agent --type worker
 ```
@@ -365,18 +369,20 @@ sdk/
 ├── pyproject.toml
 ├── README.md          (this file)
 └── apollia/
-    ├── __init__.py    # public API : agent, skill, on_message, orchestrated, react, errors
+    ├── __init__.py    # public API : agent, skill, on_message, orchestrated, tool, workflow, react, errors
     ├── agent.py       # @agent decorator
     ├── skills.py      # @skill decorator
+    ├── tool_decorator.py      # @tool decorator
+    ├── workflow_decorator.py  # @workflow decorator and ctx.step
     ├── messages.py    # @on_message decorator
     ├── orchestration.py  # @orchestrated decorator
     ├── react.py       # apollia.react(ctx, ...) utility
     ├── errors.py      # DomainError, NeedHumanInput, PayloadError, ...
     ├── types.py       # Ctx Protocol, vision types, helpers
-    ├── context/       # 15 Protocol surfaces (llm, memory, tools, a2a, mail, ...)
+    ├── context/       # 17 Protocol surfaces (llm, memory, tools, a2a, agents, workflows, mail, ...)
     ├── _internal/     # dispatch, inference, manifest, aip_result, logger_bridge
     ├── testing/       # mock(), MockContext, assertions
-    ├── cli/           # apollia inspect, apollia new
+    ├── cli/           # apollia inspect, apollia new, apollia describe
     └── utils/         # parsing, formatting, assertion helpers (legacy compat)
 ```
 

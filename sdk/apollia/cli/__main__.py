@@ -1,6 +1,6 @@
 """Entry point for ``python -m apollia`` and the ``apollia`` console script.
 
-This dispatcher wires every sub-command (``new``, ``inspect``, …) onto a
+This dispatcher wires every sub-command (``new``, ``inspect``, ``describe``) onto a
 single :class:`argparse.ArgumentParser`. Each sub-command lives in its
 own module and registers itself via ``build_parser``.
 """
@@ -11,6 +11,7 @@ import argparse
 import sys
 from typing import TYPE_CHECKING
 
+from apollia.cli import describe as describe_cmd
 from apollia.cli import inspect as inspect_cmd
 from apollia.cli.scaffold import VALID_AGENT_TYPES, _handle_new
 
@@ -56,6 +57,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # `apollia inspect` - read-only manifest inspection.
     inspect_cmd.build_parser(subparsers)
+
+    # `apollia describe` - write the tool and workflow descriptors of a package.
+    describe_cmd.build_parser(subparsers)
 
     return parser
 
