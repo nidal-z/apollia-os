@@ -11,6 +11,7 @@ use pyo3::prelude::*;
 use tokio::sync::{mpsc, Mutex as AsyncMutex};
 
 use apollia_core::events::EventBusSender;
+use apollia_llm::request_defaults::RequestDefaults;
 use apollia_llm::types::{ChatMessage, CompletionRequest, LlmError, StreamChunk};
 use apollia_llm::{router::ObservabilityConfig, LlmRouter};
 
@@ -68,6 +69,7 @@ pub(super) struct StreamForward {
     pub(super) temperature: Option<f32>,
     pub(super) max_tokens: Option<u32>,
     pub(super) seed: Option<u64>,
+    pub(super) defaults: RequestDefaults,
     pub(super) tx: mpsc::Sender<Result<String, LlmError>>,
 }
 /// Streams chunks from the resolved backend and forwards each one onto `tx`.
@@ -85,6 +87,7 @@ pub(super) async fn forward_stream(f: StreamForward) {
         temperature,
         max_tokens,
         seed,
+        defaults,
         tx,
     } = f;
     let backend_key = backend.as_deref();
@@ -98,13 +101,14 @@ pub(super) async fn forward_stream(f: StreamForward) {
         return;
     };
 
-    let req = CompletionRequest {
+    let mut req = CompletionRequest {
         messages: chat_messages.clone(),
         temperature,
         max_tokens,
         seed,
         ..Default::default()
     };
+    defaults.apply_to(&mut req);
     match model.stream(req).await {
         Ok(mut stream) => {
             while let Some(chunk) = stream.next().await {
@@ -137,13 +141,14 @@ pub(super) async fn forward_stream(f: StreamForward) {
         // Fallback: backend does not support stream(),
         // so call complete() and forward as a single chunk.
         Err(_) => {
-            let fallback_req = CompletionRequest {
+            let mut fallback_req = CompletionRequest {
                 messages: chat_messages,
                 temperature,
                 max_tokens,
                 seed,
                 ..Default::default()
             };
+            defaults.apply_to(&mut fallback_req);
             match router
                 .complete_with_observability(backend_key, fallback_req, bus.as_ref(), &obs)
                 .await

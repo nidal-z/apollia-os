@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use apollia_aip::bridge::AIPBridge;
 use apollia_core::{AgentManifest, PendingApprovals, StepBudgetConfig, ToolsConfig};
-use apollia_llm::LlmRouter;
+use apollia_llm::{AgentModelBinding, LlmRouter};
 use apollia_oria::budget::StepBudget;
 use apollia_oria::engine::ORIAEngine;
 use apollia_oria::plan_cache::PlanCacheRepository;
@@ -193,9 +193,11 @@ pub(super) fn direct_path_budget(agent_budget: &StepBudgetConfig) -> StepBudget 
 pub(super) fn wire_engine_with_llm(
     mut engine: ORIAEngine,
     llm_router: Option<Arc<LlmRouter>>,
-    agent_id: &str,
+    agent_model: &AgentModelBinding,
+    event_bus: Option<&EventBusSender>,
     max_steps: u32,
 ) -> ORIAEngine {
+    let agent_id = agent_model.agent();
     let Some(router_arc) = llm_router else {
         tracing::warn!(
             agent = %agent_id,
@@ -204,11 +206,15 @@ pub(super) fn wire_engine_with_llm(
         );
         return engine;
     };
+    // The router in force: a reload since the agent started reaches it here.
+    let router_arc = router_arc.latest();
     let owned_router: LlmRouter = match Arc::try_unwrap(router_arc) {
         Ok(owned) => owned,
         Err(shared) => (*shared).clone(),
     };
-    match owned_router.route_precise() {
+    // The agent's own model when reachable, else the default, else
+    // `[llm.routing] precise` when the agent asks for nothing.
+    match owned_router.route_precise_for(agent_model, event_bus) {
         Ok(model) => {
             engine = engine
                 .with_llm_router(owned_router)

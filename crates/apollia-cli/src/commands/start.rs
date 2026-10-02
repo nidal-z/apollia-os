@@ -587,7 +587,13 @@ mod tests {
         assert!(!engine.has_reasoner());
 
         // WHEN it is wired with no LLM router
-        let wired = wire_engine_with_llm(engine, None, "agent-under-test", 20);
+        let wired = wire_engine_with_llm(
+            engine,
+            None,
+            &apollia_llm::AgentModelBinding::new("agent-under-test", None, None),
+            None,
+            20,
+        );
         // THEN it still has no reasoner, so an orchestrated agent fails fast instead of pretending
         assert!(
             !wired.has_reasoner(),
@@ -608,7 +614,13 @@ mod tests {
         let router = Arc::new(LlmRouter::empty());
 
         // WHEN the engine is wired with that router
-        let wired = wire_engine_with_llm(engine, Some(router), "agent-under-test", 20);
+        let wired = wire_engine_with_llm(
+            engine,
+            Some(router),
+            &apollia_llm::AgentModelBinding::new("agent-under-test", None, None),
+            None,
+            20,
+        );
 
         // THEN no reasoner is built from an empty router, which would only fail at the first call
         assert!(
@@ -822,6 +834,7 @@ agent = A()
             system_prompt: Some("You are a planning assistant.".to_string()),
             tools_requiring_approval: vec![],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,

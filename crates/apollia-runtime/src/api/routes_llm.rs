@@ -564,7 +564,7 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
 pub(crate) use tests::{test_app_state_no_llm, MockBackend};
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::coordinator::ExecutionBackend;
     use crate::eventbus::EventBus;

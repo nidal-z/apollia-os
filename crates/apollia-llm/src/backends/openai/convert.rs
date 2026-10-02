@@ -274,6 +274,37 @@ pub(super) fn with_structured_output(
     Ok(body)
 }
 
+/// Write the sampling fields the OpenAI protocol does not declare onto a built
+/// request body.
+///
+/// `top_k`, `min_p` and `repeat_penalty` have no place in the typed builder, so
+/// they are added to the serialized body under the names llama-server reads
+/// (`tools/server/README.md` at llama.cpp `b10092`). Each one is written only
+/// when the caller fixed it: an unset field leaves the body as the protocol
+/// shapes it, so a server that knows none of the three never sees them.
+///
+/// They are sent to every OpenAI-compatible backend when fixed, not only to the
+/// embedded engine. A caller that asks for `top_k` on a server that does not
+/// know the field gets whatever that server does with it, refusal included,
+/// rather than a setting this crate dropped without a word.
+pub(super) fn with_sampling_extensions(
+    mut body: serde_json::Value,
+    req: &crate::types::CompletionRequest,
+) -> serde_json::Value {
+    if let Some(map) = body.as_object_mut() {
+        if let Some(top_k) = req.top_k {
+            map.insert("top_k".to_string(), serde_json::json!(top_k));
+        }
+        if let Some(min_p) = req.min_p {
+            map.insert("min_p".to_string(), serde_json::json!(min_p));
+        }
+        if let Some(penalty) = req.repeat_penalty {
+            map.insert("repeat_penalty".to_string(), serde_json::json!(penalty));
+        }
+    }
+    body
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

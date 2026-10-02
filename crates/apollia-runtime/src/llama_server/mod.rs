@@ -21,6 +21,8 @@ mod config;
 mod engine_facts;
 mod loaded;
 mod ngl;
+mod parallel;
+mod projector;
 
 pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError};
 pub use loaded::{LoadedModel, ModelLease, UnloadError};
@@ -508,11 +510,20 @@ impl LlamaServerSupervisor {
         n_ctx: u32,
     ) -> Result<ModelLease, LlamaServerError> {
         let mut config = resolve_env_overrides(&*self.config.lock().await, env_getter);
+        // The index is a file beside the models, and a model it does not know
+        // sends the lookup to the disk: off the async workers either way.
+        let lookup = model_path.clone();
+        config.mmproj_path = tokio::task::spawn_blocking(move || projector::for_model(&lookup))
+            .await
+            .unwrap_or(None);
         config.model_path = model_path;
         // Already resolved by `effective_n_ctx`: the environment, then the
         // backend's own window, then the default.
         config.n_ctx = n_ctx;
 
+        // The slot count first: the offload plan sizes the cache those slots
+        // hold. See `parallel` for why a single slot was wrong.
+        parallel::apply_parallel_plan(&mut config);
         // The count is planned from the model and the machine on a discrete
         // accelerator; see `ngl` for why the literal 999 was wrong there.
         ngl::apply_offload_plan(&mut config);
@@ -523,12 +534,14 @@ impl LlamaServerSupervisor {
         tracing::info!(
             binary = %self.bin_path.display(),
             model = %config.model_path,
+            mmproj = %display_opt(config.mmproj_path.as_ref()),
             port,
             n_ctx = config.n_ctx,
             n_gpu_layers = config.n_gpu_layers,
             n_batch = %display_opt(config.n_batch.as_ref()),
             n_ubatch = %display_opt(config.n_ubatch.as_ref()),
             n_parallel = %display_opt(config.n_parallel.as_ref()),
+            kv_unified = config.kv_unified,
             cont_batching = %display_opt(config.cont_batching.as_ref()),
             cache_type_k = %display_opt(config.cache_type_k.as_ref()),
             cache_type_v = %display_opt(config.cache_type_v.as_ref()),
@@ -546,11 +559,13 @@ impl LlamaServerSupervisor {
         // vector reveals that.
         crate::perf_trace::set_launch_config(serde_json::json!({
             "model_path": config.model_path,
+            "mmproj_path": config.mmproj_path,
             "n_ctx": config.n_ctx,
             "n_gpu_layers": config.n_gpu_layers,
             "n_batch": config.n_batch,
             "n_ubatch": config.n_ubatch,
             "n_parallel": config.n_parallel,
+            "kv_unified": config.kv_unified,
             "cont_batching": config.cont_batching,
             "cache_type_k": config.cache_type_k,
             "cache_type_v": config.cache_type_v,

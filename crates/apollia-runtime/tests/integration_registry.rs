@@ -27,6 +27,7 @@ fn make_manifest(name: &str) -> AgentManifest {
         system_prompt: None,
         tools_requiring_approval: vec![],
         llm_backend: None,
+        model: None,
         packages: vec![],
         memory_config: None,
         agent_type: None,

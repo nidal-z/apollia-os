@@ -12,7 +12,7 @@
 //! - `SandboxProfile`: tool isolation profiles (namespace isolation is Linux-only)
 //! - `AuditTrail`: SQLite-persisted tool invocation log
 //! - `TaskRepository`: SQLite-persisted HITL task state
-//! - `AgentRepository`: SQLite-persisted installed agents
+//! - `AgentRepository`: SQLite-persisted agents, their definitions and overrides
 //! - `executor`: [`ToolExecutor`] trait and [`ToolDispatcher`] for unified JSON dispatch
 //!
 //! Native tools:
@@ -25,6 +25,8 @@
 //! - `notebook_read`: read and format Jupyter `.ipynb` cells for LLM consumption
 //! - `notebook_edit`: apply atomic cell operations to Jupyter `.ipynb` notebooks
 
+pub mod agent_definition;
+mod agent_overrides;
 pub mod agent_repository;
 pub(crate) mod agents_db;
 pub mod audit;
@@ -47,6 +49,10 @@ pub mod task_repository;
 pub mod tool_registry;
 pub mod tools;
 
+pub use agent_definition::{
+    definition_from_manifest, resolve as resolve_agent, AgentOrigin, AgentOverride, OverrideField,
+    OverrideValueError, ResolvedAgent, StoredAgent, OVERRIDE_FIELDS,
+};
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
@@ -69,7 +75,9 @@ pub use journal::{
 pub use native_dispatcher::{
     build_dispatcher_with, build_native_dispatcher, NativeDispatcherConfig, UnavailableTool,
 };
-pub use package_repository::{InstalledPackage, PackageRepository, PackageRepositoryError};
+pub use package_repository::{
+    InstalledPackage, PackageItem, PackageItemKind, PackageRepository, PackageRepositoryError,
+};
 pub use project_repository::{
     ProjectDetail, ProjectDocument, ProjectPatch, ProjectProviderRow, ProjectRepository,
     ProjectRepositoryError, ProjectSummary, ProjectTemplate,

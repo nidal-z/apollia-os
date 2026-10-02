@@ -20,6 +20,9 @@ use crate::registry::AgentRegistryError;
 
 use apollia_core::{AgentManifest, ProcessState};
 
+/// The installed agents of the machine and their install route.
+pub mod installed;
+
 /// Trait for loading and validating Python agent modules.
 ///
 /// Abstracts away the PyO3-based AIP loading so that `apollia-runtime` does
@@ -82,6 +85,7 @@ impl AgentLoader for StubAgentLoader {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,
@@ -658,6 +662,7 @@ mod tests {
                 system_prompt: None,
                 tools_requiring_approval: vec![],
                 llm_backend: None,
+                model: None,
                 packages: vec![],
                 memory_config: None,
                 agent_type: None,
@@ -707,6 +712,7 @@ mod tests {
             system_prompt: None,
             tools_requiring_approval: vec![],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,
@@ -1195,6 +1201,7 @@ mod tests {
                     system_prompt: None,
                     tools_requiring_approval: vec![],
                     llm_backend: None,
+                    model: None,
                     packages: vec![],
                     memory_config: None,
                     agent_type: None,
@@ -1262,6 +1269,7 @@ mod tests {
                     system_prompt: None,
                     tools_requiring_approval: vec![],
                     llm_backend: None,
+                    model: None,
                     packages: vec![],
                     memory_config: None,
                     agent_type: None,

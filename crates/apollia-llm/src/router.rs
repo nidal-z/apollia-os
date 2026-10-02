@@ -17,6 +17,7 @@ use apollia_core::LlmRoutingConfig;
 
 use crate::types::{CompletionModel, LlmError};
 
+mod agent_model;
 mod backends;
 mod budget;
 mod completion;
@@ -25,6 +26,7 @@ mod construct;
 mod routing;
 mod servers;
 
+pub use agent_model::{AgentModelBinding, AgentModelFallback};
 pub use config::{BackendConfig, BackendKind, LlmConfig, ObservabilityConfig};
 pub use servers::ServerEndpoint;
 
@@ -79,6 +81,9 @@ pub struct LlmRouter {
     pub(super) session_budget: Arc<Mutex<SessionBudgetTracker>>,
     /// Declared inference servers, whose models route as `<server>/<model>`.
     pub(super) servers: Arc<servers::ServerRoutes>,
+    /// The router a reload put in place of this one, and the last fallback
+    /// of each agent. Shared by the clones of this router.
+    pub(super) live: Arc<agent_model::LiveState>,
 }
 
 /// Validate `[llm.routing]` consistency: the named backends must exist.
@@ -259,6 +264,7 @@ mod tests {
     ) -> LlmRouter {
         LlmRouter {
             servers: Default::default(),
+            live: Default::default(),
             backends,
             default: default.into(),
             routing: None,
@@ -281,6 +287,7 @@ mod tests {
         });
         LlmRouter {
             servers: Default::default(),
+            live: Default::default(),
             default: precise.to_owned(),
             backends,
             routing,
@@ -1156,6 +1163,7 @@ mod tests {
         session_budget.lock().unwrap().session_cost_usd = session_cost;
         LlmRouter {
             servers: Default::default(),
+            live: Default::default(),
             default: "local".to_owned(),
             backends,
             routing,
@@ -1171,6 +1179,7 @@ mod tests {
         backends.insert("local".to_owned(), make_mock_backend("local"));
         let router = LlmRouter {
             servers: Default::default(),
+            live: Default::default(),
             default: "local".to_owned(),
             backends,
             routing: None,
@@ -1206,6 +1215,7 @@ mod tests {
         });
         let router = LlmRouter {
             servers: Default::default(),
+            live: Default::default(),
             default: "local".to_owned(),
             backends,
             routing,

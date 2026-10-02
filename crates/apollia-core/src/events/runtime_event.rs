@@ -599,6 +599,21 @@ pub enum RuntimeEvent {
         reason: String,
     },
 
+    /// The model assigned to an agent is not available, so the call runs on the default model.
+    ///
+    /// Emitted by `LlmRouter::resolve_agent_model` at call time: the agent keeps
+    /// working, and its sheet can say which model it asked for and which one
+    /// answered.
+    LlmAgentModelFallback {
+        /// Agent whose call fell back.
+        agent: String,
+        /// Model the agent asked for: the user's assignment, or the backend its
+        /// manifest declares.
+        requested: String,
+        /// Model that served the call instead.
+        used: String,
+    },
+
     /// A human approval is required for a tool call in the chat.
     ChatApprovalRequired {
         /// Session identifier.

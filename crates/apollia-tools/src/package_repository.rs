@@ -4,11 +4,11 @@
 //! It bundles a director and its workers, triggers, and shared pip
 //! dependencies.
 //!
-//! This repository manages `installed_packages` and `package_agents`. Individual
-//! agents remain in `installed_agents` (see [`AgentRepository`]).
+//! This repository manages `installed_packages` and `package_items`, the list
+//! of what each package installed (agents, workflows, tools, connections).
+//! Individual agents remain in `agents` (see [`AgentRepository`]).
 //!
-//! The `008_package_tables.sql` migration is applied idempotently when
-//! [`PackageRepository::open`] is called.
+//! [`AgentRepository`]: crate::AgentRepository
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -17,7 +17,7 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 // The package-table DDL lives in `crate::agents_db`: `agents.db` is shared
-// with the installed-agent registry, and `PRAGMA user_version` belongs to
+// with the agent tables, and `PRAGMA user_version` belongs to
 // the file, so the two repositories migrate through one numbered list.
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,6 +39,52 @@ pub struct InstalledPackage {
     pub installed_at: String,
     /// Last-update timestamp (RFC 3339).
     pub updated_at: String,
+}
+
+/// Kind of an item a package installed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PackageItemKind {
+    /// An agent.
+    Agent,
+    /// A workflow.
+    Workflow,
+    /// A Python tool.
+    Tool,
+    /// A connection (an MCP server, by name).
+    Connection,
+}
+
+impl PackageItemKind {
+    /// Stored form.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PackageItemKind::Agent => "agent",
+            PackageItemKind::Workflow => "workflow",
+            PackageItemKind::Tool => "tool",
+            PackageItemKind::Connection => "connection",
+        }
+    }
+
+    /// Reads the stored form.
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "agent" => Some(PackageItemKind::Agent),
+            "workflow" => Some(PackageItemKind::Workflow),
+            "tool" => Some(PackageItemKind::Tool),
+            "connection" => Some(PackageItemKind::Connection),
+            _ => None,
+        }
+    }
+}
+
+/// One item a package installed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PackageItem {
+    /// What the item is.
+    pub kind: PackageItemKind,
+    /// Its identifier: an agent or workflow id, a tool name, a server name.
+    pub item_id: String,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,20 +158,65 @@ impl PackageRepository {
         Ok(())
     }
 
-    /// Records the link between a package and one of its agents.
+    /// Records the link between a package and one of its agents, and names
+    /// the package as the agent's origin.
     ///
-    /// Idempotent: uses `INSERT OR IGNORE`.
+    /// Idempotent.
     pub fn link_agent(
         &self,
         package_name: &str,
         agent_name: &str,
     ) -> Result<(), PackageRepositoryError> {
+        self.link_item(package_name, PackageItemKind::Agent, agent_name)?;
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         conn.execute(
-            "INSERT OR IGNORE INTO package_agents (package_name, agent_name) VALUES (?1, ?2)",
+            "UPDATE agents SET package = ?1 WHERE name = ?2",
             params![package_name, agent_name],
         )?;
         Ok(())
+    }
+
+    /// Records that `package_name` installed the item `item_id` of `kind`.
+    ///
+    /// Idempotent.
+    pub fn link_item(
+        &self,
+        package_name: &str,
+        kind: PackageItemKind,
+        item_id: &str,
+    ) -> Result<(), PackageRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        conn.execute(
+            "INSERT OR IGNORE INTO package_items (package_name, kind, item_id) \
+             VALUES (?1, ?2, ?3)",
+            params![package_name, kind.as_str(), item_id],
+        )?;
+        Ok(())
+    }
+
+    /// Everything `package_name` installed, by kind then identifier.
+    pub fn list_items(
+        &self,
+        package_name: &str,
+    ) -> Result<Vec<PackageItem>, PackageRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let mut stmt = conn.prepare(
+            "SELECT kind, item_id FROM package_items WHERE package_name = ?1 \
+             ORDER BY kind, item_id",
+        )?;
+        let rows = stmt.query_map(params![package_name], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut items = Vec::new();
+        for row in rows {
+            let (kind, item_id) = row?;
+            // The table refuses any other kind; a kind this binary does not
+            // know was written by a newer one and is skipped.
+            if let Some(kind) = PackageItemKind::parse(&kind) {
+                items.push(PackageItem { kind, item_id });
+            }
+        }
+        Ok(items)
     }
 
     /// Fetches a package by name.
@@ -157,28 +248,30 @@ impl PackageRepository {
         &self,
         package_name: &str,
     ) -> Result<Vec<String>, PackageRepositoryError> {
-        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        let mut stmt = conn.prepare(
-            "SELECT agent_name FROM package_agents WHERE package_name = ?1 ORDER BY agent_name",
-        )?;
-        let rows = stmt.query_map(params![package_name], |row| row.get::<_, String>(0))?;
-        let mut names = Vec::new();
-        for r in rows {
-            names.push(r?);
-        }
-        Ok(names)
+        Ok(self
+            .list_items(package_name)?
+            .into_iter()
+            .filter(|item| item.kind == PackageItemKind::Agent)
+            .map(|item| item.item_id)
+            .collect())
     }
 
-    /// Deletes a package and its agent links (CASCADE on `package_agents`).
+    /// Deletes a package and the list of what it installed.
     ///
-    /// Entries in `installed_agents` must be deleted separately via
-    /// [`AgentRepository::delete`].
+    /// The items themselves (agents in `agents`) must be deleted separately,
+    /// via [`AgentRepository::delete`].
     pub fn delete(&self, name: &str) -> Result<(), PackageRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
-        conn.execute(
+        let tx = conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM package_items WHERE package_name = ?1",
+            params![name],
+        )?;
+        tx.execute(
             "DELETE FROM installed_packages WHERE name = ?1",
             params![name],
         )?;
+        tx.commit()?;
         Ok(())
     }
 
@@ -322,12 +415,6 @@ mod tests {
         // GIVEN a package with 2 linked agents
         let repo = open_test_repo();
         repo.save(&test_package("my-pkg")).expect("save pkg");
-        // Note: no FK to installed_agents in :memory: (no migration 007),
-        // so PRAGMA foreign_keys is disabled for this test
-        {
-            let conn = repo.conn.lock().expect("lock");
-            conn.execute_batch("PRAGMA foreign_keys=OFF;").unwrap();
-        }
         repo.link_agent("my-pkg", "director-agent")
             .expect("link director");
         repo.link_agent("my-pkg", "worker-agent")
@@ -338,6 +425,58 @@ mod tests {
         assert_eq!(agents.len(), 2);
         assert!(agents.contains(&"director-agent".to_string()));
         assert!(agents.contains(&"worker-agent".to_string()));
+    }
+
+    #[test]
+    fn test_package_items_of_every_kind() {
+        // GIVEN a package that installed an agent, a workflow, a tool and a
+        // connection, and whose agent row exists
+        let repo = open_test_repo();
+        repo.save(&test_package("office")).expect("save pkg");
+        {
+            let conn = repo.conn.lock().expect("lock");
+            conn.execute(
+                "INSERT INTO agents (name, version, definition_json) VALUES ('triage', '1', '{}')",
+                [],
+            )
+            .unwrap();
+        }
+        repo.link_agent("office", "triage").expect("link agent");
+        repo.link_item("office", PackageItemKind::Workflow, "monthly-close")
+            .expect("link workflow");
+        repo.link_item("office", PackageItemKind::Tool, "extract_totals")
+            .expect("link tool");
+        repo.link_item("office", PackageItemKind::Connection, "ledger")
+            .expect("link connection");
+
+        // WHEN its items are listed
+        let items = repo.list_items("office").expect("items");
+
+        // THEN each kind is listed, the agent names its package, and the
+        // deletion of the package takes the list with it
+        let kinds: Vec<_> = items.iter().map(|i| (i.kind, i.item_id.as_str())).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                (PackageItemKind::Agent, "triage"),
+                (PackageItemKind::Connection, "ledger"),
+                (PackageItemKind::Tool, "extract_totals"),
+                (PackageItemKind::Workflow, "monthly-close"),
+            ]
+        );
+        let package: Option<String> = repo
+            .conn
+            .lock()
+            .expect("lock")
+            .query_row(
+                "SELECT package FROM agents WHERE name = 'triage'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(package.as_deref(), Some("office"));
+        repo.delete("office").expect("delete");
+        assert!(repo.list_items("office").expect("items").is_empty());
     }
 
     #[test]

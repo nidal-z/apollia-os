@@ -65,6 +65,66 @@ impl RuntimeClient {
         Ok(serde_json::from_str(&resp.body)?)
     }
 
+    /// Every stored agent, resolved, via `GET /api/v1/agent-definitions`.
+    pub async fn list_agent_definitions(&self) -> Result<serde_json::Value, ClientError> {
+        let resp = self.get("/api/v1/agent-definitions").await?;
+        definition_body(resp)
+    }
+
+    /// One stored agent, resolved (its definition then the user's overrides),
+    /// via `GET /api/v1/agent-definitions/{name}`.
+    pub async fn get_agent_definition(&self, name: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .get(&format!("/api/v1/agent-definitions/{name}"))
+            .await?;
+        definition_body(resp)
+    }
+
+    /// Set the user's value of `field` for `name` via
+    /// `PUT /api/v1/agent-definitions/{name}/overrides/{field}`.
+    pub async fn set_agent_override(
+        &self,
+        name: &str,
+        field: &str,
+        value: serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let body = serde_json::json!({ "value": value });
+        let resp = self
+            .put(
+                &format!("/api/v1/agent-definitions/{name}/overrides/{field}"),
+                Some(&body),
+            )
+            .await?;
+        definition_body(resp)
+    }
+
+    /// Remove the user's value of `field` for `name` via
+    /// `DELETE /api/v1/agent-definitions/{name}/overrides/{field}`.
+    pub async fn remove_agent_override(
+        &self,
+        name: &str,
+        field: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .delete(&format!(
+                "/api/v1/agent-definitions/{name}/overrides/{field}"
+            ))
+            .await?;
+        definition_body(resp)
+    }
+
+    /// Back to defaults for `name` via
+    /// `DELETE /api/v1/agent-definitions/{name}/overrides`.
+    pub async fn reset_agent_overrides(
+        &self,
+        name: &str,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .delete(&format!("/api/v1/agent-definitions/{name}/overrides"))
+            .await?;
+        definition_body(resp)
+    }
+
     /// Get agent detail via `GET /api/v1/agents/{id}`.
     pub async fn get_agent(&self, agent_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.get(&format!("/api/v1/agents/{agent_id}")).await?;
@@ -209,4 +269,15 @@ impl RuntimeClient {
         }
         Ok(serde_json::from_str(&resp.body)?)
     }
+}
+
+/// The JSON body of an agent-definition route, or its error.
+fn definition_body(resp: crate::client::RawResponse) -> Result<serde_json::Value, ClientError> {
+    if resp.status >= 400 {
+        return Err(ClientError::ServerError {
+            status: resp.status,
+            body: extract_error(&resp.body, resp.status),
+        });
+    }
+    Ok(serde_json::from_str(&resp.body)?)
 }

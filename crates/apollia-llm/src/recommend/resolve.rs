@@ -229,9 +229,10 @@ fn is_auxiliary(path: &str) -> bool {
 /// falls back to the most faithful one it does publish that still fits, so a
 /// publisher shipping only `Q5_K_M` is still usable.
 ///
-/// Shards are skipped rather than rejected later, because the same repository
-/// usually also publishes an unsplit file at a smaller quantisation, and
-/// offering that is better than offering nothing.
+/// A split file is one candidate, named by its first part and weighing the sum
+/// of its parts: the variant download fetches every part, so a model published
+/// only split is offered like any other. A split with a part missing from the
+/// repository is left out.
 fn choose_file(
     files: &[crate::hf_registry::HfFile],
     capacity_gb: f64,
@@ -239,21 +240,18 @@ fn choose_file(
     params_b: f64,
     gated: bool,
 ) -> Option<FileCandidate> {
-    let mut best: Option<(f64, &crate::hf_registry::HfFile)> = None;
+    let mut best: Option<(f64, &crate::hf_registry::HfFile, u64)> = None;
     let floor_bytes = (params_b * 1e9 * MIN_PLAUSIBLE_BITS_PER_WEIGHT / 8.0) as u64;
 
-    for file in files {
-        if super::verdict::shard_count_of(&file.filename).is_some() {
-            continue;
-        }
-        if is_auxiliary(&file.filename) || file.size_bytes < floor_bytes {
+    for (file, size_bytes) in whole_files(files) {
+        if is_auxiliary(&file.filename) || size_bytes < floor_bytes {
             continue;
         }
         let Some(found) = quant::from_filename(&file.filename) else {
             continue;
         };
         // Leave room for the cache; the real check comes once the header is read.
-        let weights_gb = file.size_bytes as f64 / 1_073_741_824.0;
+        let weights_gb = size_bytes as f64 / 1_073_741_824.0;
         if weights_gb * (1.0 + PLANNING_CACHE_SHARE) + 0.25 > capacity_gb * PLANNING_SLACK {
             continue;
         }
@@ -267,18 +265,60 @@ fn choose_file(
         } else {
             -quant::distance(found, planned)
         };
-        if best.is_none_or(|(best_rank, _)| rank > best_rank) {
-            best = Some((rank, file));
+        if best.is_none_or(|(best_rank, _, _)| rank > best_rank) {
+            best = Some((rank, file, size_bytes));
         }
     }
 
-    best.map(|(_, file)| FileCandidate {
+    best.map(|(_, file, size_bytes)| FileCandidate {
         repo_id: String::new(), // filled by the caller, which knows the repo
         filename: file.filename.clone(),
         download_url: file.download_url.clone(),
-        size_bytes: file.size_bytes,
+        size_bytes,
         gated,
     })
+}
+
+/// Every file a download yields whole, with its size: a plain file as it is,
+/// a split file as its first part and the sum of its parts. A split whose
+/// parts are not all published is dropped.
+fn whole_files(files: &[crate::hf_registry::HfFile]) -> Vec<(&crate::hf_registry::HfFile, u64)> {
+    let mut out = Vec::new();
+    let mut splits: std::collections::BTreeMap<
+        (String, String),
+        Vec<(u32, &crate::hf_registry::HfFile)>,
+    > = std::collections::BTreeMap::new();
+    for file in files {
+        match crate::model_index::split_part(std::path::Path::new(&file.filename)) {
+            Some((base, index)) => {
+                let folder = file
+                    .filename
+                    .rsplit_once('/')
+                    .map_or(String::new(), |(d, _)| d.to_owned());
+                splits
+                    .entry((folder, base))
+                    .or_default()
+                    .push((index, file));
+            }
+            None => out.push((file, file.size_bytes)),
+        }
+    }
+    for mut parts in splits.into_values() {
+        parts.sort_by_key(|(index, _)| *index);
+        let Some((_, first)) = parts.first().copied() else {
+            continue;
+        };
+        let name = first.filename.rsplit('/').next().unwrap_or(&first.filename);
+        let expected = super::verdict::shard_count_of(name).unwrap_or(1) as usize;
+        let contiguous = parts
+            .iter()
+            .enumerate()
+            .all(|(i, (index, _))| *index as usize == i + 1);
+        if parts.len() == expected && contiguous {
+            out.push((first, parts.iter().map(|(_, f)| f.size_bytes).sum()));
+        }
+    }
+    out
 }
 
 /// What one lookup is looking for.
@@ -593,6 +633,7 @@ mod tests {
             compatibility: None,
             download_url: format!("https://example.invalid/{name}"),
             sha256: None,
+            quantization: None,
         }
     }
 
@@ -744,13 +785,30 @@ mod tests {
     }
 
     #[test]
-    fn a_repository_of_shards_alone_yields_nothing_to_download() {
-        // GIVEN a repository publishing only a split model
+    fn a_split_model_is_chosen_whole_at_the_sum_of_its_parts() {
+        // GIVEN a repository publishing a model only as two parts
+        let files = vec![
+            hf_file("Qwen3-30B-A3B-Q4_K_M-00002-of-00002.gguf", 8.0),
+            hf_file("Qwen3-30B-A3B-Q4_K_M-00001-of-00002.gguf", 9.0),
+        ];
+
+        // WHEN a machine with ample memory chooses
+        let chosen =
+            choose_file(&files, 128.0, q("Q4_K_M"), 30.0, false).expect("the split is offered");
+
+        // THEN the first part names the model, which the variant download
+        // fetches whole, and its size is the sum of both parts
+        assert_eq!(chosen.filename, "Qwen3-30B-A3B-Q4_K_M-00001-of-00002.gguf");
+        assert_eq!(chosen.size_bytes, files[0].size_bytes + files[1].size_bytes);
+    }
+
+    #[test]
+    fn a_split_model_with_a_part_missing_is_not_chosen() {
+        // GIVEN a repository whose split model lacks its second part
         let files = vec![hf_file("Qwen3-30B-A3B-Q4_K_M-00001-of-00002.gguf", 9.0)];
 
         // WHEN a machine with ample memory chooses
-        // THEN nothing is chosen, because the downloader fetches one URL and
-        // would leave the set incomplete
+        // THEN nothing is chosen: the set could not be completed on disk
         assert!(choose_file(&files, 128.0, q("Q4_K_M"), 30.0, false).is_none());
     }
 

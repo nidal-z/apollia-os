@@ -34,6 +34,8 @@ chrono         = { workspace = true }
 # MetaLlmOrchestrator
 lru            = { workspace = true }
 sha2           = { workspace = true }
+# Git blob identifier of a downloaded file stored outside LFS
+sha1           = { workspace = true }
 # tool_performance_hints
 toml           = { workspace = true }
 # Hardware detection (RAM, CPU, GPU, always available)

@@ -2,7 +2,8 @@
 //!
 //! The list is assembled by [`crate::connections::assemble`] from the stores
 //! each kind keeps: `mcp.db` and the live MCP sessions, the tool registry, the
-//! native account index, and `package_items` in `agents.db` when it exists.
+//! native account index, the mailbox list, and `package_items` in `agents.db`
+//! when it exists.
 
 use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
 
@@ -99,12 +100,15 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
             .data_dir
             .join(apollia_core::paths::DataFile::Agents.file_name()),
     );
+    let imap_accounts = apollia_connectors::imap::ImapAccountStore::accounts_in(&state.data_dir)
+        .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(assemble(&ConnectionSources {
         mcp_configs,
         mcp_statuses,
         descriptors,
         package_servers,
         native_accounts,
+        imap_accounts,
     }))
 }
 

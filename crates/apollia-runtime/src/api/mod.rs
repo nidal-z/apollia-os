@@ -5,6 +5,7 @@
 pub mod middleware;
 pub mod openapi;
 pub mod routes_a2a;
+pub mod routes_agent_definitions;
 pub mod routes_agents;
 pub mod routes_approvals;
 pub mod routes_audit;
@@ -14,6 +15,7 @@ pub mod routes_connectors;
 pub mod routes_engines;
 pub mod routes_events;
 pub mod routes_hooks;
+pub mod routes_imap;
 pub mod routes_llm;
 pub mod routes_mcp;
 pub mod routes_mcp_registry;
@@ -45,6 +47,9 @@ mod unreached_by_cli;
 // instead of being bypassed on every commit that touched that module.
 #[cfg(test)]
 mod tls_test_material;
+
+#[cfg(test)]
+pub(crate) mod test_support;
 
 pub use middleware::{load_or_generate_token, AuthError, TokenAuthLayer, TokenFileError};
 pub use server::{

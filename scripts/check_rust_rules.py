@@ -142,8 +142,8 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-desktop/src/commands/agent_packages.rs": 2,
     "crates/apollia-desktop/src/commands/agent_packages/install.rs": 2,
     "crates/apollia-desktop/src/commands/agent_packages/uninstall.rs": 2,
-    "crates/apollia-desktop/src/commands/agents.rs": 2,
-    "crates/apollia-desktop/src/commands/agents/lifecycle.rs": 5,
+    "crates/apollia-desktop/src/commands/agents.rs": 1,
+    "crates/apollia-desktop/src/commands/agents/lifecycle.rs": 4,
     "crates/apollia-desktop/src/commands/llm.rs": 1,
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
     "crates/apollia-desktop/src/commands/onboarding/memory.rs": 1,
@@ -273,6 +273,13 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     "crates/apollia-core/src/net.rs": 1,
     "crates/apollia-core/src/subprocess_env.rs": 3,
     "crates/apollia-core/src/subprocess_window.rs": 2,
+    # The network is the subject: the IMAP client is proven against a fake
+    # server on a loopback port, and a closed port is the only way to observe
+    # an unreachable host. The fake server and the clear-text server bind port
+    # 0; the closed-port test releases the port it was given, which another
+    # process could take before the connection is tried.
+    "crates/apollia-connectors/src/imap/client_tests.rs": 2,
+    "crates/apollia-connectors/src/imap/fake_server.rs": 1,
     # Both sites are the only observable a job object offers: a member is
     # either terminated within a bounded wall time or it is not. The control
     # test holds the second site, and it is the one that proves the first can

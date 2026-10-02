@@ -31,7 +31,7 @@ mod stream;
 
 use convert::{
     build_messages, build_tools, estimate_cost_usd, map_finish_reason, map_openai_error,
-    with_structured_output,
+    with_sampling_extensions, with_structured_output,
 };
 use reasoning::{constrained_content, inline_reasoning, ReasoningEnvelope, WithTimings};
 use stream::{next_openai_stream_item, OpenAIStreamState};
@@ -140,6 +140,18 @@ fn sampling_builder(
     if let Some(seed) = req.seed {
         builder.seed(narrow_seed(seed));
     }
+    if let Some(top_p) = req.top_p {
+        builder.top_p(top_p);
+    }
+    if let Some(penalty) = req.presence_penalty {
+        builder.presence_penalty(penalty);
+    }
+    if let Some(penalty) = req.frequency_penalty {
+        builder.frequency_penalty(penalty);
+    }
+    if let Some(stop) = req.stop.as_ref().filter(|stop| !stop.is_empty()) {
+        builder.stop(stop.clone());
+    }
     Ok(builder)
 }
 
@@ -224,7 +236,10 @@ impl OpenAICompatibleClient {
             .map_err(|e| LlmError::InferenceError(format!("build request: {e}")))?;
         // A structured-output constraint is applied here, on the serialized
         // body, because the grammar half has no place in the typed builder.
-        let request = with_structured_output(request, &req, self.config.llama_cpp_extensions)?;
+        let request = with_sampling_extensions(
+            with_structured_output(request, &req, self.config.llama_cpp_extensions)?,
+            &req,
+        );
 
         // `create_byot` rather than `create`: the crate's own response type drops
         // any field it does not declare, which discards the `timings` object the
@@ -406,7 +421,10 @@ impl CompletionModel for OpenAICompatibleClient {
         // `create_stream` sets this itself; `create_stream_byot` does not, and a
         // request without it would come back as a single non-streamed body.
         request.stream = Some(true);
-        let request = with_structured_output(request, &req, self.config.llama_cpp_extensions)?;
+        let request = with_sampling_extensions(
+            with_structured_output(request, &req, self.config.llama_cpp_extensions)?,
+            &req,
+        );
 
         // See `do_complete`: byot recovers the `timings` object that the crate's
         // declared chunk type would drop. The engine attaches it to the final
@@ -529,6 +547,126 @@ mod tests {
             .build()
             .expect("a buildable request");
         serde_json::to_value(request).expect("a serializable request")
+    }
+
+    /// Build the body the client sends, structured-output transport and
+    /// sampling extensions included, for a plain or a llama-server backend.
+    fn sent_body(req: &CompletionRequest, llama_cpp_extensions: bool) -> serde_json::Value {
+        let request = sampling_builder(req, "test-model")
+            .expect("a buildable request")
+            .build()
+            .expect("a buildable request");
+        with_sampling_extensions(
+            with_structured_output(request, req, llama_cpp_extensions)
+                .expect("a serializable request"),
+            req,
+        )
+    }
+
+    const SAMPLING_FIELDS: [&str; 7] = [
+        "top_p",
+        "top_k",
+        "min_p",
+        "presence_penalty",
+        "frequency_penalty",
+        "repeat_penalty",
+        "stop",
+    ];
+
+    fn fully_tuned_request() -> CompletionRequest {
+        CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("hello")],
+            top_p: Some(0.5),
+            top_k: Some(40),
+            min_p: Some(0.25),
+            presence_penalty: Some(0.75),
+            frequency_penalty: Some(-0.5),
+            repeat_penalty: Some(1.125),
+            stop: Some(vec!["</answer>".to_string(), "\n\n".to_string()]),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn an_untuned_request_sends_no_sampling_field() {
+        // GIVEN a call that fixes none of the request sampling settings
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("hello")],
+            ..Default::default()
+        };
+
+        for llama in [false, true] {
+            // WHEN the body is built, for a plain server and for llama-server
+            let body = sent_body(&req, llama);
+
+            // THEN none of the seven fields is on the wire, so the engine
+            // keeps its own defaults
+            for field in SAMPLING_FIELDS {
+                assert!(
+                    body.get(field).is_none(),
+                    "{field} sent unset (llama={llama}): {body}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_fixed_sampling_field_reaches_an_openai_compatible_server() {
+        // GIVEN a call that fixes all seven request sampling settings
+        let req = fully_tuned_request();
+
+        // WHEN the body is built for a plain OpenAI-compatible server
+        let body = sent_body(&req, false);
+
+        // THEN each one is present with the value the caller gave
+        assert_eq!(body["top_p"], serde_json::json!(0.5));
+        assert_eq!(body["top_k"], serde_json::json!(40));
+        assert_eq!(body["min_p"], serde_json::json!(0.25));
+        assert_eq!(body["presence_penalty"], serde_json::json!(0.75));
+        assert_eq!(body["frequency_penalty"], serde_json::json!(-0.5));
+        assert_eq!(body["repeat_penalty"], serde_json::json!(1.125));
+        assert_eq!(body["stop"], serde_json::json!(["</answer>", "\n\n"]));
+    }
+
+    #[test]
+    fn llama_server_reads_its_own_sampling_names() {
+        // GIVEN a call fixing the three settings llama-server names itself,
+        // alongside a structured-output schema
+        let mut req = fully_tuned_request();
+        req.response_schema = Some(serde_json::json!({
+            "type": "object",
+            "properties": {"title": {"type": "string"}},
+            "required": ["title"]
+        }));
+
+        // WHEN the body is built for the embedded llama-server
+        let body = sent_body(&req, true);
+
+        // THEN they travel as `min_p`, `repeat_penalty` and `top_k`, the names
+        // of its completion API, and the grammar transport is unchanged
+        assert_eq!(body["min_p"], serde_json::json!(0.25));
+        assert_eq!(body["repeat_penalty"], serde_json::json!(1.125));
+        assert_eq!(body["top_k"], serde_json::json!(40));
+        assert!(body
+            .get("grammar")
+            .is_some_and(serde_json::Value::is_string));
+        assert!(body.get("response_format").is_none());
+    }
+
+    #[test]
+    fn an_empty_stop_list_sends_no_stop_field() {
+        // GIVEN a call whose stop list is present but empty
+        let req = CompletionRequest {
+            messages: vec![crate::types::ChatMessage::user("hello")],
+            stop: Some(Vec::new()),
+            ..Default::default()
+        };
+
+        // WHEN the body is built
+        let body = sent_body(&req, false);
+
+        // THEN no stop field is sent, since the protocol wants at least one
+        assert!(body.get("stop").is_none());
     }
 
     #[test]
