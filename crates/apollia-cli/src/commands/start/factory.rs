@@ -119,7 +119,10 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 .map_err(|e| e.to_string())?;
             let validated =
                 apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
-            let allowed_tools = validated.manifest.tools_required.clone();
+            let access = apollia_tools::GrantedAccess::new(
+                Some(apollia_core::paths::DataFile::Agents.path(&self.data_dir)),
+                &validated.manifest,
+            );
             let memory_namespace = validated.manifest.memory_namespace.clone();
             let user_memory_write = validated.manifest.user_memory_write;
             // Capture datasources/templates declarations + the agent's package
@@ -135,7 +138,7 @@ impl AgentBackendFactory for ProductionBackendFactory {
                 bridge,
                 agent_id: agent_id.clone(),
                 manifest: manifest.clone(),
-                allowed_tools,
+                access,
                 llm_router,
                 event_bus,
                 tool_registry,

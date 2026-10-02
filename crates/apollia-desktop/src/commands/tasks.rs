@@ -69,36 +69,13 @@ pub async fn list_tasks(
 ///
 /// Builds an `AIPInput` from the raw text provided by the frontend and submits
 /// it via `TaskRouterHandle::submit()`, or `POST /api/v1/tasks` when attached
-/// to a daemon.
-///
-/// `allowed_tools` and `disallowed_tools` are accepted for compatibility with
-/// the CLI (`--allowed-tools` / `--disallowed-tools`) but are not yet propagated
-/// to the runtime; they will be passed through the AIP metadata later.
+/// to a daemon. The tools the run may call are the access list of the agent.
 #[tauri::command]
 pub async fn submit_task(
     link: State<'_, RuntimeLink>,
     agent_id: String,
     input: String,
-    allowed_tools: Option<Vec<String>>,
-    disallowed_tools: Option<Vec<String>>,
 ) -> Result<String, String> {
-    // Tool filtering is not yet implemented in the AIPInput type.
-    // Log the intent so the UI can see it was received.
-    if let Some(ref tools) = allowed_tools {
-        tracing::debug!(
-            allowed_tools = ?tools,
-            detail = "not enforced yet",
-            "task.allowed_tools.ignored"
-        );
-    }
-    if let Some(ref tools) = disallowed_tools {
-        tracing::debug!(
-            disallowed_tools = ?tools,
-            detail = "not enforced yet",
-            "task.disallowed_tools.ignored"
-        );
-    }
-
     let aip_input = AIPInput {
         parts: vec![AIPPart::Text(TextPart { text: input })],
     };

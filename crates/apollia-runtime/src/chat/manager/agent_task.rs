@@ -159,6 +159,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         .as_deref()
         .map(super::dispatcher::effective_disabled_tools)
         .unwrap_or_default();
+    let mcp_index = super::disabled::only_granted(mcp_index, &spec.granted_tools);
     let (granted, mcp_index) = super::disabled::without_disabled(
         std::mem::take(&mut spec.granted_tools),
         mcp_index,
