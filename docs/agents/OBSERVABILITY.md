@@ -351,7 +351,13 @@ journaled as `MessageSent`, `MessageDelivered`, and `MessageDropped`.
 Governance changes are journaled as `AccessChanged`, `AgentInstalled`,
 `AgentUpdated`, and `AgentUninstalled`, one run per agent
 (`governance:<agent_id>`), written through the `GovernanceContract` of
-`crates/apollia-runtime/src/governance/`.
+`crates/apollia-runtime/src/governance/`. Connection changes are journaled as
+`ConnectionAdded`, `ConnectionModified`, `ConnectionRemoved`,
+`ConnectionWarningAccepted`, `ConnectionSecretSet`, `ConnectionSecretRemoved`,
+`AccountConnected`, `AccountDisconnected`, and `FolderAdded`, one run per
+connection (`connection:<connection_id>`), written through
+`ConnectionGovernance` in the same module. A secret is journaled by the name
+of its key, never by its value.
 The one-shot access upgrade run at startup records each conversion or
 removal it makes as an `AccessChanged` entry with the actor `upgrade` and a
 `reason`; a change that concerns every agent goes to the run

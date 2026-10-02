@@ -79,6 +79,7 @@ fn build_app_state() -> AppState<MockBackend> {
         agent_loader: Arc::new(StubAgentLoader),
         plan_gates: None,
         audit_journal: None,
+        connection_governance: Default::default(),
         backend: MockBackend,
         llm_router: empty_shared_llm_router(),
         trigger_engine: None,
@@ -109,6 +110,7 @@ fn build_app_state() -> AppState<MockBackend> {
         resilience_layer: None,
         runner_proxy: None,
         llama_server_supervisor: None,
+        secret_store: apollia_runtime::inference_servers::default_store_opener(),
     }
 }
 

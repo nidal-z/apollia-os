@@ -409,6 +409,15 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         (LoadingMode::Eager, _) => Vec::new(),
     };
 
+    // A disabled tool is neither offered nor findable through `tool_search`,
+    // MCP and connector tools as much as natives.
+    let disabled: Vec<String> = chat_tools_config_for_session
+        .as_deref()
+        .map(super::dispatcher::effective_disabled_tools)
+        .unwrap_or_default();
+    let (available_tools, mcp_index) =
+        super::disabled::without_disabled(available_tools, mcp_index, &disabled);
+
     // Read the tool-turn temperature before the config is moved into the
     // session invoker below; it is applied to the agent further down.
     let tool_turn_temperature = chat_tools_config_for_session

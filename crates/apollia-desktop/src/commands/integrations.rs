@@ -28,6 +28,12 @@
 //! (see `apollia_auth::connector_providers`). Either way every connect attempt
 //! goes through [`credential_gate`] first, so an unresolved or half-resolved
 //! credential is refused, by name, before a browser window opens.
+//!
+//! ## Governance
+//!
+//! An account is submitted to the runtime's connection admission before its
+//! code is exchanged, and connecting or disconnecting one is journaled, the
+//! same as through the runtime's HTTP consent routes.
 
 //! The credential surface lives in its own module: `credentials` holds the
 //! client ids, secrets, API keys and Drive folders, and the checks that refuse
@@ -43,9 +49,17 @@ use apollia_auth::{
     AccountId, AuthManager, ConnectorProvider, ConsentError, OAuth2PkceFlow, ProviderConfig,
     StoredToken,
 };
+use apollia_runtime::embedded::RuntimeHandle;
+use apollia_runtime::governance::{
+    AdmissionDecision, AdmissionRequest, ConnectionEvent, ConnectionGovernance,
+};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
+use tauri::State;
 use tokio::sync::OnceCell;
+
+/// Who the connection journal names for an account changed from the desktop.
+const DESKTOP_ACTOR: &str = "desktop";
 
 // ─── Shared state ────────────────────────────────────────────────────────────
 
@@ -136,6 +150,9 @@ pub enum IntegrationsError {
     /// A token store / keyring error.
     #[error("auth: {0}")]
     Auth(String),
+    /// The connection admission refused the account; the detail is its reason.
+    #[error("refused by the connection policy: {0}")]
+    RefusedByPolicy(String),
     /// Catch-all internal failure.
     #[error("internal: {0}")]
     Internal(String),
@@ -306,11 +323,16 @@ pub async fn oauth_start_flow(
 
 /// Complete the OAuth flow with the authorization code returned by the
 /// browser callback.
+///
+/// The account is submitted to the connection admission before the code is
+/// exchanged, and the connection is journaled once its token is stored.
 #[tauri::command]
 pub async fn oauth_complete_flow(
+    runtime: State<'_, RuntimeHandle>,
     state: String,
     code: String,
 ) -> Result<OauthCompletedAccount, IntegrationsError> {
+    let governance = &runtime.connection_governance;
     let (provider, flow, provider_config) = {
         let entry = pending_flows()
             .remove(&state)
@@ -318,6 +340,7 @@ pub async fn oauth_complete_flow(
             .1;
         (entry.provider, entry.flow, entry.provider_config)
     };
+    admit_account(governance, provider)?;
 
     let token: StoredToken = apollia_auth::token::exchange_code(&provider_config, &flow, &code)
         .await
@@ -325,34 +348,85 @@ pub async fn oauth_complete_flow(
 
     let account_id = resolve_account_id(provider, &token.access_token).await?;
     let manager = auth_manager().await?;
-    manager
-        .put_token(provider, &account_id, token.clone())
-        .await
-        .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
+    let granted_scopes = token.scopes.clone();
+    store_and_record(governance, &manager, provider, &account_id, token).await?;
 
     Ok(OauthCompletedAccount {
         provider: provider.id().to_owned(),
         account_id: account_id.0,
-        granted_scopes: token.scopes,
+        granted_scopes,
     })
+}
+
+/// Store the token of `account_id` in `manager`, then journal the connection.
+async fn store_and_record(
+    governance: &ConnectionGovernance,
+    manager: &AuthManager,
+    provider: ConnectorProvider,
+    account_id: &AccountId,
+    token: StoredToken,
+) -> Result<(), IntegrationsError> {
+    manager
+        .put_token(provider, account_id, token)
+        .await
+        .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
+    governance.record_or_warn(&ConnectionEvent::account_connected(
+        provider,
+        &account_id.0,
+        DESKTOP_ACTOR,
+    ));
+    Ok(())
 }
 
 /// Revoke (forget) the token for `(provider, account_id)`.
 ///
 /// The local keyring entry is cleared. The upstream is not notified; call
 /// the provider's revocation endpoint separately if a server-side revoke is
-/// required.
+/// required. The disconnection is journaled.
 #[tauri::command]
 pub async fn oauth_disconnect(
+    runtime: State<'_, RuntimeHandle>,
     provider: String,
     account_id: String,
 ) -> Result<(), IntegrationsError> {
     let provider_id = provider_from_id(&provider)?;
     let manager = auth_manager().await?;
+    revoke_and_record(
+        &runtime.connection_governance,
+        &manager,
+        provider_id,
+        &account_id,
+    )
+    .await
+}
+
+/// Submit an account of `provider` to the connection admission.
+fn admit_account(
+    governance: &ConnectionGovernance,
+    provider: ConnectorProvider,
+) -> Result<(), IntegrationsError> {
+    match governance.admit(&AdmissionRequest::for_native_account(provider)) {
+        AdmissionDecision::Admitted => Ok(()),
+        AdmissionDecision::Refused { reason } => Err(IntegrationsError::RefusedByPolicy(reason)),
+    }
+}
+
+/// Forget the token of `account_id`, then journal the disconnection.
+async fn revoke_and_record(
+    governance: &ConnectionGovernance,
+    manager: &AuthManager,
+    provider: ConnectorProvider,
+    account_id: &str,
+) -> Result<(), IntegrationsError> {
     manager
-        .revoke(provider_id, &AccountId::new(account_id))
+        .revoke(provider, &AccountId::new(account_id))
         .await
         .map_err(|e| IntegrationsError::Auth(e.to_string()))?;
+    governance.record_or_warn(&ConnectionEvent::account_disconnected(
+        provider,
+        account_id,
+        DESKTOP_ACTOR,
+    ));
     Ok(())
 }
 
@@ -395,6 +469,193 @@ async fn resolve_account_id(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Token store held in memory, so no test touches the OS keychain.
+    #[derive(Default)]
+    struct MemoryStore(std::sync::Mutex<std::collections::HashMap<(String, String), String>>);
+
+    impl apollia_auth::SecretStore for MemoryStore {
+        fn set(
+            &self,
+            service: &str,
+            user: &str,
+            value: &str,
+        ) -> Result<(), apollia_auth::AuthError> {
+            self.0
+                .lock()
+                .unwrap()
+                .insert((service.to_owned(), user.to_owned()), value.to_owned());
+            Ok(())
+        }
+        fn get(
+            &self,
+            service: &str,
+            user: &str,
+        ) -> Result<Option<String>, apollia_auth::AuthError> {
+            Ok(self
+                .0
+                .lock()
+                .unwrap()
+                .get(&(service.to_owned(), user.to_owned()))
+                .cloned())
+        }
+        fn delete(&self, service: &str, user: &str) -> Result<(), apollia_auth::AuthError> {
+            self.0
+                .lock()
+                .unwrap()
+                .remove(&(service.to_owned(), user.to_owned()));
+            Ok(())
+        }
+        fn backend_id(&self) -> &'static str {
+            "memory"
+        }
+    }
+
+    struct Unreadable;
+
+    impl apollia_runtime::governance::ConnectionAdmission for Unreadable {
+        fn read_decision(
+            &self,
+            _request: &AdmissionRequest,
+        ) -> Result<AdmissionDecision, apollia_runtime::governance::PolicyReadError> {
+            Err(apollia_runtime::governance::PolicyReadError::Unreadable(
+                "policy.toml: invalid".into(),
+            ))
+        }
+    }
+
+    // An account the policy cannot be read for is refused before any exchange.
+    #[test]
+    fn test_account_refused_when_the_policy_cannot_be_read() {
+        // GIVEN governance whose policy read fails
+        let governance = ConnectionGovernance::new(std::sync::Arc::new(Unreadable), None);
+
+        // WHEN a Google account is submitted
+        let err = admit_account(&governance, ConnectorProvider::Google).unwrap_err();
+
+        // THEN it is refused by the policy, naming why
+        assert!(
+            matches!(&err, IntegrationsError::RefusedByPolicy(reason) if reason.contains("policy.toml")),
+            "{err:?}"
+        );
+        // AND the default governance admits it
+        assert!(admit_account(&ConnectionGovernance::default(), ConnectorProvider::Google).is_ok());
+    }
+
+    // Connecting from the desktop stores the token and journals it.
+    #[tokio::test]
+    async fn test_desktop_connect_journals_the_account() {
+        // GIVEN an empty isolated store, and governance over a journal
+        let dir = tempfile::TempDir::new().unwrap();
+        let storage = apollia_auth::MultiAccountStorage::with_store(
+            dir.path().join("connectors-index.json"),
+            Box::new(MemoryStore::default()),
+        );
+        let manager = AuthManager::with_storage(storage);
+        let journal = apollia_runtime::audit_journal::AuditJournalHandle::open(
+            &dir.path().join("journal.db"),
+        )
+        .await
+        .unwrap();
+        let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+
+        // WHEN the token of a Microsoft account is stored
+        store_and_record(
+            &governance,
+            &manager,
+            ConnectorProvider::Microsoft,
+            &AccountId::new("ada@contoso.test"),
+            StoredToken {
+                access_token: "at".into(),
+                refresh_token: None,
+                expires_at: None,
+                scopes: vec![],
+            },
+        )
+        .await
+        .unwrap();
+
+        // THEN the account is listed and the connection is journaled by the desktop
+        let accounts = manager
+            .list_accounts(ConnectorProvider::Microsoft)
+            .await
+            .unwrap();
+        assert_eq!(accounts, vec![AccountId::new("ada@contoso.test")]);
+        let entries = journal
+            .query_run(&apollia_runtime::governance::connection_run_id(
+                "native:microsoft:ada@contoso.test",
+            ))
+            .await;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].kind,
+            apollia_runtime::audit_journal::JournalEntryKind::AccountConnected
+        );
+        assert_eq!(entries[0].payload["actor"], "desktop");
+        assert_eq!(entries[0].payload["account"], "ada@contoso.test");
+        journal.shutdown().await;
+    }
+
+    // Disconnecting from the desktop forgets the token and journals it.
+    #[tokio::test]
+    async fn test_desktop_disconnect_journals_the_account() {
+        // GIVEN a connected Microsoft account in an isolated store, and
+        // governance over a journal
+        let dir = tempfile::TempDir::new().unwrap();
+        let storage = apollia_auth::MultiAccountStorage::with_store(
+            dir.path().join("connectors-index.json"),
+            Box::new(MemoryStore::default()),
+        );
+        let manager = AuthManager::with_storage(storage);
+        manager
+            .put_token(
+                ConnectorProvider::Microsoft,
+                &AccountId::new("ada@contoso.test"),
+                StoredToken {
+                    access_token: "at".into(),
+                    refresh_token: None,
+                    expires_at: None,
+                    scopes: vec![],
+                },
+            )
+            .await
+            .unwrap();
+        let journal = apollia_runtime::audit_journal::AuditJournalHandle::open(
+            &dir.path().join("journal.db"),
+        )
+        .await
+        .unwrap();
+        let governance = ConnectionGovernance::without_policy(Some(journal.clone()));
+
+        // WHEN the account is disconnected
+        revoke_and_record(
+            &governance,
+            &manager,
+            ConnectorProvider::Microsoft,
+            "ada@contoso.test",
+        )
+        .await
+        .unwrap();
+
+        // THEN the token is gone and the disconnection is journaled by the desktop
+        assert!(manager
+            .list_accounts(ConnectorProvider::Microsoft)
+            .await
+            .unwrap()
+            .is_empty());
+        let entries = journal
+            .query_run(&apollia_runtime::governance::connection_run_id(
+                "native:microsoft:ada@contoso.test",
+            ))
+            .await;
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].kind,
+            apollia_runtime::audit_journal::JournalEntryKind::AccountDisconnected
+        );
+        assert_eq!(entries[0].payload["actor"], "desktop");
+        journal.shutdown().await;
+    }
 
     #[test]
     fn test_provider_from_id_known_returns_ok() {

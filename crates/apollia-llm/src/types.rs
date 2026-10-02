@@ -12,7 +12,7 @@ use futures::Stream;
 /// Unified trait for any LLM backend: local via sidecar runner or cloud HTTP.
 ///
 /// Implemented by `RunnerLlmBackend` (apollia-runtime sidecar),
-/// `OpenAICompatibleClient` and `OllamaClient` (feature `"cloud"`).
+/// and `OpenAICompatibleClient` (feature `"cloud"`).
 /// Stored as `Arc<dyn CompletionModel>` in the `LlmRouter`.
 #[async_trait::async_trait]
 pub trait CompletionModel: Send + Sync {

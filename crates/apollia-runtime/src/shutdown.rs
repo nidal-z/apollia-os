@@ -614,6 +614,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -634,6 +635,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -789,6 +791,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -809,6 +812,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -913,6 +917,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -933,6 +938,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1032,6 +1038,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -1052,6 +1059,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -1243,6 +1251,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -1263,6 +1272,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

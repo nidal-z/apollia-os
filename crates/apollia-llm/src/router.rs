@@ -23,8 +23,10 @@ mod completion;
 mod config;
 mod construct;
 mod routing;
+mod servers;
 
 pub use config::{BackendConfig, BackendKind, LlmConfig, ObservabilityConfig};
+pub use servers::ServerEndpoint;
 
 /// Routing context for [`LlmRouter::complete_with_fallback`].
 ///
@@ -75,6 +77,8 @@ pub struct LlmRouter {
     /// Guarded by a standard `Mutex` (short lock, never held across an async
     /// call) so the struct can `Clone` without an extra `Arc`.
     pub(super) session_budget: Arc<Mutex<SessionBudgetTracker>>,
+    /// Declared inference servers, whose models route as `<server>/<model>`.
+    pub(super) servers: Arc<servers::ServerRoutes>,
 }
 
 /// Validate `[llm.routing]` consistency: the named backends must exist.
@@ -254,6 +258,7 @@ mod tests {
         default: &str,
     ) -> LlmRouter {
         LlmRouter {
+            servers: Default::default(),
             backends,
             default: default.into(),
             routing: None,
@@ -275,6 +280,7 @@ mod tests {
             hybrid: None,
         });
         LlmRouter {
+            servers: Default::default(),
             default: precise.to_owned(),
             backends,
             routing,
@@ -1149,6 +1155,7 @@ mod tests {
         let session_budget = Arc::new(Mutex::new(SessionBudgetTracker::default()));
         session_budget.lock().unwrap().session_cost_usd = session_cost;
         LlmRouter {
+            servers: Default::default(),
             default: "local".to_owned(),
             backends,
             routing,
@@ -1163,6 +1170,7 @@ mod tests {
         let mut backends = HashMap::new();
         backends.insert("local".to_owned(), make_mock_backend("local"));
         let router = LlmRouter {
+            servers: Default::default(),
             default: "local".to_owned(),
             backends,
             routing: None,
@@ -1197,6 +1205,7 @@ mod tests {
             }),
         });
         let router = LlmRouter {
+            servers: Default::default(),
             default: "local".to_owned(),
             backends,
             routing,
@@ -1371,11 +1380,11 @@ mod tests {
     }
 
     // GIVEN a backend whose operator pinned a context window
-    // WHEN the window is resolved
-    // THEN the configured value wins, because it is the only one that survives
-    //      the server being unreachable
+    // WHEN the configured window is resolved
+    // THEN it is the pinned value, the one that stands when the server exposes
+    //      no window of its own
     #[test]
-    fn test_configured_context_window_wins_over_any_probe() {
+    fn test_configured_context_window_is_the_fallback_figure() {
         let cfg = LlmBackendConfig {
             name: "ollama".into(),
             provider: LlmProvider::Ollama,
