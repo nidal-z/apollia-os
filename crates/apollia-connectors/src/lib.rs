@@ -37,6 +37,7 @@
 pub mod error;
 pub mod google;
 pub mod http;
+pub mod imap;
 pub mod manifest;
 pub mod microsoft;
 pub mod operation;

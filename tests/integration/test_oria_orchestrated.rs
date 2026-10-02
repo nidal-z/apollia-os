@@ -641,6 +641,7 @@ async fn test_ac7_agent_sans_hook_concatenation() {
                 skills: vec![],
                 tools_requiring_approval: vec![],
                 llm_backend: None,
+                model: None,
                 packages: vec![],
                 memory_config: None,
                 agent_type: None,

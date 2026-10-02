@@ -65,6 +65,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::model_hub::search_hf_models,
         commands::model_hub::get_hf_model,
         commands::model_hub::start_model_download,
+        commands::model_hub::start_variant_download,
         commands::model_hub::cancel_model_download,
         commands::model_hub::list_installed_models,
         commands::model_hub::delete_installed_model,

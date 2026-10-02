@@ -567,6 +567,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connectors/imap/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/connectors/imap/accounts`: verify a mailbox, then store it. */
+        post: operations["add_imap_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/imap/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/connectors/imap/test`: verify a mailbox without storing it. */
+        post: operations["test_imap_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/oauth/complete": {
         parameters: {
             query?: never;
@@ -3156,7 +3190,10 @@ export interface components {
         Connection: {
             /** @description Account the connection acts as, when it has one. */
             account?: string | null;
-            /** @description Stable identifier: `mcp:<server>`, `native:<provider>:<account>`. */
+            /**
+             * @description Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,
+             *     `imap:<address>`.
+             */
             id: string;
             /** @description Kind of connection. */
             kind: components["schemas"]["ConnectionKind"];
@@ -3177,7 +3214,7 @@ export interface components {
          * @description The kind of thing a connection plugs in.
          * @enum {string}
          */
-        ConnectionKind: "native" | "mcp" | "folder";
+        ConnectionKind: "native" | "imap" | "mcp" | "folder";
         /**
          * @description Whether a connection can be used right now.
          * @enum {string}
@@ -3441,6 +3478,53 @@ export interface components {
             status: string;
             /** @description The version of the runtime answering, as its crate declares it. */
             version: string;
+        };
+        /**
+         * @description Body of both mailbox routes. Deliberately without `Debug`: it carries the
+         *     password.
+         */
+        ImapAccountBody: {
+            /** @description Address of the mailbox. */
+            email: string;
+            /** @description IMAP server; filled from the address for a known provider. */
+            host?: string | null;
+            /** @description Application password. Kept in the secret store, never answered. */
+            password: string;
+            /**
+             * Format: int32
+             * @description IMAP port, implicit TLS; the provider's, else 993.
+             */
+            port?: number | null;
+            /** @description Identifier sent at login; the address when absent. */
+            username?: string | null;
+        };
+        /** @description A verified mailbox, as both routes answer it. */
+        ImapAccountResponse: {
+            /** @description Identifier of the connection, `imap:<address>`. */
+            connectionId: string;
+            /** @description Address of the mailbox. */
+            email: string;
+            /** @description IMAP server. */
+            host: string;
+            /**
+             * Format: int32
+             * @description IMAP port.
+             */
+            port: number;
+            /** @description Identifier sent at login. */
+            username: string;
+        };
+        /** @description A refused mailbox: the message and its stable code. */
+        ImapErrorBody: {
+            /**
+             * @description Stable code: `invalid_email`, `unknown_provider`, `invalid_host`,
+             *     `invalid_port`, `invalid_password`, `unreachable`, `tls`,
+             *     `credentials_rejected`, `protocol`, `admission_refused`,
+             *     `secret_store`, `index`.
+             */
+            code: string;
+            /** @description What went wrong, for a person. */
+            error: string;
         };
         /** @description Request body for `POST /api/v1/agents/:name/messages`. */
         InjectMessageBody: {
@@ -5876,6 +5960,126 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    add_imap_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImapAccountBody"];
+            };
+        };
+        responses: {
+            /** @description Mailbox verified and connected */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapAccountResponse"];
+                };
+            };
+            /** @description Unusable address, server, port or password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description Refused by the connection admission */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The server refused the identifier or the password */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The secret store or the mailbox list could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The server is unreachable, its TLS failed, or it answered outside the protocol */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+        };
+    };
+    test_imap_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImapAccountBody"];
+            };
+        };
+        responses: {
+            /** @description The mailbox accepted the identifier and password */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapAccountResponse"];
+                };
+            };
+            /** @description Unusable address, server, port or password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The server refused the identifier or the password */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
+                };
+            };
+            /** @description The server is unreachable, its TLS failed, or it answered outside the protocol */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImapErrorBody"];
                 };
             };
         };

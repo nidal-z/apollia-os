@@ -383,11 +383,12 @@ def check_frontend_type_verdict() -> None:
 # The hook refuses every commit touching a file that carries a private key,
 # whatever the diff, so the TLS pair inlined in `api/server.rs` made that
 # module uncommittable and the way through was `--no-verify`, which switches
-# off all sixteen hooks. The pair now lives on a path of its own and that one
-# path is excused. An exemption is the cheapest way to blind a detector, so the
-# three directions below are what keeps this one honest: it still fires outside
-# the excused path, the excused file is genuinely a file it would fire on, and
-# the exemption still covers exactly one path.
+# off all sixteen hooks. The pair now lives on a path of its own and that path
+# is excused; the IMAP tests hold their own authority and server pair the same
+# way. An exemption is the cheapest way to blind a detector, so the three
+# directions below are what keeps this one honest: it still fires outside the
+# excused paths, each excused file is genuinely a file it would fire on, and the
+# exemption still covers exactly the paths named here.
 
 # Assembled rather than written out. This file is judged by the very hook it
 # drives here, and a literal marker in it would make it a file carrying a key:
@@ -395,7 +396,10 @@ def check_frontend_type_verdict() -> None:
 # working one level up from where it was aimed.
 _KEY_MARK = "PRIVATE KEY-----"
 PROBE_KEY = f"-----BEGIN {_KEY_MARK}\nZmFrZQ==\n-----END {_KEY_MARK}\n"
-EXEMPTED_PATH = "crates/apollia-runtime/src/api/tls_test_material.rs"
+EXEMPTED_PATHS = (
+    "crates/apollia-connectors/src/imap/tls_test_material.rs",
+    "crates/apollia-runtime/src/api/tls_test_material.rs",
+)
 HOOK_ID = "detect-private-key"
 HOOK_ENTRY = re.compile(
     rf"^(\s*)-\s*id:\s*{re.escape(HOOK_ID)}\s*$\n((?:\1\s+\S.*\n|\s*\n)*)",
@@ -423,7 +427,7 @@ def _run_hook(paths: list[str]) -> subprocess.CompletedProcess[str]:
 
 
 def check_private_key_detector() -> None:
-    print("private-key detector: it still fires, and the exemption is one path wide")
+    print("private-key detector: it still fires, and the exemption is as wide as named")
     if shutil.which("pre-commit") is None:
         zero_coverage(
             "private-key detector",
@@ -431,11 +435,12 @@ def check_private_key_detector() -> None:
         )
         return
     config, where = subject(".pre-commit-config.yaml")
-    material, _ = subject(EXEMPTED_PATH)
-    if config is None or material is None:
+    materials = [(path, subject(path)[0]) for path in EXEMPTED_PATHS]
+    absent = [path for path, material in materials if material is None]
+    if config is None or absent:
         zero_coverage(
             "private-key detector",
-            f"{'.pre-commit-config.yaml' if config is None else EXEMPTED_PATH} is "
+            f"{'.pre-commit-config.yaml' if config is None else absent[0]} is "
             "absent, so this pair examined nothing",
         )
         return
@@ -451,26 +456,28 @@ def check_private_key_detector() -> None:
             f"expected a non-zero exit naming the file, got {fired.returncode}. "
             f"Output:\n{fired.stdout}{fired.stderr}",
         )
-        # The excused file passing proves nothing unless the same detector,
+        # An excused file passing proves nothing unless the same detector,
         # given the same bytes at a path it does not excuse, fires on them.
-        copied = Path(tmp) / "copied.rs"
-        copied.write_text(material.read_text(encoding="utf-8"), encoding="utf-8")
-        control = _run_hook([str(copied)])
-        case(
-            "control: the excused file's own content is content it fires on",
-            control.returncode != 0 and "copied.rs" in control.stdout,
-            f"the detector stayed silent on the bytes of {EXEMPTED_PATH} copied "
-            f"to a path it does not excuse, so its silence on the real path says "
-            f"nothing. Output:\n{control.stdout}{control.stderr}",
-        )
+        for path, material in materials:
+            copied = Path(tmp) / "copied.rs"
+            copied.write_text(material.read_text(encoding="utf-8"), encoding="utf-8")
+            control = _run_hook([str(copied)])
+            case(
+                f"control: the content of {path} is content it fires on",
+                control.returncode != 0 and "copied.rs" in control.stdout,
+                f"the detector stayed silent on the bytes of {path} copied "
+                f"to a path it does not excuse, so its silence on the real path "
+                f"says nothing. Output:\n{control.stdout}{control.stderr}",
+            )
 
-    excused = _run_hook([EXEMPTED_PATH])
-    case(
-        "the excused path passes",
-        excused.returncode == 0,
-        f"expected exit 0 on {EXEMPTED_PATH}, got {excused.returncode}. Output:\n"
-        f"{excused.stdout}{excused.stderr}",
-    )
+    for path in EXEMPTED_PATHS:
+        excused = _run_hook([path])
+        case(
+            f"the excused path {path} passes",
+            excused.returncode == 0,
+            f"expected exit 0 on {path}, got {excused.returncode}. Output:\n"
+            f"{excused.stdout}{excused.stderr}",
+        )
 
     pattern = _hook_exclude(config.read_text(encoding="utf-8"))
     if pattern is None:
@@ -486,10 +493,10 @@ def check_private_key_detector() -> None:
         capture_output=True,
         text=True,
     ).stdout.splitlines()
-    subtracted = [path for path in tracked if re.search(pattern, path)]
+    subtracted = sorted(path for path in tracked if re.search(pattern, path))
     case(
-        "the exemption subtracts exactly one path",
-        subtracted == [EXEMPTED_PATH],
+        "the exemption subtracts exactly the named paths",
+        subtracted == sorted(EXEMPTED_PATHS),
         f"the exclude {pattern!r} subtracts {len(subtracted)} tracked path(s) "
         f"from the detector: {subtracted}. An exemption that grew is an "
         "exemption nobody arbitrated",

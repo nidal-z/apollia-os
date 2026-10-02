@@ -11,6 +11,7 @@ mod stream;
 
 use std::sync::Arc;
 
+use apollia_llm::request_defaults::RequestDefaults;
 use convert::{
     inject_temporal_context_into_messages, json_to_py, llm_err_to_py, prepend_context_blocks,
     py_dict_to_chat_message, py_dict_to_tool_spec, py_object_to_json,
@@ -188,6 +189,15 @@ impl LlmProxy {
         (router, backend)
     }
 
+    /// The request settings a call on `backend` starts from: the agent's three
+    /// levels resolved now, or none for a proxy bound to no agent.
+    fn request_defaults(&self, router: &LlmRouter, backend: Option<&str>) -> RequestDefaults {
+        self.agent_model
+            .as_ref()
+            .map(|binding| binding.request_defaults(router, backend))
+            .unwrap_or_default()
+    }
+
     /// Binds this proxy to the current execution identity for observability.
     /// Without this setter, `LlmCallStarted` events are not emitted (but
     /// `complete_with_observability` still emits `LlmCallCompleted` /
@@ -339,6 +349,7 @@ impl LlmProxy {
         // unconstrained one costs: one step, no more and no less.
         self.charge_step()?;
         let (router, backend) = self.route_call(backend);
+        let defaults = self.request_defaults(&router, backend.as_deref());
 
         // Emit LlmCallStarted before dispatch.
         let prompt_chars = (system.chars().count() + user.chars().count()) as u64;
@@ -369,7 +380,7 @@ impl LlmProxy {
             // back to its training cutoff for "today"-type queries nor guesses
             // the host OS. Mirrors what Chat Libre's `build_system_prompt` does.
             let system_with_context = prepend_context_blocks(&system);
-            let req = CompletionRequest {
+            let mut req = CompletionRequest {
                 messages: vec![
                     ChatMessage::system(system_with_context),
                     ChatMessage::user(user),
@@ -380,6 +391,7 @@ impl LlmProxy {
                 response_schema: response_schema.clone(),
                 ..Default::default()
             };
+            defaults.apply_to(&mut req);
             let resp = router
                 .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                 .await
@@ -432,6 +444,7 @@ impl LlmProxy {
         max_concurrency: Option<usize>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let (router, backend) = self.route_call(backend);
+        let defaults = self.request_defaults(&router, backend.as_deref());
         let obs = Arc::clone(&self.obs_config);
         let budget = Arc::clone(&self.budget_view);
         let bus = self.event_bus.clone();
@@ -451,6 +464,7 @@ impl LlmProxy {
                 let sem = Arc::clone(&sem);
                 let backend = backend.clone();
                 let system_prefix = system_prefix.clone();
+                let defaults = defaults.clone();
                 async move {
                     // Bound in-flight calls; the owned permit (no borrow across
                     // the await) is held for the item's duration. The semaphore is
@@ -463,12 +477,13 @@ impl LlmProxy {
                         return (index, Err("budget exhausted".to_string()));
                     }
                     budget.increment_steps();
-                    let req = CompletionRequest {
+                    let mut req = CompletionRequest {
                         messages: vec![ChatMessage::system(system_prefix), ChatMessage::user(item)],
                         temperature,
                         max_tokens,
                         ..Default::default()
                     };
+                    defaults.apply_to(&mut req);
                     let res = router
                         .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                         .await
@@ -597,6 +612,7 @@ impl LlmProxy {
             })
             .sum();
         let (router, backend) = self.route_call(backend);
+        let defaults = self.request_defaults(&router, backend.as_deref());
         let backend_label = backend
             .as_deref()
             .unwrap_or_else(|| router.default_name())
@@ -624,7 +640,7 @@ impl LlmProxy {
             // Otherwise insert a fresh system message at index 0. Keeps
             // multi-turn agent calls grounded on the real wall clock.
             let messages = inject_temporal_context_into_messages(chat_messages);
-            let req = complete_request(messages, sampling, response_schema.clone());
+            let req = complete_request(messages, sampling, response_schema.clone(), &defaults);
             let resp = router
                 .complete_with_observability(backend.as_deref(), req, bus.as_ref(), &obs)
                 .await
@@ -727,6 +743,7 @@ impl LlmProxy {
             .collect::<PyResult<Vec<_>>>()?;
 
         let (router, backend) = self.route_call(backend);
+        let defaults = self.request_defaults(&router, backend.as_deref());
         let obs = Arc::clone(&self.obs_config);
         let bus = self.event_bus.clone();
 
@@ -748,6 +765,7 @@ impl LlmProxy {
                     temperature,
                     max_tokens,
                     seed,
+                    defaults,
                     tx,
                 })
                 .await;

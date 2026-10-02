@@ -151,6 +151,10 @@ impl FromStr for FlashAttn {
 pub struct LlamaServerConfig {
     /// Absolute path to the `.gguf` model file to load (`-m`).
     pub model_path: String,
+    /// Absolute path to the vision projector fetched with the model
+    /// (`--mmproj`). `None` loads the model without vision. Set at spawn time
+    /// from the model index, like `model_path`, and never from the environment.
+    pub mmproj_path: Option<String>,
     /// Total context window in tokens (`-c`). Split across slots; the desktop
     /// runs a single conversation, so the whole window serves one request.
     pub n_ctx: u32,
@@ -204,6 +208,7 @@ impl Default for LlamaServerConfig {
     fn default() -> Self {
         Self {
             model_path: String::new(),
+            mmproj_path: None,
             n_ctx: 32_768,
             n_gpu_layers: 999,
             n_batch: None,
@@ -233,6 +238,9 @@ pub(crate) fn build_args(config: &LlamaServerConfig, port: u16) -> Vec<String> {
     };
 
     push("-m", config.model_path.clone());
+    if let Some(projector) = &config.mmproj_path {
+        push("--mmproj", projector.clone());
+    }
     push("-ngl", config.n_gpu_layers.to_string());
     push("-c", config.n_ctx.to_string());
 
@@ -468,6 +476,33 @@ mod tests {
 
         // THEN it is the historical launch line, flag for flag and in order
         assert_eq!(args, frozen_baseline());
+    }
+
+    #[test]
+    fn test_build_args_projector_is_passed_right_after_the_model() {
+        // GIVEN a model fetched with its vision projector
+        let config = LlamaServerConfig {
+            model_path: "/models/Vision-Q4_K_M/Vision-Q4_K_M.gguf".to_owned(),
+            mmproj_path: Some("/models/Vision-Q4_K_M/mmproj-Vision-f16.gguf".to_owned()),
+            ..LlamaServerConfig::default()
+        };
+
+        // WHEN the argument vector is built
+        let args = build_args(&config, PORT);
+
+        // THEN the projector follows the model and nothing else moves
+        assert_eq!(
+            args,
+            baseline_with(|v| {
+                v[1] = "/models/Vision-Q4_K_M/Vision-Q4_K_M.gguf".to_owned();
+                insert(
+                    v,
+                    2,
+                    "--mmproj",
+                    "/models/Vision-Q4_K_M/mmproj-Vision-f16.gguf",
+                );
+            })
+        );
     }
 
     #[test]

@@ -14,6 +14,7 @@ pub mod routes_connections;
 pub mod routes_connectors;
 pub mod routes_events;
 pub mod routes_hooks;
+pub mod routes_imap;
 pub mod routes_llm;
 pub mod routes_mcp;
 pub mod routes_mcp_registry;

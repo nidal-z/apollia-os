@@ -128,7 +128,7 @@ pub(super) fn lfs_sha256_by_path(
 }
 
 /// A SHA-256 as 64 lowercase hex digits, or `None` when `raw` is not one.
-fn normalize_sha256(raw: &str) -> Option<String> {
+pub(super) fn normalize_sha256(raw: &str) -> Option<String> {
     let lower = raw.trim().to_ascii_lowercase();
     (lower.len() == 64 && lower.bytes().all(|b| b.is_ascii_hexdigit())).then_some(lower)
 }

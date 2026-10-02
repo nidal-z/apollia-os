@@ -22,7 +22,8 @@ class Connection:
     """One connection, whatever its kind.
 
     Attributes:
-        id (str): Stable identifier: `mcp:<server>`, `native:<provider>:<account>`.
+        id (str): Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,
+            `imap:<address>`.
         kind (ConnectionKind): The kind of thing a connection plugs in.
         label (str): Name shown to the user: the server name, or the provider.
         official (bool): Published by the service's own publisher.

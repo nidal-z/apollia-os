@@ -1515,6 +1515,148 @@
         }
       }
     },
+    "/api/v1/connectors/imap/accounts": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/connectors/imap/accounts`: verify a mailbox, then store it.",
+        "operationId": "add_imap_mailbox",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImapAccountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Mailbox verified and connected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapAccountResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unusable address, server, port or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The server refused the identifier or the password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The secret store or the mailbox list could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The server is unreachable, its TLS failed, or it answered outside the protocol",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/imap/test": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/connectors/imap/test`: verify a mailbox without storing it.",
+        "operationId": "test_imap_mailbox",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImapAccountBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The mailbox accepted the identifier and password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapAccountResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unusable address, server, port or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The server refused the identifier or the password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The server is unreachable, its TLS failed, or it answered outside the protocol",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImapErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/oauth/complete": {
       "post": {
         "tags": [
@@ -8641,7 +8783,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`."
+            "description": "Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,\n`imap:<address>`."
           },
           "kind": {
             "$ref": "#/components/schemas/ConnectionKind",
@@ -8681,6 +8823,7 @@
         "description": "The kind of thing a connection plugs in.",
         "enum": [
           "native",
+          "imap",
           "mcp",
           "folder"
         ]
@@ -9310,6 +9453,100 @@
           "version": {
             "type": "string",
             "description": "The version of the runtime answering, as its crate declares it."
+          }
+        }
+      },
+      "ImapAccountBody": {
+        "type": "object",
+        "description": "Body of both mailbox routes. Deliberately without `Debug`: it carries the\npassword.",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Address of the mailbox."
+          },
+          "host": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "IMAP server; filled from the address for a known provider."
+          },
+          "password": {
+            "type": "string",
+            "description": "Application password. Kept in the secret store, never answered."
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "IMAP port, implicit TLS; the provider's, else 993.",
+            "minimum": 0
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier sent at login; the address when absent."
+          }
+        }
+      },
+      "ImapAccountResponse": {
+        "type": "object",
+        "description": "A verified mailbox, as both routes answer it.",
+        "required": [
+          "connectionId",
+          "email",
+          "host",
+          "port",
+          "username"
+        ],
+        "properties": {
+          "connectionId": {
+            "type": "string",
+            "description": "Identifier of the connection, `imap:<address>`."
+          },
+          "email": {
+            "type": "string",
+            "description": "Address of the mailbox."
+          },
+          "host": {
+            "type": "string",
+            "description": "IMAP server."
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "IMAP port.",
+            "minimum": 0
+          },
+          "username": {
+            "type": "string",
+            "description": "Identifier sent at login."
+          }
+        }
+      },
+      "ImapErrorBody": {
+        "type": "object",
+        "description": "A refused mailbox: the message and its stable code.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable code: `invalid_email`, `unknown_provider`, `invalid_host`,\n`invalid_port`, `invalid_password`, `unreachable`, `tls`,\n`credentials_rejected`, `protocol`, `admission_refused`,\n`secret_store`, `index`."
+          },
+          "error": {
+            "type": "string",
+            "description": "What went wrong, for a person."
           }
         }
       },

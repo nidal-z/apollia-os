@@ -75,6 +75,7 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
         "resume_task",
         "list_pending_user_inputs",
         "respond_user_input",
+        "start_variant_download",
     ] {
         assert!(
             ROUTED_COMMANDS.contains(&command),
