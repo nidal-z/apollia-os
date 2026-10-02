@@ -177,6 +177,58 @@ export function deleteInstalledModel(path: string): Promise<void> {
   return invoke("delete_installed_model", { path });
 }
 
+// ── Model cards ───────────────────────────────────────────────────────────
+
+/** One card of the catalogue, in the language it was asked in (or English). */
+export interface ModelCardView {
+  id: string;
+  kind: "language" | "embeddings" | "dictation";
+  label: string;
+  publisher: string;
+  language: "fr" | "en";
+  description: string;
+  license: { id: string; source: string };
+  source_url: string;
+  capabilities: { tools: boolean; reasoning: boolean; vision: boolean; source: string };
+  memory: { min_gb: number; source: string };
+  defaults: {
+    temperature?: number;
+    top_p?: number;
+    top_k?: number;
+    min_p?: number;
+    repetition_penalty?: number;
+    presence_penalty?: number;
+    source: string;
+  };
+  author_fields: {
+    name: string;
+    type: "liste" | "booleen";
+    values?: unknown[];
+    default: unknown;
+    explanation: string;
+    source: string;
+  }[];
+  repos: string[];
+}
+
+/** The catalogue as it opens: the cards, or an empty list with the reason. */
+export interface ModelCatalogue {
+  status: "ok" | "offline" | "disabled" | "no_trusted_key";
+  origin: "primary" | "mirror" | "cache" | null;
+  message: string | null;
+  cards: ModelCardView[];
+  publishers: { official: { publisher: string; orgs: string[] }[]; converters: string[] };
+}
+
+/**
+ * Opens the catalogue: reads the signed model cards (main address, mirror,
+ * then the copy kept from the last read) in `lang`, keeping a copy so the card
+ * of a model downloaded afterwards is written next to it.
+ */
+export function listModelCards(lang: string): Promise<ModelCatalogue> {
+  return invoke<ModelCatalogue>("list_model_cards", { lang });
+}
+
 /** Subscribes to download progress; returns the unlisten handle. */
 export function listenDownloadProgress(
   handler: (progress: DownloadProgress) => void,

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "whisper-base",
+  "kind": "dictation",
+  "label": "Whisper Base",
+  "publisher": "OpenAI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/openai/whisper-base"
+  },
+  "source_url": "https://huggingface.co/openai/whisper-base",
+  "description": {
+    "fr": "Modèle de dictée léger et équilibré, pour dicter des messages courts sur un poste modeste.",
+    "en": "A light, balanced dictation model for dictating short messages on a modest machine."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/openai/whisper-base"
+  },
+  "memory": {
+    "min_gb": 0.2,
+    "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-base.bin"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "openai/whisper-base"
+  ],
+  "selection_files": [
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+  ]
+}

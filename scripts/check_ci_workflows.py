@@ -45,6 +45,18 @@ signing key no secret provided:
                     `createUpdaterArtifacts`, so a build without the secret
                     still finishes, explicitly and with a named warning
 
+One rule holds the secrets that sign and publish what the application trusts
+(the distribution key that signs the engine manifest and the model registry
+index, and the object storage keys that publish them). They sit at repository
+level, with no environment to fence them, so the fence is the trigger:
+
+  dist-secrets      a job that names `APOLLIA_DIST_SIGNING_KEY`,
+                    `APOLLIA_DIST_SIGNING_KEY_PASSWORD`, `SCW_ACCESS_KEY` or
+                    `SCW_SECRET_KEY` sits in a workflow triggered only by a
+                    tag push (`push.tags`, no branch) or `workflow_dispatch`,
+                    never by `pull_request` or `pull_request_target`, so no
+                    code from a pull request ever runs beside them
+
 Exit codes, distinct on purpose so a run that measured nothing cannot pass for
 a run that found nothing:
 
@@ -112,6 +124,29 @@ def _has_updater_guard(job: dict) -> bool:
         if reads_key and "createUpdaterArtifacts" in run:
             return True
     return False
+
+
+DIST_SECRETS = (
+    "APOLLIA_DIST_SIGNING_KEY",
+    "APOLLIA_DIST_SIGNING_KEY_PASSWORD",
+    "SCW_ACCESS_KEY",
+    "SCW_SECRET_KEY",
+)
+
+
+def _tag_or_dispatch_only(doc: dict) -> bool:
+    """True when the workflow runs on a tag push or a manual dispatch only."""
+    on = doc.get("on") if "on" in doc else doc.get(True)
+    if not isinstance(on, dict) or not on:
+        return False
+    for trigger, spec in on.items():
+        if trigger == "workflow_dispatch":
+            continue
+        if trigger != "push" or not isinstance(spec, dict):
+            return False
+        if not spec.get("tags") or "branches" in spec or "branches-ignore" in spec:
+            return False
+    return True
 
 
 def _jobs(doc: dict) -> dict:
@@ -321,6 +356,14 @@ def audit_file(path: Path) -> tuple[list[str], int]:
             defects.append(f"{path.name}: job {job_id}: not a mapping")
             continue
 
+        named = [s for s in DIST_SECRETS if re.search(rf"\b{s}\b", repr(job))]
+        if named and not _tag_or_dispatch_only(doc):
+            defects.append(
+                f"{path.name}: job {job_id}: [dist-secrets] names "
+                f"{', '.join(named)} in a workflow not limited to a tag push "
+                f"or workflow_dispatch"
+            )
+
         needs = job.get("needs", [])
         if isinstance(needs, str):
             needs = [needs]
@@ -502,6 +545,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo close
+      - name: Sign the registry index
+        env:
+          APOLLIA_DIST_SIGNING_KEY: ${{ secrets.APOLLIA_DIST_SIGNING_KEY }}
+        run: cargo tauri signer sign index.json
 """
 
 CLEAN_SHA = "0123456789abcdef0123456789abcdef01234567"
@@ -550,6 +597,10 @@ jobs:
       - uses: softprops/action-gh-release@{CLEAN_SHA} # v2
         with:
           fail_on_unmatched_files: true
+      - name: Sign the registry index
+        env:
+          APOLLIA_DIST_SIGNING_KEY: ${{{{ secrets.APOLLIA_DIST_SIGNING_KEY }}}}
+        run: cargo tauri signer sign index.json
 """
 
 CLEAN_NIGHTLY = f"""\
@@ -596,6 +647,7 @@ EXPECTED_RULES = (
     "[sign-verify]",
     "[runner-deprecated]",
     "[updater-guard]",
+    "[dist-secrets]",
 )
 
 

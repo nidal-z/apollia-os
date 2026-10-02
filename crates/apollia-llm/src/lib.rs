@@ -25,6 +25,7 @@ pub mod hf_registry;
 pub mod http_client;
 pub mod meta;
 pub mod meta_orchestrator;
+pub mod model_cards;
 pub mod model_defaults;
 pub mod model_index;
 pub mod pricing;

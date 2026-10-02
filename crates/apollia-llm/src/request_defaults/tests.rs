@@ -184,6 +184,39 @@ fn the_publisher_defaults_file_wins_over_the_embedded_table() {
 }
 
 #[test]
+fn the_card_copied_beside_the_model_wins_over_the_publisher_defaults_file() {
+    // GIVEN the downloader recorded a temperature of 0.7 for the Qwen3 file,
+    //       and the card copied beside it recommends 1.0 and a presence penalty
+    let tmp = tempfile::tempdir().unwrap();
+    data_dir_with_qwen3(tmp.path());
+    let models = tmp.path().join("models");
+    UserOverrides::upsert(
+        &models.join(SAMPLING_DEFAULTS_FILE_NAME),
+        QWEN3_FILE,
+        ModelDefaults {
+            temperature: Some(0.7),
+            ..ModelDefaults::default()
+        },
+    )
+    .unwrap();
+    let mut card: serde_json::Value =
+        serde_json::from_str(include_str!("../model_cards/fixtures/index.json")).unwrap();
+    let card = card["cards"][0].take();
+    std::fs::write(
+        crate::model_cards::card_path_for(&models.join(QWEN3_FILE)),
+        serde_json::to_vec(&card).unwrap(),
+    )
+    .unwrap();
+
+    // WHEN level 1 is resolved for that model
+    let level = model_level(QWEN3_FILE, QWEN3_FILE, Some(&models));
+
+    // THEN the card's temperature wins, the file is not consulted for it
+    assert_eq!(level.temperature, Some(1.0));
+    assert_eq!(level.top_p, Some(0.95));
+}
+
+#[test]
 fn three_levels_merge_field_by_field_preset_over_package_over_model() {
     // GIVEN a model level, a package level and a preset level that each set
     //       some fields and leave others
