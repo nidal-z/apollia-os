@@ -19,14 +19,19 @@ mod backend;
 mod bootstrap;
 mod bundled_agents;
 mod commands;
-// The documentation reader of the interface is what calls this module; until
-// its commands are registered with their caller, only the tests reach it, and
-// the expectation turns red the day the module is wired.
+// REASON: this module is the content side of the in-app documentation reader.
+// The two Tauri commands that read the manifest and a page are registered by
+// the reader itself, together with the screen that calls them, because a
+// command without a caller fails `scripts/check_tauri_ipc_callers.py`. Until
+// then only the tests reach the module.
+// TODO(once the documentation reader registers its manifest and page commands
+// and a screen calls them): remove this attribute; the expectation turns red
+// on that day and forces the removal.
 #[cfg_attr(
     not(test),
     expect(
         dead_code,
-        reason = "read by the tests until its commands have a caller"
+        reason = "reached only by its tests until the documentation reader registers its commands"
     )
 )]
 mod embedded_docs;
