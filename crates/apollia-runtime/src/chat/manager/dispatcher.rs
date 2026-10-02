@@ -63,9 +63,7 @@ pub(in crate::chat::manager) async fn resolve_workspace_for_session(
     .await;
 
     // SaaS connectors: Google + Microsoft 365, and mailboxes over IMAP.
-    extra_executors.extend(crate::connectors_bridge::build_google_executors());
-    extra_executors.extend(crate::connectors_bridge::build_microsoft_executors());
-    extra_executors.extend(crate::connectors_bridge::build_imap_executors());
+    extra_executors.extend(crate::connectors_bridge::build_connector_executors().await);
     extra_executors.extend(package_tools);
 
     // With no project open, the file tools are rooted at the user's home, not at

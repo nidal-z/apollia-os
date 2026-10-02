@@ -27,15 +27,6 @@ pub fn microsoft_tool_descriptors() -> Vec<ToolDescriptor> {
         .collect()
 }
 
-/// All connector tool descriptors registered at supervisor boot: Google,
-/// Microsoft 365, and the mailbox read tools over IMAP.
-pub fn all_connector_descriptors() -> Vec<ToolDescriptor> {
-    let mut descs = google_tool_descriptors();
-    descs.extend(microsoft_tool_descriptors());
-    descs.extend(super::imap::imap_tool_descriptors());
-    descs
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn op_to_descriptor(connector_id: &str, op: &OperationSpec) -> ToolDescriptor {

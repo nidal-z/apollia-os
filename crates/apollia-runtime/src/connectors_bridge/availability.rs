@@ -9,18 +9,22 @@
 //! them, and spent its turns explaining that no Google account was connected
 //! when it had been asked to list a local folder.
 //!
-//! So a connector's tools are advertised only while that connector has an
-//! account. The check runs per turn, which is what lets an account connected in
-//! the middle of a conversation be usable on the very next message.
+//! So a connector's tools are advertised only while their account is
+//! connected. The check runs per turn, which is what lets an account connected
+//! in the middle of a conversation be usable on the very next message, and an
+//! account disconnected stop being offered on the next one.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use apollia_auth::ConnectorProvider;
 
+use super::connection_tools::parse_connection_tool;
 use super::descriptors::{google_tool_descriptors, microsoft_tool_descriptors};
+use crate::connections::NativeAccounts;
 
-/// Tool name to the connector that serves it, built once from the descriptors.
+/// Operation name to the connector that serves it, built once from the
+/// descriptors.
 fn connector_index() -> &'static HashMap<String, ConnectorProvider> {
     static INDEX: OnceLock<HashMap<String, ConnectorProvider>> = OnceLock::new();
     INDEX.get_or_init(|| {
@@ -35,43 +39,26 @@ fn connector_index() -> &'static HashMap<String, ConnectorProvider> {
     })
 }
 
-/// The connector a tool belongs to, or `None` for any other tool.
+/// The connector an operation (`gmail.send`) belongs to, or `None` for any
+/// other name.
 #[must_use]
-pub fn connector_of(tool: &str) -> Option<ConnectorProvider> {
-    connector_index().get(tool).copied()
+pub fn connector_of(operation: &str) -> Option<ConnectorProvider> {
+    connector_index().get(operation).copied()
 }
 
-/// The connectors that currently have at least one account.
+/// Whether `tool` may be advertised, given the accounts connected now.
 ///
-/// A storage that cannot be opened reads as "nothing connected": those tools
-/// could not authenticate anyway, and advertising them is exactly the waste this
-/// module exists to stop.
-pub async fn connected_providers() -> Vec<ConnectorProvider> {
-    let Ok(auth) = super::get_auth().await else {
-        return Vec::new();
-    };
-    let mut connected = Vec::new();
-    for provider in [ConnectorProvider::Google, ConnectorProvider::Microsoft] {
-        if auth
-            .list_accounts(provider)
-            .await
-            .is_ok_and(|accounts| !accounts.is_empty())
-        {
-            connected.push(provider);
-        }
-    }
-    connected
-}
-
-/// Whether `tool` may be advertised, given the connectors that are connected.
-///
-/// Tools that belong to no connector are always advertised.
+/// The tool of an account is advertised while that account is connected. A
+/// bare operation name names no account and is never advertised. Tools that
+/// belong to no connector are always advertised.
 #[must_use]
-pub fn is_advertisable(tool: &str, connected: &[ConnectorProvider]) -> bool {
-    match connector_of(tool) {
-        Some(provider) => connected.contains(&provider),
-        None => true,
+pub fn is_advertisable(tool: &str, accounts: &[NativeAccounts]) -> bool {
+    if let Some(tool) = parse_connection_tool(tool) {
+        return accounts.iter().any(|(provider, names)| {
+            *provider == tool.provider && names.iter().any(|n| n == tool.account.as_str())
+        });
     }
+    connector_of(tool).is_none()
 }
 
 #[cfg(test)]
@@ -81,23 +68,43 @@ mod tests {
     #[test]
     fn a_connector_tool_is_withheld_while_its_account_is_missing() {
         // GIVEN no connected account
-        let connected: &[ConnectorProvider] = &[];
+        let accounts: &[NativeAccounts] = &[];
 
-        // WHEN a Google tool and a native tool are checked
+        // WHEN the tool of an account, a bare operation and a native tool are
+        // checked
         // THEN only the native one is advertised
-        assert!(!is_advertisable("gdrive.find_by_name", connected));
-        assert!(is_advertisable("file_list", connected));
+        assert!(!is_advertisable(
+            "conn:google:ada@example.com/gdrive.find_by_name",
+            accounts
+        ));
+        assert!(!is_advertisable("gdrive.find_by_name", accounts));
+        assert!(is_advertisable("file_list", accounts));
     }
 
     #[test]
-    fn a_connected_account_brings_its_tools_back() {
-        // GIVEN a connected Google account and no Microsoft one
-        let connected = [ConnectorProvider::Google];
+    fn a_connected_account_brings_its_own_tools_back() {
+        // GIVEN one connected Google account and no Microsoft one
+        let accounts = [(
+            ConnectorProvider::Google,
+            vec!["ada@example.com".to_owned()],
+        )];
 
-        // WHEN one tool of each connector is checked
-        // THEN the Google tool is advertised and the Microsoft one is not
-        assert!(is_advertisable("gdrive.find_by_name", &connected));
-        assert!(!is_advertisable("outlook.send", &connected));
+        // WHEN tools of that account, of another Google account, of a
+        // Microsoft account and a bare operation are checked
+        // THEN only the tool of the connected account is advertised
+        assert!(is_advertisable(
+            "conn:google:ada@example.com/gdrive.find_by_name",
+            &accounts
+        ));
+        assert!(!is_advertisable(
+            "conn:google:bob@example.com/gdrive.find_by_name",
+            &accounts
+        ));
+        assert!(!is_advertisable(
+            "conn:microsoft:ada@example.com/outlook.send",
+            &accounts
+        ));
+        assert!(!is_advertisable("gdrive.find_by_name", &accounts));
     }
 
     #[test]

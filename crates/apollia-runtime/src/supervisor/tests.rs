@@ -333,9 +333,14 @@ async fn test_handles_accessible_after_start() {
     // sources `register_builtin_tools` registers, so it stays correct as
     // native tools, connector ops, and MCP resource tools evolve while
     // still catching a registration that silently drops a descriptor:
-    // native tools + connector descriptors (Google + Microsoft 365) + the
+    // native tools + the tools of each connected account (Google + Microsoft
+    // 365, none without an account) + the mailbox tools + the
     // always-advertised MCP resource tools.
-    let connector_count = crate::connectors_bridge::all_connector_descriptors().len();
+    let connector_count = crate::connectors_bridge::connector_descriptors_for(
+        &crate::connectors_bridge::connected_accounts().await,
+    )
+    .len()
+        + crate::connectors_bridge::imap_tool_descriptors().len();
     let mcp_resource_count = apollia_mcp::mcp_resources::mcp_resource_descriptors().len();
     let expected = native_tool_descriptors().len() + connector_count + mcp_resource_count;
     let tools = handles.tool_registry_handle.list().await;

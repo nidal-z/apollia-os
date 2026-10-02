@@ -42,7 +42,9 @@ pub enum AccessUpgradeError {
 /// of a rule on it.
 pub fn descriptor_families() -> HashMap<String, ConsentFamily> {
     let mut descriptors = apollia_tools::tools::native_descriptors();
-    descriptors.extend(crate::connectors_bridge::all_connector_descriptors());
+    descriptors.extend(crate::connectors_bridge::google_tool_descriptors());
+    descriptors.extend(crate::connectors_bridge::microsoft_tool_descriptors());
+    descriptors.extend(crate::connectors_bridge::imap_tool_descriptors());
     descriptors.extend(apollia_mcp::mcp_resources::mcp_resource_descriptors());
     descriptors
         .into_iter()

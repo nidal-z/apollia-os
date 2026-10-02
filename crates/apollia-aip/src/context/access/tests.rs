@@ -43,7 +43,8 @@ fn descriptor(name: &str) -> ToolDescriptor {
 type Fixture = (ToolProxy, ToolRegistryHandle, AuditTrailHandle);
 
 /// A proxy granted `granted`, over a registry holding a native tool, an MCP
-/// tool and a package tool, each with a sibling that is not granted.
+/// tool, a package tool and the tool of a connected account, each with a
+/// sibling that is not granted.
 async fn proxy(granted: &[&str]) -> Result<Fixture, Box<dyn std::error::Error>> {
     let registry = ToolRegistryHandle::start();
     for name in [
@@ -53,6 +54,8 @@ async fn proxy(granted: &[&str]) -> Result<Fixture, Box<dyn std::error::Error>> 
         "mcp:notion/create_page",
         "pkg:crm/lookup",
         "pkg:crm/delete",
+        "conn:google:pro@example.com/gmail.send",
+        "conn:google:home@example.com/gmail.send",
     ] {
         registry.register(descriptor(name)).await?;
     }
@@ -69,9 +72,15 @@ async fn proxy(granted: &[&str]) -> Result<Fixture, Box<dyn std::error::Error>> 
     Ok((proxy, registry, audit))
 }
 
-const GRANTED: [&str; 3] = ["file_read", "mcp:notion/search", "pkg:crm/lookup"];
+const GRANTED: [&str; 4] = [
+    "file_read",
+    "mcp:notion/search",
+    "pkg:crm/lookup",
+    "conn:google:pro@example.com/gmail.send",
+];
 
-// GIVEN an agent granted a native tool, an MCP tool and a package tool
+// GIVEN an agent granted a native tool, an MCP tool, a package tool and the
+// tool of one connected account
 // WHEN it calls each of them
 // THEN each one runs
 #[tokio::test]
@@ -91,19 +100,24 @@ async fn test_granted_tool_of_each_provenance_runs() {
 }
 
 // GIVEN the same agent, and a registered sibling of each provenance it is
-// not granted
+// not granted, the same tool of another account among them
 // WHEN it calls each sibling
 // THEN each call is refused before the registry and the refusal is audited
 #[tokio::test]
 async fn test_tool_not_granted_is_refused_and_audited() {
     let (proxy, registry, audit) = proxy(&GRANTED).await.unwrap();
-    let siblings = ["file_write", "mcp:notion/create_page", "pkg:crm/delete"];
+    let siblings = [
+        "file_write",
+        "mcp:notion/create_page",
+        "pkg:crm/delete",
+        "conn:google:home@example.com/gmail.send",
+    ];
 
     let mut refused = Vec::new();
     for name in siblings {
         refused.push(proxy.call_inner(name, serde_json::json!({})).await);
     }
-    let records = audit.query_last(3).await;
+    let records = audit.query_last(siblings.len()).await;
 
     for (name, result) in siblings.iter().zip(refused) {
         assert!(

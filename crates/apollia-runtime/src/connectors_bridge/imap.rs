@@ -273,15 +273,18 @@ mod tests {
         assert!(executors.iter().all(|e| e.is_read_only()));
     }
 
-    #[test]
-    fn test_mailbox_tools_are_registered_with_the_connectors() {
-        // GIVEN the connector descriptors registered at boot
-        let all = crate::connectors_bridge::all_connector_descriptors();
+    #[tokio::test]
+    async fn test_mailbox_tools_are_registered_with_the_connectors() {
+        // GIVEN the tools registered at boot, with no native account
+        let registry = apollia_tools::ToolRegistryHandle::start();
+        crate::supervisor::register_builtin_tools(&registry, &[]).await;
         // WHEN the mailbox tools are looked for
-        // THEN all three are there
+        let all = registry.list().await.unwrap();
+        // THEN all three are there: they take their mailbox as an argument
         for id in IMAP_TOOLS {
             assert!(all.iter().any(|d| d.name == id), "{id}");
         }
+        registry.shutdown().await;
     }
 
     #[test]
