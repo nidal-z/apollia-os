@@ -1,10 +1,11 @@
 //! One read model for everything plugged into this machine: a connection.
 //!
-//! A connection is a native connector account (Google, Microsoft), an MCP
-//! server, or a folder of this machine. Each kind keeps its own store, which
-//! this module reads without migrating: `mcp.db` for the MCP servers, the
-//! account index of [`apollia_auth`] for the native accounts. Folders have no
-//! store yet, and [`folder_connections`] answers none.
+//! A connection is a native connector account (Google, Microsoft), a mailbox
+//! reached over IMAP, an MCP server, or a folder of this machine. Each kind
+//! keeps its own store, which this module reads without migrating: `mcp.db`
+//! for the MCP servers, the account index of [`apollia_auth`] for the native
+//! accounts, `imap-accounts.json` for the mailboxes. Folders have no store
+//! yet, and [`folder_connections`] answers none.
 //!
 //! Two attributes are computed here and never entered by anyone:
 //!
@@ -33,6 +34,8 @@ use serde::{Deserialize, Serialize};
 pub enum ConnectionKind {
     /// A native connector account: Google Workspace, Microsoft 365.
     Native,
+    /// A mailbox reached over IMAP with an application password.
+    Imap,
     /// An MCP server.
     Mcp,
     /// A folder of this machine.
@@ -76,7 +79,8 @@ pub struct ConnectionTool {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Connection {
-    /// Stable identifier: `mcp:<server>`, `native:<provider>:<account>`.
+    /// Stable identifier: `mcp:<server>`, `native:<provider>:<account>`,
+    /// `imap:<address>`.
     pub id: String,
     /// Kind of connection.
     pub kind: ConnectionKind,
@@ -119,6 +123,26 @@ pub fn is_remote(transport: &str, url: Option<&str>) -> bool {
 #[must_use]
 pub fn is_prechecked(family: ActionFamily, provenance: Provenance, official: bool) -> bool {
     family == ActionFamily::Read && (provenance == Provenance::Selection || official)
+}
+
+/// Identifier of the connection of the mailbox at `email`.
+#[must_use]
+pub fn imap_connection_id(email: &str) -> String {
+    format!("imap:{email}")
+}
+
+/// `true` unless `host` is a loopback address: a mailbox server on this
+/// machine keeps the mail here.
+#[must_use]
+pub fn is_remote_host(host: &str) -> bool {
+    // An `http` address, because only a special scheme parses its host as an
+    // IP address; an IPv6 literal takes its brackets.
+    let host = if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]")
+    } else {
+        host.to_owned()
+    };
+    !apollia_core::net::is_loopback_host_str(&format!("http://{host}/"))
 }
 
 /// Folder connections. Their store does not exist yet; none is answered.

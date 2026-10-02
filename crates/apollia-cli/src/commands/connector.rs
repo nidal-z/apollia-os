@@ -16,10 +16,13 @@ use crate::exit_codes;
 
 mod accounts;
 mod drive;
+mod imap;
 mod secrets;
 
 use accounts::{run_accounts, run_list, run_revoke, run_test};
 use drive::run_drive;
+use imap::run_imap;
+pub use imap::ImapCommand;
 use secrets::{run_api_key, run_client_id, run_client_secret};
 
 /// Subcommands of `apollia-os connector`.
@@ -87,6 +90,14 @@ pub enum ConnectorCommand {
     /// Picker if added later.
     #[command(name = "api-key", subcommand)]
     ApiKey(ApiKeyCommand),
+
+    /// A mailbox reached over IMAP with an application password: test, add,
+    /// list. Read-only: nothing in the mailbox is ever changed.
+    Imap {
+        /// IMAP subcommand.
+        #[command(subcommand)]
+        command: ImapCommand,
+    },
 
     /// Manage per-account Google Drive folder preferences.
     ///
@@ -225,6 +236,7 @@ pub async fn run(cmd: &ConnectorCommand, json: bool) -> i32 {
         ConnectorCommand::ClientId(sub) => run_client_id(sub, json),
         ConnectorCommand::ClientSecret(sub) => run_client_secret(sub, json),
         ConnectorCommand::ApiKey(sub) => run_api_key(sub, json),
+        ConnectorCommand::Imap { command } => run_imap(command, json).await,
         ConnectorCommand::Drive { command } => run_drive(command, json).await,
     }
 }

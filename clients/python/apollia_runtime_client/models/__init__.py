@@ -75,6 +75,9 @@ from .fork_session_request import ForkSessionRequest
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
+from .imap_account_body import ImapAccountBody
+from .imap_account_response import ImapAccountResponse
+from .imap_error_body import ImapErrorBody
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
@@ -291,6 +294,9 @@ __all__ = (
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
+    "ImapAccountBody",
+    "ImapAccountResponse",
+    "ImapErrorBody",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",

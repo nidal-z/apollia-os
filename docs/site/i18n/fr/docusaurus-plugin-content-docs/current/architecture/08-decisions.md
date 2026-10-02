@@ -289,6 +289,32 @@ mené, donc une connexion Google demande à l'opérateur de fournir ses propres
 identifiants client. L'asymétrie est assumée, et elle est énoncée là où
 l'opérateur la rencontre.
 
+## Documents et sources {#documents-and-sources}
+
+Une boîte mail se connecte en IMAP avec un mot de passe d'application : tout
+fournisseur est joignable, Gmail compris, sans client OAuth et sans relais. Le
+client est `async-imap` (MIT ou Apache-2.0), sur le runtime Tokio, au-dessus de
+la pile TLS `tokio-rustls` que le runtime porte déjà ; il n'apporte pas
+OpenSSL. Les messages sont décodés par `mail-parser` (Apache-2.0 ou MIT), qui
+ne dépend de rien hors de Rust. Le certificat du serveur est vérifié contre les
+certificats racine du système, lus par `rustls-native-certs` (Apache-2.0, ISC
+ou MIT), déjà présent dans la compilation par le client HTTP et désormais
+dépendance directe.
+
+L'accès est en lecture seule, et le client l'impose au lieu de le promettre :
+les dossiers s'ouvrent par `EXAMINE`, jamais `SELECT`, les messages se lisent
+par `BODY.PEEK` et restent non lus, et aucune commande d'écriture (`STORE`,
+`EXPUNGE`, `COPY`, `MOVE`, `APPEND`) ne part. Envoyer, déplacer ou supprimer un
+message est hors d'atteinte. Le mot de passe vit dans le magasin de secrets
+configuré, jamais dans la liste des connexions, un journal de traces ou le
+journal d'audit ; comme `async-imap` trace les commandes qu'il envoie par la
+façade `log`, connexion comprise, chaque binaire éteint sa cible de traces.
+
+Le coût est nommé : deux crates et leurs petits arbres (`imap-proto`, `hashify`,
+`stop-token`, `async-channel`) entrent dans chaque compilation, pour un
+protocole dont les serveurs varient dans leur rigueur. Un serveur qui comprend
+mal une commande donne une erreur de protocole typée, pas un plantage.
+
 ## Messagerie entre agents {#agent-messaging}
 
 Un agent directeur délègue à des agents travailleurs par identifiant de skill,

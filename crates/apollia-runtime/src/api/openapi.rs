@@ -306,6 +306,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_connectors::complete_connector_consent,
         crate::api::routes_connectors::list_connector_accounts,
         crate::api::routes_connectors::disconnect_connector_account,
+        crate::api::routes_imap::test_imap_mailbox,
+        crate::api::routes_imap::add_imap_mailbox,
     ),
     components(schemas(
         ApiErrorBody,
@@ -455,6 +457,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_connectors::CompleteConsentBody,
         crate::api::routes_connectors::ConnectedAccountResponse,
         crate::api::routes_connectors::ConnectorAccountResponse,
+        crate::api::routes_imap::ImapAccountBody,
+        crate::api::routes_imap::ImapAccountResponse,
+        crate::api::routes_imap::ImapErrorBody,
     ))
 )]
 pub struct ApiDoc;

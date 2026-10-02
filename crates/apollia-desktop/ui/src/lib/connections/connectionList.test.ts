@@ -62,16 +62,19 @@ describe("sortConnections", () => {
       connection({ id: "mcp:notion", label: "notion" }),
       connection({ id: "native:google:b", kind: "native", label: "Google", account: "b" }),
       connection({ id: "mcp:files", label: "files" }),
+      connection({ id: "imap:ana@gmail.com", kind: "imap", label: "Gmail", account: "ana@gmail.com" }),
       connection({ id: "native:google:a", kind: "native", label: "Google", account: "a" }),
     ];
 
     // WHEN sorted
     const sorted = sortConnections(input);
 
-    // THEN accounts, then servers, then folders, and the input is unchanged
+    // THEN accounts, then mailboxes, then servers, then folders, and the
+    // input is unchanged
     expect(sorted.map((c) => c.id)).toEqual([
       "native:google:a",
       "native:google:b",
+      "imap:ana@gmail.com",
       "mcp:files",
       "mcp:notion",
       "folder:docs",
