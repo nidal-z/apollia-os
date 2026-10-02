@@ -87,8 +87,17 @@ impl Supervisor {
         // process until a model is requested, so a fresh install with no default
         // model still yields a supervisor the router factory can capture. `None`
         // when the binary is absent, leaving local inference unconfigured.
+        //
+        // The base is the default configuration; the default preset of each
+        // model is laid over it at every request, read from `system.db`.
+        let system_db_path = self
+            .config
+            .data_dir
+            .join(apollia_core::paths::DataFile::System.file_name());
         let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
             crate::llama_server::LlamaServerConfig::default(),
+            Some(system_db_path.clone()),
+            Some(event_sender.clone()),
         )
         .ok();
         if let Some(supervisor) = &llama_server_supervisor {
@@ -96,10 +105,6 @@ impl Supervisor {
         }
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
-        let system_db_path = self
-            .config
-            .data_dir
-            .join(apollia_core::paths::DataFile::System.file_name());
         let (llm_router, llm_backend_repo) = self
             .start_llm_router(&system_db_path, &llama_server_supervisor)
             .await;

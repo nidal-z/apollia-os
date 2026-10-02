@@ -69,6 +69,11 @@
 //! warning and keeps the value that was already there, so a typo in a sweep
 //! script cannot silently launch a different engine or fail a spawn.
 //!
+//! A model's default preset is laid over the base before these variables, and
+//! the automatic plans (window, offload, slots) only decide what neither of
+//! the two fixed: the environment, then the preset, then the computation. See
+//! `load_settings`.
+//!
 //! `model_path` deliberately has no override. It is user state owned by
 //! `switch_model`, and an ambient variable pinning it would defeat every model
 //! switch made from the UI.
@@ -208,9 +213,76 @@ pub struct LlamaServerConfig {
     /// prints neither the device the model loads onto nor the offload tally.
     /// The default here is 4, the lowest level at which the load names both.
     pub log_verbosity: Option<u8>,
+    /// CPU threads used during generation (`-t`). `None` leaves the engine
+    /// default.
+    pub n_threads: Option<i32>,
+    /// Context checkpoints kept per slot (`--ctx-checkpoints`). `None` leaves
+    /// the engine default.
+    pub ctx_checkpoints: Option<u32>,
+    /// Token budget for reasoning (`--reasoning-budget`): `-1` unrestricted,
+    /// `0` ends the reasoning at once. `None` leaves the engine default.
+    pub reasoning_budget: Option<i32>,
+    /// Message injected before the end of the reasoning when its budget is
+    /// spent (`--reasoning-budget-message`). `None` injects nothing.
+    pub reasoning_budget_message: Option<String>,
+    /// RoPE base frequency (`--rope-freq-base`). `None` reads it from the
+    /// model, which is the automatic mode.
+    pub rope_freq_base: Option<f32>,
+    /// RoPE frequency scaling factor (`--rope-freq-scale`). `None` reads it
+    /// from the model, which is the automatic mode.
+    pub rope_freq_scale: Option<f32>,
+    /// Keep the key/value cache off the accelerator (`--no-kv-offload`).
+    pub no_kv_offload: bool,
+    /// Keep the model in memory rather than letting it be swapped (`--mlock`).
+    pub mlock: bool,
+    /// Load the model without memory-mapping it (`--no-mmap`).
+    pub no_mmap: bool,
+    /// Engine seed (`--seed`). `None` leaves the engine default, a random seed.
+    pub seed: Option<u32>,
+    /// Draft model for speculative decoding (`--model-draft`), an absolute
+    /// path.
+    pub draft_model: Option<String>,
+    /// Speculative decoding mode (`--spec-type`). `None` leaves the engine
+    /// default, which is off.
+    pub spec_type: Option<SpecType>,
+    /// File holding a Jinja chat template that replaces the model's own
+    /// (`--chat-template-file`).
+    pub chat_template_file: Option<String>,
     /// Extra arguments appended verbatim after every generated flag, so a later
     /// entry wins wherever llama-server takes the last occurrence.
     pub extra_args: Vec<String>,
+}
+
+/// Speculative decoding mode accepted by `--spec-type`.
+///
+/// Only the modes the model sheet offers are named, and only those the
+/// bundled engine (tag 10092) accepts: a draft model, the model's own
+/// multi-token prediction head, and DFlash. A mode absent from that build has
+/// no variant, so a preset naming it is refused while it is read rather than
+/// by a process that will not start.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SpecType {
+    /// No speculative decoding.
+    None,
+    /// A separate draft model proposes the tokens (`draft-simple`).
+    DraftSimple,
+    /// The model's multi-token prediction head drafts (`draft-mtp`).
+    DraftMtp,
+    /// DFlash block drafting (`draft-dflash`).
+    DraftDflash,
+}
+
+impl fmt::Display for SpecType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::None => "none",
+            Self::DraftSimple => "draft-simple",
+            Self::DraftMtp => "draft-mtp",
+            Self::DraftDflash => "draft-dflash",
+        };
+        f.write_str(s)
+    }
 }
 
 impl Default for LlamaServerConfig {
@@ -231,6 +303,19 @@ impl Default for LlamaServerConfig {
             cache_reuse: None,
             metrics: false,
             log_verbosity: Some(4),
+            n_threads: None,
+            ctx_checkpoints: None,
+            reasoning_budget: None,
+            reasoning_budget_message: None,
+            rope_freq_base: None,
+            rope_freq_scale: None,
+            no_kv_offload: false,
+            mlock: false,
+            no_mmap: false,
+            seed: None,
+            draft_model: None,
+            spec_type: None,
+            chat_template_file: None,
             extra_args: Vec::new(),
         }
     }
@@ -312,6 +397,7 @@ pub(crate) fn build_args(config: &LlamaServerConfig, port: u16) -> Vec<String> {
     if config.metrics {
         args.push("--metrics".to_owned());
     }
+    push_load_args(config, &mut args);
     args.push("--host".to_owned());
     args.push(HOST.to_owned());
     args.push("--port".to_owned());
@@ -319,6 +405,52 @@ pub(crate) fn build_args(config: &LlamaServerConfig, port: u16) -> Vec<String> {
 
     args.extend(config.extra_args.iter().cloned());
     args
+}
+
+/// The flags of the model sheet's load settings that the historical command
+/// line never carried. Each is absent unless its field is set, so the default
+/// configuration still reproduces that line exactly.
+fn push_load_args(config: &LlamaServerConfig, args: &mut Vec<String>) {
+    let mut push = |flag: &str, value: Option<String>| {
+        if let Some(value) = value {
+            args.push(flag.to_owned());
+            args.push(value);
+        }
+    };
+    push("-t", config.n_threads.map(|v| v.to_string()));
+    push(
+        "--ctx-checkpoints",
+        config.ctx_checkpoints.map(|v| v.to_string()),
+    );
+    push(
+        "--reasoning-budget",
+        config.reasoning_budget.map(|v| v.to_string()),
+    );
+    push(
+        "--reasoning-budget-message",
+        config.reasoning_budget_message.clone(),
+    );
+    push(
+        "--rope-freq-base",
+        config.rope_freq_base.map(|v| v.to_string()),
+    );
+    push(
+        "--rope-freq-scale",
+        config.rope_freq_scale.map(|v| v.to_string()),
+    );
+    push("--seed", config.seed.map(|v| v.to_string()));
+    push("--model-draft", config.draft_model.clone());
+    push("--spec-type", config.spec_type.map(|v| v.to_string()));
+    push("--chat-template-file", config.chat_template_file.clone());
+    for (set, flag) in [
+        (config.no_kv_offload, "--no-kv-offload"),
+        (config.mlock, "--mlock"),
+        (config.no_mmap, "--no-mmap"),
+    ] {
+        if set {
+            args.push(flag.to_owned());
+        }
+    }
 }
 
 /// Overlay the `APOLLIA_LLAMA_` environment variables onto a configuration.

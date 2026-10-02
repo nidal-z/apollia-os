@@ -1,0 +1,227 @@
+use super::*;
+use crate::llama_server::test_support::supervisor_with_ceiling;
+use apollia_core::model_preset::{ModelSource, PresetDraft, RequestSettings};
+use apollia_core::LlmBackendRepository;
+use serde_json::json;
+
+#[test]
+fn test_the_environment_window_wins_over_the_preset() {
+    // GIVEN APOLLIA_LLAMA_N_CTX pinned at 4096 and a preset that fixes 8192
+    let mut sup = supervisor_with_ceiling(1);
+    sup.n_ctx = 4096;
+    sup.n_ctx_pinned = true;
+    let load = LoadSettings {
+        n_ctx: Some(8192),
+        ..LoadSettings::default()
+    };
+
+    // WHEN the window is resolved for a backend asking for 16384
+    let window = sup.window_for(&load, Some(16_384));
+
+    // THEN the environment wins
+    assert_eq!(window, 4096);
+}
+
+#[test]
+fn test_the_preset_window_wins_over_the_automatic_one() {
+    // GIVEN no variable, a backend asking for 16384 and a default of 32768
+    let sup = supervisor_with_ceiling(1);
+    let load = LoadSettings {
+        n_ctx: Some(8192),
+        ..LoadSettings::default()
+    };
+
+    // WHEN the window is resolved under a preset that fixes 8192
+    let window = sup.window_for(&load, Some(16_384));
+    let without = sup.window_for(&LoadSettings::default(), None);
+
+    // THEN the preset wins, and without it the default stands
+    assert_eq!(window, 8192);
+    assert_eq!(without, 32_768);
+}
+
+/// A stand-in for `llama-server`: it appends each command line to `args.log`
+/// in `dir`, then answers every request with 200 on the port it was given.
+#[cfg(unix)]
+fn fake_engine(dir: &std::path::Path) -> std::path::PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let log = dir.join("args.log");
+    let script = format!(
+        r#"#!/bin/sh
+echo "$@" >> "{log}"
+port=""
+while [ $# -gt 0 ]; do
+  if [ "$1" = "--port" ]; then port="$2"; fi
+  shift
+done
+exec python3 -c '
+import http.server, sys
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"{{}}")
+    def log_message(self, *args):
+        pass
+http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+' "$port"
+"#,
+        log = log.display()
+    );
+    let path = dir.join("llama-server");
+    std::fs::write(&path, script).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    path
+}
+
+#[cfg(unix)]
+fn launches(dir: &std::path::Path) -> Vec<String> {
+    std::fs::read_to_string(dir.join("args.log"))
+        .unwrap_or_default()
+        .lines()
+        // Provenance probes the binary with `--version`; only a line naming
+        // a port is a launch.
+        .filter(|line| line.contains("--port"))
+        .map(str::to_owned)
+        .collect()
+}
+
+#[cfg(unix)]
+fn default_preset(load: serde_json::Value) -> PresetDraft {
+    PresetDraft {
+        name: "main".to_owned(),
+        load: load.as_object().cloned().unwrap(),
+        request: RequestSettings::default(),
+        is_model_default: true,
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_the_default_preset_applies_when_a_model_is_ensured() {
+    // GIVEN a model whose default preset sets six threads, and a supervisor
+    // reading that system.db with a stand-in engine
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("system.db");
+    let repo = LlmBackendRepository::open(&db).unwrap();
+    repo.create_preset(
+        ModelSource::Local,
+        "qwen",
+        &default_preset(json!({ "n_threads": 6 })),
+    )
+    .unwrap();
+    drop(repo);
+    let mut sup = supervisor_with_ceiling(1);
+    sup.bin_path = fake_engine(dir.path());
+    sup.system_db = Some(db);
+
+    // WHEN the model is ensured
+    let lease = sup
+        .ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
+        .await
+        .unwrap();
+    drop(lease);
+
+    // THEN the engine was launched with the preset's thread count
+    let lines = launches(dir.path());
+    assert_eq!(lines.len(), 1, "{lines:#?}");
+    assert!(lines[0].contains(" -t 6 "), "{}", lines[0]);
+    sup.shutdown_in_place().await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_changing_a_load_setting_relaunches_the_resident_model() {
+    // GIVEN a resident model launched under its default preset of six threads,
+    // and a bus listening
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("system.db");
+    let repo = LlmBackendRepository::open(&db).unwrap();
+    let preset = repo
+        .create_preset(
+            ModelSource::Local,
+            "qwen",
+            &default_preset(json!({ "n_threads": 6 })),
+        )
+        .unwrap();
+    let (tx, mut rx) = tokio::sync::broadcast::channel(16);
+    let mut sup = supervisor_with_ceiling(1);
+    sup.bin_path = fake_engine(dir.path());
+    sup.system_db = Some(db);
+    sup.events = Some(tx);
+    drop(
+        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
+            .await
+            .unwrap(),
+    );
+    let first_port = sup.instances.lock().await[0].port;
+
+    // WHEN the preset's thread count changes and the model is requested again
+    repo.update_preset(preset.id, &default_preset(json!({ "n_threads": 2 })))
+        .unwrap();
+    drop(
+        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
+            .await
+            .unwrap(),
+    );
+
+    // THEN the first process is gone, a second one runs the new setting, and
+    // the bus heard the reload
+    let instances = sup.instances.lock().await;
+    assert_eq!(instances.len(), 1);
+    assert_ne!(instances[0].port, first_port);
+    assert_eq!(instances[0].load.n_threads, Some(2));
+    drop(instances);
+    let lines = launches(dir.path());
+    assert_eq!(lines.len(), 2);
+    assert!(lines[1].contains(" -t 2 "), "{}", lines[1]);
+    match rx.try_recv() {
+        Ok(RuntimeEvent::LlmModelReloaded {
+            backend,
+            model_path,
+        }) => {
+            assert_eq!(backend, "qwen");
+            assert_eq!(model_path, "/models/qwen.gguf");
+        }
+        other => panic!("expected LlmModelReloaded, got {other:?}"),
+    }
+    sup.shutdown_in_place().await;
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_an_unchanged_preset_keeps_the_resident_model() {
+    // GIVEN a resident model launched under its default preset
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("system.db");
+    let repo = LlmBackendRepository::open(&db).unwrap();
+    repo.create_preset(
+        ModelSource::Local,
+        "qwen",
+        &default_preset(json!({ "n_threads": 6 })),
+    )
+    .unwrap();
+    drop(repo);
+    let (tx, mut rx) = tokio::sync::broadcast::channel(16);
+    let mut sup = supervisor_with_ceiling(1);
+    sup.bin_path = fake_engine(dir.path());
+    sup.system_db = Some(db);
+    sup.events = Some(tx);
+    drop(
+        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
+            .await
+            .unwrap(),
+    );
+
+    // WHEN it is requested again with the preset untouched
+    drop(
+        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), None)
+            .await
+            .unwrap(),
+    );
+
+    // THEN the engine was launched once and nothing was announced
+    assert_eq!(launches(dir.path()).len(), 1);
+    assert!(rx.try_recv().is_err());
+    sup.shutdown_in_place().await;
+}

@@ -335,6 +335,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         // ── LLM ──────────────────────────────────────────────────────────
         RuntimeEvent::LlmModelLoading { .. }
         | RuntimeEvent::LlmModelReady { .. }
+        | RuntimeEvent::LlmModelReloaded { .. }
         | RuntimeEvent::LlmModelFailed { .. }
         | RuntimeEvent::LlmCallCompleted { .. }
         | RuntimeEvent::LlmResponseCaptured { .. }
