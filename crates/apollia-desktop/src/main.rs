@@ -1,8 +1,10 @@
 //! Apollia OS desktop application (Tauri v2).
 //!
-//! Single-process architecture: the Apollia runtime runs embedded inside the
-//! Tauri process via [`apollia_runtime::init_embedded()`]. The Unix socket
-//! remains active so the CLI can be used alongside the desktop app.
+//! The Apollia runtime runs embedded inside the Tauri process via
+//! [`apollia_runtime::init_embedded()`], on the TCP port this process claims
+//! at startup (see [`startup`]); a runtime already serving that port is named
+//! in a refusal window instead. The Unix socket remains active so the CLI can
+//! be used alongside the desktop app.
 //!
 //! `unsafe_code` is allowed by this crate's manifest for one production site,
 //! the window-handle cast to `isize` in `commands/automation.rs`, and for
@@ -20,6 +22,7 @@ pub mod i18n;
 pub mod mcp;
 mod process_job;
 mod project_context;
+mod startup;
 pub mod stt;
 mod token_coalescer;
 pub mod tray;
@@ -39,12 +42,11 @@ use apollia_runtime::router::TaskRouterHandle;
 use apollia_tools::tools::ask_user::PendingUserInputs;
 use apollia_tools::{AgentRepository, AuditTrailHandle, TaskRepository, ToolRegistryHandle};
 use mcp::McpRegistryClient;
-use mcp::SecretStore;
 use tauri::Manager;
 
 use bootstrap::{
-    auto_load_installed_agents, load_stt_config, load_toml_config, or_exit, populate_runtime_locks,
-    setup_bundled_python, setup_stt_hotkey, RuntimeLocks,
+    auto_load_installed_agents, backfill_mcp_origins, load_stt_config, load_toml_config, or_exit,
+    populate_runtime_locks, setup_bundled_python, setup_stt_hotkey, RuntimeLocks,
 };
 
 /// Shared mutable LLM router: updated by `reload_llm`, read by
@@ -60,6 +62,35 @@ fn main() {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("apollia=info,warn")),
         )
         .init();
+
+    let apollia_data_dir = {
+        let home = apollia_core::paths::home_dir_or_temp()
+            .display()
+            .to_string();
+        apollia_core::paths::data_dir_under(home)
+    };
+
+    // Start, attach or refuse, before PyO3, any database or any listener of
+    // the runtime. The claimed port is handed to the runtime below as is.
+    let claimed_port = match startup::decide(
+        std::net::SocketAddr::from(([127, 0, 0, 1], startup::RUNTIME_PORT)),
+        startup::read_token(&apollia_data_dir).as_deref(),
+    ) {
+        startup::StartupDecision::Launch(listener) => listener,
+        // The attached mode is not delivered yet: a runtime already serving
+        // is named, with the gesture, instead of being attached to.
+        startup::StartupDecision::Attach { version } => startup::refuse(
+            &startup::RefusalReason::AttachNotYetAvailable {
+                port: startup::RUNTIME_PORT,
+                version,
+            },
+            &apollia_data_dir,
+            tauri_context(),
+        ),
+        startup::StartupDecision::Refuse(reason) => {
+            startup::refuse(&reason, &apollia_data_dir, tauri_context())
+        }
+    };
 
     // Before the first child is spawned: membership in the job is inherited
     // at process creation, never applied afterwards. On Windows this is what
@@ -153,12 +184,6 @@ fn main() {
 
     // Open AgentRepository for auto-load at boot (passed to Supervisor).
     // A separate instance is created later for Tauri IPC commands.
-    let apollia_data_dir = {
-        let home = apollia_core::paths::home_dir_or_temp()
-            .display()
-            .to_string();
-        apollia_core::paths::data_dir_under(home)
-    };
     let _ = std::fs::create_dir_all(&apollia_data_dir);
     let boot_agent_repo = {
         let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
@@ -234,7 +259,8 @@ fn main() {
         backend_factory: Some(factory.clone()),
         agent_repository: None,
         chat_agent_runner,
-        tcp_port: Some(7771),
+        tcp_port: Some(startup::RUNTIME_PORT),
+        tcp_listener: Some(claimed_port),
         api_token: Some(api_token),
         ..EmbeddedConfig::default()
     });
@@ -250,6 +276,10 @@ fn main() {
 
     // Load the STT config from SQLite for the desktop hotkey listener.
     let stt_config_for_hotkey = load_stt_config(&apollia_data_dir);
+
+    // Servers stored before their origin was recorded get one now, while the
+    // desktop is the caller that knows the curated selection.
+    backfill_mcp_origins(&apollia_data_dir);
 
     // Populate OnceLocks now that the supervisor is fully running.
     populate_runtime_locks(
@@ -342,7 +372,6 @@ fn main() {
         .manage(runtime_handle.event_sender.clone())
         .manage(llm_router_lock.clone())
         .manage(mcp_registry_client)
-        .manage(SecretStore::new())
         .manage(stt_flow_state.clone())
         .manage(std::sync::Arc::new(
             tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()),
@@ -496,6 +525,8 @@ fn main() {
             commands::llm::get_cost_alert_threshold,
             commands::llm::reload_llm,
             commands::llm::reload_llm_from_db,
+            commands::llm_loaded::list_loaded_models,
+            commands::llm_loaded::unload_loaded_model,
             commands::model_hub::get_hardware_profile,
             commands::recommend::recommend_models,
             commands::model_hub::search_hf_models,
@@ -640,6 +671,7 @@ fn main() {
             commands::stt::start_tour_recording,
             commands::stt::stop_tour_recording,
             commands::mcp::catalog::list_mcp_enrichments,
+            commands::connections::list_connections,
             commands::mcp::list_mcp_servers,
             commands::mcp::list_mcp_resources,
             commands::mcp::get_mcp_server_detail,
@@ -706,7 +738,7 @@ fn main() {
             #[cfg(debug_assertions)]
             commands::automation::automation_finish,
         ])
-        .build(tauri::generate_context!());
+        .build(tauri_context());
 
     or_exit(app, "build the Tauri application").run(|app, event| {
         // Kill every child process before the process exits. Otherwise they
@@ -726,4 +758,10 @@ fn main() {
             }
         }
     });
+}
+
+/// The Tauri context, generated once for the application and for the refusal
+/// window alike.
+fn tauri_context() -> tauri::Context<tauri::Wry> {
+    tauri::generate_context!()
 }

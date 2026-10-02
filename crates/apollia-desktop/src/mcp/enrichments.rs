@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::path::Path;
+
+use apollia_mcp::config::McpServerConfig;
+use apollia_tools::ActionFamily;
 
 // ─── Figma: remote MCP awaiting Catalog approval ───────────────────────────
 //
@@ -152,6 +156,28 @@ pub struct ConnectorEnrichment {
     /// reports reachability only ("not yet verified by an operation").
     #[serde(default)]
     pub health_probe: Option<EnrichmentHealthProbe>,
+    /// Action family of each tool the server publishes, as this selection
+    /// classifies it, keyed by the tool's name on the server.
+    ///
+    /// Serialized as an object from tool name to family:
+    ///
+    /// ```json
+    /// "tool_families": {
+    ///   "notion-search": "read_personal",
+    ///   "notion-create-pages": "write_or_delete"
+    /// }
+    /// ```
+    ///
+    /// The family is one of `read`, `read_personal`, `write_or_delete`,
+    /// `send_external` and `execute_code`; any other value fails the catalogue
+    /// load. `send_external` can only come from here: no hint a server
+    /// declares means "sends outside". Every listed entry classifies every
+    /// tool its server publishes, checked against a public list of them; a
+    /// tool absent from the map, published later say, falls back to the hints
+    /// its server declares, and without any is unclassified. Copied into the
+    /// connection's configuration when it is added from this entry.
+    #[serde(default)]
+    pub tool_families: BTreeMap<String, ActionFamily>,
 }
 
 /// One distribution of a package's hash lock.
@@ -325,6 +351,75 @@ pub fn find_enrichment<'a>(
     enrichments
         .iter()
         .find(|e| e.package_identifier == package_identifier)
+}
+
+/// The curated entry a launch configuration was made from, if any.
+///
+/// A remote connection matches on its URL; a local one on the package it
+/// launches, through `npx`/`bunx` (the package after the launcher's own
+/// options), `uvx`, or the entry point of an installed Python package. An
+/// entry awaiting registration is never listed and matches nothing.
+pub fn selection_entry_for<'a>(
+    config: &McpServerConfig,
+    enrichments: &'a [ConnectorEnrichment],
+) -> Option<&'a ConnectorEnrichment> {
+    let listed = enrichments.iter().filter(|e| !e.awaiting_registration);
+    if config.transport != "stdio" {
+        let url = config.url.as_deref()?;
+        return listed
+            .into_iter()
+            .find(|e| e.remote_url.as_deref() == Some(url));
+    }
+    let launched = launched_package(config)?;
+    listed.into_iter().find(|e| {
+        e.package_registry_type.is_some()
+            && crate::mcp::python_server::normalize_name(&e.package_identifier)
+                == crate::mcp::python_server::normalize_name(&launched)
+    })
+}
+
+/// The package a stdio configuration launches, without any version suffix.
+fn launched_package(config: &McpServerConfig) -> Option<String> {
+    let stem = Path::new(&config.command)
+        .file_stem()
+        .and_then(|s| s.to_str())?
+        .to_ascii_lowercase();
+    match stem.as_str() {
+        "npx" | "bunx" => {
+            let spec = config.args.iter().find(|a| !a.starts_with('-'))?;
+            Some(strip_npm_version(spec).to_string())
+        }
+        "uvx" => crate::mcp::python_server::UvxInvocation::parse(&config.args)
+            .ok()
+            .map(|i| i.package),
+        // An installed Python connection runs its entry point by path.
+        _ => Some(stem),
+    }
+}
+
+/// `@scope/name@1.2` and `name@1.2` without their version.
+fn strip_npm_version(spec: &str) -> &str {
+    let search_from = usize::from(spec.starts_with('@'));
+    match spec[search_from..].find('@') {
+        Some(at) => &spec[..search_from + at],
+        None => spec,
+    }
+}
+
+/// Give `config` the classification of the curated entry it was made from.
+///
+/// Replaces whatever classification the configuration carried: one that no
+/// longer matches an entry (an edit that points it elsewhere) is dropped, so a
+/// connection never keeps a classification its selection did not write for it.
+#[must_use]
+pub fn with_selection_classification(
+    mut config: McpServerConfig,
+    enrichments: &[ConnectorEnrichment],
+) -> McpServerConfig {
+    config.tool_families = selection_entry_for(&config, enrichments)
+        .map(|e| e.tool_families.clone())
+        .unwrap_or_default();
+    config
 }
 
 #[cfg(test)]
@@ -523,5 +618,133 @@ mod tests {
         let note = cost.note_i18n.as_ref().expect("note_i18n");
         assert!(note.contains_key("en"));
         assert!(note.contains_key("fr"));
+    }
+
+    fn stdio(command: &str, args: &[&str]) -> McpServerConfig {
+        serde_json::from_value(serde_json::json!({
+            "name": "probe",
+            "command": command,
+            "args": args,
+        }))
+        .expect("config")
+    }
+
+    #[test]
+    fn every_listed_entry_classifies_its_tools_with_a_known_family() {
+        // GIVEN the embedded catalogue, read strictly so that a family no
+        //       build knows fails here instead of emptying the catalogue
+        let parsed: Result<Vec<ConnectorEnrichment>, _> =
+            serde_json::from_str(include_str!("enrichments.json"));
+        let enrichments = parsed.expect("the embedded catalogue parses");
+        // WHEN the listed entries are inspected
+        for entry in enrichments.iter().filter(|e| !e.awaiting_registration) {
+            // THEN each classifies at least one tool, never as unclassified
+            //      nor exempt, under a tool name a configuration accepts
+            assert!(
+                !entry.tool_families.is_empty(),
+                "{} classifies no tool",
+                entry.package_identifier
+            );
+            assert!(
+                entry
+                    .tool_families
+                    .values()
+                    .all(|f| !matches!(f, ActionFamily::Unclassified | ActionFamily::Exempt)),
+                "{} holds a family outside the five",
+                entry.package_identifier
+            );
+            let mut config = stdio("npx", &["-y", "pkg"]);
+            config.tool_families = entry.tool_families.clone();
+            assert!(
+                config.validate().is_ok(),
+                "{} holds a malformed tool name",
+                entry.package_identifier
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_family_fails_the_catalogue() {
+        // GIVEN an entry naming a family no build knows
+        let raw = r#"[{
+            "package_identifier": "x",
+            "operator_label": {"en": "X", "fr": "X"},
+            "category": "data",
+            "icon_name": "database",
+            "trust_level": "custom",
+            "auth_help_url": null,
+            "auth_help_text": null,
+            "default_requires_approval": false,
+            "tool_families": {"lookup": "teleport"}
+        }]"#;
+        // WHEN it is parsed
+        let parsed: Result<Vec<ConnectorEnrichment>, _> = serde_json::from_str(raw);
+        // THEN the parse fails
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn a_connection_takes_the_classification_of_the_entry_it_launches() {
+        // GIVEN the catalogue and the launch configurations the wizard writes
+        let enrichments = load_builtin_enrichments();
+        let mut remote = stdio("", &[]);
+        remote.transport = "streamable-http".to_string();
+        remote.url = Some("https://mcp.notion.com/mcp".to_string());
+        let npm = stdio(
+            "npx",
+            &["-y", "@modelcontextprotocol/server-memory@2026.8.31"],
+        );
+        let uvx = stdio("uvx", &["mcp-server-time"]);
+        let installed = stdio("/data/connections/time/venv/bin/mcp-server-time", &[]);
+        // WHEN each is given the selection's classification
+        // THEN each carries the family its entry gives
+        let notion = with_selection_classification(remote, &enrichments);
+        assert_eq!(
+            notion.tool_families.get("notion-search"),
+            Some(&ActionFamily::ReadPersonal)
+        );
+        let memory = with_selection_classification(npm, &enrichments);
+        assert_eq!(
+            memory.tool_families.get("delete_entities"),
+            Some(&ActionFamily::WriteOrDelete)
+        );
+        for config in [uvx, installed] {
+            let time = with_selection_classification(config, &enrichments);
+            assert_eq!(
+                time.tool_families.get("get_current_time"),
+                Some(&ActionFamily::Read)
+            );
+        }
+    }
+
+    #[test]
+    fn a_connection_outside_the_selection_keeps_no_classification() {
+        // GIVEN a custom server that carries a classification it was not given
+        //       by the selection, and a server only an unlisted entry describes
+        let enrichments = load_builtin_enrichments();
+        let mut custom = stdio("npx", &["-y", "@someone/other-server"]);
+        custom
+            .tool_families
+            .insert("anything".to_string(), ActionFamily::Read);
+        let mut slack = stdio("", &[]);
+        slack.transport = "streamable-http".to_string();
+        slack.url = Some("https://mcp.slack.com".to_string());
+        // WHEN each is given the selection's classification
+        let custom = with_selection_classification(custom, &enrichments);
+        let slack = with_selection_classification(slack, &enrichments);
+        // THEN neither carries one
+        assert!(custom.tool_families.is_empty());
+        assert!(slack.tool_families.is_empty());
+    }
+
+    #[test]
+    fn npm_version_suffix_is_stripped() {
+        // GIVEN scoped and bare specs, with and without a version
+        // WHEN their version is stripped
+        // THEN the package name remains
+        assert_eq!(strip_npm_version("@scope/name@1.2.3"), "@scope/name");
+        assert_eq!(strip_npm_version("@scope/name"), "@scope/name");
+        assert_eq!(strip_npm_version("name@1.2"), "name");
+        assert_eq!(strip_npm_version("name"), "name");
     }
 }

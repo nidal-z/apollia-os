@@ -2,9 +2,9 @@
  * Context window choices, shared by onboarding and the backend settings.
  *
  * The window is stored as `config_json.context_window` on the backend. The
- * embedded engine is launched with it (`-c`), Ollama is asked for it on every
- * call (`num_ctx`), and the router sizes compaction and the context gauge
- * against it, so one figure governs the whole path.
+ * embedded engine is launched with it (`-c`). A remote server keeps its own
+ * window: the router reads it there when the server exposes it, and falls
+ * back to this figure to size compaction and the context gauge otherwise.
  */
 
 /** Runtime default when a backend sets no window. Mirrors the engine's `-c`. */

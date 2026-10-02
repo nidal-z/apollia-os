@@ -50,10 +50,6 @@ pub enum ToolResolutionError {
     /// A required tool is absent from the catalogue.
     #[error("required tool not found in registry: {0}")]
     RequiredToolMissing(String),
-    /// A tool marked `dangerous=true` is requested but the manifest does not set
-    /// `dangerous_tools_allowed = true`.
-    #[error("tool '{0}' is dangerous but manifest does not set dangerous_tools_allowed=true")]
-    DangerousToolNotAllowed(String),
     /// Communication error with the ToolRegistry actor.
     #[error("tool registry error: {0}")]
     RegistryError(#[from] ToolRegistryError),
@@ -63,18 +59,16 @@ pub enum ToolResolutionError {
 ///
 /// Called exclusively during the `INITIALIZING` transition. Returns a
 /// [`ResolutionReport`] on success, or [`ToolResolutionError`] if a required
-/// tool is missing or a dangerous tool is not authorized.
+/// tool is missing.
 ///
 /// # Behaviour
 ///
 /// 1. For each tool in `tools_required` (in order):
 ///    - Absent from the catalogue: immediate `Err(RequiredToolMissing)` (fail fast).
-///    - `dangerous=true` without `dangerous_tools_allowed`: `Err(DangerousToolNotAllowed)`.
-///    - Present and safe: added to `resolved`.
+///    - Present: added to `resolved`.
 /// 2. For each tool in `tools_optional`:
 ///    - Absent: `tracing::warn!` plus a message added to `warnings`, continue.
-///    - `dangerous=true` without `dangerous_tools_allowed`: `tracing::warn!`, continue.
-///    - Present and safe: added to `resolved`.
+///    - Present: added to `resolved`.
 /// 3. If `warnings` is empty, `ResolutionStatus::AllResolved`; otherwise
 ///    `ResolutionStatus::Degraded`.
 /// 4. Dependencies prefixed with `a2a:` are resolved unconditionally (the real
@@ -90,7 +84,6 @@ pub enum ToolResolutionError {
 /// # Errors
 ///
 /// - [`ToolResolutionError::RequiredToolMissing`]: required tool not found.
-/// - [`ToolResolutionError::DangerousToolNotAllowed`]: required dangerous tool not authorized.
 /// - [`ToolResolutionError::RegistryError`]: the registry actor is unreachable.
 pub async fn resolve(
     manifest: &AgentManifest,
@@ -129,17 +122,6 @@ pub async fn resolve(
                     "tool.resolver.required.missing"
                 );
                 return Err(ToolResolutionError::RequiredToolMissing(tool_name.clone()));
-            }
-            Some(descriptor) if descriptor.dangerous && !manifest.dangerous_tools_allowed => {
-                tracing::error!(
-                    agent = %manifest.name,
-                    tool = %tool_name,
-                    reason = "the manifest does not allow a dangerous tool",
-                    "tool.resolver.required.denied"
-                );
-                return Err(ToolResolutionError::DangerousToolNotAllowed(
-                    tool_name.clone(),
-                ));
             }
             Some(_) => {
                 tracing::info!(
@@ -181,16 +163,6 @@ pub async fn resolve(
                     tool = %tool_name,
                     detail = "the agent runs degraded",
                     "tool.resolver.optional.missing"
-                );
-                warnings.push(warning);
-            }
-            Some(descriptor) if descriptor.dangerous && !manifest.dangerous_tools_allowed => {
-                let warning = format!("{tool_name} is dangerous but dangerous_tools_allowed=false");
-                tracing::warn!(
-                    agent = %manifest.name,
-                    tool = %tool_name,
-                    reason = "the manifest does not allow a dangerous tool",
-                    "tool.resolver.optional.skipped"
                 );
                 warnings.push(warning);
             }
@@ -278,7 +250,8 @@ mod tests {
                 output_schema: None,
                 sandbox_profile: SandboxProfile::FileSystem,
                 tags: vec![],
-                dangerous: false,
+                family: crate::descriptor::ActionFamily::Unclassified,
+                family_source: crate::descriptor::FamilySource::Unsourced,
                 is_read_only: false,
                 risk_score: 0,
                 approval_risk_level: None,
@@ -290,18 +263,19 @@ mod tests {
         registry
     }
 
-    async fn registry_with_dangerous_tool(name: &str) -> ToolRegistryHandle {
+    async fn registry_with_code_executor(name: &str) -> ToolRegistryHandle {
         let registry = ToolRegistryHandle::start();
         let descriptor = ToolDescriptor {
             name: name.to_string(),
             version: "1.0.0".to_string(),
-            description: format!("{name} dangerous tool"),
+            description: format!("{name} code executor"),
             kind: ToolKind::Native,
             input_schema: json!({ "type": "object" }),
             output_schema: None,
             sandbox_profile: SandboxProfile::Full,
             tags: vec![],
-            dangerous: true,
+            family: crate::descriptor::ActionFamily::ExecuteCode,
+            family_source: crate::descriptor::FamilySource::Builtin,
             is_read_only: false,
             risk_score: 10,
             approval_risk_level: None,
@@ -401,34 +375,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dangerous_required_tool_without_flag_blocked() {
-        // GIVEN: registry with a dangerous tool, manifest without dangerous_tools_allowed
-        let registry = registry_with_dangerous_tool("risky_tool").await;
+    async fn a_code_executor_resolves_without_the_manifest_opt_in() {
+        // GIVEN a registry holding a Full-profile code executor, and a manifest
+        // that requires it without setting dangerous_tools_allowed
+        let registry = registry_with_code_executor("risky_tool").await;
         let mut manifest = minimal_manifest();
         manifest.tools_required = vec!["risky_tool".to_string()];
         manifest.dangerous_tools_allowed = false;
-        // WHEN
+        // WHEN the manifest is resolved
         let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
-        // THEN
-        assert!(
-            matches!(result, Err(ToolResolutionError::DangerousToolNotAllowed(_))),
-            "expected DangerousToolNotAllowed, got: {:?}",
-            result.err()
-        );
-        registry.shutdown().await;
-    }
-
-    #[tokio::test]
-    async fn test_dangerous_tool_allowed_when_flag_set() {
-        // GIVEN: registry with a dangerous tool, manifest with dangerous_tools_allowed=true
-        let registry = registry_with_dangerous_tool("risky_tool").await;
-        let mut manifest = minimal_manifest();
-        manifest.tools_required = vec!["risky_tool".to_string()];
-        manifest.dangerous_tools_allowed = true;
-        // WHEN
-        let result = resolve(&manifest, &registry, &std::collections::HashSet::new()).await;
-        // THEN
-        let report = result.expect("dangerous tool should be allowed when flag is set");
+        // THEN it resolves: availability is checked here, and each call to a
+        // code executor is held by the approval gate at run time instead
+        let report = result.expect("a present tool resolves");
         assert!(matches!(report.status, ResolutionStatus::AllResolved));
         assert_eq!(report.resolved, vec!["risky_tool"]);
         registry.shutdown().await;

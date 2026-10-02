@@ -209,10 +209,10 @@ mod tests {
 
     fn temp_manager() -> (AuthManager, tempfile::TempDir) {
         let dir = tempfile::tempdir().expect("tempdir");
-        // File-backed token store: the keyring resolves through the
+        // In-memory token store: the keyring resolves through the
         // operator's real profile (macOS default keychain under ~/Library),
         // which a test must never write, whatever HOME points at.
-        let storage = MultiAccountStorage::with_file_store(dir.path());
+        let storage = MultiAccountStorage::with_memory_store(dir.path());
         (AuthManager::with_storage(storage), dir)
     }
 

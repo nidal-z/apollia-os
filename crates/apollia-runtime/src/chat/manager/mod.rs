@@ -214,6 +214,7 @@ mod actor;
 mod authz;
 mod command;
 mod control;
+mod disabled;
 mod dispatcher;
 mod exchange;
 mod handle;

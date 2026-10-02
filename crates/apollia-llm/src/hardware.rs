@@ -74,31 +74,20 @@ impl AcceleratorProfile {
     }
 }
 
-/// Compatibility badge for a GGUF file against the local hardware.
+/// Compatibility badge for a model file against the local hardware.
+///
+/// Decided in one place, `recommend::fit::grade`, from the footprint estimate
+/// and the layer placement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CompatibilityBadge {
-    /// The model fits comfortably in memory (<= 70% of the budget).
+    /// The whole model runs on the fastest pool: every layer on the
+    /// accelerator, or within the system budget on a machine without one.
     Fits,
-    /// The model might fit but will be tight (70 to 100% of the budget).
+    /// The model runs split between a discrete card and system memory.
     MightFit,
     /// The model exceeds the available memory budget.
     TooLarge,
-}
-
-impl CompatibilityBadge {
-    /// Compute the badge from the file size (in GB) and the hardware profile.
-    pub fn compute(file_size_gb: f64, profile: &HardwareProfile) -> Self {
-        let required = file_size_gb * 1.1; // ~10% llama.cpp overhead
-        let budget = profile.memory_budget_gb;
-        if required < budget * 0.70 {
-            CompatibilityBadge::Fits
-        } else if required < budget {
-            CompatibilityBadge::MightFit
-        } else {
-            CompatibilityBadge::TooLarge
-        }
-    }
 }
 
 /// The half of the profile that cannot change while the process runs: the
@@ -520,75 +509,6 @@ mod tests {
         assert!(generic.is_available());
         assert!(cuda.is_available());
         assert!(apple.is_available());
-    }
-
-    // GIVEN a profile with a 24 GB budget
-    // WHEN  CompatibilityBadge::compute with a 10 GB file
-    // THEN  badge Fits (10*1.1=11 < 24*0.7=16.8)
-    #[test]
-    fn test_badge_fits() {
-        let profile = HardwareProfile {
-            total_ram_gb: 32.0,
-            available_ram_gb: 20.0,
-            cpu_model: "Test CPU".to_string(),
-            cpu_cores: 8,
-            accelerator: AcceleratorProfile::AppleSilicon {
-                chip: "M3 Max".to_string(),
-                generation: 3,
-                vram_gb: 32.0,
-            },
-            memory_budget_gb: 24.0,
-        };
-        assert_eq!(
-            CompatibilityBadge::compute(10.0, &profile),
-            CompatibilityBadge::Fits
-        );
-    }
-
-    // GIVEN a profile with a 24 GB budget
-    // WHEN  CompatibilityBadge::compute with a 19 GB file
-    // THEN  badge MightFit (19*1.1=20.9 between 16.8 and 24)
-    #[test]
-    fn test_badge_might_fit() {
-        let profile = HardwareProfile {
-            total_ram_gb: 32.0,
-            available_ram_gb: 20.0,
-            cpu_model: "Test CPU".to_string(),
-            cpu_cores: 8,
-            accelerator: AcceleratorProfile::AppleSilicon {
-                chip: "M3 Max".to_string(),
-                generation: 3,
-                vram_gb: 32.0,
-            },
-            memory_budget_gb: 24.0,
-        };
-        assert_eq!(
-            CompatibilityBadge::compute(19.0, &profile),
-            CompatibilityBadge::MightFit
-        );
-    }
-
-    // GIVEN a profile with a 24 GB budget
-    // WHEN  CompatibilityBadge::compute with a 25 GB file
-    // THEN  badge TooLarge (25*1.1=27.5 > 24)
-    #[test]
-    fn test_badge_too_large() {
-        let profile = HardwareProfile {
-            total_ram_gb: 32.0,
-            available_ram_gb: 20.0,
-            cpu_model: "Test CPU".to_string(),
-            cpu_cores: 8,
-            accelerator: AcceleratorProfile::AppleSilicon {
-                chip: "M3 Max".to_string(),
-                generation: 3,
-                vram_gb: 32.0,
-            },
-            memory_budget_gb: 24.0,
-        };
-        assert_eq!(
-            CompatibilityBadge::compute(25.0, &profile),
-            CompatibilityBadge::TooLarge
-        );
     }
 
     // GIVEN detect() called on the test machine

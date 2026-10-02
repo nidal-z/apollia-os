@@ -392,7 +392,6 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "keyring",
  "objc2",
  "open",
  "pyo3",

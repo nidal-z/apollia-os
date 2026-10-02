@@ -22,6 +22,10 @@ class HardwareResponse:
         cpu_cores (int):
         cpu_model (str):
         memory_budget_gb (float):
+        total_capacity_gb (float): What a model can occupy on this machine, in GB rounded to the tenth:
+            the card plus the usable share of system memory on a discrete
+            accelerator, the memory budget otherwise. A model under it is one the
+            estimator does not call too large.
         total_ram_gb (float):
     """
 
@@ -30,6 +34,7 @@ class HardwareResponse:
     cpu_cores: int
     cpu_model: str
     memory_budget_gb: float
+    total_capacity_gb: float
     total_ram_gb: float
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -44,6 +49,8 @@ class HardwareResponse:
 
         memory_budget_gb = self.memory_budget_gb
 
+        total_capacity_gb = self.total_capacity_gb
+
         total_ram_gb = self.total_ram_gb
 
         field_dict: dict[str, Any] = {}
@@ -55,6 +62,7 @@ class HardwareResponse:
                 "cpu_cores": cpu_cores,
                 "cpu_model": cpu_model,
                 "memory_budget_gb": memory_budget_gb,
+                "total_capacity_gb": total_capacity_gb,
                 "total_ram_gb": total_ram_gb,
             }
         )
@@ -76,6 +84,8 @@ class HardwareResponse:
 
         memory_budget_gb = d.pop("memory_budget_gb")
 
+        total_capacity_gb = d.pop("total_capacity_gb")
+
         total_ram_gb = d.pop("total_ram_gb")
 
         hardware_response = cls(
@@ -84,6 +94,7 @@ class HardwareResponse:
             cpu_cores=cpu_cores,
             cpu_model=cpu_model,
             memory_budget_gb=memory_budget_gb,
+            total_capacity_gb=total_capacity_gb,
             total_ram_gb=total_ram_gb,
         )
 

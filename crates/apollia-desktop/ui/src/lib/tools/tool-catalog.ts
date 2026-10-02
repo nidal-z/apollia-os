@@ -25,6 +25,7 @@ import {
 } from "lucide-svelte";
 // NOSONAR typescript:S1874 - Svelte 4 ComponentType retained for lucide-svelte compat
 import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
+import type { ActionFamily } from "$lib/tools/action-family";
 
 /**
  * Local alias for Svelte 4 `ComponentType`. Retained for lucide-svelte type
@@ -68,8 +69,8 @@ export interface ToolMeta {
   descOperatorKey: string;
   /** i18n key for the builder-mode technical description. */
   descBuilderKey: string;
-  /** Whether this tool requires explicit HITL approval each invocation. */
-  dangerous: boolean;
+  /** Action family, the same value the tool's runtime descriptor carries. */
+  family: ActionFamily;
   /** Whether this tool is on by default in new libre chat sessions. */
   defaultEnabled: boolean;
 }
@@ -134,7 +135,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.file_read.label_operator",
     descOperatorKey: "tools.catalog.file_read.desc_operator",
     descBuilderKey: "tools.catalog.file_read.desc_builder",
-    dangerous: false,
+    family: "read",
     defaultEnabled: true,
   },
   {
@@ -144,7 +145,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.file_write.label_operator",
     descOperatorKey: "tools.catalog.file_write.desc_operator",
     descBuilderKey: "tools.catalog.file_write.desc_builder",
-    dangerous: false,
+    family: "write_or_delete",
     defaultEnabled: true,
   },
   {
@@ -154,7 +155,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.file_edit.label_operator",
     descOperatorKey: "tools.catalog.file_edit.desc_operator",
     descBuilderKey: "tools.catalog.file_edit.desc_builder",
-    dangerous: false,
+    family: "write_or_delete",
     defaultEnabled: true,
   },
   {
@@ -164,7 +165,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.file_list.label_operator",
     descOperatorKey: "tools.catalog.file_list.desc_operator",
     descBuilderKey: "tools.catalog.file_list.desc_builder",
-    dangerous: false,
+    family: "read",
     defaultEnabled: true,
   },
   {
@@ -174,7 +175,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.file_glob.label_operator",
     descOperatorKey: "tools.catalog.file_glob.desc_operator",
     descBuilderKey: "tools.catalog.file_glob.desc_builder",
-    dangerous: false,
+    family: "read",
     defaultEnabled: true,
   },
   {
@@ -184,7 +185,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.file_grep.label_operator",
     descOperatorKey: "tools.catalog.file_grep.desc_operator",
     descBuilderKey: "tools.catalog.file_grep.desc_builder",
-    dangerous: false,
+    family: "read",
     defaultEnabled: true,
   },
   // ── Execution ──────────────────────────────
@@ -195,7 +196,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.bash_executor.label_operator",
     descOperatorKey: "tools.catalog.bash_executor.desc_operator",
     descBuilderKey: "tools.catalog.bash_executor.desc_builder",
-    dangerous: true,
+    family: "execute_code",
     defaultEnabled: true,
   },
   {
@@ -205,7 +206,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.python_executor.label_operator",
     descOperatorKey: "tools.catalog.python_executor.desc_operator",
     descBuilderKey: "tools.catalog.python_executor.desc_builder",
-    dangerous: true,
+    family: "execute_code",
     defaultEnabled: true,
   },
   // ── Network ────────────────────────────────
@@ -216,7 +217,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.http_fetch.label_operator",
     descOperatorKey: "tools.catalog.http_fetch.desc_operator",
     descBuilderKey: "tools.catalog.http_fetch.desc_builder",
-    dangerous: false,
+    family: "send_external",
     defaultEnabled: false,
   },
   // ── Research (web tools) ─────────
@@ -227,7 +228,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.web_search.label_operator",
     descOperatorKey: "tools.catalog.web_search.desc_operator",
     descBuilderKey: "tools.catalog.web_search.desc_builder",
-    dangerous: false,
+    family: "read",
     defaultEnabled: false,
   },
   {
@@ -237,7 +238,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.web_read.label_operator",
     descOperatorKey: "tools.catalog.web_read.desc_operator",
     descBuilderKey: "tools.catalog.web_read.desc_builder",
-    dangerous: false,
+    family: "read",
     defaultEnabled: false,
   },
   // ── Memory ─────────────────────────────────
@@ -248,7 +249,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
     labelOperatorKey: "tools.catalog.memory_search.label_operator",
     descOperatorKey: "tools.catalog.memory_search.desc_operator",
     descBuilderKey: "tools.catalog.memory_search.desc_builder",
-    dangerous: false,
+    family: "read_personal",
     defaultEnabled: false,
   },
 ];

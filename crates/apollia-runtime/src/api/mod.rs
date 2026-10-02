@@ -9,6 +9,7 @@ pub mod routes_agents;
 pub mod routes_approvals;
 pub mod routes_audit;
 pub mod routes_chat;
+pub mod routes_connections;
 pub mod routes_connectors;
 pub mod routes_hooks;
 pub mod routes_llm;
@@ -44,4 +45,6 @@ mod unreached_by_cli;
 mod tls_test_material;
 
 pub use middleware::{load_or_generate_token, AuthError, TokenAuthLayer, TokenFileError};
-pub use server::{APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState};
+pub use server::{
+    APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState, PRODUCT_MARKER,
+};

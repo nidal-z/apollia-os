@@ -12,10 +12,26 @@
 //! allowed, an access is sensitive only when its tool declares it so, no
 //! signature is required, and every record lands in the hash-chained audit
 //! journal next to the run entries, chained and signed like them.
+//!
+//! Connections answer to the same governance. [`tool_attributes`] describes
+//! every tool by what governance reads (family, connection, provenance,
+//! remote, local program); [`admit`] is the admission call that precedes the
+//! addition of a connection, failing closed; [`ConnectionGovernance`] carries
+//! that call and the journal of connection events to the places that add,
+//! change or remove a connection.
 
+mod admission;
+mod connection;
 mod contract;
 mod no_policy;
 mod record;
+mod tool_attributes;
+
+pub use admission::{
+    admit, AdmissionDecision, AdmissionRequest, ConnectionAdmission, NoPolicyAdmission,
+    PolicyReadError,
+};
+pub use connection::{connection_run_id, ConnectionEvent, ConnectionGovernance, ConnectionRecord};
 
 pub use contract::{
     AccessCall, AccessDecision, DeclaredAccess, EffectiveAccess, GovernanceContract,
@@ -23,3 +39,4 @@ pub use contract::{
 };
 pub use no_policy::NoPolicyGovernance;
 pub use record::{governance_run_id, AccessChange, GovernanceEvent, GovernanceRecord};
+pub use tool_attributes::{tool_attributes, ToolAttributes};

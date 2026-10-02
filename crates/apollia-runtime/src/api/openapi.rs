@@ -52,9 +52,10 @@ impl Modify for BearerToken {
                     .description(Some(
                         "Token read from `<data_dir>/api-token`, generated on first start \
                          and sent as `Authorization: Bearer <token>`. Enforced on the TCP \
-                         listener by `TokenAuthLayer`, on every route except \
-                         `POST /webhooks/{id}`, which authenticates its caller with an \
-                         HMAC-SHA256 signature instead. Requests arriving on the Unix \
+                         listener by `TokenAuthLayer`, on every route except two: \
+                         `GET /api/v1/health`, which reveals the product marker and the \
+                         version only, and `POST /webhooks/{id}`, which authenticates its \
+                         caller with an HMAC-SHA256 signature instead. Requests arriving on the Unix \
                          socket bypass the check: the socket file is mode 0600, so its \
                          permissions carry the same rule. Setting `[api] require_token = \
                          false` in `apollia.toml` removes the layer from the TCP listener \
@@ -125,8 +126,8 @@ impl ToSchema for RawWebhookBody {}
 /// The generated OpenAPI document for the `/api/v1` driving contract.
 ///
 /// The document-level `security` applies [`BearerToken`] to every operation.
-/// One operation opts out, `POST /webhooks/{id}`, and does so at its own
-/// annotation.
+/// Two operations opt out, `GET /api/v1/health` and `POST /webhooks/{id}`,
+/// each at its own annotation.
 #[derive(OpenApi)]
 #[openapi(
     info(
@@ -151,6 +152,7 @@ impl ToSchema for RawWebhookBody {}
         (name = "model_hub", description = "Hardware profiling and model registry"),
         (name = "resilience", description = "Circuit breakers"),
         (name = "mcp", description = "MCP servers and resources"),
+        (name = "connections", description = "Everything plugged into this machine, in one list"),
         (name = "connectors", description = "Native connector accounts and their consent"),
         (name = "webhooks", description = "Inbound webhooks")
     ),
@@ -246,6 +248,22 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_llm::backends::delete_llm_backend,
         crate::api::routes_llm::backends::set_default_llm_backend,
         crate::api::routes_llm::backends::reload_llm_router,
+        crate::api::routes_llm::loaded::list_loaded_models,
+        crate::api::routes_llm::loaded::unload_loaded_model,
+        crate::api::routes_llm::servers::test_llm_server,
+        crate::api::routes_llm::servers::list_llm_servers,
+        crate::api::routes_llm::servers::create_llm_server,
+        crate::api::routes_llm::servers::delete_llm_server,
+        crate::api::routes_llm::servers::list_llm_server_models,
+        crate::api::routes_llm::presets::list_llm_presets,
+        crate::api::routes_llm::presets::create_llm_preset,
+        crate::api::routes_llm::presets::update_llm_preset,
+        crate::api::routes_llm::presets::delete_llm_preset,
+        crate::api::routes_llm::presets::get_agent_model,
+        crate::api::routes_llm::presets::set_agent_model,
+        crate::api::routes_llm::presets::clear_agent_model,
+        crate::api::routes_llm::presets::get_default_model,
+        crate::api::routes_llm::presets::set_default_model,
         crate::api::routes_model_hub::get_hardware,
         crate::api::routes_model_hub::search_registry,
         crate::api::routes_model_hub::recommend_models,
@@ -268,6 +286,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_mcp_registry::get_registry_server,
         crate::api::routes_mcp_secrets::put_mcp_secret,
         crate::api::routes_mcp_secrets::delete_mcp_secret,
+        crate::api::routes_connections::list_connections,
         crate::api::routes_connectors::start_connector_consent,
         crate::api::routes_connectors::complete_connector_consent,
         crate::api::routes_connectors::list_connector_accounts,
@@ -370,12 +389,40 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_llm::backends::DeleteBackendResponse,
         crate::api::routes_llm::backends::SetDefaultResponse,
         crate::api::routes_llm::backends::ReloadRouterResponse,
+        crate::api::routes_llm::loaded::LoadedModelDto,
+        crate::api::routes_llm::loaded::LoadedModelsResponse,
+        crate::api::routes_llm::loaded::UnloadModelRequest,
+        crate::api::routes_llm::loaded::UnloadModelResponse,
+        crate::api::routes_llm::servers::TestServerRequest,
+        crate::api::routes_llm::servers::CreateServerRequest,
+        crate::api::routes_llm::servers::ServerResponse,
+        crate::api::routes_llm::servers::ServersListResponse,
+        crate::api::routes_llm::servers::TestServerResponse,
+        crate::api::routes_llm::servers::ServerModel,
+        crate::api::routes_llm::servers::ServerModelsResponse,
+        crate::api::routes_llm::servers::ServerProbeErrorResponse,
+        crate::api::routes_llm::servers::DeleteServerResponse,
+        crate::api::routes_llm::presets::ModelSourceDto,
+        crate::api::routes_llm::presets::PresetResponse,
+        crate::api::routes_llm::presets::PresetsListResponse,
+        crate::api::routes_llm::presets::CreatePresetRequest,
+        crate::api::routes_llm::presets::UpdatePresetRequest,
+        crate::api::routes_llm::presets::DeletePresetResponse,
+        crate::api::routes_llm::presets::AgentModelResponse,
+        crate::api::routes_llm::presets::SetAgentModelRequest,
+        crate::api::routes_llm::presets::ClearAgentModelResponse,
+        crate::api::routes_llm::presets::DefaultModelResponse,
+        crate::api::routes_llm::presets::SetDefaultModelRequest,
         crate::api::routes_model_hub::HardwareResponse,
         crate::api::routes_resilience::ResilienceStatusResponse,
         crate::api::routes_resilience::ResetResponse,
         crate::api::routes_mcp::TestLiveRequest,
         crate::api::routes_mcp::SetApprovalBody,
         crate::api::routes_mcp_secrets::PutMcpSecretBody,
+        crate::connections::Connection,
+        crate::connections::ConnectionTool,
+        crate::connections::ConnectionKind,
+        crate::connections::ConnectionState,
         crate::api::routes_connectors::StartConsentBody,
         crate::api::routes_connectors::StartConsentResponse,
         crate::api::routes_connectors::CompleteConsentBody,
@@ -461,8 +508,15 @@ mod tests {
             "the document-level requirement must name the bearer scheme"
         );
 
-        // THEN the HMAC-authenticated webhook route, and it alone, opts out
-        assert_eq!(opted_out, vec!["POST /webhooks/{id}".to_owned()]);
+        // THEN the health route and the HMAC-authenticated webhook route, and
+        // they alone, opt out
+        assert_eq!(
+            opted_out,
+            vec![
+                "GET /api/v1/health".to_owned(),
+                "POST /webhooks/{id}".to_owned()
+            ]
+        );
     }
 
     #[test]
