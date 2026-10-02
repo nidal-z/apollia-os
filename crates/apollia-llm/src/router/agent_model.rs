@@ -14,7 +14,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use serde::Serialize;
@@ -55,8 +55,39 @@ enum Choice {
 pub(crate) struct LiveState {
     /// The router a reload put in place of this one, if any.
     successor: RwLock<Option<Arc<LlmRouter>>>,
-    /// Last fallback of each agent, handed from one router to the next.
-    fallbacks: Arc<Mutex<HashMap<String, AgentModelFallback>>>,
+    /// Last fallback of each agent. Each router owns its own; a reload copies
+    /// them into the router it builds, and [`LlmRouter::supersede`] hands over
+    /// any recorded in between, so no lock is shared from one router to the
+    /// next.
+    fallbacks: Mutex<HashMap<String, AgentModelFallback>>,
+}
+
+impl LiveState {
+    fn fallbacks(&self) -> std::sync::MutexGuard<'_, HashMap<String, AgentModelFallback>> {
+        self.fallbacks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// The state of the router in force at the end of the chain of reloads
+    /// that starts here.
+    fn tail(self: &Arc<Self>) -> Arc<LiveState> {
+        let mut tail = Arc::clone(self);
+        for _ in 0..MAX_SUCCESSOR_HOPS {
+            let successor = tail
+                .successor
+                .read()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            match successor {
+                Some(successor) if !Arc::ptr_eq(&successor.live, &tail) => {
+                    tail = Arc::clone(&successor.live);
+                }
+                _ => break,
+            }
+        }
+        tail
+    }
 }
 
 impl LlmRouter {
@@ -70,7 +101,7 @@ impl LlmRouter {
                 .live
                 .successor
                 .read()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .unwrap_or_else(PoisonError::into_inner)
                 .clone();
             match next {
                 Some(next) if !Arc::ptr_eq(&next.live, &current.live) => current = next,
@@ -84,7 +115,7 @@ impl LlmRouter {
                 .live
                 .successor
                 .write()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::clone(&current));
+                .unwrap_or_else(PoisonError::into_inner) = Some(Arc::clone(&current));
         }
         current
     }
@@ -92,27 +123,27 @@ impl LlmRouter {
     /// Record that `next` replaces this router. Every holder of this router,
     /// or of one it already replaced, reaches `next` through [`Self::latest`].
     pub fn supersede(&self, next: &Arc<LlmRouter>) {
-        let mut tail = Arc::clone(&self.live);
-        for _ in 0..MAX_SUCCESSOR_HOPS {
-            let successor = tail
-                .successor
-                .read()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone();
-            match successor {
-                Some(successor) if !Arc::ptr_eq(&successor.live, &tail) => {
-                    tail = Arc::clone(&successor.live);
-                }
-                _ => break,
-            }
-        }
+        let tail = self.live.tail();
         if Arc::ptr_eq(&tail, &next.live) {
             return;
+        }
+        // A fallback recorded on the tail after `next` was built would
+        // otherwise stay behind; one `next` recorded itself is newer.
+        let handed: Vec<(String, AgentModelFallback)> = tail
+            .fallbacks()
+            .iter()
+            .map(|(agent, fallback)| (agent.clone(), fallback.clone()))
+            .collect();
+        {
+            let mut kept = next.live.fallbacks();
+            for (agent, fallback) in handed {
+                kept.entry(agent).or_insert(fallback);
+            }
         }
         *tail
             .successor
             .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::clone(next));
+            .unwrap_or_else(PoisonError::into_inner) = Some(Arc::clone(next));
     }
 
     /// Keep, on a router rebuilt by a reload, what `system.db` does not hold:
@@ -122,9 +153,10 @@ impl LlmRouter {
         if self.routing.is_none() {
             self.routing = previous.routing.clone();
         }
+        let carried = previous.live.tail().fallbacks().clone();
         self.live = Arc::new(LiveState {
             successor: RwLock::new(None),
-            fallbacks: Arc::clone(&previous.live.fallbacks),
+            fallbacks: Mutex::new(carried),
         });
         self
     }
@@ -211,9 +243,8 @@ impl LlmRouter {
             at: chrono::Utc::now().to_rfc3339(),
         };
         self.live
-            .fallbacks
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .tail()
+            .fallbacks()
             .insert(agent.to_string(), fallback);
         if let Some(bus) = bus {
             // Fire-and-forget: a bus without subscribers is not an error.
@@ -229,12 +260,7 @@ impl LlmRouter {
     /// The last time `agent`'s model was not available, if it ever was not
     /// since the runtime started.
     pub fn agent_model_fallback(&self, agent: &str) -> Option<AgentModelFallback> {
-        self.live
-            .fallbacks
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(agent)
-            .cloned()
+        self.live.tail().fallbacks().get(agent).cloned()
     }
 }
 

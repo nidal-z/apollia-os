@@ -248,6 +248,37 @@ fn test_supersede_appends_to_the_chain() {
     assert!(Arc::ptr_eq(&second.latest(), &second));
 }
 
+// GIVEN a router rebuilt by a reload, a fallback recorded on the old one after
+//       the rebuild and before the swap, and an agent still holding the old one
+// WHEN the swap happens and the agent's call falls back again on the old one
+// THEN the router in force sees both fallbacks, the later one last
+#[test]
+fn test_fallbacks_reach_the_router_in_force() {
+    // GIVEN
+    let boot = Arc::new(router(&["default"], "default"));
+    let next = Arc::new(router(&["default"], "default").carry_over_from(&boot));
+    boot.resolve_agent_model("mail", Some("gone"), None, None);
+    let held_by_agent = Arc::clone(&boot);
+
+    // WHEN
+    boot.supersede(&next);
+    let handed = next.agent_model_fallback("mail").map(|f| f.requested);
+    held_by_agent.resolve_agent_model("mail", Some("also-gone"), None, None);
+
+    // THEN
+    assert_eq!(handed, Some("gone".to_string()));
+    assert_eq!(
+        next.agent_model_fallback("mail").map(|f| f.requested),
+        Some("also-gone".to_string())
+    );
+    assert_eq!(
+        held_by_agent
+            .agent_model_fallback("mail")
+            .map(|f| f.requested),
+        Some("also-gone".to_string())
+    );
+}
+
 // GIVEN a router whose `[llm.routing] precise` is `big`, holding `small`
 // WHEN the reasoning backend of an orchestrated run is resolved for an agent
 //      declaring `small`, one declaring a model that is gone, and one declaring
