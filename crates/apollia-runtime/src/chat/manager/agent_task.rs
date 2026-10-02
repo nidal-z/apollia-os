@@ -11,6 +11,8 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
+use apollia_oria::budget::StepBudget;
+
 use super::*;
 
 /// How often a cancelled run refuses the approvals it still waits on, until
@@ -35,6 +37,12 @@ pub struct AgentTaskRun {
     pub cancel: CancellationToken,
     /// Receives the outcome once the run has ended.
     pub done: oneshot::Sender<Result<ChatAgentResponse, ChatError>>,
+    /// The budget of the caller, when the run spends from it (a workflow
+    /// step, an agent that called this one); `None` gives the run the budget
+    /// of its autonomy tier.
+    pub budget: Option<Arc<StepBudget>>,
+    /// The level of the run in the nesting, 1 for a run started on its own.
+    pub depth: u32,
 }
 
 /// What a spawned run needs from the actor.
@@ -52,6 +60,8 @@ struct AgentTaskWiring {
     tool_search_limit: usize,
     hook_executor: Option<Arc<HookExecutor>>,
     hitl: HitlInvokerParams,
+    package_tools: Option<Arc<dyn crate::package_tools::PackageToolHost>>,
+    composer: Option<Arc<dyn crate::composition::Composer>>,
 }
 
 impl ChatSessionManager {
@@ -87,6 +97,8 @@ impl ChatSessionManager {
             tool_search_limit: self.tool_search_limit,
             hook_executor: self.hook_executor.clone(),
             hitl,
+            package_tools: self.package_tools.clone(),
+            composer: self.composer.clone(),
         };
         info!(task_id = %run.task_id, agent = %run.spec.agent_id, "agent.task.started");
         tokio::spawn(run_agent_task(wiring, run));
@@ -153,6 +165,8 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         message,
         cancel,
         done,
+        budget,
+        depth,
     } = run;
     spec.granted_tools = access.tools(&wiring.tool_registry).await;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
@@ -188,6 +202,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             mcp_loading: wiring.mcp_loading,
             mcp_index: mcp_index.clone(),
             tool_search_limit: wiring.tool_search_limit,
+            package_tools: super::package_executors(&wiring.package_tools, &spec.agent_id, &cancel),
         },
         &wiring.a2a_invoker,
         wiring.hook_executor.clone(),
@@ -207,7 +222,6 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             tool_registry: wiring.tool_registry,
             tool_invoker: invoker.invoker,
             event_bus: wiring.event_bus,
-            a2a_invoker: wiring.a2a_invoker,
             todo: None,
             plan: None,
         },
@@ -221,6 +235,10 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             tool_search_limit: wiring.tool_search_limit,
             hook_executor: wiring.hook_executor,
             tool_turn_temperature,
+            shared_budget: budget,
+            composition: wiring
+                .composer
+                .map(|composer| Composition { composer, depth }),
             ..SessionWiring::default()
         },
         &wiring.runtime_budget,

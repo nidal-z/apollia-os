@@ -71,11 +71,6 @@
     "edit": "Modifier",
     "clear": "Effacer",
     "status": {
-      "active": "ACTIF",
-      "degraded": "DÉGRADÉ",
-      "stopped": "ARRÊTÉ",
-      "initializing": "INITIALISATION",
-      "stopping": "ARRÊT EN COURS",
       "ready": "PRÊT",
       "untested": "NON TESTÉ",
       "error": "ERREUR"
@@ -744,9 +739,6 @@
       "trigger_every": "toutes les {every}",
       "secret_placeholder": "Ex. : ma-clé-secrète-d-au-moins-32-caractères"
     },
-    "stop_confirm": "Arrêter cet agent ?",
-    "stopping": "Arrêt...",
-    "stop": "Arrêter",
     "logs": "Logs",
     "logs_title": "Logs de l'agent",
     "no_tasks": "Aucune tâche trouvée pour cet agent.",
@@ -768,16 +760,11 @@
     "sort_longest": "Plus longues",
     "sort_shortest": "Plus courtes",
     "no_description": "Aucune description disponible",
-    "not_loaded": "Non chargé",
-    "auto_start_enabled": "Démarrage auto au boot",
-    "auto_start_disabled": "Ne démarre pas au boot",
     "update": "Mettre à jour",
     "uninstall": "Désinstaller",
     "uninstall_confirm_warning": "Supprimer définitivement « {name} » ?",
     "uninstall_delete_memory": "Supprimer aussi la mémoire et les données de l'agent",
     "uninstall_confirm_action": "Supprimer",
-    "start": "Démarrer",
-    "starting_agent": "Démarrage...",
     "create": "Créer",
     "page_title": "Assistants",
     "install_package_button": "Installer un package",
@@ -795,19 +782,10 @@
     "packages_empty_none_installed": "Aucun package installé.",
     "agents_word": "agents",
     "triggers_word": "triggers",
-    "stop_named": "Arrêter {name}",
-    "start_named": "Démarrer {name}",
-    "stop_all": "Tout arrêter",
-    "start_all": "Tout démarrer",
-    "start_missing_path": "Impossible de démarrer {name} : install_path manquant.",
-    "package_errors": "Package {name} : {count} erreur(s) - {first}",
     "pkg_status_partial": "partiel",
-    "status_active": "actif",
     "status_degraded": "dégradé",
-    "status_initializing": "démarrage…",
-    "status_stopping": "arrêt…",
-    "status_stopped": "arrêté",
-    "status_not_loaded": "non chargé",
+    "status_available": "disponible",
+    "status_unavailable": "indisponible",
     "package_default_description": "Package d'agents Apollia.",
     "source_missing": "source manquante",
     "tab_overview": "Aperçu",
@@ -850,7 +828,6 @@
     "memory_view_all": "voir toutes dans /mémoire",
     "activity_not_loaded": "L'assistant n'est pas chargé - démarrez-le pour voir son activité récente.",
     "execution_section": "Exécution",
-    "auto_start_hint": "Démarre automatiquement avec Apollia OS.",
     "loading_assistants": "Chargement des assistants…",
     "detail_empty_title": "Aucun assistant sélectionné",
     "chat_config": {
@@ -888,11 +865,7 @@
     "update_restart_stop_failed": "Le nouveau fichier est installé, mais {name} n'a pas pu être arrêté : il exécute toujours la version précédente.",
     "update_restart_stop_failed_action": "Arrêtez l'agent, puis redémarrez-le pour charger la nouvelle version.",
     "update_restart_start_failed": "{name} a été arrêté pour charger la nouvelle version et n'a pas redémarré : il n'exécute plus rien.",
-    "update_restart_start_failed_action": "Redémarrez l'agent depuis sa ligne. La cause ci-dessous indique ce que le runtime a refusé.",
-    "package_start_errors": {
-      "trigger": "déclencheur {id} : {error}",
-      "missing_install_path": "{name} : install_path manquant"
-    }
+    "update_restart_start_failed_action": "Redémarrez l'agent depuis sa ligne. La cause ci-dessous indique ce que le runtime a refusé."
   },
   "tasks": {
     "subtitle": "Suivez les requêtes envoyées à vos assistants et leurs résultats",
@@ -3519,7 +3492,6 @@
     "tool_empty_results": "Aucun résultat.",
     "a2a_authorize_skill": "Autoriser le skill",
     "a2a_via_worker": "via l'agent worker",
-    "a2a_worker_stopped": "arrêté",
     "project_selector": "Projet",
     "no_project": "Sans projet",
     "quickpicker": {
@@ -4239,8 +4211,6 @@
     "placeholder": "Tapez une commande ou recherchez… (Cmd+K)",
     "empty": "Aucune commande correspondante",
     "seed": {
-      "agents_start_all": "Démarrer tous les agents",
-      "agents_stop_all": "Arrêter tous les agents",
       "toggle_dark": "Basculer mode sombre"
     },
     "results_count": "{count, plural, one {# résultat} other {# résultats}}",

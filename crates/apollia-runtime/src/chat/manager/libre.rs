@@ -310,6 +310,7 @@ async fn resolve_exchange_summary(params: ExchangeSummaryParams<'_>) -> Option<S
 /// linear.
 pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangeParams) {
     let LibreExchangeParams {
+        agent_id,
         llm_router,
         tool_registry,
         event_bus,
@@ -332,6 +333,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         project_repo_for_session,
         pending_user_inputs_for_session,
         mcp_handle_for_session,
+        package_tools,
+        composer,
         chat_tools_config_for_session,
         mcp_loading,
         tool_search_limit,
@@ -377,6 +380,10 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         .as_deref()
         .map(super::dispatcher::effective_disabled_tools)
         .unwrap_or_default();
+    // An access to a connector tool without its account names the single
+    // connected account, or nothing.
+    let available_tools =
+        crate::connectors_bridge::resolve_connector_access(&agent_id, available_tools).await;
     let mcp_index = super::disabled::only_granted(mcp_index, &available_tools);
     let (available_tools, mcp_index) =
         super::disabled::without_disabled(available_tools, mcp_index, &disabled);
@@ -408,6 +415,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             mcp_loading,
             mcp_index: mcp_index.clone(),
             tool_search_limit,
+            package_tools,
         },
         &a2a_for_agent,
         hook_executor.clone(),
@@ -455,10 +463,11 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         &session_project_id,
         &project_ctx,
     );
-    // The session is the Apollia agent: its stored prompt is the mission, the
-    // session's tools are its granted tools, its stored backend is its model.
+    // The session runs its agent: Apollia, whose stored prompt is the mission,
+    // whose session tools are its granted tools and whose stored backend is
+    // its model; or a declarative agent, as resolved when the message is sent.
     let spec = AgentRunSpec {
-        agent_id: APOLLIA_CHAT_AGENT_ID.to_string(),
+        agent_id,
         mission: system_prompt,
         granted_tools: available_tools,
         model: preferred_backend,
@@ -471,7 +480,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             tool_registry,
             tool_invoker: session_invoker.invoker,
             event_bus,
-            a2a_invoker: a2a_for_agent,
             todo,
             plan,
         },
@@ -487,6 +495,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             tool_turn_temperature,
             prefix_checker,
             approval_timeout: Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT),
+            shared_budget: None,
+            composition: composer.map(|composer| Composition { composer, depth: 1 }),
         },
         &runtime_budget,
         cancel,

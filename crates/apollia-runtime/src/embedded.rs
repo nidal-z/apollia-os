@@ -59,6 +59,9 @@ pub struct RuntimeHandle {
     /// Admission policy and journal of connection events. The desktop admits
     /// and journals a native account through it, the HTTP routes the rest.
     pub connection_governance: crate::governance::ConnectionGovernance,
+    /// The audit journal, through which the desktop records the packages its
+    /// binary ships when it installs them. `None` when it could not be opened.
+    pub audit_journal: Option<crate::audit_journal::AuditJournalHandle>,
     /// Read access to the TaskRepository.
     pub task_repository: Option<Arc<TaskRepository>>,
     /// Pending approvals.
@@ -81,6 +84,10 @@ pub struct RuntimeHandle {
     /// `Some` after the Supervisor startup sequence.
     /// `None` when the chat subsystem failed to start.
     pub chat_manager: Option<crate::chat::ChatSessionManagerHandle>,
+    /// Handle to the workflow actor, to which the host embedding the Python
+    /// interpreter attaches the package workflows. `None` without a task
+    /// store.
+    pub workflows: Option<crate::workflows::WorkflowHandle>,
     /// ORIA plan cache repository.
     ///
     /// `Some` when `plan_cache.db` opened successfully.
@@ -314,6 +321,12 @@ pub struct EmbeddedConfig {
     /// Maps to the `[filesystem]` section in `apollia.toml`.
     /// Populated by [`EmbeddedConfig::apply_toml`].
     pub filesystem_config: apollia_core::FilesystemConfig,
+
+    /// Workflow configuration: the budget a run starts with.
+    ///
+    /// Maps to the `[workflows]` section in `apollia.toml`.
+    /// Populated by [`EmbeddedConfig::apply_toml`].
+    pub workflows_config: apollia_core::WorkflowsConfig,
 }
 
 impl Default for EmbeddedConfig {
@@ -341,6 +354,7 @@ impl Default for EmbeddedConfig {
             hooks_config: apollia_core::HooksConfig::default(),
             chat_config: apollia_core::ChatConfig::default(),
             filesystem_config: apollia_core::FilesystemConfig::default(),
+            workflows_config: apollia_core::WorkflowsConfig::default(),
         }
     }
 }
@@ -364,6 +378,7 @@ impl EmbeddedConfig {
             chat: Option<apollia_core::ChatConfig>,
             filesystem: Option<apollia_core::FilesystemConfig>,
             observability: Option<ObservabilityConfig>,
+            workflows: Option<apollia_core::WorkflowsConfig>,
         }
         apollia_core::config::warn_retired_keys(content);
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
@@ -398,6 +413,9 @@ impl EmbeddedConfig {
             }
             if let Some(obs) = s.observability {
                 self.obs_config = obs;
+            }
+            if let Some(workflows) = s.workflows {
+                self.workflows_config = workflows;
             }
         }
 
@@ -538,6 +556,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         chat_default_workspace: chat_default_workspace.clone(),
         chat_tool_turn_temperature,
         filesystem_trusted_paths: filesystem_trusted_paths.clone(),
+        workflows_config: config.workflows_config,
     };
 
     let supervisor = Supervisor::new(supervisor_config);
@@ -562,12 +581,14 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         trigger_engine: handles.trigger_engine,
         audit_trail: handles.audit_trail,
         connection_governance: handles.connection_governance,
+        audit_journal: handles.audit_journal,
         task_repository: handles.task_repository,
         pending_approvals: handles.pending_approvals,
         plan_gates: handles.plan_gates,
         notification_engine: handles.notification_engine.map(Arc::new),
         llm_call_repository: handles.llm_call_repository,
         chat_manager: handles.chat_manager,
+        workflows: handles.workflows,
         plan_cache: handles.plan_cache,
         mailbox_handle: handles.mailbox_handle,
         user_memory: handles.user_memory,

@@ -17,7 +17,7 @@ export type ActionFamily =
   | "exempt";
 
 /** Where a descriptor's family comes from. */
-export type FamilySource = "server" | "selection" | "none" | "builtin";
+export type FamilySource = "server" | "selection" | "none" | "builtin" | "package";
 
 /**
  * Whether a family is sensitive: every family other than reading, and the

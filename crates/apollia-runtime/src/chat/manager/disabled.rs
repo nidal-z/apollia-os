@@ -18,7 +18,7 @@ pub(in crate::chat::manager) fn without_disabled(
     if disabled.is_empty() {
         return (available, index);
     }
-    let is_disabled = |name: &str| disabled.iter().any(|d| d == name);
+    let is_disabled = |name: &str| apollia_tools::is_disabled(name, disabled);
     let available = available
         .into_iter()
         .filter(|name| !is_disabled(name))
@@ -63,11 +63,12 @@ mod tests {
     // the session lists it or the deferred index holds it.
     #[test]
     fn test_disabled_tools_are_not_proposed() {
-        // GIVEN a session listing a native, a connector tool and an MCP tool,
-        // an index holding two MCP tools, and three of them disabled
+        // GIVEN a session listing a native, the tool of a connected account
+        // and an MCP tool, an index holding two MCP tools, and three of them
+        // disabled, the connector one by its operation
         let available = vec![
             "file_read".to_string(),
-            "gmail.send".to_string(),
+            "conn:google:ada@example.com/gmail.send".to_string(),
             "mcp:notion/create_page".to_string(),
         ];
         let index = vec![entry("notion", "create_page"), entry("notion", "search")];

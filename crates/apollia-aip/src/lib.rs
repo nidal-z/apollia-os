@@ -20,8 +20,7 @@
 //! - `budget`: `ctx.budget` step budget view (successor of `step_budget`).
 
 pub mod a2a;
-pub mod apo_archive;
-pub mod apollia_manifest;
+pub use apollia_tools::{apo_archive, apollia_manifest};
 pub mod bridge;
 pub mod budget;
 #[allow(clippy::useless_conversion)]
@@ -36,6 +35,7 @@ pub mod mail;
 pub mod memory;
 pub mod notify;
 pub mod package_loader;
+pub mod package_tools;
 #[allow(clippy::useless_conversion)]
 pub mod profile;
 pub mod python_provider;

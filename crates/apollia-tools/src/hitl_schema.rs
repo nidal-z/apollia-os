@@ -13,13 +13,14 @@ use rusqlite::Connection;
 use apollia_core::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `hitl.db`.
-pub const HITL_SCHEMA_VERSION: u32 = 4;
+pub const HITL_SCHEMA_VERSION: u32 = 5;
 
 /// Numbered migration steps of `hitl.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`HITL_SCHEMA_VERSION`].
-pub const HITL_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3, migrate_v4];
+pub const HITL_MIGRATIONS: &[Migration] =
+    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -159,6 +160,49 @@ fn migrate_v4(conn: &Connection) -> Result<(), rusqlite::Error> {
     )
 }
 
+/// v5: workflow runs, and the steps of each run.
+///
+/// `workflow_runs` holds one run of a workflow: its identifier
+/// (`<package>/<workflow>`), the run that called it and its nesting depth
+/// when a step started it, its inputs, its status (`running`, `completed`,
+/// `failed`, `canceled`), what it returned or why it failed, and when it
+/// started and ended. `workflow_steps` holds each declared step of the run,
+/// in declared order, written `pending` at launch: its status (`pending`,
+/// `running`, `completed`, `failed`, `canceled`, `not_started`), when it
+/// started and ended, its output and its error. Timestamps carry
+/// milliseconds, since steps follow each other faster than a second.
+fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS workflow_runs (
+            run_id         TEXT    PRIMARY KEY,
+            workflow_id    TEXT    NOT NULL,
+            parent_run_id  TEXT,
+            depth          INTEGER NOT NULL DEFAULT 1,
+            inputs_json    TEXT    NOT NULL,
+            status         TEXT    NOT NULL DEFAULT 'running',
+            output_json    TEXT,
+            error          TEXT,
+            started_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            ended_at       TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow
+            ON workflow_runs(workflow_id, started_at);
+        CREATE INDEX IF NOT EXISTS idx_workflow_runs_status ON workflow_runs(status);
+
+        CREATE TABLE IF NOT EXISTS workflow_steps (
+            run_id      TEXT    NOT NULL REFERENCES workflow_runs(run_id),
+            rank        INTEGER NOT NULL,
+            name        TEXT    NOT NULL,
+            status      TEXT    NOT NULL DEFAULT 'pending',
+            started_at  TEXT,
+            ended_at    TEXT,
+            output      TEXT,
+            error       TEXT,
+            PRIMARY KEY (run_id, rank)
+        );",
+    )
+}
+
 /// Opens the file's schema at the current version, or refuses it.
 ///
 /// Shared entry point for every `hitl.db` opener.
@@ -261,7 +305,51 @@ mod tests {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 4);
+        assert_eq!(version, i64::from(HITL_SCHEMA_VERSION));
+    }
+
+    // GIVEN a database at version 4, with a batch row
+    // WHEN opening it through the versioned layer
+    // THEN the workflow tables appear, a step joins its run, and the version is stamped
+    #[test]
+    fn test_hitl_db_v4_gains_the_workflow_tables() {
+        let conn = Connection::open_in_memory().unwrap();
+        apollia_core::schema::open_versioned(&conn, "hitl.db", 4, &HITL_MIGRATIONS[..4]).unwrap();
+        conn.execute(
+            "INSERT INTO batches (batch_id, agent_name, source_json, max_failures, state) \
+             VALUES ('b-1', 'clerk', '{}', 5, 'running')",
+            [],
+        )
+        .unwrap();
+
+        open_hitl_schema(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO workflow_runs (run_id, workflow_id, inputs_json) \
+             VALUES ('r-1', 'invoices/close-month', '{}')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO workflow_steps (run_id, rank, name) VALUES ('r-1', 0, 'extract')",
+            [],
+        )
+        .unwrap();
+        let (run_status, step_status, batches): (String, String, i64) = conn
+            .query_row(
+                "SELECT r.status, s.status, (SELECT COUNT(*) FROM batches) \
+                 FROM workflow_steps s JOIN workflow_runs r ON r.run_id = s.run_id",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(run_status, "running");
+        assert_eq!(step_status, "pending");
+        assert_eq!(batches, 1);
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 5);
     }
 
     // GIVEN a database stamped by a newer binary

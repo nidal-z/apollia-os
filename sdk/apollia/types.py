@@ -194,9 +194,9 @@ class Ctx(Protocol):
     memory: MemoryInterface
     tools: ToolProxy
     a2a: A2AInterface
-    #: Run an installed agent with a message. Not bound by the runtime yet.
+    #: Run an installed agent with a message. Bound in a workflow run.
     agents: AgentsInterface
-    #: Run an installed workflow with typed inputs. Not bound by the runtime yet.
+    #: Run an installed workflow with typed inputs. Bound in a workflow run.
     workflows: WorkflowsInterface
     mail: MailInterface
     datasources: DatasourcesInterface

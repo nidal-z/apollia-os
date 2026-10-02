@@ -176,7 +176,6 @@ TEST_ONLY_RATCHET: frozenset[str] = frozenset([
     "tracked_turns@apollia-memory", "try_with_default_backends@apollia-tools", "validate_id@apollia-triggers",
     "with_consequences@apollia-core", "with_index_path@apollia-auth", "with_max_output_chars@apollia-tools",
     "with_namespace@apollia-aip", "with_pattern@apollia-tools", "with_produced_plan@apollia-runtime",
-    "with_storage@apollia-auth",
 ])
 
 

@@ -91,6 +91,22 @@ impl PublicKey {
             })
     }
 
+    /// Decodes a public key from the 64 hexadecimal characters
+    /// [`Self::to_hex`] writes. Surrounding whitespace is ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SigningError::InvalidKey`] when the text is not 64
+    /// hexadecimal characters, or when they do not decode to a point of the
+    /// Ed25519 curve.
+    pub fn from_hex(text: &str) -> Result<Self, SigningError> {
+        let mut bytes = [0u8; 32];
+        hex::decode_to_slice(text.trim(), &mut bytes).map_err(|_| SigningError::InvalidKey {
+            reason: "not 64 hexadecimal characters",
+        })?;
+        Self::from_bytes(&bytes)
+    }
+
     /// Returns the 32 raw bytes of the key.
     pub fn to_bytes(&self) -> [u8; 32] {
         self.inner.to_bytes()
@@ -374,6 +390,34 @@ mod tests {
 
         // THEN the key is refused
         assert!(matches!(result, Err(SigningError::InvalidKey { .. })));
+    }
+
+    #[test]
+    fn test_public_key_round_trips_through_hex() {
+        // GIVEN a public key written as hex, with a trailing line feed
+        let public_key = SigningKeyPair::from_seed(&[5u8; 32]).public_key();
+        let text = format!("{}\n", public_key.to_hex());
+
+        // WHEN it is read back
+        let back = PublicKey::from_hex(&text).unwrap();
+
+        // THEN it is the same key
+        assert_eq!(back, public_key);
+    }
+
+    #[test]
+    fn test_public_key_from_hex_refuses_a_short_or_non_hex_text() {
+        // GIVEN a text too short and a text of the right length that is not hex
+        let short = "abcd";
+        let not_hex = "z".repeat(64);
+
+        // WHEN each is read as a public key
+        let results = [PublicKey::from_hex(short), PublicKey::from_hex(&not_hex)];
+
+        // THEN both are refused
+        for result in results {
+            assert!(matches!(result, Err(SigningError::InvalidKey { .. })));
+        }
     }
 
     #[test]

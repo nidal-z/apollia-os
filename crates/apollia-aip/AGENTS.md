@@ -99,7 +99,6 @@ own, and the runtime matches on the one it received.
 | `AIPLoaderError` | `src/loader.rs` | importing and instantiating a module |
 | `AIPValidationError` | `src/validator.rs` | manifest and tool-requirement validation |
 | `PackageLoaderError` | `src/package_loader.rs` | agent packages |
-| `ApolliaManifestError` | `src/apollia_manifest/mod.rs` | the `apollia.toml` package manifest: schema, unknown keys with their path, validation rules |
 | `ToolProxyError` | `src/context/tool_proxy.rs` | `ctx.tools` invocations |
 | `MemoryInterfaceError` | `src/memory.rs` | `ctx.memory` calls |
 | `PythonProviderError` | `src/python_provider.rs` | loading a workspace context provider written in Python |
@@ -179,8 +178,13 @@ Agent lifecycle steps that pass through this crate :
 3. **Dispatch** : `AIPBridge::call_run` (`src/bridge.rs`) invokes the skill,
    `call_on_plan_complete` the orchestrated post-processing.
 
-There is no `activate` step, no `unload` step and no cancellation path through
-this crate: the bridge holds no `CancellationToken`, and a running Python
+There is no `activate` step and no `unload` step on the bridge: an agent's
+bridge and the objects it holds are released when the runtime drops its
+backend, after `[runtime] agent_idle_unload_secs` without a call
+(`apollia_runtime::on_demand`). The package tools are unloaded on the same
+delay by `PackageTools::unload_idle` (`src/package_tools/mod.rs`), which also
+takes their modules out of `sys.modules`. There is no cancellation path
+through the bridge: it holds no `CancellationToken`, and a running Python
 coroutine is not interrupted from the Rust side. Cancellation is enforced one
 level up, by the budget and the task status, not here. Do not write a rule
 against a step this crate does not have.

@@ -32,7 +32,7 @@ use super::{
 ///    `site-packages` injected into `sys.path`.
 /// 5. On any error in steps 3-4: full **rollback** (remove `install_root` and
 ///    every created venv).
-/// 6. Save to DB + inject triggers (unchanged).
+/// 6. Save to DB, make the agents available in the runtime, inject triggers.
 #[tauri::command]
 // Tauri command: the State<'_, _> injections plus the user-facing args push the
 // count past 5 by design; grouping them into a struct would only obscure the IPC signature.
@@ -155,6 +155,7 @@ pub async fn install_agent_package(
 
     let now = chrono::Utc::now().to_rfc3339();
     let mut agent_count = 0;
+    let mut available: Vec<(String, PathBuf)> = Vec::new();
 
     {
         let agent_repo = agent_repo_state.lock().map_err(|_| "repo lock poisoned")?;
@@ -179,6 +180,7 @@ pub async fn install_agent_package(
             agent_repo
                 .save(&agent)
                 .map_err(|e| format!("failed to save agent '{}': {e}", agent.name))?;
+            available.push((agent.name.clone(), agent.install_path.clone()));
             agent_count += 1;
         }
     }
@@ -203,6 +205,12 @@ pub async fn install_agent_package(
                 .link_agent(&pkg_name, &entry.name)
                 .map_err(|e| format!("failed to link agent: {e}"))?;
         }
+    }
+
+    // The agents are available at once: nobody starts them.
+    for (name, install_path) in &available {
+        crate::commands::agents::lifecycle::make_available(runtime.api_port, name, install_path)
+            .await;
     }
 
     // Inject triggers with user-provided overrides.

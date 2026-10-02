@@ -174,6 +174,12 @@ impl AgentBackendFactory for ProductionBackendFactory {
                     detail = "falling back to a no-op backend",
                     "agent.module.load.failed"
                 );
+                if let Some(bus) = self.event_bus.get() {
+                    let _ = bus.send(apollia_core::events::RuntimeEvent::AgentLoadFailed {
+                        name: agent_id.clone(),
+                        error: e.to_string(),
+                    });
+                }
                 DynBackend::new(NoopBackend)
             }
         }

@@ -23,6 +23,7 @@ pub mod routes_mcp_secrets;
 pub mod routes_messages;
 pub mod routes_model_hub;
 pub mod routes_notifications;
+pub mod routes_packages;
 pub mod routes_plan_cache;
 pub mod routes_profile;
 pub mod routes_resilience;
@@ -35,6 +36,7 @@ pub mod routes_tools;
 pub mod routes_trace;
 pub mod routes_triggers;
 pub mod routes_webhooks;
+pub mod routes_workflows;
 pub mod server;
 
 // The eleven API operations no CLI leaf addresses, probed against the real

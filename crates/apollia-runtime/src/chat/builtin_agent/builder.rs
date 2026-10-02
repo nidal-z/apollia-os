@@ -9,7 +9,7 @@ impl BuiltInChatAgent {
             tool_invoker: deps.tool_invoker,
             event_bus: deps.event_bus,
             user_memory: deps.user_memory,
-            a2a_invoker: deps.a2a_invoker,
+            composer: None,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
             meta_handle: None,
             workspace_path: None,
@@ -47,6 +47,13 @@ impl BuiltInChatAgent {
     /// fallback said, under this identifier.
     pub fn with_agent_id(mut self, agent_id: impl Into<String>) -> Self {
         self.agent_id = agent_id.into();
+        self
+    }
+
+    /// Offer the agents and workflows the agent was granted, read through
+    /// `composer`. `None` offers none of them.
+    pub fn with_composer(mut self, composer: Option<Arc<dyn Composer>>) -> Self {
+        self.composer = composer;
         self
     }
 

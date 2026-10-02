@@ -160,7 +160,6 @@ fn make_agent(router: Arc<LlmRouter>, tool_registry: ToolRegistryHandle) -> Buil
         tool_invoker: Arc::new(AlwaysFailingInvoker),
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })

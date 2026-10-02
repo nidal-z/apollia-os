@@ -40,8 +40,8 @@ pub struct ToolAttributes {
 /// The attributes of every tool `sources` knows: the tools of each
 /// connection, then every registered tool no connection claims.
 ///
-/// A connector tool shared by two accounts of the same provider appears once
-/// per account, under each connection.
+/// Each account of a native connector brings its own tools, named after the
+/// account, under its own connection.
 #[must_use]
 pub fn tool_attributes(sources: &ConnectionSources) -> Vec<ToolAttributes> {
     let stdio_servers: HashSet<String> = sources
@@ -196,9 +196,13 @@ mod tests {
     // A native connector tool belongs to the account's connection, remote.
     #[test]
     fn test_connector_tool_belongs_to_its_account() {
-        // GIVEN one Google account and the Google descriptors registered
-        let google = crate::connectors_bridge::google_tool_descriptors();
+        // GIVEN one Google account and the tools it publishes registered
+        let google = crate::connectors_bridge::connection_tools::account_descriptors(
+            apollia_auth::ConnectorProvider::Google,
+            "ada@example.com",
+        );
         let first = google[0].name.clone();
+        assert!(first.starts_with("conn:google:ada@example.com/"));
         let sources = ConnectionSources {
             descriptors: google,
             native_accounts: vec![(

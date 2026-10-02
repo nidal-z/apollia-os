@@ -1,7 +1,7 @@
 //! The in-app companion: the per-route help text it opens with, and the chat
 //! session it runs against the guide agent.
 
-use apollia_runtime::chat::ChatMode;
+use apollia_runtime::chat::{ChatError, ChatMode};
 use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -17,10 +17,9 @@ use super::GUIDE_AGENT_NAME;
 /// Per-route contextual help texts displayed in the Companion panel.
 const COMPANION_CONTEXTS: &[(&str, &str)] = &[
     ("dashboard", "You are on the dashboard. It gives you an overview of your active agents, the recent events and the state of the system. Ask me anything about running your agents."),
-    ("agents", "You are on the Agents page. You can create, configure and watch your AI agents here. Each agent is a Python module exposing manifest() and run()."),
+    ("agents", "You are on the Agents page. Each agent has a card: its mission, the requests it handles, the model it uses and what it may access. Install a package here to add agents and workflows."),
     ("chat", "You are on the Chat page. You can talk to a local model or work with your agents through the free chat. Sessions are stored on this machine."),
     ("triggers", "You are on the Triggers page. Triggers start agents on their own, on a cron schedule, on an interval, when a file changes, or on an incoming webhook."),
-    ("pipelines", "You are on the Pipelines page. Pipelines chain several agents in sequence or in parallel, with a DAG topology, fan-out and fan-in, and human checkpoints."),
     ("memory", "You are on the Memory page. Apollia keeps three kinds of memory: episodic for events, semantic for knowledge, procedural for know-how. Full-text search is built in."),
     ("integrations", "You are on the MCP integrations page. Connect external MCP servers to give your agents new tools over the standard JSON-RPC 2.0 protocol."),
     ("approvals", "You are on the Approvals page. Sensitive agent actions can require your go-ahead before they run, which is the human-in-the-loop safeguard."),
@@ -70,7 +69,7 @@ pub async fn get_companion_context(route: String) -> Result<String, String> {
 /// Creates a companion session backed by the apollia-guide agent.
 ///
 /// The session runs in Agent mode so the panel is driven by the single
-/// product coach (knowledge base, live environment listing, action buttons).
+/// product coach (knowledge base and action buttons).
 /// The session is persisted normally through the chat subsystem. On success,
 /// the `session_id` is stored in the onboarding state so other commands can
 /// reference the active companion session.
@@ -91,28 +90,17 @@ async fn create_companion_session_inner(
     context: Option<String>,
     state: &RuntimeHandle,
 ) -> Result<CompanionSessionResult, OnboardingError> {
-    // The companion panel is powered by the apollia-guide agent: a
-    // knowledge-base-grounded coach that inspects the live environment and
-    // suggests allowlisted deep-links. Verify it is registered first so the
-    // panel can surface a clear install hint instead of an opaque failure.
-    let found = state
-        .registry_handle
-        .find_by_name(GUIDE_AGENT_NAME)
-        .await
-        .map_err(|_| OnboardingError::GuideAgentNotInstalled)?;
-    if found.is_none() {
-        return Err(OnboardingError::GuideAgentNotInstalled);
-    }
-
     let manager = state
         .chat_manager
         .as_ref()
         .ok_or(OnboardingError::ChatNotAvailable)?;
 
-    // Agent mode: the agent owns its own system prompt, environment listing,
-    // and action-block contract, so no caller prompt is supplied. The
-    // `context` route hint is retained on the IPC surface for a future
-    // page-aware enhancement but is not injected here.
+    // Agent mode on the guide, a declarative agent installed as a package:
+    // its mission (the knowledge base and the action-block contract) is the
+    // prompt, so no caller prompt is supplied. The `context` route hint is
+    // retained on the IPC surface for a future page-aware enhancement but is
+    // not injected here. A guide that is not installed is reported as such,
+    // so the panel shows an install hint instead of an opaque failure.
     let info = manager
         .create_session(apollia_runtime::chat::manager::CreateSessionParams {
             mode: ChatMode::Agent,
@@ -122,7 +110,10 @@ async fn create_companion_session_inner(
             project_id: None,
         })
         .await
-        .map_err(|e| OnboardingError::SessionCreationFailed(e.to_string()))?;
+        .map_err(|e| match e {
+            ChatError::AgentNotFound(_) => OnboardingError::GuideAgentNotInstalled,
+            other => OnboardingError::SessionCreationFailed(other.to_string()),
+        })?;
 
     let session_id = info.id.clone();
 
@@ -186,13 +177,12 @@ mod companion_tests {
 
     #[test]
     fn test_companion_context_for_all_routes() {
-        // GIVEN the 15 defined routes
+        // GIVEN the 14 defined routes
         let routes = [
             "dashboard",
             "agents",
             "chat",
             "triggers",
-            "pipelines",
             "memory",
             "integrations",
             "approvals",
@@ -212,6 +202,21 @@ mod companion_tests {
                 "context for route '{}' should not be empty",
                 route
             );
+        }
+    }
+
+    #[test]
+    fn test_companion_contexts_describe_no_retired_contract_or_missing_page() {
+        // GIVEN the per-route Companion blurbs
+        // WHEN they are searched for the agent contract the bridge refuses and
+        // for the Pipelines page the application does not have
+        // THEN neither is there
+        assert!(COMPANION_CONTEXTS
+            .iter()
+            .all(|(route, _)| *route != "pipelines"));
+        for (route, ctx) in COMPANION_CONTEXTS {
+            assert!(!ctx.contains("manifest()"), "{route}: {ctx}");
+            assert!(!ctx.contains("Pipelines"), "{route}: {ctx}");
         }
     }
 

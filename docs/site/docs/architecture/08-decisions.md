@@ -575,6 +575,30 @@ the caller, `flate2` refuses to compile without one, and the `deflate` feature
 of `zip` that would pick one itself pulls in `zopfli` and `zlib-rs`, which the
 tree does not hold.
 
+The packages Apollia ships inside its own binary, the in-app guide first, are
+not signed. The desktop assembles each of them on start from files embedded at
+compile time and installs it through the same path as any package. The
+installation knows them as embedded because the desktop says so, never because
+an archive says so: nothing inside a file can claim that origin, and the same
+archive handed over from elsewhere is a plain unsigned package. An embedded
+package installs with no notice about its signature, and an organisation policy
+that requires signed packages does not refuse it. The exemption is bounded to
+that origin. Its reason is that the binary carrying the package is what the
+distribution signature covers, so signing the package again would prove
+nothing more. Like any package, it is recorded in the audit journal, a newer
+installed version is never downgraded, and the user's overrides and the
+disabled state of its agents survive an update.
+
+A package tool runs with a bare context: no memory, no user profile. One
+exception is decided by the host, never by a package. The onboarding of
+Apollia ships as a declarative agent with one tool that records the profile
+facts of the first conversation, the right the onboarding agent held when it
+ran code. The runtime grants that tool the user profile, writable, and the
+memory of the onboarding, which the desktop reads to learn that the
+onboarding is complete. The grant names the package, the module and the
+source the binary carries: a tool whose module on disk is not that source byte
+for byte, whatever its package is called, gets nothing.
+
 ## Host integration {#host-integration}
 
 The versioned HTTP API is a driving contract, not an implementation detail. It
