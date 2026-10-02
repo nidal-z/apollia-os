@@ -11,7 +11,7 @@
 //! deposited policy. Only the user's keys are written by this crate today.
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use apollia_signing::PublicKey;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -78,9 +78,8 @@ pub enum TrustedKeyError {
 }
 
 /// SQLite repository of the trusted publisher keys.
-#[derive(Clone)]
 pub struct TrustedKeyRepository {
-    conn: Arc<Mutex<Connection>>,
+    conn: Mutex<Connection>,
 }
 
 impl TrustedKeyRepository {
@@ -94,7 +93,7 @@ impl TrustedKeyRepository {
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
         crate::agents_db::open_agents_schema(&conn)?;
         Ok(Self {
-            conn: Arc::new(Mutex::new(conn)),
+            conn: Mutex::new(conn),
         })
     }
 
