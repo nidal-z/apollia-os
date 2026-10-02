@@ -45,7 +45,7 @@ pub mod resolve;
 pub mod variants;
 pub mod verdict;
 
-pub use catalogue::{SelectionFamily, SelectionVariant};
+pub use catalogue::{retain_fitting, SelectionFamily, SelectionVariant};
 pub use embeddings::{
     EmbeddingCatalogue, EmbeddingModel, EmbeddingReason, EmbeddingRecommendation, Pooling,
 };

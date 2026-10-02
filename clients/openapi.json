@@ -3518,13 +3518,23 @@
         "tags": [
           "model_hub"
         ],
-        "summary": "`GET /api/v1/llm/registry/search?q=...&limit=...&sort=...`",
+        "summary": "`GET /api/v1/llm/registry/search?q=...&format=...&sort=...&fits_only=...`",
+        "description": "Asks each organisation of the two publisher lists, by its `author=`, and\nnothing else. Answers `503` with `search is unavailable offline` when no\norganisation can be reached, never an empty list.",
         "operationId": "search_registry",
         "parameters": [
           {
             "name": "q",
             "in": "query",
-            "description": "Search query",
+            "description": "Words of a model name, searched within the official publishers and the recognised converters only",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "gguf (default) or mlx; mlx only on Apple Silicon",
             "required": false,
             "schema": {
               "type": "string"
@@ -3544,10 +3554,19 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "Sort key",
+            "description": "best_match (default), likes, downloads or updated",
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "fits_only",
+            "in": "query",
+            "description": "Keep only the results with a variant recommended for this machine",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -3562,10 +3581,30 @@
         ],
         "responses": {
           "200": {
-            "description": "Matching GGUF models (HuggingFace model cards)"
+            "description": "Results with their generated cards, and the estimated capacity of this machine"
+          },
+          "400": {
+            "description": "Unknown sort, or MLX asked off Apple Silicon",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
           },
           "502": {
             "description": "Upstream HuggingFace error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Search unavailable offline",
             "content": {
               "application/json": {
                 "schema": {

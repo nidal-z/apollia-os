@@ -1,7 +1,8 @@
 //! Tauri IPC commands for the Model Hub.
 //!
 //! - [`get_hardware_profile`]: detects the machine's RAM, CPU and GPU
-//! - [`search_hf_models`]: searches HuggingFace GGUF models
+//! - [`search_hf_models`]: searches the official publishers and the recognised
+//!   converters, one HuggingFace organisation at a time
 //! - [`get_hf_model`]: full metadata for a HuggingFace model
 //! - [`start_model_download`]: downloads a GGUF file
 //! - [`start_variant_download`]: downloads a whole variant (parts, projector,
@@ -60,18 +61,23 @@ impl From<HardwareProfile> for HardwareProfileView {
     }
 }
 
-/// HuggingFace search parameters.
+/// Search parameters. The search only ever asks the organisations of the two
+/// publisher lists; the query names a model, never an owner.
 #[derive(Debug, Deserialize)]
 pub struct HfSearchParams {
+    /// Words of a model name.
+    #[serde(default)]
     pub query: String,
-    pub limit: Option<u32>,
+    /// `gguf` (default) or `mlx`, the latter on Apple Silicon only.
+    #[serde(default)]
+    pub format: apollia_llm::SearchFormat,
+    /// `best_match` (default), `likes`, `downloads` or `updated`.
     pub sort: Option<String>,
-    /// Filter by HF task (defaults to `"text-generation"`).
-    pub pipeline_tag: Option<String>,
-    /// Filter by ISO 639-1 language (e.g. `"fr"`, `"en"`).
-    pub language: Option<String>,
-    /// Pagination cursor: full `rel="next"` URL returned by the previous page.
-    pub next_cursor: Option<String>,
+    /// Maximum number of results.
+    pub limit: Option<u32>,
+    /// Keep only the results one of whose variants is recommended here.
+    #[serde(default)]
+    pub fits_only: bool,
     /// Optional HF token (for gated models).
     pub hf_token: Option<String>,
 }
@@ -120,35 +126,46 @@ pub async fn get_hardware_profile() -> Result<HardwareProfileView, String> {
     Ok(HardwareProfileView::from(profile))
 }
 
-/// Searches GGUF models on HuggingFace.
+/// Searches the official publishers and the recognised converters.
 ///
-/// Returns a list of [`HfModelCard`] with hardware-compatibility badges.
+/// Returns the bounded page: each result with its generated card, the
+/// estimated capacity of this machine, and the organisations that could not
+/// be reached. Offline, the error says the search is unavailable.
 #[tauri::command]
 pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Value, String> {
-    use apollia_llm::{HfRegistryClient, HfSearchFilter};
+    use apollia_llm::model_cards::default_cache_dir;
+    use apollia_llm::{BoundedSearch, HfRegistryClient, SearchInputs, SearchSort};
 
+    let sort = match params.sort.as_deref() {
+        None => SearchSort::default(),
+        Some(key) => SearchSort::from_key(key).ok_or_else(|| format!("unknown sort: {key}"))?,
+    };
+    let search = BoundedSearch {
+        query: params.query,
+        format: params.format,
+        sort,
+        limit: params.limit,
+        fits_only: params.fits_only,
+    };
     let hardware = tokio::task::spawn_blocking(detect_hardware).await.ok();
+    let cache_dir = default_cache_dir(&super::model_cards::data_dir());
+    let inputs = tokio::task::spawn_blocking(move || SearchInputs::load(&cache_dir))
+        .await
+        .map_err(|e| format!("search inputs unavailable: {e}"))?;
 
     let client = HfRegistryClient::new(params.hf_token);
-    let filter = HfSearchFilter {
-        filter: Some("gguf".to_string()),
-        sort: params.sort,
-        limit: params.limit,
-        pipeline_tag: Some(
-            params
-                .pipeline_tag
-                .unwrap_or_else(|| "text-generation".to_string()),
-        ),
-        language: params.language,
-        next_cursor: params.next_cursor,
-    };
-
     let page = client
-        .search(&params.query, filter, hardware.as_ref())
+        .search_bounded(&search, &inputs.context(hardware.as_ref()))
         .await
-        .map_err(|e| format!("HuggingFace search failed: {e}"))?;
+        .map_err(|e| e.to_string())?;
 
-    serde_json::to_value(page).map_err(|e| format!("serialization error: {e}"))
+    let mut value = serde_json::to_value(page).map_err(|e| format!("serialization error: {e}"))?;
+    // The bounded search has no further page. The Hub screen still reads a
+    // cursor, so it is answered as the last page.
+    if let Some(object) = value.as_object_mut() {
+        object.insert("next_cursor".to_owned(), serde_json::Value::Null);
+    }
+    Ok(value)
 }
 
 /// Fetches the full metadata for a HuggingFace model.

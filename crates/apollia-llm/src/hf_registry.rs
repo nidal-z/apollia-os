@@ -7,7 +7,9 @@
 //! - [`HfRegistryClient`]: main HTTP client
 //! - [`HfModelCard`]: metadata for an HF model
 //! - [`HfFile`]: a file in an HF repo (with size for the compatibility badges)
-//! - [`HfSearchFilter`]: search filters (format, sort, etc.)
+//! - [`BoundedSearch`]: a search bounded to the official publishers and the
+//!   recognised converters, one request per organisation
+//! - [`GeneratedCard`]: the card Apollia builds for each search result
 
 #![cfg(feature = "cloud")]
 
@@ -16,16 +18,24 @@ use thiserror::Error;
 
 use crate::hardware::{CompatibilityBadge, HardwareProfile};
 
+mod bounded;
 mod card;
 mod compat;
+mod generated;
 mod parse;
 mod variant;
+
+pub use bounded::{
+    search_authors, selection_repos, BoundedPage, BoundedSearch, BoundedSearchError, FoundModel,
+    SearchAuthor, SearchContext, SearchFormat, SearchInputs, SearchSort,
+};
+pub use generated::GeneratedCard;
 
 use compat::compat_from_model_type;
 pub use compat::HfModelTypeCache;
 use parse::{
-    build_gguf_files, build_search_url, extract_base_model_from_json, lfs_sha256_by_path,
-    parse_model_list_item, parse_next_link, reevaluate_gguf_compat, resolve_config_facts,
+    build_gguf_files, extract_base_model_from_json, lfs_sha256_by_path, parse_model_list_item,
+    reevaluate_gguf_compat, resolve_config_facts,
 };
 use variant::plan_variant;
 pub use variant::{VariantError, VariantFile, VariantPlan, VariantSelector};
@@ -84,6 +94,9 @@ pub struct HfModelCard {
     pub downloads: u64,
     /// Number of likes.
     pub likes: u64,
+    /// When the repository last changed, as the Hub reports it (RFC 3339).
+    #[serde(default)]
+    pub last_modified: Option<String>,
     /// SPDX license (e.g. `"apache-2.0"`, `"mit"`).
     pub license: Option<String>,
     /// HF tags (e.g. `["gguf", "qwen3", "text-generation"]`).
@@ -159,34 +172,6 @@ pub struct GenerationConfig {
     pub max_new_tokens: Option<u32>,
 }
 
-/// Filters for HF model search.
-#[derive(Debug, Clone, Default)]
-pub struct HfSearchFilter {
-    /// Filter by tag (e.g. `"gguf"`).
-    pub filter: Option<String>,
-    /// Sort: `"downloads"` (default), `"likes"`, `"trending"`, `"createdAt"`.
-    pub sort: Option<String>,
-    /// Maximum number of results.
-    pub limit: Option<u32>,
-    /// Filter by HF task (e.g. `"text-generation"`).
-    pub pipeline_tag: Option<String>,
-    /// Filter by language (e.g. `"fr"`, `"en"`, `"zh"`).
-    pub language: Option<String>,
-    /// "Load more" cursor: the full URL returned by the HF API in the
-    /// `Link: rel="next"` header. When set, it replaces all other parameters
-    /// (the request is already encoded in the URL).
-    pub next_cursor: Option<String>,
-}
-
-/// Result of one HF search page.
-#[derive(Debug, Clone, Serialize)]
-pub struct SearchPage {
-    /// Models in this page.
-    pub models: Vec<HfModelCard>,
-    /// URL of the next page (`Link: rel="next"` header); `None` on the last page.
-    pub next_cursor: Option<String>,
-}
-
 // ── Compatibility detection ───────────────────────────────────────────────
 
 // ── Model type cache (session-level, TTL 24h) ─────────────────────────────
@@ -218,7 +203,6 @@ pub(crate) struct TreeLfs {
 
 // ── Client ────────────────────────────────────────────────────────────────
 
-pub(crate) const HF_API_BASE: &str = "https://huggingface.co/api";
 pub(crate) const HF_CDN_BASE: &str = "https://huggingface.co";
 
 /// Cap for every HuggingFace JSON answer. A model listing page is a few tens of
@@ -270,55 +254,6 @@ impl HfRegistryClient {
             }
         }
         headers
-    }
-
-    /// Search GGUF models on HuggingFace.
-    ///
-    /// Returns a [`SearchPage`] with the models and a `next_cursor` for
-    /// pagination. The cursor is extracted from the HTTP `Link: rel="next"`
-    /// header and holds the full URL of the next page. Pass this cursor in
-    /// `filter.next_cursor` to load the next page.
-    ///
-    /// # Errors
-    /// [`HfError::Http`] if the request fails.
-    pub async fn search(
-        &self,
-        query: &str,
-        filter: HfSearchFilter,
-        hardware: Option<&HardwareProfile>,
-    ) -> Result<SearchPage, HfError> {
-        // If a cursor is provided, use it directly (the URL already encodes all filters).
-        let url = match filter.next_cursor.as_ref() {
-            Some(cursor) => cursor.clone(),
-            None => build_search_url(query, &filter),
-        };
-
-        let resp = self
-            .client
-            .get(&url)
-            .headers(self.auth_headers())
-            .send()
-            .await?;
-
-        // Extract the pagination cursor from the `Link: <url>; rel="next"` header.
-        let next_cursor = parse_next_link(resp.headers());
-
-        let json: serde_json::Value = apollia_core::net::read_capped_json(resp, HF_MAX_JSON_BYTES)
-            .await
-            .map_err(|e| HfError::Body(e.to_string()))?;
-        let raw_models = json.as_array().cloned().unwrap_or_default();
-
-        let mut cards = Vec::new();
-        for m in raw_models {
-            if let Some(card) = parse_model_list_item(&m, hardware) {
-                cards.push(card);
-            }
-        }
-
-        Ok(SearchPage {
-            models: cards,
-            next_cursor,
-        })
     }
 
     /// Fetch the full metadata of a model (including the list of GGUF files).
