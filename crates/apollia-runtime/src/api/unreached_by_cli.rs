@@ -422,8 +422,8 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
     let ops = unreached_ops();
     assert_eq!(
         ops.len(),
-        26,
-        "the census must carry the twenty-six operations the coverage table lists"
+        28,
+        "the census must carry the twenty-eight operations the coverage table lists"
     );
 
     // WHEN each is probed with a method its route does not declare
@@ -472,13 +472,13 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
         bound += 1;
     }
     assert_eq!(
-        bound, 23,
-        "the method binding of twenty-three operations must be probed"
+        bound, 25,
+        "the method binding of twenty-five operations must be probed"
     );
 }
 
 #[tokio::test]
-async fn test_twenty_three_of_the_twenty_six_operations_carry_a_live_probe() {
+async fn test_twenty_five_of_the_twenty_eight_operations_carry_a_live_probe() {
     // GIVEN the census table, which records which operations a live probe
     // invokes the handler of
     let ops = unreached_ops();
@@ -495,7 +495,7 @@ async fn test_twenty_three_of_the_twenty_six_operations_carry_a_live_probe() {
     // is the one whose handler reads the process home rather than the state's
     // data directory
     assert_eq!(
-        live, 23,
+        live, 25,
         "live probe count changed without the table saying so"
     );
     // Three exclusions, and they are not the same kind. `get_task_timeline`
