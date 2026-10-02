@@ -116,13 +116,13 @@ pub(super) fn is_mlx_dir(dir: &Path) -> bool {
 }
 
 /// Whether `path` names a vision projector.
-pub(super) fn is_projector_name(path: &Path) -> bool {
+pub(crate) fn is_projector_name(path: &Path) -> bool {
     file_name(path).to_ascii_lowercase().contains("mmproj")
 }
 
 /// The base name and part number of a split file named
 /// `<base>-NNNNN-of-NNNNN.<ext>`, or `None` for a whole file.
-pub(super) fn split_part(path: &Path) -> Option<(String, u32)> {
+pub(crate) fn split_part(path: &Path) -> Option<(String, u32)> {
     let stem = path.file_stem()?.to_str()?;
     let (head, total) = stem.rsplit_once("-of-")?;
     let (base, index) = head.rsplit_once('-')?;

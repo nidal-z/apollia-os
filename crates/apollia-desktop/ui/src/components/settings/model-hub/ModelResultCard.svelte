@@ -4,8 +4,9 @@
    *
    * A collapsible card: the header (badges + download / GGUF-count meta) is
    * always visible; expanding lazily loads the repo detail and reveals the
-   * recommended-parameters strip, the grouped quantization variants, and any
-   * vision projector files. Right-click opens a context menu of real actions.
+   * recommended-parameters strip and the grouped quantization variants. A
+   * variant is downloaded whole: its parts and its vision projector come with
+   * it and are never listed on their own. Right-click opens a context menu of real actions.
    *
    * The expand mechanic mirrors the shared `Disclosure` pattern (slide + `rm`,
    * rotating chevron, `aria-expanded`) inline, because this card also needs a
@@ -19,7 +20,6 @@
     ChevronDown,
     Key,
     Package,
-    Info,
     ShieldAlert,
     Download,
     Copy,
@@ -28,13 +28,12 @@
   } from "lucide-svelte";
   import { Spinner } from "$lib/components/ui/progress";
   import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
   import ContextMenu from "$lib/components/ui/context-menu/ContextMenu.svelte";
   import type { ActionMenuItem } from "$lib/components/ui/action-menu";
   import { duration, rm } from "$lib/design/motion";
   import { openExternalUrl } from "$lib/utils/externalLink";
   import { addToast } from "$lib/components/ui/toast";
-  import type { DownloadProgress, HfFile, HfModelCard } from "$lib/ipc/modelHub";
+  import type { DownloadProgress, HfModelCard } from "$lib/ipc/modelHub";
   import { groupGgufFiles, groupIsDownloading, isBlockingIssue } from "./helpers";
   import ModelVariantRow from "./ModelVariantRow.svelte";
 
@@ -46,7 +45,6 @@
     downloads: DownloadProgress[];
     onToggle: (repoId: string) => void;
     onDownloadGroup: (group: import("./helpers").GgufGroup) => void;
-    onDownloadFile: (file: HfFile) => void;
   }
 
   let {
@@ -57,7 +55,6 @@
     downloads,
     onToggle,
     onDownloadGroup,
-    onDownloadFile,
   }: Props = $props();
 
   const dimmed = $derived(isBlockingIssue(model.compatibility_issue));
@@ -184,31 +181,6 @@
                 />
               {/each}
             </div>
-
-            {#if grouped.projectors.length > 0}
-              <div class="mt-3 rounded-md border border-dashed border-border/60 p-2.5">
-                <div class="mb-1.5 flex items-center gap-1.5 text-caption text-muted-foreground">
-                  <Info size={12} class="shrink-0" aria-hidden="true" />
-                  {$t("settings.model_hub.detail.vision_projector")}
-                </div>
-                {#each grouped.projectors as f (f.filename)}
-                  <div class="flex items-center gap-2 py-1 text-caption">
-                    <span class="flex-1 truncate font-mono text-foreground">{f.filename.split("/").pop()}</span>
-                    <span class="tabular-nums text-muted-foreground">{f.size_human || "-"}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="h-7 px-2 text-caption"
-                      onclick={() => onDownloadFile(f)}
-                      data-testid="model-projector-download-{f.filename}"
-                    >
-                      {#snippet icon()}<Download size={13} />{/snippet}
-                      {$t("settings.model_hub.detail.download")}
-                    </Button>
-                  </div>
-                {/each}
-              </div>
-            {/if}
           {:else}
             <div class="text-body-sm text-muted-foreground">{$t("settings.model_hub.detail.no_gguf_in_repo")}</div>
           {/if}

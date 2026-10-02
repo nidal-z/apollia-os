@@ -18,6 +18,7 @@ use crate::hardware::{CompatibilityBadge, HardwareProfile};
 
 mod compat;
 mod parse;
+mod variant;
 
 use compat::compat_from_model_type;
 pub use compat::HfModelTypeCache;
@@ -25,6 +26,8 @@ use parse::{
     build_gguf_files, build_search_url, extract_base_model_from_json, lfs_sha256_by_path,
     parse_model_list_item, parse_next_link, reevaluate_gguf_compat, resolve_model_type,
 };
+use variant::plan_variant;
+pub use variant::{VariantError, VariantFile, VariantPlan, VariantSelector};
 
 /// Errors of the HuggingFace client.
 #[derive(Debug, Error)]
@@ -59,6 +62,10 @@ pub enum HfError {
         /// Path of the file inside the repository.
         path: String,
     },
+
+    /// The repository tree holds no complete variant for the request.
+    #[error(transparent)]
+    Variant(#[from] VariantError),
 }
 
 /// Metadata card for a HuggingFace model.
@@ -178,6 +185,11 @@ pub(crate) struct TreeEntry {
     size: u64,
     #[serde(rename = "type")]
     entry_type: String,
+    /// Git object identifier: for a file committed outside LFS, the SHA-1 of
+    /// the blob (`blob <size>\0` then the content); for an LFS file, the
+    /// identifier of its pointer, never of its content.
+    #[serde(default)]
+    oid: Option<String>,
     /// Present only for a file stored through LFS.
     #[serde(default)]
     lfs: Option<TreeLfs>,
@@ -430,6 +442,32 @@ impl HfRegistryClient {
     /// - [`HfError::NoPublishedSha256`] when the file is absent from the tree
     ///   or not stored through LFS.
     pub async fn lfs_sha256(&self, repo_id: &str, path: &str) -> Result<String, HfError> {
+        let entries = self.tree(repo_id).await?;
+        lfs_sha256_by_path(&entries)
+            .remove(path)
+            .ok_or_else(|| HfError::NoPublishedSha256 {
+                repo_id: repo_id.to_string(),
+                path: path.to_string(),
+            })
+    }
+
+    /// Every file of one variant of `repo_id`, with where each lands and the
+    /// reference its download is checked against.
+    ///
+    /// # Errors
+    /// The errors of reading the tree (as [`Self::lfs_sha256`]), and
+    /// [`HfError::Variant`] when the tree holds no complete variant.
+    pub async fn variant_plan(
+        &self,
+        repo_id: &str,
+        selector: &VariantSelector,
+    ) -> Result<VariantPlan, HfError> {
+        let entries = self.tree(repo_id).await?;
+        Ok(plan_variant(&self.cdn_base, repo_id, &entries, selector)?)
+    }
+
+    /// The recursive tree of `main`.
+    async fn tree(&self, repo_id: &str) -> Result<Vec<TreeEntry>, HfError> {
         let url = format!(
             "{}/models/{repo_id}/tree/main?recursive=true",
             self.api_base
@@ -450,15 +488,9 @@ impl HfRegistryClient {
             }
             _ => {}
         }
-        let entries: Vec<TreeEntry> = apollia_core::net::read_capped_json(resp, HF_MAX_JSON_BYTES)
+        apollia_core::net::read_capped_json(resp, HF_MAX_JSON_BYTES)
             .await
-            .map_err(|e| HfError::Body(e.to_string()))?;
-        lfs_sha256_by_path(&entries)
-            .remove(path)
-            .ok_or_else(|| HfError::NoPublishedSha256 {
-                repo_id: repo_id.to_string(),
-                path: path.to_string(),
-            })
+            .map_err(|e| HfError::Body(e.to_string()))
     }
 
     /// Fetch the recommended generation parameters from `generation_config.json`.

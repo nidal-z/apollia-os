@@ -257,6 +257,22 @@ maîtrise et parle le protocole OpenAI à Apollia. À la migration de `system.db
 les backends qui visaient les API d'OpenAI, d'Anthropic ou de Mistral sont
 supprimés, et ceux qui visent un serveur auto-hébergé sont gardés tels quels.
 
+### Vérifier un modèle téléchargé {#model-download-integrity}
+
+Chaque fichier d'un modèle téléchargé depuis HuggingFace est vérifié contre
+l'identifiant que le dépôt publie pour lui avant que le modèle soit inscrit. Un
+fichier stocké par LFS (poids, projecteur, gros tokenizer) est vérifié contre le
+SHA-256 de son contenu. Un petit fichier commité hors LFS (`config.json`,
+`tokenizer_config.json` et leurs pareils dans un dépôt MLX) n'a pas de SHA-256
+publié : HuggingFace ne publie que son identifiant de blob git, le SHA-1 de
+`blob <taille>\0` suivi du contenu. Un tel fichier est vérifié contre cet
+identifiant, et c'est pourquoi `sha1` est une dépendance directe de
+`apollia-llm`. Elle vient de la même famille RustCrypto que `sha2`, n'ajoute
+aucune crate transitive, et sert à comparer un fichier à ce que son dépôt
+déclare, non à résister à un faussaire : la connexion TLS au dépôt porte cette
+garantie, et un fichier qui ne correspond à aucun des deux identifiants est
+supprimé.
+
 ## Reconnaissance vocale {#speech-to-text}
 
 La transcription tourne hors processus, dans un sidecar bâti sur whisper, si

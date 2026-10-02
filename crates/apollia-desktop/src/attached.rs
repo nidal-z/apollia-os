@@ -28,6 +28,11 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 
 /// The commands that serve the attached mode. Every other registered command
 /// answers [`AttachedError::NotRouted`] while the runtime is a daemon.
+///
+/// `start_variant_download` needs no route over HTTP: it never reads the
+/// runtime, only the Hub, the models folder and its index, which the daemon
+/// shares since it listens on this machine. [`run`] manages the download
+/// manager it holds.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "create_chat_session",
     "get_chat_session",
@@ -54,6 +59,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_pending_user_inputs",
     "respond_user_input",
     "respond_user_input_rejected",
+    // Models: the download of a whole variant from the Hub.
+    "start_variant_download",
 ];
 
 /// Encodes one path segment of a daemon route.
@@ -194,6 +201,10 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeLink::Attached(client))
+        .manage(
+            std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))
+                as crate::commands::model_hub::SharedDownloadManager,
+        )
         .on_menu_event(|app, event| {
             if event.id().as_ref() == crate::tray::MENU_QUIT_APP {
                 crate::tray::initiate_quit(app);

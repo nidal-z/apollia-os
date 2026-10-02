@@ -130,6 +130,9 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 
 # --- Cryptography ---
 sha2 = "0.10"
+# Git blob identifiers of repository files stored outside LFS (apollia-llm).
+# Same RustCrypto `digest` family as sha2. See the `model-download-integrity` decision.
+sha1 = { version = "0.10", default-features = false }
 hmac = "0.12"
 aes-gcm = "0.10"
 # Detached Ed25519 signatures over a digest list (apollia-signing). Default
