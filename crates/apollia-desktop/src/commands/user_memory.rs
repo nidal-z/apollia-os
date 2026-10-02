@@ -7,48 +7,21 @@
 //! - [`reset_user_profile`]: purge every user-visible entry.
 //! - [`get_conversation_stats`]: per-session chat statistics.
 
-use std::sync::Arc;
-
-use apollia_memory::user_memory::{ProfileEntry, UserMemoryRepository, WrittenBy};
+use apollia_runtime::api::routes_profile::{
+    DeletedProfileEntry, ProfileReset, SetProfileEntryBody,
+};
 use apollia_runtime::chat::{ChatSessionManagerHandle, DEFAULT_CONTEXT_WINDOW_SIZE};
 use apollia_runtime::embedded::RuntimeHandle;
+use apollia_runtime::profile::{self, ProfileError, ProfileStore};
+pub use apollia_runtime::profile::{ProfileEntryView, UserProfileView};
 use serde::{Deserialize, Serialize};
 use tauri::State;
+
+use crate::attached::{segment, RuntimeLink};
 
 // ---------------------------------------------------------------------------
 // View types serialised to the Svelte frontend
 // ---------------------------------------------------------------------------
-
-/// A single profile entry formatted for the frontend.
-#[derive(Debug, Clone, Serialize)]
-pub struct ProfileEntryView {
-    /// Flat storage key.
-    pub key: String,
-    /// Plain-text value.
-    pub value: String,
-    /// Provenance tag (`onboarding`, `user`, `agent:<name>`).
-    pub written_by: String,
-    /// ISO 8601 creation timestamp.
-    pub created_at: String,
-    /// ISO 8601 last-update timestamp.
-    pub updated_at: String,
-    /// `true` when the key matches a canonical
-    /// [`apollia_memory::profile_schema::PROFILE_SCHEMA`] entry.
-    pub in_schema: bool,
-}
-
-/// Aggregated user profile for the Settings → Profile page.
-#[derive(Debug, Clone, Serialize)]
-pub struct UserProfileView {
-    /// Schema-driven entries (subset of [`Self::entries`] where `in_schema`).
-    pub schema_entries: Vec<ProfileEntryView>,
-    /// Free-form entries not present in the schema.
-    pub extras: Vec<ProfileEntryView>,
-    /// All entries combined (schema first, then extras).
-    pub entries: Vec<ProfileEntryView>,
-    /// Most recent `updated_at` across all entries.
-    pub last_updated_at: Option<String>,
-}
 
 /// Request payload for [`set_profile_entry`].
 #[derive(Debug, Deserialize)]
@@ -78,12 +51,13 @@ pub struct ConversationStatsView {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn get_repo(state: &RuntimeHandle) -> Result<Arc<std::sync::Mutex<UserMemoryRepository>>, String> {
+/// The profile repository of the runtime running in this process.
+fn embedded_repo(state: &RuntimeHandle) -> Result<ProfileStore<'_>, String> {
     state
         .user_memory
         .as_ref()
-        .cloned()
-        .ok_or_else(|| "NOT_INITIALIZED: User profile repository is not initialized".to_string())
+        .map(ProfileStore)
+        .ok_or_else(|| ProfileError::Unavailable.to_string())
 }
 
 fn get_chat_manager(state: &RuntimeHandle) -> Result<&ChatSessionManagerHandle, String> {
@@ -91,17 +65,6 @@ fn get_chat_manager(state: &RuntimeHandle) -> Result<&ChatSessionManagerHandle, 
         .chat_manager
         .as_ref()
         .ok_or_else(|| "NOT_INITIALIZED: Chat subsystem is not available".to_string())
-}
-
-fn profile_entry_to_view(entry: &ProfileEntry) -> ProfileEntryView {
-    ProfileEntryView {
-        key: entry.key.clone(),
-        value: entry.value.clone(),
-        written_by: entry.written_by.tag(),
-        created_at: entry.created_at.clone(),
-        updated_at: entry.updated_at.clone(),
-        in_schema: entry.in_schema,
-    }
 }
 
 fn count_cross_session_refs(system_prompt: &str) -> usize {
@@ -117,95 +80,75 @@ fn count_cross_session_refs(system_prompt: &str) -> usize {
 // ---------------------------------------------------------------------------
 
 /// Returns the user profile (schema entries + extras) for the
-/// Settings → Profile page.
+/// Settings → Profile page. Attached to a daemon, `GET /api/v1/profile`
+/// answers the same view.
 #[tauri::command]
-pub async fn get_profile(state: State<'_, RuntimeHandle>) -> Result<UserProfileView, String> {
-    let repo = get_repo(&state)?;
-
-    let entries = tokio::task::spawn_blocking(move || {
-        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-        repo.list_all().map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
-
-    let views: Vec<ProfileEntryView> = entries.iter().map(profile_entry_to_view).collect();
-    let schema_entries = views.iter().filter(|e| e.in_schema).cloned().collect();
-    let extras = views.iter().filter(|e| !e.in_schema).cloned().collect();
-    let last_updated_at = views.iter().map(|e| e.updated_at.clone()).max();
-
-    Ok(UserProfileView {
-        schema_entries,
-        extras,
-        entries: views,
-        last_updated_at,
-    })
+pub async fn get_profile(link: State<'_, RuntimeLink>) -> Result<UserProfileView, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => Ok(profile::read_profile(embedded_repo(state)?)
+            .await
+            .map_err(|e| e.to_string())?),
+        RuntimeLink::Attached(remote) => Ok(remote.get("/api/v1/profile").await?),
+    }
 }
 
 /// Creates or updates a single profile entry.
 ///
-/// Always written with [`WrittenBy::User`]; the source represents the
+/// Always written with `WrittenBy::User`; the source represents the
 /// frontend operator action.
 #[tauri::command]
 pub async fn set_profile_entry(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     request: SetProfileEntryRequest,
 ) -> Result<ProfileEntryView, String> {
     if request.key.is_empty() {
-        return Err("VALIDATION_ERROR: Key must not be empty".to_string());
+        return Err(ProfileError::EmptyKey.to_string());
     }
-
-    let repo = get_repo(&state)?;
-    let key = request.key.clone();
-    let value = request.value.clone();
-
-    let entry = tokio::task::spawn_blocking(move || {
-        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-        repo.set(&key, &value, WrittenBy::User)
-            .map_err(|e| e.to_string())?;
-        let stored = repo
-            .get(&key)
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| format!("entry '{key}' missing after store"))?;
-        Ok::<ProfileEntry, String>(stored)
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
-
-    Ok(profile_entry_to_view(&entry))
+    match link.inner() {
+        RuntimeLink::Embedded(state) => {
+            Ok(
+                profile::write_entry(embedded_repo(state)?, request.key, request.value)
+                    .await
+                    .map_err(|e| e.to_string())?,
+            )
+        }
+        RuntimeLink::Attached(remote) => {
+            let path = format!("/api/v1/profile/entries/{}", segment(&request.key));
+            let body = SetProfileEntryBody {
+                value: request.value,
+            };
+            Ok(remote.put(&path, &body).await?)
+        }
+    }
 }
 
 /// Deletes a single profile entry by key.
 #[tauri::command]
-pub async fn delete_profile_entry(
-    state: State<'_, RuntimeHandle>,
-    key: String,
-) -> Result<(), String> {
-    let repo = get_repo(&state)?;
-    tokio::task::spawn_blocking(move || {
-        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-        repo.forget(&key).map_err(|e| {
-            if e.to_string().contains("not found") {
-                format!("NOT_FOUND: Profile entry not found: {key}")
-            } else {
-                e.to_string()
-            }
-        })
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+pub async fn delete_profile_entry(link: State<'_, RuntimeLink>, key: String) -> Result<(), String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => Ok(profile::delete_entry(embedded_repo(state)?, key)
+            .await
+            .map_err(|e| e.to_string())?),
+        RuntimeLink::Attached(remote) => {
+            let path = format!("/api/v1/profile/entries/{}", segment(&key));
+            let _: DeletedProfileEntry = remote.delete(&path).await?;
+            Ok(())
+        }
+    }
 }
 
 /// Deletes every user-visible profile entry, preserving onboarding markers.
 #[tauri::command]
-pub async fn reset_user_profile(state: State<'_, RuntimeHandle>) -> Result<usize, String> {
-    let repo = get_repo(&state)?;
-    tokio::task::spawn_blocking(move || {
-        let repo = repo.lock().map_err(|e| format!("mutex poisoned: {e}"))?;
-        repo.reset().map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))?
+pub async fn reset_user_profile(link: State<'_, RuntimeLink>) -> Result<usize, String> {
+    match link.inner() {
+        RuntimeLink::Embedded(state) => Ok(profile::reset_profile(embedded_repo(state)?)
+            .await
+            .map_err(|e| e.to_string())?),
+        RuntimeLink::Attached(remote) => {
+            let reset: ProfileReset = remote.post("/api/v1/profile/reset", &()).await?;
+            Ok(reset.removed)
+        }
+    }
 }
 
 /// Returns statistics for a chat conversation session.
@@ -291,25 +234,5 @@ mod tests {
         // WHEN the cross-session references are counted
         // THEN the count is zero rather than a false positive on a plain sentence
         assert_eq!(count_cross_session_refs("Hi"), 0);
-    }
-
-    #[test]
-    fn profile_entry_to_view_preserves_fields() {
-        // GIVEN a profile entry written by the onboarding and part of the schema
-        let entry = ProfileEntry {
-            key: "name".to_owned(),
-            value: "Nidal".to_owned(),
-            written_by: WrittenBy::Onboarding,
-            created_at: "2026-05-11T10:00:00Z".to_owned(),
-            updated_at: "2026-05-11T10:00:00Z".to_owned(),
-            in_schema: true,
-        };
-        // WHEN it is converted for the front end
-        let view = profile_entry_to_view(&entry);
-        // THEN key, value, author and schema membership all cross unchanged
-        assert_eq!(view.key, "name");
-        assert_eq!(view.value, "Nidal");
-        assert_eq!(view.written_by, "onboarding");
-        assert!(view.in_schema);
     }
 }

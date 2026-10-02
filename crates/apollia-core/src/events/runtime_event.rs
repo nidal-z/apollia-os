@@ -173,6 +173,13 @@ pub enum RuntimeEvent {
         /// Model identifier: file name without extension (.gguf) or API model_id.
         model_id: String,
     },
+    /// A resident local model was relaunched under its preset's new load settings.
+    LlmModelReloaded {
+        /// Logical backend name, the model the preset belongs to.
+        backend: String,
+        /// Path to the `.gguf` file the new process serves.
+        model_path: String,
+    },
     /// Loading an LLM backend failed: backend skipped, runtime continues.
     LlmModelFailed {
         /// Logical backend name.

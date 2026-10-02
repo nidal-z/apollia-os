@@ -161,6 +161,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | `LlmModelFailed` | champs nommés |
 | `LlmModelLoading` | champs nommés |
 | `LlmModelReady` | champs nommés |
+| `LlmModelReloaded` | champs nommés |
 | `LlmResponseCaptured` | champs nommés |
 | `MetaLlmBudgetExceeded` | champs nommés |
 | `TokenBudgetUpdated` | champs nommés |

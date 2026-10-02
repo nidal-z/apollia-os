@@ -148,7 +148,6 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-desktop/src/commands/model_hub.rs": 1,
     "crates/apollia-desktop/src/commands/onboarding/memory.rs": 1,
     "crates/apollia-desktop/src/commands/stt.rs": 2,
-    "crates/apollia-desktop/src/commands/user_memory.rs": 1,
     "crates/apollia-desktop/src/main.rs": 6,
     "crates/apollia-desktop/src/stt/flow.rs": 3,
     "crates/apollia-llm/src/downloader.rs": 1,
@@ -180,6 +179,7 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/llama_server/mod.rs": 4,
     "crates/apollia-runtime/src/observability/resilience_subscriber.rs": 1,
     "crates/apollia-runtime/src/perf_trace.rs": 1,
+    "crates/apollia-runtime/src/profile.rs": 1,
     "crates/apollia-runtime/src/runner_supervisor/lifecycle.rs": 3,
     "crates/apollia-runtime/src/runner_supervisor/proxy.rs": 2,
     "crates/apollia-runtime/src/session_metrics.rs": 1,
@@ -329,6 +329,11 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # supervisor has taken and reaped the handle. One helper, two tests.
     "crates/apollia-runtime/src/llama_server/loaded.rs": 1,
     "crates/apollia-runtime/src/llama_server/mod.rs": 1,
+    # The process is the subject: changing a load setting of a resident model
+    # has to stop its child and launch another, which only a launched process
+    # can show. The site is the shell script of the fake engine, one helper
+    # shared by the reload tests.
+    "crates/apollia-runtime/src/llama_server/reload/tests.rs": 1,
     "crates/apollia-runtime/src/perf_trace.rs": 2,
     "crates/apollia-runtime/src/router.rs": 2,
     "crates/apollia-runtime/src/runner_supervisor/gpu_detection.rs": 1,

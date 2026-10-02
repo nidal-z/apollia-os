@@ -520,8 +520,12 @@ health route every two seconds rather than assuming the daemon is there, so an
 unanswered probe shows the runtime as disconnected at once. A command without a
 route yet answers a typed error that names it, instead of reaching for state
 the process never built; `scripts/check_attached_coverage.py` counts the routed
-commands against the registered ones, on a descending ratchet. Quitting the
-attached desktop leaves the daemon serving.
+commands against the registered ones, on a descending ratchet. A command that
+belongs to the window rather than to the runtime (quitting, restarting,
+checking for an update, listing the microphones) needs no route: it is named
+in a list beside the routed ones, with the reason it reads no runtime state,
+and the same script refuses an entry without one. Quitting the attached
+desktop leaves the daemon serving.
 
 Version 0.3.0 delivers both modes.
 

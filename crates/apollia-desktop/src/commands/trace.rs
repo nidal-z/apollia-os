@@ -7,11 +7,9 @@
 //! The frontend calls `invoke("get_task_trace", { taskId, since, limit })` and
 //! receives a `TraceResponse` with the paginated list of events.
 
-use apollia_runtime::embedded::RuntimeHandle;
+use crate::attached::RuntimeLink;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-
-use super::http_get_json;
 
 /// TS-friendly representation of a `RuntimeEventRecord` (camelCase).
 #[derive(Debug, Serialize, Deserialize)]
@@ -71,11 +69,9 @@ pub struct GetTraceParams {
 /// front an object rather than a string to re-parse).
 #[tauri::command]
 pub async fn get_task_trace(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     params: GetTraceParams,
 ) -> Result<TraceResponse, String> {
-    let port = state.api_port;
-
     let mut path = format!("/api/v1/tasks/{}/trace", params.task_id);
     let mut query: Vec<String> = Vec::new();
     if let Some(since) = params.since.as_deref() {
@@ -89,7 +85,7 @@ pub async fn get_task_trace(
         path.push_str(&query.join("&"));
     }
 
-    let raw = http_get_json(port, &path).await?;
+    let raw = state.get_json(&path).await?;
 
     // The server returns `payload_json: String`; we parse it into a Value to
     // give the TS side a usable object. If the parse fails (it should not), we

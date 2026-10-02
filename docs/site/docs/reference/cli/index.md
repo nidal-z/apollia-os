@@ -188,6 +188,12 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os package`↴](#apollia-os-package)
 * [`apollia-os package build`↴](#apollia-os-package-build)
 * [`apollia-os package inspect`↴](#apollia-os-package-inspect)
+* [`apollia-os policy`↴](#apollia-os-policy)
+* [`apollia-os policy keygen`↴](#apollia-os-policy-keygen)
+* [`apollia-os policy init`↴](#apollia-os-policy-init)
+* [`apollia-os policy sign`↴](#apollia-os-policy-sign)
+* [`apollia-os policy verify`↴](#apollia-os-policy-verify)
+* [`apollia-os policy show`↴](#apollia-os-policy-show)
 * [`apollia-os workspace`↴](#apollia-os-workspace)
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
@@ -221,6 +227,10 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os connector client-secret set`↴](#apollia-os-connector-client-secret-set)
 * [`apollia-os connector api-key`↴](#apollia-os-connector-api-key)
 * [`apollia-os connector api-key set`↴](#apollia-os-connector-api-key-set)
+* [`apollia-os connector imap`↴](#apollia-os-connector-imap)
+* [`apollia-os connector imap test`↴](#apollia-os-connector-imap-test)
+* [`apollia-os connector imap add`↴](#apollia-os-connector-imap-add)
+* [`apollia-os connector imap list`↴](#apollia-os-connector-imap-list)
 * [`apollia-os connector drive`↴](#apollia-os-connector-drive)
 * [`apollia-os connector drive folder`↴](#apollia-os-connector-drive-folder)
 * [`apollia-os connector drive folder list`↴](#apollia-os-connector-drive-folder-list)
@@ -297,6 +307,7 @@ Apollia OS CLI binary (apollia-os)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
 * `package` - Agent package archives: build a `.apo` from a folder, inspect one
+* `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
@@ -3088,6 +3099,93 @@ The signature state is `unsigned`, or `signed` with the declared publisher and t
 
 
 
+## `apollia-os policy`
+
+Organisation policy: create the key, write, sign, verify, show
+
+**Usage:** `apollia-os policy <COMMAND>`
+
+###### **Subcommands:**
+
+* `keygen` - Create the organisation key pair in a folder
+* `init` - Write a commented `policy.toml` that imposes nothing, dated now
+* `sign` - Sign the `policy.toml` of a folder with the organisation private key
+* `verify` - Check a policy folder: schema, signature, and rights in the system folder
+* `show` - Show the policy the runtime reads at startup, or none
+
+
+
+## `apollia-os policy keygen`
+
+Create the organisation key pair in a folder.
+
+Writes `org.key`, the private key, readable by its owner only from the moment it is created, and `org.pub`, the public key; prints the fingerprint of the public key. Existing files are never replaced. Keep `org.key` off the workstations.
+
+**Usage:** `apollia-os policy keygen --out <DIR>`
+
+###### **Options:**
+
+* `--out <DIR>` - Folder that receives `org.key` and `org.pub`, created when missing
+
+
+
+## `apollia-os policy init`
+
+Write a commented `policy.toml` that imposes nothing, dated now.
+
+The folder is created when missing; an existing `policy.toml` is never replaced.
+
+**Usage:** `apollia-os policy init <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Policy folder
+
+
+
+## `apollia-os policy sign`
+
+Sign the `policy.toml` of a folder with the organisation private key.
+
+Writes `SIGNATURE` and `org.pub` next to it, replacing earlier ones. A policy that breaks the schema is not signed.
+
+**Usage:** `apollia-os policy sign [OPTIONS] --key <FILE> <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Policy folder
+
+###### **Options:**
+
+* `--key <FILE>` - The organisation private key, as written by `policy keygen`
+* `--publisher <NAME>` - Publisher name declared in the signature
+
+  Default value: `Organisation`
+
+
+
+## `apollia-os policy verify`
+
+Check a policy folder: schema, signature, and rights in the system folder.
+
+The rights are checked when the folder is the one the runtime reads. A folder that does not hold is refused with exit 1, whatever the cause; the cause (`schema`, `signature`, `key`, `owner`, or `missing` when the folder does not exist) is named in the message, and `--json` carries the verdict, the reason and its detail.
+
+**Usage:** `apollia-os policy verify <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Policy folder
+
+
+
+## `apollia-os policy show`
+
+Show the policy the runtime reads at startup, or none
+
+**Usage:** `apollia-os policy show`
+
+
+
 ## `apollia-os workspace`
 
 Workspace inspection and initialization (status, init)
@@ -3367,6 +3465,7 @@ Operates on the multi-account keyring without requiring the runtime to be starte
 * `client-id` - Manage OAuth client_id overrides in `~/.apollia/oauth-clients.toml`
 * `client-secret` - Manage OAuth client_secret overrides in `~/.apollia/oauth-clients.toml`
 * `api-key` - Manage API key overrides (Google Picker) in `~/.apollia/oauth-clients.toml`
+* `imap` - A mailbox reached over IMAP with an application password: test, add, list. Read-only: nothing in the mailbox is ever changed
 * `drive` - Manage per-account Google Drive folder preferences
 
 
@@ -3520,6 +3619,68 @@ Pass an empty string (`""`) to clear the override.
 
 * `<PROVIDER>` - Provider id: `google` or `microsoft`
 * `<API_KEY>` - New API key value. Empty string clears the override
+
+
+
+## `apollia-os connector imap`
+
+A mailbox reached over IMAP with an application password: test, add, list. Read-only: nothing in the mailbox is ever changed
+
+**Usage:** `apollia-os connector imap <COMMAND>`
+
+###### **Subcommands:**
+
+* `test` - Log in to a mailbox and open its inbox read-only; store nothing
+* `add` - Verify a mailbox like `test`, then connect it: the password goes to the secret store, the rest to `~/.apollia/imap-accounts.json`
+* `list` - List the mailboxes connected on this machine
+
+
+
+## `apollia-os connector imap test`
+
+Log in to a mailbox and open its inbox read-only; store nothing.
+
+For a known provider (Gmail, iCloud, Yahoo, Orange, Free, La Poste) the address is enough; the server and port are filled in.
+
+**Usage:** `apollia-os connector imap test [OPTIONS] <EMAIL>`
+
+###### **Arguments:**
+
+* `<EMAIL>` - Address of the mailbox
+
+###### **Options:**
+
+* `--host <HOST>` - IMAP server; filled from the address for a known provider
+* `--port <PORT>` - IMAP port, implicit TLS; the provider's, else 993
+* `--username <USERNAME>` - Identifier sent at login; the address when absent
+* `--password-stdin` - Read the application password from the first line of standard input, instead of `APOLLIA_IMAP_PASSWORD`
+
+
+
+## `apollia-os connector imap add`
+
+Verify a mailbox like `test`, then connect it: the password goes to the secret store, the rest to `~/.apollia/imap-accounts.json`
+
+**Usage:** `apollia-os connector imap add [OPTIONS] <EMAIL>`
+
+###### **Arguments:**
+
+* `<EMAIL>` - Address of the mailbox
+
+###### **Options:**
+
+* `--host <HOST>` - IMAP server; filled from the address for a known provider
+* `--port <PORT>` - IMAP port, implicit TLS; the provider's, else 993
+* `--username <USERNAME>` - Identifier sent at login; the address when absent
+* `--password-stdin` - Read the application password from the first line of standard input, instead of `APOLLIA_IMAP_PASSWORD`
+
+
+
+## `apollia-os connector imap list`
+
+List the mailboxes connected on this machine
+
+**Usage:** `apollia-os connector imap list`
 
 
 

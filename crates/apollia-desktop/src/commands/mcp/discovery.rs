@@ -2,6 +2,7 @@
 //! the curated list Apollia ships. Both join their results against the servers
 //! already installed, and both fall back to cache when the network is down.
 
+use crate::attached::RuntimeLink;
 use apollia_runtime::embedded::RuntimeHandle;
 use tauri::State;
 
@@ -279,18 +280,17 @@ pub async fn fetch_mcp_registry(
 /// but skips the network call entirely.
 #[tauri::command]
 pub async fn fetch_mcp_curated(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
 ) -> Result<Vec<RegistryServerView>, String> {
     let enrichments = load_builtin_enrichments();
-    let installed_names: HashSet<String> =
-        match http_get_json(state.api_port, "/api/v1/mcp/servers").await {
-            Ok(json) => serde_json::from_value::<Vec<McpServerStatus>>(json)
-                .unwrap_or_default()
-                .into_iter()
-                .map(|s| s.name)
-                .collect(),
-            Err(_) => HashSet::new(),
-        };
+    let installed_names: HashSet<String> = match state.get_json("/api/v1/mcp/servers").await {
+        Ok(json) => serde_json::from_value::<Vec<McpServerStatus>>(json)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|s| s.name)
+            .collect(),
+        Err(_) => HashSet::new(),
+    };
 
     let mut result: Vec<RegistryServerView> = Vec::with_capacity(enrichments.len());
     for enrichment in enrichments.iter().filter(|e| !e.awaiting_registration) {
