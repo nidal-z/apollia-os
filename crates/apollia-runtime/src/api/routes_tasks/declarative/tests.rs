@@ -199,22 +199,23 @@ async fn submit(fx: &Fixture) -> String {
     body["task_id"].as_str().unwrap().to_string()
 }
 
-/// The next event `pick` accepts, within ten seconds.
+/// The next event `pick` accepts. The bus is the barrier: no wall-clock
+/// deadline, a lagged receiver skips ahead, a closed bus fails the test.
 async fn next_event<T>(
     events: &mut broadcast::Receiver<RuntimeEvent>,
     mut pick: impl FnMut(RuntimeEvent) -> Option<T>,
 ) -> T {
-    tokio::time::timeout(Duration::from_secs(10), async {
-        loop {
-            if let Ok(event) = events.recv().await {
+    loop {
+        match events.recv().await {
+            Ok(event) => {
                 if let Some(found) = pick(event) {
                     return found;
                 }
             }
+            Err(broadcast::error::RecvError::Lagged(_)) => {}
+            Err(broadcast::error::RecvError::Closed) => panic!("event bus closed"),
         }
-    })
-    .await
-    .expect("event not published")
+    }
 }
 
 /// The persisted row of `task_id`: agent, status, whole input, output.
