@@ -59,6 +59,13 @@ impl tracing::Subscriber for EventNames {
     fn exit(&self, _: &tracing::span::Id) {}
 }
 
+/// Serialises the tests that reach the `llm.download.integrity_mismatch`
+/// event site. Tracing caches the interest of a call site on first use, so a
+/// test that hits the site on another thread with no subscriber can leave the
+/// site disabled while a recording test runs, and the recording test then
+/// misses the event.
+static INTEGRITY_EVENT_SITE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
@@ -177,6 +184,7 @@ async fn bytes_that_do_not_match_the_published_sha256_are_deleted() {
     let published = sha256_hex(b"genuine content");
     req.expected_sha256 = Some(published.clone());
     let (cb, seen) = recorder();
+    let _site = INTEGRITY_EVENT_SITE.lock().await;
     let events = EventNames::default();
     let _guard = tracing::subscriber::set_default(events.clone());
 
@@ -341,11 +349,15 @@ async fn an_embeddings_entry_downloads_through_the_same_verified_path() {
         expected_sha256: Some(e5.sha256.clone()),
     };
     let (cb, _) = recorder();
+    let _site = INTEGRITY_EVENT_SITE.lock().await;
+    let events = EventNames::default();
+    let _guard = tracing::subscriber::set_default(events.clone());
 
     // WHEN the downloader every model goes through runs it
     let result = run_download(test_client(), req, "t".into(), CancellationToken::new(), cb).await;
 
-    // THEN the pinned digest refuses the bytes and nothing stays on disk
+    // THEN the pinned digest refuses the bytes, nothing stays on disk, and
+    // the same integrity event is published
     match result {
         Err(DownloadError::IntegrityMismatch { expected, .. }) => {
             assert_eq!(expected, e5.sha256);
@@ -353,4 +365,10 @@ async fn an_embeddings_entry_downloads_through_the_same_verified_path() {
         other => panic!("expected an integrity refusal, got {other:?}"),
     }
     assert!(!dir.path().join(&e5.file).exists());
+    assert!(events
+        .0
+        .lock()
+        .expect("event lock")
+        .iter()
+        .any(|m| m == "llm.download.integrity_mismatch"));
 }
