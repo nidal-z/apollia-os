@@ -199,6 +199,41 @@ fn test_the_preset_wins_over_the_automatic_plans() {
 }
 
 #[test]
+fn test_a_preset_fixing_the_slots_keeps_the_resolved_window() {
+    // GIVEN a preset that fixes two slots and leaves the window, and a window
+    // of 16384 resolved for the model
+    let load = settings(json!({ "n_parallel": 2 }));
+    let base = LlamaServerConfig {
+        n_ctx: 16_384,
+        ..LlamaServerConfig::default()
+    };
+
+    // WHEN the configuration is composed
+    let config = compose(&base, &load, no_env, |c| c.n_parallel = Some(8), |_| {});
+
+    // THEN the resolved window is launched beside the preset's slots
+    assert_eq!(config.n_ctx, 16_384);
+    assert_eq!(config.n_parallel, Some(2));
+}
+
+#[test]
+fn test_the_environment_wins_over_the_resolved_window() {
+    // GIVEN APOLLIA_LLAMA_N_CTX and a window of 16384 resolved for the model
+    let get = |name: &str| (name == ENV_N_CTX).then(|| "4096".to_owned());
+
+    let base = LlamaServerConfig {
+        n_ctx: 16_384,
+        ..LlamaServerConfig::default()
+    };
+
+    // WHEN the configuration is composed
+    let config = compose(&base, &LoadSettings::default(), get, |_| {}, |_| {});
+
+    // THEN the environment wins
+    assert_eq!(config.n_ctx, 4096);
+}
+
+#[test]
 fn test_without_a_preset_the_plans_decide() {
     // GIVEN no preset setting and no variable
     let load = LoadSettings::default();

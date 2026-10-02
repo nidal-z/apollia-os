@@ -531,6 +531,7 @@ impl LlamaServerSupervisor {
             .unwrap_or(None);
         base.model_path = model_path;
         base.chat_template_file = template_file.map(|path| path.display().to_string());
+        base.n_ctx = n_ctx;
         // The preset, then the environment, then the plans: the slot count
         // first, since the offload plan sizes the cache those slots hold (see
         // `parallel` and `ngl` for why the literals were wrong). The window is
@@ -540,10 +541,7 @@ impl LlamaServerSupervisor {
             &base,
             &load,
             env_getter,
-            |c| {
-                c.n_ctx = n_ctx;
-                parallel::apply_parallel_plan(c);
-            },
+            parallel::apply_parallel_plan,
             ngl::apply_offload_plan,
         );
 

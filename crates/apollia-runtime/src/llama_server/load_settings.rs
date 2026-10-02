@@ -188,6 +188,10 @@ impl LoadSettings {
 /// fixed. The chat template file, when the preset carries one, is already
 /// set on `base`.
 ///
+/// The window is not a plan: the supervisor resolves it before (the preset's,
+/// else the backend's, else the default) and sets it on `base`, so it stands
+/// whether or not the slot plan runs.
+///
 /// The plans are injected so the precedence is testable without reading a
 /// model or the machine. Each plan already steps aside when its environment
 /// variable is set; it is not called at all when the preset fixed its field.

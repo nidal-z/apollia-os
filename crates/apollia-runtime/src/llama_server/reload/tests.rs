@@ -225,3 +225,45 @@ async fn test_an_unchanged_preset_keeps_the_resident_model() {
     assert!(rx.try_recv().is_err());
     sup.shutdown_in_place().await;
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_a_preset_fixing_the_slots_keeps_the_backend_window_and_the_process() {
+    // GIVEN a default preset that fixes two slots and leaves the window, and a
+    // backend asking for 16384
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("system.db");
+    let repo = LlmBackendRepository::open(&db).unwrap();
+    repo.create_preset(
+        ModelSource::Local,
+        "qwen",
+        &default_preset(json!({ "n_parallel": 2 })),
+    )
+    .unwrap();
+    drop(repo);
+    let mut sup = supervisor_with_ceiling(1);
+    sup.bin_path = fake_engine(dir.path());
+    sup.system_db = Some(db);
+
+    // WHEN the model is requested twice with the preset untouched
+    let first = sup
+        .ensure_model("qwen", "/models/qwen.gguf".to_owned(), Some(16_384))
+        .await
+        .unwrap();
+    let first_window = first.n_ctx();
+    drop(first);
+    drop(
+        sup.ensure_model("qwen", "/models/qwen.gguf".to_owned(), Some(16_384))
+            .await
+            .unwrap(),
+    );
+
+    // THEN the engine was launched once, under the backend's window and the
+    // preset's slots
+    let lines = launches(dir.path());
+    assert_eq!(lines.len(), 1, "{lines:#?}");
+    assert!(lines[0].contains(" -c 16384 "), "{}", lines[0]);
+    assert!(lines[0].contains(" -np 2"), "{}", lines[0]);
+    assert_eq!(first_window, 16_384);
+    sup.shutdown_in_place().await;
+}
