@@ -38,7 +38,7 @@ impl ExecutionBackend for AIPProductionBackend {
             event_bus: self.event_bus.clone(),
             agent_id: self.agent_id.clone(),
             manifest: self.manifest.clone(),
-            allowed_tools: self.allowed_tools.clone(),
+            allowed_tools: self.access.current(),
             tool_registry: self.tool_registry.clone(),
             audit_trail: self.audit_trail.clone(),
             memory_namespace: self.memory_namespace.clone(),
