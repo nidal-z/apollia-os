@@ -11,7 +11,8 @@ use pyo3::prelude::*;
 use super::{dotted_module, PackageTools};
 use crate::apollia_manifest::{self, ApolliaManifest};
 
-const COMPLETE: &str = include_str!("../apollia_manifest/fixtures/complete.toml");
+const COMPLETE: &str =
+    include_str!("../../../apollia-tools/src/apollia_manifest/fixtures/complete.toml");
 
 /// The module the fixture's tool points at: importing it fails loudly.
 const RAISING_MODULE: &str = "raise RuntimeError('the module was imported')\n";

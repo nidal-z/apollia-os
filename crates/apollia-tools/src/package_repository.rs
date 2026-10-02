@@ -41,6 +41,20 @@ pub struct InstalledPackage {
     pub updated_at: String,
 }
 
+/// Who signed an installed package, as recorded at installation.
+///
+/// Whether the publisher is trusted is not part of it: that is read from the
+/// keyring whenever it is shown, so removing a key takes effect at once.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PackageSignature {
+    /// Publisher the package declares.
+    pub publisher: String,
+    /// SHA-256 fingerprint of the key that signed it, `None` when unsigned.
+    pub key_fingerprint: Option<String>,
+    /// Whether the package carried a signature that held.
+    pub signed: bool,
+}
+
 /// Kind of an item a package installed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -217,6 +231,73 @@ impl PackageRepository {
             }
         }
         Ok(items)
+    }
+
+    /// Records who signed `package_name`. The package must be saved first.
+    ///
+    /// # Errors
+    ///
+    /// [`PackageRepositoryError::NotFound`] when the package is not stored,
+    /// or [`PackageRepositoryError::Sqlite`].
+    pub fn set_signature(
+        &self,
+        package_name: &str,
+        signature: &PackageSignature,
+    ) -> Result<(), PackageRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let changed = conn.execute(
+            "UPDATE installed_packages SET publisher = ?2, key_fingerprint = ?3, signed = ?4 \
+             WHERE name = ?1",
+            params![
+                package_name,
+                &signature.publisher,
+                &signature.key_fingerprint,
+                signature.signed
+            ],
+        )?;
+        if changed == 0 {
+            return Err(PackageRepositoryError::NotFound(package_name.to_owned()));
+        }
+        Ok(())
+    }
+
+    /// Who signed `package_name`, as recorded at its installation.
+    ///
+    /// # Errors
+    ///
+    /// [`PackageRepositoryError::Sqlite`].
+    pub fn signature(
+        &self,
+        package_name: &str,
+    ) -> Result<Option<PackageSignature>, PackageRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let mut stmt = conn.prepare(
+            "SELECT publisher, key_fingerprint, signed FROM installed_packages WHERE name = ?1",
+        )?;
+        let mut rows = stmt.query(params![package_name])?;
+        match rows.next()? {
+            Some(row) => Ok(Some(PackageSignature {
+                publisher: row.get(0)?,
+                key_fingerprint: row.get(1)?,
+                signed: row.get(2)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    /// Forgets what `package_name` installed, before an update records the
+    /// items of its new version.
+    ///
+    /// # Errors
+    ///
+    /// [`PackageRepositoryError::Sqlite`].
+    pub fn clear_items(&self, package_name: &str) -> Result<(), PackageRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        conn.execute(
+            "DELETE FROM package_items WHERE package_name = ?1",
+            params![package_name],
+        )?;
+        Ok(())
     }
 
     /// Fetches a package by name.
