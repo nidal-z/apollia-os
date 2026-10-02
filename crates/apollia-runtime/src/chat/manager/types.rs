@@ -3,8 +3,8 @@ use super::*;
 /// Logical identifier of the system agent "Apollia Chat".
 ///
 /// Used as the key for `scope = 'agent'` permission rules, for the standing
-/// consents of Apollia, and for the free-chat config persisted in
-/// `governance.db`. Defined once, in `apollia-permissions`.
+/// consents of Apollia, and as the name of the Apollia agent in `agents.db`.
+/// Defined once, in `apollia-permissions`.
 pub const APOLLIA_CHAT_AGENT_ID: &str = apollia_permissions::APOLLIA_AGENT_ID;
 
 /// Subset of the runtime's native-tool config the chat dispatcher needs to

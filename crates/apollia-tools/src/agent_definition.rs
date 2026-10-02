@@ -20,6 +20,29 @@ use apollia_core::{AgentManifest, AutonomyLevel};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
+/// Identifier of the Apollia agent, the built-in chat.
+pub const APOLLIA_AGENT_ID: &str = apollia_permissions::APOLLIA_AGENT_ID;
+
+/// Version of the definition of the Apollia agent.
+pub const APOLLIA_DEFINITION_VERSION: &str = "1";
+
+/// The definition of the Apollia agent: its name, and nothing the user has
+/// to undo. No mission leaves the built-in prompt of its tier in force.
+pub fn apollia_definition() -> Value {
+    json!({
+        "id": APOLLIA_AGENT_ID,
+        "name": "Apollia",
+        "mission": "",
+        "defaults": {},
+    })
+}
+
+/// Whether `name` is an agent of the product itself, which the user changes
+/// but never uninstalls.
+pub fn is_built_in_agent(name: &str) -> bool {
+    name == APOLLIA_AGENT_ID
+}
+
 /// Where an agent comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

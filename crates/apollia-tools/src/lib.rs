@@ -30,7 +30,6 @@ mod agent_overrides;
 pub mod agent_repository;
 pub(crate) mod agents_db;
 pub mod audit;
-pub mod chat_libre_config;
 pub mod descriptor;
 pub mod dispatcher_invoker;
 pub mod executor;
@@ -50,8 +49,9 @@ pub mod tool_registry;
 pub mod tools;
 
 pub use agent_definition::{
-    definition_from_manifest, resolve as resolve_agent, AgentOrigin, AgentOverride, OverrideField,
-    OverrideValueError, ResolvedAgent, StoredAgent, OVERRIDE_FIELDS,
+    apollia_definition, definition_from_manifest, is_built_in_agent, resolve as resolve_agent,
+    AgentOrigin, AgentOverride, OverrideField, OverrideValueError, ResolvedAgent, StoredAgent,
+    APOLLIA_AGENT_ID, OVERRIDE_FIELDS,
 };
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
 pub use audit::{

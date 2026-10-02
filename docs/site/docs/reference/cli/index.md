@@ -2486,9 +2486,9 @@ Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ###### **Subcommands:**
 
-* `get` - Print the current chat libre configuration
-* `set` - Update one field of the chat libre configuration
-* `reset` - Reset the configuration to the defaults (empty prompt, no tools)
+* `get` - Print the settings of the free chat (the Apollia agent)
+* `set` - Update one setting of the free chat (the Apollia agent)
+* `reset` - Reset the settings to the defaults (no prompt, no tools, default model)
 * `permissions` - Manage persisted permission rules scoped to the Apollia Chat agent
 * `authorizations` - Inspect or revoke in-memory session authorizations
 
@@ -2496,43 +2496,34 @@ Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ## `apollia-os chat config get`
 
-Print the current chat libre configuration
+Print the settings of the free chat (the Apollia agent)
 
-**Usage:** `apollia-os chat config get [OPTIONS]`
-
-###### **Options:**
-
-* `--db <PATH>`
+**Usage:** `apollia-os chat config get`
 
 
 
 ## `apollia-os chat config set`
 
-Update one field of the chat libre configuration
+Update one setting of the free chat (the Apollia agent)
 
-**Usage:** `apollia-os chat config set [OPTIONS] <KEY> <VALUE>`
+**Usage:** `apollia-os chat config set <KEY> <VALUE>`
 
 ###### **Arguments:**
 
 * `<KEY>` - Field name: `system-prompt`, `allowed-tools`, or `llm-backend`
 * `<VALUE>` - New value. For `allowed-tools`, expects a comma-separated list. For `llm-backend`, the literal `none` clears the backend
 
-###### **Options:**
-
-* `--db <PATH>`
-
 
 
 ## `apollia-os chat config reset`
 
-Reset the configuration to the defaults (empty prompt, no tools)
+Reset the settings to the defaults (no prompt, no tools, default model)
 
 **Usage:** `apollia-os chat config reset [OPTIONS]`
 
 ###### **Options:**
 
 * `--confirm`
-* `--db <PATH>`
 
 
 

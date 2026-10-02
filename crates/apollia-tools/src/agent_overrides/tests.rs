@@ -39,7 +39,8 @@ fn test_save_definition_round_trips() {
     assert_eq!(stored.package.as_deref(), Some("office"));
     assert_eq!(stored.version, "1.0.0");
     assert_eq!(stored.definition["mission"], "Extract the totals.");
-    assert_eq!(repo.list_stored().unwrap().len(), 1);
+    // The stored agents are this one and Apollia, which every file holds.
+    assert_eq!(repo.list_stored().unwrap().len(), 2);
     // A declarative agent runs no code: it is not an installed Python agent.
     assert!(repo.get("invoices").unwrap().is_none());
     assert!(repo.list().unwrap().is_empty());

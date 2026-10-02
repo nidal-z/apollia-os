@@ -125,6 +125,28 @@ impl RuntimeClient {
         definition_body(resp)
     }
 
+    /// Assign a model to `agent` via `PUT /api/v1/llm/agents/{agent}/model`;
+    /// `body` carries `model_source` and `model_id`.
+    pub async fn set_agent_model(
+        &self,
+        agent: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .put(&format!("/api/v1/llm/agents/{agent}/model"), Some(body))
+            .await?;
+        definition_body(resp)
+    }
+
+    /// Remove the model assigned to `agent` via
+    /// `DELETE /api/v1/llm/agents/{agent}/model`.
+    pub async fn clear_agent_model(&self, agent: &str) -> Result<serde_json::Value, ClientError> {
+        let resp = self
+            .delete(&format!("/api/v1/llm/agents/{agent}/model"))
+            .await?;
+        definition_body(resp)
+    }
+
     /// Get agent detail via `GET /api/v1/agents/{id}`.
     pub async fn get_agent(&self, agent_id: &str) -> Result<serde_json::Value, ClientError> {
         let resp = self.get(&format!("/api/v1/agents/{agent_id}")).await?;

@@ -665,3 +665,12 @@ fn test_override_value_follows_the_field_shape() {
     assert!(too_many.unwrap_err().contains("exactly one value"));
     assert!(unknown.unwrap_err().contains("unknown field"));
 }
+
+#[test]
+fn test_uninstall_refuses_the_apollia_agent() {
+    // GIVEN the identifier of the Apollia agent, the built-in chat
+    // WHEN it is uninstalled, confirmed
+    let code = run_uninstall(apollia_tools::APOLLIA_AGENT_ID, true, true);
+    // THEN the command refuses it with a usage error, before touching any file
+    assert_eq!(code, exit_codes::GENERAL_ERROR);
+}

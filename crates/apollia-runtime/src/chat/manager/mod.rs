@@ -25,7 +25,6 @@ use apollia_mcp::tool_search::{ToolIndexSnapshot, ToolSearchExecutor};
 use apollia_memory::user_memory::UserMemoryRepository;
 use apollia_permissions::prefix_rule_engine::RuleAction;
 use apollia_permissions::PrefixRuleEngine;
-use apollia_tools::chat_libre_config::ChatLibreConfigRepository;
 use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
 use apollia_tools::{ProjectRepository, ToolRegistryHandle};
 
@@ -210,6 +209,7 @@ struct ChatSessionManager {
 }
 
 mod actor;
+mod apollia_agent;
 mod authz;
 mod command;
 mod control;

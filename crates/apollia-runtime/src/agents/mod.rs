@@ -2,6 +2,7 @@
 
 use apollia_core::{AutonomyConfig, AutonomyLevel};
 
+pub mod apollia;
 pub mod overrides;
 pub mod registry_remote;
 

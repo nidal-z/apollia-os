@@ -206,9 +206,9 @@ Tout ce qui reste déclenche l'invite d'approbation.
 
 **Les exécuteurs de code sont exemptés de toute autorisation globale.**
 `bash_executor` et ses semblables sont filtrés hors de l'ensemble
-pré-autorisé sur les trois chemins qui l'alimentent : la configuration du
-chat, les règles d'autorisation à l'échelle de l'agent, et les règles
-d'autorisation globales. « Toujours autoriser » sur l'un d'eux est également
+pré-autorisé sur les deux chemins qui l'alimentent : les règles
+d'autorisation à l'échelle de l'agent et les règles d'autorisation globales.
+« Toujours autoriser » sur l'un d'eux est également
 refusé au moment de la persistance. En dehors d'une règle de préfixe ciblée,
 qui ne couvre jamais qu'une seule commande simple, chaque invocation demande,
 à chaque fois. C'est le seul invariant qui survit à tous les chemins

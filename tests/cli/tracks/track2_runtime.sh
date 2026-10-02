@@ -245,6 +245,18 @@ check_exit    "agent reset without --confirm → 1"  1 "${Q[@]}" agent reset apo
 check         "agent reset --field mission"        "${Q[@]}" agent reset apollia-chat --field mission --confirm
 check         "agent reset --confirm"              "${Q[@]}" agent reset apollia-chat --confirm
 check_exit    "agent set unknown agent → 1"        1 "${Q[@]}" agent set e2e-ghost-agent mission "x"
+# The settings of the chat are the overrides and the model of the Apollia
+# agent, written through the same routes and journaled the same way.
+check         "chat config set system-prompt"      "${Q[@]}" chat config set system-prompt "Answer in one line."
+check         "chat config set allowed-tools"      "${Q[@]}" chat config set allowed-tools "web_search,file_read"
+check         "chat config set llm-backend"        "${Q[@]}" chat config set llm-backend local-llama-server
+check_content "chat config get carries the prompt" "Answer in one line." "${Q[@]}" chat config get
+check_content "chat config get --json carries the model" "local-llama-server" "${Q[@]}" chat config get --json
+check_content "agent list --definitions has apollia:chat" "apollia:chat" "${Q[@]}" agent list --definitions
+check_exit    "chat config reset without --confirm → 1" 1 "${Q[@]}" chat config reset
+check         "chat config reset --confirm"        "${Q[@]}" chat config reset --confirm
+check_content "chat config get after reset"        "(runtime default)" "${Q[@]}" chat config get
+check_exit    "agent uninstall apollia:chat (built in) → 1" 1 "${Q[@]}" agent uninstall apollia:chat --confirm
 check         "audit verify (overrides journaled)"  "${Q[@]}" audit verify
 check         "agent package list"                 "${Q[@]}" agent package list
 check_content "agent package list has seed-office-pack" "seed-office-pack" "${Q[@]}" agent package show seed-office-pack

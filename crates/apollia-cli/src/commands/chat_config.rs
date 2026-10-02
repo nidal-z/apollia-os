@@ -1,43 +1,52 @@
-//! `apollia-os chat-config`: manage chat libre defaults.
+//! `apollia-os chat config`: the settings of the free chat.
 //!
-//! Wraps [`ChatLibreConfigRepository`] directly against `governance.db` so
-//! the runtime does not need to be running. The Desktop equivalents are
-//! `chat_libre.rs::{get_chat_libre_config, update_chat_libre_config}`.
+//! The free chat is the Apollia agent, so `get`, `set` and `reset` read and
+//! write its mission and access overrides and its model through the runtime's
+//! routes, the same ones `agent set` and the desktop panel use; every write is
+//! journaled by the runtime. Without a running runtime they exit 2. The
+//! `permissions` subcommands still read the rules of `governance.db` directly.
 
 use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
 
 use apollia_permissions::{PermissionScope, PrefixRule, PrefixRuleEngine};
+use apollia_runtime::agents::apollia::{self, ChatConfigView, ConfigWrite};
 use apollia_runtime::chat::APOLLIA_CHAT_AGENT_ID;
-use apollia_tools::chat_libre_config::{ChatLibreConfig, ChatLibreConfigRepository};
 use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
 
+use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
 /// Subcommands of `apollia-os chat config`.
 #[derive(Debug, Clone, Subcommand)]
 pub enum ChatConfigCommand {
-    /// Print the current chat libre configuration.
+    /// Print the settings of the free chat (the Apollia agent).
     Get {
-        #[arg(long, value_name = "PATH")]
+        /// Accepted for compatibility and ignored: the settings are read from
+        /// the runtime.
+        #[arg(long, value_name = "PATH", hide = true)]
         db: Option<PathBuf>,
     },
-    /// Update one field of the chat libre configuration.
+    /// Update one setting of the free chat (the Apollia agent).
     Set {
         /// Field name: `system-prompt`, `allowed-tools`, or `llm-backend`.
         key: String,
         /// New value. For `allowed-tools`, expects a comma-separated list.
         /// For `llm-backend`, the literal `none` clears the backend.
         value: String,
-        #[arg(long, value_name = "PATH")]
+        /// Accepted for compatibility and ignored: the settings are written
+        /// through the runtime.
+        #[arg(long, value_name = "PATH", hide = true)]
         db: Option<PathBuf>,
     },
-    /// Reset the configuration to the defaults (empty prompt, no tools).
+    /// Reset the settings to the defaults (no prompt, no tools, default model).
     Reset {
         #[arg(long)]
         confirm: bool,
-        #[arg(long, value_name = "PATH")]
+        /// Accepted for compatibility and ignored: the settings are written
+        /// through the runtime.
+        #[arg(long, value_name = "PATH", hide = true)]
         db: Option<PathBuf>,
     },
     /// Manage persisted permission rules scoped to the Apollia Chat agent.
@@ -66,7 +75,6 @@ pub enum ChatConfigCommand {
         command: ChatConfigAuthorizationsCommand,
     },
 }
-
 /// Subcommands of `apollia-os chat config permissions`.
 #[derive(Debug, Clone, Subcommand)]
 pub enum ChatConfigPermissionsCommand {
@@ -108,12 +116,13 @@ pub enum ChatConfigAuthorizationsCommand {
     },
 }
 
-/// Execute a `chat-config` subcommand.
-pub fn run(cmd: &ChatConfigCommand, json: bool) -> i32 {
+/// Execute a `chat config` subcommand.
+pub async fn run(cmd: &ChatConfigCommand, socket: Option<PathBuf>, json: bool) -> i32 {
+    let client = || RuntimeClient::new(socket.clone().unwrap_or_else(default_socket_path));
     match cmd {
-        ChatConfigCommand::Get { db } => run_get(db.as_deref(), json),
-        ChatConfigCommand::Set { key, value, db } => run_set(db.as_deref(), key, value, json),
-        ChatConfigCommand::Reset { confirm, db } => run_reset(db.as_deref(), *confirm, json),
+        ChatConfigCommand::Get { .. } => run_get(&client(), json).await,
+        ChatConfigCommand::Set { key, value, .. } => run_set(&client(), key, value, json).await,
+        ChatConfigCommand::Reset { confirm, .. } => run_reset(&client(), *confirm, json).await,
         ChatConfigCommand::Permissions { command } => run_permissions(command, json),
         ChatConfigCommand::Authorizations { command } => run_authorizations(command, json),
     }
@@ -127,131 +136,167 @@ fn resolve_db(db: Option<&Path>) -> PathBuf {
     apollia_core::paths::data_dir_under(home).join(GOVERNANCE_DB_FILENAME)
 }
 
-fn open_repo(db: Option<&Path>, json: bool) -> Option<ChatLibreConfigRepository> {
-    let path = resolve_db(db);
-    let parent = match path.parent() {
-        Some(p) => p,
-        None => {
-            emit_error(format!("invalid db path: {}", path.display()), json);
-            return None;
-        }
-    };
-    let _ = std::fs::create_dir_all(parent);
-    // GovernanceDb::open runs the schema migration that creates chat_libre_config.
-    // We drop the handle immediately and re-open through the config repository so
-    // the two access paths share the same fully-migrated DB file.
-    if let Err(e) = apollia_tools::GovernanceDb::open(parent) {
-        emit_error(format!("governance migration failed: {e}"), json);
-        return None;
-    }
-    match ChatLibreConfigRepository::open(&path) {
-        Ok(r) => Some(r),
-        Err(e) => {
-            emit_error(format!("open {} failed: {e}", path.display()), json);
-            None
-        }
-    }
-}
-
 fn emit_error(msg: impl Into<String>, json: bool) {
     let _ = crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg.into());
 }
 
-fn run_get(db: Option<&Path>, json: bool) -> i32 {
-    let Some(repo) = open_repo(db, json) else {
-        return exit_codes::GENERAL_ERROR;
-    };
-    let cfg = match repo.load() {
-        Ok(c) => c,
-        Err(e) => {
-            emit_error(format!("read failed: {e}"), json);
-            return exit_codes::GENERAL_ERROR;
-        }
-    };
-    if json {
-        println!("{}", serde_json::to_string_pretty(&cfg).unwrap_or_default());
-    } else {
-        let prompt = if cfg.system_prompt.is_empty() {
-            "(empty)".to_string()
-        } else {
-            cfg.system_prompt.clone()
-        };
-        let tools = if cfg.allowed_tools.is_empty() {
-            "(none)".to_string()
-        } else {
-            cfg.allowed_tools.join(", ")
-        };
-        let backend = cfg.llm_backend.as_deref().unwrap_or("(runtime default)");
-        println!("  system-prompt  {prompt}");
-        println!("  allowed-tools  {tools}");
-        println!("  llm-backend    {backend}");
-    }
-    exit_codes::SUCCESS
-}
-
-fn run_set(db: Option<&Path>, key: &str, value: &str, json: bool) -> i32 {
-    let Some(repo) = open_repo(db, json) else {
-        return exit_codes::GENERAL_ERROR;
-    };
-    let mut cfg = match repo.load() {
-        Ok(c) => c,
-        Err(e) => {
-            emit_error(format!("read failed: {e}"), json);
-            return exit_codes::GENERAL_ERROR;
-        }
-    };
+/// The view with `key` set to `value`, as typed on the command line.
+fn with_key(mut view: ChatConfigView, key: &str, value: &str) -> Result<ChatConfigView, String> {
     match key {
-        "system-prompt" | "system_prompt" => cfg.system_prompt = value.to_string(),
+        "system-prompt" | "system_prompt" => view.system_prompt = value.to_string(),
         "allowed-tools" | "allowed_tools" => {
-            cfg.allowed_tools = value
+            view.allowed_tools = value
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
         }
         "llm-backend" | "llm_backend" => {
-            cfg.llm_backend = if value.eq_ignore_ascii_case("none") {
+            view.llm_backend = if value.eq_ignore_ascii_case("none") {
                 None
             } else {
                 Some(value.to_string())
             };
         }
         other => {
-            emit_error(
-                format!("unknown key '{other}' (use: system-prompt, allowed-tools, llm-backend)"),
-                json,
-            );
-            return exit_codes::GENERAL_ERROR;
+            return Err(format!(
+                "unknown key '{other}' (use: system-prompt, allowed-tools, llm-backend)"
+            ))
         }
     }
-    if let Err(e) = repo.save(&cfg) {
-        emit_error(format!("write failed: {e}"), json);
+    Ok(view)
+}
+
+/// The settings of the chat as the runtime holds them.
+async fn current(client: &RuntimeClient) -> Result<ChatConfigView, ClientError> {
+    let resolved = client.get_agent_definition(APOLLIA_CHAT_AGENT_ID).await?;
+    Ok(ChatConfigView::from_resolved(&resolved))
+}
+
+/// Writes `desired` over the current settings, only the fields that change.
+async fn write(
+    client: &RuntimeClient,
+    current: &ChatConfigView,
+    desired: &ChatConfigView,
+) -> Result<(), ClientError> {
+    for change in apollia::changes(current, desired) {
+        match &change {
+            ConfigWrite::SetMission(prompt) => {
+                client
+                    .set_agent_override(APOLLIA_CHAT_AGENT_ID, "mission", serde_json::json!(prompt))
+                    .await?;
+            }
+            ConfigWrite::SetAccess(tools) => {
+                client
+                    .set_agent_override(APOLLIA_CHAT_AGENT_ID, "access", serde_json::json!(tools))
+                    .await?;
+            }
+            ConfigWrite::ClearMission => {
+                client
+                    .remove_agent_override(APOLLIA_CHAT_AGENT_ID, "mission")
+                    .await?;
+            }
+            ConfigWrite::ClearAccess => {
+                client
+                    .remove_agent_override(APOLLIA_CHAT_AGENT_ID, "access")
+                    .await?;
+            }
+            ConfigWrite::SetModel(backend) => {
+                let provider = client.get_llm_backend(backend).await.ok().and_then(|b| {
+                    b.get("provider")
+                        .and_then(|p| p.as_str())
+                        .map(str::to_owned)
+                });
+                let body = apollia::model_body(backend, provider.as_deref());
+                client.set_agent_model(APOLLIA_CHAT_AGENT_ID, &body).await?;
+            }
+            ConfigWrite::ClearModel => {
+                client.clear_agent_model(APOLLIA_CHAT_AGENT_ID).await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn print_view(view: &ChatConfigView, json: bool) {
+    if json {
+        println!("{}", serde_json::to_string_pretty(view).unwrap_or_default());
+        return;
+    }
+    let prompt = if view.system_prompt.is_empty() {
+        "(empty)".to_string()
+    } else {
+        view.system_prompt.clone()
+    };
+    let tools = if view.allowed_tools.is_empty() {
+        "(none)".to_string()
+    } else {
+        view.allowed_tools.join(", ")
+    };
+    let backend = view.llm_backend.as_deref().unwrap_or("(runtime default)");
+    println!("  system-prompt  {prompt}");
+    println!("  allowed-tools  {tools}");
+    println!("  llm-backend    {backend}");
+}
+
+async fn run_get(client: &RuntimeClient, json: bool) -> i32 {
+    match current(client).await {
+        Ok(view) => {
+            print_view(&view, json);
+            exit_codes::SUCCESS
+        }
+        Err(e) => crate::output::emit_client_error(json, &e),
+    }
+}
+
+async fn run_set(client: &RuntimeClient, key: &str, value: &str, json: bool) -> i32 {
+    // An unknown key is refused before the runtime is reached.
+    if let Err(msg) = with_key(ChatConfigView::default(), key, value) {
+        emit_error(msg, json);
         return exit_codes::GENERAL_ERROR;
     }
+    let before = match current(client).await {
+        Ok(view) => view,
+        Err(e) => return crate::output::emit_client_error(json, &e),
+    };
+    let desired = match with_key(before.clone(), key, value) {
+        Ok(view) => view,
+        Err(msg) => {
+            emit_error(msg, json);
+            return exit_codes::GENERAL_ERROR;
+        }
+    };
+    if let Err(e) = write(client, &before, &desired).await {
+        return crate::output::emit_client_error(json, &e);
+    }
     if json {
-        println!("{}", serde_json::to_string_pretty(&cfg).unwrap_or_default());
+        match current(client).await {
+            Ok(view) => print_view(&view, true),
+            Err(e) => return crate::output::emit_client_error(json, &e),
+        }
     } else {
-        println!("  * updated {key}");
+        crate::note!("  * updated {key}");
     }
     exit_codes::SUCCESS
 }
 
-fn run_reset(db: Option<&Path>, confirm: bool, json: bool) -> i32 {
-    if !confirm {
-        emit_error("use --confirm to reset", json);
-        return exit_codes::GENERAL_ERROR;
-    }
-    let Some(repo) = open_repo(db, json) else {
-        return exit_codes::GENERAL_ERROR;
+async fn run_reset(client: &RuntimeClient, confirm: bool, json: bool) -> i32 {
+    let before = match current(client).await {
+        Ok(view) => view,
+        Err(e) => return crate::output::emit_client_error(json, &e),
     };
-    if let Err(e) = repo.save(&ChatLibreConfig::default()) {
-        emit_error(format!("reset failed: {e}"), json);
-        return exit_codes::GENERAL_ERROR;
+    if let Some(code) =
+        crate::output::require_confirmation(confirm, json, "reset the chat settings")
+    {
+        return code;
+    }
+    if let Err(e) = write(client, &before, &ChatConfigView::default()).await {
+        return crate::output::emit_client_error(json, &e);
     }
     if json {
         println!("{{\"reset\":true}}");
     } else {
-        println!("  * chat config reset");
+        crate::note!("  * chat config reset");
     }
     exit_codes::SUCCESS
 }
@@ -439,69 +484,63 @@ mod tests {
         }
     }
 
-    #[test]
-    fn reset_without_confirm_errors() {
-        // GIVEN a governance database
+    /// A client aimed at a socket nothing listens on.
+    fn absent_runtime() -> (tempfile::TempDir, RuntimeClient) {
         let tmp = tempfile::tempdir().unwrap();
-        let db = tmp.path().join("governance.db");
-        // WHEN a reset runs without confirmation
-        // THEN it stops on an error rather than clearing the chat configuration
-        assert_eq!(run_reset(Some(&db), false, true), exit_codes::GENERAL_ERROR);
+        let client = RuntimeClient::new(tmp.path().join("absent.sock"));
+        (tmp, client)
     }
 
-    #[test]
-    fn set_then_get_roundtrip() {
-        // GIVEN an empty governance database
-        let tmp = tempfile::tempdir().unwrap();
-        let db = tmp.path().join("governance.db");
-        // WHEN a key is set, then read back through the commands themselves
-        // THEN both report success
+    #[tokio::test]
+    async fn without_a_runtime_get_set_and_reset_exit_2() {
+        // GIVEN no runtime behind the socket
+        let (_tmp, client) = absent_runtime();
+        // WHEN the settings are read, set and reset
+        // THEN each reports the runtime as unreachable, exit 2, and writes nothing
+        assert_eq!(run_get(&client, true).await, exit_codes::RUNTIME_ERROR);
         assert_eq!(
-            run_set(Some(&db), "system-prompt", "Hi", true),
-            exit_codes::SUCCESS
+            run_set(&client, "system-prompt", "Hi", true).await,
+            exit_codes::RUNTIME_ERROR
         );
-        assert_eq!(run_get(Some(&db), true), exit_codes::SUCCESS);
+        assert_eq!(
+            run_reset(&client, true, true).await,
+            exit_codes::RUNTIME_ERROR
+        );
     }
 
     #[test]
     fn allowed_tools_comma_split() {
         // GIVEN a tool list given as one comma separated string, with spaces
-        let tmp = tempfile::tempdir().unwrap();
-        let db = tmp.path().join("governance.db");
-        // WHEN it is stored through the set command
-        assert_eq!(
-            run_set(Some(&db), "allowed-tools", "file_read, bash, http", true),
-            exit_codes::SUCCESS
-        );
-        // THEN the repository holds three trimmed names rather than one string
-        let repo = ChatLibreConfigRepository::open(&db).unwrap();
-        let cfg = repo.load().unwrap();
-        assert_eq!(cfg.allowed_tools, vec!["file_read", "bash", "http"]);
+        // WHEN it is read as the value of allowed-tools
+        let view = with_key(
+            ChatConfigView::default(),
+            "allowed-tools",
+            "file_read, bash, http",
+        )
+        .unwrap();
+        // THEN it holds three trimmed names rather than one string
+        assert_eq!(view.allowed_tools, vec!["file_read", "bash", "http"]);
     }
 
     #[test]
     fn llm_backend_none_clears() {
-        // GIVEN a chat configuration whose backend has been set
-        let tmp = tempfile::tempdir().unwrap();
-        let db = tmp.path().join("governance.db");
-        run_set(Some(&db), "llm-backend", "anthropic", true);
+        // GIVEN settings whose backend has been set
+        let view = with_key(ChatConfigView::default(), "llm-backend", "anthropic").unwrap();
         // WHEN the backend is set to none
-        run_set(Some(&db), "llm-backend", "none", true);
-        // THEN the stored backend is cleared rather than being the literal word none
-        let repo = ChatLibreConfigRepository::open(&db).unwrap();
-        let cfg = repo.load().unwrap();
-        assert!(cfg.llm_backend.is_none());
+        let view = with_key(view, "llm-backend", "none").unwrap();
+        // THEN the backend is cleared rather than being the literal word none
+        assert!(view.llm_backend.is_none());
     }
 
-    #[test]
-    fn unknown_key_errors() {
-        // GIVEN a key the chat configuration does not define
-        let tmp = tempfile::tempdir().unwrap();
-        let db = tmp.path().join("governance.db");
+    #[tokio::test]
+    async fn unknown_key_errors_before_the_runtime() {
+        // GIVEN a key the chat settings do not define, and no runtime
+        let (_tmp, client) = absent_runtime();
         // WHEN it is set
-        // THEN the command stops on an error rather than writing an ignored key
+        // THEN the command stops on a usage error, exit 1, without reaching
+        // for the runtime
         assert_eq!(
-            run_set(Some(&db), "wrong", "value", true),
+            run_set(&client, "wrong", "value", true).await,
             exit_codes::GENERAL_ERROR
         );
     }

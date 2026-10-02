@@ -105,12 +105,17 @@ check        "profile reset --confirm"               "$BIN" profile reset --conf
 # ── A.5 chat config ─────────────────────────────────────────────────────────
 section "A.5 chat config"
 GDB="$SCRATCH/governance.db"
-check        "chat config get (default)"             "$BIN" chat config get --db "$GDB"
-check        "chat config set system-prompt"         "$BIN" chat config set system-prompt "You are helpful." --db "$GDB"
-check        "chat config set allowed-tools"         "$BIN" chat config set allowed-tools "file_read,bash_executor" --db "$GDB"
-check_json   "chat config get --json"                "$BIN" chat config get --db "$GDB" --json
-check_exit   "chat config set bogus-key"  1          "$BIN" chat config set bogus-key x --db "$GDB"
-check        "chat config reset --confirm"           "$BIN" chat config reset --confirm --db "$GDB"
+# The settings of the chat are those of the Apollia agent, read and written
+# through the runtime's routes: with no runtime, get / set / reset exit 2. The
+# real reads and writes are in Track 2. A bad key is refused before the runtime.
+CHAT_OFF="$RUN_TMP/chat-off.sock"
+check_exit   "chat config get (runtime absent) → 2"  2 "$BIN" --socket "$CHAT_OFF" chat config get
+check_exit   "chat config get --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config get --json
+check_exit   "chat config set system-prompt (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config set system-prompt "You are helpful."
+check_exit   "chat config set bogus-key"  1          "$BIN" --socket "$CHAT_OFF" chat config set bogus-key x
+check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config reset --confirm
+# Apollia is built in: uninstalling it is refused, exit 1.
+check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
 check        "chat config permissions list (empty)"  "$BIN" chat config permissions list --db "$GDB"
 check_json   "chat config permissions list --json"   "$BIN" chat config permissions list --db "$GDB" --json
 check_exit   "chat config permissions delete (no id) → 1" 1 "$BIN" chat config permissions delete 9999 --confirm --db "$GDB"
