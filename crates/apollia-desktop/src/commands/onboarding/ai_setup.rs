@@ -58,7 +58,7 @@ pub struct WhisperModelInfo {
     pub size_bytes: u64,
     /// Size variant parsed from the filename (`tiny`, `base`, `small`, `medium`, `large`).
     pub model_size: String,
-    /// Whether this model is recommended for the current RAM.
+    /// Whether the dictation verdict says this file fits this machine.
     pub recommended: bool,
 }
 
@@ -141,7 +141,7 @@ pub async fn scan_for_whisper_models() -> Result<Vec<WhisperModelInfo>, String> 
     tokio::task::spawn_blocking(|| {
         let home = apollia_core::paths::home_string().unwrap_or_default();
         let home_path = std::path::PathBuf::from(&home);
-        let sys_info = get_system_info_sync();
+        let hardware = apollia_llm::hardware::detect();
 
         let scan_dirs = [
             apollia_core::paths::data_dir_under(&home_path).join("models"),
@@ -153,7 +153,7 @@ pub async fn scan_for_whisper_models() -> Result<Vec<WhisperModelInfo>, String> 
         let mut models: Vec<WhisperModelInfo> = Vec::new();
 
         for dir in &scan_dirs {
-            for model in scan_whisper_in_dir(dir, sys_info.total_ram_gb) {
+            for model in scan_whisper_in_dir(dir, &hardware) {
                 if seen.insert(model.path.clone()) {
                     models.push(model);
                 }
@@ -373,8 +373,12 @@ fn collect_gguf_recursive(
 /// Scans a single directory for Whisper GGML model files.
 ///
 /// Only files matching `ggml-(tiny|base|small|medium|large)*.bin` are included.
+/// Each is judged by the dictation verdict the catalogue gives its entries.
 /// Returns an empty `Vec` for non-existent or unreadable directories.
-fn scan_whisper_in_dir(dir: &std::path::Path, total_ram_gb: f64) -> Vec<WhisperModelInfo> {
+fn scan_whisper_in_dir(
+    dir: &std::path::Path,
+    hardware: &apollia_llm::HardwareProfile,
+) -> Vec<WhisperModelInfo> {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return Vec::new(),
@@ -398,7 +402,7 @@ fn scan_whisper_in_dir(dir: &std::path::Path, total_ram_gb: f64) -> Vec<WhisperM
         };
 
         let size_bytes = size_on_disk(&path);
-        let recommended = whisper_model_recommended(&model_size, total_ram_gb);
+        let recommended = apollia_llm::recommend::dictation_fits(size_bytes, hardware);
 
         results.push(WhisperModelInfo {
             path: path.display().to_string(),
@@ -503,17 +507,6 @@ pub fn format_size_human(bytes: u64) -> String {
     }
 }
 
-/// Returns whether a Whisper model size variant is recommended for the given RAM.
-fn whisper_model_recommended(model_size: &str, total_ram_gb: f64) -> bool {
-    match model_size {
-        "tiny" => true,
-        "base" | "small" => total_ram_gb >= 8.0,
-        "medium" => total_ram_gb >= 16.0,
-        "large" => total_ram_gb >= 32.0,
-        _ => false,
-    }
-}
-
 /// Detects GPU availability using platform-specific heuristics.
 fn detect_gpu_basic() -> bool {
     #[cfg(target_os = "macos")]
@@ -597,6 +590,40 @@ mod tests {
         let results = scan_gguf_in_dir(dir.path());
         // THEN an empty Vec is returned
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn a_dictation_file_on_disk_is_judged_as_the_catalogue_judges_its_entry() {
+        use apollia_llm::recommend::{dictation_fits, DictationCatalogue};
+        use apollia_llm::{AcceleratorProfile, HardwareProfile};
+
+        // GIVEN a 16 GB machine with no accelerator, and on its disk the
+        // Large-v3 Q5_0 file of the catalogue at its real size (a sparse file)
+        let hardware = HardwareProfile {
+            total_ram_gb: 16.0,
+            available_ram_gb: 8.0,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 8,
+            accelerator: AcceleratorProfile::None,
+            memory_budget_gb: 9.6,
+        };
+        let catalogue = DictationCatalogue::embedded().unwrap();
+        let entry = catalogue.get("whisper-large-v3-q5_0").unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let file = std::fs::File::create(dir.path().join(&entry.file)).unwrap();
+        file.set_len(entry.size_bytes).unwrap();
+
+        // WHEN the onboarding scans the folder, and the catalogue judges the
+        // entry for the same machine
+        let scanned = scan_whisper_in_dir(dir.path(), &hardware);
+        let catalogue_verdict = dictation_fits(entry.size_bytes, &hardware);
+
+        // THEN the scan says what the catalogue says: the file fits, where the
+        // former size-name threshold reserved "large" for 32 GB machines
+        assert_eq!(scanned.len(), 1);
+        assert_eq!(scanned[0].size_bytes, entry.size_bytes);
+        assert_eq!(scanned[0].recommended, catalogue_verdict);
+        assert!(catalogue_verdict);
     }
 
     #[test]

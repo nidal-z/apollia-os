@@ -6,7 +6,7 @@
   "publisher": "OpenAI",
   "license": {
     "id": "mit",
-    "source": "https://huggingface.co/openai/whisper-base"
+    "source": "https://huggingface.co/ggerganov/whisper.cpp"
   },
   "source_url": "https://huggingface.co/openai/whisper-base",
   "description": {
@@ -31,6 +31,8 @@
     "openai/whisper-base"
   ],
   "selection_files": [
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin",
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q8_0.bin"
   ]
 }

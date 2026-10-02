@@ -218,11 +218,14 @@ pub async fn start_model_download(
         .await
         .map_err(|e| format!("failed to create model directory: {e}"))?;
 
-    // A file from a HuggingFace repository is checked against the SHA-256 its
-    // tree publishes. When that reference cannot be read, the download is
-    // refused rather than run unverified.
-    let expected_sha256 = match request.repo_id.as_deref() {
-        Some(repo_id) => {
+    // A dictation file of the catalogue is checked against the digest the
+    // table pins, with no request to the Hub. Any other file from a HuggingFace
+    // repository is checked against the SHA-256 its tree publishes; when that
+    // reference cannot be read, the download is refused rather than run
+    // unverified.
+    let expected_sha256 = match (pinned_digest(&request.url), request.repo_id.as_deref()) {
+        (Some(sha), _) => Some(sha),
+        (None, Some(repo_id)) => {
             let path = hf_repo_path(&request.url, request.filename.as_deref());
             let client = apollia_llm::HfRegistryClient::new(request.hf_token.clone());
             let sha = client
@@ -231,7 +234,7 @@ pub async fn start_model_download(
                 .map_err(|e| format!("cannot verify the download, refusing it: {e}"))?;
             Some(sha)
         }
-        None => None,
+        (None, None) => None,
     };
 
     let dl_request = DownloadRequest {
@@ -273,6 +276,15 @@ pub async fn start_model_download(
 
     let id = manager.lock().await.start(dl_request, on_progress);
     Ok(id)
+}
+
+/// The digest the catalogue pins for the file at `url`, when `url` is the
+/// address of one of its dictation entries.
+fn pinned_digest(url: &str) -> Option<String> {
+    apollia_llm::recommend::DictationCatalogue::embedded()
+        .ok()?
+        .by_url(url)
+        .map(|entry| entry.sha256.clone())
 }
 
 /// Starts downloading every file of one variant as a single download: each
@@ -611,6 +623,34 @@ pub async fn delete_installed_model(path: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_dictation_file_the_onboarding_offers_is_checked_against_a_pinned_digest() {
+        // GIVEN the download addresses of the dictation step of the onboarding
+        let catalog = include_str!("../../ui/src/components/onboarding/onboardingCatalogs.ts");
+        let urls: Vec<&str> = catalog
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("url: \""))
+            .filter_map(|rest| rest.strip_suffix("\","))
+            .collect();
+        assert_eq!(urls.len(), 5, "{urls:?}");
+
+        // WHEN the download command looks up the digest of each
+        let digests: Vec<Option<String>> = urls.iter().map(|u| pinned_digest(u)).collect();
+
+        // THEN every one is the 64-digit digest the catalogue pins, and an
+        // address outside the catalogue has none
+        for (url, digest) in urls.iter().zip(&digests) {
+            let digest = digest
+                .as_deref()
+                .unwrap_or_else(|| panic!("{url} has no digest"));
+            assert_eq!(digest.len(), 64, "{url}");
+        }
+        assert_eq!(
+            pinned_digest("https://huggingface.co/acme/model/resolve/main/x.bin"),
+            None
+        );
+    }
 
     #[test]
     fn hf_repo_path_reads_the_path_after_the_revision() {

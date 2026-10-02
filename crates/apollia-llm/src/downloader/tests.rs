@@ -372,3 +372,91 @@ async fn an_embeddings_entry_downloads_through_the_same_verified_path() {
         .iter()
         .any(|m| m == "llm.download.integrity_mismatch"));
 }
+
+#[tokio::test]
+async fn a_dictation_entry_served_with_other_bytes_is_refused_and_deleted() {
+    // GIVEN the request for the French dictation file of the catalogue,
+    // checked against its pinned digest, served by a host that substitutes
+    // other bytes for that file
+    let catalogue = crate::recommend::DictationCatalogue::embedded().expect("entries load");
+    let french = catalogue
+        .get("whisper-large-v3-french-q5_0")
+        .expect("the French file is in the category");
+    let server = MockServer::start().await;
+    serve(&server, "/fr.bin", b"lmgg not the pinned weights").await;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let req = DownloadRequest {
+        url: format!("{}/fr.bin", server.uri()),
+        dest_dir: dir.path().to_path_buf(),
+        filename: Some(french.file.clone()),
+        hf_token: None,
+        repo_id: None,
+        expected_sha256: Some(french.sha256.clone()),
+    };
+    let (cb, _) = recorder();
+    let _site = INTEGRITY_EVENT_SITE.lock().await;
+
+    // WHEN the downloader every model goes through runs it
+    let result = run_download(test_client(), req, "t".into(), CancellationToken::new(), cb).await;
+
+    // THEN the pinned digest refuses the bytes and nothing stays on disk
+    match result {
+        Err(DownloadError::IntegrityMismatch { expected, .. }) => {
+            assert_eq!(expected, french.sha256);
+        }
+        other => panic!("expected an integrity refusal, got {other:?}"),
+    }
+    assert!(!dir.path().join(&french.file).exists());
+}
+
+/// A GGUF header (version 3, no tensor) naming the whisper architecture.
+fn whisper_gguf() -> Vec<u8> {
+    let (key, value) = (b"general.architecture", b"whisper");
+    let mut out = b"GGUF".to_vec();
+    out.extend_from_slice(&3u32.to_le_bytes());
+    out.extend_from_slice(&0u64.to_le_bytes());
+    out.extend_from_slice(&1u64.to_le_bytes());
+    out.extend_from_slice(&(key.len() as u64).to_le_bytes());
+    out.extend_from_slice(key);
+    out.extend_from_slice(&8u32.to_le_bytes());
+    out.extend_from_slice(&(value.len() as u64).to_le_bytes());
+    out.extend_from_slice(value);
+    out
+}
+
+#[tokio::test]
+async fn a_downloaded_dictation_model_enters_the_index_as_dictation_in_both_formats() {
+    // GIVEN a whisper.cpp file (GGML header, .bin) and a whisper GGUF, each
+    // served with the digest it is checked against
+    let mut ggml = b"lmgg".to_vec();
+    ggml.extend_from_slice(b"hparams");
+    let gguf = whisper_gguf();
+    let server = MockServer::start().await;
+    serve(&server, "/ggml-small.bin", &ggml).await;
+    serve(&server, "/whisper-small.gguf", &gguf).await;
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    // WHEN both are downloaded through the verified path and the index of the
+    // folder is rebuilt
+    for (name, bytes) in [("ggml-small.bin", &ggml), ("whisper-small.gguf", &gguf)] {
+        let mut req = request(format!("{}/{name}", server.uri()), dir.path(), name);
+        req.expected_sha256 = Some(sha256_hex(bytes));
+        let (cb, _) = recorder();
+        let outcome = run_download(test_client(), req, "t".into(), CancellationToken::new(), cb)
+            .await
+            .expect("download succeeds");
+        assert!(outcome.integrity_verified, "{name} is verified");
+    }
+    let mut index = crate::ModelIndex::default();
+    index.rebuild(dir.path()).expect("rebuild");
+
+    // THEN each is one model of the dictation category, whatever its format
+    for id in ["ggml-small", "whisper-small"] {
+        let model = index.get(id).unwrap_or_else(|| panic!("{id} is indexed"));
+        assert_eq!(
+            model.effective_category(),
+            crate::ModelCategory::Dictation,
+            "{id}"
+        );
+    }
+}

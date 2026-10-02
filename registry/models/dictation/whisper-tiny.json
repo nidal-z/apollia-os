@@ -6,7 +6,7 @@
   "publisher": "OpenAI",
   "license": {
     "id": "mit",
-    "source": "https://huggingface.co/openai/whisper-tiny"
+    "source": "https://huggingface.co/ggerganov/whisper.cpp"
   },
   "source_url": "https://huggingface.co/openai/whisper-tiny",
   "description": {
@@ -31,6 +31,8 @@
     "openai/whisper-tiny"
   ],
   "selection_files": [
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny-q5_1.bin",
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny-q8_0.bin"
   ]
 }

@@ -71,6 +71,9 @@ from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
 from .deleted_profile_entry import DeletedProfileEntry
+from .dictation_models_response import DictationModelsResponse
+from .dictation_models_response_models_item import DictationModelsResponseModelsItem
+from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
@@ -304,6 +307,9 @@ __all__ = (
     "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
+    "DictationModelsResponse",
+    "DictationModelsResponseModelsItem",
+    "DictationModelsResponseReasonType0",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",

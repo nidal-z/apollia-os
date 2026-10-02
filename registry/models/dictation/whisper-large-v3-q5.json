@@ -6,7 +6,7 @@
   "publisher": "OpenAI",
   "license": {
     "id": "mit",
-    "source": "https://huggingface.co/openai/whisper-large-v3"
+    "source": "https://huggingface.co/ggerganov/whisper.cpp"
   },
   "source_url": "https://huggingface.co/openai/whisper-large-v3",
   "description": {
@@ -31,6 +31,7 @@
     "openai/whisper-large-v3"
   ],
   "selection_files": [
-    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin"
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin"
   ]
 }

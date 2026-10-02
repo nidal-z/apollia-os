@@ -188,9 +188,6 @@ toml_edit = "0.22"
 # --- Interactive password prompt (apollia-cli credentials) ---
 rpassword = "7"
 
-# --- HuggingFace model download ---
-hf-hub = "0.3"
-
 # --- Progress bars (CLI download) ---
 indicatif = "0.17"
 

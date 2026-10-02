@@ -20,7 +20,9 @@
 //! ([`catalogue`]), and [`publishers`] says which HuggingFace owners are the
 //! official publishers and which are recognised converters. The same file
 //! holds the embeddings category ([`embeddings`]): models that turn a text into
-//! a vector, refused as chat engines and offered on their own.
+//! a vector, refused as chat engines and offered on their own, and the
+//! dictation category ([`dictation`]): the whisper.cpp files of the dictation
+//! engine, pinned by digest and sized by the same capacity.
 //!
 //! The division of labour with the Hub is the point. `hf_registry` is the
 //! catalogue: which repositories exist, what their files weigh, which are
@@ -31,6 +33,7 @@
 //! `families.toml` supplies the order.
 
 pub mod catalogue;
+pub mod dictation;
 pub mod embeddings;
 pub mod fit;
 pub mod llama_support;
@@ -46,6 +49,10 @@ pub mod variants;
 pub mod verdict;
 
 pub use catalogue::{SelectionFamily, SelectionVariant};
+pub use dictation::{
+    dictation_fits, dictation_footprint_gb, DictationCatalogue, DictationModel, DictationReason,
+    DictationRecommendation, DICTATION_MARGIN_GB,
+};
 pub use embeddings::{
     EmbeddingCatalogue, EmbeddingModel, EmbeddingReason, EmbeddingRecommendation, Pooling,
 };
