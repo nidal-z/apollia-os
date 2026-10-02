@@ -248,6 +248,9 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | `TaskStarted` | champs nommés |
 | `TodoUpdated` | champs nommés |
 | `VerificationCompleted` | champs nommés |
+| `WorkflowStepCompleted` | champs nommés |
+| `WorkflowStepFailed` | champs nommés |
+| `WorkflowStepStarted` | champs nommés |
 
 ### `trace-event`
 

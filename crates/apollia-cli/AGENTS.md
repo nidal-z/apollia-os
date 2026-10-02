@@ -74,6 +74,14 @@ recorded; each item is a task of its own, so `task list` shows them. The
 source is named by `--source-type` and `--source`; a type no reader serves is
 refused with exit 1, and no reader is registered yet.
 
+**`workflow`** (`run`, `status`, `logs`, `cancel`) runs a workflow of an
+installed package, named `<package>/<workflow>`, in the runtime. `run` takes
+each input as `--input key=value`, sent as text and read by the runtime as the
+type the workflow declares; a refused input is exit 1 with the field named.
+`run` returns once the run is recorded, or follows it to its end with `--wait`
+(exit 3 when it fails or is stopped). `status` reads each step of a run, `logs`
+the history of a workflow, and `cancel` stops a run behind `--confirm`.
+
 **`policy`** prepares the organisation policy on files alone (`keygen`,
 `init`, `sign`, `verify`, `show`) and never reaches the runtime: the policy is
 read by the runtime at startup, not served by it. No leaf writes into the

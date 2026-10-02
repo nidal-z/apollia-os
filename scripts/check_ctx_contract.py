@@ -124,6 +124,9 @@ BRIDGE_CLASSES_OUTSIDE_THE_CROSSING = {
     "TokenStream": "carries only __aiter__ and __anext__, both special methods",
     "StepBudgetView": "reachable only through ctx.step_budget, itself an "
     "unpublished bridge member",
+    "WorkflowServices": "the engine side of a workflow run, reached by the Python "
+    "wrappers of the workflow context (ctx.agents, ctx.workflows, the step hook) "
+    "and never by an author; those wrappers, not this class, face the protocol",
 }
 
 PROTOCOL_CLASSES_OUTSIDE_THE_CROSSING = {
@@ -141,10 +144,11 @@ PROTOCOL_CLASSES_OUTSIDE_THE_CROSSING = {
 # it, and turns stale, hence red, the day the bridge binds the service or the
 # protocol drops it. Its protocol class is set aside with it.
 SERVICES_THE_BRIDGE_DOES_NOT_BIND_YET = {
-    "agents": "drafted ahead of the runtime; bound when running an agent from a "
-    "workflow step or a tool reaches the bridge",
-    "workflows": "drafted ahead of the runtime; bound when running a workflow "
-    "as a step reaches the bridge",
+    "agents": "bound on the context of a workflow run only, by a Python wrapper "
+    "around RuntimeContext; RuntimeContext itself, the context of an agent or "
+    "a tool, does not carry it yet",
+    "workflows": "bound on the context of a workflow run only, by a Python "
+    "wrapper around RuntimeContext; RuntimeContext itself does not carry it yet",
 }
 
 SPECIAL_BRIDGE_MEMBERS = ("__repr__", "__aiter__", "__anext__", "__str__")

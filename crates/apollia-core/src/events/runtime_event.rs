@@ -1511,6 +1511,36 @@ pub enum RuntimeEvent {
         /// `true` if a heuristic repair was attempted.
         repair_attempted: bool,
     },
+
+    /// A declared step of a workflow run opened.
+    WorkflowStepStarted {
+        /// The run.
+        run_id: String,
+        /// The workflow, `<package>/<workflow>`.
+        workflow_id: String,
+        /// The step, as the workflow declares it.
+        step: String,
+    },
+    /// A step of a workflow run ended without error.
+    WorkflowStepCompleted {
+        /// The run.
+        run_id: String,
+        /// The workflow, `<package>/<workflow>`.
+        workflow_id: String,
+        /// The step.
+        step: String,
+    },
+    /// A step of a workflow run raised, or was stopped with its run.
+    WorkflowStepFailed {
+        /// The run.
+        run_id: String,
+        /// The workflow, `<package>/<workflow>`.
+        workflow_id: String,
+        /// The step.
+        step: String,
+        /// What went wrong.
+        error: String,
+    },
 }
 
 impl RuntimeEvent {

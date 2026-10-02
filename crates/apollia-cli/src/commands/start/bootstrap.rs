@@ -44,6 +44,12 @@ pub(super) fn load_start_config(
             reason: e.to_string(),
         })?;
     }
+    if let Some(workflows) = cfg.workflows.as_ref() {
+        workflows.validate().map_err(|e| StartError::Config {
+            path: path.clone(),
+            reason: e.to_string(),
+        })?;
+    }
     Ok((Some(cfg), Some(path)))
 }
 

@@ -399,6 +399,7 @@ async fn interface_agent_runs_the_package_tool_it_is_granted() {
         message: "What is 2 + 3?".into(),
         cancel: CancellationToken::new(),
         done: done_tx,
+        budget: None,
     })
     .await
     .expect("the run starts");
