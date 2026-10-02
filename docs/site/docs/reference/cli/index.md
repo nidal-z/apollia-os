@@ -403,12 +403,6 @@ Use the positional `<INPUT>` for free-text input (react/conversational agents). 
 
    Requires the runtime to support plan alternatives (ORIA engine with LLM).
 * `--plan` - Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit. Incompatible with --alternatives
-* `--allowed-tools <TOOL>` - Restrict this session to the listed tools only (comma-separated).
-
-   When specified, only the named tools can be invoked. All other tools are blocked regardless of the global configuration.
-* `--disallowed-tools <TOOL>` - Explicitly block the listed tools for this session (comma-separated).
-
-   Takes priority over `--allowed-tools` when the same tool appears in both.
 * `--autonomy <LEVEL>` - Autonomy tier for this run (default: assisted).
 
    Controls the execution budget, memory injection, and verification. Accepted values: assisted, supervised, bounded_autonomous, long_autonomous.

@@ -96,7 +96,8 @@ pub(super) struct AIPProductionBackend {
     /// `engine.execute_direct` vs `engine.execute_orchestrated_plan`
     /// routing decision in [`AIPProductionBackend::execute`].
     pub(super) manifest: AgentManifest,
-    pub(super) allowed_tools: Vec<String>,
+    /// The access list of the agent, read when each run starts.
+    pub(super) access: apollia_tools::GrantedAccess,
     pub(super) llm_router: Option<Arc<LlmRouter>>,
     pub(super) event_bus: EventBusSender,
     pub(super) pending_approvals: Option<Arc<PendingApprovals>>,
@@ -148,7 +149,7 @@ impl Clone for AIPProductionBackend {
             bridge: Arc::clone(&self.bridge),
             agent_id: self.agent_id.clone(),
             manifest: self.manifest.clone(),
-            allowed_tools: self.allowed_tools.clone(),
+            access: self.access.clone(),
             llm_router: self.llm_router.clone(),
             event_bus: self.event_bus.clone(),
             tool_registry: self.tool_registry.clone(),

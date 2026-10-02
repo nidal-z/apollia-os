@@ -79,7 +79,11 @@ impl ChatSessionManager {
                 }
             };
             let system_prompt = session.system_prompt.clone();
-            let available_tools = session.available_tools.clone();
+            // The Apollia agent is offered its granted accesses, read on every
+            // message so a change on its card applies to open conversations.
+            let available_tools =
+                super::super::apollia_agent::apollia_access(self.governance_db_path.as_deref())
+                    .unwrap_or_else(|| session.available_tools.clone());
             // Live merge: governance.db is re-read on every message so Apollia
             // Chat config changes (auto-authorized tools, agent-scoped rules)
             // apply to already-open Libre sessions without closing/reopening the
