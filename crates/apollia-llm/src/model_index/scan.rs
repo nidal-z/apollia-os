@@ -74,7 +74,8 @@ pub(super) fn assign_ids(root: &Path, models: &[FoundModel]) -> Vec<String> {
 }
 
 /// The category, the parameter label and the template capabilities a model's
-/// header declares. Vision is not decided here: it depends on the files beside
+/// header declares. A GGUF whose header carries an embeddings pooling key is an
+/// embeddings model, whatever its architecture. Vision is not decided here: it depends on the files beside
 /// the model, which [`with_usable_vision`] reads at every rebuild.
 ///
 /// A GGUF header is read to the confirm depth: the chat template sits past the
@@ -88,6 +89,8 @@ pub(super) fn read_header(model: &FoundModel) -> (ModelCategory, Option<String>,
             Ok(facts) => {
                 let category = if facts.architecture.as_deref() == Some("whisper") {
                     ModelCategory::Dictation
+                } else if crate::recommend::embeddings::admits(&facts) {
+                    ModelCategory::Embeddings
                 } else {
                     ModelCategory::Language
                 };
@@ -378,4 +381,19 @@ fn path_to_slashes(path: &Path) -> String {
         .map(|c| c.as_os_str().to_string_lossy().into_owned())
         .collect::<Vec<_>>()
         .join("/")
+}
+
+/// Whether `sha256` is the pinned file of an embeddings entry of the registry.
+pub(super) fn registry_embedding(sha256: &str) -> bool {
+    match crate::recommend::EmbeddingCatalogue::embedded() {
+        Ok(catalogue) => catalogue.by_sha256(sha256).is_some(),
+        Err(e) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %e,
+                "model.index.embeddings.table.invalid"
+            );
+            false
+        }
+    }
 }

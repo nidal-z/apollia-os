@@ -191,3 +191,24 @@ impl HfModelTypeCache {
         );
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn both_embeddings_models_stay_refused_by_the_chat_registry() {
+        // GIVEN the pipeline tags the Hub gives multilingual-e5-small and
+        // Qwen3-Embedding-0.6B
+        let tags = [Some("sentence-similarity"), Some("feature-extraction")];
+
+        for tag in tags {
+            // WHEN the chat registry reads each tag
+            let issue = compat_from_pipeline_tag(tag);
+
+            // THEN it still refuses the model as a chat model; the embeddings
+            // category takes it through its own entries, never through a search
+            assert_eq!(issue, Some(CompatIssue::EmbeddingModel), "{tag:?}");
+        }
+    }
+}
