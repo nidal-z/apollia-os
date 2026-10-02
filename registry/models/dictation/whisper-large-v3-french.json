@@ -31,6 +31,7 @@
     "bofenghuang/whisper-large-v3-french"
   ],
   "selection_files": [
-    "https://huggingface.co/bofenghuang/whisper-large-v3-french/resolve/main/ggml-model-q5_0.bin"
+    "https://huggingface.co/bofenghuang/whisper-large-v3-french/resolve/main/ggml-model-q5_0.bin",
+    "https://huggingface.co/bofenghuang/whisper-large-v3-french/resolve/main/ggml-model.bin"
   ]
 }

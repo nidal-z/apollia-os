@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "whisper-small",
+  "kind": "dictation",
+  "label": "Whisper Small",
+  "publisher": "OpenAI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/ggerganov/whisper.cpp"
+  },
+  "source_url": "https://huggingface.co/openai/whisper-small",
+  "description": {
+    "fr": "Modèle de dictée intermédiaire : plus juste que le modèle de base sur les noms et la ponctuation, encore rapide sur un poste sans carte graphique.",
+    "en": "A mid-sized dictation model: more accurate than the base model on names and punctuation, still quick on a machine without a graphics card."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/openai/whisper-small"
+  },
+  "memory": {
+    "min_gb": 0.2,
+    "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-small-q5_1.bin"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "openai/whisper-small"
+  ],
+  "selection_files": [
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin",
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin"
+  ]
+}

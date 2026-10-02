@@ -39,6 +39,10 @@ Rules, each reported with the entry it names:
       against, so an entry without one could not be verified. Its publisher is
       not held to publishers.toml: the pinned digest, not the owner, is what
       vouches for a community conversion
+    * every `[[dictation]]` entry has a unique id, a `source`, an ISO
+      `released` not later than today, a `license`, a `repo` that is
+      `owner/name`, a `.bin` `file`, a positive `size_bytes`, a `sha256` of 64
+      lowercase hexadecimal digits and a `card`, for the same reason
   publishers.toml
     * the file parses and declares `schema_version = 1`
     * both lists are non-empty, and no handle sits on both
@@ -63,6 +67,8 @@ Rules, each reported with the entry it names:
     * every variant and every `[[embedding]]` entry of families.toml has its
       card, and every model of the dictation selection of the onboarding is
       named by the `selection_files` of a dictation card
+    * every `[[dictation]]` entry names, in `card`, a dictation card whose
+      `selection_files` holds the address the entry is downloaded from
 
 Exit codes, read by `just guards`:
 
@@ -71,7 +77,7 @@ Exit codes, read by `just guards`:
   2  a file is absent, so nothing was measured
 
 `--families PATH`, `--publishers PATH` and `--registry DIR` point the guard at
-other files, which is how `--selftest` checks the guard itself against six
+other files, which is how `--selftest` checks the guard itself against eight
 faulty fixtures.
 """
 
@@ -223,6 +229,52 @@ def check_embeddings(data: dict, today: datetime.date) -> tuple[list[str], int]:
     return faults, len(entries)
 
 
+DICTATION_FIELDS = (
+    "id", "label", "publisher", "released", "license", "repo", "file",
+    "quantization", "size_bytes", "sha256", "card", "source",
+)
+
+
+def dictation_url(entry: dict) -> str:
+    """The address a `[[dictation]]` entry is downloaded from."""
+    return f"https://huggingface.co/{entry.get('repo')}/resolve/main/{entry.get('file')}"
+
+
+def check_dictation(data: dict, today: datetime.date) -> tuple[list[str], int]:
+    """Return the faults of the `[[dictation]]` entries and how many there are."""
+    faults: list[str] = []
+    entries = data.get("dictation", [])
+    seen: set[str] = set()
+    for entry in entries:
+        did = entry.get("id", "?")
+        if did in seen:
+            faults.append(f"families.toml: dictation {did} is defined twice")
+        seen.add(did)
+        for field in DICTATION_FIELDS:
+            if not entry.get(field):
+                faults.append(f"families.toml: dictation {did} has no {field}")
+        released = entry.get("released", "")
+        try:
+            date = datetime.date.fromisoformat(str(released))
+        except ValueError:
+            faults.append(f"families.toml: dictation {did} released {released!r} is not an ISO date")
+        else:
+            if date > today:
+                faults.append(f"families.toml: dictation {did} released {released} is in the future")
+        owner, _, rest = str(entry.get("repo", "")).partition("/")
+        if not owner or not rest or "/" in rest:
+            faults.append(f"families.toml: dictation {did} repo {entry.get('repo')!r} is not owner/name")
+        if not str(entry.get("file", "")).endswith(".bin"):
+            faults.append(f"families.toml: dictation {did} file is not a whisper.cpp .bin")
+        size = entry.get("size_bytes")
+        if not isinstance(size, int) or size <= 0:
+            faults.append(f"families.toml: dictation {did} size_bytes is not a positive integer")
+        digest = str(entry.get("sha256", ""))
+        if len(digest) != 64 or not set(digest) <= HEX:
+            faults.append(f"families.toml: dictation {did} sha256 is not 64 lowercase hexadecimal digits")
+    return faults, len(entries)
+
+
 EM_DASH = chr(0x2014)
 CARD_KINDS = {"language", "embeddings", "dictation"}
 AUTHOR_TYPES = {"liste", "booleen"}
@@ -351,6 +403,7 @@ def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, i
     ids: set[str] = set()
     kinds: dict[str, str] = {}
     dictation_files: set[str] = set()
+    selection_of: dict[str, set[str]] = {}
     files = sorted(registry.rglob("*.json"))
     templated = 0
     for path in files:
@@ -369,6 +422,7 @@ def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, i
         ids.add(cid)
         kinds[cid] = card.get("kind", "")
         dictation_files.update(card.get("selection_files", []))
+        selection_of[cid] = set(card.get("selection_files", []))
         if "template" in card:
             templated += 1
         faults += check_card(path, card, tools_m, reason_m)
@@ -380,6 +434,12 @@ def check_registry(registry: pathlib.Path, fam: dict) -> tuple[list[str], int, i
     for entry in fam.get("embedding", []):
         if kinds.get(entry.get("id")) != "embeddings":
             faults.append(f"registry: embeddings model {entry.get('id')} has no embeddings card")
+    for entry in fam.get("dictation", []):
+        did, card = entry.get("id"), entry.get("card")
+        if kinds.get(card) != "dictation":
+            faults.append(f"registry: dictation model {did} names {card!r}, which is no dictation card")
+        elif dictation_url(entry) not in selection_of.get(card, set()):
+            faults.append(f"registry: dictation model {did} is not among the selection_files of {card}")
     for url in dictation_selection():
         if url not in dictation_files:
             faults.append(f"registry: dictation model {url} is named by no dictation card")
@@ -410,6 +470,8 @@ def run(
     faults += fam_faults
     emb_faults, embeddings = check_embeddings(fam, today)
     faults += emb_faults
+    dict_faults, dictations = check_dictation(fam, today)
+    faults += dict_faults
     card_faults, cards, templated = check_registry(registry, fam)
     faults += card_faults
     families_count = len(fam.get("family", []))
@@ -420,7 +482,7 @@ def run(
         return 1
     print(
         f"check-model-families: ok, {families_count} families, {measured} variants, "
-        f"{embeddings} embeddings models, "
+        f"{embeddings} embeddings models, {dictations} dictation models, "
         f"{len(names)} official publishers, {len(conv)} converters, "
         f"{cards} cards ({templated} checked against a recorded template)"
     )
@@ -428,8 +490,8 @@ def run(
 
 
 def selftest() -> int:
-    """The guard answers 0 on the tree and 1 on each of six faulty fixtures:
-    three faulty tables, and three faulty cards (a missing language, an
+    """The guard answers 0 on the tree and 1 on each of eight faulty fixtures:
+    five faulty tables, and three faulty cards (a missing language, an
     em-dash, a capability the recorded template contradicts)."""
     today = datetime.date.today()
     future = (today + datetime.timedelta(days=30)).isoformat()
@@ -437,6 +499,11 @@ def selftest() -> int:
     first_source = next(line for line in tree.splitlines() if line.startswith("source = "))
     first_released = next(line for line in tree.splitlines() if line.startswith("released = "))
     first_digest = next(line for line in tree.splitlines() if line.startswith("sha256 = "))
+    first_card = next(line for line in tree.splitlines() if line.startswith("card = "))
+    dictation_part = tree[tree.index("\n[[dictation]]\n"):]
+    first_dictation_file = next(
+        line for line in dictation_part.splitlines() if line.startswith("file = ")
+    )
     faulty = {
         "a variant without source": tree.replace(first_source + "\n", "", 1),
         "a release dated in the future": tree.replace(
@@ -444,6 +511,12 @@ def selftest() -> int:
         ),
         "an embeddings entry without a full digest": tree.replace(
             first_digest, 'sha256 = "abc"', 1
+        ),
+        "a dictation entry naming no card": tree.replace(
+            first_card, 'card = "no-such-card"', 1
+        ),
+        "a dictation entry whose file is not a .bin": tree.replace(
+            first_dictation_file, 'file = "ggml-tiny.gguf"', 1
         ),
     }
     failures = 0

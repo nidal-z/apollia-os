@@ -7,8 +7,7 @@
 use crate::hardware::{CompatibilityBadge, HardwareProfile};
 use crate::hf_registry::compat::{compat_from_pipeline_tag, extract_config_facts, ConfigFacts};
 use crate::hf_registry::{
-    CompatIssue, HfFile, HfModelCard, HfModelTypeCache, HfSearchFilter, TreeEntry, HF_API_BASE,
-    HF_CDN_BASE,
+    CompatIssue, HfFile, HfModelCard, HfModelTypeCache, TreeEntry, HF_CDN_BASE,
 };
 
 /// Extract the `base_model` (org/name) from the `/api/models/{id}` response.
@@ -173,50 +172,6 @@ pub(super) async fn resolve_config_facts(
     }
     facts
 }
-/// Build the `/api/models` search URL from the query and filters.
-pub(super) fn build_search_url(query: &str, filter: &HfSearchFilter) -> String {
-    let sort = filter.sort.as_deref().unwrap_or("downloads");
-    let tag = filter.filter.as_deref().unwrap_or("gguf");
-    let limit = filter.limit.unwrap_or(50);
-
-    let mut u = format!("{HF_API_BASE}/models?filter={tag}&sort={sort}&limit={limit}&full=false");
-    if !query.is_empty() {
-        // URL-encode the query to handle spaces and special chars.
-        let encoded: String = query
-            .chars()
-            .flat_map(|c| {
-                if c.is_alphanumeric() || matches!(c, '-' | '_' | '.') {
-                    vec![c]
-                } else {
-                    format!("%{:02X}", c as u32).chars().collect::<Vec<_>>()
-                }
-            })
-            .collect();
-        u.push_str(&format!("&search={encoded}"));
-    }
-    if let Some(pt) = filter.pipeline_tag.as_deref() {
-        u.push_str(&format!("&pipeline_tag={pt}"));
-    }
-    if let Some(lang) = filter.language.as_deref() {
-        u.push_str(&format!("&language={lang}"));
-    }
-    u
-}
-/// Extract the `rel="next"` URL from HuggingFace's HTTP `Link` header.
-///
-/// Format: `Link: <https://huggingface.co/api/models?...>; rel="next", <...>; rel="first"`
-pub(super) fn parse_next_link(headers: &reqwest::header::HeaderMap) -> Option<String> {
-    let link = headers.get("Link")?.to_str().ok()?;
-    for part in link.split(',') {
-        let part = part.trim();
-        if part.contains(r#"rel="next""#) {
-            if let (Some(start), Some(end)) = (part.find('<'), part.find('>')) {
-                return Some(part[start + 1..end].to_string());
-            }
-        }
-    }
-    None
-}
 /// Extract the basic metadata of a model from the HF JSON response.
 /// Does NOT include file sizes (available only via the tree API).
 pub(super) fn parse_model_list_item(
@@ -230,6 +185,7 @@ pub(super) fn parse_model_list_item(
     let author = json["author"].as_str().map(String::from);
     let downloads = json["downloads"].as_u64().unwrap_or(0);
     let likes = json["likes"].as_u64().unwrap_or(0);
+    let last_modified = json["lastModified"].as_str().map(String::from);
     let gated = json["gated"].as_bool().unwrap_or(false);
     let tags: Vec<String> = json["tags"]
         .as_array()
@@ -298,6 +254,7 @@ pub(super) fn parse_model_list_item(
         publisher_kind,
         downloads,
         likes,
+        last_modified,
         license,
         tags,
         gated,

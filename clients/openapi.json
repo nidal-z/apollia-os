@@ -2754,6 +2754,50 @@
         }
       }
     },
+    "/api/v1/llm/dictation": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/dictation?language_model_bytes=...`",
+        "operationId": "list_dictation_models",
+        "parameters": [
+          {
+            "name": "language_model_bytes",
+            "in": "query",
+            "description": "Size of the language model to fit beside; the largest installed one when absent",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dictation models, whether each fits, and the one recommended for this machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictationModelsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The shipped registry table is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/embeddings": {
       "get": {
         "tags": [
@@ -3518,13 +3562,23 @@
         "tags": [
           "model_hub"
         ],
-        "summary": "`GET /api/v1/llm/registry/search?q=...&limit=...&sort=...`",
+        "summary": "`GET /api/v1/llm/registry/search?q=...&format=...&sort=...&fits_only=...`",
+        "description": "Asks each organisation of the two publisher lists, by its `author=`, and\nnothing else. Answers `503` with `search is unavailable offline` when no\norganisation can be reached, never an empty list.",
         "operationId": "search_registry",
         "parameters": [
           {
             "name": "q",
             "in": "query",
-            "description": "Search query",
+            "description": "Words of a model name, searched within the official publishers and the recognised converters only",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "gguf (default) or mlx; mlx only on Apple Silicon",
             "required": false,
             "schema": {
               "type": "string"
@@ -3544,10 +3598,19 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "Sort key",
+            "description": "best_match (default), likes, downloads or updated",
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "fits_only",
+            "in": "query",
+            "description": "Keep only the results with a variant recommended for this machine",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -3562,10 +3625,30 @@
         ],
         "responses": {
           "200": {
-            "description": "Matching GGUF models (HuggingFace model cards)"
+            "description": "Results with their generated cards, and the estimated capacity of this machine"
+          },
+          "400": {
+            "description": "Unknown sort, or MLX asked off Apple Silicon",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
           },
           "502": {
             "description": "Upstream HuggingFace error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Search unavailable offline",
             "content": {
               "application/json": {
                 "schema": {
@@ -9592,6 +9675,52 @@
           "deleted": {
             "type": "string",
             "description": "The key removed."
+          }
+        }
+      },
+      "DictationModelsResponse": {
+        "type": "object",
+        "description": "The dictation category of the registry, and the entry for this machine.",
+        "required": [
+          "models",
+          "hardware"
+        ],
+        "properties": {
+          "hardware": {
+            "$ref": "#/components/schemas/HardwareResponse",
+            "description": "The machine the recommendation was made for."
+          },
+          "language_model": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CountedLanguageModel",
+                "description": "The language model counted; absent when none was."
+              }
+            ]
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Every entry of the category, with its footprint and whether it fits."
+          },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Why: `fits_beside` or `no_room_beside`, with the footprints compared,\nin gibibytes."
+          },
+          "recommended": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the entry recommended for this machine."
           }
         }
       },

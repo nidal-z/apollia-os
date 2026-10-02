@@ -164,7 +164,7 @@ fn the_index_built_from_the_registry_holds_with_its_test_key() {
 #[test]
 fn every_entry_of_the_selection_has_its_card_in_the_index() {
     // GIVEN the signed index built from the repository, the embedded model
-    // table and the embedded embeddings catalogue
+    // table and the embedded embeddings and dictation catalogues
     let index = verify_index(
         REGISTRY_INDEX.as_bytes(),
         REGISTRY_SIGNATURE,
@@ -191,9 +191,16 @@ fn every_entry_of_the_selection_has_its_card_in_the_index() {
         }
     }
 
-    // THEN none is missing, and dictation has cards of its own
+    let dictation = crate::recommend::DictationCatalogue::embedded().expect("dictation");
+    for model in dictation.models() {
+        if index.card(&model.card).map(|c| c.kind) != Some(CardKind::Dictation) {
+            missing.push(model.id.clone());
+        }
+    }
+
+    // THEN none is missing, dictation entries included
     assert!(missing.is_empty(), "entries without a card: {missing:?}");
-    assert!(index.cards.iter().any(|c| c.kind == CardKind::Dictation));
+    assert!(!dictation.models().is_empty());
 }
 
 #[test]
