@@ -23,6 +23,8 @@ examples = ["Which invoices are late?", "Draft a reminder for ACME."]
 access = ["file_read", "mcp:ledger/lookup", "pkg:invoices/extract_totals"]
 # "profile" lets the agent read the user profile.
 sources = ["profile"]
+# Autonomy tier: assisted, supervised, bounded_autonomous or long_autonomous.
+autonomy = "supervised"
 
 [agents.defaults.model]
 model = "qwen3-8b-instruct"

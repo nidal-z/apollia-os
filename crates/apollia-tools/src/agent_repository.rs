@@ -398,6 +398,7 @@ mod tests {
     /// Creates a test [`AgentManifest`] with default values.
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {
+            autonomy_level: None,
             format_version: 1,
             name: name.to_string(),
             version: "1.0.0".to_string(),

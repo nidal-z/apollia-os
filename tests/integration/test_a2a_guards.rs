@@ -77,6 +77,7 @@ fn make_skill(id: &str) -> AgentSkill {
 /// Builds an A2A Worker Agent manifest declaring the given skills.
 fn make_worker_manifest(name: &str, skill_ids: &[&str]) -> AgentManifest {
     AgentManifest {
+        autonomy_level: None,
         format_version: 1,
         name: name.to_string(),
         version: "0.1.0".to_string(),

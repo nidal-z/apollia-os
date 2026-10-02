@@ -20,6 +20,7 @@ mod tests;
 
 use std::collections::BTreeMap;
 
+use apollia_core::AutonomyLevel;
 use serde::{Deserialize, Serialize};
 
 pub use validate::is_valid_identifier;
@@ -185,6 +186,11 @@ pub struct AgentDefaults {
     /// the user's preset).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelDefaultsDecl>,
+    /// Autonomy tier the package recommends: the budget, the verification and
+    /// the critic the agent runs with. The user may override it; when neither
+    /// says anything, the global default applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub autonomy: Option<AutonomyLevel>,
 }
 
 /// `[agents.defaults.model]`: the shape the SDK manifest carries too, so a

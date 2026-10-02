@@ -377,6 +377,7 @@ mod tests {
 
     fn simple_manifest() -> AgentManifest {
         AgentManifest {
+            autonomy_level: None,
             format_version: 1,
             name: "simple-agent".into(),
             version: "1.0.0".into(),
@@ -421,6 +422,7 @@ mod tests {
 
     fn complex_manifest() -> AgentManifest {
         AgentManifest {
+            autonomy_level: None,
             format_version: 1,
             name: "complex-agent".into(),
             version: "1.0.0".into(),

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::budget::StepBudgetConfig;
+use crate::config::AutonomyLevel;
 
 mod model_defaults;
 
@@ -150,6 +151,11 @@ pub struct AgentManifest {
     /// below the preset the user chose for the agent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<AgentModelDefaults>,
+    /// Autonomy tier the agent declares (`@agent(autonomy_level=...)` in the
+    /// SDK, `[agents.defaults] autonomy` in `apollia.toml`). The user may
+    /// override it; when neither says anything, the global default applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub autonomy_level: Option<AutonomyLevel>,
     /// pip packages to install in this agent's Python venv.
     ///
     /// Standard pip syntax: `"openpyxl>=3.1.0"`, `"pandas==2.1.4"`, `"requests"`.
@@ -325,6 +331,7 @@ mod tests {
     fn test_agent_manifest_serialization() {
         // GIVEN
         let manifest = AgentManifest {
+            autonomy_level: None,
             format_version: default_format_version(),
             name: "devis-agent".into(),
             version: "1.0.0".into(),
@@ -372,6 +379,7 @@ mod tests {
     fn test_manifest_optional_defaults() {
         // GIVEN / WHEN
         let manifest = AgentManifest {
+            autonomy_level: None,
             format_version: default_format_version(),
             name: "agent".into(),
             version: "1.0.0".into(),
@@ -573,6 +581,7 @@ mod tests {
     fn test_tools_requiring_approval_roundtrip() {
         // GIVEN an AgentManifest with tools_requiring_approval
         let manifest = AgentManifest {
+            autonomy_level: None,
             format_version: default_format_version(),
             name: "roundtrip-agent".into(),
             version: "1.0.0".into(),
@@ -749,5 +758,46 @@ mod tests {
                 "cargo clippy".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn the_declared_autonomy_level_is_read_from_the_manifest() {
+        // GIVEN a manifest the SDK built with `@agent(autonomy_level="supervised")`
+        let json = serde_json::json!({
+            "name": "notes",
+            "version": "1.0.0",
+            "description": "test",
+            "tools_required": [],
+            "autonomy_level": "supervised"
+        });
+
+        // WHEN it is deserialized
+        let manifest: AgentManifest = serde_json::from_value(json).expect("deserialize");
+
+        // THEN the tier is the declared one, and a manifest without it reads none
+        assert_eq!(manifest.autonomy_level, Some(AutonomyLevel::Supervised));
+        let bare: AgentManifest = serde_json::from_value(serde_json::json!({
+            "name": "notes", "version": "1.0.0", "description": "test", "tools_required": []
+        }))
+        .expect("deserialize");
+        assert_eq!(bare.autonomy_level, None);
+    }
+
+    #[test]
+    fn an_unknown_autonomy_level_is_refused() {
+        // GIVEN a manifest declaring a tier that does not exist
+        let json = serde_json::json!({
+            "name": "notes",
+            "version": "1.0.0",
+            "description": "test",
+            "tools_required": [],
+            "autonomy_level": "unbounded"
+        });
+
+        // WHEN it is deserialized
+        let result = serde_json::from_value::<AgentManifest>(json);
+
+        // THEN it is refused rather than read at another tier
+        assert!(result.is_err());
     }
 }

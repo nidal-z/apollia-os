@@ -17,6 +17,7 @@ fn trust_banner_states_the_in_process_model() {
 
 fn test_manifest(name: &str) -> AgentManifest {
     AgentManifest {
+        autonomy_level: None,
         format_version: 1,
         name: name.to_string(),
         version: "0.1.0".to_string(),

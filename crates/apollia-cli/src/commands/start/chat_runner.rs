@@ -448,6 +448,7 @@ mod tests {
     /// runner reads out of a validated agent.
     fn manifest_with_budget(step_budget: Option<StepBudgetConfig>) -> AgentManifest {
         AgentManifest {
+            autonomy_level: None,
             format_version: 1,
             name: "budget-fixture".to_string(),
             version: "0.1.0".to_string(),

@@ -609,6 +609,7 @@ mod tests {
         AgentEntry {
             id: AgentId::new_v4(),
             manifest: AgentManifest {
+                autonomy_level: None,
                 format_version: 1,
                 name: name.to_string(),
                 version: "0.1.0".to_string(),

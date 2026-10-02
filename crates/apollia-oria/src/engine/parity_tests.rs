@@ -96,6 +96,7 @@ impl AIPAgent for OrchestratedAgent {
 
 fn orchestrated_manifest() -> AgentManifest {
     AgentManifest {
+        autonomy_level: None,
         format_version: 1,
         name: "parity-agent".into(),
         version: "1.0.0".into(),
