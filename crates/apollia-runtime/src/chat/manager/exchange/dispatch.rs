@@ -83,7 +83,9 @@ impl ChatSessionManager {
             // message so a change on its card applies to open conversations.
             let available_tools =
                 super::super::apollia_agent::apollia_access(self.governance_db_path.as_deref())
-                    .unwrap_or_else(|| session.available_tools.clone());
+                    .unwrap_or_else(|| {
+                        apollia_tools::AgentAccess::Listed(session.available_tools.clone())
+                    });
             // Live merge: governance.db is re-read on every message so Apollia
             // Chat config changes (auto-authorized tools, agent-scoped rules)
             // apply to already-open Libre sessions without closing/reopening the

@@ -30,6 +30,7 @@ mod agent_overrides;
 pub mod agent_repository;
 pub(crate) mod agents_db;
 pub mod audit;
+pub mod default_access;
 pub mod descriptor;
 pub mod dispatcher_invoker;
 pub mod executor;
@@ -58,6 +59,7 @@ pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent
 pub use audit::{
     compute_input_hash, AuditStats, AuditTrailError, AuditTrailHandle, ToolInvocationRecord,
 };
+pub use default_access::{reading_family, reads_by_default, with_default_access, AgentAccess};
 pub use descriptor::{
     ActionFamily, ApprovalRiskLevel, FamilySource, McpTransport, ToolDescriptor,
     ToolDescriptorError, ToolKind,

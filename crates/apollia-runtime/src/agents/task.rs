@@ -138,6 +138,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 task_id: task_id.to_string(),
                 run_id,
                 spec: AgentRunSpec::from_resolved(agent),
+                access: apollia_tools::AgentAccess::of(agent),
                 message,
                 cancel,
                 done: done_tx,

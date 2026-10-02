@@ -25,6 +25,9 @@ pub struct AgentTaskRun {
     pub run_id: RunId,
     /// The agent as resolved.
     pub spec: AgentRunSpec,
+    /// The access of the agent; when the run starts it becomes the granted
+    /// tools of `spec`, the reading family read from the registry then.
+    pub access: apollia_tools::AgentAccess,
     /// The request.
     pub message: String,
     /// Stops the run at its next checkpoint, and refuses the approvals it
@@ -146,10 +149,12 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         task_id,
         run_id,
         mut spec,
+        access,
         message,
         cancel,
         done,
     } = run;
+    spec.granted_tools = access.tools(&wiring.tool_registry).await;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
         (LoadingMode::Deferred, Some(handle)) => handle.get_tool_index().await,
         _ => Vec::new(),
