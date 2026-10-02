@@ -13,6 +13,7 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
+mod declarative;
 mod pause;
 /// The task list an operator reads, history included.
 pub mod summaries;
@@ -65,6 +66,21 @@ pub struct TaskResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<Object>)]
     pub token_budget: Option<TokenBudget>,
+}
+
+impl TaskResponse {
+    /// The answer to an accepted submission.
+    fn submitted(task_id: TaskId) -> Self {
+        Self {
+            task_id: task_id.to_string(),
+            status: "submitted".into(),
+            run_id: None,
+            result: None,
+            error: None,
+            error_code: None,
+            token_budget: None,
+        }
+    }
 }
 
 /// Standard error response body.
@@ -246,7 +262,9 @@ pub async fn list_tasks<B: ExecutionBackend + Clone>(
 
 /// Handler for `POST /api/v1/tasks`.
 ///
-/// Submits a new task to the specified agent via the TaskRouter.
+/// Submits a new task to the specified agent via the TaskRouter. A stored
+/// agent that runs no code is run by the agent executor on the message the
+/// input carries, outside any conversation.
 /// Returns 202 Accepted with the generated task_id on success.
 #[utoipa::path(
     post,
@@ -263,6 +281,10 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<SubmitTaskRequest>,
 ) -> Result<(StatusCode, Json<TaskResponse>), (StatusCode, Json<ErrorResponse>)> {
+    if let Some(agent) = declarative::stored_agent_without_code(&state, &req.agent_id)? {
+        let task_id = declarative::launch(&state, &agent, req.input).await?;
+        return Ok((StatusCode::ACCEPTED, Json(TaskResponse::submitted(task_id))));
+    }
     let input = json_to_aip_input(req.input);
 
     let task_id = state
@@ -271,18 +293,7 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
         .await
         .map_err(submit_error_to_response)?;
 
-    Ok((
-        StatusCode::ACCEPTED,
-        Json(TaskResponse {
-            task_id: task_id.to_string(),
-            status: "submitted".into(),
-            run_id: None,
-            result: None,
-            error: None,
-            error_code: None,
-            token_budget: None,
-        }),
-    ))
+    Ok((StatusCode::ACCEPTED, Json(TaskResponse::submitted(task_id))))
 }
 
 /// Handler for `GET /api/v1/tasks/{id}`.

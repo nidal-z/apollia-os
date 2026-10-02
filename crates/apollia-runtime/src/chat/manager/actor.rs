@@ -156,6 +156,9 @@ impl ChatSessionManager {
                     };
                     let _ = reply.send(result);
                 }
+                ChatCommand::RunAgentTask { run, reply } => {
+                    let _ = reply.send(self.handle_run_agent_task(run));
+                }
                 ChatCommand::PauseSession { session_id, reply } => {
                     let result = self.handle_pause_session(&session_id);
                     let _ = reply.send(result);

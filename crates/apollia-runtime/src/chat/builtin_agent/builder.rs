@@ -26,7 +26,21 @@ impl BuiltInChatAgent {
             prefix_checker: None,
             preferred_backend: None,
             agent_id: crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_string(),
+            approval_timeout: Some(CHAT_APPROVAL_TIMEOUT),
         }
+    }
+
+    /// Set the delay after which a pending tool approval is refused. `None`
+    /// waits for the human however long it takes.
+    pub fn with_approval_timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.approval_timeout = timeout;
+        self
+    }
+
+    /// The delay after which a pending tool approval is refused.
+    #[cfg(test)]
+    pub(crate) fn approval_timeout(&self) -> Option<Duration> {
+        self.approval_timeout
     }
 
     /// Name the agent this loop runs for. Its model is resolved, and a

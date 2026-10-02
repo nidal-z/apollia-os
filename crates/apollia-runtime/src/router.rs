@@ -12,6 +12,9 @@ use crate::coordinator::{CancellationToken, ExecutionBackend, ExecutionCoordinat
 use crate::eventbus::EventBusSender;
 use crate::registry::AgentRegistryHandle;
 
+mod external;
+pub use external::TrackedRun;
+
 /// Task submission errors.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -86,6 +89,11 @@ enum RouterMessage<B: ExecutionBackend> {
     /// The execution of a task has ended, whatever the outcome. Sent by the
     /// watcher that holds the task's `JoinHandle`.
     ExecutionEnded { task_id: TaskId },
+    /// Follow a task run outside the coordinators, as one submitted here.
+    Track {
+        run: external::TrackedRun,
+        reply: oneshot::Sender<()>,
+    },
     /// Return the IDs of active tasks (Working or Submitted).
     GetActiveTasks { reply: oneshot::Sender<Vec<TaskId>> },
     /// Return all known tasks with their agent_id and status.
@@ -172,6 +180,10 @@ impl<B: ExecutionBackend> TaskRouter<B> {
                         }
                         RouterMessage::ExecutionEnded { task_id } => {
                             self.handle_execution_ended(task_id);
+                        }
+                        RouterMessage::Track { run, reply } => {
+                            self.handle_track(run);
+                            let _ = reply.send(());
                         }
                         RouterMessage::GetActiveTasks { reply } => {
                             let active: Vec<TaskId> = self
