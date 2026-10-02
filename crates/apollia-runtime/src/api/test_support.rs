@@ -62,6 +62,7 @@ impl AgentLoader for StemLoader {
 /// A manifest with every optional part empty.
 pub(crate) fn manifest(name: &str) -> AgentManifest {
     AgentManifest {
+        autonomy_level: None,
         format_version: 1,
         name: name.to_owned(),
         version: "1.0.0".to_owned(),

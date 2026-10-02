@@ -56,19 +56,17 @@ pub struct AgentRunSpec {
 }
 
 impl AgentRunSpec {
-    /// Read a resolved agent: its mission, its granted tools, its model.
-    ///
-    /// The resolved agent carries no autonomy tier of its own, so the caller
-    /// passes the one the run is held to.
+    /// Read a resolved agent: its mission, its granted tools, its model, its
+    /// autonomy tier.
     // TEST-ONLY: no agent runs outside a conversation yet, and the one agent
     // that runs in it, Apollia, still reads its spec from the session.
-    pub fn from_resolved(agent: &ResolvedAgent, autonomy: AutonomyLevel) -> Self {
+    pub fn from_resolved(agent: &ResolvedAgent) -> Self {
         Self {
             agent_id: agent.id.clone(),
             mission: agent.mission.clone(),
             granted_tools: agent.access.clone(),
             model: agent.model.as_ref().map(|m| m.model_id.clone()),
-            autonomy,
+            autonomy: agent.autonomy,
         }
     }
 

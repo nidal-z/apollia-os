@@ -155,6 +155,35 @@ fn test_parse_action_family_outside_the_five_is_refused() {
 }
 
 #[test]
+fn test_parse_autonomy_outside_the_four_tiers_is_refused() {
+    // GIVEN an agent whose default tier does not exist
+    let text = COMPLETE.replace("autonomy = \"supervised\"", "autonomy = \"unbounded\"");
+
+    // WHEN it is parsed
+    let err = parse(&text);
+
+    // THEN it is refused at the agent's default tier
+    assert!(
+        matches!(&err, Err(ApolliaManifestError::Schema { path, .. }) if path == "agents[0].defaults.autonomy"),
+        "{err:?}"
+    );
+}
+
+#[test]
+fn test_agent_defaults_carry_the_declared_autonomy() {
+    // GIVEN the complete fixture, which declares a supervised agent
+
+    // WHEN it is read
+    let m = complete();
+
+    // THEN the agent's default tier is the declared one
+    assert_eq!(
+        m.agents[0].defaults.autonomy,
+        Some(apollia_core::AutonomyLevel::Supervised)
+    );
+}
+
+#[test]
 fn test_action_family_sensitive_is_every_family_but_read() {
     // GIVEN the five families
     let all = [

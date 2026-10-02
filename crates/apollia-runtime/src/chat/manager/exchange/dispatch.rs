@@ -93,10 +93,13 @@ impl ChatSessionManager {
             );
             let pending_approvals = self.pending_chat_approvals.clone();
 
-            // The tier of the Apollia agent. The executor builds the budget
-            // from it, capped by `runtime_budget` (principle #7), and the
-            // verification loop and critic when the tier asks for them.
-            let autonomy_level = AutonomyConfig::default().default_level;
+            // The tier of the Apollia agent. It is not a stored agent, so
+            // neither a definition nor an override names its tier and it runs
+            // at the global default, as any agent that names none. The
+            // executor builds the budget from it, capped by `runtime_budget`
+            // (principle #7), and the verification loop and critic when the
+            // tier asks for them.
+            let autonomy_level = crate::agents::global_default_autonomy();
             let sid = session_id.to_string();
             let mid = message_id.clone();
             let user_msg = content.to_string();

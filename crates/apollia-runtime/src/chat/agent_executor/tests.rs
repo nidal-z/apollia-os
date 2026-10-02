@@ -110,9 +110,9 @@ fn two_backend_router() -> (Arc<LlmRouter>, Arc<AtomicU32>, Arc<AtomicU32>) {
     )
 }
 
-/// An installed agent, with a user override of its mission, and the model
-/// `model_id` assigned to it.
-fn resolved_agent(model_id: &str) -> ResolvedAgent {
+/// An installed agent declaring the tier `declared`, with a user override of
+/// its mission, and the model `model_id` assigned to it.
+fn resolved_agent(model_id: &str, declared: AutonomyLevel) -> ResolvedAgent {
     let stored = StoredAgent {
         name: "ledger-clerk".into(),
         origin: AgentOrigin::Package,
@@ -122,7 +122,10 @@ fn resolved_agent(model_id: &str) -> ResolvedAgent {
             "id": "ledger-clerk",
             "name": "Ledger clerk",
             "mission": "Reconcile the ledger.",
-            "defaults": { "access": ["file_read", "file_list"] }
+            "defaults": {
+                "access": ["file_read", "file_list"],
+                "autonomy": declared.as_str()
+            }
         }),
         enabled: true,
         installed_at: "2026-10-01T00:00:00Z".into(),
@@ -138,7 +141,7 @@ fn resolved_agent(model_id: &str) -> ResolvedAgent {
         model_id: model_id.into(),
         preset_id: None,
     };
-    resolve_agent(&stored, &overrides, Some(model))
+    resolve_agent(&stored, &overrides, Some(model), AutonomyLevel::Assisted)
 }
 
 fn deps(router: Arc<LlmRouter>, bus: EventBusSender) -> AgentExecutorDeps {
@@ -183,16 +186,17 @@ fn ceiling() -> StepBudgetConfig {
 
 // GIVEN an installed agent whose mission is overridden, with granted tools
 //       and an assigned model
-// WHEN the run spec is read from it at the bounded autonomous tier
+// WHEN the run spec is read from it, the agent declaring the bounded
+//      autonomous tier
 // THEN the spec carries the overridden mission, the granted tools, the model
 //      and the tier, under the agent's identifier
 #[test]
 fn test_spec_reads_the_resolved_agent() {
     // GIVEN
-    let agent = resolved_agent("assigned");
+    let agent = resolved_agent("assigned", AutonomyLevel::BoundedAutonomous);
 
     // WHEN
-    let spec = AgentRunSpec::from_resolved(&agent, AutonomyLevel::BoundedAutonomous);
+    let spec = AgentRunSpec::from_resolved(&agent);
 
     // THEN
     assert_eq!(spec.agent_id, "ledger-clerk");
@@ -203,7 +207,7 @@ fn test_spec_reads_the_resolved_agent() {
     assert!(!spec.is_apollia());
 }
 
-// GIVEN a resolved agent run at the long autonomous tier, under a runtime
+// GIVEN a resolved agent declaring the long autonomous tier, under a runtime
 //       ceiling below the tier's budget
 // WHEN its executor is built
 // THEN the tier settings are those of the tier, the budget is capped by the
@@ -214,7 +218,7 @@ async fn test_executor_reads_the_autonomy_of_the_agent() {
     let (router, _, _) = two_backend_router();
     let (bus, _) = tokio::sync::broadcast::channel(16);
     let spec =
-        AgentRunSpec::from_resolved(&resolved_agent("assigned"), AutonomyLevel::LongAutonomous);
+        AgentRunSpec::from_resolved(&resolved_agent("assigned", AutonomyLevel::LongAutonomous));
 
     // WHEN
     let executor = AgentExecutor::new(
@@ -245,7 +249,7 @@ async fn test_executor_reads_the_autonomy_of_the_agent() {
     assert!(executor.verifies());
 }
 
-// GIVEN the same agent at the assisted tier
+// GIVEN the same agent declaring the assisted tier
 // WHEN its executor is built
 // THEN the run carries no verification and no critic
 #[tokio::test]
@@ -253,7 +257,7 @@ async fn test_executor_at_the_assisted_tier_does_not_verify() {
     // GIVEN
     let (router, _, _) = two_backend_router();
     let (bus, _) = tokio::sync::broadcast::channel(16);
-    let spec = AgentRunSpec::from_resolved(&resolved_agent("assigned"), AutonomyLevel::Assisted);
+    let spec = AgentRunSpec::from_resolved(&resolved_agent("assigned", AutonomyLevel::Assisted));
 
     // WHEN
     let executor = AgentExecutor::new(
@@ -278,7 +282,7 @@ async fn test_executor_routes_to_the_model_of_the_agent() {
     // GIVEN
     let (router, default_streams, assigned_streams) = two_backend_router();
     let (bus, _) = tokio::sync::broadcast::channel(16);
-    let spec = AgentRunSpec::from_resolved(&resolved_agent("assigned"), AutonomyLevel::Assisted);
+    let spec = AgentRunSpec::from_resolved(&resolved_agent("assigned", AutonomyLevel::Assisted));
     let executor = AgentExecutor::new(
         spec,
         deps(router, bus),
@@ -318,7 +322,7 @@ async fn test_executor_fallback_names_the_agent() {
     // GIVEN
     let (router, default_streams, _) = two_backend_router();
     let (bus, mut events) = tokio::sync::broadcast::channel(16);
-    let spec = AgentRunSpec::from_resolved(&resolved_agent("absent"), AutonomyLevel::Assisted);
+    let spec = AgentRunSpec::from_resolved(&resolved_agent("absent", AutonomyLevel::Assisted));
     let executor = AgentExecutor::new(
         spec,
         deps(router, bus),
@@ -367,7 +371,7 @@ async fn test_other_agent_receives_none_of_the_apollia_injections() {
     let (bus, _) = tokio::sync::broadcast::channel(16);
     let project_calls = Arc::new(AtomicU32::new(0));
     let spec =
-        AgentRunSpec::from_resolved(&resolved_agent("assigned"), AutonomyLevel::LongAutonomous);
+        AgentRunSpec::from_resolved(&resolved_agent("assigned", AutonomyLevel::LongAutonomous));
 
     // WHEN
     let executor = AgentExecutor::new(
@@ -433,4 +437,42 @@ async fn test_apollia_receives_the_three_injections() {
     );
     assert_eq!(project_calls.load(Ordering::SeqCst), 1);
     assert!(composed.contains("User Persona"), "{composed}");
+}
+
+// GIVEN an agent declaring the supervised tier, overridden by the user to the
+//       long autonomous one, and an agent that declares no tier
+// WHEN their run specs are read under the global default
+// THEN the first runs at the user's tier, the second at the global default
+#[test]
+fn test_spec_reads_the_overridden_tier_then_the_global_default() {
+    // GIVEN
+    let mut overridden = StoredAgent {
+        name: "ledger-clerk".into(),
+        origin: AgentOrigin::Package,
+        package: Some("ledger".into()),
+        version: "1.0.0".into(),
+        definition: json!({
+            "id": "ledger-clerk",
+            "mission": "Reconcile the ledger.",
+            "defaults": { "autonomy": "supervised" }
+        }),
+        enabled: true,
+        installed_at: "2026-10-01T00:00:00Z".into(),
+        updated_at: "2026-10-01T00:00:00Z".into(),
+    };
+    let user_tier = [AgentOverride {
+        field: OverrideField::Autonomy,
+        value: json!("long_autonomous"),
+    }];
+    let global = crate::agents::global_default_autonomy();
+
+    // WHEN
+    let from_override =
+        AgentRunSpec::from_resolved(&resolve_agent(&overridden, &user_tier, None, global));
+    overridden.definition = json!({ "id": "ledger-clerk", "defaults": {} });
+    let from_default = AgentRunSpec::from_resolved(&resolve_agent(&overridden, &[], None, global));
+
+    // THEN
+    assert_eq!(from_override.autonomy, AutonomyLevel::LongAutonomous);
+    assert_eq!(from_default.autonomy, global);
 }

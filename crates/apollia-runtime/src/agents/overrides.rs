@@ -134,7 +134,7 @@ impl OverrideWriter<'_> {
 }
 
 fn access_of(repo: &AgentRepository, agent: &str) -> Result<Vec<String>, AgentRepositoryError> {
-    repo.resolved(agent, None)?
+    repo.resolved(agent, None, super::global_default_autonomy())?
         .map(|resolved: ResolvedAgent| resolved.access)
         .ok_or_else(|| AgentRepositoryError::NotFound(agent.to_owned()))
 }

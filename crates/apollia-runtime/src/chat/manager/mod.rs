@@ -18,7 +18,7 @@ use tracing::{debug, error, info, warn};
 
 use apollia_core::plan::{Plan, PlanMutation};
 use apollia_core::todo::TodoItem;
-use apollia_core::{AutonomyConfig, AutonomyLevel, RunId, RuntimeEvent, StepBudgetConfig};
+use apollia_core::{AutonomyLevel, RunId, RuntimeEvent, StepBudgetConfig};
 use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_mcp::session::LoadingMode;
 use apollia_mcp::tool_search::{ToolIndexSnapshot, ToolSearchExecutor};
