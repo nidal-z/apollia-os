@@ -71,6 +71,11 @@ impl WorkflowActor {
                     };
                     let _ = reply.send(descriptor);
                 }
+                WorkflowCommand::Catalogue { reply } => {
+                    let mut workflows = self.host.as_ref().map(|h| h.list()).unwrap_or_default();
+                    workflows.sort_by(|a, b| a.id.cmp(&b.id));
+                    let _ = reply.send(workflows);
+                }
                 WorkflowCommand::Ended { run_id, row } => {
                     self.running.remove(&run_id);
                     for waiter in self.stopping.remove(&run_id).unwrap_or_default() {

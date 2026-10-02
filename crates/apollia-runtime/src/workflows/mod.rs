@@ -67,6 +67,8 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub struct WorkflowDescriptor {
     /// `<package>/<workflow>`.
     pub id: String,
+    /// The version of the package that declares it.
+    pub version: String,
     /// What the workflow does.
     pub description: String,
     /// The declared steps, in order.
@@ -113,6 +115,9 @@ pub trait WorkflowHost: Send + Sync {
     /// The workflow `workflow_id`, `<package>/<workflow>`, when an installed
     /// package declares it.
     fn describe(&self, workflow_id: &str) -> Option<WorkflowDescriptor>;
+
+    /// Every workflow the installed packages declare, by identifier.
+    fn list(&self) -> Vec<WorkflowDescriptor>;
 
     /// Run `call` to its end and return what the workflow returned, or why
     /// it failed.
@@ -235,6 +240,9 @@ pub(crate) enum WorkflowCommand {
     Cancel {
         run_id: String,
         reply: oneshot::Sender<Result<WorkflowRunRow, WorkflowError>>,
+    },
+    Catalogue {
+        reply: oneshot::Sender<Vec<WorkflowDescriptor>>,
     },
     Ended {
         run_id: String,
@@ -384,6 +392,21 @@ impl WorkflowHandle {
                 end.row.error.unwrap_or_default()
             )),
         }
+    }
+
+    /// Every workflow that can be launched, by identifier; none while the
+    /// package host is not attached.
+    ///
+    /// # Errors
+    ///
+    /// [`WorkflowError::Stopped`].
+    pub async fn catalogue(&self) -> Result<Vec<WorkflowDescriptor>, WorkflowError> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(WorkflowCommand::Catalogue { reply })
+            .await
+            .map_err(|_| WorkflowError::Stopped)?;
+        rx.await.map_err(|_| WorkflowError::Stopped)
     }
 
     /// Stops a running run and returns it once it has ended.

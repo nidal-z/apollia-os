@@ -130,10 +130,7 @@ async fn unregister_runtime_agents(
 ) {
     for agent_name in names_to_unregister {
         if let Ok(Some(agent_id)) = runtime.registry_handle.find_by_name(agent_name).await {
-            let _ = runtime
-                .router_handle
-                .unregister_coordinator(&agent_id)
-                .await;
+            let _ = runtime.router_handle.forget_coordinator(&agent_id).await;
             let _ = runtime.registry_handle.unregister(agent_id.as_str()).await;
         }
         let _ = event_bus.send(RuntimeEvent::AgentUninstalled {

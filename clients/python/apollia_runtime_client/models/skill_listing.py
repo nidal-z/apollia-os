@@ -28,6 +28,9 @@ class SkillListing:
             skill_name (str): Human-readable skill name.
             input_schema (None | SkillListingInputSchemaType0 | Unset): Apollia schema for the payload fields (cf.
                 `AgentSkill::input_schema`).
+            kind (str | Unset): What `skill_id` launches: `skill` for a skill an agent's code declares,
+                `agent` for an agent that takes a message (`agent:<id>`), `workflow`
+                for a workflow that takes typed inputs (`workflow:<package>/<name>`).
     """
 
     agent_name: str
@@ -35,6 +38,7 @@ class SkillListing:
     skill_id: str
     skill_name: str
     input_schema: None | SkillListingInputSchemaType0 | Unset = UNSET
+    kind: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -56,6 +60,8 @@ class SkillListing:
         else:
             input_schema = self.input_schema
 
+        kind = self.kind
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -68,6 +74,8 @@ class SkillListing:
         )
         if input_schema is not UNSET:
             field_dict["input_schema"] = input_schema
+        if kind is not UNSET:
+            field_dict["kind"] = kind
 
         return field_dict
 
@@ -101,12 +109,15 @@ class SkillListing:
 
         input_schema = _parse_input_schema(d.pop("input_schema", UNSET))
 
+        kind = d.pop("kind", UNSET)
+
         skill_listing = cls(
             agent_name=agent_name,
             description=description,
             skill_id=skill_id,
             skill_name=skill_name,
             input_schema=input_schema,
+            kind=kind,
         )
 
         skill_listing.additional_properties = d

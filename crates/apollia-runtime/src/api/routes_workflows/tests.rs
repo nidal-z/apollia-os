@@ -20,6 +20,7 @@ impl WorkflowHost for Host {
     fn describe(&self, workflow_id: &str) -> Option<WorkflowDescriptor> {
         (workflow_id == "invoices/close-month").then(|| WorkflowDescriptor {
             id: workflow_id.to_string(),
+            version: "1.0.0".into(),
             description: "Close the month.".into(),
             steps: vec!["extract".into(), "file".into()],
             input_schema: Some(json!({
@@ -32,6 +33,10 @@ impl WorkflowHost for Host {
                 "additionalProperties": false
             })),
         })
+    }
+
+    fn list(&self) -> Vec<WorkflowDescriptor> {
+        self.describe("invoices/close-month").into_iter().collect()
     }
 
     fn run(&self, call: WorkflowCall) -> BoxFuture<'static, Result<Value, String>> {

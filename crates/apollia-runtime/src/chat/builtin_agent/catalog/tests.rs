@@ -162,6 +162,7 @@ impl crate::composition::Composer for Books {
         Box::pin(async move {
             (workflow == "books/close").then(|| crate::workflows::WorkflowDescriptor {
                 id: workflow,
+                version: "1.0.0".into(),
                 description: "Close the books.".into(),
                 steps: vec![],
                 input_schema: None,

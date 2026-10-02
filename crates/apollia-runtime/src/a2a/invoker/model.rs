@@ -245,7 +245,20 @@ pub struct SkillListing {
     #[serde(default)]
     #[schema(value_type = Option<Object>)]
     pub input_schema: Option<serde_json::Value>,
+    /// What `skill_id` launches: `skill` for a skill an agent's code declares,
+    /// `agent` for an agent that takes a message (`agent:<id>`), `workflow`
+    /// for a workflow that takes typed inputs (`workflow:<package>/<name>`).
+    #[serde(default = "skill_kind")]
+    pub kind: String,
 }
+
+/// The kind of a listing that predates the field: a skill.
+fn skill_kind() -> String {
+    SKILL_KIND.to_string()
+}
+
+/// [`SkillListing::kind`] of a skill an agent's code declares.
+pub const SKILL_KIND: &str = "skill";
 
 /// Parameters of an A2A invocation via [`A2AInvoker::invoke`]: target skill,
 /// payload, caller, and depth / chain-timeout guards.

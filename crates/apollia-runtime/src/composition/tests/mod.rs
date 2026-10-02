@@ -55,6 +55,7 @@ impl Composer for Scripted {
         Box::pin(async move {
             (workflow == "books/close").then(|| WorkflowDescriptor {
                 id: workflow,
+                version: "1.0.0".to_string(),
                 description: "Close the books of a month.".to_string(),
                 steps: vec!["sum".to_string()],
                 input_schema: Some(json!({

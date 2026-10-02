@@ -27,7 +27,7 @@ mod model;
 
 pub use model::{
     A2AAgentCard, A2AError, A2AInvocationResult, A2AInvokeRequest, A2ASkillInfo,
-    RuntimeContextConfig, SkillListing,
+    RuntimeContextConfig, SkillListing, SKILL_KIND,
 };
 
 use model::{build_aip_result_from_flattened_output, map_delegate_err, to_agent_card};
@@ -516,6 +516,7 @@ impl A2AInvoker {
                     skill_name: s.name.clone(),
                     description: s.description.clone(),
                     input_schema: s.input_schema.clone(),
+                    kind: model::SKILL_KIND.to_string(),
                 })
             })
             .collect();
@@ -831,6 +832,7 @@ mod tests {
             skill_name: "Read Excel".to_string(),
             description: "Reads an Excel file".to_string(),
             input_schema: None,
+            kind: "skill".to_string(),
         };
         // WHEN / THEN serializes correctly
         let json = serde_json::to_string(&listing).expect("serialization failed");

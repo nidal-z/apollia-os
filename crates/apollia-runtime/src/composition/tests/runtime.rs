@@ -131,10 +131,18 @@ impl WorkflowHost for Host {
         };
         Some(WorkflowDescriptor {
             id: workflow_id.into(),
+            version: "1.0.0".into(),
             description: description.into(),
             steps: vec!["step".into()],
             input_schema: None,
         })
+    }
+
+    fn list(&self) -> Vec<WorkflowDescriptor> {
+        ["books/ask", "books/close", "books/wait"]
+            .into_iter()
+            .filter_map(|id| self.describe(id))
+            .collect()
     }
 
     fn run(&self, call: WorkflowCall) -> BoxFuture<'static, Result<Value, String>> {

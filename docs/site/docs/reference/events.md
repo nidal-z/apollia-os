@@ -77,10 +77,8 @@ the event carries announces a request that is already settled.
 | Variant | Payload | What it reports |
 |---|---|---|
 | `AgentDegraded` | named fields | An agent moved to a degraded state. |
-| `AgentDisabled` | named fields | An installed agent was disabled (no longer loaded at boot). |
-| `AgentEnabled` | named fields | An installed agent was enabled for auto-start at boot. |
 | `AgentInstalled` | named fields | An agent was installed permanently. |
-| `AgentLoadFailed` | named fields | Loading an installed agent failed at boot. |
+| `AgentLoadFailed` | named fields | Loading an installed agent failed. |
 | `AgentMessageAcked` | named fields | A delivered message was acknowledged and removed from the store. |
 | `AgentMessageDelivered` | named fields | A pending message was leased to its recipient (delivered on receive). |
 | `AgentMessageDropped` | named fields | A message was dropped without being processed. |
