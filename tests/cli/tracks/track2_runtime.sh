@@ -196,6 +196,32 @@ if [[ -n "$TID" ]]; then
 else
     skip    "task lifecycle" "run --detach did not return a task_id (out: ${TRUN:0:120})"
 fi
+# ── an agent without code (no model wired) ──────────────────────────────────
+# The seed carries no agent without code, and its row counts are asserted
+# elsewhere, so one is written for this section and removed after it. With no
+# model wired the run cannot answer; what is asserted is the path: the task is
+# accepted by `run`, followed by the router, and recorded under that agent.
+section "agent without code"
+LEDGER_DEF='{"id":"seed-ledger","name":"Ledger clerk","mission":"Reconcile the ledger."}'
+if e2e_sqlite "$HOME/.apollia/agents.db" "INSERT INTO agents (name, origin, version, definition_json, enabled, installed_at, updated_at) VALUES ('seed-ledger', 'interface', '1.0.0', '$LEDGER_DEF', 1, '2026-07-16T09:00:00Z', '2026-07-16T09:00:00Z');" >/dev/null 2>&1; then
+    DRUN=$("${Q[@]}" run seed-ledger "Reconcile March." --detach --json 2>/dev/null)
+    DTID=$(printf '%s' "$DRUN" | "${E2E_PYTHON:-python3}" -c "import sys,json;d=json.load(sys.stdin);print(d.get('task_id') or d.get('id',''))" 2>/dev/null)
+    if [[ -n "$DTID" ]]; then
+        _pass "run agent without code --detach" "$DTID"
+        check         "task status <id> (agent without code)" "${Q[@]}" task status "$DTID"
+        check_content "task list --json names the agent without code" "seed-ledger" "${Q[@]}" task list --json
+        DROW=$(e2e_sqlite "$HOME/.apollia/hitl.db" "SELECT agent_name || '|' || (input_json IS NOT NULL) FROM tasks WHERE task_id = '$DTID';" 2>/dev/null)
+        [[ "$DROW" == "seed-ledger|1" ]] \
+            && _pass "hitl.db records the agent and the whole input" "$DROW" \
+            || _fail "hitl.db records the agent and the whole input" "row: ${DROW:-none}"
+    else
+        _fail "run agent without code --detach" "no task_id (out: ${DRUN:0:200})"
+    fi
+    e2e_sqlite "$HOME/.apollia/agents.db" "DELETE FROM agents WHERE name = 'seed-ledger';" >/dev/null 2>&1 || true
+else
+    skip "agent without code" "agents.db has no agents table to write the agent into"
+fi
+
 # `task resume` resolves the task id before touching its state, so an unknown
 # id is a deterministic refusal; the approve path on a real suspension stays a
 # variant below.

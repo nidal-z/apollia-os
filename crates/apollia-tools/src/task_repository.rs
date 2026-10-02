@@ -10,6 +10,8 @@
 //! The `005_hitl_tables.sql` migration is applied idempotently when
 //! [`TaskRepository::open`] is called.
 
+mod agent_runs;
+pub use agent_runs::{AgentRunEnd, AgentRunStart};
 mod hitl;
 mod lifecycle;
 

@@ -21,6 +21,11 @@ impl ChatSessionManager {
         tool_name: &str,
         decision: ToolDecision,
     ) -> Result<(), ChatError> {
+        // A run outside any conversation names its task where a session would
+        // be; its approvals wait in the same registry.
+        if !self.sessions.contains_key(session_id) {
+            return self.resolve_task_approval(session_id, message_id, tool_call_id, decision);
+        }
         let session = self
             .sessions
             .get_mut(session_id)
