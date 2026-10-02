@@ -52,7 +52,11 @@ impl Supervisor {
         // Phase 3: ToolRegistry + native tool registration
         info!("supervisor.tool_registry.starting");
         let tool_registry_handle = ToolRegistryHandle::start();
-        register_builtin_tools(&tool_registry_handle).await;
+        register_builtin_tools(
+            &tool_registry_handle,
+            &crate::connectors_bridge::connected_accounts().await,
+        )
+        .await;
 
         // Phase 3b: MCP Client Manager, reads server list from mcp.db (SQLite).
         //

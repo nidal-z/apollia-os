@@ -348,6 +348,13 @@ impl AgentRunner for BridgeRunner {
             // Without this, even when ToolProxy gets `.with_a2a(...)`, the
             // ToolRegistry filter would reject the call as "unknown tool".
             augment_allowed_tools_with_a2a(&mut allowed_tools, &a2a_invoker).await;
+            // An access to a connector tool without its account names the
+            // single connected account, or nothing.
+            let allowed_tools = apollia_runtime::connectors_bridge::resolve_connector_access(
+                &agent_id,
+                allowed_tools,
+            )
+            .await;
 
             // Merge operator-disabled (apollia.toml `[tools].disabled`) with
             // governance.db runtime-disabled: either source disables the tool.
@@ -361,14 +368,11 @@ impl AgentRunner for BridgeRunner {
                 build_mcp_executors(&mcp_handle, mcp_task_approval, mcp_tools_requiring_approval)
                     .await;
 
-            // Append the SaaS connector executors, both families, from the
-            // runtime. They resolve their account lazily on each call, so a
-            // fresh install with no OAuth flow run yet still registers them and
-            // a tool call answers "no Google account connected" rather than
-            // `UnknownTool`.
-            extra_executors.extend(apollia_runtime::connectors_bridge::build_google_executors());
-            extra_executors.extend(apollia_runtime::connectors_bridge::build_microsoft_executors());
-            extra_executors.extend(apollia_runtime::connectors_bridge::build_imap_executors());
+            // Append the SaaS connector executors from the runtime: one per
+            // operation and per account connected when the run starts, each
+            // bound to the token of its account.
+            extra_executors
+                .extend(apollia_runtime::connectors_bridge::build_connector_executors().await);
 
             let dispatcher = Arc::new(build_dispatcher_with(
                 &NativeDispatcherConfig {

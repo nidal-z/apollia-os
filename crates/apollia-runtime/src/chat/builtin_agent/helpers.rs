@@ -440,7 +440,7 @@ pub(in crate::chat::builtin_agent) async fn build_tool_specs(
     // A connector's tools are only worth their schema while its account is
     // connected: see `connectors_bridge::availability` for what advertising all
     // of them cost. Asked per turn, so a newly connected account counts at once.
-    let connected = crate::connectors_bridge::availability::connected_providers().await;
+    let connected = crate::connectors_bridge::connected_accounts().await;
     let mut specs = Vec::with_capacity(available_tools.len());
     for name in available_tools {
         if !crate::connectors_bridge::availability::is_advertisable(name, &connected) {
