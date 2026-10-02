@@ -46,17 +46,6 @@ pub enum Blocker {
         llama_cpp_tag: String,
     },
 
-    /// The file is one shard of a split GGUF.
-    ///
-    /// `llama-server` loads a split model from its first shard and pulls the
-    /// rest itself, but the downloader fetches one URL. Offering a shard would
-    /// leave the operator with an incomplete set and the runtime's
-    /// `GgufSplitIncomplete` error.
-    ShardedDownload {
-        /// How many shards the file name declares.
-        shard_count: u32,
-    },
-
     /// The bytes at the URL are not a GGUF header.
     NotGguf {
         /// What the reader reported.
@@ -174,18 +163,12 @@ pub fn shard_count_of(file_name: &str) -> Option<u32> {
     total.parse::<u32>().ok().filter(|t| *t > 1)
 }
 
-/// Decide whether the embedded engine will run this file.
-///
-/// `file_name` is used for the shard check alone; everything else comes from
-/// the probed header.
+/// Decide whether the embedded engine will run this file, from its probed
+/// header.
 #[must_use]
-pub fn assess(file_name: &str, facts: &GgufHeaderFacts) -> Verdict {
+pub fn assess(facts: &GgufHeaderFacts) -> Verdict {
     let mut blockers = Vec::new();
     let mut caveats = Vec::new();
-
-    if let Some(shard_count) = shard_count_of(file_name) {
-        blockers.push(Blocker::ShardedDownload { shard_count });
-    }
 
     let architecture_known = match facts.architecture.as_deref() {
         Some(arch) if architecture_is_non_generative(arch) => {
@@ -280,7 +263,7 @@ mod tests {
         let facts = complete_facts("qwen3", "qwen2");
 
         // WHEN it is assessed
-        let verdict = assess("Qwen3-4B-Q4_K_M.gguf", &facts);
+        let verdict = assess(&facts);
 
         // THEN it is supported outright, tool calling included
         assert_eq!(verdict, Verdict::Supported);
@@ -294,7 +277,7 @@ mod tests {
         let facts = complete_facts("bert", "default");
 
         // WHEN it is assessed
-        let verdict = assess("bge-large-Q8_0.gguf", &facts);
+        let verdict = assess(&facts);
 
         // THEN it is rejected, because no table update makes it a chat engine
         assert!(!verdict.is_offerable());
@@ -325,8 +308,8 @@ mod tests {
         bpe.tokenizer_pre = None;
 
         // WHEN both are assessed
-        let spm_caveats = assess("gemma.gguf", &spm);
-        let bpe_caveats = assess("qwen.gguf", &bpe);
+        let spm_caveats = assess(&spm);
+        let bpe_caveats = assess(&bpe);
 
         // THEN only the BPE one carries the caveat, since the engine never
         // reads the field for a SentencePiece vocabulary
@@ -341,7 +324,7 @@ mod tests {
         let facts = complete_facts("llama", "some-pre-tokenizer-from-next-year");
 
         // WHEN it is assessed
-        let verdict = assess("Model-Q4_K_M.gguf", &facts);
+        let verdict = assess(&facts);
 
         // THEN it is rejected, since the engine would abort the load after the
         // download rather than before it
@@ -360,7 +343,7 @@ mod tests {
         let facts = complete_facts("brandnew5", "brandnew5-bpe");
 
         // WHEN it is assessed
-        let verdict = assess("BrandNew5-Q4_K_M.gguf", &facts);
+        let verdict = assess(&facts);
 
         // THEN it stays offerable: the tables are stale, which is a fact about
         // the tables and not about the file
@@ -380,7 +363,7 @@ mod tests {
         facts.has_chat_template = false;
 
         // WHEN it is assessed
-        let verdict = assess("Qwen3-4B-Q4_K_M.gguf", &facts);
+        let verdict = assess(&facts);
 
         // THEN it may still be offered, but not as a model that calls tools
         assert!(verdict.is_offerable());
@@ -401,7 +384,7 @@ mod tests {
         facts.truncated = true;
 
         // WHEN it is assessed
-        let verdict = assess("Qwen3-4B-Q4_K_M.gguf", &facts);
+        let verdict = assess(&facts);
 
         // THEN the caveat names the truncation, not a missing template, so a
         // confirming probe is what resolves it
@@ -415,20 +398,16 @@ mod tests {
     }
 
     #[test]
-    fn a_shard_is_rejected_because_the_downloader_fetches_one_url() {
-        // GIVEN the first shard of a split model
+    fn the_first_part_of_a_split_model_is_not_rejected() {
+        // GIVEN the first part of a split model, which the variant download
+        // fetches with every other part
         let facts = complete_facts("qwen3moe", "qwen2");
 
         // WHEN it is assessed
-        let verdict = assess("Qwen3-30B-A3B-Q4_K_M-00001-of-00002.gguf", &facts);
+        let verdict = assess(&facts);
 
-        // THEN it is rejected: one URL would leave the set incomplete on disk
-        let Verdict::Rejected { blockers, .. } = verdict else {
-            panic!("a shard must be rejected while the downloader is single-file");
-        };
-        assert!(blockers
-            .iter()
-            .any(|b| matches!(b, Blocker::ShardedDownload { shard_count: 2 })));
+        // THEN it is offerable like a whole file
+        assert!(verdict.is_offerable());
     }
 
     #[test]
