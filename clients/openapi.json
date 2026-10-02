@@ -10217,7 +10217,7 @@
           },
           "id": {
             "type": "string",
-            "description": "Tool identifier as the tool registry names it (`mcp:notion/search`,\n`gmail.send`)."
+            "description": "Tool identifier as the tool registry names it (`mcp:notion/search`,\n`conn:google:ada@example.com/gmail.send`)."
           },
           "prechecked": {
             "type": "boolean",
@@ -14920,6 +14920,10 @@
       "description": "Agent inventory and lifecycle"
     },
     {
+      "name": "packages",
+      "description": "Package preview, installation, and trusted publisher keys"
+    },
+    {
       "name": "a2a",
       "description": "Agent-to-agent skill invocation"
     },
@@ -14978,10 +14982,6 @@
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
-    },
-    {
-      "name": "packages",
-      "description": "Package preview, installation, and trusted publisher keys"
     }
   ]
 }

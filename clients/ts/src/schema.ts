@@ -3641,7 +3641,7 @@ export interface components {
             familySource: string;
             /**
              * @description Tool identifier as the tool registry names it (`mcp:notion/search`,
-             *     `gmail.send`).
+             *     `conn:google:ada@example.com/gmail.send`).
              */
             id: string;
             /** @description Offered checked when the connection is granted to an agent. */

@@ -217,6 +217,7 @@ mod apollia_agent;
 mod authz;
 mod command;
 mod control;
+mod declarative;
 mod disabled;
 mod dispatcher;
 mod exchange;

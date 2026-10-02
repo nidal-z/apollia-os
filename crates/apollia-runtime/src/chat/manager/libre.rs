@@ -310,6 +310,7 @@ async fn resolve_exchange_summary(params: ExchangeSummaryParams<'_>) -> Option<S
 /// linear.
 pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangeParams) {
     let LibreExchangeParams {
+        agent_id,
         llm_router,
         tool_registry,
         event_bus,
@@ -378,11 +379,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         .unwrap_or_default();
     // An access to a connector tool without its account names the single
     // connected account, or nothing.
-    let available_tools = crate::connectors_bridge::resolve_connector_access(
-        apollia_tools::APOLLIA_AGENT_ID,
-        available_tools,
-    )
-    .await;
+    let available_tools =
+        crate::connectors_bridge::resolve_connector_access(&agent_id, available_tools).await;
     let mcp_index = super::disabled::only_granted(mcp_index, &available_tools);
     let (available_tools, mcp_index) =
         super::disabled::without_disabled(available_tools, mcp_index, &disabled);
@@ -462,10 +460,11 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         &session_project_id,
         &project_ctx,
     );
-    // The session is the Apollia agent: its stored prompt is the mission, the
-    // session's tools are its granted tools, its stored backend is its model.
+    // The session runs its agent: Apollia, whose stored prompt is the mission,
+    // whose session tools are its granted tools and whose stored backend is
+    // its model; or a declarative agent, as resolved when the message is sent.
     let spec = AgentRunSpec {
-        agent_id: APOLLIA_CHAT_AGENT_ID.to_string(),
+        agent_id,
         mission: system_prompt,
         granted_tools: available_tools,
         model: preferred_backend,

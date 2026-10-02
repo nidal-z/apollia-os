@@ -17,7 +17,7 @@ class ConnectionTool:
         family (str): Action family of the tool.
         family_source (str): Where the family comes from.
         id (str): Tool identifier as the tool registry names it (`mcp:notion/search`,
-            `gmail.send`).
+            `conn:google:ada@example.com/gmail.send`).
         prechecked (bool): Offered checked when the connection is granted to an agent.
     """
 

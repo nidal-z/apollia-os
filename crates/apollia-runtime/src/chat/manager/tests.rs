@@ -1587,11 +1587,68 @@ async fn test_validate_create_request_companion_requires_llm() {
         false,
         ChatMode::Companion,
         None,
+        None,
     )
     .await;
 
     // THEN it fails fast with NoLlmConfigured, like Libre mode
     assert!(matches!(result, Err(ChatError::NoLlmConfigured)));
+}
+
+#[tokio::test]
+async fn test_validate_create_request_accepts_a_declarative_agent_outside_the_registry() {
+    // GIVEN an Agent-mode request on a declarative agent the registry does
+    // not hold, enabled, then disabled
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (manager, _rx) = manager_with_session_in_phase(&dir, PlanPhase::Done);
+    let mut agent = apollia_tools::ResolvedAgent {
+        id: "guide".into(),
+        origin: apollia_tools::AgentOrigin::Package,
+        package: Some("guide".into()),
+        version: "1.0.0".into(),
+        enabled: true,
+        name: "Guide".into(),
+        mission: "Explain the product.".into(),
+        examples: Vec::new(),
+        access: Vec::new(),
+        sources: Vec::new(),
+        model: None,
+        autonomy: apollia_core::AutonomyLevel::Assisted,
+        overridden: Vec::new(),
+        definition: serde_json::json!({}),
+    };
+
+    // WHEN it is validated with and without an LLM, then disabled
+    let accepted = ChatSessionManager::validate_create_request(
+        &manager.registry_handle,
+        true,
+        ChatMode::Agent,
+        Some("guide"),
+        Some(&agent),
+    )
+    .await;
+    let without_llm = ChatSessionManager::validate_create_request(
+        &manager.registry_handle,
+        false,
+        ChatMode::Agent,
+        Some("guide"),
+        Some(&agent),
+    )
+    .await;
+    agent.enabled = false;
+    let disabled = ChatSessionManager::validate_create_request(
+        &manager.registry_handle,
+        true,
+        ChatMode::Agent,
+        Some("guide"),
+        Some(&agent),
+    )
+    .await;
+
+    // THEN it is accepted with an LLM, needs one, and is refused once disabled
+    assert!(accepted.is_ok(), "{accepted:?}");
+    assert!(matches!(without_llm, Err(ChatError::NoLlmConfigured)));
+    assert!(matches!(disabled, Err(ChatError::AgentLoadFailed(_))));
 }
 
 #[tokio::test]
