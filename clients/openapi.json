@@ -1393,6 +1393,162 @@
         }
       }
     },
+    "/api/v1/batches": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`GET /api/v1/batches`: the batches, newest first.",
+        "operationId": "list_batches",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "At most this many batches, 50 when absent.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchListView"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches`: launch an agent on every item of a source.",
+        "description": "The items are read and recorded before the answer; they run in the\nbackground, at most `concurrency` at once (1 by default, 16 at most).\nOnce more than `maxFailures` items have failed (10 by default), the\nbatch is interrupted: no further item starts.",
+        "operationId": "launch_batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchLaunch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Batch launched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid launch, unknown source type, or an agent that cannot run a batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The source could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`GET /api/v1/batches/{id}`: a batch with its items.",
+        "operationId": "get_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch and its items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchDetailView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connections": {
       "get": {
         "tags": [
@@ -6538,7 +6694,7 @@
           "tasks"
         ],
         "summary": "Handler for `POST /api/v1/tasks`.",
-        "description": "Submits a new task to the specified agent via the TaskRouter.\nReturns 202 Accepted with the generated task_id on success.",
+        "description": "Submits a new task to the specified agent via the TaskRouter. A stored\nagent that runs no code is run by the agent executor on the message the\ninput carries, outside any conversation.\nReturns 202 Accepted with the generated task_id on success.",
         "operationId": "submit_task",
         "requestBody": {
           "content": {
@@ -8659,6 +8815,228 @@
           "tool_name": {
             "type": "string",
             "description": "Name of the tool."
+          }
+        }
+      },
+      "BatchDetailView": {
+        "type": "object",
+        "description": "A batch with its items.",
+        "required": [
+          "batch",
+          "items"
+        ],
+        "properties": {
+          "batch": {
+            "$ref": "#/components/schemas/BatchView"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchItemView"
+            }
+          }
+        }
+      },
+      "BatchErrorResponse": {
+        "type": "object",
+        "description": "Error body of the batch routes.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "What went wrong."
+          }
+        }
+      },
+      "BatchItemView": {
+        "type": "object",
+        "description": "One item of a batch.",
+        "required": [
+          "rank",
+          "origin",
+          "input",
+          "status"
+        ],
+        "properties": {
+          "input": {
+            "type": "object"
+          },
+          "origin": {
+            "type": "string",
+            "description": "Where it comes from inside the source."
+          },
+          "output": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Its position in the source, from 0.",
+            "minimum": 0
+          },
+          "sources": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`pending`, `running`, `completed`, `failed` or `canceled`."
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The task that ran it."
+          }
+        }
+      },
+      "BatchLaunch": {
+        "type": "object",
+        "description": "What a batch is launched with.",
+        "required": [
+          "agent",
+          "source"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "The agent every item is run by."
+          },
+          "concurrency": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many items run at once, 1 to 16; 1 when absent.",
+            "minimum": 0
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The accesses granted for the duration of the batch."
+          },
+          "maxFailures": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many failed items the batch tolerates; 10 when absent.",
+            "minimum": 0
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceDescriptor",
+            "description": "Where the items come from."
+          }
+        }
+      },
+      "BatchListView": {
+        "type": "object",
+        "description": "The batches, newest first.",
+        "required": [
+          "batches"
+        ],
+        "properties": {
+          "batches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchView"
+            }
+          }
+        }
+      },
+      "BatchView": {
+        "type": "object",
+        "description": "A batch: what it was launched with, its state and its counters.",
+        "required": [
+          "batchId",
+          "agent",
+          "source",
+          "grants",
+          "concurrency",
+          "maxFailures",
+          "state",
+          "total",
+          "completed",
+          "failed",
+          "canceled",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "batchId": {
+            "type": "string"
+          },
+          "canceled": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "completed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "concurrency": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxFailures": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Failed items tolerated before the batch is interrupted.",
+            "minimum": 0
+          },
+          "source": {
+            "type": "object",
+            "description": "The source descriptor, `{kind, location, options}`."
+          },
+          "state": {
+            "type": "string",
+            "description": "`running`, `completed` or `interrupted`."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "updatedAt": {
+            "type": "string"
           }
         }
       },
@@ -11527,6 +11905,34 @@
           }
         }
       },
+      "SourceDescriptor": {
+        "type": "object",
+        "description": "The source a batch reads its items from.",
+        "required": [
+          "kind",
+          "location"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "The kind of source, as registered (a spreadsheet, a folder, a mailbox)."
+          },
+          "location": {
+            "type": "string",
+            "description": "What the source is opened on: a file path, a folder, a connection."
+          },
+          "options": {
+            "type": "object",
+            "description": "Options the kind understands, such as a sheet or a header row.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "SseMailboxEvent": {
         "allOf": [
           {
@@ -12819,6 +13225,10 @@
     {
       "name": "tasks",
       "description": "Submit and drive autonomous agent tasks"
+    },
+    {
+      "name": "batches",
+      "description": "Run an agent on every item of a source"
     },
     {
       "name": "chat",

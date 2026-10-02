@@ -510,6 +510,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/batches`: the batches, newest first. */
+        get: operations["list_batches"];
+        put?: never;
+        /**
+         * `POST /api/v1/batches`: launch an agent on every item of a source.
+         * @description The items are read and recorded before the answer; they run in the
+         *     background, at most `concurrency` at once (1 by default, 16 at most).
+         *     Once more than `maxFailures` items have failed (10 by default), the
+         *     batch is interrupted: no further item starts.
+         */
+        post: operations["launch_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/batches/{id}`: a batch with its items. */
+        get: operations["get_batch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connections": {
         parameters: {
             query?: never;
@@ -2357,7 +2398,9 @@ export interface paths {
         put?: never;
         /**
          * Handler for `POST /api/v1/tasks`.
-         * @description Submits a new task to the specified agent via the TaskRouter.
+         * @description Submits a new task to the specified agent via the TaskRouter. A stored
+         *     agent that runs no code is run by the agent executor on the message the
+         *     input carries, outside any conversation.
          *     Returns 202 Accepted with the generated task_id on success.
          */
         post: operations["submit_task"];
@@ -3105,6 +3148,84 @@ export interface components {
             tool_call_id?: string | null;
             /** @description Name of the tool. */
             tool_name: string;
+        };
+        /** @description A batch with its items. */
+        BatchDetailView: {
+            batch: components["schemas"]["BatchView"];
+            items: components["schemas"]["BatchItemView"][];
+        };
+        /** @description Error body of the batch routes. */
+        BatchErrorResponse: {
+            /** @description What went wrong. */
+            error: string;
+        };
+        /** @description One item of a batch. */
+        BatchItemView: {
+            input: Record<string, never>;
+            /** @description Where it comes from inside the source. */
+            origin: string;
+            output?: string | null;
+            /**
+             * Format: int64
+             * @description Its position in the source, from 0.
+             */
+            rank: number;
+            sources?: Record<string, never> | null;
+            /** @description `pending`, `running`, `completed`, `failed` or `canceled`. */
+            status: string;
+            /** @description The task that ran it. */
+            taskId?: string | null;
+        };
+        /** @description What a batch is launched with. */
+        BatchLaunch: {
+            /** @description The agent every item is run by. */
+            agent: string;
+            /**
+             * Format: int32
+             * @description How many items run at once, 1 to 16; 1 when absent.
+             */
+            concurrency?: number | null;
+            /** @description The accesses granted for the duration of the batch. */
+            grants?: string[];
+            /**
+             * Format: int32
+             * @description How many failed items the batch tolerates; 10 when absent.
+             */
+            maxFailures?: number | null;
+            /** @description Where the items come from. */
+            source: components["schemas"]["SourceDescriptor"];
+        };
+        /** @description The batches, newest first. */
+        BatchListView: {
+            batches: components["schemas"]["BatchView"][];
+        };
+        /** @description A batch: what it was launched with, its state and its counters. */
+        BatchView: {
+            agent: string;
+            batchId: string;
+            /** Format: int64 */
+            canceled: number;
+            /** Format: int64 */
+            completed: number;
+            /** Format: int32 */
+            concurrency: number;
+            createdAt: string;
+            endedAt?: string | null;
+            /** Format: int64 */
+            failed: number;
+            grants: string[];
+            /**
+             * Format: int32
+             * @description Failed items tolerated before the batch is interrupted.
+             */
+            maxFailures: number;
+            /** @description The source descriptor, `{kind, location, options}`. */
+            source: Record<string, never>;
+            /** @description `running`, `completed` or `interrupted`. */
+            state: string;
+            /** Format: int64 */
+            total: number;
+            updatedAt: string;
         };
         /** @description The first broken link found while walking a chain. */
         BrokenLink: {
@@ -4390,6 +4511,17 @@ export interface components {
             skill_id: string;
             /** @description Human-readable skill name. */
             skill_name: string;
+        };
+        /** @description The source a batch reads its items from. */
+        SourceDescriptor: {
+            /** @description The kind of source, as registered (a spreadsheet, a folder, a mailbox). */
+            kind: string;
+            /** @description What the source is opened on: a file path, a folder, a connection. */
+            location: string;
+            /** @description Options the kind understands, such as a sheet or a header row. */
+            options?: {
+                [key: string]: string;
+            };
         };
         /** @description SSE frame emitted by the mailbox observation stream. */
         SseMailboxEvent: Record<string, never> & {
@@ -6001,6 +6133,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_batches: {
+        parameters: {
+            query?: {
+                /** @description At most this many batches, 50 when absent. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batches */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchListView"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    launch_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchLaunch"];
+            };
+        };
+        responses: {
+            /** @description Batch launched */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description Invalid launch, unknown source type, or an agent that cannot run a batch */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description The source could not be read */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    get_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch and its items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchDetailView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
                 };
             };
         };

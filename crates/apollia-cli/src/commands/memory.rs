@@ -288,6 +288,21 @@ pub fn confirmation(cmd: &MemoryCommand, json: bool) -> Option<i32> {
     }
 }
 
+/// Run a memory subcommand, printing its output or error. Returns the exit
+/// code.
+pub fn run_and_print(cmd: &MemoryCommand, json: bool) -> i32 {
+    if let Some(code) = confirmation(cmd, json) {
+        return code;
+    }
+    match run(cmd, json) {
+        Ok(output) => {
+            println!("{output}");
+            crate::exit_codes::SUCCESS
+        }
+        Err(e) => crate::output::emit_error(json, crate::exit_codes::GENERAL_ERROR, &e.to_string()),
+    }
+}
+
 pub fn run(cmd: &MemoryCommand, json: bool) -> Result<String, MemoryCommandError> {
     match cmd {
         MemoryCommand::Inspect {

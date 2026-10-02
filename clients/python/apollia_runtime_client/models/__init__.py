@@ -28,6 +28,15 @@ from .audit_journal_response_entries_item import AuditJournalResponseEntriesItem
 from .audit_list_response import AuditListResponse
 from .audit_stats_response import AuditStatsResponse
 from .authorize_tool_request import AuthorizeToolRequest
+from .batch_detail_view import BatchDetailView
+from .batch_error_response import BatchErrorResponse
+from .batch_item_view import BatchItemView
+from .batch_item_view_input import BatchItemViewInput
+from .batch_item_view_sources_type_0 import BatchItemViewSourcesType0
+from .batch_launch import BatchLaunch
+from .batch_list_view import BatchListView
+from .batch_view import BatchView
+from .batch_view_source import BatchViewSource
 from .broken_link import BrokenLink
 from .broken_link_reason import BrokenLinkReason
 from .channel_delete_response import ChannelDeleteResponse
@@ -164,6 +173,8 @@ from .sidechain_row import SidechainRow
 from .skill_dto import SkillDto
 from .skill_listing import SkillListing
 from .skill_listing_input_schema_type_0 import SkillListingInputSchemaType0
+from .source_descriptor import SourceDescriptor
+from .source_descriptor_options import SourceDescriptorOptions
 from .sse_mailbox_event import SseMailboxEvent
 from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
@@ -261,6 +272,15 @@ __all__ = (
     "AuditListResponse",
     "AuditStatsResponse",
     "AuthorizeToolRequest",
+    "BatchDetailView",
+    "BatchErrorResponse",
+    "BatchItemView",
+    "BatchItemViewInput",
+    "BatchItemViewSourcesType0",
+    "BatchLaunch",
+    "BatchListView",
+    "BatchView",
+    "BatchViewSource",
     "BrokenLink",
     "BrokenLinkReason",
     "ChannelDeleteResponse",
@@ -395,6 +415,8 @@ __all__ = (
     "SkillDto",
     "SkillListing",
     "SkillListingInputSchemaType0",
+    "SourceDescriptor",
+    "SourceDescriptorOptions",
     "SseMailboxEvent",
     "SseTaskEvent",
     "StartAgentRequest",

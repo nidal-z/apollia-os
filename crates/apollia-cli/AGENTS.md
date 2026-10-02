@@ -68,6 +68,12 @@ session whatever `HOME` says.
 
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 
+**`batch`** (`run`, `status`, `list`) runs a stored agent without code on
+every item of a source, in the runtime. `run` returns once the items are
+recorded; each item is a task of its own, so `task list` shows them. The
+source is named by `--source-type` and `--source`; a type no reader serves is
+refused with exit 1, and no reader is registered yet.
+
 **`policy`** prepares the organisation policy on files alone (`keygen`,
 `init`, `sign`, `verify`, `show`) and never reaches the runtime: the policy is
 read by the runtime at startup, not served by it. No leaf writes into the
