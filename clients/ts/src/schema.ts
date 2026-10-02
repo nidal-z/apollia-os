@@ -942,6 +942,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/embeddings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/embeddings?language_model_bytes=...` */
+        get: operations["list_embedding_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/hardware": {
         parameters: {
             query?: never;
@@ -3215,6 +3232,21 @@ export interface components {
             /** @description Per-backend/model cost breakdown. */
             rows: components["schemas"]["CostSummaryRow"][];
         };
+        /** @description The language model the recommendation was made beside. */
+        CountedLanguageModel: {
+            /** @description Identifier of the installed model; absent for a size given by query. */
+            id?: string | null;
+            /**
+             * Format: int64
+             * @description Size of its weights in bytes.
+             */
+            size_bytes: number;
+            /**
+             * @description `query` when the caller gave its size, `installed` when it is the
+             *     largest language model of the model index.
+             */
+            source: string;
+        };
         /** @description Request body for `POST /api/v1/notifications/channels`. */
         CreateChannelRequest: {
             /** @description Channel type: `"desktop"` or `"webhook"`. */
@@ -3369,6 +3401,24 @@ export interface components {
         DeleteServerResponse: {
             /** @description Name of the deleted server. */
             deleted: string;
+        };
+        /** @description The embeddings category of the registry, and the entry for this machine. */
+        EmbeddingModelsResponse: {
+            /** @description The machine the recommendation was made for. */
+            hardware: components["schemas"]["HardwareResponse"];
+            language_model?: null | components["schemas"]["CountedLanguageModel"];
+            /**
+             * @description Every entry of the category: repository, file, size, digest,
+             *     dimensions, context, pooling and prefixes.
+             */
+            models: Record<string, never>[];
+            /**
+             * @description Why: `fits_beside` or `no_room_beside`, with the footprints compared,
+             *     in gibibytes.
+             */
+            reason?: Record<string, never> | null;
+            /** @description Identifier of the entry recommended for this machine. */
+            recommended?: string | null;
         };
         /** @description Response for `GET /api/v1/notifications/events`. */
         EventsResponse: {
@@ -6879,6 +6929,38 @@ export interface operations {
             };
             /** @description Backend repository not available */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_embedding_models: {
+        parameters: {
+            query?: {
+                /** @description Size of the language model to fit beside; the largest installed one when absent */
+                language_model_bytes?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The embeddings models and the one recommended for this machine */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingModelsResponse"];
+                };
+            };
+            /** @description The shipped registry table is invalid */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

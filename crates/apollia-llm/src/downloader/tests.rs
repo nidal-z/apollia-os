@@ -319,3 +319,38 @@ async fn filename_climbing_out_of_the_destination_is_refused() {
     assert!(matches!(result, Err(DownloadError::InvalidFilename(_))));
     assert!(!dir.path().join("escaped.gguf").exists());
 }
+
+#[tokio::test]
+async fn an_embeddings_entry_downloads_through_the_same_verified_path() {
+    // GIVEN the ordinary request for the repository and file of the
+    // multilingual-e5-small entry, checked against its pinned digest, served
+    // by a host that substitutes other bytes for that file
+    let catalogue = crate::recommend::EmbeddingCatalogue::embedded().expect("entries load");
+    let e5 = catalogue
+        .get("multilingual-e5-small")
+        .expect("e5 is in the category");
+    let server = MockServer::start().await;
+    serve(&server, "/e5.gguf", b"not the pinned weights").await;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let req = DownloadRequest {
+        url: format!("{}/e5.gguf", server.uri()),
+        dest_dir: dir.path().to_path_buf(),
+        filename: Some(e5.file.clone()),
+        hf_token: None,
+        repo_id: Some(e5.repo.clone()),
+        expected_sha256: Some(e5.sha256.clone()),
+    };
+    let (cb, _) = recorder();
+
+    // WHEN the downloader every model goes through runs it
+    let result = run_download(test_client(), req, "t".into(), CancellationToken::new(), cb).await;
+
+    // THEN the pinned digest refuses the bytes and nothing stays on disk
+    match result {
+        Err(DownloadError::IntegrityMismatch { expected, .. }) => {
+            assert_eq!(expected, e5.sha256);
+        }
+        other => panic!("expected an integrity refusal, got {other:?}"),
+    }
+    assert!(!dir.path().join(&e5.file).exists());
+}

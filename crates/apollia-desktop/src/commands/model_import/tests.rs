@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use apollia_llm::{ModelFormat, ModelImportRule, ModelOrigin};
 
-use super::{import_model_file_into, import_rule, ImportModelError};
+use super::{import_model_file_into, import_rule, registry_digests, ImportModelError};
 use crate::commands::model_index;
 
 fn gguf_bytes(tag: u8) -> Vec<u8> {
@@ -187,4 +187,20 @@ fn test_the_rule_is_off_by_default() {
 
     assert!(!missing.require_verified);
     assert!(!without_key.require_verified);
+}
+
+// GIVEN the registry's embeddings entries
+// WHEN the import gathers the digests it compares a file with
+// THEN the pinned file of each entry is among them, so a copy brought on a key
+//      enters verified, by the same check as any model
+#[test]
+fn test_an_import_knows_the_digests_the_registry_pins() {
+    let digests = registry_digests();
+
+    assert!(digests
+        .iter()
+        .any(|d| d == "0a34067a40f25d3149b36885faa62bee0e5284d0f9edc102acfc00e115d953e8"));
+    assert!(digests
+        .iter()
+        .any(|d| d == "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439"));
 }

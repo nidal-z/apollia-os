@@ -2754,6 +2754,50 @@
         }
       }
     },
+    "/api/v1/llm/embeddings": {
+      "get": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`GET /api/v1/llm/embeddings?language_model_bytes=...`",
+        "operationId": "list_embedding_models",
+        "parameters": [
+          {
+            "name": "language_model_bytes",
+            "in": "query",
+            "description": "Size of the language model to fit beside; the largest installed one when absent",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The embeddings models and the one recommended for this machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingModelsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The shipped registry table is invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/hardware": {
       "get": {
         "tags": [
@@ -8772,6 +8816,33 @@
           }
         }
       },
+      "CountedLanguageModel": {
+        "type": "object",
+        "description": "The language model the recommendation was made beside.",
+        "required": [
+          "source",
+          "size_bytes"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the installed model; absent for a size given by query."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of its weights in bytes.",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string",
+            "description": "`query` when the caller gave its size, `installed` when it is the\nlargest language model of the model index."
+          }
+        }
+      },
       "CreateChannelRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/notifications/channels`.",
@@ -9159,6 +9230,52 @@
           "deleted": {
             "type": "string",
             "description": "Name of the deleted server."
+          }
+        }
+      },
+      "EmbeddingModelsResponse": {
+        "type": "object",
+        "description": "The embeddings category of the registry, and the entry for this machine.",
+        "required": [
+          "models",
+          "hardware"
+        ],
+        "properties": {
+          "hardware": {
+            "$ref": "#/components/schemas/HardwareResponse",
+            "description": "The machine the recommendation was made for."
+          },
+          "language_model": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CountedLanguageModel",
+                "description": "The language model counted; absent when none was."
+              }
+            ]
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Every entry of the category: repository, file, size, digest,\ndimensions, context, pooling and prefixes."
+          },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Why: `fits_beside` or `no_room_beside`, with the footprints compared,\nin gibibytes."
+          },
+          "recommended": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identifier of the entry recommended for this machine."
           }
         }
       },

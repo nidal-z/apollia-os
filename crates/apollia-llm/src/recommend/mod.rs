@@ -18,7 +18,9 @@
 //!
 //! The same table is also the editorial selection an operator sees first
 //! ([`catalogue`]), and [`publishers`] says which HuggingFace owners are the
-//! official publishers and which are recognised converters.
+//! official publishers and which are recognised converters. The same file
+//! holds the embeddings category ([`embeddings`]): models that turn a text into
+//! a vector, refused as chat engines and offered on their own.
 //!
 //! The division of labour with the Hub is the point. `hf_registry` is the
 //! catalogue: which repositories exist, what their files weigh, which are
@@ -29,6 +31,7 @@
 //! `families.toml` supplies the order.
 
 pub mod catalogue;
+pub mod embeddings;
 pub mod fit;
 pub mod llama_support;
 pub mod manifest;
@@ -43,6 +46,9 @@ pub mod variants;
 pub mod verdict;
 
 pub use catalogue::{SelectionFamily, SelectionVariant};
+pub use embeddings::{
+    EmbeddingCatalogue, EmbeddingModel, EmbeddingReason, EmbeddingRecommendation, Pooling,
+};
 pub use fit::{
     assess_fit, cache_layout, estimate_memory, grade, kv_cache_bytes, max_context_for,
     max_parallel_for, parallel_shape, CacheKind, CacheLayout, FitAssessment, MemoryEstimate,

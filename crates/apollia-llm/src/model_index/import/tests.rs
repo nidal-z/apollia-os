@@ -203,3 +203,49 @@ fn test_the_index_offers_only_verified_digests() {
     // THEN only the verified one is there
     assert_eq!(digests, vec!["a".repeat(64).as_str()]);
 }
+
+#[test]
+fn test_an_embeddings_model_enters_through_the_same_import_path() {
+    // GIVEN an embeddings GGUF on a key: a bert header pooled by mean
+    let tmp = tempfile::tempdir().unwrap();
+    let mut bytes = b"GGUF".to_vec();
+    bytes.extend_from_slice(&3u32.to_le_bytes());
+    bytes.extend_from_slice(&0u64.to_le_bytes());
+    bytes.extend_from_slice(&2u64.to_le_bytes());
+    for (key, tag, value) in [
+        ("general.architecture", 8u32, b"bert".to_vec()),
+        ("bert.pooling_type", 4u32, 1u32.to_le_bytes().to_vec()),
+    ] {
+        bytes.extend_from_slice(&(key.len() as u64).to_le_bytes());
+        bytes.extend_from_slice(key.as_bytes());
+        bytes.extend_from_slice(&tag.to_le_bytes());
+        if tag == 8 {
+            bytes.extend_from_slice(&(value.len() as u64).to_le_bytes());
+        }
+        bytes.extend_from_slice(&value);
+    }
+    let source = write(tmp.path(), "key/e5.gguf", &bytes);
+    let models = tmp.path().join("models");
+    std::fs::create_dir_all(&models).unwrap();
+
+    // WHEN it goes through the import every model goes through: the check,
+    //      the copy, the record and the digest
+    let check = check_import(&source, &[], ImportRule::default()).unwrap();
+    let dest = models.join("e5.gguf");
+    std::fs::copy(&source, &dest).unwrap();
+    let mut index = ModelIndex::default();
+    index
+        .record(&models, &dest, crate::model_index::ModelOrigin::Import)
+        .unwrap();
+    index
+        .set_digest(&dest, check.sha256, check.origin_verified)
+        .unwrap();
+
+    // THEN it is indexed as an embeddings model, with its digest
+    let entry = index.get("e5").unwrap();
+    assert_eq!(
+        entry.category,
+        crate::model_index::ModelCategory::Embeddings
+    );
+    assert_eq!(entry.sha256.as_deref().map(str::len), Some(64));
+}

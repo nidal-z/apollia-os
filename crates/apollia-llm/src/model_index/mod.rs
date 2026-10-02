@@ -362,7 +362,9 @@ impl ModelIndex {
     }
 
     /// Store the SHA-256 of the model that owns `path`, and whether it was
-    /// verified against a published or already verified digest.
+    /// verified against a published or already verified digest. A digest that
+    /// is the pinned file of an embeddings entry of the registry files the
+    /// model as embeddings, whatever its header said.
     ///
     /// # Errors
     /// [`ModelIndexError::NotIndexed`] when no model owns `path`.
@@ -379,6 +381,9 @@ impl ModelIndex {
             .ok_or_else(|| ModelIndexError::NotIndexed {
                 path: path.to_path_buf(),
             })?;
+        if scan::registry_embedding(&sha256) {
+            model.category = ModelCategory::Embeddings;
+        }
         model.sha256 = Some(sha256);
         model.origin_verified = origin_verified;
         Ok(())
@@ -487,6 +492,11 @@ fn merge(found: scan::FoundModel, id: String, before: Option<&IndexedModel>) -> 
         ),
         _ => scan::read_header(&found),
     };
+    let sha256 = before.filter(|_| unchanged).and_then(|b| b.sha256.clone());
+    let category = match &sha256 {
+        Some(digest) if scan::registry_embedding(digest) => ModelCategory::Embeddings,
+        _ => category,
+    };
     let capabilities = scan::with_usable_vision(&found, template_caps);
     let source_file_override = before
         .and_then(|b| b.source_file_override.clone())
@@ -500,7 +510,7 @@ fn merge(found: scan::FoundModel, id: String, before: Option<&IndexedModel>) -> 
         annexes: found.annexes,
         size_bytes: found.size_bytes,
         origin: before.map_or(ModelOrigin::Import, |b| b.origin.clone()),
-        sha256: before.filter(|_| unchanged).and_then(|b| b.sha256.clone()),
+        sha256,
         origin_verified: before.is_some_and(|b| unchanged && b.origin_verified),
         category,
         parameters,
