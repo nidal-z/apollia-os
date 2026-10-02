@@ -375,6 +375,13 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         .as_deref()
         .map(super::dispatcher::effective_disabled_tools)
         .unwrap_or_default();
+    // An access to a connector tool without its account names the single
+    // connected account, or nothing.
+    let available_tools = crate::connectors_bridge::resolve_connector_access(
+        apollia_tools::APOLLIA_AGENT_ID,
+        available_tools,
+    )
+    .await;
     let mcp_index = super::disabled::only_granted(mcp_index, &available_tools);
     let (available_tools, mcp_index) =
         super::disabled::without_disabled(available_tools, mcp_index, &disabled);

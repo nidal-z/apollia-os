@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use apollia_auth::{AuthManager, GoogleScope};
+use apollia_auth::{AccountId, GoogleScope};
 use apollia_connectors::google::sheets::ValueWrite;
 use apollia_connectors::google::tasks::NewTask;
 use apollia_connectors::google::GoogleConnector;
@@ -13,12 +13,12 @@ use crate::connectors_bridge::{get_str, get_str_opt, get_u32_or};
 
 pub(crate) async fn gsheets_create(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let title = get_str(input, "title")?;
     let scopes = [GoogleScope::SheetsReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let res = connector
         .sheets()
@@ -51,12 +51,12 @@ pub(crate) async fn gsheets_create(
 
 pub(crate) async fn gsheets_list_sheets(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let id = get_str(input, "spreadsheet_id")?;
     let scopes = [GoogleScope::SheetsReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let sheets = connector
         .sheets()
@@ -72,13 +72,13 @@ pub(crate) async fn gsheets_list_sheets(
 
 pub(crate) async fn gsheets_read_values(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let id = get_str(input, "spreadsheet_id")?;
     let range = get_str(input, "range")?;
     let scopes = [GoogleScope::SheetsReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let res = connector
         .sheets()
@@ -104,14 +104,14 @@ fn json_values_2d(input: &Value) -> Result<Vec<Vec<Value>>, String> {
 
 pub(crate) async fn gsheets_append_values(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let id = get_str(input, "spreadsheet_id")?;
     let range = get_str(input, "range")?;
     let values = json_values_2d(input)?;
     let scopes = [GoogleScope::SheetsReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .sheets()
@@ -130,14 +130,14 @@ pub(crate) async fn gsheets_append_values(
 
 pub(crate) async fn gsheets_update_values(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let id = get_str(input, "spreadsheet_id")?;
     let range = get_str(input, "range")?;
     let values = json_values_2d(input)?;
     let scopes = [GoogleScope::SheetsReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .sheets()
@@ -156,12 +156,12 @@ pub(crate) async fn gsheets_update_values(
 
 pub(crate) async fn gdocs_create(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let title = get_str(input, "title")?;
     let scopes = [GoogleScope::DocsReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let res = connector
         .docs()
@@ -173,12 +173,12 @@ pub(crate) async fn gdocs_create(
 
 pub(crate) async fn gdocs_read_text(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let id = get_str(input, "document_id")?;
     let scopes = [GoogleScope::DocsReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let text = connector
         .docs()
@@ -190,13 +190,13 @@ pub(crate) async fn gdocs_read_text(
 
 pub(crate) async fn gdocs_append_text(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let id = get_str(input, "document_id")?;
     let text = get_str(input, "text")?;
     let scopes = [GoogleScope::DocsReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .docs()
@@ -207,12 +207,12 @@ pub(crate) async fn gdocs_append_text(
 
 pub(crate) async fn gslides_create(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let title = get_str(input, "title")?;
     let scopes = [GoogleScope::SlidesReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let res = connector
         .slides()
@@ -224,13 +224,13 @@ pub(crate) async fn gslides_create(
 
 pub(crate) async fn gslides_append_slide(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let id = get_str(input, "presentation_id")?;
     let text = get_str(input, "text")?;
     let scopes = [GoogleScope::SlidesReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .slides()
@@ -241,10 +241,10 @@ pub(crate) async fn gslides_append_slide(
 
 pub(crate) async fn gtasks_list_lists(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
 ) -> Result<Value, String> {
     let scopes = [GoogleScope::Tasks];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let lists = connector
         .tasks()
@@ -256,12 +256,12 @@ pub(crate) async fn gtasks_list_lists(
 
 pub(crate) async fn gtasks_list_tasks(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let list_id = get_str(input, "task_list_id")?;
     let scopes = [GoogleScope::Tasks];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let tasks = connector
         .tasks()
@@ -273,7 +273,7 @@ pub(crate) async fn gtasks_list_tasks(
 
 pub(crate) async fn gtasks_create(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let list_id = get_str(input, "task_list_id")?;
@@ -281,7 +281,7 @@ pub(crate) async fn gtasks_create(
     let notes = get_str_opt(input, "notes");
     let due = get_str_opt(input, "due");
     let scopes = [GoogleScope::Tasks];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let task = connector
         .tasks()
@@ -302,13 +302,13 @@ pub(crate) async fn gtasks_create(
 
 pub(crate) async fn gtasks_complete(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let list_id = get_str(input, "task_list_id")?;
     let task_id = get_str(input, "task_id")?;
     let scopes = [GoogleScope::Tasks];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let task = connector
         .tasks()
@@ -320,13 +320,13 @@ pub(crate) async fn gtasks_complete(
 
 pub(crate) async fn gtasks_delete(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let list_id = get_str(input, "task_list_id")?;
     let task_id = get_str(input, "task_id")?;
     let scopes = [GoogleScope::Tasks];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .tasks()
@@ -338,12 +338,12 @@ pub(crate) async fn gtasks_delete(
 
 pub(crate) async fn gforms_create(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let title = get_str(input, "title")?;
     let scopes = [GoogleScope::FormsReadWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let res = connector
         .forms()
@@ -355,13 +355,13 @@ pub(crate) async fn gforms_create(
 
 pub(crate) async fn youtube_search(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let query = get_str(input, "query")?;
     let max_results = get_u32_or(input, "max_results", 10);
     let scopes = [GoogleScope::YouTubeReadOnly];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let results = connector
         .youtube()
@@ -373,12 +373,12 @@ pub(crate) async fn youtube_search(
 
 pub(crate) async fn youtube_video_details(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let id = get_str(input, "video_id")?;
     let scopes = [GoogleScope::YouTubeReadOnly];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let details = connector
         .youtube()

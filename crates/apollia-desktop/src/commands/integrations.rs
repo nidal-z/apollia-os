@@ -350,6 +350,23 @@ pub async fn oauth_complete_flow(
     let manager = auth_manager().await?;
     let granted_scopes = token.scopes.clone();
     store_and_record(governance, &manager, provider, &account_id, token).await?;
+    // Publish the tools of the account so it is usable without a restart. A
+    // failure is logged: the account is connected, and its tools are
+    // published at the next start.
+    if let Err(error) = apollia_runtime::connectors_bridge::register_account_tools(
+        &runtime.tool_registry_handle,
+        provider,
+        account_id.as_str(),
+    )
+    .await
+    {
+        tracing::event!(
+            tracing::Level::WARN,
+            provider = %provider.id(),
+            error = %error,
+            "integrations.account.tools.unpublished"
+        );
+    }
 
     Ok(OauthCompletedAccount {
         provider: provider.id().to_owned(),

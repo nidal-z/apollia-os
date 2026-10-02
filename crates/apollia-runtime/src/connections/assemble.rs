@@ -65,10 +65,8 @@ fn native_connection(provider: ConnectorProvider, account: &str) -> Connection {
     // A native connector is Apollia's own code: it counts as the selection.
     let provenance = Provenance::Selection;
     let official = false;
-    let descriptors = match provider {
-        ConnectorProvider::Google => crate::connectors_bridge::google_tool_descriptors(),
-        ConnectorProvider::Microsoft => crate::connectors_bridge::microsoft_tool_descriptors(),
-    };
+    let descriptors =
+        crate::connectors_bridge::connection_tools::account_descriptors(provider, account);
     Connection {
         id: format!("native:{}:{account}", provider.id()),
         kind: ConnectionKind::Native,
