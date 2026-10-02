@@ -4,6 +4,7 @@
 //! by a plain function, so what the bridge builds can be asserted without an
 //! interpreter.
 
+use apollia_llm::request_defaults::RequestDefaults;
 use apollia_llm::{ChatMessage, CompletionRequest};
 
 /// Cap applied when the agent sets no `max_tokens`: an unbounded completion
@@ -28,16 +29,18 @@ pub(super) struct RequestSampling {
 }
 
 /// Build the request `ctx.llm.complete` sends, from its messages, its sampling
-/// settings and its optional response schema.
+/// settings and its optional response schema. Each setting the call leaves
+/// unset takes the agent's resolved `defaults`; the token cap applies last.
 pub(super) fn complete_request(
     messages: Vec<ChatMessage>,
     sampling: RequestSampling,
     response_schema: Option<serde_json::Value>,
+    defaults: &RequestDefaults,
 ) -> CompletionRequest {
-    CompletionRequest {
+    let mut req = CompletionRequest {
         messages,
         temperature: sampling.temperature,
-        max_tokens: sampling.max_tokens.or(Some(DEFAULT_COMPLETE_MAX_TOKENS)),
+        max_tokens: sampling.max_tokens,
         seed: sampling.seed,
         response_schema,
         top_p: sampling.top_p,
@@ -48,7 +51,10 @@ pub(super) fn complete_request(
         repeat_penalty: sampling.repeat_penalty,
         stop: sampling.stop,
         ..Default::default()
-    }
+    };
+    defaults.apply_to(&mut req);
+    req.max_tokens = req.max_tokens.or(Some(DEFAULT_COMPLETE_MAX_TOKENS));
+    req
 }
 
 #[cfg(test)]
@@ -75,7 +81,12 @@ mod tests {
         };
 
         // WHEN the bridge builds the request it hands to the router
-        let req = complete_request(vec![ChatMessage::user("hi")], sampling, None);
+        let req = complete_request(
+            vec![ChatMessage::user("hi")],
+            sampling,
+            None,
+            &RequestDefaults::default(),
+        );
 
         // THEN each setting is carried as given
         assert_eq!(req.temperature, Some(0.2));
@@ -97,7 +108,12 @@ mod tests {
         let sampling = RequestSampling::default();
 
         // WHEN the bridge builds the request
-        let req = complete_request(vec![ChatMessage::user("hi")], sampling, None);
+        let req = complete_request(
+            vec![ChatMessage::user("hi")],
+            sampling,
+            None,
+            &RequestDefaults::default(),
+        );
 
         // THEN every sampling field stays unset, and only the token cap
         // takes its bridge default
@@ -109,5 +125,30 @@ mod tests {
         assert_eq!(req.repeat_penalty, None);
         assert_eq!(req.stop, None);
         assert_eq!(req.max_tokens, Some(DEFAULT_COMPLETE_MAX_TOKENS));
+    }
+
+    #[test]
+    fn the_agents_resolved_settings_fill_what_the_call_leaves_unset() {
+        // GIVEN an agent whose three levels resolve to a temperature, a top-p
+        //       and a token cap, and a call that sets its own temperature
+        let defaults = RequestDefaults {
+            temperature: Some(0.7),
+            top_p: Some(0.8),
+            max_tokens: Some(512),
+            ..RequestDefaults::default()
+        };
+        let sampling = RequestSampling {
+            temperature: Some(0.1),
+            ..RequestSampling::default()
+        };
+
+        // WHEN the bridge builds the request
+        let req = complete_request(vec![ChatMessage::user("hi")], sampling, None, &defaults);
+
+        // THEN the call's temperature stays, the agent's top-p and token cap
+        //      fill the rest, and the bridge cap does not override the agent's
+        assert_eq!(req.temperature, Some(0.1));
+        assert_eq!(req.top_p, Some(0.8));
+        assert_eq!(req.max_tokens, Some(512));
     }
 }

@@ -187,51 +187,15 @@ pub struct AgentDefaults {
     pub model: Option<ModelDefaultsDecl>,
 }
 
-/// `[agents.defaults.model]`.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ModelDefaultsDecl {
-    /// Model identifier, as the model catalogue names it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    /// Name of a model preset.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub preset: Option<String>,
-    /// Request settings the package recommends for this agent.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub request: Option<RequestSettings>,
-}
+/// `[agents.defaults.model]`: the shape the SDK manifest carries too, so a
+/// package declares its model defaults one way wherever they are read.
+pub use apollia_core::manifest::AgentModelDefaults as ModelDefaultsDecl;
 
-/// `[agents.defaults.model.request]`: request settings.
-///
-/// The keys are the existing ones of `apollia-llm`, none invented:
-/// `temperature`, `max_tokens` and `seed` are fields of
-/// `apollia_llm::types::CompletionRequest`; `top_p`, `top_k` and
-/// `repetition_penalty` are the remaining fields of
-/// `apollia_llm::model_defaults::ModelDefaults`, the per-model sampling
-/// defaults the resolution starts from. Types match theirs.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RequestSettings {
-    /// Sampling temperature.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
-    /// Nucleus sampling threshold.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub top_p: Option<f32>,
-    /// Top-k sampling cut.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub top_k: Option<u32>,
-    /// Repetition penalty.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub repetition_penalty: Option<f32>,
-    /// Maximum number of tokens to generate.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_tokens: Option<u32>,
-    /// Sampling seed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub seed: Option<u64>,
-}
+/// `[agents.defaults.model.request]`: request settings. The keys are those of
+/// `apollia_llm::model_defaults::ModelDefaults` (`temperature`, `top_p`,
+/// `top_k`, `repetition_penalty`) and of `apollia_llm::types::CompletionRequest`
+/// (`max_tokens`, `seed`), none invented.
+pub use apollia_core::manifest::PackageRequestSettings as RequestSettings;
 
 /// Action family of a tool or a workflow: what calling it does to the world.
 ///
