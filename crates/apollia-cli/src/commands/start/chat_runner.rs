@@ -114,12 +114,11 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             Arc::new(NoopToolInvoker),
         ));
 
-        let allowed_tools: Vec<String> = manifest
-            .tools_required
-            .iter()
-            .chain(manifest.tools_optional.iter())
-            .cloned()
-            .collect();
+        let allowed_tools = apollia_tools::GrantedAccess::new(
+            Some(apollia_core::paths::DataFile::Agents.path(&self.data_dir)),
+            &manifest,
+        )
+        .current();
 
         let memory_base_dir = self.data_dir.join("memory");
         let snapshot = load_governance_snapshot(&self.data_dir).unwrap_or_else(|e| {

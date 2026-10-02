@@ -740,8 +740,8 @@ agent = A()
         let backend = AIPProductionBackend {
             bridge,
             agent_id: "regression-orch-full".to_string(),
+            access: apollia_tools::GrantedAccess::new(None, &manifest_snapshot),
             manifest: manifest_snapshot,
-            allowed_tools: vec![],
             llm_router: None,
             event_bus,
             pending_approvals: None,

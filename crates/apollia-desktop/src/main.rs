@@ -210,6 +210,9 @@ fn main() {
             trusted_paths: trusted_paths_lock.clone(),
             plan_gates: plan_gates_lock.clone(),
             plan_cache: plan_cache_lock.clone(),
+            agents_db: Some(
+                apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name()),
+            ),
         });
 
     // Shared SttFlow state for push-to-talk IPC commands (`start_tour_recording`,

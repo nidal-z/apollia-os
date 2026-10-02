@@ -1,9 +1,10 @@
-//! A disabled tool is not offered to the model.
+//! What a turn may propose: a granted tool that is not disabled.
 //!
 //! The dispatcher leaves a disabled tool out, so a call to it is refused; this
-//! module keeps it out of what the turn proposes as well: the session's tool
-//! list and the deferred MCP index the model searches. Natives, MCP tools and
-//! connector tools answer to the same list.
+//! module keeps it out of what the turn proposes as well: the agent's access
+//! list and the deferred MCP index the model searches. An MCP tool the agent
+//! is not granted is kept out of that index, so `tool_search` cannot find it.
+//! Natives, MCP tools and connector tools answer to the same lists.
 
 use apollia_mcp::tool_search::ToolIndexSnapshot;
 
@@ -27,6 +28,21 @@ pub(in crate::chat::manager) fn without_disabled(
         .filter(|e| !is_disabled(&format!("mcp:{}/{}", e.server_name, e.tool_name)))
         .collect();
     (available, index)
+}
+
+/// `index` without the MCP tools `granted` does not list. An index entry is
+/// named `mcp:<server>/<tool>`, as the dispatcher registers it.
+pub(in crate::chat::manager) fn only_granted(
+    index: Vec<ToolIndexSnapshot>,
+    granted: &[String],
+) -> Vec<ToolIndexSnapshot> {
+    index
+        .into_iter()
+        .filter(|e| {
+            let name = format!("mcp:{}/{}", e.server_name, e.tool_name);
+            granted.contains(&name)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -67,6 +83,26 @@ mod tests {
         // THEN none of the disabled tools is left, and the enabled one is
         assert!(available.is_empty(), "{available:?}");
         assert_eq!(index.len(), 1);
+        assert_eq!(index[0].tool_name, "search");
+    }
+
+    // An MCP tool the agent is not granted is not in the index it searches.
+    #[test]
+    fn test_index_keeps_only_granted_mcp_tools() {
+        // GIVEN an index of three MCP tools, one of them granted with a native
+        let index = vec![
+            entry("notion", "search"),
+            entry("notion", "create_page"),
+            entry("drive", "list"),
+        ];
+        let granted = vec!["file_read".to_string(), "mcp:notion/search".to_string()];
+
+        // WHEN the index is restricted to the access list
+        let index = only_granted(index, &granted);
+
+        // THEN only the granted MCP tool is left
+        assert_eq!(index.len(), 1);
+        assert_eq!(index[0].server_name, "notion");
         assert_eq!(index[0].tool_name, "search");
     }
 }
