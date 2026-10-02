@@ -209,6 +209,25 @@ A packaged build stages the engine binary. A source build expects
 is reachable, calls fail with an explicit unavailable reason rather than
 silently falling back to a cloud provider.
 
+On macOS Apple Silicon, models in the MLX format run through a second embedded
+engine, vllm-mlx (Apache 2.0), an OpenAI-compatible server built on MLX with
+continuous batching, prefix caching and native structured output. One version
+is pinned, and the engine is installed by hash into an environment of its own
+inside the bundled Python tree, apart from the packages agents import: the
+engine starts with the bundled interpreter in a mode that keeps the agents'
+packages off its path. Only the dependencies that serving a model imports are
+installed, without resolving the rest of the closure the engine declares.
+Two exclusions follow from that. mlx-embeddings is GPL-3.0 and only backs the
+engine's embeddings endpoint, so it never ships and that endpoint is not
+served; the build and the release check both refuse a bundle that carries it.
+PyTorch, OpenCV, Gradio, SciPy and the audio stack are not imported to serve
+a model, so they are left out. The daemon supervises the engine the way it
+supervises `llama-server`, behind an engine interface that keeps the engine
+replaceable, and it listens on the loopback interface only. The cost is
+weight: the engine and its dependencies add about 150 MB to the macOS disk
+image, and they need macOS 14 or later, the floor of the MLX wheels at the
+pinned version. The Windows and Linux bundles do not carry it.
+
 There is no dedicated cloud provider. A remote model is reached through one
 generic connection to an OpenAI-compatible server, at the address the
 organization designates: a self-hosted vLLM or LM Studio, or a gateway. Any
