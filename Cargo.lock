@@ -423,6 +423,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "wiremock",
+ "zip",
 ]
 
 [[package]]

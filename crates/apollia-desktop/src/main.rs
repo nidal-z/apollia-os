@@ -19,6 +19,17 @@ mod backend;
 mod bootstrap;
 mod bundled_agents;
 mod commands;
+// The documentation reader of the interface is what calls this module; until
+// its commands are registered with their caller, only the tests reach it, and
+// the expectation turns red the day the module is wired.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "read by the tests until its commands have a caller"
+    )
+)]
+mod embedded_docs;
 mod events;
 mod handlers;
 pub mod i18n;
