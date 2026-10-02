@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "qwen2.5/Qwen2.5-7B-Instruct",
+  "kind": "language",
+  "label": "Qwen2.5 7B Instruct",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+  "description": {
+    "fr": "Modèle Qwen2.5 éprouvé, sans mode de réflexion : réponses directes, appel d'outils, bonne tenue en français.",
+    "en": "A proven Qwen2.5 model without a thinking mode: direct answers, tool calls, good French."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 4.7,
+    "source": "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/blob/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "repetition_penalty": 1.05,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen2.5-7B-Instruct",
+    "Qwen/Qwen2.5-7B-Instruct-GGUF",
+    "bartowski/Qwen2.5-7B-Instruct-GGUF",
+    "mlx-community/Qwen2.5-7B-Instruct-4bit",
+    "lmstudio-community/Qwen2.5-7B-Instruct-MLX-4bit"
+  ],
+  "template": "registry/models/templates/qwen2.5.jinja"
+}

@@ -17,6 +17,8 @@ cloud            = ["dep:async-openai", "dep:reqwest"]
 
 [dependencies]
 apollia-core   = { workspace = true, features = ["net"] }
+# minisign check of the signed index of model cards
+apollia-signing = { workspace = true }
 tokio          = { workspace = true }
 serde          = { workspace = true }
 serde_json     = { workspace = true }

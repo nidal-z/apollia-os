@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "gemma3/gemma-3-12b-it",
+  "kind": "language",
+  "label": "Gemma 3 12B",
+  "publisher": "Google",
+  "license": {
+    "id": "gemma",
+    "source": "https://huggingface.co/google/gemma-3-12b-it"
+  },
+  "source_url": "https://huggingface.co/google/gemma-3-12b-it",
+  "description": {
+    "fr": "Modèle Gemma 3 de taille moyenne, bon en rédaction et en lecture d'images, sans appel d'outils.",
+    "en": "A mid-sized Gemma 3 model, good at writing and reading images, without tool calls."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/unsloth/gemma-3-12b-it/tree/main"
+  },
+  "memory": {
+    "min_gb": 7.4,
+    "source": "https://huggingface.co/unsloth/gemma-3-12b-it-GGUF/blob/main/gemma-3-12b-it-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "top_p": 0.95,
+    "top_k": 64,
+    "source": "https://huggingface.co/unsloth/gemma-3-12b-it/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "google/gemma-3-12b-it",
+    "google/gemma-3-12b-it-GGUF",
+    "unsloth/gemma-3-12b-it-GGUF",
+    "bartowski/gemma-3-12b-it-GGUF",
+    "mlx-community/gemma-3-12b-it-4bit"
+  ],
+  "template": "crates/apollia-llm/src/capabilities/fixtures/chat_template_gemma3_4b.jinja"
+}

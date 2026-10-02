@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "multilingual-e5-small",
+  "kind": "embeddings",
+  "label": "Multilingual E5 small",
+  "publisher": "intfloat",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/intfloat/multilingual-e5-small"
+  },
+  "source_url": "https://huggingface.co/intfloat/multilingual-e5-small",
+  "description": {
+    "fr": "Petit modèle d'embeddings multilingue : il transforme vos textes en vecteurs pour la recherche par le sens dans vos documents, en français comme en anglais. Léger, il tourne partout.",
+    "en": "A small multilingual embeddings model: it turns your texts into vectors for search by meaning across your documents, in French as in English. Light, it runs anywhere."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/intfloat/multilingual-e5-small"
+  },
+  "memory": {
+    "min_gb": 0.2,
+    "source": "https://huggingface.co/cstr/multilingual-e5-small-GGUF/blob/main/multilingual-e5-small-q8_0.gguf"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "cstr/multilingual-e5-small-GGUF",
+    "intfloat/multilingual-e5-small"
+  ]
+}

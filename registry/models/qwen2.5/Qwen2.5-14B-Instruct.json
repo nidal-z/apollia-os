@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "qwen2.5/Qwen2.5-14B-Instruct",
+  "kind": "language",
+  "label": "Qwen2.5 14B Instruct",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct",
+  "description": {
+    "fr": "Version plus grande de Qwen2.5 : réponses directes et plus précises, appel d'outils, pour un poste de 16 Go.",
+    "en": "The larger Qwen2.5: direct and more precise answers, tool calls, for a 16 GB machine."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/tree/main"
+  },
+  "memory": {
+    "min_gb": 9.0,
+    "source": "https://huggingface.co/bartowski/Qwen2.5-14B-Instruct-GGUF/blob/main/Qwen2.5-14B-Instruct-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "repetition_penalty": 1.05,
+    "source": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "Qwen/Qwen2.5-14B-Instruct",
+    "Qwen/Qwen2.5-14B-Instruct-GGUF",
+    "bartowski/Qwen2.5-14B-Instruct-GGUF",
+    "mlx-community/Qwen2.5-14B-Instruct-4bit",
+    "lmstudio-community/Qwen2.5-14B-Instruct-MLX-4bit"
+  ],
+  "template": "registry/models/templates/qwen2.5.jinja"
+}

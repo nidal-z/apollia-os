@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "whisper-large-v3-q5",
+  "kind": "dictation",
+  "label": "Whisper Large-v3",
+  "publisher": "OpenAI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/openai/whisper-large-v3"
+  },
+  "source_url": "https://huggingface.co/openai/whisper-large-v3",
+  "description": {
+    "fr": "Le modèle de dictée le plus précis de la sélection, plus lent ; pour les transcriptions où chaque mot compte.",
+    "en": "The most precise dictation model of the selection, and slower; for transcripts where every word counts."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/openai/whisper-large-v3"
+  },
+  "memory": {
+    "min_gb": 1.1,
+    "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-large-v3-q5_0.bin"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "openai/whisper-large-v3"
+  ],
+  "selection_files": [
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin"
+  ]
+}

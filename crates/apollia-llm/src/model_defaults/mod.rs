@@ -1,8 +1,11 @@
 //! Sampling defaults by model family.
 //!
-//! Three sources, in decreasing precedence (the first that answers wins over
+//! Four sources, in decreasing precedence (the first that answers wins over
 //! the rest, field by field):
 //!
+//! 0. **Model card**: the sampling values of the Apollia card copied next to
+//!    the model when it was downloaded ([`crate::model_cards`]), passed in
+//!    [`ModelHints::card`].
 //! 1. **User override**: `~/.apollia/models/sampling-defaults.json`, filled
 //!    automatically when a model is downloaded via Apollia from HuggingFace
 //!    (the source repo's `generation_config.json`) or edited by hand by the
@@ -36,6 +39,23 @@ pub struct ModelDefaults {
     pub top_p: Option<f32>,
     pub top_k: Option<u32>,
     pub repetition_penalty: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_p: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub presence_penalty: Option<f32>,
+}
+
+impl From<&crate::model_cards::CardDefaults> for ModelDefaults {
+    fn from(card: &crate::model_cards::CardDefaults) -> Self {
+        Self {
+            temperature: card.temperature,
+            top_p: card.top_p,
+            top_k: card.top_k,
+            repetition_penalty: card.repetition_penalty,
+            min_p: card.min_p,
+            presence_penalty: card.presence_penalty,
+        }
+    }
 }
 
 impl ModelDefaults {
@@ -54,6 +74,12 @@ impl ModelDefaults {
         if self.repetition_penalty.is_none() {
             self.repetition_penalty = other.repetition_penalty;
         }
+        if self.min_p.is_none() {
+            self.min_p = other.min_p;
+        }
+        if self.presence_penalty.is_none() {
+            self.presence_penalty = other.presence_penalty;
+        }
         self
     }
 
@@ -63,6 +89,8 @@ impl ModelDefaults {
             && self.top_p.is_none()
             && self.top_k.is_none()
             && self.repetition_penalty.is_none()
+            && self.min_p.is_none()
+            && self.presence_penalty.is_none()
     }
 }
 
@@ -154,6 +182,7 @@ fn embedded_lookup(arch: &str, name_hints: &[&str]) -> ModelDefaults {
             top_p: entry.top_p,
             top_k: entry.top_k,
             repetition_penalty: entry.repetition_penalty,
+            ..ModelDefaults::default()
         };
     }
     ModelDefaults::default()
@@ -231,12 +260,14 @@ pub struct ModelHints<'a> {
     pub file_name: Option<&'a str>,
     pub repo_id: Option<&'a str>,
     pub model_id: Option<&'a str>,
+    /// The sampling values of the model's card, the first source.
+    pub card: Option<&'a ModelDefaults>,
 }
 
-/// Resolve the defaults for a model by combining the three sources.
+/// Resolve the defaults for a model by combining the sources.
 ///
-/// The user override wins field by field; the embedded table fills the fields
-/// left `None`. If no source provides a field, it stays `None` and the caller
+/// The card wins field by field, then the user override, then the embedded
+/// table fills the fields left `None`. If no source provides a field, it stays `None` and the caller
 /// applies its global hard fallback.
 pub fn resolve(hints: &ModelHints<'_>, overrides: &UserOverrides) -> ModelDefaults {
     let mut keys: Vec<&str> = Vec::new();
@@ -261,7 +292,8 @@ pub fn resolve(hints: &ModelHints<'_>, overrides: &UserOverrides) -> ModelDefaul
         .collect();
     let embedded = embedded_lookup(arch, &name_hints);
 
-    user.fill_missing(&embedded)
+    let card = hints.card.cloned().unwrap_or_default();
+    card.fill_missing(&user).fill_missing(&embedded)
 }
 
 #[cfg(test)]
@@ -338,6 +370,7 @@ mod tests {
             top_p: Some(0.5),
             top_k: None,
             repetition_penalty: None,
+            ..ModelDefaults::default()
         };
         UserOverrides::upsert(&path, "Qwen3-test.gguf", d.clone()).expect("upsert should succeed");
 
@@ -398,5 +431,64 @@ mod tests {
         let d = resolve(&hints, &overrides);
         // THEN nothing comes back, so the caller keeps the engine defaults
         assert!(d.is_empty());
+    }
+
+    #[test]
+    fn resolve_the_card_wins_over_the_generation_config() {
+        // GIVEN a card recommending temperature 1.0, and the publisher's
+        // generation_config.json, written at download, at 0.7
+        let mut overrides = UserOverrides::default();
+        overrides.entries.insert(
+            "Model-Q4_K_M.gguf".to_string(),
+            ModelDefaults {
+                temperature: Some(0.7),
+                top_p: Some(0.8),
+                ..Default::default()
+            },
+        );
+        let card = ModelDefaults {
+            temperature: Some(1.0),
+            min_p: Some(0.0),
+            presence_penalty: Some(1.5),
+            ..Default::default()
+        };
+        let hints = ModelHints {
+            file_name: Some("Model-Q4_K_M.gguf"),
+            card: Some(&card),
+            ..Default::default()
+        };
+
+        // WHEN the defaults are resolved
+        let d = resolve(&hints, &overrides);
+
+        // THEN the card's temperature wins, its new fields are carried, and a
+        // field it leaves unset keeps the generation_config value
+        assert_eq!(d.temperature, Some(1.0));
+        assert_eq!(d.min_p, Some(0.0));
+        assert_eq!(d.presence_penalty, Some(1.5));
+        assert_eq!(d.top_p, Some(0.8));
+    }
+
+    #[test]
+    fn resolve_without_a_card_keeps_the_generation_config() {
+        // GIVEN no card, and the generation_config.json value at 0.7
+        let mut overrides = UserOverrides::default();
+        overrides.entries.insert(
+            "Model-Q4_K_M.gguf".to_string(),
+            ModelDefaults {
+                temperature: Some(0.7),
+                ..Default::default()
+            },
+        );
+        let hints = ModelHints {
+            file_name: Some("Model-Q4_K_M.gguf"),
+            ..Default::default()
+        };
+
+        // WHEN the defaults are resolved
+        let d = resolve(&hints, &overrides);
+
+        // THEN the generation_config value is the one used
+        assert_eq!(d.temperature, Some(0.7));
     }
 }

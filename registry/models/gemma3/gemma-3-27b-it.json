@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "gemma3/gemma-3-27b-it",
+  "kind": "language",
+  "label": "Gemma 3 27B",
+  "publisher": "Google",
+  "license": {
+    "id": "gemma",
+    "source": "https://huggingface.co/google/gemma-3-27b-it"
+  },
+  "source_url": "https://huggingface.co/google/gemma-3-27b-it",
+  "description": {
+    "fr": "Le plus grand Gemma 3 de la sélection : rédaction soignée et lecture d'images, sans appel d'outils, pour un poste bien doté.",
+    "en": "The largest Gemma 3 of the selection: careful writing and image reading, without tool calls, for a well-equipped machine."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": true,
+    "source": "https://huggingface.co/unsloth/gemma-3-27b-it/tree/main"
+  },
+  "memory": {
+    "min_gb": 16.6,
+    "source": "https://huggingface.co/unsloth/gemma-3-27b-it-GGUF/blob/main/gemma-3-27b-it-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "top_p": 0.95,
+    "top_k": 64,
+    "source": "https://huggingface.co/unsloth/gemma-3-27b-it/blob/main/generation_config.json"
+  },
+  "author_fields": [],
+  "repos": [
+    "google/gemma-3-27b-it",
+    "google/gemma-3-27b-it-GGUF",
+    "unsloth/gemma-3-27b-it-GGUF",
+    "bartowski/gemma-3-27b-it-GGUF",
+    "mlx-community/gemma-3-27b-it-4bit"
+  ],
+  "template": "crates/apollia-llm/src/capabilities/fixtures/chat_template_gemma3_4b.jinja"
+}

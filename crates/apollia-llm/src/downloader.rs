@@ -653,6 +653,7 @@ async fn persist_sampling_defaults(
         top_p: gen_config.top_p.map(|v| v as f32),
         top_k: gen_config.top_k,
         repetition_penalty: gen_config.repetition_penalty.map(|v| v as f32),
+        ..crate::model_defaults::ModelDefaults::default()
     };
 
     if defaults.is_empty() {

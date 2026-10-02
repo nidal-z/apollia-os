@@ -27,6 +27,7 @@ pub mod memory;
 pub mod meta_automation;
 pub mod meta_next_steps;
 pub mod meta_rewrite;
+pub mod model_cards;
 pub mod model_hub;
 pub mod model_import;
 pub(crate) mod model_index;

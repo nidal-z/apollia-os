@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "whisper-tiny",
+  "kind": "dictation",
+  "label": "Whisper Tiny",
+  "publisher": "OpenAI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/openai/whisper-tiny"
+  },
+  "source_url": "https://huggingface.co/openai/whisper-tiny",
+  "description": {
+    "fr": "Le plus petit modèle de dictée : quasi instantané, pour des notes rapides ; la transcription reste approximative.",
+    "en": "The smallest dictation model: almost instant, for quick notes; the transcript stays approximate."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/openai/whisper-tiny"
+  },
+  "memory": {
+    "min_gb": 0.1,
+    "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-tiny.bin"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "openai/whisper-tiny"
+  ],
+  "selection_files": [
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
+  ]
+}

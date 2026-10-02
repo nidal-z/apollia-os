@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "whisper-large-v3-turbo-q5",
+  "kind": "dictation",
+  "label": "Whisper Large-v3 Turbo",
+  "publisher": "OpenAI",
+  "license": {
+    "id": "mit",
+    "source": "https://huggingface.co/openai/whisper-large-v3-turbo"
+  },
+  "source_url": "https://huggingface.co/openai/whisper-large-v3-turbo",
+  "description": {
+    "fr": "Le meilleur compromis pour dicter : proche de la qualité du grand modèle, plusieurs fois plus rapide.",
+    "en": "The best trade-off for dictation: close to the large model's quality, several times faster."
+  },
+  "capabilities": {
+    "tools": false,
+    "reasoning": false,
+    "vision": false,
+    "source": "https://huggingface.co/openai/whisper-large-v3-turbo"
+  },
+  "memory": {
+    "min_gb": 0.6,
+    "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-large-v3-turbo-q5_0.bin"
+  },
+  "defaults": {
+    "source": ""
+  },
+  "author_fields": [],
+  "repos": [
+    "openai/whisper-large-v3-turbo"
+  ],
+  "selection_files": [
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin"
+  ]
+}
