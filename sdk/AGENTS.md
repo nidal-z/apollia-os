@@ -21,14 +21,14 @@ documentation site.
 | `@skill` | async method | `skill(skill_id, *, description="", dangerous=False, examples=None)` | A2A-exposed, LLM-callable capability |
 | `@on_message` | async method | `on_message(fn)`, no arguments | the agent's single conversational handler |
 | `@orchestrated` | class | `orchestrated(*, system_prompt)` | hand the execution loop to ORIA |
-| `@tool` | async function | `tool(name, description, *, action, dangerous=False, examples=None)` | a Python tool a package ships, grantable to any agent |
+| `@tool` | async function | `tool(name, description, *, action, examples=None)` | a Python tool a package ships, grantable to any agent |
 | `@workflow` | async function | `workflow(name, description, *, inputs, steps, action)` | a workflow with its steps declared ahead, run as `(ctx, inputs)` |
 
 `@tool` and `@workflow` decorate module-level functions, not methods.
 `action` is one of the five families `apollia.toml` reads (`read`,
 `read_personal`, `write_or_delete`, `send_external`, `execute_code`); every
-family except `read` is sensitive, so `dangerous=True` on a `read` tool is
-refused. A workflow's `inputs` is a `TypedDict`, and its body opens each step
+family except `read` is sensitive, and sensitivity follows the family alone:
+`@tool` takes no `dangerous` flag. A workflow's `inputs` is a `TypedDict`, and its body opens each step
 with `async with ctx.step("name")`, which refuses a name missing from `steps`.
 `python -m apollia describe <folder>` writes both into the folder's
 `apollia.toml` as `[[tools]]` and `[[workflows]]` descriptors, so reading the

@@ -46,7 +46,6 @@ class ToolSpec:
         name: Identifier, ``[a-z0-9_-]+``, unique in the package.
         description: What the tool does, for the model and the agent card.
         action: One of :data:`ACTION_FAMILIES`.
-        dangerous: The author's own flag; see :func:`tool`.
         examples: Sample input payloads.
         input_schema: JSON Schema inferred from the signature.
     """
@@ -54,7 +53,6 @@ class ToolSpec:
     name: str
     description: str
     action: str
-    dangerous: bool
     examples: list[dict[str, Any]] = field(default_factory=list)
     input_schema: dict[str, Any] = field(default_factory=dict)
 
@@ -134,7 +132,6 @@ def tool(
     description: str,
     *,
     action: str,
-    dangerous: bool = False,
     examples: list[dict[str, Any]] | None = None,
 ) -> Callable[[F], F]:
     """Declare an ``async def`` function as a tool the package ships.
@@ -157,30 +154,20 @@ def tool(
         description: What the tool does, for the model and the agent card.
         action: The action family, one of :data:`ACTION_FAMILIES`. It decides
             whether granting the tool is sensitive: every family except
-            ``read`` is.
-        dangerous: Marks the tool as sensitive. ``apollia.toml`` derives
-            sensitivity from the family alone, so the flag cannot make a
-            ``read`` tool sensitive and that combination is refused.
+            ``read`` is. Sensitivity has no flag of its own: a tool that
+            should be treated as sensitive declares the family that says
+            what it really does.
         examples: Sample input payloads, each a dict.
 
     Raises:
         AgentConfigError: on an invalid name, an empty description, an
-            unknown family, ``dangerous=True`` on a ``read`` tool, examples
-            that are not a list of dicts, or a function that is not
+            unknown family, examples that are not a list of dicts, or a function that is not
             ``async def`` or is already a tool.
         SchemaError: when a parameter annotation cannot become a schema.
     """
     checked_name = check_name("@tool", name)
     checked_description = check_description("@tool", checked_name, description)
     checked_action = check_action("@tool", checked_name, action)
-    if not isinstance(dangerous, bool):
-        raise AgentConfigError(f"@tool {checked_name!r}: dangerous must be a bool")
-    if dangerous and checked_action == "read":
-        raise AgentConfigError(
-            f"@tool {checked_name!r}: dangerous=True on a 'read' tool cannot be "
-            "declared, since sensitivity follows the family; pick the family "
-            "that says what the tool really does"
-        )
     checked_examples = _check_examples(checked_name, examples)
 
     def decorator(fn: F) -> F:
@@ -193,7 +180,6 @@ def tool(
             name=checked_name,
             description=checked_description,
             action=checked_action,
-            dangerous=dangerous,
             examples=checked_examples,
             input_schema=signature_to_input_schema(fn),
         )

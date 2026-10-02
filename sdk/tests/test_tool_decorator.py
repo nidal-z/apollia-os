@@ -90,26 +90,32 @@ def test_tool_refuses_an_unknown_family(family: str) -> None:
         tool("bad_family", "Unknown family.", action=family)
 
 
-def test_tool_refuses_dangerous_on_a_read_tool() -> None:
-    # GIVEN a read tool flagged dangerous, which apollia.toml cannot represent
-    # WHEN it is declared
-    # THEN it is refused rather than written as a non-sensitive tool
-    with pytest.raises(AgentConfigError, match="dangerous=True on a 'read' tool"):
-        tool("risky_read", "Reads.", action="read", dangerous=True)
+def test_tool_takes_no_dangerous_flag() -> None:
+    # GIVEN a tool declared with the retired dangerous flag
+    # WHEN the decorator is called
+    # THEN Python refuses the unknown keyword, sensitivity following the family
+    with pytest.raises(TypeError, match="dangerous"):
+        tool("purge", "Delete old rows.", action="write_or_delete", dangerous=True)  # type: ignore[call-arg]
 
 
-def test_tool_accepts_dangerous_on_a_sensitive_family() -> None:
-    # GIVEN a write tool flagged dangerous
-    @tool("purge", "Delete old rows.", action="write_or_delete", dangerous=True)
+def test_tool_sensitivity_follows_the_family() -> None:
+    # GIVEN a read tool and a write tool
+    @tool("peek", "Read rows.", action="read")
+    async def peek(ctx: Any) -> None:
+        return None
+
+    @tool("purge", "Delete old rows.", action="write_or_delete")
     async def purge(ctx: Any) -> None:
         return None
 
-    # WHEN its spec is read
-    spec = getattr(purge, TOOL_ATTR)
+    # WHEN their specs are read
+    peek_spec = getattr(peek, TOOL_ATTR)
+    purge_spec = getattr(purge, TOOL_ATTR)
 
-    # THEN the flag is kept and the tool is sensitive
-    assert spec.dangerous is True
-    assert spec.sensitive is True
+    # THEN only the non-read family is sensitive, and no flag is recorded
+    assert peek_spec.sensitive is False
+    assert purge_spec.sensitive is True
+    assert not hasattr(purge_spec, "dangerous")
 
 
 @pytest.mark.parametrize("name", ["Extract", "has space", "dot.ted", "", 3])
