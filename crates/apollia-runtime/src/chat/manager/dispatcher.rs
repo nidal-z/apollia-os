@@ -297,7 +297,7 @@ fn build_full_chat_dispatcher(
 /// disabled mid-session takes effect on the next message, without a restart.
 /// An unreadable governance database leaves every tool enabled, the same
 /// tolerance the other runners apply.
-fn effective_disabled_tools(cfg: &ChatToolsConfig) -> Vec<String> {
+pub(in crate::chat::manager) fn effective_disabled_tools(cfg: &ChatToolsConfig) -> Vec<String> {
     let mut disabled = match apollia_tools::load_governance_snapshot(&cfg.data_dir) {
         Ok(snapshot) => snapshot.disabled_tools,
         Err(e) => {

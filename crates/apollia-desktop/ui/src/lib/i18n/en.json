@@ -1226,6 +1226,15 @@
       "near_badge": "Close to threshold",
       "exceeded_note": "{spend} spent on {date} is above the {threshold} alert threshold.",
       "unset": "No cost alert threshold is set: add cost_alert_threshold_usd to the [llm] section of apollia.toml to be warned when spending climbs."
+    },
+    "loaded": {
+      "title": "Loaded in memory",
+      "empty": "No model is loaded in memory.",
+      "since": "Loaded at {time}",
+      "in_use": "Answering",
+      "unload": "Unload",
+      "unloaded_toast": "{name} unloaded, its memory is free.",
+      "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
     }
   },
   "automations": {
@@ -3896,12 +3905,12 @@
       "bash_executor": {
         "label_operator": "Terminal commands",
         "desc_operator": "Execute shell commands - each run requires your approval",
-        "desc_builder": "bash_executor - timeout_secs, working_dir - SandboxProfile::Full - dangerous"
+        "desc_builder": "bash_executor - timeout_secs, working_dir - SandboxProfile::FileSystem - family execute_code"
       },
       "python_executor": {
         "label_operator": "Python scripts",
         "desc_operator": "Run Python code in an isolated environment",
-        "desc_builder": "python_executor - per-agent venv, timeout_secs - SandboxProfile::Full - dangerous"
+        "desc_builder": "python_executor - per-agent venv, timeout_secs - SandboxProfile::FileSystem - family execute_code"
       },
       "http_fetch": {
         "label_operator": "Web requests",

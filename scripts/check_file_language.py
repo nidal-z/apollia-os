@@ -259,7 +259,6 @@ OUT_OF_SCOPE = (
 FRENCH_DOCUMENTS = (
     "crates/apollia-desktop/ui/figma/GUIDE-FIGMA-FIRST.md",
     "crates/apollia-desktop/ui/src/lib/design/breakpoints.md",
-    "crates/apollia-desktop/ui/src/lib/i18n/operator-glossary.md",
     "docs/README.md",
     "packaging/README.md",
 )
@@ -273,6 +272,7 @@ BILINGUAL_DATA = (
     "crates/apollia-desktop/src/mcp/enrichments.json",
     "crates/apollia-desktop/ui/src/lib/i18n/en.json",
     "crates/apollia-desktop/ui/src/lib/i18n/fr.json",
+    "crates/apollia-desktop/ui/src/lib/i18n/glossary.json",
     "scripts/automation/",
 )
 
@@ -288,7 +288,7 @@ BILINGUAL_DATA = (
 #   prompt     French text sent to a model, because the operator writes French
 FRENCH_DATA: dict[str, int] = {
     # locale: the French half of a bilingual surface
-    "crates/apollia-desktop/src/i18n.rs": 9,
+    "crates/apollia-desktop/src/i18n.rs": 16,
     "crates/apollia-desktop/ui/src/lib/i18n/identicalLocales.ts": 4,
     "crates/apollia-desktop/ui/src/components/settings/stt/SttEssentialSection.svelte": 2,
     "crates/apollia-memory/src/profile_schema.rs": 26,

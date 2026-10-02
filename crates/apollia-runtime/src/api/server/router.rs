@@ -11,13 +11,18 @@ use axum::{Json, Router};
 use serde::Serialize;
 use tracing::info;
 
-use crate::api::server::AppState;
+use crate::api::server::{AppState, PRODUCT_MARKER};
 use crate::coordinator::{DynBackend, ExecutionBackend};
 
 /// Response body for the health endpoint.
 #[derive(Serialize, utoipa::ToSchema)]
 pub(crate) struct HealthResponse {
     status: String,
+    /// Always [`PRODUCT_MARKER`]: what lets a caller that finds the port
+    /// taken tell an Apollia runtime from any other listener.
+    product: &'static str,
+    /// The version of the runtime answering, as its crate declares it.
+    version: &'static str,
 }
 
 /// Response body for the shutdown endpoint.
@@ -31,11 +36,16 @@ pub(crate) struct ShutdownResponse {
     get,
     path = "/api/v1/health",
     tag = "health",
+    // Open on the TCP listener: a process that finds the port taken has no
+    // token, and the body reveals the product marker and the version only.
+    security(()),
     responses((status = 200, description = "Runtime is up", body = HealthResponse))
 )]
 pub(crate) async fn health_handler() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok".into(),
+        product: PRODUCT_MARKER,
+        version: env!("CARGO_PKG_VERSION"),
     })
 }
 
@@ -81,6 +91,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         get_session_todo as chat_get_session_todo, list_recent_sessions, list_session_children,
         list_sessions, resume_session as chat_resume_session, send_message, stream_session,
     };
+    use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
     use crate::api::routes_hooks::list_hooks;
     use crate::api::routes_llm::llm_routes;
@@ -267,6 +278,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(mcp_registry_router::<B>())
         .merge(mcp_secrets_router::<B>())
         // Native connector consent routes
+        .merge(connections_router::<B>())
         .merge(connectors_router::<B>())
         .with_state(state)
 }

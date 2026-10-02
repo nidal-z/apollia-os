@@ -1,24 +1,13 @@
 //! LLM inference backends for `apollia-llm`.
 //!
 //! Local backends (llama.cpp, whisper) are hosted by the `apollia-runner`
-//! crate (multi-runner sidecar). This module now holds only the cloud HTTP
-//! clients:
+//! crate (multi-runner sidecar). This module now holds only the HTTP client:
 //!
-//! - `openai`   : OpenAI-compatible HTTP client `[feature = "cloud"]`
-//! - `anthropic`: Anthropic HTTP client `[feature = "cloud"]`
-//! - `vertex`   : Google Vertex AI client `[feature = "cloud"]`
-
-#[cfg(feature = "cloud")]
-pub mod anthropic;
-
-#[cfg(feature = "cloud")]
-pub mod ollama;
+//! - `openai`: OpenAI-compatible HTTP client `[feature = "cloud"]`, which also
+//!   serves Ollama through its `/v1` endpoint
 
 #[cfg(feature = "cloud")]
 pub mod openai;
-
-#[cfg(feature = "cloud")]
-pub mod vertex;
 
 /// Serialisation and restoration for tests that mutate the process
 /// environment. Environment variables are process globals: two parallel

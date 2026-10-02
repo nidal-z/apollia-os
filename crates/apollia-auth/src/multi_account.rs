@@ -1,23 +1,29 @@
 //! Multi-account storage for SaaS connector OAuth tokens.
 //!
 //! Each (provider, account_id) pair is stored:
-//! - The token (access + refresh) in the OS keyring under
-//!   `service = "apollia-connector-<provider>"`, `user = "<account_id>"`.
+//! - The token (access + refresh) in the configured [`SecretStore`] under
+//!   `service = "apollia-connector-<provider>"`, `user = "<account_id>"`. With
+//!   the default keyring backend these are the keychain service and account
+//!   names, unchanged since tokens were first stored, so no entry has to move.
 //! - The account_id in an index file at `~/.apollia/connectors-index.json` so
-//!   the UI can list connected accounts without enumerating the keyring (which
-//!   most platforms do not allow).
+//!   the UI can list connected accounts without enumerating the store (which
+//!   most keyrings do not allow).
 //!
 //! `account_id` is the user-facing identifier, typically the connected email
-//! address. It is **not** a secret; the secret lives in the keyring entry.
+//! address. It is **not** a secret; the secret lives in the store entry.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
-use crate::{connector_providers::ConnectorProvider, error::AuthError, token::StoredToken};
+use crate::{
+    connector_providers::ConnectorProvider,
+    error::AuthError,
+    secret_storage::{select_default, KeyringSecretStore, SecretStore},
+    token::StoredToken,
+};
 
 // ─── Identifier ──────────────────────────────────────────────────────────────
 
@@ -56,7 +62,7 @@ struct AccountIndex {
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
 
-/// Multi-account keyring storage for SaaS connector tokens.
+/// Multi-account storage for SaaS connector tokens.
 ///
 /// Operations are async and serialize index updates through an internal
 /// [`Mutex`] so concurrent stores from multiple tasks do not corrupt the index.
@@ -65,46 +71,42 @@ pub struct MultiAccountStorage {
     index_path: PathBuf,
     /// Serialize index reads + writes to prevent torn updates.
     index_lock: Mutex<()>,
-    /// Where the tokens themselves live. Production is the OS keyring; tests
-    /// substitute a directory of files, because the keyring resolves through
-    /// the operator's real profile (on macOS the default keychain sits under
-    /// `~/Library`), which a test must never write, the same isolation rule
-    /// as the real `~/.apollia`.
-    tokens: TokenBackend,
-}
-
-/// Token storage backend of [`MultiAccountStorage`].
-enum TokenBackend {
-    /// OS-native keyring (production).
-    Keyring,
-    /// Plain JSON files under a test-owned directory.
-    #[cfg(test)]
-    Files(PathBuf),
+    /// Where the tokens themselves live: the store selected by
+    /// `APOLLIA_TOKEN_STORAGE` in production, the same one every other
+    /// connection secret goes through.
+    tokens: Box<dyn SecretStore>,
 }
 
 impl MultiAccountStorage {
-    /// Build a [`MultiAccountStorage`] using the default index location.
+    /// Build a [`MultiAccountStorage`] using the default index location and
+    /// the configured secret store ([`select_default`]).
     pub fn new() -> Result<Self, AuthError> {
         let home = apollia_core::paths::home_dir()
             .ok_or_else(|| AuthError::Keyring("home directory not found".into()))?;
         let dir = apollia_core::paths::data_dir_under(home);
         std::fs::create_dir_all(&dir)
             .map_err(|e| AuthError::Keyring(format!("cannot create ~/.apollia: {e}")))?;
-        Ok(Self {
-            index_path: dir.join("connectors-index.json"),
-            index_lock: Mutex::new(()),
-            tokens: TokenBackend::Keyring,
-        })
+        Ok(Self::with_store(
+            dir.join("connectors-index.json"),
+            select_default()?,
+        ))
     }
 
-    /// Build a [`MultiAccountStorage`] with a custom index file path.
+    /// Build a [`MultiAccountStorage`] with a custom index file path and the
+    /// OS keyring as token store.
     ///
     /// Used by tests to isolate the index from the user's real `~/.apollia`.
     pub fn with_index_path(index_path: PathBuf) -> Self {
+        Self::with_store(index_path, Box::new(KeyringSecretStore))
+    }
+
+    /// Build a [`MultiAccountStorage`] over an explicit index path and token
+    /// store.
+    pub fn with_store(index_path: PathBuf, tokens: Box<dyn SecretStore>) -> Self {
         Self {
             index_path,
             index_lock: Mutex::new(()),
-            tokens: TokenBackend::Keyring,
+            tokens,
         }
     }
 
@@ -112,29 +114,14 @@ impl MultiAccountStorage {
     /// `dir`, for tests. The keyring resolves through the operator's real
     /// profile (macOS keeps the default keychain under `~/Library`), so a
     /// test that stores a token through it writes outside every sandbox a
-    /// test HOME can provide; this backend keeps the whole round-trip on
-    /// test-owned files instead.
+    /// test HOME can provide; this backend keeps the whole round-trip in
+    /// memory instead.
     #[cfg(test)]
-    pub(crate) fn with_file_store(dir: &std::path::Path) -> Self {
-        Self {
-            index_path: dir.join("connectors-index.json"),
-            index_lock: Mutex::new(()),
-            tokens: TokenBackend::Files(dir.to_path_buf()),
-        }
-    }
-
-    /// Filesystem name of one token in the [`TokenBackend::Files`] backend.
-    #[cfg(test)]
-    fn token_file(
-        dir: &std::path::Path,
-        provider: ConnectorProvider,
-        account_id: &AccountId,
-    ) -> PathBuf {
-        dir.join(format!(
-            "token-{}-{}.json",
-            provider.id(),
-            account_id.as_str().replace(['/', ':'], "_")
-        ))
+    pub(crate) fn with_memory_store(dir: &std::path::Path) -> Self {
+        Self::with_store(
+            dir.join("connectors-index.json"),
+            Box::new(crate::secret_storage::MemorySecretStore::default()),
+        )
     }
 
     /// Store a token for `(provider, account_id)` and register the account in the index.
@@ -146,36 +133,8 @@ impl MultiAccountStorage {
     ) -> Result<(), AuthError> {
         let json =
             serde_json::to_string(token).map_err(|e| AuthError::Serialization(e.to_string()))?;
-        match &self.tokens {
-            TokenBackend::Keyring => {
-                let entry = Entry::new(&keyring_service(provider), account_id.as_str())
-                    .map_err(|e| AuthError::Keyring(e.to_string()))?;
-                // Delete-then-set so the entry's macOS ACL is rebound to the
-                // current binary's identity. Without this, rebuilding the CLI
-                // rotates the signing identity and `set_password` silently
-                // falls through SecItemUpdate, leaving the daemon reading a
-                // stale token. Same pattern as `KeyringSecretStore::set`.
-                match entry.delete_credential() {
-                    Ok(()) | Err(keyring::Error::NoEntry) => {}
-                    Err(e) => {
-                        tracing::warn!(
-                            provider = %provider.id(),
-                            account = %account_id.as_str(),
-                            error = %e,
-                            "keyring: pre-write delete failed; falling back to in-place update"
-                        );
-                    }
-                }
-                entry
-                    .set_password(&json)
-                    .map_err(|e| AuthError::Keyring(e.to_string()))?;
-            }
-            #[cfg(test)]
-            TokenBackend::Files(dir) => {
-                std::fs::write(Self::token_file(dir, provider, account_id), &json)
-                    .map_err(|e| AuthError::Keyring(format!("write token file: {e}")))?;
-            }
-        }
+        self.tokens
+            .set(&keyring_service(provider), account_id.as_str(), &json)?;
 
         let _guard = self.index_lock.lock().await;
         let mut index = self.read_index()?;
@@ -196,24 +155,11 @@ impl MultiAccountStorage {
         provider: ConnectorProvider,
         account_id: &AccountId,
     ) -> Result<Option<StoredToken>, AuthError> {
-        let json = match &self.tokens {
-            TokenBackend::Keyring => {
-                let entry = Entry::new(&keyring_service(provider), account_id.as_str())
-                    .map_err(|e| AuthError::Keyring(e.to_string()))?;
-                match entry.get_password() {
-                    Ok(json) => json,
-                    Err(keyring::Error::NoEntry) => return Ok(None),
-                    Err(e) => return Err(AuthError::Keyring(e.to_string())),
-                }
-            }
-            #[cfg(test)]
-            TokenBackend::Files(dir) => {
-                match std::fs::read_to_string(Self::token_file(dir, provider, account_id)) {
-                    Ok(json) => json,
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-                    Err(e) => return Err(AuthError::Keyring(format!("read token file: {e}"))),
-                }
-            }
+        let Some(json) = self
+            .tokens
+            .get(&keyring_service(provider), account_id.as_str())?
+        else {
+            return Ok(None);
         };
         let token =
             serde_json::from_str(&json).map_err(|e| AuthError::Serialization(e.to_string()))?;
@@ -228,24 +174,8 @@ impl MultiAccountStorage {
         provider: ConnectorProvider,
         account_id: &AccountId,
     ) -> Result<(), AuthError> {
-        match &self.tokens {
-            TokenBackend::Keyring => {
-                let entry = Entry::new(&keyring_service(provider), account_id.as_str())
-                    .map_err(|e| AuthError::Keyring(e.to_string()))?;
-                match entry.delete_credential() {
-                    Ok(()) | Err(keyring::Error::NoEntry) => {}
-                    Err(e) => return Err(AuthError::Keyring(e.to_string())),
-                }
-            }
-            #[cfg(test)]
-            TokenBackend::Files(dir) => {
-                match std::fs::remove_file(Self::token_file(dir, provider, account_id)) {
-                    Ok(()) => {}
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(e) => return Err(AuthError::Keyring(format!("delete token file: {e}"))),
-                }
-            }
-        }
+        self.tokens
+            .delete(&keyring_service(provider), account_id.as_str())?;
 
         let _guard = self.index_lock.lock().await;
         let mut index = self.read_index()?;
@@ -406,6 +336,57 @@ mod tests {
             keyring_service(ConnectorProvider::Microsoft),
             "apollia-connector-microsoft"
         );
+    }
+
+    #[tokio::test]
+    async fn test_token_lands_under_keychain_names_in_age_file_mode() {
+        // GIVEN a storage whose token store is the encrypted-file backend
+        let dir = tempfile::tempdir().expect("tempdir");
+        let secrets = dir.path().join("secrets");
+        let open_store = || {
+            crate::secret_storage::AgeFileSecretStore::new(secrets.clone(), "test-pass".into())
+                .expect("age store")
+        };
+        let storage =
+            MultiAccountStorage::with_store(dir.path().join("idx.json"), Box::new(open_store()));
+        let account = AccountId::new("a@example.com");
+
+        // WHEN a token is stored, then read back through the storage
+        storage
+            .store(ConnectorProvider::Google, &account, &fixture_token())
+            .await
+            .expect("store");
+        let loaded = storage
+            .load(ConnectorProvider::Google, &account)
+            .await
+            .expect("load");
+
+        // THEN it round-trips, and it sits under the service and account
+        // names the keychain always used, read straight from the store
+        assert_eq!(
+            loaded.map(|t| t.access_token).as_deref(),
+            Some("test-access")
+        );
+        let raw = open_store()
+            .get("apollia-connector-google", "a@example.com")
+            .expect("raw get");
+        assert!(raw.is_some_and(|json| json.contains("test-access")));
+
+        // WHEN the account is deleted
+        storage
+            .delete(ConnectorProvider::Google, &account)
+            .await
+            .expect("delete");
+        // THEN the token is gone from the store and the account from the index
+        assert!(open_store()
+            .get("apollia-connector-google", "a@example.com")
+            .expect("raw get")
+            .is_none());
+        assert!(storage
+            .list_accounts(ConnectorProvider::Google)
+            .await
+            .expect("list")
+            .is_empty());
     }
 
     #[test]

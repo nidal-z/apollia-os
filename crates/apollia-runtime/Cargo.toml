@@ -12,7 +12,7 @@ license.workspace = true
 # `local-*` feature: the local inference layer is no longer compiled here
 # directly.
 default = ["cloud", "web-search", "brave-search", "web-read"]
-## Turns on the cloud backends (Anthropic, OpenAI-compatible, and so on).
+## Turns on the HTTP backends (OpenAI-compatible servers, Ollama).
 cloud = ["apollia-llm/cloud"]
 ## Native web search tool.
 web-search = ["apollia-tools/web-search"]

@@ -35,6 +35,8 @@ fn mock_server_config(name: &str) -> McpServerConfig {
         max_response_bytes: 8 * 1024 * 1024,
         max_tools: 256,
         tags: vec![],
+        tool_families: Default::default(),
+        origin: None,
     }
 }
 

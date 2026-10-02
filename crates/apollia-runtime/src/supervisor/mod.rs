@@ -232,6 +232,10 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `None` when the data directory is unavailable or the SQLite open fails
     /// (warning logged, runtime continues without audit). `Some` in production.
     pub audit_trail: Option<AuditTrailHandle>,
+    /// Admission policy and journal of connection events, shared with
+    /// `AppState` so the desktop journals what it changes outside the HTTP
+    /// routes (a native account connected or disconnected).
+    pub connection_governance: crate::governance::ConnectionGovernance,
     /// HITL task repository, persists `input_required` prompts/contexts.
     ///
     /// Shared between `AppState` (resume handler) and `TimeoutWatcher`.

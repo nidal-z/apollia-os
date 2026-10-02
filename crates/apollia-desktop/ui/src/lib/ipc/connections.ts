@@ -9,6 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getProfile } from "$lib/ipc/profile";
 import type {
   AgentListItem,
+  Connection,
   ConnectorEnrichmentView,
   McpConnectionTestResponse,
   McpOAuthAccount,
@@ -42,6 +43,13 @@ export interface OauthCompleteResult {
 export interface McpEnrichmentEntry {
   package_identifier: string;
   enrichment: ConnectorEnrichmentView;
+}
+
+// ── Connections ─────────────────────────────────────────────────────────────
+
+/** Every connection of this machine, as `GET /api/v1/connections` answers it. */
+export function listConnections(): Promise<Connection[]> {
+  return invoke<Connection[]>("list_connections");
 }
 
 // ── MCP servers ────────────────────────────────────────────────────────────

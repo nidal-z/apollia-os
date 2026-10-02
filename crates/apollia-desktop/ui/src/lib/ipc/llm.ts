@@ -3,18 +3,34 @@
 // Centralises every `invoke` the top-level "LLM models" page and its cards
 // need, so `.svelte` files never call `invoke` directly (frontend rule). The
 // cost-breakdown call already lives in `./llmCosts.ts`; this module covers the
-// backend list, ping, default selection, engine reload and deletion.
+// backend list, ping, default selection, engine reload and deletion, and the
+// local models resident in memory.
 
 import { invoke } from "@tauri-apps/api/core";
 import type {
   LlmBackendConfig,
   LlmPingResult,
   LlmCostStatsResponse,
+  LoadedModelsResponse,
+  UnloadedModel,
 } from "$lib/types";
 
 /** Lists the configured LLM backends (CRUD view). */
 export async function listLlmBackends(): Promise<LlmBackendConfig[]> {
   return invoke<LlmBackendConfig[]>("list_llm_backends");
+}
+
+/** Lists the local models resident in memory. */
+export async function listLoadedModels(): Promise<LoadedModelsResponse> {
+  return invoke<LoadedModelsResponse>("list_loaded_models");
+}
+
+/**
+ * Unloads one resident model by the path the list reports. Rejects with the
+ * runtime's message when the model is answering a request.
+ */
+export async function unloadLoadedModel(modelPath: string): Promise<UnloadedModel> {
+  return invoke<UnloadedModel>("unload_loaded_model", { modelPath });
 }
 
 /** Pings a backend by name and returns availability + latency. */

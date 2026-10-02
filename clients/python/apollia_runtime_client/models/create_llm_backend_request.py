@@ -24,7 +24,7 @@ class CreateLlmBackendRequest:
             not null or primitive).
         model (str): Model identifier (e.g. `"gpt-4o"`, `"mistral-small-latest"`).
         name (str): Unique name, pattern `^[a-z0-9_-]+$`.
-        provider (str): Provider identifier: `"llama-cpp"`, `"openai"`, `"mistral"`, `"anthropic"`, `"ollama"`.
+        provider (str): Provider identifier: `"llama-cpp"`, `"openai"` (OpenAI-compatible server), `"ollama"`.
         enabled (bool | Unset): Whether this backend is active (default: `true`).
         is_default (bool | Unset): Mark this backend as the default (default: `false`).
     """

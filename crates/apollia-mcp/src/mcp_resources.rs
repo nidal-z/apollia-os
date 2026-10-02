@@ -63,7 +63,8 @@ fn list_descriptor() -> ToolDescriptor {
             "resources".to_string(),
             "read".to_string(),
         ],
-        dangerous: false,
+        family: apollia_tools::ActionFamily::Read,
+        family_source: apollia_tools::FamilySource::Builtin,
         is_read_only: true,
         risk_score: 1,
         approval_risk_level: None,
@@ -106,7 +107,8 @@ fn read_descriptor() -> ToolDescriptor {
             "resources".to_string(),
             "read".to_string(),
         ],
-        dangerous: false,
+        family: apollia_tools::ActionFamily::Read,
+        family_source: apollia_tools::FamilySource::Builtin,
         is_read_only: true,
         risk_score: 1,
         approval_risk_level: None,
@@ -251,7 +253,9 @@ mod tests {
         assert_eq!(descriptors[0].name, MCP_RESOURCES_LIST);
         assert_eq!(descriptors[1].name, MCP_RESOURCES_READ);
         assert!(descriptors.iter().all(|d| d.is_read_only));
-        assert!(descriptors.iter().all(|d| !d.dangerous));
+        assert!(descriptors
+            .iter()
+            .all(|d| d.family == apollia_tools::ActionFamily::Read));
     }
 
     #[test]

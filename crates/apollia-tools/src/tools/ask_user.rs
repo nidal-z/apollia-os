@@ -230,7 +230,8 @@ impl AskUser {
             })),
             sandbox_profile: SandboxProfile::ReadOnly,
             tags: vec!["user-interaction".to_string(), "hitl".to_string()],
-            dangerous: false,
+            family: crate::descriptor::ActionFamily::Exempt,
+            family_source: crate::descriptor::FamilySource::Builtin,
             is_read_only: true,
             risk_score: 0,
             approval_risk_level: None,
@@ -366,7 +367,7 @@ mod tests {
         // THEN it is named, read-only, harmless, and fit for registration
         assert_eq!(d.name, "ask_user");
         assert!(d.is_read_only);
-        assert!(!d.dangerous);
+        assert_eq!(d.family, crate::descriptor::ActionFamily::Exempt);
         assert_eq!(d.risk_score, 0);
         d.validate().expect("descriptor should be valid");
     }

@@ -154,7 +154,7 @@ export PATH="$PWD/target/debug:$PATH"
 On Windows the binary is `target\debug\apollia-os.exe`; add `target\debug` to your
 `PATH` the equivalent way.
 
-This build talks to Anthropic, OpenAI-compatible, or Vertex cloud backends, and
+This build talks to OpenAI-compatible and Ollama servers, and
 serves local GGUF models through the embedded `llama-server`. On a source build
 that engine has to be on your `PATH`, covered in the last section.
 
