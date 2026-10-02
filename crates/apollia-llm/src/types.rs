@@ -148,6 +148,29 @@ pub struct CompletionRequest {
     /// the caller then validates an answer that was never constrained and
     /// blames the model.
     pub response_schema: Option<serde_json::Value>,
+    /// Nucleus sampling: keep the smallest token set whose probability mass
+    /// reaches this value. `None` leaves the engine default.
+    pub top_p: Option<f32>,
+    /// Keep only the `k` most likely tokens before sampling. `None` leaves the
+    /// engine default. Not part of the OpenAI protocol: sent under the name
+    /// llama-server reads, and a server that knows no such field may refuse it.
+    pub top_k: Option<u32>,
+    /// Drop every token whose probability is below this fraction of the most
+    /// likely one. `None` leaves the engine default. A llama-server field, sent
+    /// under its own name.
+    pub min_p: Option<f32>,
+    /// Penalty on any token already present in the output, OpenAI protocol
+    /// field. `None` leaves the engine default.
+    pub presence_penalty: Option<f32>,
+    /// Penalty proportional to how often a token already appeared, OpenAI
+    /// protocol field. `None` leaves the engine default.
+    pub frequency_penalty: Option<f32>,
+    /// Multiplicative penalty on repeated tokens, the llama-server field of
+    /// that name. `None` leaves the engine default.
+    pub repeat_penalty: Option<f32>,
+    /// Strings that end generation when produced. `None` or an empty list sends
+    /// no stop field.
+    pub stop: Option<Vec<String>>,
 }
 
 /// Unified inference response returned by all backends.
