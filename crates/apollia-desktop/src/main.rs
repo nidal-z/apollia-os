@@ -18,6 +18,7 @@ mod attached;
 mod backend;
 mod bootstrap;
 mod bundled_agents;
+mod bundled_packages;
 mod commands;
 // REASON: this module is the content side of the in-app documentation reader.
 // The two Tauri commands that read the manifest and a page are registered by
@@ -242,8 +243,12 @@ fn main() {
     };
 
     // Extract bundled system agents (e.g. onboarding-agent) to disk and register
-    // them in the repository so the auto-load loop picks them up.
+    // them in the repository so the auto-load loop picks them up. A guide an
+    // earlier version installed as code is retired first, so its code is never
+    // loaded again; the guide itself is installed as a package once the
+    // runtime, and its audit journal, are up.
     if let Some(ref repo) = boot_agent_repo {
+        bundled_packages::retire_code_guide(repo);
         bundled_agents::ensure_bundled_agents(repo, &apollia_data_dir);
     }
 
@@ -340,14 +345,18 @@ fn main() {
             tools_config: &tools_config_lock,
         },
     );
-    // The Python tools of the installed packages join the registry, read from
-    // their manifests; each module is imported on its first call only.
+    // The packages the binary ships are installed, recorded in the audit
+    // journal; then the Python tools of the installed packages join the
+    // registry, read from their manifests, each module imported on its first
+    // call only.
     if let Some(worker) = apollia_runtime::worker_runtime() {
         let data_dir = apollia_data_dir.clone();
         let registry = runtime_handle.tool_registry_handle.clone();
         let chat = runtime_handle.chat_manager.clone();
         let workflows = runtime_handle.workflows.clone();
+        let journal = runtime_handle.audit_journal.clone();
         worker.spawn(async move {
+            bundled_packages::install_bundled_packages(&data_dir, journal).await;
             apollia_aip::package_tools::attach(
                 &data_dir,
                 &registry,

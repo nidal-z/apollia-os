@@ -83,8 +83,14 @@ impl ChatSessionManager {
 
         // The agent path clones the full session, which already carries `run_id`
         // in `active_exchange`; only the Libre path needs it threaded explicitly.
-        let dispatch = if session.mode == ChatMode::Libre || session.mode == ChatMode::Companion {
-            self.dispatch_libre_exchange(session_id, &message_id, content, &run_id)
+        // A declarative agent runs through the agent executor, as the free
+        // chat does; an agent that runs code goes to the agent runner.
+        let declarative = self.declarative_session_agent(session);
+        let dispatch = if session.mode == ChatMode::Libre
+            || session.mode == ChatMode::Companion
+            || declarative.is_some()
+        {
+            self.dispatch_libre_exchange(session_id, &message_id, content, &run_id, declarative)
         } else {
             self.dispatch_agent_exchange(session_id, &message_id, content)
         };
@@ -245,8 +251,18 @@ impl ChatSessionManager {
             .sessions
             .get(session_id)
             .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
-        let dispatch = if session.mode == ChatMode::Libre || session.mode == ChatMode::Companion {
-            self.dispatch_libre_exchange(session_id, user_message_id, user_content, &run_id)
+        let declarative = self.declarative_session_agent(session);
+        let dispatch = if session.mode == ChatMode::Libre
+            || session.mode == ChatMode::Companion
+            || declarative.is_some()
+        {
+            self.dispatch_libre_exchange(
+                session_id,
+                user_message_id,
+                user_content,
+                &run_id,
+                declarative,
+            )
         } else {
             self.dispatch_agent_exchange(session_id, user_message_id, user_content)
         };

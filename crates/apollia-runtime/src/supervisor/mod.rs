@@ -242,6 +242,10 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `AppState` so the desktop journals what it changes outside the HTTP
     /// routes (a native account connected or disconnected).
     pub connection_governance: crate::governance::ConnectionGovernance,
+    /// The hash-chained audit journal, shared with `AppState`, so the host
+    /// records what it installs outside the HTTP routes (the packages its
+    /// binary ships). `None` when the journal could not be opened.
+    pub audit_journal: Option<AuditJournalHandle>,
     /// HITL task repository, persists `input_required` prompts/contexts.
     ///
     /// Shared between `AppState` (resume handler) and `TimeoutWatcher`.

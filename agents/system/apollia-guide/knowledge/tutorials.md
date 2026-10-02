@@ -1,66 +1,55 @@
-# Apollia OS, tutorials
+# Apollia, tutorials
 
-## Write the smallest agent
+## Talk with an agent
 
-An agent is a decorated Python class. `@on_message` handles a chat turn and
-returns the reply string.
+Open the Chat screen, pick the agent, and write your request in your own
+words. When the agent wants to do something sensitive, such as sending an
+email or changing a file, Apollia asks you first; the question also appears in
+the Inbox.
 
-```python
-from apollia import agent, on_message
-from apollia.types import Ctx
+## Install a package someone sent you
 
-
-@agent(name="hello", version="0.1.0", description="Echoes back whatever you send.")
-class Hello:
-    @on_message
-    async def handle(self, message: str, history: list, ctx: Ctx) -> str:
-        return f"You said: {message}"
-```
-
-## Install and run an agent from the CLI
+On the Agents screen, install the `.apo` file. Read the preview: the agents
+and workflows it contains, what each one asks to use, and who published it.
+Install only if that matches what you expect. From the command line, with the
+runtime started:
 
 ```bash
-# Install an agent package from a directory
-apollia-os agent install ./agents/examples/hello
-
-# List installed agents
-apollia-os agent list
-
-# Start an agent, then submit a task
-apollia-os agent start hello
-apollia-os run hello '{"message": "hi"}'
+apollia-os package preview /path/to/package.apo
+apollia-os package install /path/to/package.apo
 ```
 
-## Use memory
+## Adjust an agent
 
-Memory is read and written at the agent's initiative through `ctx.memory`. The
-runtime never injects it into your agent's prompt.
+Open its card on the Agents screen. You can change its mission, its examples,
+the accesses it is granted and its autonomy. Going back to the package
+defaults removes your adjustments. From the command line:
 
-```python
-# Store a value (source and confidence are optional)
-await ctx.memory.remember("user.city", "Lyon")
-
-# Recall it later, in this or a future session
-city = await ctx.memory.recall("user.city")   # -> "Lyon" or None
+```bash
+apollia-os agent show <agent>
+apollia-os agent reset <agent>
 ```
 
-## Expose a callable skill
+## Choose the model of an agent
 
-```python
-from apollia import agent, skill
-from apollia.types import Ctx
+Open the Models screen to download or connect a model and to set the default
+one. An agent without a model of its own uses the default.
 
+## Run a workflow
 
-@agent(name="notes", version="0.1.0", description="Keeps short notes.")
-class Notes:
-    @skill("notes.add", description="Append a note.")
-    async def add(self, text: str, ctx: Ctx) -> dict:
-        await ctx.memory.record("note", text)
-        return {"stored": text}
+A workflow runs with the inputs it declares. From the command line:
+
+```bash
+apollia-os workflow run <package>/<workflow> --input key=value
 ```
 
-## Delegate to another agent (A2A)
+## Automate an agent
 
-```python
-result = await ctx.a2a.invoke("notes.add", {"text": "buy milk"})
-```
+Open the Automations screen and choose when the agent should run: on a
+schedule, at an interval, when a file changes, or when a webhook is called.
+
+## See what happened
+
+The Tasks screen lists what agents did, with their results. The Observability
+screen shows the runs, their costs, and the audit journal, which you can
+verify and export.

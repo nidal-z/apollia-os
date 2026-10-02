@@ -349,16 +349,33 @@ pub fn preview(path: &Path, sources: &PreviewSources<'_>) -> Result<PackagePrevi
         Err(other) => return Err(other.into()),
     };
     let manifest = archive.manifest().clone();
-    build(&manifest, signature_state, sources)
+    build(&manifest, signature_state, sources, PackageOrigin::File)
+}
+
+/// Where a package comes from, as the caller knows it. The archive itself
+/// never says: nothing in a file can make it [`PackageOrigin::Embedded`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PackageOrigin {
+    /// A file the user or a host hands over.
+    #[default]
+    File,
+    /// A package Apollia ships inside its binary, such as its guide. It is not
+    /// signed: the binary carries it, and the binary is what the distribution
+    /// signature covers. It installs with no notice about its signature, and a
+    /// policy that requires a signature does not refuse it.
+    Embedded,
 }
 
 /// Builds the preview of `manifest` whose signature reads as `signature`
-/// (`Err` holding the reason when it does not hold).
+/// (`Err` holding the reason when it does not hold), for a package of
+/// `origin`.
 pub(crate) fn build(
     manifest: &ApolliaManifest,
     signature: Result<SignatureState, String>,
     sources: &PreviewSources<'_>,
+    origin: PackageOrigin,
 ) -> Result<PackagePreview, PackageError> {
+    let embedded = origin == PackageOrigin::Embedded;
     let package = &manifest.package;
     let signature = signature_preview(&package.publisher, signature, sources)?;
     let signature_required = sources.governance.signature_required(&InstallSubject {
@@ -437,7 +454,7 @@ pub(crate) fn build(
 
     let mut notices = Vec::new();
     match signature.status {
-        SignatureStatus::Unsigned => notices.push(PackageNotice::Unsigned),
+        SignatureStatus::Unsigned if !embedded => notices.push(PackageNotice::Unsigned),
         SignatureStatus::Signed if !signature.trusted => {
             if let Some(fingerprint) = &signature.key_fingerprint {
                 notices.push(PackageNotice::UntrustedPublisher {
@@ -462,7 +479,13 @@ pub(crate) fn build(
         }
     }
 
-    let refusal = refusal(manifest, &signature, signature_required, &update, sources)?;
+    let refusal = refusal(
+        manifest,
+        &signature,
+        signature_required && !embedded,
+        &update,
+        sources,
+    )?;
 
     Ok(PackagePreview {
         name: package.name.clone(),

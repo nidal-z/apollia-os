@@ -33,7 +33,7 @@ use crate::coordinator::ExecutionBackend;
 use crate::governance::NoPolicyGovernance;
 use crate::packages::{
     commit, prepare, preview, CommitTargets, InstallOptions, InstallRefusal, InstallReport,
-    McpServerAdder, PackageError, PackagePreview, PreviewSources,
+    McpServerAdder, PackageError, PackageOrigin, PackagePreview, PreviewSources,
 };
 
 /// Who the journal names for an installation made through the API.
@@ -363,6 +363,7 @@ pub(crate) async fn install_package<B: ExecutionBackend + Clone>(
         changes_confirmed: request.changes_confirmed,
         allow_downgrade: request.allow_downgrade,
         actor: API_ACTOR.to_owned(),
+        origin: PackageOrigin::File,
     };
     let data_dir = state.data_dir.clone();
     let (stores, staged) = tokio::task::spawn_blocking(move || {

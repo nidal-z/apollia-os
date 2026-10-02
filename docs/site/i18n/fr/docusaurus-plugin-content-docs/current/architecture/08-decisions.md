@@ -621,6 +621,21 @@ ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
 sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
 une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
 
+Les paquets qu'Apollia livre dans son propre binaire, le guide de l'application
+d'abord, ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à
+partir de fichiers embarqués à la compilation et l'installe par le même chemin
+que tout paquet. L'installation les reconnaît comme embarqués parce que le
+bureau le dit, jamais parce qu'une archive le dit : rien dans un fichier ne peut
+revendiquer cette origine, et la même archive remise d'ailleurs est un paquet
+non signé ordinaire. Un paquet embarqué s'installe sans avertissement sur sa
+signature, et une politique d'organisation qui exige des paquets signés ne le
+refuse pas. L'exemption est bornée à cette origine. Sa raison : le binaire qui
+porte le paquet est ce que couvre la signature de la distribution, si bien que
+signer le paquet une seconde fois ne prouverait rien de plus. Comme tout paquet,
+il est inscrit au journal d'audit, une version installée plus récente n'est
+jamais rétrogradée, et les surcharges de l'utilisateur comme l'état désactivé de
+ses agents survivent à une mise à jour.
+
 ## Intégration hôte {#host-integration}
 
 L'API HTTP versionnée est un contrat de pilotage, pas un détail
