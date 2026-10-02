@@ -437,6 +437,27 @@ impl Supervisor {
         // route can replace the active router without restarting the daemon.
         // Other consumers (chat manager, embedded runtime) keep their own
         // direct handle and stay reachable via the supervisor handle struct.
+        // The batch engine runs an agent without code on every item of a
+        // source; it needs the task store and the agent executor, and resumes
+        // the batches left running as soon as it starts. No source reader is
+        // registered yet: a launch on any kind answers that it is unknown.
+        let batches = match (&task_repository, &chat_manager) {
+            (Some(repo), Some(chat)) => Some(crate::batch::BatchHandle::spawn(
+                repo.clone(),
+                Arc::new(apollia_core::batch_source::SourceRegistry::new()),
+                crate::batch::AgentItemRunner::new(
+                    crate::agents::task::AgentTaskLauncher {
+                        router: router_handle.clone(),
+                        chat: chat.clone(),
+                        repository: Some(repo.clone()),
+                        event_bus: event_sender.clone(),
+                        observability: self.config.obs_config.clone(),
+                    },
+                    self.config.data_dir.clone(),
+                ),
+            )),
+            _ => None,
+        };
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -477,6 +498,7 @@ impl Supervisor {
             runner_proxy: runner_supervisor.as_ref().map(|s| s.proxy()),
             llama_server_supervisor: llama_server_supervisor.clone(),
             secret_store: crate::inference_servers::default_store_opener(),
+            batches,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 

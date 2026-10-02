@@ -198,6 +198,10 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
 * [`apollia-os review`↴](#apollia-os-review)
+* [`apollia-os batch`↴](#apollia-os-batch)
+* [`apollia-os batch run`↴](#apollia-os-batch-run)
+* [`apollia-os batch status`↴](#apollia-os-batch-status)
+* [`apollia-os batch list`↴](#apollia-os-batch-list)
 * [`apollia-os resilience`↴](#apollia-os-resilience)
 * [`apollia-os resilience list`↴](#apollia-os-resilience-list)
 * [`apollia-os resilience show`↴](#apollia-os-resilience-show)
@@ -310,6 +314,7 @@ Apollia OS CLI binary (apollia-os)
 * `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
+* `batch` - Run an agent on every item of a source (run, status, list)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
@@ -3217,6 +3222,67 @@ Automated code or plan review via the apollia-review agent
 * `--task <ID>` - Apollia task ID whose execution plan should be reviewed
 * `--pr <N>` - GitHub pull-request number to fetch via `gh pr diff`
 * `--diff <FILE>` - Local diff / patch file to analyse
+
+
+
+## `apollia-os batch`
+
+Run an agent on every item of a source (run, status, list)
+
+**Usage:** `apollia-os batch <COMMAND>`
+
+###### **Subcommands:**
+
+* `run` - Run an agent on every item of a source, in the runtime
+* `status` - Show a batch: its state, its counters and each of its items
+* `list` - List the batches, newest first
+
+
+
+## `apollia-os batch run`
+
+Run an agent on every item of a source, in the runtime
+
+**Usage:** `apollia-os batch run [OPTIONS] --source-type <SOURCE_TYPE> --source <SOURCE> <AGENT>`
+
+###### **Arguments:**
+
+* `<AGENT>` - The agent every item is run by: a stored agent without code
+
+###### **Options:**
+
+* `--source-type <SOURCE_TYPE>` - The type of source, as a reader registers it
+* `--source <SOURCE>` - What the source is opened on: a file, a folder, a connection
+* `--option <KEY=VALUE>` - An option of the source type, as `key=value`; repeatable
+* `--grant <GRANTS>` - An access granted for the duration of the batch; repeatable
+* `--concurrency <CONCURRENCY>` - How many items run at once, 1 to 16 (default 1)
+* `--max-failures <MAX_FAILURES>` - Failed items tolerated before the batch is interrupted (default 10)
+
+
+
+## `apollia-os batch status`
+
+Show a batch: its state, its counters and each of its items
+
+**Usage:** `apollia-os batch status <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id `batch run` printed
+
+
+
+## `apollia-os batch list`
+
+List the batches, newest first
+
+**Usage:** `apollia-os batch list [OPTIONS]`
+
+###### **Options:**
+
+* `--limit <LIMIT>` - At most this many batches
+
+  Default value: `50`
 
 
 

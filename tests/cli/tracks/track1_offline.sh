@@ -407,6 +407,15 @@ check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK
 # off, it refuses with 2 before any call, whatever the agent.
 check_exit   "run agent without code (off) → 2" 2    "$BIN" --socket "$OFFSOCK" run seed-ledger "Reconcile March."
 check_exit   "run agent without code --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json run seed-ledger "Reconcile March."
+# A batch runs in the runtime: daemon off, each leaf refuses with 2, in human
+# and in --json mode; a malformed source option is a usage error, 1, before
+# any call.
+check_exit   "batch run (off) → 2"             2     "$BIN" --socket "$OFFSOCK" batch run seed-ledger --source-type spreadsheet --source /data/requests.xlsx
+check_exit   "batch run --json (off) → 2"      2     "$BIN" --socket "$OFFSOCK" --json batch run seed-ledger --source-type spreadsheet --source /data/requests.xlsx --concurrency 2 --max-failures 3
+check_exit   "batch status (off) → 2"          2     "$BIN" --socket "$OFFSOCK" batch status 00000000-0000-0000-0000-000000000000
+check_exit   "batch list --json (off) → 2"     2     "$BIN" --socket "$OFFSOCK" --json batch list
+check_exit   "batch run bad --option → 1"      1     "$BIN" --socket "$OFFSOCK" batch run seed-ledger --source-type spreadsheet --source /data/requests.xlsx --option sheet
+check_exit   "batch run without source → 1"    1     "$BIN" --socket "$OFFSOCK" batch run seed-ledger
 # Usage errors are exit 1 by contract (1 = usage, 2 = runtime): a script can
 # tell a typo from a stopped daemon.
 check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus

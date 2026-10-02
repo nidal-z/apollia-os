@@ -146,6 +146,7 @@ pub(crate) fn app_state(loader: Arc<dyn AgentLoader>, data_dir: PathBuf) -> AppS
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: crate::inference_servers::default_store_opener(),
+        batches: None,
     }
 }
 

@@ -216,6 +216,7 @@ async fn test_shutdown_drains_active_tasks() {
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
+        batches: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -329,6 +330,7 @@ async fn test_shutdown_stops_all_agents() {
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
+        batches: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -432,6 +434,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
+        batches: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -557,6 +560,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
+        batches: None,
     };
     let api = APIServer::new(
         APIServerConfig {

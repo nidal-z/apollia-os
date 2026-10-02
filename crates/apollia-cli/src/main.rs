@@ -323,6 +323,13 @@ enum Commands {
     /// Automated code or plan review via the apollia-review agent.
     Review(commands::review::ReviewArgs),
 
+    /// Run an agent on every item of a source (run, status, list).
+    Batch {
+        /// Batch subcommand.
+        #[command(subcommand)]
+        command: commands::batch::BatchCommand,
+    },
+
     /// Circuit breaker inspection and reset (list, show, reset).
     Resilience {
         /// Resilience subcommand.
@@ -587,20 +594,6 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
     .await
 }
 
-/// Run a memory subcommand, printing its output or error.
-fn run_memory(command: &commands::memory::MemoryCommand, json: bool) -> i32 {
-    if let Some(code) = commands::memory::confirmation(command, json) {
-        return code;
-    }
-    match commands::memory::run(command, json) {
-        Ok(output) => {
-            println!("{output}");
-            exit_codes::SUCCESS
-        }
-        Err(e) => output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
-    }
-}
-
 /// Run the embedded MCP server, mapping its result to an exit code.
 /// Print a "did you mean" hint when an unknown top-level command is typed.
 fn maybe_suggest_command(err: &clap::Error) {
@@ -701,7 +694,7 @@ fn main() {
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
             Commands::Audit { command } => commands::audit::run(&command, cli.socket, json).await,
             Commands::Hooks { command } => commands::hooks::run(&command, cli.socket, json).await,
-            Commands::Memory { command } => run_memory(&command, json),
+            Commands::Memory { command } => commands::memory::run_and_print(&command, json),
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
             Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
             Commands::Trigger { command } => {
@@ -729,6 +722,7 @@ fn main() {
             Commands::Package { command } => commands::package::run(&command, json),
             Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
+            Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
             Commands::Resilience { command } => {
                 commands::resilience::run(&command, cli.socket, json).await
             }

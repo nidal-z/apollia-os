@@ -15,6 +15,7 @@ pub mod analyzers;
 pub mod api;
 pub mod audit_journal;
 pub mod backend_keys;
+pub mod batch;
 pub mod chat;
 pub mod commands;
 pub mod connections;
