@@ -208,6 +208,7 @@ impl AgentRunner for BridgeRunner {
         let secrets_data_dir = self.secrets_data_dir.clone();
         let mcp_handle = self.mcp_handle.clone();
         let declared_backend = self.manifest.llm_backend.clone();
+        let package_request = self.manifest.model.as_ref().and_then(|m| m.request.clone());
         // Live view of the Direct-path budget, shared into ctx.tools and ctx.llm.
         let budget_view = Arc::new(self.budget.to_live_budget_view());
 
@@ -348,6 +349,7 @@ impl AgentRunner for BridgeRunner {
                     declared_backend,
                     Some(data_dir.join(apollia_core::paths::DataFile::System.file_name())),
                 )
+                .with_package_request(package_request)
             };
 
             let built = Python::with_gil(|py| {

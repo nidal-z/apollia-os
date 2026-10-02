@@ -317,6 +317,7 @@ impl AgentRunner for BridgeRunner {
         let agent_dir = self.agent_dir.clone();
         let secrets_declared = self.secrets_declared.clone();
         let declared_backend = self.manifest.llm_backend.clone();
+        let package_request = self.manifest.model.as_ref().and_then(|m| m.request.clone());
         // Live view of the Direct-path budget, shared into ctx.tools and ctx.llm.
         let budget_view = Arc::new(self.budget.to_live_budget_view());
 
@@ -484,11 +485,14 @@ impl AgentRunner for BridgeRunner {
                     ctx = ctx.with_profile(profile);
                 }
                 // The model this agent asks for, read again at each `ctx.llm` call.
-                ctx = ctx.with_agent_model(apollia_llm::AgentModelBinding::new(
-                    agent_id_for_model,
-                    declared_backend,
-                    Some(apollia_core::paths::DataFile::System.path(&default_data_dir())),
-                ));
+                ctx = ctx.with_agent_model(
+                    apollia_llm::AgentModelBinding::new(
+                        agent_id_for_model,
+                        declared_backend,
+                        Some(apollia_core::paths::DataFile::System.path(&default_data_dir())),
+                    )
+                    .with_package_request(package_request),
+                );
                 if let Some((session_id, message_id)) = chat_target {
                     ctx = ctx.with_chat_target(session_id, message_id);
                 }

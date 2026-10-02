@@ -19,6 +19,10 @@ use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use apollia_core::events::{EventBusSender, RuntimeEvent};
 use serde::Serialize;
 
+use apollia_core::manifest::PackageRequestSettings;
+use apollia_core::model_preset::RequestSettings;
+
+use crate::request_defaults::{self, RequestDefaults};
 use crate::router::LlmRouter;
 use crate::types::{CompletionModel, LlmError};
 
@@ -26,6 +30,10 @@ use crate::types::{CompletionModel, LlmError};
 /// call shortens the chain it walked, so a real chain stays at one or two
 /// links; the bound only keeps a misuse from looping.
 const MAX_SUCCESSOR_HOPS: usize = 64;
+
+/// Directory beside `system.db` that holds the models, their index and the
+/// publisher defaults file.
+const MODELS_DIR_NAME: &str = "models";
 
 /// The last time an agent's model was not available.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -265,11 +273,12 @@ impl LlmRouter {
 }
 
 /// What one agent asks for, read again at each of its calls.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AgentModelBinding {
     agent: String,
     declared: Option<String>,
     system_db: Option<PathBuf>,
+    package_request: Option<PackageRequestSettings>,
 }
 
 impl AgentModelBinding {
@@ -284,7 +293,51 @@ impl AgentModelBinding {
             agent: agent.into(),
             declared,
             system_db,
+            package_request: None,
         }
+    }
+
+    /// The request settings the agent's package declares, the package level
+    /// of [`Self::request_defaults`].
+    #[must_use]
+    pub fn with_package_request(mut self, settings: Option<PackageRequestSettings>) -> Self {
+        self.package_request = settings;
+        self
+    }
+
+    /// The request settings one call of the agent starts from, resolved now in
+    /// three levels (see [`crate::request_defaults`]): the defaults of the
+    /// model `backend` routes to on `router`, the package's settings, and the
+    /// preset of the user's assignment. The preset counts only when the call
+    /// runs on the assigned model: a preset belongs to one model.
+    pub fn request_defaults(&self, router: &LlmRouter, backend: Option<&str>) -> RequestDefaults {
+        let models_dir = self
+            .system_db
+            .as_deref()
+            .and_then(Path::parent)
+            .map(|dir| dir.join(MODELS_DIR_NAME));
+        let model = router
+            .get(backend)
+            .map(|b| {
+                RequestDefaults::from_model(&request_defaults::model_level(
+                    b.model_id(),
+                    b.backend_name(),
+                    models_dir.as_deref(),
+                ))
+            })
+            .unwrap_or_default();
+        let package = self
+            .package_request
+            .as_ref()
+            .map(RequestDefaults::from_package)
+            .unwrap_or_default();
+        let preset = self
+            .system_db
+            .as_deref()
+            .and_then(|path| read_preset(path, &self.agent, backend))
+            .map(|settings| RequestDefaults::from_preset(&settings))
+            .unwrap_or_default();
+        RequestDefaults::resolve(&model, &package, &preset)
     }
 
     /// The agent's name.
@@ -309,6 +362,44 @@ impl AgentModelBinding {
             self.declared.as_deref(),
             bus,
         )
+    }
+}
+
+/// The request settings of the preset in force for `agent` on the model
+/// `used`: the preset its assignment names, else the default preset of the
+/// assigned model. `None` when the call does not run on the assigned model.
+fn read_preset(path: &Path, agent: &str, used: Option<&str>) -> Option<RequestSettings> {
+    if !path.exists() {
+        return None;
+    }
+    let read = apollia_core::LlmBackendRepository::open(path).and_then(|repo| {
+        let Some(assignment) = repo.agent_model(agent)? else {
+            return Ok(None);
+        };
+        if used != Some(assignment.model_id.as_str()) {
+            return Ok(None);
+        }
+        let preset = match assignment.preset_id {
+            Some(id) => repo.find_preset(id)?,
+            None => repo
+                .list_presets(Some((assignment.model_source, &assignment.model_id)))?
+                .into_iter()
+                .find(|p| p.is_model_default),
+        };
+        Ok(preset.map(|p| p.request))
+    });
+    match read {
+        Ok(settings) => settings,
+        Err(error) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                agent = %agent,
+                error = %error,
+                detail = "the call runs without the agent's preset",
+                "llm.agent_model.preset_unreadable"
+            );
+            None
+        }
     }
 }
 

@@ -1100,6 +1100,7 @@ mod orchestrated_tests {
             system_prompt: Some("Plan the necessary steps.".into()),
             tools_requiring_approval: vec![],
             llm_backend: None,
+            model: None,
             packages: vec![],
             memory_config: None,
             agent_type: None,
@@ -1256,6 +1257,7 @@ mod orchestrated_tests {
                 system_prompt: None, // ← absent
                 tools_requiring_approval: vec![],
                 llm_backend: None,
+                model: None,
                 packages: vec![],
                 memory_config: None,
                 agent_type: None,

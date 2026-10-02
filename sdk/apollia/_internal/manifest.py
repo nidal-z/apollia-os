@@ -242,6 +242,7 @@ def build_manifest(
     autonomy_level: str | None = None,
     max_concurrent_tasks: int = 1,
     mailbox: bool | tuple[str, ...] = False,
+    model: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Produce the canonical manifest dict consumed by the Rust loader.
 
@@ -355,5 +356,10 @@ def build_manifest(
     # distinguish "not set" (use the runtime default) from an explicit tier.
     if autonomy_level is not None:
         manifest["autonomy_level"] = autonomy_level
+
+    # Model defaults, already validated by ``@agent``: the package level of the
+    # request settings the runtime resolves at each call.
+    if model is not None:
+        manifest["model"] = model
 
     return manifest
