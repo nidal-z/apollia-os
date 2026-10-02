@@ -6,25 +6,7 @@
 use super::super::*;
 
 impl ChatSessionManager {
-    /// Build the system prompt for a Libre/Companion exchange, optionally
-    /// enriched with cross-session context on the first message.
-    pub(super) fn build_libre_system_prompt(
-        &self,
-        base_prompt: &str,
-        content: &str,
-        enrich: bool,
-    ) -> String {
-        let mut prompt = base_prompt.to_string();
-        if enrich {
-            if let Some(block) = self.build_cross_session_context(content) {
-                prompt.push_str("\n\n");
-                prompt.push_str(&block);
-            }
-        }
-        prompt
-    }
-
-    /// Spawn the BuiltInChatAgent background task for a Libre/Companion exchange.
+    /// Spawn the agent executor background task for a Libre/Companion exchange.
     pub(super) fn dispatch_libre_exchange(
         &mut self,
         session_id: &str,
@@ -66,15 +48,6 @@ impl ChatSessionManager {
                 .get(session_id)
                 .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
 
-            // Companion sessions are intentionally isolated from user memory and
-            // cross-session history (memory stays at the agent's initiative).
-            // The companion helps with the platform, not the user's personal context.
-            let session_user_memory = if session.mode == ChatMode::Companion {
-                None
-            } else {
-                self.user_memory.clone()
-            };
-
             // `session.history` already ends with the in-flight user message
             // (pushed before dispatch). The agent re-adds it from `user_msg`,
             // so the history handed to the agent drops that trailing entry to
@@ -87,13 +60,25 @@ impl ChatSessionManager {
             let preferred_backend = session.llm_backend.clone();
             let is_companion = session.mode == ChatMode::Companion;
             let inject_project_context = is_first_message || force_inject_project_context;
-            // On the first message, enrich the system prompt with cross-session context.
-            // Companion sessions are excluded, they must not inherit personal history.
-            let system_prompt = self.build_libre_system_prompt(
-                &session.system_prompt,
-                content,
-                is_first_message && !is_companion,
-            );
+            // The principle 6 injections gathered here (user memory, and the
+            // past sessions block on the first message) are made by the
+            // executor for the Apollia agent only. Companion sessions are
+            // isolated from both: the companion helps with the platform, not
+            // with the user's personal context.
+            let apollia_context = if is_companion {
+                ApolliaContext::default()
+            } else {
+                ApolliaContext {
+                    user_memory: self.user_memory.clone(),
+                    past_sessions: if is_first_message {
+                        self.build_cross_session_context(content)
+                    } else {
+                        None
+                    },
+                    project: None,
+                }
+            };
+            let system_prompt = session.system_prompt.clone();
             let available_tools = session.available_tools.clone();
             // Live merge: governance.db is re-read on every message so Apollia
             // Chat config changes (auto-authorized tools, agent-scoped rules)
@@ -108,24 +93,10 @@ impl ChatSessionManager {
             );
             let pending_approvals = self.pending_chat_approvals.clone();
 
-            // Resolve the autonomy tier and build the effective budget from it.
-            // `runtime_budget` is the ceiling: `from_capped` guarantees no tier
-            // raises the budget above it (principle #7). The verification loop and
-            // critic are constructed only when the tier requests verification;
-            // Chat Libre declares no manifest check commands, so the loop is
-            // critic-driven (empty command list).
-            let autonomy_config = AutonomyConfig::default();
-            let autonomy_level = autonomy_config.default_level;
-            let level_config = autonomy_config.level_config(autonomy_level);
-            let budget = StepBudget::from_capped(&level_config.budget, &self.runtime_budget);
-            let (verification, critic) = if level_config.run_verification {
-                (
-                    Some(VerificationLoop::new(Vec::new(), Vec::new())),
-                    Some(CriticPass::new(llm_router.clone())),
-                )
-            } else {
-                (None, None)
-            };
+            // The tier of the Apollia agent. The executor builds the budget
+            // from it, capped by `runtime_budget` (principle #7), and the
+            // verification loop and critic when the tier asks for them.
+            let autonomy_level = AutonomyConfig::default().default_level;
             let sid = session_id.to_string();
             let mid = message_id.clone();
             let user_msg = content.to_string();
@@ -170,13 +141,10 @@ impl ChatSessionManager {
                 tool_registry,
                 event_bus,
                 a2a_for_agent,
-                session_user_memory,
+                apollia_context,
                 pending_approvals,
-                budget,
                 autonomy_level,
-                level_config,
-                verification,
-                critic,
+                runtime_budget: self.runtime_budget.clone(),
                 history,
                 available_tools,
                 authorized_tools,

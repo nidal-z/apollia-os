@@ -4,9 +4,11 @@
 //! chat hybride feature. The `ChatSessionManager` actor and
 //! `BuiltInChatAgent` build on top of these primitives.
 //! `AgentChatExecutor` handles Chat Agent mode via Python agents.
+//! `AgentExecutor` is the only constructor of `BuiltInChatAgent` outside tests.
 
 pub mod a2a_tools;
 pub mod agent_chat;
+pub mod agent_executor;
 pub mod builtin_agent;
 pub mod extractor;
 pub mod manager;
@@ -26,6 +28,10 @@ pub mod types;
 
 pub use a2a_tools::{generate_a2a_tool_specs, CompositeToolInvoker};
 pub use agent_chat::{AgentChatExecutor, ChatAgentRunner};
+pub use agent_executor::{
+    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, ProjectContextSource, RunInput,
+    SessionWiring,
+};
 pub use builtin_agent::{
     BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, NativeChatToolInvoker,
     DEFAULT_CONTEXT_WINDOW_SIZE, DEFAULT_SYSTEM_PROMPT,
