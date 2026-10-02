@@ -185,6 +185,12 @@ impl Supervisor {
             warn!(detail = "subscriber not started", "audit.journal.disabled");
         }
 
+        // Phase 8c: the one-shot access upgrade of governance.db, journaled.
+        crate::governance::access_upgrade::run_at_startup(
+            &self.config.data_dir,
+            audit_journal_handle.as_ref(),
+        );
+
         // Connections answer to governance: admitted before they are added,
         // journaled when they change. No policy is deposited yet.
         let connection_governance =

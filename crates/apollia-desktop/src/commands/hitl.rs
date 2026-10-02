@@ -267,21 +267,19 @@ pub async fn list_resolved_approvals(
     Ok(approvals)
 }
 
-/// Adds a prefix rule whose scope is chosen by the operator.
+/// Adds a prefix rule for every agent.
 ///
-/// Called by the "Always allow" buttons of the desktop HITL components. Two
-/// scopes are supported (the `session` scope was removed: it lived only in the
-/// desktop process and no runtime path ever read it):
-///
-/// - `"project"`: rule persisted in `governance.db` with its canonicalized
-///   `project_path`. `project_path` is required in this mode.
-/// - `"global"`: rule persisted for all projects.
+/// Called by the "Always allow" buttons of the desktop HITL components. A
+/// rule targets one agent or every agent; this command writes the latter
+/// (`"global"`), and the chat writes agent rules through
+/// `authorize_chat_tool`. The `"project"` scope was retired: a rule never
+/// targets a project, and `project_path` is accepted only so the current
+/// caller keeps its argument list.
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - `tool_name`, `action`, or `scope` are invalid;
-/// - `scope = "project"` but `project_path` is absent;
+/// - `tool_name`, `action`, or `scope` are invalid, `"project"` included;
 /// - the `HOME` variable is absent;
 /// - the SQLite database cannot be opened or written.
 #[tauri::command]
@@ -296,6 +294,7 @@ pub async fn add_permission_prefix_rule(
 
     use super::tool_governance::persist_scoped_rule;
 
+    let _ = project_path;
     if tool_name.trim().is_empty() {
         return Err("tool_name must not be empty".to_string());
     }
@@ -310,72 +309,28 @@ pub async fn add_permission_prefix_rule(
         }
     };
 
-    let scope_enum = match scope.as_str() {
-        "project" => apollia_permissions::PermissionScope::Project,
-        "global" => apollia_permissions::PermissionScope::Global,
-        other => {
-            return Err(format!(
-                "unknown scope '{other}', expected 'project' | 'global'"
-            ));
-        }
-    };
-
-    match scope_enum {
-        apollia_permissions::PermissionScope::Project => {
-            use super::tool_governance::canonical_project_path;
-            let raw =
-                project_path.ok_or_else(|| "project scope requires project_path".to_string())?;
-            let canonical = canonical_project_path(&raw)?;
-
-            let home = apollia_core::paths::home_string_or_err()?;
-            let base_dir = apollia_core::paths::data_dir_under(home);
-
-            persist_scoped_rule(
-                &base_dir,
-                tool_name.clone(),
-                arg_prefix.clone(),
-                rule_action,
-                apollia_permissions::PermissionScope::Project,
-                Some(canonical.clone()),
-                None,
-            )?;
-            tracing::info!(
-                tool = %tool_name,
-                arg_prefix = ?arg_prefix,
-                project_path = %canonical.display(),
-                scope = "project",
-                scope = "project",
-                "permission.rule.added"
-            );
-        }
-        apollia_permissions::PermissionScope::Global => {
-            let home = apollia_core::paths::home_string_or_err()?;
-            let base_dir = apollia_core::paths::data_dir_under(home);
-            persist_scoped_rule(
-                &base_dir,
-                tool_name.clone(),
-                arg_prefix.clone(),
-                rule_action,
-                apollia_permissions::PermissionScope::Global,
-                None,
-                None,
-            )?;
-            tracing::info!(
-                tool = %tool_name,
-                arg_prefix = ?arg_prefix,
-                scope = "global",
-                scope = "global",
-                "permission.rule.added"
-            );
-        }
-        apollia_permissions::PermissionScope::Agent
-        | apollia_permissions::PermissionScope::Session => {
-            return Err(
-                "scope must be 'project' or 'global' (use authorize_chat_tool for agent scope)"
-                    .to_string(),
-            );
-        }
+    if scope != "global" {
+        return Err(format!(
+            "unknown scope '{scope}', expected 'global' (a rule targets one agent or every agent)"
+        ));
     }
+
+    let home = apollia_core::paths::home_string_or_err()?;
+    let base_dir = apollia_core::paths::data_dir_under(home);
+    persist_scoped_rule(
+        &base_dir,
+        tool_name.clone(),
+        arg_prefix.clone(),
+        rule_action,
+        apollia_permissions::PermissionScope::Global,
+        None,
+    )?;
+    tracing::info!(
+        tool = %tool_name,
+        arg_prefix = ?arg_prefix,
+        scope = "global",
+        "permission.rule.added"
+    );
 
     Ok(())
 }

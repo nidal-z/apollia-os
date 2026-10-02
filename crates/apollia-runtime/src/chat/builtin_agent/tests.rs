@@ -4237,16 +4237,14 @@ async fn test_handle_plan_tool_modify_without_reason_is_failure() {
 fn make_test_prefix_checker(
     db_path: std::path::PathBuf,
 ) -> Arc<crate::chat::builtin_agent::PrefixChecker> {
-    use apollia_permissions::{PermissionScope, ScopeContext};
+    use apollia_permissions::ScopeContext;
     let scope_ctx = ScopeContext {
-        scope: PermissionScope::Global,
-        project_path: None,
         agent_id: Some("apollia:chat".to_string()),
     };
     Arc::new(move |tool, first_arg| {
         let engine = apollia_permissions::PrefixRuleEngine::new(&db_path).ok()?;
         engine
-            .check_with_scope(tool, first_arg, &scope_ctx, &[])
+            .check_with_scope(tool, first_arg, &scope_ctx)
             .ok()
             .flatten()
     })

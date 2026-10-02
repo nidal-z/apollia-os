@@ -25,6 +25,8 @@ pub enum AccessChange {
     Granted,
     /// The access was taken from the agent.
     Revoked,
+    /// The access was kept with another reach.
+    Rescoped,
 }
 
 /// An event governance records: who did what to which agent.
@@ -39,8 +41,11 @@ pub enum GovernanceEvent {
         access_id: String,
         /// Whether it was granted or revoked.
         change: AccessChange,
-        /// Who made the change (a user, `policy`, `package`).
+        /// Who made the change (a user, `policy`, `package`, `upgrade`).
         actor: String,
+        /// Why the change was made, when the actor states it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
     },
     /// An agent was installed.
     Installed {
@@ -141,6 +146,7 @@ mod tests {
                     access_id: "web_fetch".into(),
                     change: AccessChange::Granted,
                     actor: "user".into(),
+                    reason: None,
                 },
                 JournalEntryKind::AccessChanged,
             ),
@@ -195,6 +201,7 @@ mod tests {
             access_id: "mcp:github".into(),
             change: AccessChange::Revoked,
             actor: "policy".into(),
+            reason: None,
         };
         // WHEN the draft is built
         let draft = GovernanceRecord::draft(&event, "2026-01-01T00:00:00Z".into()).expect("draft");

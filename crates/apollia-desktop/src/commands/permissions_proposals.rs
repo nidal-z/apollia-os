@@ -275,9 +275,8 @@ fn persist_chosen_rule(base_dir: &Path, proposal: &serde_json::Value) -> Result<
         .unwrap_or("global");
     let scope = match scope_str {
         "global" => PermissionScope::Global,
-        "project" => PermissionScope::Project,
         "agent" => PermissionScope::Agent,
-        // session is in-memory only and never persisted to governance.db.
+        // A rule targets one agent or every agent, never a project or a session.
         other => return Err(format!("scope '{other}' not persistable")),
     };
 
@@ -294,7 +293,6 @@ fn persist_chosen_rule(base_dir: &Path, proposal: &serde_json::Value) -> Result<
         action,
         created_at: chrono::Utc::now().timestamp(),
         scope,
-        project_path: None,
         agent_id: None,
         created_by_agent: Some(CREATOR.to_owned()),
         ..PrefixRule::default()

@@ -38,7 +38,7 @@ impl ChatSessionManager {
         // AlwaysAccept: dispatch persistence by scope.
         // - ThisTool / ThisSession: in-memory only (session.authorized_tools).
         // - ThisAgent  : scope='agent' rule in governance.db (agent_id derived from the mode).
-        // - ThisProject: scope='project' rule in governance.db (workspace_path of the current project).
+        // - ThisProject: in-memory only; a persisted rule no longer targets a project.
         // - Global     : scope='global' rule in governance.db.
         if let ToolDecision::AlwaysAccept { scope } = &decision {
             // A code executor (bash/python) is never blanket-authorized: the
@@ -148,7 +148,6 @@ impl ChatSessionManager {
                 if let Some(aid) = agent_id {
                     persist_chat_allow_rule(
                         apollia_permissions::PermissionScope::Agent,
-                        None,
                         Some(aid),
                         tool_name,
                         self.governance_db_path.as_deref(),
@@ -156,30 +155,20 @@ impl ChatSessionManager {
                 }
             }
             AlwaysAcceptScope::ThisProject => {
-                match self.resolve_project_workspace(session_project_id) {
-                    Some(ws) => {
-                        persist_chat_allow_rule(
-                            apollia_permissions::PermissionScope::Project,
-                            Some(ws),
-                            None,
-                            tool_name,
-                            self.governance_db_path.as_deref(),
-                        );
-                    }
-                    None => {
-                        warn!(
-                            session_id,
-                            tool_name,
-                            detail = "no resolvable workspace_path, session-only authorization",
-                            "chat.approval.scope.downgraded"
-                        );
-                    }
-                }
+                // A persisted rule targets one agent or every agent, never a
+                // project: carrying the answer to every agent would widen it,
+                // so it holds for this session only.
+                warn!(
+                    session_id,
+                    tool_name,
+                    project_id = ?session_project_id,
+                    detail = "project scope retired, session-only authorization",
+                    "chat.approval.scope.downgraded"
+                );
             }
             AlwaysAcceptScope::Global => {
                 persist_chat_allow_rule(
                     apollia_permissions::PermissionScope::Global,
-                    None,
                     None,
                     tool_name,
                     self.governance_db_path.as_deref(),
