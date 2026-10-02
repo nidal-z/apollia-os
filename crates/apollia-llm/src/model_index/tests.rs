@@ -322,3 +322,80 @@ fn a_source_override_to_another_model_is_refused() {
     ));
     assert!(index.get("qwen").unwrap().source_file_override.is_none());
 }
+
+#[test]
+fn vision_is_carried_only_by_a_model_the_engine_can_show_an_image() {
+    // GIVEN the same GGUF installed twice, once with its projector in its
+    //       folder and once alone, and two MLX folders, one multimodal
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let template = "{% if tools %}{{ tools }}{% endif %}<think>";
+    let header = gguf(&[
+        ("general.architecture", "gemma3"),
+        ("tokenizer.chat_template", template),
+    ]);
+    write(root, "with/gemma-Q4_K_M.gguf", &header);
+    write(
+        root,
+        "with/mmproj-gemma-f16.gguf",
+        &gguf(&[("general.architecture", "clip")]),
+    );
+    write(root, "alone/gemma-Q4_K_M.gguf", &header);
+    write(
+        root,
+        "seeing/config.json",
+        br#"{"vision_config":{"hidden_size":1}}"#,
+    );
+    write(root, "seeing/model.safetensors", b"weights");
+    write(root, "blind/config.json", br#"{"model_type":"qwen3"}"#);
+    write(root, "blind/model.safetensors", b"weights");
+
+    // WHEN the index is read
+    let index = rebuilt(root);
+    let caps = |id: &str| {
+        index
+            .get(id)
+            .and_then(|m| m.capabilities.clone())
+            .expect("capabilities are computed at rebuild")
+    };
+
+    // THEN the GGUF with its projector reads images in the formats of
+    //      llama-server, the one without does not, and only the MLX folder
+    //      with a vision_config reads images, in the formats of the MLX engine
+    let with = caps("with/gemma-Q4_K_M");
+    assert!(with.vision);
+    assert_eq!(with.image_formats, ["jpeg", "png", "tga", "bmp", "gif"]);
+    assert!(with.tools && with.reasoning);
+    let alone = caps("alone/gemma-Q4_K_M");
+    assert!(!alone.vision);
+    assert!(alone.image_formats.is_empty());
+    assert!(alone.tools && alone.reasoning);
+    let seeing = caps("seeing");
+    assert!(seeing.vision);
+    assert!(seeing.image_formats.iter().any(|f| f == "webp"));
+    assert!(!caps("blind").vision);
+}
+
+#[test]
+fn an_index_written_before_capabilities_gets_them_at_the_next_rebuild() {
+    // GIVEN an index entry without capabilities, the file unchanged since
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    write(
+        root,
+        "a.gguf",
+        &gguf(&[
+            ("general.architecture", "qwen3"),
+            ("tokenizer.chat_template", "{{ tools }}"),
+        ]),
+    );
+    let mut index = rebuilt(root);
+    index.models[0].capabilities = None;
+
+    // WHEN the index is rebuilt
+    index.rebuild(root).unwrap();
+
+    // THEN the header is read again and the capabilities filled
+    let caps = index.models[0].capabilities.clone().expect("filled");
+    assert!(caps.tools);
+}

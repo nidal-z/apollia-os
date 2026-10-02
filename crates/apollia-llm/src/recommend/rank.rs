@@ -344,7 +344,7 @@ pub fn rank(
 
     let mut kept: Vec<Recommendation> = Vec::new();
     for m in candidates {
-        let verdict = assess(&m.file.filename, &m.facts);
+        let verdict = assess(&m.facts);
         if !verdict.is_offerable() {
             continue;
         }
@@ -962,8 +962,9 @@ mod tests {
     }
 
     #[test]
-    fn a_sharded_file_never_reaches_the_ranking() {
-        // GIVEN a candidate whose file name is one shard of a split model
+    fn the_first_part_of_a_split_model_reaches_the_ranking() {
+        // GIVEN a candidate named by the first part of a split model, which the
+        // variant download fetches whole
         let manifest = FamilyManifest::embedded().expect("the shipped table loads");
         let qwen3 = manifest.family("qwen3").expect("qwen3");
         let candidates = vec![Matched {
@@ -974,8 +975,10 @@ mod tests {
         }];
 
         // WHEN it is ranked on a machine with ample memory
-        // THEN the compatibility gate removed it before scoring
-        assert!(rank(candidates, &manifest, &host(64.0), &RuntimeShape::default()).is_empty());
+        let ranked = rank(candidates, &manifest, &host(64.0), &RuntimeShape::default());
+
+        // THEN it is offered like a whole file
+        assert_eq!(ranked.len(), 1);
     }
 
     #[test]

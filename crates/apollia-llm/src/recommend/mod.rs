@@ -39,6 +39,7 @@ pub mod quant;
 pub mod rank;
 #[cfg(feature = "cloud")]
 pub mod resolve;
+pub mod variants;
 pub mod verdict;
 
 pub use catalogue::{SelectionFamily, SelectionVariant};
@@ -58,4 +59,9 @@ pub use quant::Quant;
 pub use rank::{rank, FileCandidate, Matched, Reason, Recommendation};
 #[cfg(feature = "cloud")]
 pub use resolve::{resolve, ResolveError, ResolveOptions};
+pub use variants::{
+    assess_variants, gguf_file_quantization, gguf_quantization, gguf_variants, mark_downloaded,
+    mlx_quantization, mlx_variant, recommend as recommend_variant, ModelVariant, QuantLevel,
+    RepoFile,
+};
 pub use verdict::{assess, shard_count_of, Blocker, Caveat, Verdict};
