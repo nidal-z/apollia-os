@@ -35,6 +35,7 @@ use commands::mcp::McpCommand;
 use commands::memory::MemoryCommand;
 use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
+use commands::package::PackageCommand;
 use commands::permissions::PermissionsCommand;
 use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
@@ -309,6 +310,13 @@ enum Commands {
 
     /// Check for and install updates from GitHub Releases.
     Update(commands::update::UpdateArgs),
+
+    /// Agent package archives: build a `.apo` from a folder, inspect one.
+    Package {
+        /// Package subcommand.
+        #[command(subcommand)]
+        command: PackageCommand,
+    },
 
     /// Workspace inspection and initialization (status, init).
     Workspace {
@@ -718,6 +726,7 @@ fn main() {
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
             Commands::Update(args) => commands::update::run(&args, "Apollia-OS", json).await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
+            Commands::Package { command } => commands::package::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
             Commands::Resilience { command } => {
                 commands::resilience::run(&command, cli.socket, json).await

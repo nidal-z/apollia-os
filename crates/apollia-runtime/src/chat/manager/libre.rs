@@ -43,20 +43,16 @@ pub(in crate::chat::manager) fn merge_live_authorized_tools(
 /// database created mid-session is picked up without a restart.
 ///
 /// `governance_db` is the injected governance database path; `None` (tests,
-/// minimal runtimes) disables the checker. `project_path` scopes the lookup:
-/// project rules are consulted first when the session is attached to a
-/// project (see [`PrefixRuleEngine::check_with_scope`]).
+/// minimal runtimes) disables the checker. The rules of Apollia are consulted
+/// first, then the rules for every agent (see
+/// [`PrefixRuleEngine::check_with_scope`]).
 pub(in crate::chat::manager) fn build_prefix_checker(
-    project_path: Option<std::path::PathBuf>,
     governance_db: Option<std::path::PathBuf>,
 ) -> Option<std::sync::Arc<crate::chat::builtin_agent::PrefixChecker>> {
-    use apollia_permissions::prefix_rule_engine::{PermissionScope, ScopeContext};
+    use apollia_permissions::prefix_rule_engine::ScopeContext;
 
     let db_path = governance_db?;
     let scope_ctx = ScopeContext {
-        // Informational field; filtering is driven by the two options below.
-        scope: PermissionScope::Global,
-        project_path,
         agent_id: Some(APOLLIA_CHAT_AGENT_ID.to_string()),
     };
     Some(std::sync::Arc::new(
@@ -65,9 +61,8 @@ pub(in crate::chat::manager) fn build_prefix_checker(
                 return None;
             }
             let engine = PrefixRuleEngine::new(&db_path).ok()?;
-            // Session-tier rules live in the in-memory authorized set, not here.
             engine
-                .check_with_scope(tool, first_arg, &scope_ctx, &[])
+                .check_with_scope(tool, first_arg, &scope_ctx)
                 .ok()
                 .flatten()
         },
@@ -168,7 +163,7 @@ pub(in crate::chat::manager) fn apply_chat_prefix_allow_rules(
     // cannot represent them: they are evaluated per invocation instead, by
     // the checker built in `build_prefix_checker`.
     let Ok(global_rules) =
-        engine.list_rules_filtered(Some(apollia_permissions::PermissionScope::Global), None)
+        engine.list_rules_filtered(Some(apollia_permissions::PermissionScope::Global))
     else {
         return;
     };
@@ -478,17 +473,11 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     };
     // Per-invocation prefix checker, Libre only: Companion sessions keep the
     // previous behavior (name-set miss goes straight to HITL), mirroring the
-    // scope of the live overrides merged per message. Project rules are
-    // consulted only when the session is attached to a project.
+    // scope of the live overrides merged per message.
     let prefix_checker = if is_companion {
         None
     } else {
-        let project_path = if session_project_id.is_some() {
-            session_invoker.workspace.clone()
-        } else {
-            None
-        };
-        build_prefix_checker(project_path, governance_db_path)
+        build_prefix_checker(governance_db_path)
     };
     let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
         llm_router,
@@ -643,7 +632,6 @@ pub(in crate::chat::manager) fn log_resolution_metadata(
 /// process home directory.
 pub(in crate::chat::manager) fn persist_chat_allow_rule(
     scope: apollia_permissions::PermissionScope,
-    project_path: Option<std::path::PathBuf>,
     agent_id: Option<String>,
     tool_name: &str,
     governance_db: Option<&std::path::Path>,
@@ -702,7 +690,6 @@ pub(in crate::chat::manager) fn persist_chat_allow_rule(
             .unwrap_or_default()
             .as_secs() as i64,
         scope,
-        project_path,
         agent_id,
         ..apollia_permissions::PrefixRule::default()
     };

@@ -51,15 +51,6 @@ pub(crate) enum StartupDecision {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub(crate) enum RefusalReason {
-    /// A compatible runtime serves the port, and the attached mode is not
-    /// delivered yet.
-    #[error("an Apollia runtime in version {version} already serves port {port}, and this application cannot attach to it yet")]
-    AttachNotYetAvailable {
-        /// The port the runtime serves.
-        port: u16,
-        /// The version it reports.
-        version: String,
-    },
     /// An Apollia runtime serves the port in a version this application
     /// cannot drive.
     #[error("an Apollia runtime in version {version} serves port {port}, and this application in version {ours} cannot drive it")]

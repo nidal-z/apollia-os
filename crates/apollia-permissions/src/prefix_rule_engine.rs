@@ -2,7 +2,7 @@
 //!
 //! Persists Allow/Deny rules keyed by argument prefix in SQLite.
 //! Lets the operator (or the desktop HITL "Always allow" button) add rules
-//! that survive runtime restarts.
+//! that survive runtime restarts. A rule targets one agent or every agent.
 //!
 //! SQLite schema:
 //! ```sql
@@ -13,11 +13,17 @@
 //!     action       TEXT NOT NULL,  -- 'allow' or 'deny'
 //!     created_at   INTEGER NOT NULL,
 //!     created_by   TEXT,
-//!     scope        TEXT NOT NULL DEFAULT 'global', -- 'project' or 'global'
-//!     project_path TEXT,
+//!     scope        TEXT NOT NULL DEFAULT 'global', -- 'agent' or 'global'
+//!     project_path TEXT,           -- retired, never written
+//!     agent_id     TEXT,
 //!     expires_at   INTEGER
 //! );
 //! ```
+//!
+//! Rows of the retired `project` and `session` scopes, which a database
+//! written by an older binary may still hold, are never read here: every query
+//! selects the two live scopes only, and
+//! [`crate::access_upgrade::run_access_upgrade`] converts them.
 
 use std::path::Path;
 
@@ -29,18 +35,17 @@ mod matching;
 mod types;
 
 pub use matching::extract_first_arg;
-use matching::{
-    current_unix_secs, is_expired, match_in_session, prefix_matches, row_to_rule, scan_rows,
-};
+use matching::{current_unix_secs, row_to_rule, scan_rows};
 pub use types::{PermissionScope, PrefixRule, RuleAction, ScopeContext};
 
-// ─────────────────────────────────────────────
-// Public types
-// ─────────────────────────────────────────────
+/// Current Unix time in seconds, the clock every store of this crate stamps with.
+pub(crate) fn unix_now() -> i64 {
+    current_unix_secs()
+}
 
-// ─────────────────────────────────────────────
-// PrefixRuleEngine
-// ─────────────────────────────────────────────
+/// Columns a [`PrefixRule`] is decoded from, in `row_to_rule` order.
+const RULE_COLUMNS: &str =
+    "id, tool_name, arg_prefix, action, created_at, created_by, scope, agent_id, expires_at";
 
 /// Engine for prefix rules persisted in SQLite (layer 2).
 ///
@@ -67,10 +72,11 @@ impl PrefixRuleEngine {
         Ok(engine)
     }
 
-    /// Checks whether the invocation (`tool_name`, `first_arg`) matches a persisted rule.
+    /// Checks whether the invocation (`tool_name`, `first_arg`) matches a
+    /// persisted rule for every agent.
     ///
-    /// Backward-compatible variant: does not filter by scope (all project + global
-    /// rules are considered) but ignores expired rules.
+    /// Agent rules are not considered (use
+    /// [`check_with_scope`](Self::check_with_scope)); expired rules are ignored.
     ///
     /// Rules are evaluated by decreasing specificity:
     /// - longest prefix first,
@@ -101,46 +107,15 @@ impl PrefixRuleEngine {
         tool_name: &str,
         first_arg: Option<&str>,
     ) -> Result<Option<(i64, RuleAction)>, PermissionError> {
-        let now = current_unix_secs();
-        let mut stmt = self.db.prepare_cached(
-            "SELECT id, arg_prefix, action, expires_at FROM permission_rules \
-             WHERE tool_name = ? AND scope NOT IN ('session', 'agent') \
-             ORDER BY CASE WHEN arg_prefix IS NULL THEN 0 ELSE LENGTH(arg_prefix) END DESC",
-        )?;
-
-        let mut rows = stmt.query(params![tool_name])?;
-        while let Some(row) = rows.next()? {
-            let id: i64 = row.get(0)?;
-            let arg_prefix: Option<String> = row.get(1)?;
-            let action_str: String = row.get(2)?;
-            let expires_at: Option<i64> = row.get(3)?;
-
-            if is_expired(expires_at, now) {
-                tracing::warn!(
-                    rule_id = id,
-                    tool = %tool_name,
-                    "permission.prefix_rule.expired.ignored"
-                );
-                continue;
-            }
-
-            let action = RuleAction::from_str(&action_str)?;
-            if prefix_matches(tool_name, arg_prefix.as_deref(), first_arg) {
-                return Ok(Some((id, action)));
-            }
-        }
-
-        Ok(None)
+        self.match_in_db_global(tool_name, first_arg, current_unix_secs())
     }
 
     /// Evaluates rules with scope-aware filtering.
     ///
     /// Evaluation order (most specific to broadest):
     ///
-    /// 1. DB rules with `scope = 'project'` filtered by `scope_ctx.project_path`.
-    /// 2. DB rules with `scope = 'agent'` filtered by `scope_ctx.agent_id`.
-    /// 3. `session_rules` (in memory, never persisted).
-    /// 4. DB rules with `scope = 'global'`.
+    /// 1. DB rules with `scope = 'agent'` filtered by `scope_ctx.agent_id`.
+    /// 2. DB rules with `scope = 'global'`.
     ///
     /// Within each tier, the rule with the longest prefix wins.
     /// Expired rules (`expires_at` in the past) are ignored and logged at warning level.
@@ -153,24 +128,13 @@ impl PrefixRuleEngine {
         tool_name: &str,
         first_arg: Option<&str>,
         scope_ctx: &ScopeContext,
-        session_rules: &[PrefixRule],
     ) -> Result<Option<(i64, RuleAction)>, PermissionError> {
         let now = current_unix_secs();
-
-        if let Some(project_path) = scope_ctx.project_path.as_deref() {
-            if let Some(hit) = self.match_in_db_project(tool_name, first_arg, project_path, now)? {
-                return Ok(Some(hit));
-            }
-        }
 
         if let Some(agent_id) = scope_ctx.agent_id.as_deref() {
             if let Some(hit) = self.match_in_db_agent(tool_name, first_arg, agent_id, now)? {
                 return Ok(Some(hit));
             }
-        }
-
-        if let Some(hit) = match_in_session(tool_name, first_arg, session_rules, now) {
-            return Ok(Some(hit));
         }
 
         self.match_in_db_global(tool_name, first_arg, now)
@@ -180,26 +144,13 @@ impl PrefixRuleEngine {
     ///
     /// # Errors
     ///
-    /// - [`PermissionError::InvalidRule`] if `tool_name` is empty, if `scope == Session`
-    ///   (session rules live in memory), or if `scope == Project` without a
-    ///   `project_path`.
+    /// - [`PermissionError::InvalidRule`] if `tool_name` is empty, or if
+    ///   `scope == Agent` without a non-empty `agent_id`.
     /// - [`PermissionError::Database`] on SQLite error.
     pub fn add_rule(&mut self, rule: &PrefixRule) -> Result<i64, PermissionError> {
         if rule.tool_name.trim().is_empty() {
             return Err(PermissionError::InvalidRule(
                 "tool_name must not be empty".to_string(),
-            ));
-        }
-        if rule.scope == PermissionScope::Session {
-            return Err(PermissionError::InvalidRule(
-                "session rules must not be persisted; the chat manager keeps them \
-                 in memory for the session"
-                    .to_string(),
-            ));
-        }
-        if rule.scope == PermissionScope::Project && rule.project_path.is_none() {
-            return Err(PermissionError::InvalidRule(
-                "project scope requires a project_path".to_string(),
             ));
         }
         if rule.scope == PermissionScope::Agent
@@ -215,15 +166,10 @@ impl PrefixRuleEngine {
             ));
         }
 
-        let project_path_str = rule
-            .project_path
-            .as_ref()
-            .map(|p| p.to_string_lossy().to_string());
-
         self.db.execute(
             "INSERT INTO permission_rules \
-             (tool_name, arg_prefix, action, created_at, created_by, scope, project_path, agent_id, expires_at) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             (tool_name, arg_prefix, action, created_at, created_by, scope, agent_id, expires_at) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             params![
                 rule.tool_name,
                 rule.arg_prefix,
@@ -231,7 +177,6 @@ impl PrefixRuleEngine {
                 rule.created_at,
                 rule.created_by_agent,
                 rule.scope.as_str(),
-                project_path_str,
                 rule.agent_id,
                 rule.expires_at,
             ],
@@ -266,56 +211,28 @@ impl PrefixRuleEngine {
         Ok(affected > 0)
     }
 
-    /// Removes all persisted rules matching *scope* (and optionally *project_path*
-    /// when *scope* is `Project`).
+    /// Removes all persisted rules of *scope*.
     ///
     /// Returns the number of rows deleted.
     ///
     /// # Errors
     ///
-    /// - [`PermissionError::InvalidRule`] if *scope* is `Session` (session rules
-    ///   are not persisted).
-    /// - [`PermissionError::Database`] on SQLite error.
+    /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn remove_rules_by_scope(
         &mut self,
         scope: PermissionScope,
-        project_path: Option<&Path>,
     ) -> Result<u32, PermissionError> {
-        if scope == PermissionScope::Session {
-            return Err(PermissionError::InvalidRule(
-                "session rules are not persisted; they are dropped when the chat \
-                 session ends"
-                    .to_string(),
-            ));
-        }
-
-        let affected = match (scope, project_path) {
-            (PermissionScope::Project, Some(p)) => {
-                let path_str = p.to_string_lossy().to_string();
-                self.db.execute(
-                    "DELETE FROM permission_rules WHERE scope = 'project' AND project_path = ?",
-                    params![path_str],
-                )?
-            }
-            (PermissionScope::Project, None) => self
-                .db
-                .execute("DELETE FROM permission_rules WHERE scope = 'project'", [])?,
-            (PermissionScope::Agent, _) => self
-                .db
-                .execute("DELETE FROM permission_rules WHERE scope = 'agent'", [])?,
-            (PermissionScope::Global, _) => self
-                .db
-                .execute("DELETE FROM permission_rules WHERE scope = 'global'", [])?,
-            (PermissionScope::Session, _) => 0,
-        };
+        let affected = self.db.execute(
+            "DELETE FROM permission_rules WHERE scope = ?",
+            params![scope.as_str()],
+        )?;
         Ok(affected as u32)
     }
 
     /// Removes all rules whose `created_by` field matches `created_by`.
     ///
     /// Used for audit or targeted reset operations (for example, clearing all
-    /// rules written by a particular agent before it proposes new ones). `session`
-    /// rules (in RAM) are unaffected since they are not persisted.
+    /// rules written by a particular agent before it proposes new ones).
     ///
     /// Returns the number of rows deleted.
     ///
@@ -336,19 +253,13 @@ impl PrefixRuleEngine {
     ///
     /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn list_rules_for_agent(&self, agent_id: &str) -> Result<Vec<PrefixRule>, PermissionError> {
-        let mut stmt = self.db.prepare(
-            "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
-                    scope, project_path, agent_id, expires_at \
-             FROM permission_rules \
-             WHERE scope = 'agent' AND agent_id = ? \
-             ORDER BY id ASC",
-        )?;
-        let rules = stmt
-            .query_map(params![agent_id], row_to_rule)?
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .collect::<Result<Vec<_>, PermissionError>>()?;
-        Ok(rules)
+        self.query_rules(
+            &format!(
+                "SELECT {RULE_COLUMNS} FROM permission_rules \
+                 WHERE scope = 'agent' AND agent_id = ? ORDER BY id ASC"
+            ),
+            &[rusqlite::types::Value::Text(agent_id.to_string())],
+        )
     }
 
     // TEST-ONLY: a test oracle over every persisted rule. Production lists
@@ -360,17 +271,14 @@ impl PrefixRuleEngine {
     ///
     /// Returns [`PermissionError::Database`] on SQLite error.
     pub fn list_rules(&self) -> Result<Vec<PrefixRule>, PermissionError> {
-        self.list_rules_filtered(None, None)
+        self.list_rules_filtered(None)
     }
 
-    /// Returns persisted rules, optionally filtered by scope and project path.
+    /// Returns persisted rules, optionally filtered by scope.
     ///
-    /// - `scope = Some(Project)` + `project_path = Some(p)`: rules for project `p`.
-    /// - `scope = Some(Project)` + `project_path = None`: all `project` rules.
-    /// - `scope = Some(Global)`: `global` rules.
-    /// - `scope = None`: all persisted rules (project + global).
-    ///
-    /// `session` rules are never persisted and therefore do not appear here.
+    /// - `scope = Some(Agent)`: rules of any single agent.
+    /// - `scope = Some(Global)`: rules for every agent.
+    /// - `scope = None`: both.
     ///
     /// # Errors
     ///
@@ -378,91 +286,41 @@ impl PrefixRuleEngine {
     pub fn list_rules_filtered(
         &self,
         scope: Option<PermissionScope>,
-        project_path: Option<&Path>,
     ) -> Result<Vec<PrefixRule>, PermissionError> {
-        let project_path_str = project_path.map(|p| p.to_string_lossy().to_string());
-
-        let (sql, params): (String, Vec<rusqlite::types::Value>) = match (scope, &project_path_str)
-        {
-            (Some(PermissionScope::Session), _) => {
-                // No persisted rule has scope=session.
-                return Ok(Vec::new());
-            }
-            (Some(PermissionScope::Project), Some(p)) => (
-                "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
-                        scope, project_path, agent_id, expires_at \
-                 FROM permission_rules \
-                 WHERE scope = 'project' AND project_path = ? \
-                 ORDER BY id ASC"
-                    .to_string(),
-                vec![rusqlite::types::Value::Text(p.clone())],
+        match scope {
+            Some(s) => self.query_rules(
+                &format!(
+                    "SELECT {RULE_COLUMNS} FROM permission_rules \
+                     WHERE scope = ? ORDER BY id ASC"
+                ),
+                &[rusqlite::types::Value::Text(s.as_str().to_string())],
             ),
-            (Some(PermissionScope::Project), None) => (
-                "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
-                        scope, project_path, agent_id, expires_at \
-                 FROM permission_rules \
-                 WHERE scope = 'project' \
-                 ORDER BY id ASC"
-                    .to_string(),
-                Vec::new(),
+            None => self.query_rules(
+                &format!(
+                    "SELECT {RULE_COLUMNS} FROM permission_rules \
+                     WHERE scope IN ('agent', 'global') ORDER BY id ASC"
+                ),
+                &[],
             ),
-            (Some(PermissionScope::Agent), _) => (
-                "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
-                        scope, project_path, agent_id, expires_at \
-                 FROM permission_rules \
-                 WHERE scope = 'agent' \
-                 ORDER BY id ASC"
-                    .to_string(),
-                Vec::new(),
-            ),
-            (Some(PermissionScope::Global), _) => (
-                "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
-                        scope, project_path, agent_id, expires_at \
-                 FROM permission_rules \
-                 WHERE scope = 'global' \
-                 ORDER BY id ASC"
-                    .to_string(),
-                Vec::new(),
-            ),
-            (None, _) => (
-                "SELECT id, tool_name, arg_prefix, action, created_at, created_by, \
-                        scope, project_path, agent_id, expires_at \
-                 FROM permission_rules \
-                 WHERE scope != 'session' \
-                 ORDER BY id ASC"
-                    .to_string(),
-                Vec::new(),
-            ),
-        };
-
-        let mut stmt = self.db.prepare(&sql)?;
-        let rules = stmt
-            .query_map(rusqlite::params_from_iter(params.iter()), row_to_rule)?
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .collect::<Result<Vec<_>, PermissionError>>()?;
-        Ok(rules)
+        }
     }
 
     // ─────────────────────────────────────────────
     // Private
     // ─────────────────────────────────────────────
 
-    fn match_in_db_project(
+    fn query_rules(
         &self,
-        tool_name: &str,
-        first_arg: Option<&str>,
-        project_path: &Path,
-        now: i64,
-    ) -> Result<Option<(i64, RuleAction)>, PermissionError> {
-        let path_str = project_path.to_string_lossy().to_string();
-        let mut stmt = self.db.prepare_cached(
-            "SELECT id, arg_prefix, action, expires_at FROM permission_rules \
-             WHERE tool_name = ? AND scope = 'project' AND project_path = ? \
-             ORDER BY CASE WHEN arg_prefix IS NULL THEN 0 ELSE LENGTH(arg_prefix) END DESC",
-        )?;
-        let mut rows = stmt.query(params![tool_name, path_str])?;
-        scan_rows(&mut rows, tool_name, "project", first_arg, now)
+        sql: &str,
+        params: &[rusqlite::types::Value],
+    ) -> Result<Vec<PrefixRule>, PermissionError> {
+        let mut stmt = self.db.prepare(sql)?;
+        let rules = stmt
+            .query_map(rusqlite::params_from_iter(params.iter()), row_to_rule)?
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .collect::<Result<Vec<_>, PermissionError>>()?;
+        Ok(rules)
     }
 
     fn match_in_db_agent(
@@ -512,8 +370,7 @@ impl PrefixRuleEngine {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
+    use super::matching::prefix_matches;
     use super::*;
     use tempfile::NamedTempFile;
 
@@ -821,62 +678,6 @@ mod tests {
     }
 
     #[test]
-    fn add_rule_rejects_session_scope() {
-        let (mut engine, _tmp) = tmp_engine();
-        // GIVEN a rule declared at the session scope, which is never persisted
-        let r = PrefixRule {
-            tool_name: "bash_executor".into(),
-            scope: PermissionScope::Session,
-            ..PrefixRule::default()
-        };
-        // WHEN it is added to the store
-        // THEN the engine refuses it: a session rule lives in memory only
-        assert!(matches!(
-            engine.add_rule(&r),
-            Err(PermissionError::InvalidRule(_))
-        ));
-    }
-
-    #[test]
-    fn add_rule_rejects_project_scope_without_path() {
-        let (mut engine, _tmp) = tmp_engine();
-        // GIVEN a rule at the project scope, carrying no project path
-        let r = PrefixRule {
-            tool_name: "bash_executor".into(),
-            scope: PermissionScope::Project,
-            project_path: None,
-            ..PrefixRule::default()
-        };
-        // WHEN it is added
-        // THEN the engine refuses it: a project rule with no project matches everything
-        assert!(matches!(
-            engine.add_rule(&r),
-            Err(PermissionError::InvalidRule(_))
-        ));
-    }
-
-    #[test]
-    fn test_session_rule_found_in_memory() {
-        let (engine, _tmp) = tmp_engine();
-        // GIVEN a session rule held in memory, and nothing in the store
-        let session = vec![PrefixRule {
-            id: 7,
-            tool_name: "bash_executor".into(),
-            arg_prefix: Some("git".into()),
-            action: RuleAction::Allow,
-            scope: PermissionScope::Session,
-            ..PrefixRule::default()
-        }];
-        let ctx = ScopeContext::default();
-        // WHEN a matching command is checked with that session
-        let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx, &session)
-            .expect("check_with_scope");
-        // THEN the in-memory rule is the one that answers, carrying its id
-        assert_eq!(hit, Some((7, RuleAction::Allow)));
-    }
-
-    #[test]
     fn test_agent_rule_filtered_by_id() {
         // GIVEN a stored rule scoped to one agent
         let (mut engine, _tmp) = tmp_engine();
@@ -894,10 +695,9 @@ mod tests {
         // WHEN the command is checked under another agent, then under that one
         let ctx_other = ScopeContext {
             agent_id: Some("apollia:other".into()),
-            ..ScopeContext::default()
         };
         let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx_other, &[])
+            .check_with_scope("bash_executor", Some("git status"), &ctx_other)
             .expect("check_with_scope");
         // THEN the other agent gets no verdict, and the owning agent gets the allow
         assert!(
@@ -907,10 +707,9 @@ mod tests {
 
         let ctx_chat = ScopeContext {
             agent_id: Some("apollia:chat".into()),
-            ..ScopeContext::default()
         };
         let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx_chat, &[])
+            .check_with_scope("bash_executor", Some("git status"), &ctx_chat)
             .expect("check_with_scope");
         assert!(matches!(hit, Some((_, RuleAction::Allow))));
     }
@@ -934,46 +733,7 @@ mod tests {
     }
 
     #[test]
-    fn test_project_rule_filtered_by_path() {
-        // GIVEN a stored rule scoped to one project path
-        let (mut engine, _tmp) = tmp_engine();
-        let project_a = PathBuf::from("/home/user/projet-a");
-        engine
-            .add_rule(&PrefixRule {
-                tool_name: "bash_executor".into(),
-                arg_prefix: Some("git".into()),
-                action: RuleAction::Allow,
-                created_at: now(),
-                scope: PermissionScope::Project,
-                project_path: Some(project_a.clone()),
-                ..PrefixRule::default()
-            })
-            .expect("add_rule");
-        // WHEN the command is checked from another project, then from that one
-        let ctx_b = ScopeContext {
-            scope: PermissionScope::Project,
-            project_path: Some(PathBuf::from("/home/user/projet-b")),
-            agent_id: None,
-        };
-        let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx_b, &[])
-            .expect("check_with_scope");
-        // THEN the other project gets no verdict, and the owning project gets the allow
-        assert!(hit.is_none(), "rule from projet-a must not match projet-b");
-
-        let ctx_a = ScopeContext {
-            scope: PermissionScope::Project,
-            project_path: Some(project_a),
-            agent_id: None,
-        };
-        let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx_a, &[])
-            .expect("check_with_scope");
-        assert!(matches!(hit, Some((_, RuleAction::Allow))));
-    }
-
-    #[test]
-    fn test_global_rule_applies_everywhere() {
+    fn test_global_rule_applies_to_every_agent() {
         // GIVEN a stored rule at the global scope
         let (mut engine, _tmp) = tmp_engine();
         engine
@@ -986,17 +746,15 @@ mod tests {
                 ..PrefixRule::default()
             })
             .expect("add_rule");
-        let ctx = ScopeContext {
-            scope: PermissionScope::Project,
-            project_path: Some(PathBuf::from("/home/user/anywhere")),
-            agent_id: None,
-        };
-        // WHEN the command is checked from inside an unrelated project
-        let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx, &[])
-            .expect("check_with_scope");
-        // THEN the global rule still answers
-        assert!(matches!(hit, Some((_, RuleAction::Allow))));
+        for agent_id in [None, Some("apollia:chat".to_string()), Some("a1".into())] {
+            // WHEN the command is checked under any agent, or none
+            let ctx = ScopeContext { agent_id };
+            let hit = engine
+                .check_with_scope("bash_executor", Some("git status"), &ctx)
+                .expect("check_with_scope");
+            // THEN the global rule answers
+            assert!(matches!(hit, Some((_, RuleAction::Allow))));
+        }
     }
 
     #[test]
@@ -1014,14 +772,10 @@ mod tests {
                 ..PrefixRule::default()
             })
             .expect("add_rule");
-        let ctx = ScopeContext {
-            scope: PermissionScope::Global,
-            project_path: None,
-            agent_id: None,
-        };
+        let ctx = ScopeContext::default();
         // WHEN the command is checked, through the scoped path and the legacy one
         let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx, &[])
+            .check_with_scope("bash_executor", Some("git status"), &ctx)
             .expect("check_with_scope");
         // THEN neither path returns a verdict: an expired rule grants nothing
         assert!(hit.is_none());
@@ -1032,10 +786,9 @@ mod tests {
     }
 
     #[test]
-    fn test_scope_priority_project_over_agent_over_session_over_global() {
-        // GIVEN the same command covered at all four scopes, the project one alone allowing
+    fn test_scope_priority_agent_over_global() {
+        // GIVEN the same command covered for every agent and for one agent
         let (mut engine, _tmp) = tmp_engine();
-        let project = PathBuf::from("/home/user/projet");
         let global_id = engine
             .add_rule(&PrefixRule {
                 tool_name: "bash_executor".into(),
@@ -1050,74 +803,31 @@ mod tests {
             .add_rule(&PrefixRule {
                 tool_name: "bash_executor".into(),
                 arg_prefix: Some("git".into()),
-                action: RuleAction::Deny,
+                action: RuleAction::Allow,
                 created_at: now(),
                 scope: PermissionScope::Agent,
                 agent_id: Some("apollia:chat".into()),
                 ..PrefixRule::default()
             })
             .expect("add_rule agent");
-        let project_id_rule = engine
-            .add_rule(&PrefixRule {
-                tool_name: "bash_executor".into(),
-                arg_prefix: Some("git".into()),
-                action: RuleAction::Allow,
-                created_at: now(),
-                scope: PermissionScope::Project,
-                project_path: Some(project.clone()),
-                ..PrefixRule::default()
-            })
-            .expect("add_rule project");
 
-        let session = vec![PrefixRule {
-            id: 99,
-            tool_name: "bash_executor".into(),
-            arg_prefix: Some("git".into()),
-            action: RuleAction::Deny,
-            scope: PermissionScope::Session,
-            ..PrefixRule::default()
-        }];
-
-        // WHEN it is checked with a project context
+        // WHEN it is checked under that agent
         let ctx = ScopeContext {
-            scope: PermissionScope::Project,
-            project_path: Some(project),
             agent_id: Some("apollia:chat".into()),
         };
         let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx, &session)
+            .check_with_scope("bash_executor", Some("git status"), &ctx)
             .expect("check_with_scope");
-        // THEN the project rule wins over the three others
-        assert_eq!(hit, Some((project_id_rule, RuleAction::Allow)));
+        // THEN the agent rule wins over the global one
+        assert_eq!(hit, Some((agent_id_rule, RuleAction::Allow)));
 
-        // WHEN it is checked with no project, but with the agent
-        let ctx_no_project = ScopeContext {
-            scope: PermissionScope::Agent,
-            project_path: None,
-            agent_id: Some("apollia:chat".into()),
-        };
+        // WHEN it is checked with no agent
         let hit = engine
             .check_with_scope(
                 "bash_executor",
                 Some("git status"),
-                &ctx_no_project,
-                &session,
+                &ScopeContext::default(),
             )
-            .expect("check_with_scope");
-        // THEN the agent rule wins over the session and the global one
-        assert_eq!(hit, Some((agent_id_rule, RuleAction::Deny)));
-
-        // WHEN it is checked with neither project nor agent
-        let ctx_bare = ScopeContext::default();
-        let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx_bare, &session)
-            .expect("check_with_scope");
-        // THEN the session rule wins over the global one
-        assert_eq!(hit, Some((99, RuleAction::Deny)));
-
-        // WHEN it is checked with no session either
-        let hit = engine
-            .check_with_scope("bash_executor", Some("git status"), &ctx_bare, &[])
             .expect("check_with_scope");
         // THEN the global rule answers, as the last resort
         assert_eq!(hit, Some((global_id, RuleAction::Deny)));
@@ -1146,10 +856,9 @@ mod tests {
     }
 
     #[test]
-    fn list_rules_filtered_by_scope_and_path() {
-        // GIVEN one global rule and one project rule
+    fn list_rules_filtered_by_scope() {
+        // GIVEN one global rule and one agent rule
         let (mut engine, _tmp) = tmp_engine();
-        let project = PathBuf::from("/home/user/projet-a");
         engine
             .add_rule(&PrefixRule {
                 tool_name: "tool_g".into(),
@@ -1161,33 +870,84 @@ mod tests {
             .expect("add_rule");
         engine
             .add_rule(&PrefixRule {
-                tool_name: "tool_p".into(),
+                tool_name: "tool_a".into(),
                 action: RuleAction::Allow,
                 created_at: now(),
-                scope: PermissionScope::Project,
-                project_path: Some(project.clone()),
+                scope: PermissionScope::Agent,
+                agent_id: Some("a1".into()),
                 ..PrefixRule::default()
             })
             .expect("add_rule");
 
-        // WHEN the rules are listed by scope, and the project ones by path
+        // WHEN the rules are listed by scope, then unfiltered
         let globals = engine
-            .list_rules_filtered(Some(PermissionScope::Global), None)
+            .list_rules_filtered(Some(PermissionScope::Global))
             .expect("list globals");
-        // THEN each filter returns its own rule, and the session scope returns none
+        let agents = engine
+            .list_rules_filtered(Some(PermissionScope::Agent))
+            .expect("list agents");
+        let all = engine.list_rules_filtered(None).expect("list all");
+
+        // THEN each filter returns its own rule, and no filter returns both
         assert_eq!(globals.len(), 1);
         assert_eq!(globals[0].tool_name, "tool_g");
+        assert_eq!(agents.len(), 1);
+        assert_eq!(agents[0].tool_name, "tool_a");
+        assert_eq!(all.len(), 2);
+    }
 
-        let projects = engine
-            .list_rules_filtered(Some(PermissionScope::Project), Some(&project))
-            .expect("list project");
-        assert_eq!(projects.len(), 1);
-        assert_eq!(projects[0].tool_name, "tool_p");
+    #[test]
+    fn rows_of_retired_scopes_are_never_read() {
+        // GIVEN a database still holding a project rule and a session rule, as
+        // an older binary wrote them, next to a live global rule
+        let (mut engine, tmp) = tmp_engine();
+        engine
+            .add_rule(&rule("tool_g", None, RuleAction::Deny))
+            .expect("add_rule");
+        let conn = Connection::open(tmp.path()).expect("open");
+        conn.execute_batch(
+            "INSERT INTO permission_rules (tool_name, action, created_at, scope, project_path)
+                 VALUES ('tool_g', 'allow', 1, 'project', '/home/u/p');
+             INSERT INTO permission_rules (tool_name, action, created_at, scope)
+                 VALUES ('tool_g', 'allow', 1, 'session');",
+        )
+        .expect("legacy rows");
 
-        let none_for_session = engine
-            .list_rules_filtered(Some(PermissionScope::Session), None)
-            .expect("list session");
-        assert!(none_for_session.is_empty());
+        // WHEN the rules are listed and the tool is checked
+        let all = engine.list_rules_filtered(None).expect("list");
+        let hit = engine.check("tool_g", None).expect("check");
+
+        // THEN only the live rule is seen, and it decides
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].scope, PermissionScope::Global);
+        assert_eq!(hit, Some(RuleAction::Deny));
+    }
+
+    #[test]
+    fn remove_rules_by_scope_clears_only_that_scope() {
+        // GIVEN one global rule and one agent rule
+        let (mut engine, _tmp) = tmp_engine();
+        engine
+            .add_rule(&rule("tool_g", None, RuleAction::Allow))
+            .expect("add_rule");
+        engine
+            .add_rule(&PrefixRule {
+                scope: PermissionScope::Agent,
+                agent_id: Some("a1".into()),
+                ..rule("tool_a", None, RuleAction::Allow)
+            })
+            .expect("add_rule");
+
+        // WHEN the global scope is cleared
+        let removed = engine
+            .remove_rules_by_scope(PermissionScope::Global)
+            .expect("remove");
+
+        // THEN only the global rule is gone
+        assert_eq!(removed, 1);
+        let left = engine.list_rules().expect("list");
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].tool_name, "tool_a");
     }
 
     #[test]

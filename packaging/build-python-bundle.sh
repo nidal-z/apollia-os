@@ -79,6 +79,18 @@ echo "==> Step 2/4: install bundled requirements"
 # guide, chat) fails to load with a ModuleNotFoundError surfaced to the user as
 # "onboarding-agent ... Check that Python is available".
 "$PYTHON_BIN" -m pip install --no-cache-dir --no-compile "${PACKAGING_DIR}/../sdk"
+# The MLX inference engine, macOS Apple Silicon only, in its own package
+# directory under python/engines/mlx (see build-mlx-engine.sh for the
+# isolation contract). APOLLIA_SKIP_MLX_ENGINE=1 builds without it, for a
+# local build that does not touch inference; a bundle built that way has no
+# MLX engine for anyone.
+if [[ "$TARGET" == "aarch64-apple-darwin" ]]; then
+    if [[ "${APOLLIA_SKIP_MLX_ENGINE:-}" == "1" ]]; then
+        echo "==> WARNING: APOLLIA_SKIP_MLX_ENGINE=1, building without the MLX engine" >&2
+    else
+        "${PACKAGING_DIR}/build-mlx-engine.sh" "$TARGET" "$PYTHON_DIR"
+    fi
+fi
 
 echo "==> Step 3/4: prune unnecessary files"
 # Windows layout: site-packages at python/Lib/site-packages

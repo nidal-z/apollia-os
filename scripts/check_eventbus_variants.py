@@ -76,12 +76,14 @@ LAG_ARM = re.compile(r"(?<!BroadcastStream)RecvError::Lagged\s*\(")
 STREAM_LAG_ARM = re.compile(r"BroadcastStreamRecvError::Lagged\s*\(")
 
 # The SSE routes hand a `BroadcastStream` to axum, and a stream owns its
-# receiver: there is no `resubscribe()` to call, so those three sites hold the
-# half of the rule that is reachable, naming the drop in a `WARN`. The list is
-# named rather than pattern-matched, and a fourth file joining it is a red: an
-# exemption nobody counts is an exemption that grows.
+# receiver: there is no `resubscribe()` to call, so those four sites hold the
+# half of the rule that is reachable, naming the drop in a `WARN`. The whole-bus
+# stream of `routes_events.rs` also sends the count to its client in a `lagged`
+# frame. The list is named rather than pattern-matched, and a fifth file
+# joining it is a red: an exemption nobody counts is an exemption that grows.
 STREAM_EXEMPT = (
     "crates/apollia-runtime/src/api/routes_chat.rs",
+    "crates/apollia-runtime/src/api/routes_events.rs",
     "crates/apollia-runtime/src/api/routes_messages.rs",
     "crates/apollia-runtime/src/api/routes_sse.rs",
 )

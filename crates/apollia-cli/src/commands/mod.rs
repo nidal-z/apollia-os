@@ -94,6 +94,7 @@ pub mod memory;
 pub mod model;
 pub mod notify;
 pub mod onboard;
+pub mod package;
 pub mod permissions;
 pub mod plan_cache;
 pub mod project;

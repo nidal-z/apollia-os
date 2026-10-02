@@ -226,6 +226,27 @@ les sources attend `llama-server` sur le `PATH`. Quand un backend local est
 configuré et qu'aucun moteur n'est joignable, les appels échouent avec une raison
 d'indisponibilité explicite, sans repli silencieux vers un fournisseur cloud.
 
+Sur macOS Apple Silicon, les modèles au format MLX tournent via un second
+moteur embarqué, vllm-mlx (Apache 2.0), un serveur compatible OpenAI bâti sur
+MLX, avec traitement continu par lots, cache de préfixe et sortie structurée
+native. Une version est épinglée, et le moteur est installé par empreinte dans
+un environnement à part, dans l'arbre Python embarqué, séparé des paquets
+qu'importent les agents : le moteur démarre avec l'interpréteur embarqué dans
+un mode qui tient les paquets des agents hors de son chemin. Seules les
+dépendances qu'importe le service d'un modèle sont installées, sans résoudre
+le reste de la fermeture que le moteur déclare. Deux exclusions en découlent.
+mlx-embeddings est sous GPL-3.0 et ne sert que le point d'entrée de
+plongements du moteur : il n'est jamais livré et ce point d'entrée n'est pas
+servi ; la construction comme la vérification de publication refusent un
+paquet qui le porte. PyTorch, OpenCV, Gradio, SciPy et la pile audio ne sont
+pas importés pour servir un modèle : ils sont laissés de côté. Le démon
+supervise le moteur comme il supervise `llama-server`, derrière une interface
+de moteur qui garde le moteur remplaçable, et il n'écoute que sur l'interface
+de boucle locale. Le prix est le poids : le moteur et ses dépendances ajoutent
+environ 150 Mo à l'image disque macOS, et ils demandent macOS 14 ou plus
+récent, plancher des roues MLX à la version épinglée. Les paquets Windows et
+Linux ne le portent pas.
+
 Il n'y a aucun fournisseur cloud dédié. Un modèle distant se joint par une seule
 connexion générique à un serveur compatible OpenAI, à l'adresse que
 l'organisation désigne : un vLLM ou un LM Studio auto-hébergé, ou une
@@ -372,6 +393,41 @@ dépendance propre et était déjà dans l'arbre par le programme de mise à jou
 Une clé ne se révoque qu'en changeant l'ensemble des clés auxquelles un lecteur
 fait confiance.
 
+## Politique de l'organisation {#organisation-policy}
+
+Une organisation impose ses règles à un poste en déposant une politique signée
+dans un dossier système : `/Library/Application Support/Apollia/policy` sous
+macOS, `C:\ProgramData\Apollia\policy` sous Windows, `/etc/apollia/policy` sous
+Linux. Le dossier porte `policy.toml`, un `SIGNATURE` au format des paquets
+ci-dessus sur une liste d'une entrée, et `org.pub`, la clé publique de
+l'organisation. Le runtime le lit une fois, au démarrage. Pas de dossier, pas de
+politique : l'utilisateur est libre.
+
+La clé est rangée à côté de la politique, si bien que la politique ne vaut que
+par les droits de son dossier. Un dossier ou un fichier qu'un autre que
+l'administrateur du système peut modifier est refusé : sous Unix le
+propriétaire doit être root, et ni les autres ni un groupe autre que celui de
+root ne peuvent écrire ; sous Windows le propriétaire doit être le groupe
+Administrateurs ou le compte LocalSystem, et aucune entrée de la liste d'accès
+ne peut accorder une écriture à quelqu'un d'autre. Un lien symbolique est
+refusé partout. Le chemin Windows est écrit en dur plutôt que lu dans
+`%ProgramData%`, que l'utilisateur règle.
+
+La date de signature est un champ `signed_at` de `policy.toml`, une date, une
+heure et un décalage. La signature couvre le fichier entier : la date est donc
+signée, et le format `SIGNATURE` n'a pas changé pour elle. Une date du système
+de fichiers a été écartée : n'importe qui peut toucher un fichier.
+
+Lire le propriétaire et la liste d'accès d'un fichier sous Windows passe par
+l'API de sécurité Win32, que la bibliothèque standard n'expose pas.
+`windows-sys` est une dépendance directe de la crate des permissions sous
+Windows seulement, avec les fonctionnalités de sécurité, d'autorisation et de
+système de fichiers. C'est la liaison brute que publie Microsoft, elle n'a
+d'autre dépendance que sa propre cale d'édition de liens, et la même version
+était déjà dans l'arbre par d'autres crates : le fichier de verrouillage n'a
+gagné aucun paquet. Le coût est un bloc de code FFI avec sa propre permission
+`unsafe`, confiné à un module.
+
 ## Ligne de commande {#cli}
 
 Le CLI est en nom-verbe. Les opérations quotidiennes sont des verbes nus ; tout
@@ -418,6 +474,17 @@ un lancement qui s'arrête sans un mot. Un refus ouvre une fenêtre qui nomme ce
 qui tient le port et le geste à faire, et ajoute la raison à
 `startup-refused.log` dans le dossier de données.
 
+Rattaché, le bureau ne construit aucun runtime à lui. Il joint le démon par
+l'API HTTP locale avec le jeton du dossier de données, et reçoit tout le bus
+d'événements en un flux, `GET /api/v1/events`. Il interroge la route de santé
+toutes les deux secondes plutôt que de supposer le démon présent, si bien
+qu'une sonde sans réponse montre aussitôt le runtime déconnecté. Une commande
+encore sans route répond une erreur typée qui la nomme, au lieu d'aller chercher
+un état que le processus n'a jamais construit ;
+`scripts/check_attached_coverage.py` compte les commandes routées face aux
+commandes enregistrées, sur un cliquet descendant. Quitter le bureau rattaché
+laisse le démon servir.
+
 La version 0.3.0 livre les deux modes.
 
 ## Distribution des agents {#agent-distribution}
@@ -430,6 +497,44 @@ fonctionner sans aucune.
 Les dépendances Python tierces déclarées par un agent sont installées dans
 l'environnement virtuel propre à cet agent, après consentement explicite, et
 l'opérateur voit la liste avant que cela n'arrive.
+
+## Archive de paquet {#package-archive}
+
+Un paquet d'agents voyage en un seul fichier `.apo` : une archive zip qui porte
+le manifeste `apollia.toml` à sa racine, les modules Python et les ressources du
+paquet à leurs chemins relatifs et, quand l'auteur l'a signé, un fichier
+`SIGNATURE` (voir [Signatures](#signing-schemes)) et un fichier `SIGNATURE.key`
+qui porte la clé publique qui l'a produit. La signature couvre toutes les autres
+entrées. La construction de l'archive valide le manifeste et refuse un dossier
+dont les modules définissent des outils ou des workflows que le manifeste ne
+décrit pas ; elle n'exécute aucun Python.
+
+Le zip a été préféré au `tar.gz` : tout système d'exploitation l'ouvre sans outil,
+et son répertoire central permet de lire le manifeste sans décompresser le
+reste, ce dont un aperçu d'installation a besoin. Un `tar.gz` n'a pas d'index,
+lire un fichier y oblige à décompresser tout ce qui le précède, et il aurait
+coûté les deux mêmes dépendances directes (`tar` et `flate2`) sans rien de cela.
+Lire le zip avec un code
+maison a été écarté : un analyseur d'archives est une surface d'attaque, et une
+surface non auditée est pire qu'une surface maintenue.
+
+Une archive vient d'ailleurs, sa lecture est donc bornée. Une entrée au chemin
+absolu, à composant `..`, à barre oblique inverse ou à préfixe de lecteur est
+refusée, comme un lien symbolique et un nom présent deux fois. L'archive est
+plafonnée à 256 Mio, 4096 entrées, 64 Mio par entrée décompressée et 512 Mio
+décompressés au total, le manifeste à 1 Mio. Les plafonds portent sur les octets
+réellement décompressés, pas sur les tailles que l'archive déclare : un en-tête
+menteur ne les lève pas. Un paquet au-delà d'un plafond est aussi refusé à la
+construction, si bien qu'Apollia lit tout ce qu'il construit.
+
+Le coût est deux dépendances directes du moteur, `zip` et `flate2`, toutes deux
+déjà dans l'arbre par le programme de mise à jour du bureau ; aucune crate n'est
+entrée dans le fichier de verrouillage. `zip` est compilée avec deflate seul :
+ni chiffrement, ni bzip2, lzma, zstd ou deflate64. `flate2` est déclarée à côté
+pour une seule raison, choisir l'implémentation en Rust pur (`miniz_oxide`) de
+ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
+sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
+une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
 
 ## Intégration hôte {#host-integration}
 

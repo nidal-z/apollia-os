@@ -127,6 +127,16 @@ pub(crate) fn initiate_quit(app: &AppHandle) {
         tracing::warn!(error = %e, "stt.hotkey.unregister.failed");
     }
 
+    // Attached to a daemon, this process owns no runtime: quitting closes the
+    // window and leaves the daemon serving.
+    if app
+        .try_state::<apollia_runtime::embedded::RuntimeHandle>()
+        .is_none()
+    {
+        app.exit(0);
+        return;
+    }
+
     let app_handle = app.clone();
     // Fire-and-forget: send POST /api/v1/shutdown then exit
     tauri::async_runtime::spawn(async move {

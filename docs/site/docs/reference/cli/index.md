@@ -183,6 +183,9 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os mcp secret delete`↴](#apollia-os-mcp-secret-delete)
 * [`apollia-os mcp server`↴](#apollia-os-mcp-server)
 * [`apollia-os update`↴](#apollia-os-update)
+* [`apollia-os package`↴](#apollia-os-package)
+* [`apollia-os package build`↴](#apollia-os-package-build)
+* [`apollia-os package inspect`↴](#apollia-os-package-inspect)
 * [`apollia-os workspace`↴](#apollia-os-workspace)
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
@@ -287,6 +290,7 @@ Apollia OS CLI binary (apollia-os)
 * `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
+* `package` - Agent package archives: build a `.apo` from a folder, inspect one
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
@@ -2260,7 +2264,7 @@ Permission rule management (list, revoke, audit)
 
 ###### **Subcommands:**
 
-* `list` - List persisted rules (project + global)
+* `list` - List persisted rules, for one agent and for every agent
 * `revoke` - Revoke a rule by identifier, or every matching rule with `--all`
 * `audit` - Show the permission decision history
 * `add` - Add a persisted permission rule for a tool + optional argument prefix
@@ -2269,13 +2273,13 @@ Permission rule management (list, revoke, audit)
 
 ## `apollia-os permissions list`
 
-List persisted rules (project + global)
+List persisted rules, for one agent and for every agent
 
 **Usage:** `apollia-os permissions list [OPTIONS]`
 
 ###### **Options:**
 
-* `--scope <SCOPE>` - Filter by scope: `global`, `project` or `session`
+* `--scope <SCOPE>` - Filter by scope: `agent` or `global`
 * `--tool <TOOL>` - Filter by tool name
 
 
@@ -2288,14 +2292,12 @@ Revoke a rule by identifier, or every matching rule with `--all`
 
 ###### **Arguments:**
 
-* `<ID>` - Numeric identifier of a persisted rule.
-
-   IDs prefixed with `s` denote session-scoped rules; they are not revocable from the CLI (use the desktop app or restart the daemon).
+* `<ID>` - Numeric identifier of a persisted rule
 
 ###### **Options:**
 
 * `--all` - Revoke every rule matching `--scope`
-* `--scope <SCOPE>` - Scope targeted by `--all`: `global` (default) or `project`
+* `--scope <SCOPE>` - Scope targeted by `--all`: `agent` or `global`
 * `--yes` - Skip the interactive confirmation (useful for scripts)
 
 
@@ -2319,7 +2321,7 @@ Show the permission decision history
 
 Add a persisted permission rule for a tool + optional argument prefix.
 
-Persists into `governance.db` directly (no runtime required). Session scope is not supported here because session rules live in the runtime memory; use the chat REPL approval flow instead.
+Persists into `governance.db` directly (no runtime required). The rule applies to one agent (`--scope agent --agent <ID>`) or to every agent (`--scope global`).
 
 **Usage:** `apollia-os permissions add [OPTIONS] --tool <NAME>`
 
@@ -2333,13 +2335,13 @@ Persists into `governance.db` directly (no runtime required). Session scope is n
 
   Possible values: `allow`, `deny`
 
-* `--scope <SCOPE>` - Rule scope: `project` or `global` (session is not persistable)
+* `--scope <SCOPE>` - Rule scope: `agent` (one agent) or `global` (every agent)
 
   Default value: `global`
 
-  Possible values: `project`, `global`
+  Possible values: `agent`, `global`
 
-* `--project-path <PATH>` - Project canonical path (required when `--scope project`)
+* `--agent <ID>` - Agent the rule applies to (required when `--scope agent`)
 
 
 
@@ -2484,7 +2486,7 @@ Reset the configuration to the defaults (empty prompt, no tools)
 
 Manage persisted permission rules scoped to the Apollia Chat agent.
 
-Mirrors the Desktop Settings → Chat permissions panel: lists or deletes rules stored in `governance.db` with `agent_id = apollia:chat`. Rules of scope `session` live in the runtime memory and are not visible here (same caveat as `permissions list`).
+Mirrors the Desktop Settings → Chat permissions panel: lists or deletes rules stored in `governance.db` with `agent_id = apollia:chat`. The authorizations a running chat holds for its session only are not rules and are not visible here.
 
 **Usage:** `apollia-os chat config permissions <COMMAND>`
 
@@ -2991,6 +2993,55 @@ Check for and install updates from GitHub Releases
 
 * `--check` - Only check for a newer version without downloading or installing
 * `--yes` - Install without asking for interactive confirmation
+
+
+
+## `apollia-os package`
+
+Agent package archives: build a `.apo` from a folder, inspect one
+
+**Usage:** `apollia-os package <COMMAND>`
+
+###### **Subcommands:**
+
+* `build` - Build a `.apo` archive from a package folder
+* `inspect` - Show the manifest, the entries and the signature state of a `.apo` archive
+
+
+
+## `apollia-os package build`
+
+Build a `.apo` archive from a package folder.
+
+Validates `apollia.toml`, refuses a folder whose Python modules define tools or workflows that the manifest does not describe (write the descriptors with `python -m apollia describe <folder>`), and writes the archive. No Python code runs.
+
+**Usage:** `apollia-os package build [OPTIONS] <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Package folder, holding `apollia.toml` at its root
+
+###### **Options:**
+
+* `--sign` - Sign the archive with the author key. The key is read from the secret store under `--key`; it is generated and stored there the first time
+* `--key <LABEL>` - Label of the author key in the secret store
+
+  Default value: `default`
+* `-o`, `--output <FILE>` - Archive to write. Default: `<name>-<version>.apo` in the current folder
+
+
+
+## `apollia-os package inspect`
+
+Show the manifest, the entries and the signature state of a `.apo` archive.
+
+The signature state is `unsigned`, or `signed` with the declared publisher and the fingerprint of the key. A signature that does not match the content is refused with exit 1.
+
+**Usage:** `apollia-os package inspect <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The `.apo` archive
 
 
 

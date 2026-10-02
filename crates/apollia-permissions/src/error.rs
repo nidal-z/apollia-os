@@ -1,6 +1,7 @@
 //! Errors of the permission-rule crate.
 
-/// Error raised by the permission-rule store and its audit-log reader.
+/// Error raised by the permission-rule store, the consent store and the
+/// audit-log reader.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PermissionError {
@@ -22,4 +23,16 @@ pub enum PermissionError {
     /// Invalid rule format (e.g. empty prefix, empty tool name).
     #[error("invalid rule format: {0}")]
     InvalidRule(String),
+
+    /// The "execute code" family never takes a standing consent: every
+    /// execution asks.
+    #[error("the execute_code family cannot be granted for always (agent '{agent_id}')")]
+    CodeFamilyRefused {
+        /// Agent the consent was requested for.
+        agent_id: String,
+    },
+
+    /// Invalid standing consent (empty agent, unknown family or scope).
+    #[error("invalid consent: {0}")]
+    InvalidConsent(String),
 }

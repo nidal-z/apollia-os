@@ -25,6 +25,7 @@ from apollia.testing.assertions import (
 )
 from apollia.testing.context import (
     MockA2A,
+    MockAgents,
     MockBudget,
     MockDatasources,
     MockEvents,
@@ -33,6 +34,7 @@ from apollia.testing.context import (
     MockSecrets,
     MockStt,
     MockTemplates,
+    MockWorkflows,
     MockWorkspace,
 )
 from apollia.testing.mock_factory import MockContext, mock
@@ -46,6 +48,7 @@ from apollia.testing.mocks import (
 __all__ = [
     # Per-surface mocks (advanced usage)
     "MockA2A",
+    "MockAgents",
     "MockBudget",
     "MockContext",
     "MockDatasources",
@@ -59,6 +62,7 @@ __all__ = [
     "MockStt",
     "MockTemplates",
     "MockToolProxy",
+    "MockWorkflows",
     "MockWorkspace",
     # Interaction assertions
     "assert_emitted_thought",

@@ -128,10 +128,14 @@ check_json    "permissions list --json"             "$BIN" permissions list --js
 check         "permissions audit (seeded rows)"     "$BIN" permissions audit --limit 10
 check         "permissions add web_search global"   "$BIN" permissions add --tool web_search_e2e --scope global
 check_content "permissions list shows the new rule" "web_search_e2e" "$BIN" permissions list
-check_exit    "permissions add project w/o path"  1 "$BIN" permissions add --tool file_write --scope project
+check_exit    "permissions add --scope project refused → 1" 1 "$BIN" permissions add --tool file_write --scope project
+check_exit    "permissions add --scope agent w/o --agent → 1" 1 "$BIN" permissions add --tool file_write --scope agent
+check         "permissions add agent rule"          "$BIN" permissions add --tool http_fetch_e2e --scope agent --agent e2e-agent
+check_content "permissions list --scope agent has it" "http_fetch_e2e" "$BIN" permissions list --scope agent
+check_exit    "permissions list --scope session → 1" 1 "$BIN" permissions list --scope session
 check         "permissions add deny"                "$BIN" permissions add --tool risky_tool --action deny --scope global
 check         "permissions revoke 1 --yes"          "$BIN" permissions revoke 1 --yes
-check_exit    "permissions revoke session-prefix → 1" 1 "$BIN" permissions revoke s42 --yes
+check_exit    "permissions revoke non-numeric id → 1" 1 "$BIN" permissions revoke s42 --yes
 
 # ── A.7 memory (5 seeded namespaces) ────────────────────────────────────────
 section "A.7 memory"
@@ -263,6 +267,51 @@ check        "plan cache clear --force"              "$BIN" plan cache clear --f
 check        "plan cache evict --max-age-days 7"     "$BIN" plan cache evict --max-age-days 7 --confirm
 check        "workspace status"                      "$BIN" workspace status
 check        "workspace init --force (scratch cwd)"  bash -c "cd '$SCRATCH' && '$BIN' workspace init --force"
+
+# ── A.13a package archives (.apo, files only) ───────────────────────────────
+# A package folder is written here, built into an archive, and read back. The
+# signed build stores its author key through the file secret store the suite
+# forces (APOLLIA_TOKEN_STORAGE=file), under the seeded HOME.
+section "A.13a package archives"
+PKG="$SCRATCH/pkg"; /bin/mkdir -p "$PKG/tools"
+cat > "$PKG/apollia.toml" <<'TOML'
+[package]
+name = "e2e-pkg"
+version = "0.1.0"
+publisher = "E2E Publisher"
+sdk = ">=0.3"
+
+[[tools]]
+name = "ping"
+module = "tools/ping.py"
+description = "Answer pong."
+action = "read"
+inputs = { type = "object" }
+TOML
+printf "@tool(name='ping')\nasync def ping(ctx, inputs):\n    return 'pong'\n" > "$PKG/tools/ping.py"
+check      "package build (unsigned)"                     "$BIN" package build "$PKG" -o "$SCRATCH/e2e.apo"
+check_json_field "package inspect: unsigned"  "d['signature']['state']"  "unsigned"  "$BIN" package inspect "$SCRATCH/e2e.apo" --json
+check_json_field "package inspect: manifest name" "d['manifest']['package']['name']" "e2e-pkg" "$BIN" package inspect "$SCRATCH/e2e.apo" --json
+check_json_field "package inspect: entries" "' '.join(e['path'] for e in d['entries'])" "apollia.toml tools/ping.py" "$BIN" package inspect "$SCRATCH/e2e.apo" --json
+check_content "package inspect (human) lists the module" "tools/ping.py" "$BIN" package inspect "$SCRATCH/e2e.apo"
+check_json_field "package build --sign: signed" "d['signature']['state']" "signed" "$BIN" package build "$PKG" --sign -o "$SCRATCH/e2e-signed.apo" --json
+check_json_field "package inspect: publisher" "d['signature']['publisher']" "E2E Publisher" "$BIN" package inspect "$SCRATCH/e2e-signed.apo" --json
+# Rewriting one entry after signing must turn the archive into a refusal.
+"${E2E_PYTHON:-python3}" - "$SCRATCH/e2e-signed.apo" "$SCRATCH/e2e-tampered.apo" <<'PY'
+import sys, zipfile
+src, dst = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(src) as zin, zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
+    for info in zin.infolist():
+        data = zin.read(info.filename)
+        if info.filename == "tools/ping.py":
+            data = b"import os\n"
+        zout.writestr(info.filename, data)
+PY
+check_exit "package inspect (tampered after signing) → 1" 1 "$BIN" package inspect "$SCRATCH/e2e-tampered.apo"
+# A module defining a workflow the manifest does not describe: descriptors missing.
+printf "@workflow(name='report', steps=['a'])\nasync def report(ctx, inputs):\n    pass\n" > "$PKG/tools/report.py"
+check_exit "package build (undescribed module) → 1" 1 "$BIN" package build "$PKG" -o "$SCRATCH/e2e-bad.apo"
+check_exit "package inspect (not an archive) → 1"   1 "$BIN" package inspect "$PKG/apollia.toml"
 
 # ── A.13 exit-code contract (runtime-bound commands, daemon OFF → 2) ─────────
 section "A.13 exit-code contract (daemon off)"

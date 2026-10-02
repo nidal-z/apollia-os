@@ -226,11 +226,13 @@ dependencies = [
  "apollia-notifications",
  "apollia-prompts",
  "apollia-runtime",
+ "apollia-signing",
  "apollia-stt",
  "apollia-tools",
  "apollia-workspace",
  "async-trait",
  "chrono",
+ "flate2",
  "futures",
  "hound",
  "minijinja",
@@ -246,6 +248,7 @@ dependencies = [
  "toml 0.8.2",
  "tracing",
  "uuid",
+ "zip",
 ]
 
 [[package]]
@@ -288,6 +291,7 @@ dependencies = [
  "apollia-oria",
  "apollia-permissions",
  "apollia-runtime",
+ "apollia-signing",
  "apollia-tools",
  "apollia-triggers",
  "apollia-workspace",
@@ -591,13 +595,16 @@ name = "apollia-permissions"
 version = "0.2.0-preview"
 dependencies = [
  "apollia-core",
+ "apollia-signing",
  "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "toml 0.8.2",
  "tracing",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9536,6 +9543,7 @@ checksum = "caa8cd6af31c3b31c6631b8f483848b91589021b28fffe50adada48d4f4d2ed1"
 dependencies = [
  "arbitrary",
  "crc32fast",
+ "flate2",
  "indexmap 2.14.0",
  "memchr",
 ]

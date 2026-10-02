@@ -25,6 +25,7 @@ gen-docs = ["dep:clap-markdown"]
 
 [dependencies]
 apollia-auth      = { workspace = true }
+apollia-signing   = { workspace = true }
 apollia-connectors = { workspace = true }
 apollia-core      = { workspace = true, features = ["net"] }
 apollia-workspace = { workspace = true }

@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, TypedDict, runtime_checkable
 
 from apollia.context.a2a import A2AInterface
+from apollia.context.agents import AgentsInterface
 from apollia.context.budget import BudgetView
 from apollia.context.datasources import DatasourcesInterface
 from apollia.context.events import EventsInterface
@@ -29,6 +30,7 @@ from apollia.context.secrets import SecretsInterface
 from apollia.context.stt import SttInterface
 from apollia.context.templates import TemplatesInterface
 from apollia.context.tools import ToolProxy
+from apollia.context.workflows import WorkflowsInterface
 from apollia.context.workspace import WorkspaceContext
 from apollia.hitl import ApprovalPayload, InputResponse, QuestionPayload
 
@@ -192,6 +194,10 @@ class Ctx(Protocol):
     memory: MemoryInterface
     tools: ToolProxy
     a2a: A2AInterface
+    #: Run an installed agent with a message. Not bound by the runtime yet.
+    agents: AgentsInterface
+    #: Run an installed workflow with typed inputs. Not bound by the runtime yet.
+    workflows: WorkflowsInterface
     mail: MailInterface
     datasources: DatasourcesInterface
     templates: TemplatesInterface
@@ -301,6 +307,7 @@ __all__ = [
     "A2AInterface",
     # Legacy
     "AIPResult",
+    "AgentsInterface",
     "BudgetView",
     # Ctx surface
     "Ctx",
@@ -327,6 +334,7 @@ __all__ = [
     "TemplatesInterface",
     "TextContent",
     "ToolProxy",
+    "WorkflowsInterface",
     "WorkspaceContext",
     "image_from_bytes",
     "image_from_path",

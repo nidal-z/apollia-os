@@ -43,9 +43,9 @@ pub enum ChatConfigCommand {
     /// Manage persisted permission rules scoped to the Apollia Chat agent.
     ///
     /// Mirrors the Desktop Settings → Chat permissions panel: lists or deletes
-    /// rules stored in `governance.db` with `agent_id = apollia:chat`. Rules
-    /// of scope `session` live in the runtime memory and are not visible here
-    /// (same caveat as `permissions list`).
+    /// rules stored in `governance.db` with `agent_id = apollia:chat`. The
+    /// authorizations a running chat holds for its session only are not
+    /// rules and are not visible here.
     Permissions {
         /// Permissions subcommand.
         #[command(subcommand)]
@@ -298,19 +298,13 @@ fn rule_to_json(rule: &PrefixRule) -> serde_json::Value {
         "argument": rule.arg_prefix,
         "action": format!("{:?}", rule.action).to_lowercase(),
         "agent_id": rule.agent_id,
-        "project_path": rule.project_path,
         "created_at": rule.created_at,
         "expires_at": rule.expires_at,
     })
 }
 
 fn scope_str(scope: PermissionScope) -> &'static str {
-    match scope {
-        PermissionScope::Session => "session",
-        PermissionScope::Project => "project",
-        PermissionScope::Global => "global",
-        PermissionScope::Agent => "agent",
-    }
+    scope.as_str()
 }
 
 fn run_permissions_list(db: Option<&Path>, json: bool) -> i32 {
