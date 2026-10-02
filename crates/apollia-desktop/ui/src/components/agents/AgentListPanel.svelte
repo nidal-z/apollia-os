@@ -4,7 +4,7 @@
    *
    * Composes the canonical `SidebarHeader` (title + install actions + search)
    * with two accessible listbox sections: assistants (pinned Apollia Chat first)
-   * and installed packages. Selection, filtering, and runtime actions are owned
+   * and installed packages. Selection, filtering, and the agent actions are owned
    * by the route; this panel is presentation + event wiring only.
    */
   import { t } from "svelte-i18n";
@@ -14,7 +14,6 @@
   import { Spinner } from "$lib/components/ui/progress";
   import { Input } from "$lib/components/ui/input";
   import type { AgentListItem, AgentPackageListItem } from "$lib/types";
-  import type { AgentActions } from "./useAgentActions.svelte";
   import AgentListSection from "./AgentListSection.svelte";
   import AgentPinnedRow from "./AgentPinnedRow.svelte";
   import AgentListRow from "./AgentListRow.svelte";
@@ -29,7 +28,6 @@
     apolliaChatSelected: boolean;
     connecting: boolean;
     installingAgent: boolean;
-    agentActions: AgentActions;
     onSelectAgent: (name: string) => void;
     onSelectPackage: (pkg: AgentPackageListItem) => void;
     onSelectApolliaChat: () => void;
@@ -50,7 +48,6 @@
     apolliaChatSelected,
     connecting,
     installingAgent,
-    agentActions,
     onSelectAgent,
     onSelectPackage,
     onSelectApolliaChat,
@@ -148,7 +145,6 @@
         {#each assistants as agent (agent.name)}
           <AgentListRow
             {agent}
-            actions={agentActions}
             selected={agent.name === selectedName &&
               !apolliaChatSelected &&
               selectedPackageName === null}
@@ -176,7 +172,6 @@
         {#each packages as pkg (pkg.name)}
           <PackageListRow
             {pkg}
-            actions={agentActions}
             selected={pkg.name === selectedPackageName}
             onSelect={() => onSelectPackage(pkg)}
             onUninstall={onUninstallPackage}

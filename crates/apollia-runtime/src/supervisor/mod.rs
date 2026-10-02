@@ -372,7 +372,6 @@ pub struct Supervisor {
 /// (`api_config` is consumed by value), which would forbid a later `&self`
 /// borrow; threading the needed config fields here keeps the helpers callable.
 struct AutoLoadCtx<'a, B: ExecutionBackend> {
-    agent_loader: &'a Arc<dyn AgentLoader>,
     backend_factory: &'a Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
     base_backend: &'a B,
     registry_handle: &'a AgentRegistryHandle,
@@ -385,4 +384,6 @@ struct AutoLoadCtx<'a, B: ExecutionBackend> {
     data_dir: &'a std::path::Path,
     /// Observability config wired into each agent's coordinator.
     obs_config: &'a apollia_core::ObservabilityConfig,
+    /// How long an agent stays loaded after its last call.
+    idle_unload: std::time::Duration,
 }

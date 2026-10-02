@@ -303,6 +303,8 @@ fn main() {
         ..EmbeddedConfig::default()
     });
 
+    let agent_idle_unload =
+        std::time::Duration::from_secs(config.runtime_config.agent_idle_unload_secs);
     let runtime_handle: RuntimeHandle = or_exit(
         apollia_runtime::init_embedded(config),
         "start the embedded runtime",
@@ -345,7 +347,13 @@ fn main() {
         let registry = runtime_handle.tool_registry_handle.clone();
         let chat = runtime_handle.chat_manager.clone();
         worker.spawn(async move {
-            apollia_aip::package_tools::attach(&data_dir, &registry, chat.as_ref()).await;
+            apollia_aip::package_tools::attach(
+                &data_dir,
+                &registry,
+                chat.as_ref(),
+                agent_idle_unload,
+            )
+            .await;
         });
     }
     // The agent-mode file tools read these roots. They come from the same
@@ -360,10 +368,11 @@ fn main() {
         let _ = plan_cache_lock.set(cache);
     }
 
-    // Auto-load installed agents now that the OnceLocks are populated so the
-    // ProductionBackendFactory can create real backends.
+    // Make the installed agents available now that the OnceLocks are
+    // populated, so the ProductionBackendFactory can build real backends when
+    // their first task arrives.
     if let Some(repo) = boot_agent_repo {
-        auto_load_installed_agents(repo, &factory, &runtime_handle);
+        auto_load_installed_agents(repo, &factory, &runtime_handle, agent_idle_unload);
     }
 
     // Open a second AgentRepository instance for Tauri IPC commands.

@@ -90,8 +90,6 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | Variante | Charge utile |
 |---|---|
 | `AgentDegraded` | champs nommés |
-| `AgentDisabled` | champs nommés |
-| `AgentEnabled` | champs nommés |
 | `AgentInstalled` | champs nommés |
 | `AgentLoadFailed` | champs nommés |
 | `AgentMessageAcked` | champs nommés |

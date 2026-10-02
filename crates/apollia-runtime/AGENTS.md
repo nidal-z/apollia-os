@@ -26,6 +26,7 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 | `AgentMailboxHandle` | durable inter-agent inbox | mpsc | 256 | `src/mailbox.rs` |
 | `SttEngine` | whisper audio pipeline | mpsc | 32 | `src/stt/engine.rs` |
 | `TimeoutWatcher` | expiry of `input_required` tasks | no channel; a `tokio::time::interval` scan loop | n/a | `src/timeout_watcher.rs` |
+| `OnDemandBackend` | one per installed agent: builds its backend on the first task, drops it after `[runtime] agent_idle_unload_secs` without a call or when the agent is parked | mpsc | 64 | `src/on_demand.rs` |
 | `BatchActor` | progress of every running batch: starts items up to their concurrency, counts their ends, interrupts past the failure threshold, resumes running batches at start | two mpsc | 64 commands, 256 item ends | `src/batch/actor.rs` |
 
 Hosted from other crates, started by this one :

@@ -65,11 +65,13 @@ impl AgentBackendFactory for ProductionBackendFactory {
         // Retrieve the lazily-initialized event bus and LLM router.
         //
         // The OnceLocks are populated by start.rs *after* the Supervisor has
-        // run its Phase 11 auto-load (which calls this factory). When that
-        // happens we return a placeholder NoopBackend and rely on
-        // [`rewire_auto_loaded_agents`] to replace it immediately. The
-        // diagnostic is therefore DEBUG (operator-relevant only when
-        // troubleshooting the rewire path), not ERROR.
+        // run its Phase 11 auto-load. That phase imports nothing, so this
+        // factory only runs when a task first reaches an agent; should one
+        // arrive before the locks are set, we return a placeholder
+        // NoopBackend, and [`rewire_auto_loaded_agents`] replaces the
+        // coordinator right after. The diagnostic is therefore DEBUG
+        // (operator-relevant only when troubleshooting the rewire path), not
+        // ERROR.
         let event_bus = match self.event_bus.get() {
             Some(bus) => bus.clone(),
             None => {
@@ -172,6 +174,12 @@ impl AgentBackendFactory for ProductionBackendFactory {
                     detail = "falling back to a no-op backend",
                     "agent.module.load.failed"
                 );
+                if let Some(bus) = self.event_bus.get() {
+                    let _ = bus.send(apollia_core::RuntimeEvent::AgentLoadFailed {
+                        name: agent_id.clone(),
+                        error: e.to_string(),
+                    });
+                }
                 DynBackend::new(NoopBackend)
             }
         }
