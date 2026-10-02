@@ -8218,6 +8218,263 @@
         }
       }
     },
+    "/api/v1/workflow-runs/{id}": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "`GET /api/v1/workflow-runs/{id}`: a run with its steps.",
+        "operationId": "get_workflow_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Run id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run and its steps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunDetailView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Workflow engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workflow-runs/{id}/cancel": {
+      "post": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "`POST /api/v1/workflow-runs/{id}/cancel`: stop a run.",
+        "description": "The step in progress is interrupted; the answer comes once the run has\nended, `canceled`, its remaining steps `not_started`.",
+        "operationId": "cancel_workflow_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Run id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run, stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The run already ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Workflow engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workflows/{package}/{workflow}/runs": {
+      "get": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "`GET /api/v1/workflows/{package}/{workflow}/runs`: the history of a\nworkflow, newest first.",
+        "operationId": "list_workflow_runs",
+        "parameters": [
+          {
+            "name": "package",
+            "in": "path",
+            "description": "Package that declares the workflow",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workflow",
+            "in": "path",
+            "description": "Workflow name in the package",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "At most this many runs, 50 when absent.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The runs of the workflow",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunListView"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Workflow engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "workflows"
+        ],
+        "summary": "`POST /api/v1/workflows/{package}/{workflow}/runs`: run a workflow.",
+        "description": "The inputs are checked and the run recorded, with its declared steps,\nbefore the answer; the run goes on in the background.",
+        "operationId": "launch_workflow",
+        "parameters": [
+          {
+            "name": "package",
+            "in": "path",
+            "description": "Package that declares the workflow",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workflow",
+            "in": "path",
+            "description": "Workflow name in the package",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowLaunch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Run launched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input does not fit the schema; `field` names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No installed workflow by that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Workflow engine or package host unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhooks/{id}": {
       "post": {
         "tags": [
@@ -13327,6 +13584,183 @@
             "minimum": 0
           }
         }
+      },
+      "WorkflowErrorResponse": {
+        "type": "object",
+        "description": "Error body of the workflow routes.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "What went wrong."
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The input at fault, when an input was refused."
+          }
+        }
+      },
+      "WorkflowLaunch": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/workflows/{package}/{workflow}/runs`.",
+        "properties": {
+          "inputs": {
+            "type": "object",
+            "description": "The inputs, checked against the schema the workflow declares. A text\nvalue given for a field of another type is read as that type when it\nparses as one."
+          }
+        }
+      },
+      "WorkflowRunDetailView": {
+        "type": "object",
+        "description": "A run with its steps.",
+        "required": [
+          "run",
+          "steps"
+        ],
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/WorkflowRunView"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStepView"
+            }
+          }
+        }
+      },
+      "WorkflowRunListView": {
+        "type": "object",
+        "description": "The runs of a workflow, newest first.",
+        "required": [
+          "runs"
+        ],
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunView"
+            }
+          }
+        }
+      },
+      "WorkflowRunView": {
+        "type": "object",
+        "description": "A workflow run: what it was launched with, its status and its result.",
+        "required": [
+          "runId",
+          "workflowId",
+          "depth",
+          "inputs",
+          "status",
+          "startedAt"
+        ],
+        "properties": {
+          "depth": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 for a run started on its own, one more per nested call.",
+            "minimum": 0
+          },
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it failed or stopped."
+          },
+          "inputs": {
+            "type": "object"
+          },
+          "output": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What the workflow returned."
+          },
+          "parentRunId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The run whose step started this one, when one did."
+          },
+          "runId": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`running`, `completed`, `failed` or `canceled`."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "`<package>/<workflow>`."
+          }
+        }
+      },
+      "WorkflowStepView": {
+        "type": "object",
+        "description": "One declared step of a run.",
+        "required": [
+          "rank",
+          "name",
+          "status"
+        ],
+        "properties": {
+          "endedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "output": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the agent or workflow the step ran last returned."
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Its position among the declared steps, from 0.",
+            "minimum": 0
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`pending`, `running`, `completed`, `failed`, `canceled` or\n`not_started`."
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -13358,6 +13792,10 @@
     {
       "name": "batches",
       "description": "Run an agent on every item of a source"
+    },
+    {
+      "name": "workflows",
+      "description": "Run the workflows of installed packages, step by step"
     },
     {
       "name": "chat",

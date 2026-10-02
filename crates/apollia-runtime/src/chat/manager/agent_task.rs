@@ -11,6 +11,8 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
+use apollia_oria::budget::StepBudget;
+
 use super::*;
 
 /// How often a cancelled run refuses the approvals it still waits on, until
@@ -32,6 +34,9 @@ pub struct AgentTaskRun {
     pub cancel: CancellationToken,
     /// Receives the outcome once the run has ended.
     pub done: oneshot::Sender<Result<ChatAgentResponse, ChatError>>,
+    /// The budget of the caller, when the run spends from it (a workflow
+    /// step); `None` gives the run the budget of its autonomy tier.
+    pub budget: Option<Arc<StepBudget>>,
 }
 
 /// What a spawned run needs from the actor.
@@ -151,6 +156,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         message,
         cancel,
         done,
+        budget,
     } = run;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
         (LoadingMode::Deferred, Some(handle)) => handle.get_tool_index().await,
@@ -224,6 +230,10 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         &wiring.runtime_budget,
         cancel.clone(),
     );
+    let executor = match budget {
+        Some(budget) => executor.with_shared_budget(budget),
+        None => executor,
+    };
 
     // A cancelled run may be waiting on a human. Refusing its approvals until
     // it has stopped lets it reach its next checkpoint, including an approval

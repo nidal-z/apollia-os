@@ -172,6 +172,10 @@ pub struct SupervisorConfig {
     /// more reliable on small local models. `None` resolves to the agent
     /// default. Read once at boot.
     pub chat_tool_turn_temperature: Option<f32>,
+
+    /// The `[workflows]` section of `apollia.toml`: the budget a workflow run
+    /// starts with, shared by everything it runs. Read once at boot.
+    pub workflows_config: apollia_core::WorkflowsConfig,
 }
 
 impl SupervisorConfig {
@@ -264,6 +268,9 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` after Phase 13 of the Supervisor startup sequence.
     /// `None` when the chat subsystem failed to start (warning logged).
     pub chat_manager: Option<crate::chat::ChatSessionManagerHandle>,
+    /// Handle to the workflow actor, to which the package host is attached
+    /// once the runtime is up. `None` without a task store.
+    pub workflows: Option<crate::workflows::WorkflowHandle>,
     /// ORIA plan cache repository, stores cached execution plans.
     ///
     /// `Some` when `plan_cache.db` opened successfully.

@@ -215,6 +215,7 @@ fn test_config(port: u16, socket_path: PathBuf) -> (SupervisorConfig, tempfile::
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     };
     (config, temp_dir)
 }
@@ -417,6 +418,7 @@ async fn test_startup_timeout_rollback() {
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     };
     let supervisor = Supervisor::new(config);
 
@@ -507,6 +509,7 @@ async fn test_start_without_llm_config_succeeds() {
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -589,6 +592,7 @@ async fn test_app_state_clone_with_llm_router_none() {
         llama_server_supervisor: None,
         secret_store: crate::inference_servers::default_store_opener(),
         batches: None,
+        workflows: None,
     };
 
     // WHEN the AppState is cloned
@@ -642,6 +646,7 @@ async fn test_supervisor_starts_with_zero_triggers() {
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -716,6 +721,7 @@ async fn test_no_notifications_section_starts_ok() {
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -801,6 +807,7 @@ async fn test_trigger_engine_loads_from_sqlite() {
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
@@ -1063,6 +1070,7 @@ async fn test_story187_appstate_contains_repos() {
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     };
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();

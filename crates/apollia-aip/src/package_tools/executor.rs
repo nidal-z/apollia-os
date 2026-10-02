@@ -16,8 +16,9 @@ use super::{dotted_module, PackageTool};
 use crate::bridge::cancel;
 use crate::context::RuntimeContext;
 
-/// The two Python helpers: importing the module and finding the decorated
-/// function, then calling it with `ctx` bound to the parameter that takes it.
+/// The Python helpers: importing the module and finding the decorated
+/// function (`load_decorated`, used for workflows too), then calling a tool
+/// with `ctx` bound to the parameter that takes it.
 ///
 /// The module is imported from its file under a name proper to its package
 /// root, so two packages that both ship `tools/calc.py` never share a module.
@@ -33,7 +34,7 @@ import os
 import sys
 
 
-def load_tool(root, site_packages, relative, unique, name):
+def load_decorated(root, site_packages, relative, unique, name, attr, kind):
     for path in reversed(site_packages):
         if path not in sys.path:
             sys.path.insert(0, path)
@@ -51,12 +52,16 @@ def load_tool(root, site_packages, relative, unique, name):
             sys.modules.pop(unique, None)
             raise
     for value in list(vars(module).values()):
-        spec = getattr(value, '__apollia_tool__', None)
+        spec = getattr(value, attr, None)
         if spec is None or getattr(spec, 'name', None) != name:
             continue
         if getattr(value, '__module__', None) == module.__name__:
             return value
-    raise LookupError(f'no @tool named {name!r} in {relative!r}')
+    raise LookupError(f'no @{kind} named {name!r} in {relative!r}')
+
+
+def load_tool(root, site_packages, relative, unique, name):
+    return load_decorated(root, site_packages, relative, unique, name, '__apollia_tool__', 'tool')
 
 
 async def call_tool(fn, ctx, arguments):
@@ -183,18 +188,7 @@ impl Call {
     /// JSON text of what the tool returned.
     fn run(&self, py: Python<'_>, slot: &Py<PyDict>) -> Result<String, ToolExecutionError> {
         let name = self.tool.full_name();
-        let helpers = HELPERS
-            .get_or_try_init(py, || -> PyResult<Py<PyModule>> {
-                Ok(PyModule::from_code(
-                    py,
-                    HELPERS_CODE,
-                    c"apollia_package_tools.py",
-                    c"apollia_package_tools",
-                )?
-                .unbind())
-            })
-            .map_err(|e| failure("internal", &name, e))?
-            .bind(py);
+        let helpers = helpers(py).map_err(|e| failure("internal", &name, e))?;
         let function = self
             .tool
             .function
@@ -221,6 +215,21 @@ impl Call {
             .and_then(|text| text.extract::<String>())
             .map_err(|e| failure("invalid_output", &name, e))
     }
+}
+
+/// The helpers module, compiled once.
+pub(super) fn helpers(py: Python<'_>) -> PyResult<&Bound<'_, PyModule>> {
+    Ok(HELPERS
+        .get_or_try_init(py, || -> PyResult<Py<PyModule>> {
+            Ok(PyModule::from_code(
+                py,
+                HELPERS_CODE,
+                c"apollia_package_tools.py",
+                c"apollia_package_tools",
+            )?
+            .unbind())
+        })?
+        .bind(py))
 }
 
 /// Import the module of `tool` and return its decorated function.
@@ -264,7 +273,7 @@ fn load(
 
 /// The name a package module is imported under: its dotted name, prefixed by
 /// a digest of the package root.
-fn module_name(root: &std::path::Path, dotted: &str) -> String {
+pub(super) fn module_name(root: &std::path::Path, dotted: &str) -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     root.hash(&mut hasher);

@@ -330,6 +330,13 @@ enum Commands {
         command: commands::batch::BatchCommand,
     },
 
+    /// Run the workflows of installed packages (run, status, logs, cancel).
+    Workflow {
+        /// Workflow subcommand.
+        #[command(subcommand)]
+        command: commands::workflow::WorkflowCommand,
+    },
+
     /// Circuit breaker inspection and reset (list, show, reset).
     Resilience {
         /// Resilience subcommand.
@@ -723,6 +730,9 @@ fn main() {
             Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
             Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
+            Commands::Workflow { command } => {
+                commands::workflow::run(&command, cli.socket, json).await
+            }
             Commands::Resilience { command } => {
                 commands::resilience::run(&command, cli.socket, json).await
             }

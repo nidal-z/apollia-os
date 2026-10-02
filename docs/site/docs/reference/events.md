@@ -235,6 +235,9 @@ the event carries announces a request that is already settled.
 | `TaskStarted` | named fields | A task started on an agent. |
 | `TodoUpdated` | named fields | The session todo list changed after a successful `todo_write`. |
 | `VerificationCompleted` | named fields | The post-run verification pass produced a verdict on an orchestrated run. |
+| `WorkflowStepCompleted` | named fields | A step of a workflow run ended without error. |
+| `WorkflowStepFailed` | named fields | A step of a workflow run raised, or was stopped with its run. |
+| `WorkflowStepStarted` | named fields | A declared step of a workflow run opened. |
 
 ### `trace-event`
 
