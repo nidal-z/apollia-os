@@ -5,9 +5,9 @@
 //! overrides, with the model assigned to it in `system.db`. Both files sit
 //! beside `governance.db`, whose path is the one this actor is given.
 //!
-//! The access list of the agent is not read here: the chat still offers the
-//! whole tool registry, and what runs without a question comes from the
-//! standing consents and the allow rules.
+//! Its access list is the tools the chat offers: the agent's granted
+//! accesses, nothing else. What runs without a question among them comes from
+//! the standing consents and the allow rules.
 
 use std::path::Path;
 
@@ -57,6 +57,56 @@ pub(in crate::chat::manager) fn apply_apollia_agent(
     if let Some(model) = apollia.model {
         out.llm_backend = Some(model.model_id);
     }
+}
+
+/// The tools the Apollia agent is granted, read beside `governance_db`.
+///
+/// `None` only for a mount without a data directory, which has no agent
+/// store: its sessions run on the tools they were created with. Without
+/// `agents.db` the agent is its built-in definition, which grants nothing; an
+/// unreadable store grants nothing either.
+pub(in crate::chat::manager) fn apollia_access(
+    governance_db: Option<&Path>,
+) -> Option<Vec<String>> {
+    let data_dir = governance_db?.parent()?;
+    let agents_db = DataFile::Agents.path(data_dir);
+    if !agents_db.exists() {
+        return Some(declared_access(&apollia_tools::apollia_definition()));
+    }
+    let resolved = AgentRepository::open(&agents_db).and_then(|repo| {
+        repo.resolved(
+            APOLLIA_AGENT_ID,
+            None,
+            crate::agents::global_default_autonomy(),
+        )
+    });
+    match resolved {
+        Ok(Some(apollia)) => Some(apollia.access),
+        Ok(None) => Some(declared_access(&apollia_tools::apollia_definition())),
+        Err(error) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %error,
+                detail = "the chat is granted no tool",
+                "chat.apollia.access.unreadable"
+            );
+            Some(Vec::new())
+        }
+    }
+}
+
+/// The access a definition declares.
+fn declared_access(definition: &serde_json::Value) -> Vec<String> {
+    definition
+        .pointer("/defaults/access")
+        .and_then(serde_json::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// The model assigned to Apollia in the `system.db` at `path`, if any.
@@ -120,5 +170,45 @@ mod tests {
         assert!(out.system_prompt.is_none());
         assert!(out.llm_backend.is_none());
         assert!(!DataFile::Agents.path(dir.path()).exists());
+    }
+
+    // GIVEN an Apollia agent granted a native and an MCP tool on its card
+    // WHEN the chat reads its access
+    // THEN the chat is offered exactly those tools
+    #[test]
+    fn the_chat_reads_the_access_list_of_apollia() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = AgentRepository::open(&DataFile::Agents.path(dir.path())).unwrap();
+        repo.set_override(
+            APOLLIA_AGENT_ID,
+            OverrideField::Access,
+            &serde_json::json!(["web_search", "mcp:notion/search"]),
+        )
+        .unwrap();
+
+        let access = apollia_access(Some(&DataFile::Governance.path(dir.path())));
+
+        assert_eq!(
+            access,
+            Some(vec![
+                "web_search".to_string(),
+                "mcp:notion/search".to_string()
+            ])
+        );
+    }
+
+    // GIVEN a data directory without agents.db, then a mount without one
+    // WHEN the chat reads the access of Apollia
+    // THEN its built-in definition grants nothing, and a mount without a
+    // data directory keeps the tools of the session
+    #[test]
+    fn without_a_store_apollia_is_granted_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let access = apollia_access(Some(&DataFile::Governance.path(dir.path())));
+
+        assert_eq!(access, Some(Vec::new()));
+        assert!(!DataFile::Agents.path(dir.path()).exists());
+        assert_eq!(apollia_access(None), None);
     }
 }

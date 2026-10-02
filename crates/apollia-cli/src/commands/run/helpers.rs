@@ -63,38 +63,6 @@ pub(super) fn report_detached_submission(task_id: &str, agent_id: &str, json: bo
     exit_codes::SUCCESS
 }
 
-/// Build the `session_config` fragment from the tool allow/deny lists.
-///
-/// Returns `Value::Null` when no restrictions are specified.
-pub(super) fn build_session_filter(
-    allowed_tools: &[String],
-    disallowed_tools: &[String],
-) -> serde_json::Value {
-    if allowed_tools.is_empty() && disallowed_tools.is_empty() {
-        return serde_json::Value::Null;
-    }
-    let allowed = if allowed_tools.is_empty() {
-        serde_json::Value::Null
-    } else {
-        serde_json::Value::Array(
-            allowed_tools
-                .iter()
-                .map(|t| serde_json::Value::String(t.clone()))
-                .collect(),
-        )
-    };
-    let disallowed = serde_json::Value::Array(
-        disallowed_tools
-            .iter()
-            .map(|t| serde_json::Value::String(t.clone()))
-            .collect(),
-    );
-    serde_json::json!({
-        "allowed_tools": allowed,
-        "disallowed_tools": disallowed,
-    })
-}
-
 /// Map a `submit_task` failure to a user-facing error and exit code.
 pub(super) fn handle_submit_error(err: ClientError, agent_id: &str, json: bool) -> i32 {
     match err {

@@ -53,6 +53,7 @@ use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
 mod builder;
+mod catalog;
 mod context_window;
 mod helpers;
 mod hitl;
@@ -65,11 +66,13 @@ mod stream;
 mod tool_guide;
 mod tools;
 
+#[cfg(test)]
+pub(in crate::chat::builtin_agent) use helpers::build_tool_specs;
 pub(in crate::chat::builtin_agent) use helpers::{
-    build_llm_messages, build_tool_specs, executing_denies_proposal, extract_hostname,
-    is_plan_tool, next_failure_count, plan_gate_denies, promote_discovered_tools,
-    run_verification_with_retry, stamp_inject_provenance, step_status_token, truncate_preview,
-    truncate_tool_output, unknown_tool_reason,
+    build_llm_messages, executing_denies_proposal, extract_hostname, is_plan_tool,
+    next_failure_count, plan_gate_denies, promote_discovered_tools, run_verification_with_retry,
+    stamp_inject_provenance, step_status_token, truncate_preview, truncate_tool_output,
+    unknown_tool_reason,
 };
 pub use invoker::{HitlInvokerParams, NativeChatToolInvoker};
 pub use response::{ChatAgentResponse, ConsolidatedVerificationReport};

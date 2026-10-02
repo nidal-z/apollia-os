@@ -25,8 +25,8 @@ mod helpers;
 mod plan;
 
 use helpers::{
-    build_input_payload, build_session_filter, handle_submit_error, output_error, poll_task,
-    report_detached_submission, stream_task, StreamTaskArgs,
+    build_input_payload, handle_submit_error, output_error, poll_task, report_detached_submission,
+    stream_task, StreamTaskArgs,
 };
 
 // ─── Public entry point ───────────────────────────────────────────────────────
@@ -57,10 +57,6 @@ pub struct RunCommandArgs<'a> {
     /// execution. Forces the plan gate active for this run and streams the
     /// `plan_approval_required` event to collect the operator's decision.
     pub plan: bool,
-    /// Session-level tool allow-list (empty = all tools permitted).
-    pub allowed_tools: Vec<String>,
-    /// Session-level tool deny-list (takes priority over `allowed_tools`).
-    pub disallowed_tools: Vec<String>,
     /// Autonomy tier for this run. `None` means assisted (the runtime default).
     ///
     /// When set to a valid tier it is forwarded to the runtime as the
@@ -75,8 +71,7 @@ pub struct RunCommandArgs<'a> {
 /// With `--detach`, returns immediately after submission and prints the task ID.
 /// With `--alternatives`, activates the binary feedback mode: the SSE stream will
 /// pause on `plan_alternatives_generated` and prompt the operator to choose a plan.
-/// With `--allowed-tools` / `--disallowed-tools`, enforces a session-level tool
-/// filter on the runtime side (forwarded in the task submission payload).
+/// The tools the run may call are the access list of the agent.
 /// Returns the process exit code.
 pub async fn run(args: RunCommandArgs<'_>) -> i32 {
     let RunCommandArgs {
@@ -89,8 +84,6 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         detach,
         alternatives,
         plan,
-        allowed_tools,
-        disallowed_tools,
         autonomy,
     } = args;
 
@@ -116,22 +109,11 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
     let client = RuntimeClient::new(socket_path);
     let start = Instant::now();
 
-    // Build the session tool filter fragment if any restrictions are specified.
-    // The runtime applies them when constructing the ToolDispatcher for this task.
-    let session_filter = build_session_filter(&allowed_tools, &disallowed_tools);
-
-    // Build the AIPInput payload (see [`build_input_payload`]), merging in the
-    // session tool filter when present.
-    let mut input_value = match build_input_payload(input, input_json, json) {
+    // Build the AIPInput payload (see [`build_input_payload`]).
+    let input_value = match build_input_payload(input, input_json, json) {
         Ok(v) => v,
         Err(code) => return code,
     };
-
-    if !session_filter.is_null() {
-        if let Some(obj) = input_value.as_object_mut() {
-            obj.insert("session_config".to_string(), session_filter);
-        }
-    }
 
     // Build per-run control options forwarded under `run_options` (the input
     // payload only carries `parts`, so control fields must travel separately).
