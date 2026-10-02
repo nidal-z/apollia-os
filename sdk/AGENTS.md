@@ -30,6 +30,9 @@ documentation site.
 family except `read` is sensitive, and sensitivity follows the family alone:
 `@tool` takes no `dangerous` flag. A workflow's `inputs` is a `TypedDict`, and its body opens each step
 with `async with ctx.step("name")`, which refuses a name missing from `steps`.
+Run by the runtime, a step reports its opening, its end and its failure through
+a private hook of the runtime context (`_apollia_step_hook`); `MockContext` has
+none, so a workflow under test reports nothing.
 `python -m apollia describe <folder>` writes both into the folder's
 `apollia.toml` as `[[tools]]` and `[[workflows]]` descriptors, so reading the
 manifest never runs the code.
@@ -131,8 +134,8 @@ class Ctx(Protocol):
 | `memory` | `MemoryInterface` | agent-initiated recall and write |
 | `tools` | `ToolProxy` | invoke native and MCP tools |
 | `a2a` | `A2AInterface` | synchronous agent-to-agent RPC |
-| `agents` | `AgentsInterface` | `run(agent_id, message)`, not bound by the runtime yet |
-| `workflows` | `WorkflowsInterface` | `run(workflow_id, inputs)`, not bound by the runtime yet |
+| `agents` | `AgentsInterface` | `run(agent_id, message)`, bound in a workflow run |
+| `workflows` | `WorkflowsInterface` | `run(workflow_id, inputs)`, bound in a workflow run, three levels deep at most |
 | `mail` | `MailInterface` | durable, auditable inter-agent mailbox |
 | `datasources` | `DatasourcesInterface` | read declared datasources |
 | `templates` | `TemplatesInterface` | render declared templates |

@@ -12,11 +12,12 @@
 
 use apollia_e2e_tests::reserve_port;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use apollia_core::{AgentManifest, RuntimeEvent};
-use apollia_runtime::api::routes_agents::AgentLoader;
+use apollia_core::{AgentManifest, EventBusSender, RuntimeEvent};
+use apollia_runtime::api::routes_agents::{AgentBackendFactory, AgentLoader};
 use apollia_runtime::coordinator::{DynBackend, ExecutionBackend};
 use apollia_runtime::{
     api::APIServerConfig,
@@ -77,6 +78,29 @@ impl AgentLoader for FileCheckingAgentLoader {
 
         let name = agent_name_from_path(path);
         Ok(test_manifest(&name, "1.0.0"))
+    }
+}
+
+/// Backend factory standing in for the Python bridge: each call is an import
+/// of the agent's module. A missing file fails the import, which emits
+/// `AgentLoadFailed` on the bus, as the real factory does.
+struct FileCheckingBackendFactory {
+    builds: Arc<AtomicUsize>,
+    bus: Arc<OnceLock<EventBusSender>>,
+}
+
+impl AgentBackendFactory for FileCheckingBackendFactory {
+    fn create_for_agent(&self, agent_path: &Path, manifest: &AgentManifest) -> DynBackend {
+        self.builds.fetch_add(1, Ordering::SeqCst);
+        if !agent_path.exists() {
+            if let Some(bus) = self.bus.get() {
+                let _ = bus.send(RuntimeEvent::AgentLoadFailed {
+                    name: manifest.name.clone(),
+                    error: format!("file not found: {}", agent_path.display()),
+                });
+            }
+        }
+        DynBackend::new(InstantBackend)
     }
 }
 
@@ -224,6 +248,7 @@ fn test_supervisor_config(
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     }
 }
 
@@ -391,10 +416,13 @@ async fn test_uninstall_removes_files_and_db() {
     handles.api_handle.shutdown();
 }
 
-/// Corrupted agent (file deleted) does not block boot; emits AgentLoadFailed.
+/// Corrupted agent (file deleted) does not block boot: it is registered like
+/// any other, and its module fails only when a task reaches it, which emits
+/// AgentLoadFailed.
 #[tokio::test]
 async fn test_corrupted_agent_graceful_degradation() {
-    // GIVEN 2 installed agents, one with its file manually deleted
+    // GIVEN 2 installed agents, one with its file manually deleted, and a
+    // backend factory that counts each import and fails on a missing file
     let tmp = TempDir::new().expect("create temp dir");
     let db_path = tmp.path().join("agents.db");
     let agents_dir = tmp.path().join("agents");
@@ -404,11 +432,16 @@ async fn test_corrupted_agent_graceful_degradation() {
     let corrupted_path =
         simulate_install(&repo, &agents_dir, "corrupted-agent", "1.0.0", "# corrupt");
 
-    // Delete the corrupted agent's file to simulate corruption
     std::fs::remove_file(&corrupted_path).expect("delete corrupted file");
     drop(repo);
 
-    // Subscribe to events before starting Supervisor
+    let builds = Arc::new(AtomicUsize::new(0));
+    let bus = Arc::new(OnceLock::new());
+    let factory = Arc::new(FileCheckingBackendFactory {
+        builds: Arc::clone(&builds),
+        bus: Arc::clone(&bus),
+    });
+
     // WHEN the supervisor starts on that repository
     let repo2 = AgentRepository::open(&db_path).expect("reopen repo");
     let reserved_port = reserve_port();
@@ -419,46 +452,74 @@ async fn test_corrupted_agent_graceful_degradation() {
     // Release the probe listener only now, right before the bind it protects.
     reserved_port.release();
     let handles = supervisor
-        .start::<InstantBackend>(
-            InstantBackend,
+        .start::<DynBackend>(
+            DynBackend::new(InstantBackend),
             Arc::new(FileCheckingAgentLoader),
-            None,
+            Some(factory),
             None,
         )
         .await
         .expect("supervisor start - should not fail despite corrupted agent");
 
-    // THEN the valid agent is loaded
-    let agents = handles
+    // THEN both agents are registered and no module was imported at boot
+    let mut names: Vec<String> = handles
         .registry_handle
         .list_agents()
         .await
-        .expect("list agents");
-    assert_eq!(agents.len(), 1, "only the valid agent should be loaded");
-    assert_eq!(agents[0].manifest.name, "valid-agent");
-
-    // AND AgentLoadFailed was emitted - verify via EventBus
-    // Subscribe and check recent events. Since the event was emitted during
-    // start(), we verify indirectly: the runtime is operational (no panic/crash)
-    // and only 1 agent was loaded (the valid one). The Supervisor logs
-    // `warn!` + emits AgentLoadFailed for the corrupted agent.
-    //
-    // Direct event verification: subscribe before start and collect.
-    // Since Supervisor creates its own EventBus internally, we verify via
-    // the handles' event_sender by subscribing after start and checking
-    // the runtime is still healthy.
-    let mut event_rx = handles.event_sender.subscribe();
-
-    // Send a harmless event to verify the bus is operational
-    let _ = handles.event_sender.send(RuntimeEvent::ShutdownRequested);
-    let received = tokio::time::timeout(Duration::from_millis(200), event_rx.recv())
-        .await
-        .expect("event bus timeout")
-        .expect("recv event");
-    assert!(
-        matches!(received, RuntimeEvent::ShutdownRequested),
-        "event bus should be operational"
+        .expect("list agents")
+        .into_iter()
+        .map(|a| a.manifest.name)
+        .collect();
+    names.sort();
+    assert_eq!(names, vec!["corrupted-agent", "valid-agent"]);
+    assert_eq!(
+        builds.load(Ordering::SeqCst),
+        0,
+        "nothing is imported at boot"
     );
+
+    // WHEN a task reaches the corrupted agent
+    let _ = bus.set(handles.event_sender.clone());
+    let mut event_rx = handles.event_sender.subscribe();
+    handles
+        .router_handle
+        .submit("corrupted-agent", apollia_core::AIPInput::default())
+        .await
+        .expect("a task to a registered agent is dispatched");
+
+    // THEN its module load fails and AgentLoadFailed names it
+    let failed = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            match event_rx.recv().await {
+                Ok(RuntimeEvent::AgentLoadFailed { name, .. }) => break Some(name),
+                Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break None,
+            }
+        }
+    })
+    .await
+    .expect("AgentLoadFailed within 5s");
+    assert_eq!(failed.as_deref(), Some("corrupted-agent"));
+    assert_eq!(
+        builds.load(Ordering::SeqCst),
+        1,
+        "only the reached agent is imported"
+    );
+
+    // AND the event bus is still operational
+    let _ = handles.event_sender.send(RuntimeEvent::ShutdownRequested);
+    let received = tokio::time::timeout(Duration::from_millis(500), async {
+        loop {
+            match event_rx.recv().await {
+                Ok(RuntimeEvent::ShutdownRequested) => break true,
+                Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break false,
+            }
+        }
+    })
+    .await
+    .expect("event bus timeout");
+    assert!(received, "event bus should be operational");
 
     handles.api_handle.shutdown();
 }

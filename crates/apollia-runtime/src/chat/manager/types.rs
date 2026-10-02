@@ -98,6 +98,10 @@ pub(in crate::chat::manager) struct AlwaysAcceptScopeCtx<'a> {
 /// spawned so the spawned future never captures the non-`Send` `&self`
 /// (the manager owns a `RefCell` via rusqlite).
 pub(in crate::chat::manager) struct LibreExchangeParams {
+    /// The agent the exchange runs: Apollia, or the declarative agent of an
+    /// agent session. Its model, connector accounts and journal entries are
+    /// resolved under this identifier.
+    pub(in crate::chat::manager) agent_id: String,
     pub(in crate::chat::manager) llm_router: Arc<LlmRouter>,
     pub(in crate::chat::manager) tool_registry: ToolRegistryHandle,
     pub(in crate::chat::manager) event_bus: EventBusSender,
@@ -127,6 +131,10 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
         apollia_tools::tools::ask_user::PendingUserInputs,
     pub(in crate::chat::manager) mcp_handle_for_session:
         Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// Executors of the package tools, built for the agent of the exchange.
+    pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    /// Runs the agents and workflows the Apollia agent was granted.
+    pub(in crate::chat::manager) composer: Option<Arc<dyn crate::composition::Composer>>,
     pub(in crate::chat::manager) chat_tools_config_for_session: Option<Arc<ChatToolsConfig>>,
     pub(in crate::chat::manager) mcp_loading: LoadingMode,
     pub(in crate::chat::manager) tool_search_limit: usize,
@@ -285,4 +293,6 @@ pub(in crate::chat::manager) struct WorkspaceResolutionParams {
     pub(in crate::chat::manager) mcp_index: Vec<ToolIndexSnapshot>,
     /// Maximum `limit` accepted by the synthetic `tool_search` tool.
     pub(in crate::chat::manager) tool_search_limit: usize,
+    /// Executors of the package tools, built for the agent of the run.
+    pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
 }

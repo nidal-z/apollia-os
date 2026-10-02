@@ -452,21 +452,10 @@ async fn trigger_onboarding_inner(
         tracing::info!(profile = %p, "onboarding.profile.injected");
     }
 
-    // Verify the onboarding agent is registered
-    let found = state
-        .registry_handle
-        .find_by_name(ONBOARDING_AGENT_NAME)
-        .await
-        .map_err(|_| OnboardingError::AgentNotInstalled)?;
-
-    if found.is_none() {
-        return Err(OnboardingError::AgentNotInstalled);
-    }
-
-    // The onboarding agent supplies its own system prompt from its
-    // `@on_message` handler; in `ChatMode::Agent` the session `system_prompt`
-    // is not forwarded to the agent (see `session_to_task`), so we pass `None`
-    // rather than a second, divergent prompt.
+    // The onboarding agent is a declarative agent: its mission is the system
+    // prompt and its tool records the profile, both read when each message is
+    // sent, so the session carries no prompt of its own. Creating the session
+    // checks that the agent is installed and enabled.
     let mode = if resume {
         "resume"
     } else if topic.is_some() {
@@ -490,7 +479,12 @@ async fn trigger_onboarding_inner(
             project_id: None,
         })
         .await
-        .map_err(|e| OnboardingError::SessionCreationFailed(e.to_string()))?;
+        .map_err(|e| match e {
+            apollia_runtime::chat::ChatError::AgentNotFound(_) => {
+                OnboardingError::AgentNotInstalled
+            }
+            other => OnboardingError::SessionCreationFailed(other.to_string()),
+        })?;
 
     let session_id = info.id.clone();
 

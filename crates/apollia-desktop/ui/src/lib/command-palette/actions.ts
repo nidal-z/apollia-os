@@ -27,8 +27,6 @@ import {
   Mic,
   FolderOpen,
   Plus,
-  Play,
-  Square,
   Moon,
   Terminal,
   RefreshCcw,
@@ -184,24 +182,6 @@ export function buildPaletteActions(): PaletteAction[] {
         navigateTo("automations");
         globalThis.dispatchEvent(new CustomEvent("apollia:automations:create"));
       },
-    },
-    {
-      id: "agents.start_all",
-      label: tr("command.seed.agents_start_all"),
-      keywords: ["start", "run", "all", "agents"],
-      icon: Play,
-      kind: "actions",
-      persona: "builder",
-      execute: () => globalThis.dispatchEvent(new CustomEvent("apollia:agents:start-all")),
-    },
-    {
-      id: "agents.stop_all",
-      label: tr("command.seed.agents_stop_all"),
-      keywords: ["stop", "halt", "all", "agents"],
-      icon: Square,
-      kind: "actions",
-      persona: "builder",
-      execute: () => globalThis.dispatchEvent(new CustomEvent("apollia:agents:stop-all")),
     },
     {
       id: "mode.toggle",

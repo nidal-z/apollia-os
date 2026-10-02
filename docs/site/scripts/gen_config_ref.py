@@ -71,6 +71,9 @@ SECTIONS = [
      "asked. `trusted_paths` sets friction rather than a wall, and the two "
      "surfaces read it differently; see *Trusted paths, and what happens "
      "outside them* below."),
+    ("workflows", "WorkflowsConfig", "crates/apollia-core/src/config/workflows.rs",
+     "The budget a workflow run starts with. It is shared: every agent a step "
+     "runs and every workflow a step calls spend from it."),
     ("observability", "ObservabilityConfig", "crates/apollia-core/src/observability.rs",
      "Trace capture and retention. Read by the desktop application only."),
 ]

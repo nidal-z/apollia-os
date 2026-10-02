@@ -66,6 +66,12 @@ pub enum JournalEntryKind {
     /// A local override of an agent was set or removed. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     AgentOverrideChanged,
+    /// A package was installed. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    PackageInstalled,
+    /// An installed package was updated. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    PackageUpdated,
     /// A connection was added: an MCP server, a native account, or a folder. The payload is a
     /// [`crate::governance::ConnectionRecord`].
     ConnectionAdded,
@@ -127,6 +133,8 @@ impl JournalEntryKind {
             JournalEntryKind::AgentUpdated => "agent_updated",
             JournalEntryKind::AgentUninstalled => "agent_uninstalled",
             JournalEntryKind::AgentOverrideChanged => "agent_override_changed",
+            JournalEntryKind::PackageInstalled => "package_installed",
+            JournalEntryKind::PackageUpdated => "package_updated",
             JournalEntryKind::ConnectionAdded => "connection_added",
             JournalEntryKind::ConnectionModified => "connection_modified",
             JournalEntryKind::ConnectionRemoved => "connection_removed",
@@ -164,6 +172,8 @@ impl JournalEntryKind {
             "agent_updated" => JournalEntryKind::AgentUpdated,
             "agent_uninstalled" => JournalEntryKind::AgentUninstalled,
             "agent_override_changed" => JournalEntryKind::AgentOverrideChanged,
+            "package_installed" => JournalEntryKind::PackageInstalled,
+            "package_updated" => JournalEntryKind::PackageUpdated,
             "connection_added" => JournalEntryKind::ConnectionAdded,
             "connection_modified" => JournalEntryKind::ConnectionModified,
             "connection_removed" => JournalEntryKind::ConnectionRemoved,
@@ -342,6 +352,8 @@ mod tests {
                 JournalEntryKind::AgentOverrideChanged,
                 "agent_override_changed",
             ),
+            (JournalEntryKind::PackageInstalled, "package_installed"),
+            (JournalEntryKind::PackageUpdated, "package_updated"),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back

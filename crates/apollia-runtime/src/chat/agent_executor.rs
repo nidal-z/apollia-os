@@ -10,6 +10,10 @@
 //! A task that reads as several steps may be planned first (see
 //! [`plan_first`]): the agent's planning mode says when.
 //!
+//! The agents and workflows the agent was granted (`agent:<id>`,
+//! `workflow:<id>`) are tools of the run when a composer is wired: a call
+//! runs nested in this run, see [`crate::composition`].
+//!
 //! The three context injections that principle 6 allows (the user persona
 //! brief, the summaries of past sessions, the project context) belong to the
 //! Apollia agent alone. An executor built for any other agent drops them, so
@@ -29,7 +33,6 @@ use apollia_oria::verification::{CriticPass, VerificationLoop};
 use apollia_tools::{PlanningMode, ResolvedAgent, ToolRegistryHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::a2a::A2AInvoker;
 use crate::chat::builtin_agent::{
     BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, PrefixChecker,
 };
@@ -40,6 +43,7 @@ use crate::chat::types::{
     ChatError, ChatMessage, InjectedInstruction, PendingChatApprovals, PlanPhase,
     ProjectContextProvider,
 };
+use crate::composition::{CallerRun, Composer, ComposingInvoker};
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::HookExecutor;
 
@@ -122,8 +126,6 @@ pub struct AgentExecutorDeps {
     pub tool_invoker: Arc<dyn ToolInvoker>,
     /// Bus the loop emits on.
     pub event_bus: EventBusSender,
-    /// Invoker of the A2A skills offered as tools.
-    pub a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Task list of the conversation, enabling `todo_write`.
     pub todo: Option<TodoHandle>,
     /// Plan store of the conversation, enabling the `plan_*` tools.
@@ -162,6 +164,21 @@ pub struct SessionWiring {
     /// Where a tool output too long for the context is kept whole; `None`
     /// cuts it instead.
     pub tool_output_dir: Option<PathBuf>,
+    /// The budget of the caller, when the run spends from it (a workflow
+    /// step, an agent that called this one); `None` gives the run the budget
+    /// of its tier.
+    pub shared_budget: Option<Arc<StepBudget>>,
+    /// Runs the agents and workflows the agent was granted; `None` offers
+    /// none of them.
+    pub composition: Option<Composition>,
+}
+
+/// What the granted agent and workflow calls of a run go through.
+pub struct Composition {
+    /// Reads and runs the agents and the workflows.
+    pub composer: Arc<dyn Composer>,
+    /// The level of the run in the nesting, 1 for a run started on its own.
+    pub depth: u32,
 }
 
 /// One exchange to run.
@@ -191,7 +208,7 @@ pub struct AgentExecutor {
     spec: AgentRunSpec,
     agent: BuiltInChatAgent,
     level_config: AutonomyLevelConfig,
-    budget: StepBudget,
+    budget: Arc<StepBudget>,
     verification: Option<VerificationLoop>,
     critic: Option<CriticPass>,
     cancel: CancellationToken,
@@ -221,7 +238,29 @@ impl AgentExecutor {
         cancel: CancellationToken,
     ) -> Self {
         let level_config = AutonomyConfig::default().level_config(spec.autonomy);
-        let budget = StepBudget::from_capped(&level_config.budget, runtime_ceiling);
+        let budget = wiring.shared_budget.unwrap_or_else(|| {
+            Arc::new(StepBudget::from_capped(
+                &level_config.budget,
+                runtime_ceiling,
+            ))
+        });
+        let (tool_invoker, composer) = match wiring.composition {
+            Some(Composition { composer, depth }) => {
+                let caller = CallerRun {
+                    agent_id: spec.agent_id.clone(),
+                    depth,
+                    cancel: cancel.clone(),
+                    budget: Arc::clone(&budget),
+                };
+                let invoker: Arc<dyn ToolInvoker> = Arc::new(ComposingInvoker::new(
+                    deps.tool_invoker,
+                    Arc::clone(&composer),
+                    caller,
+                ));
+                (invoker, Some(composer))
+            }
+            None => (deps.tool_invoker, None),
+        };
         let (verification, critic) = if level_config.run_verification {
             (
                 Some(VerificationLoop::new(Vec::new(), Vec::new())),
@@ -245,7 +284,7 @@ impl AgentExecutor {
         let plan_first = plan_first::PlanFirstDeps {
             llm_router: Arc::clone(&deps.llm_router),
             tool_registry: deps.tool_registry.clone(),
-            tool_invoker: Arc::clone(&deps.tool_invoker),
+            tool_invoker: Arc::clone(&tool_invoker),
             event_bus: deps.event_bus.clone(),
             plan_cache: deps.plan_cache,
             workspace_path: wiring.workspace_path.clone(),
@@ -256,14 +295,14 @@ impl AgentExecutor {
         let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
             llm_router: deps.llm_router,
             tool_registry: deps.tool_registry,
-            tool_invoker: deps.tool_invoker,
+            tool_invoker,
             event_bus: deps.event_bus,
             user_memory: apollia.user_memory,
-            a2a_invoker: deps.a2a_invoker,
             todo: deps.todo,
             plan: deps.plan,
         })
         .with_agent_id(spec.agent_id.clone())
+        .with_composer(composer)
         .with_workspace_path(wiring.workspace_path)
         .with_mcp_index(wiring.mcp_index, wiring.tool_search_limit)
         .with_plan_mode(wiring.plan_mode)

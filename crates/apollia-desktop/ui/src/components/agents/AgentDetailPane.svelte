@@ -70,7 +70,6 @@
   <PackageDetail
     pkg={selectedPackage}
     detail={pkgDetail}
-    {agentActions}
     {onSelectAgent}
     onUninstall={onUninstallPackage}
   />

@@ -230,6 +230,8 @@ mod backends;
 mod batches;
 mod chat;
 mod integrations;
+mod packages;
+mod workflows;
 
 impl RuntimeClient {
     /// Create a new client targeting the given Unix socket path.

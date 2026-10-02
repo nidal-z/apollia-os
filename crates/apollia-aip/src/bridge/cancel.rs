@@ -34,7 +34,7 @@ async def run_cancellable(coro, slot):
 static WRAPPER: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
 
 /// Wraps `coroutine` so that it can be cancelled through `slot`.
-pub(super) fn wrap<'py>(
+pub(crate) fn wrap<'py>(
     py: Python<'py>,
     coroutine: &Bound<'py, PyAny>,
     slot: &Py<PyDict>,
@@ -54,7 +54,7 @@ pub(super) fn wrap<'py>(
 /// Asks the running dispatch to stop at its next await point.
 ///
 /// Safe to call at any moment and more than once.
-pub(super) fn request(slot: &Py<PyDict>) {
+pub(crate) fn request(slot: &Py<PyDict>) {
     Python::with_gil(|py| {
         let slot = slot.bind(py);
         if let Err(error) = slot.set_item("cancel", true) {
@@ -79,17 +79,17 @@ pub(super) fn request(slot: &Py<PyDict>) {
 /// Held by the future that waits for the blocking thread, so a caller that
 /// abandons the wait (a timeout, an outer `select!`, a dropped task) also stops
 /// the Python side instead of leaving it running unobserved.
-pub(super) struct CancelOnDrop {
+pub(crate) struct CancelOnDrop {
     slot: Option<Py<PyDict>>,
 }
 
 impl CancelOnDrop {
-    pub(super) fn new(slot: Py<PyDict>) -> Self {
+    pub(crate) fn new(slot: Py<PyDict>) -> Self {
         Self { slot: Some(slot) }
     }
 
     /// The dispatch finished on its own: nothing to cancel any more.
-    pub(super) fn disarm(&mut self) {
+    pub(crate) fn disarm(&mut self) {
         self.slot = None;
     }
 }

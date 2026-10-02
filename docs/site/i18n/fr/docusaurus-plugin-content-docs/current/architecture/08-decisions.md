@@ -621,6 +621,32 @@ ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
 sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
 une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
 
+Les paquets qu'Apollia livre dans son propre binaire, le guide de l'application
+d'abord, ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à
+partir de fichiers embarqués à la compilation et l'installe par le même chemin
+que tout paquet. L'installation les reconnaît comme embarqués parce que le
+bureau le dit, jamais parce qu'une archive le dit : rien dans un fichier ne peut
+revendiquer cette origine, et la même archive remise d'ailleurs est un paquet
+non signé ordinaire. Un paquet embarqué s'installe sans avertissement sur sa
+signature, et une politique d'organisation qui exige des paquets signés ne le
+refuse pas. L'exemption est bornée à cette origine. Sa raison : le binaire qui
+porte le paquet est ce que couvre la signature de la distribution, si bien que
+signer le paquet une seconde fois ne prouverait rien de plus. Comme tout paquet,
+il est inscrit au journal d'audit, une version installée plus récente n'est
+jamais rétrogradée, et les surcharges de l'utilisateur comme l'état désactivé de
+ses agents survivent à une mise à jour.
+
+Un outil de paquet s'exécute avec un contexte nu : ni mémoire, ni profil de
+l'utilisateur. Une exception est décidée par l'hôte, jamais par un paquet.
+L'onboarding d'Apollia est livré comme un agent déclaratif doté d'un outil qui
+enregistre les faits de profil de la première conversation, le droit que
+l'agent d'onboarding tenait quand il exécutait du code. Le runtime accorde à cet
+outil le profil de l'utilisateur, en écriture, et la mémoire de l'onboarding,
+que le bureau lit pour savoir que l'onboarding est terminé. L'accord nomme le
+paquet, le module et la source que porte le binaire : un outil dont le module
+sur le disque n'est pas cette source octet pour octet, quel que soit le nom de
+son paquet, n'obtient rien.
+
 ## Intégration hôte {#host-integration}
 
 L'API HTTP versionnée est un contrat de pilotage, pas un détail

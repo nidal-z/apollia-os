@@ -83,6 +83,11 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             let access = apollia_tools::GrantedAccess::new(None, &agent.manifest).read(&repo);
             (agent.install_path.clone(), access)
         };
+        // An access to a connector tool without its account names the single
+        // connected account, or nothing.
+        let allowed_tools =
+            apollia_runtime::connectors_bridge::resolve_connector_access(agent_name, allowed_tools)
+                .await;
 
         // 2. Load Python module + create bridge.
         // Inject the per-agent venv site-packages so top-level imports of

@@ -24,7 +24,7 @@ data (databases, the API token, models) lives separately under `~/.apollia/`.
 
 ## Sections
 
-Nine sections are read. A section outside this list is ignored, and
+Ten sections are read. A section outside this list is ignored, and
 `apollia-os config set` rejects it rather than accepting a value nothing will
 ever consult.
 
@@ -39,6 +39,7 @@ ever consult.
 | `[hooks]` | Lifecycle hook handlers (command or HTTP). |
 | `[chat]` | Chat subsystem session-level defaults (for example `plan_mode_default`). |
 | `[filesystem]` | The reversible journal, and the paths an agent works in without being asked (`trusted_paths`, see below). |
+| `[workflows]` | The budget a workflow run starts with, shared by every agent and workflow it runs. |
 
 The desktop application reads one more section, `[observability]`, documented
 below. It is not settable from the CLI.
@@ -188,6 +189,16 @@ The reversible journal, and the paths an agent works in without being asked. `tr
 | --- | --- | --- | --- |
 | `journal` | `JournalConfig` | type default | Sub-section dedicated to the reversible journal. |
 | `trusted_paths` | `Vec<PathBuf>` | `vec![PathBuf::from("~")]` | Paths an agent may read and write without an approval prompt. |
+
+### `[workflows]`
+
+The budget a workflow run starts with. It is shared: every agent a step runs and every workflow a step calls spend from it.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `max_steps` | `u32` | `200` | Steps a run may take, its own declared steps and the loop steps of the agents it runs together. Default: 200. Bounds: [1, 100000]. |
+| `max_tool_calls` | `u32` | `400` | Tool calls a run may make, those of the agents it runs included. Default: 400. Bounds: [1, 100000]. |
+| `wall_clock_secs` | `u64` | `3600` | Wall-clock duration of a run, in seconds. Default: 3600 (one hour). Bounds: [1, 86400]. |
 
 ### `[observability]`
 

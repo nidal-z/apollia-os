@@ -26,7 +26,9 @@ endpoints. Most of the project's day-to-day Rust changes land here.
 | `AgentMailboxHandle` | durable inter-agent inbox | mpsc | 256 | `src/mailbox.rs` |
 | `SttEngine` | whisper audio pipeline | mpsc | 32 | `src/stt/engine.rs` |
 | `TimeoutWatcher` | expiry of `input_required` tasks | no channel; a `tokio::time::interval` scan loop | n/a | `src/timeout_watcher.rs` |
+| `OnDemandBackend` | one per installed agent: builds its backend on the first task, drops it after `[runtime] agent_idle_unload_secs` without a call or when the agent is parked | mpsc | 64 | `src/on_demand.rs` |
 | `BatchActor` | progress of every running batch: starts items up to their concurrency, counts their ends, interrupts past the failure threshold, resumes running batches at start | two mpsc | 64 commands, 256 item ends | `src/batch/actor.rs` |
+| `WorkflowActor` | the workflow runs in progress and their cancellation tokens: launches a run after checking its inputs, stops one and answers once it ended, fails at start the runs a stopped process left running; each run reports its steps itself, to `hitl.db` and the bus | mpsc | 64 | `src/workflows/actor.rs` |
 
 Hosted from other crates, started by this one :
 
@@ -83,6 +85,7 @@ src/api/
 ├── routes_agents.rs          # /api/v1/agents/*
 ├── routes_tasks.rs           # /api/v1/tasks/*
 ├── routes_batches.rs         # /api/v1/batches/*
+├── routes_workflows.rs       # /api/v1/workflows/*, /api/v1/workflow-runs/*
 ├── routes_tools.rs           # /api/v1/tools/*
 ├── routes_triggers.rs        # /api/v1/triggers/*
 ├── routes_notifications.rs   # /api/v1/notifications/*

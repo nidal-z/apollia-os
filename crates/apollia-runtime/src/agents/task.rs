@@ -88,6 +88,42 @@ pub fn resolve_without_code(
         .map_err(|e| AgentResolveError::Agents(e.to_string()))
 }
 
+/// The enabled agent without code `agent`, resolved now from the stores
+/// under `data_dir`, so that a run reads the overrides and the model in force
+/// when it starts. The stores are opened for the occasion, as the CLI opens
+/// them: no lock is shared. `runner` names what refuses an agent that runs
+/// code or is unknown (`a batch`, `a workflow step`).
+///
+/// # Errors
+///
+/// A message for a store that cannot be read, a disabled agent, or an agent
+/// that is not a stored agent without code.
+pub async fn resolve_runnable(
+    data_dir: std::path::PathBuf,
+    agent: &str,
+    runner: &str,
+) -> Result<ResolvedAgent, String> {
+    let name = agent.to_string();
+    let resolved = tokio::task::spawn_blocking(move || {
+        let system = apollia_core::paths::DataFile::System.path(&data_dir);
+        let models = if system.exists() {
+            Some(apollia_core::LlmBackendRepository::open(&system).map_err(|e| e.to_string())?)
+        } else {
+            None
+        };
+        resolve_without_code(&data_dir, models.as_ref(), &name).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    match resolved {
+        Some(agent) if agent.enabled => Ok(agent),
+        Some(agent) => Err(format!("agent '{}' is disabled", agent.id)),
+        None => Err(format!(
+            "agent '{agent}' is not a stored agent without code, which is what {runner} runs"
+        )),
+    }
+}
+
 /// What an agent run outside a conversation goes through.
 pub struct AgentTaskLauncher<B: ExecutionBackend> {
     /// Follows the task, and cancels it.
@@ -136,7 +172,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
         input: &serde_json::Value,
         message: String,
     ) -> Result<TaskId, AgentTaskError> {
-        self.start(agent, input, message, None).await
+        self.start(agent, input, message, Watch::default()).await
     }
 
     /// Run `agent` on `message` as [`Self::launch`] does, and also return
@@ -152,7 +188,46 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
         message: String,
     ) -> Result<(TaskId, oneshot::Receiver<AgentRunOutcome>), AgentTaskError> {
         let (tx, rx) = oneshot::channel();
-        let task_id = self.start(agent, input, message, Some(tx)).await?;
+        let task_id = self
+            .start(
+                agent,
+                input,
+                message,
+                Watch {
+                    watcher: Some(tx),
+                    nesting: None,
+                },
+            )
+            .await?;
+        Ok((task_id, rx))
+    }
+
+    /// Run `agent` on `message` on behalf of a caller that is itself running,
+    /// a workflow step or an agent granted this one: the run stops when `nesting.parent` is cancelled and
+    /// spends from `nesting.budget`. Returns as [`Self::launch_watched`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::launch`].
+    pub(crate) async fn launch_nested(
+        &self,
+        agent: &ResolvedAgent,
+        input: &serde_json::Value,
+        message: String,
+        nesting: Nesting,
+    ) -> Result<(TaskId, oneshot::Receiver<AgentRunOutcome>), AgentTaskError> {
+        let (tx, rx) = oneshot::channel();
+        let task_id = self
+            .start(
+                agent,
+                input,
+                message,
+                Watch {
+                    watcher: Some(tx),
+                    nesting: Some(nesting),
+                },
+            )
+            .await?;
         Ok((task_id, rx))
     }
 
@@ -161,15 +236,23 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
         agent: &ResolvedAgent,
         input: &serde_json::Value,
         message: String,
-        watcher: Option<oneshot::Sender<AgentRunOutcome>>,
+        watch: Watch,
     ) -> Result<TaskId, AgentTaskError> {
+        let Watch { watcher, nesting } = watch;
         if !agent.enabled {
             return Err(AgentTaskError::Disabled(agent.id.clone()));
         }
         let task_id = TaskId::new_v4();
         let run_id = RunId::new();
         let agent_id = AgentId::from(agent.id.as_str());
-        let cancel = CancellationToken::new();
+        let (cancel, budget, depth) = match nesting {
+            Some(nesting) => (
+                nesting.parent.child_token(),
+                Some(nesting.budget),
+                nesting.depth,
+            ),
+            None => (CancellationToken::new(), None, 1),
+        };
 
         if let Some(repo) = &self.repository {
             repo.record_agent_run_start(
@@ -219,6 +302,8 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 cancel,
                 plan_cache: self.plan_cache.clone(),
                 done: done_tx,
+                budget,
+                depth,
             })
             .await;
         if let Err(e) = started {
@@ -235,6 +320,24 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
         });
         Ok(task_id)
     }
+}
+
+/// Who hears the end of a run, and what it inherits from its caller.
+#[derive(Default)]
+struct Watch {
+    watcher: Option<oneshot::Sender<AgentRunOutcome>>,
+    nesting: Option<Nesting>,
+}
+
+/// What a run started by a running caller inherits from it.
+pub struct Nesting {
+    /// The cancellation token of the caller; the run stops with it.
+    pub parent: CancellationToken,
+    /// The budget of the caller, which the run spends from.
+    pub budget: Arc<apollia_oria::budget::StepBudget>,
+    /// The level of the run in the nesting, its caller's plus one; a run
+    /// started on its own is level 1.
+    pub depth: u32,
 }
 
 /// What the end of a run is reported to.

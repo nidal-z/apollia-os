@@ -193,6 +193,22 @@ impl ChatSessionManagerHandle {
         let _ = self.tx.send(ChatCommand::ReloadLlm { router }).await;
     }
 
+    /// Hand over the source of the package tool executors.
+    ///
+    /// Every run that starts afterwards, in the chat or outside it, can call
+    /// the package tools its agent is granted.
+    pub async fn set_package_tools(&self, host: Arc<dyn crate::package_tools::PackageToolHost>) {
+        let _ = self.tx.send(ChatCommand::SetPackageTools { host }).await;
+    }
+
+    /// Hand over the composer of the granted agent and workflow calls.
+    ///
+    /// Every run that starts afterwards, in the chat or outside it, is offered
+    /// the agents and workflows its agent is granted.
+    pub async fn set_composer(&self, composer: Arc<dyn crate::composition::Composer>) {
+        let _ = self.tx.send(ChatCommand::SetComposer { composer }).await;
+    }
+
     /// List the N most recent sessions with their first user message.
     ///
     /// Returns an empty vec if the actor is unreachable or the query fails.

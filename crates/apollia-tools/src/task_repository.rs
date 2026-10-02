@@ -14,6 +14,8 @@ mod agent_runs;
 pub use agent_runs::{AgentRunEnd, AgentRunStart};
 mod batches;
 pub use batches::{BatchItemRow, BatchRow, NewBatch};
+mod workflows;
+pub use workflows::{NewWorkflowRun, WorkflowRunRow, WorkflowStepEnd, WorkflowStepRow};
 mod hitl;
 mod lifecycle;
 

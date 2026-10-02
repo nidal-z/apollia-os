@@ -26,7 +26,6 @@ fn agent_with(invoker: Arc<dyn ToolInvoker>) -> BuiltInChatAgent {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
