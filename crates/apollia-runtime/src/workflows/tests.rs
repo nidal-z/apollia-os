@@ -23,6 +23,7 @@ impl ScriptedHost {
     fn with(mut self, id: &str, steps: &[&str], schema: Option<Value>, script: Script) -> Self {
         let descriptor = WorkflowDescriptor {
             id: id.to_string(),
+            version: "1.0.0".into(),
             description: format!("{id} for the tests"),
             steps: steps.iter().map(|s| (*s).to_string()).collect(),
             input_schema: schema,
@@ -35,6 +36,10 @@ impl ScriptedHost {
 impl WorkflowHost for ScriptedHost {
     fn describe(&self, workflow_id: &str) -> Option<WorkflowDescriptor> {
         self.workflows.get(workflow_id).map(|(d, _)| d.clone())
+    }
+
+    fn list(&self) -> Vec<WorkflowDescriptor> {
+        self.workflows.values().map(|(d, _)| d.clone()).collect()
     }
 
     fn run(&self, call: WorkflowCall) -> BoxFuture<'static, Result<Value, String>> {

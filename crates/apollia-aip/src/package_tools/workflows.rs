@@ -163,6 +163,7 @@ impl PyWorkflowServices {
 /// One Python workflow of an installed package.
 pub struct PackageWorkflow {
     package: String,
+    version: String,
     root: PathBuf,
     decl: WorkflowDecl,
     /// The decorated function, set by the first run that imports it.
@@ -178,6 +179,7 @@ impl PackageWorkflow {
     fn descriptor(&self) -> WorkflowDescriptor {
         WorkflowDescriptor {
             id: self.id(),
+            version: self.version.clone(),
             description: self.decl.description.clone(),
             steps: self.decl.steps.clone(),
             input_schema: self.decl.inputs.clone(),
@@ -222,6 +224,7 @@ impl PackageWorkflows {
                 if linked.contains(&decl.name) {
                     workflows.push(Arc::new(PackageWorkflow {
                         package: package.name.clone(),
+                        version: package.version.clone(),
                         root: package.root_path.clone(),
                         decl,
                         function: GILOnceCell::new(),
@@ -245,6 +248,10 @@ impl PackageWorkflows {
 impl WorkflowHost for PackageWorkflows {
     fn describe(&self, workflow_id: &str) -> Option<WorkflowDescriptor> {
         self.find(workflow_id).map(|w| w.descriptor())
+    }
+
+    fn list(&self) -> Vec<WorkflowDescriptor> {
+        self.workflows.iter().map(|w| w.descriptor()).collect()
     }
 
     fn run(&self, call: WorkflowCall) -> BoxFuture<'static, Result<Value, String>> {

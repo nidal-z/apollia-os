@@ -6,6 +6,12 @@
 //! - `GET  /api/v1/a2a/skills`          , flat list of all available A2A skills
 //! - `POST /api/v1/a2a/invoke`          , high-level invocation via [`A2AInvoker`]
 //! - `GET  /api/v1/tasks/:id/sidechains`, delegation tree of a parent task's A2A calls
+//!
+//! The card lists three kinds of entry, each named by what `invoke` takes:
+//! the skills an agent's code declares (`kind: "skill"`, the bare skill id),
+//! the agents that take a message (`kind: "agent"`, `agent:<id>`) and the
+//! workflows that take typed inputs (`kind: "workflow"`,
+//! `workflow:<package>/<name>`, with their input schema). See [`targets`].
 
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
@@ -21,6 +27,8 @@ use crate::a2a::{
 };
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+
+mod targets;
 
 /// Default timeout for A2A delegations, in seconds.
 const DEFAULT_DELEGATE_TIMEOUT_SECS: u64 = 120;
@@ -42,12 +50,20 @@ pub struct A2aSkillDto {
     pub input_modes: Vec<String>,
     /// Supported output modes (e.g. `["text", "file"]`).
     pub output_modes: Vec<String>,
+    /// `skill`, `agent` or `workflow`: what `id` launches through
+    /// `POST /api/v1/a2a/invoke`.
+    pub kind: String,
+    /// JSON Schema of the input `invoke` takes, when the entry declares one.
+    #[schema(value_type = Option<Object>)]
+    pub input_schema: Option<serde_json::Value>,
 }
 
 /// Entry in the A2A agent list.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct A2aAgentDto {
-    /// Unique agent identifier (UUID v4).
+    /// Unique identifier: the registry UUID of an agent whose code declares
+    /// skills, `agent:<id>` for an agent that takes a message,
+    /// `workflow:<package>/<name>` for a workflow.
     pub agent_id: String,
     /// Agent name as declared in its manifest.
     pub name: String,
@@ -55,8 +71,16 @@ pub struct A2aAgentDto {
     pub version: String,
     /// Current process state (`active`, `degraded`, etc.).
     pub state: String,
-    /// Skills declared by this agent.
+    /// Skills declared by this agent. An agent that takes a message and a
+    /// workflow each carry one, the entry `invoke` takes.
     pub skills: Vec<A2aSkillDto>,
+    /// `skill` for an agent whose code declares skills, `agent` for an agent
+    /// that takes a message, `workflow` for a workflow.
+    pub kind: String,
+    /// JSON Schema of the input of an agent that takes a message or of a
+    /// workflow; `null` for an agent whose skills each declare their own.
+    #[schema(value_type = Option<Object>)]
+    pub input_schema: Option<serde_json::Value>,
 }
 
 /// Response body for `GET /api/v1/a2a/agents`.
@@ -90,7 +114,8 @@ pub struct DelegateRequest {
 /// Handler for `GET /api/v1/a2a/agents`.
 ///
 /// Returns all agents with `supports_a2a = true` in active or degraded state,
-/// along with their declared skills.
+/// along with their declared skills, then the enabled agents that take a
+/// message and the installed workflows.
 #[utoipa::path(
     get,
     path = "/api/v1/a2a/agents",
@@ -129,6 +154,8 @@ pub async fn list_a2a_agents<B: ExecutionBackend + Clone>(
                     description: s.description.clone(),
                     input_modes: s.input_modes.clone(),
                     output_modes: s.output_modes.clone(),
+                    kind: crate::a2a::invoker::SKILL_KIND.to_string(),
+                    input_schema: s.input_schema.clone(),
                 })
                 .collect();
 
@@ -138,11 +165,15 @@ pub async fn list_a2a_agents<B: ExecutionBackend + Clone>(
                 version: e.manifest.version.clone(),
                 state: state_label(&e.process_state),
                 skills,
+                kind: crate::a2a::invoker::SKILL_KIND.to_string(),
+                input_schema: None,
             }
         })
         .collect();
 
     agents.sort_by(|a, b| a.name.cmp(&b.name));
+    let catalogue = targets::Catalogue::read(&state).await?;
+    agents.extend(catalogue.agent_dtos());
 
     Ok(Json(A2aAgentsResponse { agents }))
 }
@@ -207,9 +238,11 @@ pub struct A2aSkillsResponse {
 /// Request body for `POST /api/v1/a2a/invoke`.
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct InvokeRequest {
-    /// Target skill identifier (e.g. `"read-excel"`).
+    /// What to launch, as the card names it: a skill id (e.g.
+    /// `"read-excel"`), `agent:<id>` or `workflow:<package>/<name>`.
     pub skill_id: String,
-    /// JSON payload passed to the Worker Agent as input.
+    /// JSON payload passed as input: the skill's payload, `{"message": ...}`
+    /// (or a bare string) for an agent, the typed inputs of a workflow.
     #[schema(value_type = Object)]
     pub input: serde_json::Value,
     /// Caller name (Director Agent), used for observability.
@@ -239,8 +272,9 @@ pub struct InvokeRequest {
 
 /// Handler for `GET /api/v1/a2a/skills`.
 ///
-/// Returns the flat list of all available A2A skills via the [`A2AInvoker`].
-/// Returns 503 if the invoker is not initialized.
+/// Returns the flat list of all available A2A skills via the [`A2AInvoker`],
+/// then one entry per enabled agent that takes a message and one per
+/// installed workflow. Returns 503 if the invoker is not initialized.
 #[utoipa::path(
     get,
     path = "/api/v1/a2a/skills",
@@ -277,14 +311,20 @@ pub async fn list_a2a_skills<B: ExecutionBackend + Clone>(
         )
     })?;
 
+    let mut skills = skills;
+    let catalogue = targets::Catalogue::read(&state).await?;
+    skills.extend(catalogue.skill_listings());
     Ok(Json(A2aSkillsResponse { skills }))
 }
 
 /// Handler for `POST /api/v1/a2a/invoke`.
 ///
-/// Invokes a Worker Agent by skill ID via the [`A2AInvoker`].
+/// Invokes a Worker Agent by skill ID via the [`A2AInvoker`], or an agent
+/// that takes a message (`agent:<id>`) or a workflow
+/// (`workflow:<package>/<name>`), and answers once it has ended.
 /// Returns 503 if the invoker is not initialized.
-/// Returns 404 if the skill is not found, 503 if the agent is not active.
+/// Returns 404 if the skill is not found, 503 if the agent is not active,
+/// 400 if the input does not fit what the target takes.
 #[utoipa::path(
     post,
     path = "/api/v1/a2a/invoke",
@@ -292,9 +332,11 @@ pub async fn list_a2a_skills<B: ExecutionBackend + Clone>(
     request_body = InvokeRequest,
     responses(
         (status = 200, description = "Invocation result", body = crate::a2a::invoker::A2AInvocationResult),
-        (status = 404, description = "Skill not found", body = crate::api::openapi::ApiErrorBody),
+        (status = 400, description = "The input does not fit the agent or the workflow", body = crate::api::openapi::ApiErrorBody),
+        (status = 404, description = "Skill, agent or workflow not found", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "A2A invoker not initialized or agent not active", body = crate::api::openapi::ApiErrorBody),
         (status = 409, description = "Invocation cancelled through its client-supplied id", body = crate::api::openapi::ApiErrorBody),
+        (status = 502, description = "The agent or the workflow failed", body = crate::api::openapi::ApiErrorBody),
         (status = 504, description = "Invocation timed out", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -313,6 +355,12 @@ pub async fn invoke_by_skill<B: ExecutionBackend + Clone>(
             }),
         )
     })?;
+
+    if let Some(target) = targets::Target::parse(&req.skill_id) {
+        return targets::invoke(&state, invoker, target, req)
+            .await
+            .map(Json);
+    }
 
     let caller = req.caller.as_deref().unwrap_or("api");
     let timeout = req.timeout_secs.map(std::time::Duration::from_secs);
@@ -475,3 +523,6 @@ fn a2a_invoker_err_response(err: A2AError) -> (StatusCode, Json<A2aErrorResponse
         }),
     )
 }
+
+#[cfg(test)]
+mod tests;
