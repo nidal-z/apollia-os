@@ -312,5 +312,6 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(profile_router::<B>())
         .merge(connectors_router::<B>())
         .merge(imap_router::<B>())
+        .merge(crate::api::routes_batches::batch_routes::<B>())
         .with_state(state)
 }

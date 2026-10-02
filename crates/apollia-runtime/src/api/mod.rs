@@ -9,6 +9,7 @@ pub mod routes_agent_definitions;
 pub mod routes_agents;
 pub mod routes_approvals;
 pub mod routes_audit;
+pub mod routes_batches;
 pub mod routes_chat;
 pub mod routes_connections;
 pub mod routes_connectors;

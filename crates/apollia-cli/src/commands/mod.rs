@@ -70,6 +70,7 @@ pub(crate) static HOME_ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::co
 pub mod a2a;
 pub mod agent;
 pub mod audit;
+pub mod batch;
 pub mod chat;
 pub mod chat_config;
 pub mod chat_stream;
