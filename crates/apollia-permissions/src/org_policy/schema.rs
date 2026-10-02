@@ -25,6 +25,12 @@ pub enum PolicySchemaError {
         /// The version declared by the document.
         found: u32,
     },
+    /// `signed_at` is not a full date and time with an offset.
+    #[error("signed_at {value} is not a date and time with an offset")]
+    IncompleteSignedAt {
+        /// The value as written.
+        value: String,
+    },
     /// A trusted publisher is not a key fingerprint.
     #[error("trusted publisher {value:?} is not 64 lowercase hexadecimal characters")]
     InvalidPublisherFingerprint {
@@ -39,6 +45,9 @@ pub enum PolicySchemaError {
 pub struct OrgPolicy {
     /// Version of the schema the document is written in.
     pub schema_version: u32,
+    /// When the organisation signed this policy: a date, a time and an offset.
+    /// It sits in the signed file, so the signature covers it.
+    pub signed_at: toml::value::Datetime,
     /// Connections and tools allowed or refused.
     #[serde(default)]
     pub connections: ConnectionsPolicy,
@@ -183,7 +192,9 @@ struct VersionProbe {
 /// # Errors
 ///
 /// Returns [`PolicySchemaError::UnsupportedVersion`] when the document declares
-/// another version, [`PolicySchemaError::InvalidPublisherFingerprint`] when a
+/// another version, [`PolicySchemaError::IncompleteSignedAt`] when `signed_at`
+/// lacks its date, its time or its offset,
+/// [`PolicySchemaError::InvalidPublisherFingerprint`] when a
 /// trusted publisher is not a fingerprint, and [`PolicySchemaError::Invalid`]
 /// for any other deviation.
 pub fn parse_policy(text: &str) -> Result<OrgPolicy, PolicySchemaError> {
@@ -212,6 +223,12 @@ pub fn parse_policy(text: &str) -> Result<OrgPolicy, PolicySchemaError> {
 
     let policy: OrgPolicy =
         toml::from_str(text).map_err(|e| PolicySchemaError::Invalid(e.message().to_owned()))?;
+    let signed_at = &policy.signed_at;
+    if signed_at.date.is_none() || signed_at.time.is_none() || signed_at.offset.is_none() {
+        return Err(PolicySchemaError::IncompleteSignedAt {
+            value: signed_at.to_string(),
+        });
+    }
     if let Some(bad) = policy
         .packages
         .trusted_publishers

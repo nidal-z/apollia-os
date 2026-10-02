@@ -603,6 +603,7 @@ fn read_org_policy() -> apollia_permissions::PolicyVerdict {
                 dir = %dir,
                 key_fingerprint = %valid.key_fingerprint,
                 publisher = %valid.publisher,
+                signed_at = %valid.signed_at,
                 "policy.read"
             );
         }

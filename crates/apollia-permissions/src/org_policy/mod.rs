@@ -3,7 +3,8 @@
 //!
 //! The folder holds three files:
 //!
-//! - `policy.toml`, the policy, in the schema of [`schema`];
+//! - `policy.toml`, the policy, in the schema of [`schema`], including the
+//!   date the organisation signed it (`signed_at`);
 //! - `SIGNATURE`, an [`apollia_signing::SignatureFile`] over a digest list of
 //!   one entry, `policy.toml` and its SHA-256;
 //! - `org.pub`, the organisation public key, 64 lowercase hexadecimal
@@ -28,7 +29,6 @@ mod tests;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 use apollia_signing::{sha256, DigestList, PublicKey, SignatureFile, Verdict};
 
@@ -152,10 +152,10 @@ pub struct ValidPolicy {
     pub key_fingerprint: String,
     /// Publisher name declared in `SIGNATURE`.
     pub publisher: String,
-    /// When `SIGNATURE` was last written, as the file system records it. The
-    /// version 1 signature format carries no date of its own, so this is the
-    /// date of signature as far as the folder knows it, not a signed value.
-    pub signed_at: Option<SystemTime>,
+    /// When the organisation signed the policy, as `signed_at` declares it in
+    /// `policy.toml`. The signature covers the whole file, so this date is
+    /// signed: changing it breaks the signature.
+    pub signed_at: toml::value::Datetime,
 }
 
 /// The outcome of reading a policy folder.
@@ -277,14 +277,11 @@ pub fn load_policy(dir: &Path, owner: OwnerRequirement) -> PolicyVerdict {
         Err(e) => return invalid(PolicyInvalidReason::Schema, e.to_string()),
     };
 
-    let signed_at = std::fs::metadata(&signature_path)
-        .and_then(|m| m.modified())
-        .ok();
     PolicyVerdict::Valid(Box::new(ValidPolicy {
+        signed_at: policy.signed_at,
         policy,
         key_fingerprint: public_key.fingerprint(),
         publisher: signature.publisher().to_owned(),
-        signed_at,
     }))
 }
 

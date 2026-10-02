@@ -1,5 +1,6 @@
 # Every section and every key of the version 1 organisation policy schema.
 schema_version = 1
+signed_at = 2026-10-02T09:30:00+02:00
 
 [connections]
 allow = ["gmail", "mcp:filesystem", "native:file_io"]

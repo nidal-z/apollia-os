@@ -5,7 +5,7 @@ use apollia_signing::{sha256, DigestList, SignatureFile, SigningKeyPair};
 use super::*;
 
 const FULL_POLICY: &str = include_str!("../../tests/fixtures/org_policy/full.toml");
-const MINIMAL_POLICY: &str = "schema_version = 1\n";
+const MINIMAL_POLICY: &str = "schema_version = 1\nsigned_at = 2026-10-02T07:30:00Z\n";
 
 fn org_key() -> SigningKeyPair {
     SigningKeyPair::from_seed(&[7u8; 32])
@@ -92,14 +92,14 @@ fn test_signed_policy_round_trip_is_valid() {
     // WHEN it is read
     let verdict = load(&dir);
 
-    // THEN it is valid, with the key fingerprint, the publisher and a date
+    // THEN it is valid, with the key fingerprint, the publisher and the signed date
     let valid = match verdict {
         PolicyVerdict::Valid(valid) => valid,
         other => return assert_eq!(other.kind(), "valid", "{other:?}"),
     };
     assert_eq!(valid.key_fingerprint, org_key().public_key().fingerprint());
     assert_eq!(valid.publisher, "Acme IT");
-    assert!(valid.signed_at.is_some());
+    assert_eq!(valid.signed_at.to_string(), "2026-10-02T09:30:00+02:00");
     assert_eq!(valid.policy, parse_policy(FULL_POLICY).unwrap());
 }
 
@@ -359,8 +359,56 @@ fn test_missing_schema_version_is_refused() {
     assert!(matches!(result, Err(PolicySchemaError::Invalid(_))));
 }
 
+#[test]
+fn test_missing_signed_at_is_refused() {
+    // GIVEN a policy that declares its version but no date of signature
+    let text = "schema_version = 1\n";
+
+    // WHEN it is parsed
+    let result = parse_policy(text);
+
+    // THEN it is refused
+    assert!(matches!(result, Err(PolicySchemaError::Invalid(_))));
+}
+
+#[test]
+fn test_signed_at_without_offset_is_refused() {
+    // GIVEN a date of signature without offset, and one without time
+    let local = "schema_version = 1\nsigned_at = 2026-10-02T09:30:00\n";
+    let date_only = "schema_version = 1\nsigned_at = 2026-10-02\n";
+
+    // WHEN each is parsed
+    let local = parse_policy(local);
+    let date_only = parse_policy(date_only);
+
+    // THEN both are refused as incomplete
+    assert!(matches!(
+        local,
+        Err(PolicySchemaError::IncompleteSignedAt { .. })
+    ));
+    assert!(matches!(
+        date_only,
+        Err(PolicySchemaError::IncompleteSignedAt { .. })
+    ));
+}
+
+#[test]
+fn test_changed_signed_at_breaks_the_signature() {
+    // GIVEN a signed folder whose date of signature is then moved forward
+    let root = tempfile::tempdir().unwrap();
+    let dir = write_policy_dir(root.path(), MINIMAL_POLICY);
+    let moved = MINIMAL_POLICY.replace("2026-10-02", "2027-10-02");
+    std::fs::write(dir.join(POLICY_FILE), moved).unwrap();
+
+    // WHEN it is read
+    let verdict = load(&dir);
+
+    // THEN the signature is the reason: the date is signed
+    assert_eq!(reason_of(&verdict), Some(PolicyInvalidReason::Signature));
+}
+
 fn is_refused(section: &str) -> bool {
-    let text = format!("schema_version = 1\n{section}");
+    let text = format!("{MINIMAL_POLICY}{section}");
     matches!(parse_policy(&text), Err(PolicySchemaError::Invalid(_)))
 }
 
@@ -401,10 +449,10 @@ fn test_unknown_key_in_inference_is_refused() {
 #[test]
 fn test_settings_must_be_a_table() {
     // GIVEN [settings] given as a scalar, and as a table of free keys
-    let free_keys = "schema_version = 1\n[settings]\n\"any.key\" = 3\n";
+    let free_keys = format!("{MINIMAL_POLICY}[settings]\n\"any.key\" = 3\n");
 
     // WHEN each is parsed
-    let table = parse_policy(free_keys);
+    let table = parse_policy(&free_keys);
 
     // THEN the scalar is refused and the free keys are kept
     assert!(is_refused("settings = 1\n"));
@@ -414,10 +462,10 @@ fn test_settings_must_be_a_table() {
 #[test]
 fn test_unknown_key_in_packages_is_refused() {
     // GIVEN [packages] with an unknown key, and with a publisher that is no fingerprint
-    let bad_publisher = "schema_version = 1\n[packages]\ntrusted_publishers = [\"Acme\"]\n";
+    let bad_publisher = format!("{MINIMAL_POLICY}[packages]\ntrusted_publishers = [\"Acme\"]\n");
 
     // WHEN each is parsed
-    let publisher = parse_policy(bad_publisher);
+    let publisher = parse_policy(&bad_publisher);
 
     // THEN both are refused
     assert!(is_refused("[packages]\nrequire_signatures = true\n"));
@@ -440,7 +488,7 @@ fn test_unknown_key_in_journal_is_refused() {
 fn test_signed_policy_with_bad_schema_is_invalid_schema() {
     // GIVEN a correctly signed folder whose policy has an unknown key
     let root = tempfile::tempdir().unwrap();
-    let dir = write_policy_dir(root.path(), "schema_version = 1\nextra = 1\n");
+    let dir = write_policy_dir(root.path(), &format!("{MINIMAL_POLICY}extra = 1\n"));
 
     // WHEN it is read
     let verdict = load(&dir);

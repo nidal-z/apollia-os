@@ -7,6 +7,9 @@
 use std::fs::Metadata;
 use std::path::Path;
 
+#[cfg(windows)]
+mod windows;
+
 /// Who must be the only one able to modify the policy folder and its files.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -73,18 +76,29 @@ fn check_metadata(
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
 fn check_metadata(
     path: &Path,
     _metadata: &Metadata,
     requirement: OwnerRequirement,
 ) -> Result<(), String> {
     match requirement {
-        // Reading the owner and the access list of a file on Windows takes the
-        // Win32 security API, which the standard library does not expose and
-        // no direct dependency of this crate reaches. Until it is available
-        // the folder is refused, so a policy is never trusted on rights that
-        // were not read.
+        OwnerRequirement::System => windows::check_system_owner(path),
+        #[cfg(debug_assertions)]
+        OwnerRequirement::CurrentUser => Ok(()),
+    }
+}
+
+#[cfg(all(not(unix), not(windows)))]
+fn check_metadata(
+    path: &Path,
+    _metadata: &Metadata,
+    requirement: OwnerRequirement,
+) -> Result<(), String> {
+    match requirement {
+        // A platform with neither Unix modes nor Windows access lists: the
+        // rights cannot be read, so the folder is refused and a policy is
+        // never trusted on rights that were not read.
         OwnerRequirement::System => Err(format!(
             "the owner of {} cannot be checked on this platform",
             path.display()

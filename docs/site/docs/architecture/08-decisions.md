@@ -343,6 +343,37 @@ tree. `minisign-verify` has no dependency of its own and was already in the tree
 through the updater. A key cannot be revoked other than by changing the set of
 keys a reader trusts.
 
+## Organisation policy {#organisation-policy}
+
+An organisation imposes its rules on a machine by dropping a signed policy in a
+system folder: `/Library/Application Support/Apollia/policy` on macOS,
+`C:\ProgramData\Apollia\policy` on Windows, `/etc/apollia/policy` on Linux. The
+folder holds `policy.toml`, a `SIGNATURE` in the package format above over a
+list of one entry, and `org.pub`, the organisation public key. The runtime reads
+it once, at startup. No folder means no policy: the user is free.
+
+The key sits next to the policy, so the policy is only as authentic as the
+rights on its folder. A folder or file that someone other than the system
+administrator can modify is refused: on Unix the owner must be root and neither
+the others nor a group other than root's may write; on Windows the owner must be
+the Administrators group or the LocalSystem account, and no entry of the access
+list may grant a write to anyone else. A symbolic link is refused on every
+platform. The Windows path is written out rather than read from `%ProgramData%`,
+which the user sets.
+
+The date of signature is a `signed_at` field of `policy.toml`, a date, a time
+and an offset. The signature covers the whole file, so the date is signed and
+the `SIGNATURE` format did not change for it. A file system date was rejected:
+anyone can touch a file.
+
+Reading a Windows owner and access list takes the Win32 security API, which the
+standard library does not expose. `windows-sys` is a direct dependency of the
+permissions crate on Windows only, with the security, authorization and file
+system features. It is the raw binding Microsoft publishes, it has no
+dependency beyond its own linker shim, and the same version was already in the
+tree through other crates, so the lockfile gained no package. The cost is a
+block of FFI code with its own `unsafe` allowance, confined to one module.
+
 ## Command line {#cli}
 
 The CLI is noun-verb. Daily operations are bare verbs; everything else is a noun
