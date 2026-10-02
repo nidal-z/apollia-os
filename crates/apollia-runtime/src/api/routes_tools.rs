@@ -221,6 +221,7 @@ mod tests {
             tool_registry_handle: Some(tool_registry),
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -241,6 +242,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
 
         Router::new()
@@ -273,6 +275,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -293,6 +296,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
 
         Router::new()

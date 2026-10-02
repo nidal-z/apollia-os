@@ -14,6 +14,7 @@
 //! into [`manager::McpClientManagerHandle`] via `start_with_approvals`.
 
 pub mod approvals;
+pub mod classify;
 pub mod config;
 pub mod discovery;
 pub mod executor;
@@ -21,6 +22,7 @@ mod health;
 pub mod jsonrpc;
 pub mod manager;
 pub mod mcp_resources;
+pub mod origin;
 pub mod protocol;
 pub mod registry;
 mod sanitize;
@@ -35,5 +37,6 @@ pub mod transport;
 
 pub use approvals::{McpApprovalError, McpApprovalStore, PendingApprovalEntry};
 pub use discovery::{DiscoveredServer, DiscoveryError};
+pub use origin::{ConnectionOrigin, Provenance};
 pub use server::{McpServerError, McpStdioServer, SubmitTaskHandler};
 pub use server_repository::{McpRepoError, McpServerRepository};

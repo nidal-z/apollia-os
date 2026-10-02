@@ -137,15 +137,15 @@ pub enum LlmBackendsCommand {
         /// Model identifier or path (absolute path for `llama-cpp`).
         #[arg(long)]
         model: String,
-        /// API key of the server, when it requires one. Stored as-is in
-        /// `config_json.api_key`. Prefer `--api-key-env VAR_NAME` to avoid
-        /// persisting the key in system.db.
+        /// API key of the server, when it requires one. The runtime moves it
+        /// into the secret store before saving the backend: `config_json`
+        /// keeps only `api_key_in_store`, never the key.
         #[arg(long, value_name = "KEY")]
         api_key: Option<String>,
         /// Environment variable name holding the API key.
         ///
-        /// The runtime reads `std::env::var(NAME)` at boot. Recommended to
-        /// keep the key out of system.db.
+        /// The runtime reads `std::env::var(NAME)` at boot; only the variable
+        /// name is saved.
         #[arg(long, value_name = "VAR_NAME")]
         api_key_env: Option<String>,
         /// Base URL (Ollama, self-hosted OpenAI-compatible gateway, ...).

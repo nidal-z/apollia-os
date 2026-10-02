@@ -1578,10 +1578,10 @@ Create a new LLM backend.
 
 * `--provider <PROVIDER>` - Provider: `llama-cpp` (local GGUF), `openai` (any OpenAI-compatible server, designated by `--base-url`), `ollama`. Any other value is refused. `--kind` is accepted as an alias for backward compatibility
 * `--model <MODEL>` - Model identifier or path (absolute path for `llama-cpp`)
-* `--api-key <KEY>` - API key of the server, when it requires one. Stored as-is in `config_json.api_key`. Prefer `--api-key-env VAR_NAME` to avoid persisting the key in system.db
+* `--api-key <KEY>` - API key of the server, when it requires one. The runtime moves it into the secret store before saving the backend: `config_json` keeps only `api_key_in_store`, never the key
 * `--api-key-env <VAR_NAME>` - Environment variable name holding the API key.
 
-   The runtime reads `std::env::var(NAME)` at boot. Recommended to keep the key out of system.db.
+   The runtime reads `std::env::var(NAME)` at boot; only the variable name is saved.
 * `--base-url <URL>` - Base URL (Ollama, self-hosted OpenAI-compatible gateway, ...)
 * `--device <DEVICE>` - Device recorded on the backend row: `metal`, `cuda`, `cpu`.
 

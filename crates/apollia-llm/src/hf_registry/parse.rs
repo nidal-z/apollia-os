@@ -81,8 +81,7 @@ pub(super) fn build_gguf_files(
         .filter(|e| e.entry_type == "file" && e.path.ends_with(".gguf"))
         .map(|e| {
             let size_bytes = e.size;
-            let size_gb = size_bytes as f64 / 1_073_741_824.0;
-            let compatibility = hardware.map(|hw| CompatibilityBadge::compute(size_gb, hw));
+            let compatibility = hardware.map(|hw| listed_file_badge(size_bytes, hw));
             HfFile {
                 filename: e.path.clone(),
                 size_bytes,
@@ -93,6 +92,21 @@ pub(super) fn build_gguf_files(
             }
         })
         .collect()
+}
+
+/// The badge of a file the Hub lists by size alone.
+///
+/// No header has been read, so the estimator's proportional cache applies;
+/// the verdict is still the one [`crate::recommend::fit::grade`] gives every
+/// other surface for the same inputs.
+pub(crate) fn listed_file_badge(size_bytes: u64, hardware: &HardwareProfile) -> CompatibilityBadge {
+    crate::recommend::assess_fit(
+        size_bytes,
+        &crate::gguf_probe::GgufHeaderFacts::default(),
+        hardware,
+        &crate::recommend::RuntimeShape::default(),
+    )
+    .badge
 }
 
 /// Map every LFS file of a repository tree to its SHA-256.
@@ -259,9 +273,12 @@ pub(super) fn parse_model_list_item(
         compatibility_issue = Some(CompatIssue::NoGgufFiles);
     }
 
+    let publisher_kind = crate::recommend::publisher_kind(&repo_id);
+
     Some(HfModelCard {
         repo_id,
         author,
+        publisher_kind,
         downloads,
         likes,
         license,

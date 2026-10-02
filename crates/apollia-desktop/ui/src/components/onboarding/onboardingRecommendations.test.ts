@@ -310,6 +310,7 @@ describe("measuredLabel", () => {
     cpu_model: "AMD Ryzen 9 5950X",
     cpu_cores: 16,
     memory_budget_gb: 16,
+    total_capacity_gb: 54.3,
     accelerator,
   });
 

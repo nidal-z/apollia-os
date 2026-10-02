@@ -192,8 +192,10 @@
           cpu_model: "",
           cpu_cores: 0,
           memory_budget_gb: 0,
+          total_capacity_gb: 0,
           accelerator: { kind: "none" },
         },
+        selection: [],
       };
     } finally {
       if (request === recommendRequest) recommendLoading = false;

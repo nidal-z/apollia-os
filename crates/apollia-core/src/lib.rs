@@ -24,9 +24,11 @@ pub mod error_analysis;
 pub mod events;
 pub mod hitl_payload;
 pub mod hitl_request;
+pub mod inference_server;
 pub mod llm_backend;
 pub mod manifest;
 pub mod mcp_health;
+pub mod model_preset;
 #[cfg(feature = "net")]
 pub mod net;
 pub mod notebook;
@@ -76,6 +78,7 @@ pub use hitl_payload::{
     Risque,
 };
 pub use hitl_request::{HitlRequest, ImpactLevel, RiskAnalysis};
+pub use inference_server::InferenceServer;
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{AgentManifest, AgentSkill, MemoryConfig};
 pub use mcp_health::{McpHealth, McpHealthSeverity};
