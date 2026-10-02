@@ -63,9 +63,10 @@ pub enum PolicyCommand {
     /// Check a policy folder: schema, signature, and rights in the system folder.
     ///
     /// The rights are checked when the folder is the one the runtime reads.
-    /// A folder that does not hold is refused with exit 1; `--json` carries
-    /// the verdict, the reason (`schema`, `signature`, `key`, `owner`, or
-    /// `missing` when the folder does not exist) and its detail.
+    /// A folder that does not hold is refused with exit 1, whatever the cause;
+    /// the cause (`schema`, `signature`, `key`, `owner`, or `missing` when the
+    /// folder does not exist) is named in the message, and `--json` carries the
+    /// verdict, the reason and its detail.
     Verify {
         /// Policy folder.
         dir: PathBuf,

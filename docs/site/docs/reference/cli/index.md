@@ -3168,7 +3168,7 @@ Writes `SIGNATURE` and `org.pub` next to it, replacing earlier ones. A policy th
 
 Check a policy folder: schema, signature, and rights in the system folder.
 
-The rights are checked when the folder is the one the runtime reads. A folder that does not hold is refused with exit 1; `--json` carries the verdict, the reason (`schema`, `signature`, `key`, `owner`, or `missing` when the folder does not exist) and its detail.
+The rights are checked when the folder is the one the runtime reads. A folder that does not hold is refused with exit 1, whatever the cause; the cause (`schema`, `signature`, `key`, `owner`, or `missing` when the folder does not exist) is named in the message, and `--json` carries the verdict, the reason and its detail.
 
 **Usage:** `apollia-os policy verify <DIR>`
 

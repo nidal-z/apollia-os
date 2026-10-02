@@ -358,6 +358,7 @@ open(path, "wb").write(bytes(data))
 PY
 check_exit "policy verify (one byte altered) → 1" 1 "$BIN" policy verify "$POL"
 check_content "policy verify --json (one byte altered): reason" '"reason": "signature"' bash -c "'$BIN' policy verify '$POL' --json; true"
+check_content "policy verify (human, one byte altered): reason" 'refused \(signature\)' bash -c "'$BIN' policy verify '$POL'; true"
 check_exit "policy verify (missing folder) → 1" 1 "$BIN" policy verify "$SCRATCH/no-such-policy"
 check_content "policy show: none" '^none$' "$BIN" policy show
 check_json_field "policy show --json: none" "d['state']" "none" "$BIN" policy show --json
