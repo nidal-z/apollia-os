@@ -44,8 +44,9 @@ use pyo3::prelude::*;
 use serde_json::json;
 use tokio::sync::{broadcast, oneshot};
 
-/// The package `calc`: three tools, one module. Importing the module counts
-/// itself in `IMPORTS`; `wait` sleeps an hour and writes how it ended;
+/// The package `calc`: three tools, one module. The module imports
+/// `calc_vendor`, which only the package environment holds, and counts its own
+/// imports in `IMPORTS`; `wait` sleeps an hour and writes how it ended;
 /// `forbidden` leaves a file behind if it ever runs.
 const CALC_MODULE: &str = r#"
 import asyncio
@@ -53,6 +54,8 @@ import pathlib
 from typing import Annotated
 
 from apollia import tool
+
+import calc_vendor
 
 IMPORTS = pathlib.Path(__IMPORTS__)
 MARKER = pathlib.Path(__MARKER__)
@@ -62,7 +65,7 @@ IMPORTS.write_text(str(int(IMPORTS.read_text()) + 1) if IMPORTS.exists() else "1
 
 @tool("add", "Add two numbers.", action="read")
 async def add(ctx, a: Annotated[int, "first"], b: Annotated[int, "second"]) -> dict:
-    return {"sum": a + b, "caller": ctx.agent_name}
+    return {"sum": a + b, "caller": ctx.agent_name, "vendor": calc_vendor.ORIGIN}
 
 
 @tool("wait", "Wait for an hour.", action="read")
@@ -113,6 +116,9 @@ action = "write_or_delete"
 inputs = { type = "object" }
 "#;
 
+/// `calc_vendor`, the dependency the environment of `calc` installed.
+const CALC_VENDOR: &str = "ORIGIN = \"package environment\"\n";
+
 const AGENT: &str = "bookkeeper";
 
 struct Fixture {
@@ -142,7 +148,8 @@ fn use_tree_sdk() {
     .expect("sys.path accepts the SDK");
 }
 
-/// A package `calc` with its three tools linked, stored in `agents.db`.
+/// A package `calc` with its three tools linked, stored in `agents.db`, and its
+/// environment at `venvs/calc/venv` holding `calc_vendor` in `site-packages`.
 fn stored_package() -> Fixture {
     use_tree_sdk();
     let dir = tempfile::tempdir().expect("temp dir");
@@ -169,14 +176,21 @@ fn stored_package() -> Fixture {
         repo.link_item("calc", PackageItemKind::Tool, tool)
             .expect("link the tool");
     }
+    let site_packages = dir
+        .path()
+        .join("venvs/calc/venv/lib/python3.12/site-packages");
+    std::fs::create_dir_all(&site_packages).expect("package environment dirs");
+    std::fs::write(site_packages.join("calc_vendor.py"), CALC_VENDOR)
+        .expect("write the vendored module");
     let tools = PackageTools::read(&repo, dir.path().join("venvs")).expect("read the tools");
     Fixture { dir, tools }
 }
 
 // GIVEN a stored package whose tool `add` has never been called
 // WHEN an agent calls it twice through the dispatcher of the native tools
-// THEN both calls answer with the sum and the calling agent, and the module
-//      was imported once, at the first call
+// THEN both calls answer with the sum, the calling agent and a value read from
+//      the package environment, and the module was imported once, at the
+//      first call
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn package_tool_is_loaded_on_first_call_and_runs_through_the_dispatcher() {
     // GIVEN
@@ -195,11 +209,11 @@ async fn package_tool_is_loaded_on_first_call_and_runs_through_the_dispatcher() 
     // THEN
     assert_eq!(
         first.expect("first call"),
-        json!({"sum": 5, "caller": AGENT})
+        json!({"sum": 5, "caller": AGENT, "vendor": "package environment"})
     );
     assert_eq!(
         second.expect("second call"),
-        json!({"sum": 9, "caller": AGENT})
+        json!({"sum": 9, "caller": AGENT, "vendor": "package environment"})
     );
     assert_eq!(fx.read("imports.txt").as_deref(), Some("1"));
 }
@@ -430,6 +444,9 @@ async fn interface_agent_runs_the_package_tool_it_is_granted() {
     assert_eq!(*add.1, ToolCallStatus::Executed, "{calls:?}");
     let output: serde_json::Value =
         serde_json::from_str(add.2.expect("the call has an output")).expect("JSON output");
-    assert_eq!(output, json!({"sum": 5, "caller": AGENT}));
+    assert_eq!(
+        output,
+        json!({"sum": 5, "caller": AGENT, "vendor": "package environment"})
+    );
     assert_eq!(response.content, "The sum is 5.");
 }
