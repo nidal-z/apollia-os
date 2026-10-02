@@ -892,12 +892,17 @@ jobs:
       # server entry point from the sealed .app, with the bundled interpreter
       # and under the isolation contract the supervisor uses (`-S`, the engine
       # directory as the only package path), so a bundle without a working
-      # engine fails here rather than on a user's machine.
+      # engine fails here rather than on a user's machine. It also refuses a
+      # bundle that carries mlx-embeddings (GPL-3.0), which never ships.
       - name: Verify the MLX engine in the .app
         run: |
           RES="target/aarch64-apple-darwin/release/bundle/macos/Apollia OS.app/Contents/Resources/python"
           PYTHONNOUSERSITE=1 PYTHONPATH="$RES/engines/mlx/site-packages" \
             "$RES/bin/python3.13" -S -m vllm_mlx.cli serve --help
+          if ls -d "$RES/engines/mlx/site-packages"/mlx_embeddings* >/dev/null 2>&1; then
+            echo "::error::mlx-embeddings (GPL-3.0) is in the bundle"
+            exit 1
+          fi
           du -sh "$RES/engines/mlx"
 
       # When the signing key is present, `cargo tauri build` emits the updater
