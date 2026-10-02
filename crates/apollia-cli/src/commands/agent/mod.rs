@@ -1,7 +1,8 @@
 //! `apollia-os agent` subcommands: manage agents via the runtime API and local persistence.
 //!
-//! Provides `list`, `start`, `stop`, `info` (runtime-dependent) and
-//! `install`, `uninstall`, `enable`, `disable`, `update` (local).
+//! Provides `list`, `start`, `stop`, `show`, `set`, `reset`
+//! (runtime-dependent) and `install`, `uninstall`, `enable`, `disable`,
+//! `update` (local).
 
 use std::path::{Path, PathBuf};
 
@@ -20,6 +21,7 @@ use crate::community::{validate_community_agent, AgentValidationError};
 use crate::client::{default_socket_path, ClientError, RuntimeClient};
 use crate::exit_codes;
 
+mod definition;
 mod display;
 mod install;
 mod lifecycle;
@@ -30,6 +32,9 @@ mod validate;
 #[cfg(test)]
 mod tests;
 
+pub(in crate::commands::agent) use definition::{
+    print_definition_section, run_list_definitions, run_reset, run_set,
+};
 pub(in crate::commands::agent) use display::{
     build_list_json, format_a2a_agent_list, format_agent_detail, format_enriched_agent_list,
     format_status_snapshot, handle_error, local_agent_detail, print_audit_event_row,
@@ -52,8 +57,12 @@ pub enum AgentCommand {
     /// List all agents (installed and/or runtime).
     List {
         /// Show only A2A-capable agents with their skill descriptors.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "definitions")]
         supports_a2a: bool,
+        /// List the stored agents as resolved (package definition, then your
+        /// overrides) instead of the runtime inventory.
+        #[arg(long)]
+        definitions: bool,
     },
     /// Start (register) a new agent from a Python module path.
     Start {
@@ -65,10 +74,37 @@ pub enum AgentCommand {
         /// Agent identifier.
         agent_id: String,
     },
-    /// Display detailed information about an agent.
+    /// Display detailed information about an agent, with its definition as
+    /// resolved (package defaults, then your overrides).
     Show {
         /// Agent identifier.
         agent_id: String,
+    },
+    /// Override one field of an agent's definition; a package update keeps it.
+    ///
+    /// Fields: `name` and `mission` take one value; `examples`, `access` and
+    /// `sources` take the whole list, one value per item (none for an empty
+    /// list). Recorded in the audit journal.
+    Set {
+        /// Agent identifier.
+        agent_id: String,
+        /// Field to override: name, mission, examples, access or sources.
+        field: String,
+        /// The value, or the items of a list.
+        #[arg(num_args = 0..)]
+        values: Vec<String>,
+    },
+    /// Go back to the package defaults: remove every override of an agent,
+    /// or the override of one field. Recorded in the audit journal.
+    Reset {
+        /// Agent identifier.
+        agent_id: String,
+        /// Remove only the override of this field.
+        #[arg(long)]
+        field: Option<String>,
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        confirm: bool,
     },
     /// Show a compact runtime-status snapshot for `<agent_id>`.
     ///
@@ -199,10 +235,23 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
     let client = RuntimeClient::new(socket_path);
 
     match cmd {
-        AgentCommand::List { supports_a2a } => run_list(&client, *supports_a2a, json).await,
+        AgentCommand::List {
+            definitions: true, ..
+        } => run_list_definitions(&client, json).await,
+        AgentCommand::List { supports_a2a, .. } => run_list(&client, *supports_a2a, json).await,
         AgentCommand::Start { path } => run_start(&client, path, json).await,
         AgentCommand::Stop { agent_id } => run_stop(&client, agent_id, json).await,
         AgentCommand::Show { agent_id } => run_info(&client, agent_id, json).await,
+        AgentCommand::Set {
+            agent_id,
+            field,
+            values,
+        } => run_set(&client, agent_id, field, values, json).await,
+        AgentCommand::Reset {
+            agent_id,
+            field,
+            confirm,
+        } => run_reset(&client, agent_id, field.as_deref(), *confirm, json).await,
         AgentCommand::Status { agent_id } => run_status(&client, agent_id, json).await,
         AgentCommand::Messages { agent_id, limit } => {
             run_messages(&client, agent_id, *limit, json).await

@@ -70,7 +70,8 @@ def sync_detailed(
 ) -> Response[Any | ApiErrorBody]:
     r"""`DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
 
-     Shuts down the session, unregisters the server, then removes its database entry.
+     Shuts down the session, unregisters the server, removes its database entry,
+    then journals the removal.
     Returns `200 OK` with `{\"removed\": \"<name>\"}` on success.
     Returns `404 Not Found` when no server with the given name is managed.
     Returns `503 Service Unavailable` when MCP is not configured.
@@ -104,7 +105,8 @@ def sync(
 ) -> Any | ApiErrorBody | None:
     r"""`DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
 
-     Shuts down the session, unregisters the server, then removes its database entry.
+     Shuts down the session, unregisters the server, removes its database entry,
+    then journals the removal.
     Returns `200 OK` with `{\"removed\": \"<name>\"}` on success.
     Returns `404 Not Found` when no server with the given name is managed.
     Returns `503 Service Unavailable` when MCP is not configured.
@@ -133,7 +135,8 @@ async def asyncio_detailed(
 ) -> Response[Any | ApiErrorBody]:
     r"""`DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
 
-     Shuts down the session, unregisters the server, then removes its database entry.
+     Shuts down the session, unregisters the server, removes its database entry,
+    then journals the removal.
     Returns `200 OK` with `{\"removed\": \"<name>\"}` on success.
     Returns `404 Not Found` when no server with the given name is managed.
     Returns `503 Service Unavailable` when MCP is not configured.
@@ -165,7 +168,8 @@ async def asyncio(
 ) -> Any | ApiErrorBody | None:
     r"""`DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
 
-     Shuts down the session, unregisters the server, then removes its database entry.
+     Shuts down the session, unregisters the server, removes its database entry,
+    then journals the removal.
     Returns `200 OK` with `{\"removed\": \"<name>\"}` on success.
     Returns `404 Not Found` when no server with the given name is managed.
     Returns `503 Service Unavailable` when MCP is not configured.

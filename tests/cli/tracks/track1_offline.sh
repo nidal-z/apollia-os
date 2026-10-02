@@ -338,6 +338,16 @@ check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model re
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
+# The definition and overrides of an agent live behind the runtime, which
+# journals every write: daemon off, each leaf refuses with 2, and a field or a
+# value the CLI can judge alone is refused with 1 before any call.
+check_exit   "agent show (off) → 2"            2     "$BIN" --socket "$OFFSOCK" agent show apollia-chat
+check_exit   "agent list --definitions (off) → 2" 2  "$BIN" --socket "$OFFSOCK" agent list --definitions
+check_exit   "agent set (off) → 2"             2     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission "Answer briefly."
+check_exit   "agent reset (off) → 2"           2     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --confirm
+check_exit   "agent set unknown field → 1"     1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat model qwen3
+check_exit   "agent set two missions → 1"      1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission one two
+check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --field model --confirm
 # Usage errors are exit 1 by contract (1 = usage, 2 = runtime): a script can
 # tell a typo from a stopped daemon.
 check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus
