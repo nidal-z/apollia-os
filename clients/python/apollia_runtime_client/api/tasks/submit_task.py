@@ -72,7 +72,9 @@ def sync_detailed(
 ) -> Response[ApiErrorBody | TaskResponse]:
     """Handler for `POST /api/v1/tasks`.
 
-     Submits a new task to the specified agent via the TaskRouter.
+     Submits a new task to the specified agent via the TaskRouter. A stored
+    agent that runs no code is run by the agent executor on the message the
+    input carries, outside any conversation.
     Returns 202 Accepted with the generated task_id on success.
 
     Args:
@@ -104,7 +106,9 @@ def sync(
 ) -> ApiErrorBody | TaskResponse | None:
     """Handler for `POST /api/v1/tasks`.
 
-     Submits a new task to the specified agent via the TaskRouter.
+     Submits a new task to the specified agent via the TaskRouter. A stored
+    agent that runs no code is run by the agent executor on the message the
+    input carries, outside any conversation.
     Returns 202 Accepted with the generated task_id on success.
 
     Args:
@@ -131,7 +135,9 @@ async def asyncio_detailed(
 ) -> Response[ApiErrorBody | TaskResponse]:
     """Handler for `POST /api/v1/tasks`.
 
-     Submits a new task to the specified agent via the TaskRouter.
+     Submits a new task to the specified agent via the TaskRouter. A stored
+    agent that runs no code is run by the agent executor on the message the
+    input carries, outside any conversation.
     Returns 202 Accepted with the generated task_id on success.
 
     Args:
@@ -161,7 +167,9 @@ async def asyncio(
 ) -> ApiErrorBody | TaskResponse | None:
     """Handler for `POST /api/v1/tasks`.
 
-     Submits a new task to the specified agent via the TaskRouter.
+     Submits a new task to the specified agent via the TaskRouter. A stored
+    agent that runs no code is run by the agent executor on the message the
+    input carries, outside any conversation.
     Returns 202 Accepted with the generated task_id on success.
 
     Args:

@@ -9,10 +9,10 @@ use axum::http::StatusCode;
 use axum::Json;
 
 use apollia_core::TaskId;
-use apollia_tools::{AgentRepository, ResolvedAgent};
+use apollia_tools::ResolvedAgent;
 
 use super::{json_to_aip_input, ErrorResponse};
-use crate::agents::task::{message_of, AgentTaskError, AgentTaskLauncher};
+use crate::agents::task::{message_of, resolve_without_code, AgentTaskError, AgentTaskLauncher};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 
@@ -41,38 +41,16 @@ pub(super) fn stored_agent_without_code<B: ExecutionBackend + Clone>(
     if state.chat_manager.is_none() {
         return Ok(None);
     }
-    let path = apollia_core::paths::DataFile::Agents.path(&state.data_dir);
-    if !path.exists() {
-        return Ok(None);
-    }
-    let repo = AgentRepository::open(&path).map_err(|e| {
-        error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("cannot open agents.db: {e}"),
-        )
-    })?;
-    let runs_code = repo
-        .get(name)
-        .map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, e))?
-        .is_some();
-    if runs_code {
-        return Ok(None);
-    }
-    let model = match state.llm_backend_repo.as_ref() {
-        Some(llm) => {
-            let guard = llm.lock().map_err(|_| {
-                error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "model store lock poisoned",
-                )
-            })?;
-            guard
-                .agent_model(name)
-                .map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, e))?
-        }
+    let guard = match state.llm_backend_repo.as_ref() {
+        Some(llm) => Some(llm.lock().map_err(|_| {
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "model store lock poisoned",
+            )
+        })?),
         None => None,
     };
-    repo.resolved(name, model, crate::agents::global_default_autonomy())
+    resolve_without_code(&state.data_dir, guard.as_deref(), name)
         .map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, e))
 }
 
