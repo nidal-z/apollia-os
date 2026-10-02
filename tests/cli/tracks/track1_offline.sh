@@ -416,6 +416,12 @@ check_exit   "batch status (off) → 2"          2     "$BIN" --socket "$OFFSOCK
 check_exit   "batch list --json (off) → 2"     2     "$BIN" --socket "$OFFSOCK" --json batch list
 check_exit   "batch run bad --option → 1"      1     "$BIN" --socket "$OFFSOCK" batch run seed-ledger --source-type spreadsheet --source /data/requests.xlsx --option sheet
 check_exit   "batch run without source → 1"    1     "$BIN" --socket "$OFFSOCK" batch run seed-ledger
+check_exit   "batch accesses (off) → 2"        2     "$BIN" --socket "$OFFSOCK" batch accesses seed-ledger
+check_exit   "batch pause --json (off) → 2"    2     "$BIN" --socket "$OFFSOCK" --json batch pause 00000000-0000-0000-0000-000000000000
+check_exit   "batch resume (off) → 2"          2     "$BIN" --socket "$OFFSOCK" batch resume 00000000-0000-0000-0000-000000000000
+check_exit   "batch stop (off) → 2"            2     "$BIN" --socket "$OFFSOCK" batch stop 00000000-0000-0000-0000-000000000000
+check_exit   "batch retry --grant (off) → 2"   2     "$BIN" --socket "$OFFSOCK" batch retry 00000000-0000-0000-0000-000000000000 --grant gmail_send
+check_exit   "batch pause without id → 1"      1     "$BIN" --socket "$OFFSOCK" batch pause
 # Usage errors are exit 1 by contract (1 = usage, 2 = runtime): a script can
 # tell a typo from a stopped daemon.
 check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus

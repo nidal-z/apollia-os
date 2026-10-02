@@ -21,6 +21,7 @@ class BatchView:
 
     Attributes:
         agent (str):
+        awaiting (int): Items waiting for an access to be granted.
         batch_id (str):
         canceled (int):
         completed (int):
@@ -30,13 +31,14 @@ class BatchView:
         grants (list[str]):
         max_failures (int): Failed items tolerated before the batch is interrupted.
         source (BatchViewSource): The source descriptor, `{kind, location, options}`.
-        state (str): `running`, `completed` or `interrupted`.
+        state (str): `running`, `paused`, `completed`, `interrupted` or `stopped`.
         total (int):
         updated_at (str):
         ended_at (None | str | Unset):
     """
 
     agent: str
+    awaiting: int
     batch_id: str
     canceled: int
     completed: int
@@ -54,6 +56,8 @@ class BatchView:
 
     def to_dict(self) -> dict[str, Any]:
         agent = self.agent
+
+        awaiting = self.awaiting
 
         batch_id = self.batch_id
 
@@ -90,6 +94,7 @@ class BatchView:
         field_dict.update(
             {
                 "agent": agent,
+                "awaiting": awaiting,
                 "batchId": batch_id,
                 "canceled": canceled,
                 "completed": completed,
@@ -115,6 +120,8 @@ class BatchView:
 
         d = dict(src_dict)
         agent = d.pop("agent")
+
+        awaiting = d.pop("awaiting")
 
         batch_id = d.pop("batchId")
 
@@ -151,6 +158,7 @@ class BatchView:
 
         batch_view = cls(
             agent=agent,
+            awaiting=awaiting,
             batch_id=batch_id,
             canceled=canceled,
             completed=completed,

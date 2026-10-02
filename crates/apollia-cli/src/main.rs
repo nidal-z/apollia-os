@@ -336,7 +336,7 @@ enum Commands {
     /// Automated code or plan review via the apollia-review agent.
     Review(commands::review::ReviewArgs),
 
-    /// Run an agent on every item of a source (run, status, list).
+    /// Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry).
     Batch {
         /// Batch subcommand.
         #[command(subcommand)]

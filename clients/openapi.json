@@ -1497,6 +1497,59 @@
         }
       }
     },
+    "/api/v1/batches/accesses": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`GET /api/v1/batches/accesses`: the sensitive accesses of an agent, those\na launch may grant for the duration of a batch.",
+        "description": "Reading is never listed: it runs without asking. An access that is not\n`grantable` (executing code, or an access nobody classified) is listed\ntoo: an item that reaches for it waits for a decision.",
+        "operationId": "batch_accesses",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "query",
+            "description": "The agent a batch would run.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sensitive accesses of the agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchAccessesView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An agent that cannot run a batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/batches/{id}": {
       "get": {
         "tags": [
@@ -1528,6 +1581,274 @@
           },
           "404": {
             "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/pause": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/pause`: no further item starts; those running\nend on their own. A paused batch stays paused across a restart.",
+        "operationId": "pause_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch, paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch is not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/resume": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/resume`: a paused batch starts its items again.",
+        "operationId": "resume_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch, running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch is not paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/retry": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/retry`: the failed items, and those waiting for\nan access, run again from their input as read at launch. `grants` adds\naccesses granted for the rest of the batch.",
+        "operationId": "retry_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRetry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The batch, running again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A grant the agent cannot take",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No failed or waiting item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/stop": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/stop`: the running items are cancelled, the\npending ones are canceled without running, and the batch ends `stopped`.",
+        "operationId": "stop_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch, stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch has already ended",
             "content": {
               "application/json": {
                 "schema": {
@@ -8901,6 +9222,53 @@
           }
         }
       },
+      "BatchAccess": {
+        "type": "object",
+        "description": "One sensitive access of the agent a batch runs.",
+        "required": [
+          "accessId",
+          "permits",
+          "family",
+          "grantable"
+        ],
+        "properties": {
+          "accessId": {
+            "type": "string",
+            "description": "The access, as the agent names it: a tool, or `mcp:<server>`."
+          },
+          "family": {
+            "type": "string",
+            "description": "Its action family: `read_personal`, `write_or_delete`, `send_external`,\n`execute_code` or `unclassified`."
+          },
+          "grantable": {
+            "type": "boolean",
+            "description": "Whether it can be granted for a batch. Executing code asks at every\ncall, and an unclassified access has no family to grant."
+          },
+          "permits": {
+            "type": "string",
+            "description": "What it lets the agent do."
+          }
+        }
+      },
+      "BatchAccessesView": {
+        "type": "object",
+        "description": "The sensitive accesses of an agent.",
+        "required": [
+          "agent",
+          "accesses"
+        ],
+        "properties": {
+          "accesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchAccess"
+            }
+          },
+          "agent": {
+            "type": "string"
+          }
+        }
+      },
       "BatchDetailView": {
         "type": "object",
         "description": "A batch with its items.",
@@ -8970,7 +9338,7 @@
           },
           "status": {
             "type": "string",
-            "description": "`pending`, `running`, `completed`, `failed` or `canceled`."
+            "description": "`pending`, `running`, `completed`, `failed`, `canceled`, or `awaiting`\na decision on an access nobody granted."
           },
           "taskId": {
             "type": [
@@ -9007,7 +9375,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The accesses granted for the duration of the batch."
+            "description": "The sensitive accesses granted for the duration of the batch, by\ntheir id as `GET /api/v1/batches/accesses` lists them."
           },
           "maxFailures": {
             "type": [
@@ -9039,6 +9407,19 @@
           }
         }
       },
+      "BatchRetry": {
+        "type": "object",
+        "description": "What the failed items of a batch are run again with.",
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses granted for the rest of the batch, on top of those granted\nat launch: an item that waited for one of them runs again with it."
+          }
+        }
+      },
       "BatchView": {
         "type": "object",
         "description": "A batch: what it was launched with, its state and its counters.",
@@ -9054,12 +9435,19 @@
           "completed",
           "failed",
           "canceled",
+          "awaiting",
           "createdAt",
           "updatedAt"
         ],
         "properties": {
           "agent": {
             "type": "string"
+          },
+          "awaiting": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Items waiting for an access to be granted.",
+            "minimum": 0
           },
           "batchId": {
             "type": "string"
@@ -9111,7 +9499,7 @@
           },
           "state": {
             "type": "string",
-            "description": "`running`, `completed` or `interrupted`."
+            "description": "`running`, `paused`, `completed`, `interrupted` or `stopped`."
           },
           "total": {
             "type": "integer",

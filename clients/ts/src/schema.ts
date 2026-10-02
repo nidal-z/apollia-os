@@ -534,6 +534,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/batches/accesses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/batches/accesses`: the sensitive accesses of an agent, those
+         *     a launch may grant for the duration of a batch.
+         * @description Reading is never listed: it runs without asking. An access that is not
+         *     `grantable` (executing code, or an access nobody classified) is listed
+         *     too: an item that reaches for it waits for a decision.
+         */
+        get: operations["batch_accesses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/batches/{id}": {
         parameters: {
             query?: never;
@@ -545,6 +568,84 @@ export interface paths {
         get: operations["get_batch"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/batches/{id}/pause`: no further item starts; those running
+         *     end on their own. A paused batch stays paused across a restart.
+         */
+        post: operations["pause_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/batches/{id}/resume`: a paused batch starts its items again. */
+        post: operations["resume_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/batches/{id}/retry`: the failed items, and those waiting for
+         *     an access, run again from their input as read at launch. `grants` adds
+         *     accesses granted for the rest of the batch.
+         */
+        post: operations["retry_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/batches/{id}/stop`: the running items are cancelled, the
+         *     pending ones are canceled without running, and the batch ends `stopped`.
+         */
+        post: operations["stop_batch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3171,6 +3272,28 @@ export interface components {
             /** @description Name of the tool. */
             tool_name: string;
         };
+        /** @description One sensitive access of the agent a batch runs. */
+        BatchAccess: {
+            /** @description The access, as the agent names it: a tool, or `mcp:<server>`. */
+            accessId: string;
+            /**
+             * @description Its action family: `read_personal`, `write_or_delete`, `send_external`,
+             *     `execute_code` or `unclassified`.
+             */
+            family: string;
+            /**
+             * @description Whether it can be granted for a batch. Executing code asks at every
+             *     call, and an unclassified access has no family to grant.
+             */
+            grantable: boolean;
+            /** @description What it lets the agent do. */
+            permits: string;
+        };
+        /** @description The sensitive accesses of an agent. */
+        BatchAccessesView: {
+            accesses: components["schemas"]["BatchAccess"][];
+            agent: string;
+        };
         /** @description A batch with its items. */
         BatchDetailView: {
             batch: components["schemas"]["BatchView"];
@@ -3193,7 +3316,10 @@ export interface components {
              */
             rank: number;
             sources?: Record<string, never> | null;
-            /** @description `pending`, `running`, `completed`, `failed` or `canceled`. */
+            /**
+             * @description `pending`, `running`, `completed`, `failed`, `canceled`, or `awaiting`
+             *     a decision on an access nobody granted.
+             */
             status: string;
             /** @description The task that ran it. */
             taskId?: string | null;
@@ -3207,7 +3333,10 @@ export interface components {
              * @description How many items run at once, 1 to 16; 1 when absent.
              */
             concurrency?: number | null;
-            /** @description The accesses granted for the duration of the batch. */
+            /**
+             * @description The sensitive accesses granted for the duration of the batch, by
+             *     their id as `GET /api/v1/batches/accesses` lists them.
+             */
             grants?: string[];
             /**
              * Format: int32
@@ -3221,9 +3350,22 @@ export interface components {
         BatchListView: {
             batches: components["schemas"]["BatchView"][];
         };
+        /** @description What the failed items of a batch are run again with. */
+        BatchRetry: {
+            /**
+             * @description Accesses granted for the rest of the batch, on top of those granted
+             *     at launch: an item that waited for one of them runs again with it.
+             */
+            grants?: string[];
+        };
         /** @description A batch: what it was launched with, its state and its counters. */
         BatchView: {
             agent: string;
+            /**
+             * Format: int64
+             * @description Items waiting for an access to be granted.
+             */
+            awaiting: number;
             batchId: string;
             /** Format: int64 */
             canceled: number;
@@ -3243,7 +3385,7 @@ export interface components {
             maxFailures: number;
             /** @description The source descriptor, `{kind, location, options}`. */
             source: Record<string, never>;
-            /** @description `running`, `completed` or `interrupted`. */
+            /** @description `running`, `paused`, `completed`, `interrupted` or `stopped`. */
             state: string;
             /** Format: int64 */
             total: number;
@@ -6257,6 +6399,47 @@ export interface operations {
             };
         };
     };
+    batch_accesses: {
+        parameters: {
+            query: {
+                /** @description The agent a batch would run. */
+                agent: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sensitive accesses of the agent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchAccessesView"];
+                };
+            };
+            /** @description An agent that cannot run a batch */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
     get_batch: {
         parameters: {
             query?: never;
@@ -6280,6 +6463,219 @@ export interface operations {
             };
             /** @description No such batch */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    pause_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch, paused */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description The batch is not running */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    resume_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch, running */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description The batch is not paused */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchRetry"];
+            };
+        };
+        responses: {
+            /** @description The batch, running again */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description A grant the agent cannot take */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description No failed or waiting item */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    stop_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch, stopped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description The batch has already ended */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

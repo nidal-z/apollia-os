@@ -10,52 +10,125 @@ use apollia_core::batch_source::{BatchSource, MemorySource};
 use super::*;
 use crate::test_support::poll_until_async;
 
-const WAIT: Duration = Duration::from_secs(10);
+pub(super) const WAIT: Duration = Duration::from_secs(10);
 
-/// What the scripted runner does with an item, read from its `outcome` field.
+/// What the scripted runner does with an item, read from its `outcome` field:
+/// `ok`, `fail`, `hang` until cancelled, or `await` an access.
 #[derive(Default)]
-struct Scripted {
-    started: AtomicU32,
-    held: Mutex<Vec<oneshot::Sender<ItemEnd>>>,
-    /// Every item hangs until the test drops the runner, whatever its field.
-    hang_all: bool,
+pub(super) struct Scripted {
+    pub(super) started: AtomicU32,
+    pub(super) held: Mutex<Vec<(String, oneshot::Sender<ItemEnd>)>>,
+    /// Every item hangs until cancelled or the runner is dropped.
+    pub(super) hang_all: bool,
+    /// The inputs started, in order.
+    pub(super) inputs: Mutex<Vec<serde_json::Value>>,
+    /// The grants recorded, per batch.
+    pub(super) granted: Mutex<Vec<(String, Vec<String>)>>,
+    /// The batches whose grants were withdrawn.
+    pub(super) released: Mutex<Vec<String>>,
+    /// The tasks cancelled.
+    pub(super) cancelled: Mutex<Vec<String>>,
+}
+
+/// The sensitive accesses of the scripted agent: one to grant, one never.
+pub(super) fn scripted_accesses() -> Vec<BatchAccess> {
+    vec![
+        BatchAccess {
+            access_id: "send_email".into(),
+            permits: "Send an email.".into(),
+            family: "send_external".into(),
+            grantable: true,
+        },
+        BatchAccess {
+            access_id: "bash_executor".into(),
+            permits: "Run a command.".into(),
+            family: "execute_code".into(),
+            grantable: false,
+        },
+    ]
 }
 
 impl ItemRunner for Arc<Scripted> {
-    async fn check(&self, agent: &str) -> Result<(), String> {
+    async fn check(&self, agent: &str) -> Result<Vec<BatchAccess>, String> {
         if agent == "clerk" {
-            Ok(())
+            Ok(scripted_accesses())
         } else {
             Err(format!("agent '{agent}' cannot run a batch"))
         }
     }
 
-    async fn start(&self, _agent: &str, input: &serde_json::Value) -> Result<StartedItem, String> {
+    async fn grant(
+        &self,
+        batch_id: &str,
+        _agent: &str,
+        grants: &[BatchAccess],
+    ) -> Result<(), String> {
+        self.granted.lock().unwrap().push((
+            batch_id.to_string(),
+            grants.iter().map(|g| g.access_id.clone()).collect(),
+        ));
+        Ok(())
+    }
+
+    async fn release(&self, batch_id: &str) -> Result<(), String> {
+        self.released.lock().unwrap().push(batch_id.to_string());
+        Ok(())
+    }
+
+    async fn start(
+        &self,
+        _batch_id: &str,
+        _agent: &str,
+        input: &serde_json::Value,
+    ) -> Result<StartedItem, String> {
         let n = self.started.fetch_add(1, Ordering::SeqCst);
+        self.inputs.lock().unwrap().push(input.clone());
+        let task_id = format!("task-{n}");
         let (tx, end) = oneshot::channel();
         let outcome = input["outcome"].as_str().unwrap_or("ok");
         if self.hang_all || outcome == "hang" {
-            self.held.lock().unwrap().push(tx);
+            self.held.lock().unwrap().push((task_id.clone(), tx));
         } else {
-            let status = if outcome == "fail" {
-                ItemStatus::Failed
-            } else {
-                ItemStatus::Completed
+            let (status, awaiting) = match outcome {
+                "fail" => (ItemStatus::Failed, None),
+                "await" => (ItemStatus::Awaiting, Some("send_email".to_string())),
+                _ => (ItemStatus::Completed, None),
             };
             let _ = tx.send(ItemEnd {
                 status,
                 output: format!("{outcome} {n}"),
+                awaiting,
             });
         }
-        Ok(StartedItem {
-            task_id: format!("task-{n}"),
-            end,
-        })
+        Ok(StartedItem { task_id, end })
+    }
+
+    async fn cancel(&self, task_id: &str) {
+        self.cancelled.lock().unwrap().push(task_id.to_string());
+        let mut held = self.held.lock().unwrap();
+        if let Some(i) = held.iter().position(|(id, _)| id == task_id) {
+            let (_, tx) = held.remove(i);
+            let _ = tx.send(ItemEnd {
+                status: ItemStatus::Canceled,
+                output: "cancelled".into(),
+                awaiting: None,
+            });
+        }
     }
 }
 
+/// A batch actor over `runner`, publishing on a bus of its own.
+pub(super) fn spawn(
+    repo: Arc<TaskRepository>,
+    sources: Arc<SourceRegistry>,
+    runner: Arc<Scripted>,
+) -> (BatchHandle, crate::eventbus::EventBusSender) {
+    let (bus, _) = tokio::sync::broadcast::channel(256);
+    (BatchHandle::spawn(repo, sources, runner, bus.clone()), bus)
+}
+
 /// A registry with one `memory` kind whose items carry `outcomes`, in order.
-fn registry(outcomes: &[&'static str]) -> Arc<SourceRegistry> {
+pub(super) fn registry(outcomes: &[&'static str]) -> Arc<SourceRegistry> {
     let outcomes: Vec<&'static str> = outcomes.to_vec();
     let mut registry = SourceRegistry::new();
     registry
@@ -73,7 +146,7 @@ fn registry(outcomes: &[&'static str]) -> Arc<SourceRegistry> {
     Arc::new(registry)
 }
 
-fn launch(concurrency: Option<u32>, max_failures: Option<u32>) -> BatchLaunch {
+pub(super) fn launch(concurrency: Option<u32>, max_failures: Option<u32>) -> BatchLaunch {
     BatchLaunch {
         agent: "clerk".into(),
         source: SourceDescriptor {
@@ -87,7 +160,7 @@ fn launch(concurrency: Option<u32>, max_failures: Option<u32>) -> BatchLaunch {
     }
 }
 
-async fn repository(dir: &tempfile::TempDir) -> Arc<TaskRepository> {
+pub(super) async fn repository(dir: &tempfile::TempDir) -> Arc<TaskRepository> {
     Arc::new(
         TaskRepository::open(&dir.path().join("hitl.db"))
             .await
@@ -95,7 +168,7 @@ async fn repository(dir: &tempfile::TempDir) -> Arc<TaskRepository> {
     )
 }
 
-async fn wait_state(repo: &TaskRepository, batch_id: &str, state: &str) -> BatchRow {
+pub(super) async fn wait_state(repo: &TaskRepository, batch_id: &str, state: &str) -> BatchRow {
     let reached = poll_until_async(WAIT, || async {
         repo.batch(batch_id).await.unwrap().unwrap().state == state
     })
@@ -115,7 +188,7 @@ async fn test_launch_defaults_and_completion() {
     let dir = tempfile::tempdir().unwrap();
     let repo = repository(&dir).await;
     let runner = Arc::new(Scripted::default());
-    let handle = BatchHandle::spawn(repo.clone(), registry(&["ok", "ok", "ok"]), runner.clone());
+    let (handle, _bus) = spawn(repo.clone(), registry(&["ok", "ok", "ok"]), runner.clone());
 
     // WHEN
     let batch = handle.launch(launch(None, None)).await.unwrap();
@@ -149,7 +222,7 @@ async fn test_failures_past_the_threshold_interrupt_the_batch() {
     let dir = tempfile::tempdir().unwrap();
     let repo = repository(&dir).await;
     let runner = Arc::new(Scripted::default());
-    let handle = BatchHandle::spawn(repo.clone(), registry(&["fail"; 6]), runner.clone());
+    let (handle, _bus) = spawn(repo.clone(), registry(&["fail"; 6]), runner.clone());
 
     // WHEN
     let batch = handle.launch(launch(Some(1), Some(2))).await.unwrap();
@@ -174,7 +247,7 @@ async fn test_failures_within_the_threshold_let_the_batch_complete() {
     // GIVEN
     let dir = tempfile::tempdir().unwrap();
     let repo = repository(&dir).await;
-    let handle = BatchHandle::spawn(
+    let (handle, _bus) = spawn(
         repo.clone(),
         registry(&["fail", "ok", "fail", "ok"]),
         Arc::new(Scripted::default()),
@@ -202,7 +275,7 @@ async fn test_a_running_batch_resumes_after_a_restart() {
         hang_all: true,
         ..Scripted::default()
     });
-    let first = BatchHandle::spawn(repo.clone(), registry(&["ok"; 4]), stalled.clone());
+    let (first, _bus) = spawn(repo.clone(), registry(&["ok"; 4]), stalled.clone());
     let batch = first.launch(launch(Some(2), None)).await.unwrap();
     let running = poll_until_async(WAIT, || async {
         repo.batch_items(&batch.batch_id)
@@ -219,7 +292,7 @@ async fn test_a_running_batch_resumes_after_a_restart() {
 
     // WHEN
     let resumed = Arc::new(Scripted::default());
-    let _second = BatchHandle::spawn(repo.clone(), registry(&[]), resumed.clone());
+    let (_second, _bus) = spawn(repo.clone(), registry(&[]), resumed.clone());
 
     // THEN
     let row = wait_state(&repo, &batch.batch_id, "completed").await;
@@ -236,7 +309,7 @@ async fn test_an_interrupted_batch_is_not_resumed() {
     // GIVEN
     let dir = tempfile::tempdir().unwrap();
     let repo = repository(&dir).await;
-    let first = BatchHandle::spawn(
+    let (first, _bus) = spawn(
         repo.clone(),
         registry(&["fail", "ok"]),
         Arc::new(Scripted::default()),
@@ -247,7 +320,7 @@ async fn test_an_interrupted_batch_is_not_resumed() {
 
     // WHEN
     let resumed = Arc::new(Scripted::default());
-    let second = BatchHandle::spawn(repo.clone(), registry(&[]), resumed.clone());
+    let (second, _bus) = spawn(repo.clone(), registry(&[]), resumed.clone());
     // A launch is answered after the resumption, which is the actor's first act.
     let probe = second.launch(launch(Some(1), None)).await;
 
@@ -267,7 +340,7 @@ async fn test_an_unknown_source_type_is_refused() {
     // GIVEN
     let dir = tempfile::tempdir().unwrap();
     let repo = repository(&dir).await;
-    let handle = BatchHandle::spawn(
+    let (handle, _bus) = spawn(
         repo.clone(),
         Arc::new(SourceRegistry::new()),
         Arc::new(Scripted::default()),
@@ -293,7 +366,7 @@ async fn test_invalid_launches_are_refused() {
     // GIVEN
     let dir = tempfile::tempdir().unwrap();
     let repo = repository(&dir).await;
-    let handle = BatchHandle::spawn(
+    let (handle, _bus) = spawn(
         repo.clone(),
         registry(&["ok"]),
         Arc::new(Scripted::default()),

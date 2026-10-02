@@ -1,9 +1,12 @@
 //! `apollia-os batch` subcommands: run an agent on every item of a source,
-//! follow a batch, list the batches.
+//! follow a batch, list the batches, list the accesses a run may grant, and
+//! pause, resume, stop or retry a batch.
 //!
 //! A batch runs in the runtime: `run` returns once its items are recorded,
 //! and `status` reads its progress. Every item is a task of its own, listed by
-//! `task list` like any other.
+//! `task list` like any other. An item whose agent reaches for a sensitive
+//! access the run did not grant waits rather than failing; `retry` runs the
+//! failed and waiting items again, with more grants if given.
 
 use std::path::PathBuf;
 
@@ -29,7 +32,8 @@ pub enum BatchCommand {
         /// An option of the source type, as `key=value`; repeatable.
         #[arg(long = "option", value_name = "KEY=VALUE")]
         options: Vec<String>,
-        /// An access granted for the duration of the batch; repeatable.
+        /// A sensitive access granted for the duration of the batch, as
+        /// `batch accesses` lists it; repeatable.
         #[arg(long = "grant")]
         grants: Vec<String>,
         /// How many items run at once, 1 to 16 (default 1).
@@ -50,6 +54,34 @@ pub enum BatchCommand {
         #[arg(long, default_value_t = 50)]
         limit: u32,
     },
+    /// List the sensitive accesses of an agent, those `run --grant` may grant.
+    Accesses {
+        /// The agent a batch would run.
+        agent: String,
+    },
+    /// Pause a running batch: no further item starts.
+    Pause {
+        /// The batch id.
+        batch_id: String,
+    },
+    /// Resume a paused batch.
+    Resume {
+        /// The batch id.
+        batch_id: String,
+    },
+    /// Stop a batch: running items are cancelled, pending ones never run.
+    Stop {
+        /// The batch id.
+        batch_id: String,
+    },
+    /// Run the failed items of a batch, and those waiting for an access, again.
+    Retry {
+        /// The batch id.
+        batch_id: String,
+        /// A sensitive access granted for the rest of the batch; repeatable.
+        #[arg(long = "grant")]
+        grants: Vec<String>,
+    },
 }
 
 /// Execute a `batch` subcommand. Returns the process exit code.
@@ -67,6 +99,18 @@ pub async fn run(cmd: &BatchCommand, socket: Option<PathBuf>, json: bool) -> i32
         }
         BatchCommand::Status { batch_id } => run_status(&client, batch_id, json).await,
         BatchCommand::List { limit } => run_list(&client, *limit, json).await,
+        BatchCommand::Accesses { agent } => run_accesses(&client, agent, json).await,
+        BatchCommand::Pause { batch_id } => {
+            run_control(&client, batch_id, "pause", None, json).await
+        }
+        BatchCommand::Resume { batch_id } => {
+            run_control(&client, batch_id, "resume", None, json).await
+        }
+        BatchCommand::Stop { batch_id } => run_control(&client, batch_id, "stop", None, json).await,
+        BatchCommand::Retry { batch_id, grants } => {
+            let body = serde_json::json!({ "grants": grants });
+            run_control(&client, batch_id, "retry", Some(&body), json).await
+        }
     }
 }
 
@@ -160,11 +204,12 @@ async fn run_status(client: &RuntimeClient, batch_id: &str, json: bool) -> i32 {
             println!("Agent      : {}", field(batch, "agent"));
             println!("State      : {}", field(batch, "state"));
             println!(
-                "Items      : {} total, {} completed, {} failed, {} canceled",
+                "Items      : {} total, {} completed, {} failed, {} canceled, {} waiting",
                 number(batch, "total"),
                 number(batch, "completed"),
                 number(batch, "failed"),
-                number(batch, "canceled")
+                number(batch, "canceled"),
+                number(batch, "awaiting")
             );
             println!(
                 "Threshold  : interrupted past {} failed items",
@@ -225,8 +270,69 @@ async fn run_list(client: &RuntimeClient, limit: u32, json: bool) -> i32 {
     }
 }
 
+async fn run_accesses(client: &RuntimeClient, agent: &str, json: bool) -> i32 {
+    match client.batch_accesses(agent).await {
+        Ok(body) => {
+            if json {
+                print_json(&body);
+                return exit_codes::SUCCESS;
+            }
+            let accesses = body["accesses"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            if accesses.is_empty() {
+                note!("No sensitive access: every item of '{agent}' runs without asking.");
+                return exit_codes::SUCCESS;
+            }
+            note!(
+                "  {:<32} {:<16} {:<9} PERMITS",
+                "ACCESS",
+                "FAMILY",
+                "GRANTABLE"
+            );
+            for access in accesses {
+                println!(
+                    "  {:<32} {:<16} {:<9} {}",
+                    field(access, "accessId"),
+                    field(access, "family"),
+                    if access["grantable"].as_bool().unwrap_or(false) {
+                        "yes"
+                    } else {
+                        "no"
+                    },
+                    field(access, "permits")
+                );
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_error(e, json),
+    }
+}
+
+async fn run_control(
+    client: &RuntimeClient,
+    batch_id: &str,
+    verb: &str,
+    body: Option<&serde_json::Value>,
+    json: bool,
+) -> i32 {
+    match client.control_batch(batch_id, verb, body).await {
+        Ok(batch) => {
+            if json {
+                print_json(&batch);
+            } else {
+                println!("{} {}", field(&batch, "batchId"), field(&batch, "state"));
+            }
+            exit_codes::SUCCESS
+        }
+        Err(e) => handle_error(e, json),
+    }
+}
+
 /// An unreachable runtime, or one without a batch engine, is a runtime error
-/// (2); a refused launch or an unknown batch is a general error (1).
+/// (2); a refused launch, an unknown batch or a batch in the wrong state is
+/// a general error (1).
 fn handle_error(err: ClientError, json: bool) -> i32 {
     match err {
         ClientError::ServerError { status: 503, body } => {
@@ -290,6 +396,39 @@ mod tests {
         assert_eq!(options, vec!["sheet=April".to_string()]);
         assert_eq!(grants, vec!["web_search".to_string()]);
         assert_eq!((concurrency, max_failures), (Some(3), Some(2)));
+    }
+
+    #[test]
+    fn test_batch_control_verbs_parse() {
+        // GIVEN each control verb on a batch id, and a retry with a grant
+        // WHEN parsed
+        let pause = TestCli::parse_from(["test", "pause", "b-1"]);
+        let resume = TestCli::parse_from(["test", "resume", "b-1"]);
+        let stop = TestCli::parse_from(["test", "stop", "b-1"]);
+        let retry = TestCli::parse_from(["test", "retry", "b-1", "--grant", "gmail_send"]);
+        let accesses = TestCli::parse_from(["test", "accesses", "clerk"]);
+        // THEN each lands on its verb with its id, and the grant is kept
+        assert!(matches!(pause.cmd, BatchCommand::Pause { ref batch_id } if batch_id == "b-1"));
+        assert!(matches!(resume.cmd, BatchCommand::Resume { ref batch_id } if batch_id == "b-1"));
+        assert!(matches!(stop.cmd, BatchCommand::Stop { ref batch_id } if batch_id == "b-1"));
+        assert!(matches!(
+            retry.cmd,
+            BatchCommand::Retry { ref batch_id, ref grants }
+                if batch_id == "b-1" && grants == &vec!["gmail_send".to_string()]
+        ));
+        assert!(matches!(accesses.cmd, BatchCommand::Accesses { ref agent } if agent == "clerk"));
+    }
+
+    #[tokio::test]
+    async fn test_batch_control_without_runtime_is_a_runtime_error() {
+        // GIVEN a client on a socket nothing listens on
+        let client = RuntimeClient::new(PathBuf::from("/tmp/apollia-test-batch-control.sock"));
+        // WHEN a batch is stopped and an agent's accesses are listed
+        let stop = run_control(&client, "b-1", "stop", None, true).await;
+        let accesses = run_accesses(&client, "clerk", true).await;
+        // THEN both are runtime errors
+        assert_eq!(stop, exit_codes::RUNTIME_ERROR);
+        assert_eq!(accesses, exit_codes::RUNTIME_ERROR);
     }
 
     #[test]

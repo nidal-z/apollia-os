@@ -109,6 +109,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 
 | Variante | Charge utile |
 |---|---|
+| `BatchItemAwaitingApproval` | champs nommés |
 | `HitlFilesystemRequired` | champs nommés |
 | `PermissionRequired` | champs nommés |
 | `TaskApprovalTimeout` | champs nommés |
@@ -234,6 +235,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | Variante | Charge utile |
 |---|---|
 | `BashFilePathsExtracted` | champs nommés |
+| `BatchEnded` | champs nommés |
 | `PlanAlternativesGenerated` | champs nommés |
 | `PlanCacheHit` | champs nommés |
 | `PlanCompleted` | champs nommés |
