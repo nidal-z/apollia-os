@@ -12,6 +12,7 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyModule};
 use serde_json::Value;
 
+use super::grant::GrantedStores;
 use super::{dotted_module, PackageTool};
 use crate::bridge::cancel;
 use crate::context::RuntimeContext;
@@ -89,6 +90,7 @@ pub struct PackageToolExecutor {
     site_packages: Vec<PathBuf>,
     caller: String,
     cancel: CancellationToken,
+    granted: Option<GrantedStores>,
 }
 
 impl PackageToolExecutor {
@@ -107,7 +109,14 @@ impl PackageToolExecutor {
             site_packages,
             caller: caller.to_string(),
             cancel,
+            granted: None,
         }
+    }
+
+    /// The same executor, whose calls run with what `granted` gives.
+    pub(super) fn with_grant(mut self, granted: Option<GrantedStores>) -> Self {
+        self.granted = granted;
+        self
     }
 
     async fn run(&self, input: Value) -> Result<Value, ToolExecutionError> {
@@ -123,6 +132,7 @@ impl PackageToolExecutor {
             site_packages: self.site_packages.clone(),
             caller: self.caller.clone(),
             arguments: input.to_string(),
+            granted: self.granted.clone(),
         };
         let (slot, slot_for_cancel, slot_for_drop) = Python::with_gil(|py| {
             let slot: Py<PyDict> = PyDict::new(py).unbind();
@@ -193,6 +203,7 @@ struct Call {
     site_packages: Vec<PathBuf>,
     caller: String,
     arguments: String,
+    granted: Option<GrantedStores>,
 }
 
 impl Call {
@@ -211,8 +222,11 @@ impl Call {
             }
         };
         let function = function.bind(py);
-        let ctx = Py::new(py, RuntimeContext::for_package_tool(&self.caller))
-            .map_err(|e| failure("internal", &name, e))?;
+        let context = match &self.granted {
+            Some(granted) => granted.context(&self.caller),
+            None => RuntimeContext::for_package_tool(&self.caller),
+        };
+        let ctx = Py::new(py, context).map_err(|e| failure("internal", &name, e))?;
         let json = py
             .import("json")
             .map_err(|e| failure("internal", &name, e))?;

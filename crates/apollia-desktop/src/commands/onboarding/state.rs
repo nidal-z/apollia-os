@@ -167,21 +167,17 @@ pub struct TriggerResult {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum OnboardingError {
-    /// The onboarding agent is not registered in the runtime.
+    /// The onboarding agent is not installed.
     ///
-    /// The registry is filled once, at boot, from `agents.db`. So this fires
-    /// whenever the application has been running since before the agent was
-    /// installed, which is the common case when a seeded profile is swapped in
-    /// under a live app. The previous wording blamed Python, which sent the
-    /// reader looking at the interpreter while the real cause was the boot
-    /// order, and the actual load failure, when there is one, is logged as a
-    /// warning nobody reads: `agent.load.failed`.
+    /// The desktop installs the onboarding package at boot, once the runtime
+    /// and its audit journal are up. So this fires when that installation
+    /// failed, which is logged as `bundled.package.install_failed`, or when a
+    /// profile was swapped in under a live app.
     #[error(
-        "onboarding-agent is not in the runtime registry. The registry is built \
-         once at startup, so restart the application first: if the agent was \
-         installed, or a profile swapped in, while it was running, it cannot \
-         have been picked up. If restarting does not help, look for \
-         `agent.load.failed` in the logs, which names the real cause."
+        "onboarding-agent is not installed. The desktop installs it at startup, \
+         so restart the application first. If restarting does not help, look \
+         for `bundled.package.install_failed` in the logs, which names the real \
+         cause."
     )]
     AgentNotInstalled,
 
@@ -473,24 +469,14 @@ mod tests {
         let err = OnboardingError::AgentNotInstalled;
 
         // WHEN it is rendered for the operator
-        // THEN the message names the first suspect, the boot-order one, and
-        // points at the log line that carries the real cause when restarting is
-        // not enough. It used to say "check that Python is available", which
-        // sent a maintainer into the interpreter for two hours while the app
-        // had simply been running since before the profile was swapped in.
+        // THEN the message names the agent, says restarting is the first thing
+        // to try because the desktop installs it at startup, and quotes the
+        // log line that names the real cause, verbatim, so it can be grepped
         let msg = err.to_string();
         assert!(msg.contains("onboarding-agent"));
         assert!(msg.contains("restart"));
-        assert!(
-            msg.contains("built") && msg.contains("startup"),
-            "the message must say the registry is built once at startup, which \
-             is what makes restarting the first thing to try"
-        );
-        assert!(
-            msg.contains("agent.load.failed"),
-            "the message must quote the log line that names the real cause, \
-             verbatim, so it can be grepped"
-        );
+        assert!(msg.contains("installs it at startup"));
+        assert!(msg.contains("bundled.package.install_failed"));
     }
 
     #[test]

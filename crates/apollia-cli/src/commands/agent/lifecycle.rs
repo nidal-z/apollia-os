@@ -112,7 +112,7 @@ pub(in crate::commands::agent) async fn run_start(
 /// mistypes a path reads the hint and copies the example verbatim; a name
 /// nothing answers to lands them on `agent not found`, with nothing telling
 /// them the example was the wrong part.
-pub(in crate::commands::agent) const HINT_EXAMPLE_AGENT: &str = "onboarding-agent";
+pub(in crate::commands::agent) const HINT_EXAMPLE_AGENT: &str = "hello";
 
 /// Sub-command a [`file_path_hint`] tells the operator to retype.
 ///
