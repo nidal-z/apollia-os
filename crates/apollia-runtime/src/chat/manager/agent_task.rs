@@ -27,6 +27,10 @@ pub struct AgentTaskRun {
     pub spec: AgentRunSpec,
     /// The request.
     pub message: String,
+    /// Tools that run without asking, on top of the deferred-tool search. A
+    /// run nobody watches, such as an item of a batch, names here the accesses
+    /// already granted; any other tool still raises an approval.
+    pub authorized_tools: Vec<String>,
     /// Stops the run at its next checkpoint, and refuses the approvals it
     /// waits on.
     pub cancel: CancellationToken,
@@ -149,6 +153,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         run_id,
         mut spec,
         message,
+        authorized_tools,
         cancel,
         done,
     } = run;
@@ -241,9 +246,10 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         })
     };
     // The search over the deferred tools reads an in-memory index, as in the
-    // chat; every other tool asks.
-    let authorized: HashSet<String> =
+    // chat; so do the tools the caller already authorized. Every other tool asks.
+    let mut authorized: HashSet<String> =
         HashSet::from([apollia_mcp::tool_search::TOOL_SEARCH_NAME.to_string()]);
+    authorized.extend(authorized_tools);
     let result = executor
         .run(RunInput {
             session_id: &task_id,

@@ -68,11 +68,16 @@ session whatever `HOME` says.
 
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 
-**`batch`** (`run`, `status`, `list`) runs a stored agent without code on
-every item of a source, in the runtime. `run` returns once the items are
-recorded; each item is a task of its own, so `task list` shows them. The
-source is named by `--source-type` and `--source`; a type no reader serves is
-refused with exit 1, and no reader is registered yet.
+**`batch`** (`run`, `status`, `list`, `accesses`, `pause`, `resume`, `stop`,
+`retry`) runs a stored agent without code on every item of a source, in the
+runtime. `run` returns once the items are recorded; each item is a task of its
+own, so `task list` shows them. The source is named by `--source-type` and
+`--source`; a type no reader serves is refused with exit 1, and no reader is
+registered yet. `accesses` lists the sensitive accesses of an agent, which
+`run --grant` grants for the duration of the batch; an item that reaches for
+one not granted waits, and `retry` runs it again, with `--grant` if given,
+along with the failed items. A batch in the wrong state for a verb (resume a
+running batch, stop an ended one) is refused with exit 1.
 
 **`policy`** prepares the organisation policy on files alone (`keygen`,
 `init`, `sign`, `verify`, `show`) and never reaches the runtime: the policy is

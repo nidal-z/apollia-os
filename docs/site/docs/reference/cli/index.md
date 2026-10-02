@@ -202,6 +202,11 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os batch run`↴](#apollia-os-batch-run)
 * [`apollia-os batch status`↴](#apollia-os-batch-status)
 * [`apollia-os batch list`↴](#apollia-os-batch-list)
+* [`apollia-os batch accesses`↴](#apollia-os-batch-accesses)
+* [`apollia-os batch pause`↴](#apollia-os-batch-pause)
+* [`apollia-os batch resume`↴](#apollia-os-batch-resume)
+* [`apollia-os batch stop`↴](#apollia-os-batch-stop)
+* [`apollia-os batch retry`↴](#apollia-os-batch-retry)
 * [`apollia-os resilience`↴](#apollia-os-resilience)
 * [`apollia-os resilience list`↴](#apollia-os-resilience-list)
 * [`apollia-os resilience show`↴](#apollia-os-resilience-show)
@@ -314,7 +319,7 @@ Apollia OS CLI binary (apollia-os)
 * `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
-* `batch` - Run an agent on every item of a source (run, status, list)
+* `batch` - Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
@@ -3227,7 +3232,7 @@ Automated code or plan review via the apollia-review agent
 
 ## `apollia-os batch`
 
-Run an agent on every item of a source (run, status, list)
+Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry)
 
 **Usage:** `apollia-os batch <COMMAND>`
 
@@ -3236,6 +3241,11 @@ Run an agent on every item of a source (run, status, list)
 * `run` - Run an agent on every item of a source, in the runtime
 * `status` - Show a batch: its state, its counters and each of its items
 * `list` - List the batches, newest first
+* `accesses` - List the sensitive accesses of an agent, those `run --grant` may grant
+* `pause` - Pause a running batch: no further item starts
+* `resume` - Resume a paused batch
+* `stop` - Stop a batch: running items are cancelled, pending ones never run
+* `retry` - Run the failed items of a batch, and those waiting for an access, again
 
 
 
@@ -3254,7 +3264,7 @@ Run an agent on every item of a source, in the runtime
 * `--source-type <SOURCE_TYPE>` - The type of source, as a reader registers it
 * `--source <SOURCE>` - What the source is opened on: a file, a folder, a connection
 * `--option <KEY=VALUE>` - An option of the source type, as `key=value`; repeatable
-* `--grant <GRANTS>` - An access granted for the duration of the batch; repeatable
+* `--grant <GRANTS>` - A sensitive access granted for the duration of the batch, as `batch accesses` lists it; repeatable
 * `--concurrency <CONCURRENCY>` - How many items run at once, 1 to 16 (default 1)
 * `--max-failures <MAX_FAILURES>` - Failed items tolerated before the batch is interrupted (default 10)
 
@@ -3283,6 +3293,70 @@ List the batches, newest first
 * `--limit <LIMIT>` - At most this many batches
 
   Default value: `50`
+
+
+
+## `apollia-os batch accesses`
+
+List the sensitive accesses of an agent, those `run --grant` may grant
+
+**Usage:** `apollia-os batch accesses <AGENT>`
+
+###### **Arguments:**
+
+* `<AGENT>` - The agent a batch would run
+
+
+
+## `apollia-os batch pause`
+
+Pause a running batch: no further item starts
+
+**Usage:** `apollia-os batch pause <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+
+
+## `apollia-os batch resume`
+
+Resume a paused batch
+
+**Usage:** `apollia-os batch resume <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+
+
+## `apollia-os batch stop`
+
+Stop a batch: running items are cancelled, pending ones never run
+
+**Usage:** `apollia-os batch stop <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+
+
+## `apollia-os batch retry`
+
+Run the failed items of a batch, and those waiting for an access, again
+
+**Usage:** `apollia-os batch retry [OPTIONS] <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+###### **Options:**
+
+* `--grant <GRANTS>` - A sensitive access granted for the rest of the batch; repeatable
 
 
 

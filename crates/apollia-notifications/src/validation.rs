@@ -25,6 +25,8 @@ pub const KNOWN_EVENTS: &[&str] = &[
     "chat.approval_required",
     "chat.tool_failed",
     "chat.user_input_required",
+    "batch.item_awaiting_approval",
+    "batch.ended",
 ];
 
 /// Error returned by [`NotificationConfigRepository`](crate::repository::NotificationConfigRepository) operations.

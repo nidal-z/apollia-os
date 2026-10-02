@@ -321,6 +321,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::TaskStarted { .. }
         | RuntimeEvent::TaskCompleted { .. }
         | RuntimeEvent::TaskCanceled { .. }
+        | RuntimeEvent::BatchEnded { .. }
         | RuntimeEvent::TodoUpdated { .. } => "task-changed",
 
         // ── Hook decisions ───────────────────────────────────────────────
@@ -330,6 +331,7 @@ fn categorize(event: &RuntimeEvent) -> &'static str {
         RuntimeEvent::TaskInputRequired { .. }
         | RuntimeEvent::TaskResumed { .. }
         | RuntimeEvent::TaskApprovalTimeout { .. }
+        | RuntimeEvent::BatchItemAwaitingApproval { .. }
         | RuntimeEvent::HitlFilesystemRequired { .. } => "approval-changed",
 
         // ── LLM ──────────────────────────────────────────────────────────
@@ -854,6 +856,22 @@ mod tests {
             RuntimeEvent::TaskResumed {
                 task_id: "t".into(),
                 approved: true,
+            },
+            RuntimeEvent::BatchItemAwaitingApproval {
+                batch_id: "b".into(),
+                rank: 0,
+                agent_id: "a".into(),
+                access: "t".into(),
+            },
+            RuntimeEvent::BatchEnded {
+                batch_id: "b".into(),
+                agent_id: "a".into(),
+                state: "completed".into(),
+                total: 1,
+                completed: 1,
+                failed: 0,
+                canceled: 0,
+                awaiting: 0,
             },
             // ── Chat events ────────────────────────────────────────────
             RuntimeEvent::ChatSessionCreated {
