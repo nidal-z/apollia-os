@@ -43,8 +43,9 @@ pub mod verdict;
 
 pub use catalogue::{SelectionFamily, SelectionVariant};
 pub use fit::{
-    assess_fit, cache_layout, estimate_memory, grade, kv_cache_bytes, max_context_for, CacheKind,
-    CacheLayout, FitAssessment, MemoryEstimate, RuntimeShape,
+    assess_fit, cache_layout, estimate_memory, grade, kv_cache_bytes, max_context_for,
+    max_parallel_for, parallel_shape, CacheKind, CacheLayout, FitAssessment, MemoryEstimate,
+    RuntimeShape,
 };
 pub use llama_support::LLAMA_CPP_TAG;
 pub use manifest::{Family, FamilyManifest, ManifestError, ToolCalling, Variant};
