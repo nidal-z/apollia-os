@@ -20,7 +20,7 @@ use crate::commands::digest::DigestWindow;
 use crate::commands::llm::{LlmBackendsCommand, LlmCommand};
 use crate::commands::mcp::McpCommand;
 use crate::commands::memory::{MemoryCommand, MemoryType};
-use crate::commands::package::PackageCommand as ApoPackageCommand;
+use crate::commands::package::{PackageCommand as ApoPackageCommand, TrustCommand};
 use crate::commands::permissions::PermissionsCommand;
 use crate::commands::policy::PolicyCommand;
 use crate::commands::project::{ProjectAgentsCommand, ProjectCommand, ProjectTemplatesCommand};
@@ -1465,6 +1465,134 @@ fn test_cli_parses_package_inspect() {
         panic!("expected package inspect");
     };
     assert_eq!(file, std::path::PathBuf::from("lone.apo"));
+}
+
+#[test]
+fn test_cli_parses_package_preview() {
+    // GIVEN "apollia-os package preview crm.apo"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "package", "preview", "crm.apo"]);
+    // THEN the archive path is carried
+    let Commands::Package {
+        command: ApoPackageCommand::Preview { file },
+    } = cli.command
+    else {
+        panic!("expected package preview");
+    };
+    assert_eq!(file, std::path::PathBuf::from("crm.apo"));
+}
+
+#[test]
+fn test_cli_parses_package_install_with_every_confirmation() {
+    // GIVEN an install with every confirmation flag
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "package",
+        "install",
+        "crm.apo",
+        "--confirm-deps",
+        "--confirm-changes",
+        "--allow-downgrade",
+    ]);
+    // THEN each flag is carried
+    let Commands::Package {
+        command:
+            ApoPackageCommand::Install {
+                file,
+                confirm_deps,
+                confirm_changes,
+                allow_downgrade,
+            },
+    } = cli.command
+    else {
+        panic!("expected package install");
+    };
+    assert_eq!(file, std::path::PathBuf::from("crm.apo"));
+    assert!(confirm_deps && confirm_changes && allow_downgrade);
+}
+
+#[test]
+fn test_cli_parses_package_trust_import() {
+    // GIVEN "apollia-os package trust import <key> --label Acme"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "package",
+        "trust",
+        "import",
+        "acme.pub",
+        "--label",
+        "Acme",
+    ]);
+    // THEN the key and the label are carried
+    let Commands::Package {
+        command:
+            ApoPackageCommand::Trust {
+                command: TrustCommand::Import { key, label },
+            },
+    } = cli.command
+    else {
+        panic!("expected package trust import");
+    };
+    assert_eq!(key, "acme.pub");
+    assert_eq!(label, "Acme");
+}
+
+#[test]
+fn test_cli_refuses_package_trust_import_without_label() {
+    // GIVEN an import without its label
+    // WHEN the top-level parser reads it
+    let parsed = Cli::try_parse_from(["apollia-os", "package", "trust", "import", "acme.pub"]);
+    // THEN clap refuses it
+    assert!(parsed.is_err());
+}
+
+#[test]
+fn test_cli_parses_package_trust_list() {
+    // GIVEN "apollia-os package trust list --json"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "package", "trust", "list", "--json"]);
+    // THEN the list verb is selected and --json is global
+    assert!(cli.json);
+    assert!(matches!(
+        cli.command,
+        Commands::Package {
+            command: ApoPackageCommand::Trust {
+                command: TrustCommand::List
+            }
+        }
+    ));
+}
+
+#[test]
+fn test_cli_parses_package_trust_remove() {
+    // GIVEN "apollia-os package trust remove <fingerprint> --confirm"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "package",
+        "trust",
+        "remove",
+        "ff00",
+        "--confirm",
+    ]);
+    // THEN the fingerprint and the confirmation are carried
+    let Commands::Package {
+        command:
+            ApoPackageCommand::Trust {
+                command:
+                    TrustCommand::Remove {
+                        fingerprint,
+                        confirm,
+                    },
+            },
+    } = cli.command
+    else {
+        panic!("expected package trust remove");
+    };
+    assert_eq!(fingerprint, "ff00");
+    assert!(confirm);
 }
 
 // ─── policy ──────────────────────────────────────────────────────────────────

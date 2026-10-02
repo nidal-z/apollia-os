@@ -417,6 +417,18 @@ pub fn parse(text: &str) -> Result<ApolliaManifest, ApolliaManifestError> {
     Ok(manifest)
 }
 
+/// `true` when `incoming` is a strictly older semver version than
+/// `installed`. A version that does not parse is never older.
+pub fn is_older_version(incoming: &str, installed: &str) -> bool {
+    match (
+        semver::Version::parse(incoming),
+        semver::Version::parse(installed),
+    ) {
+        (Ok(incoming), Ok(installed)) => incoming < installed,
+        _ => false,
+    }
+}
+
 impl ApolliaManifest {
     /// Write the manifest back to TOML.
     ///

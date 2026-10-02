@@ -8,6 +8,14 @@ use crate::governance::contract::GovernanceError;
 /// Prefix of the journal run that holds the governance history of one agent.
 const GOVERNANCE_RUN_PREFIX: &str = "governance:";
 
+/// Prefix of the journal run that holds the history of one package.
+const PACKAGE_RUN_PREFIX: &str = "governance:package:";
+
+/// Journal run holding the installations and updates of `package_id`.
+pub fn package_run_id(package_id: &str) -> String {
+    format!("{PACKAGE_RUN_PREFIX}{package_id}")
+}
+
 /// Journal run holding the governance history of `agent_id`.
 ///
 /// Each agent gets its own chain, so its history reads in order with
@@ -93,6 +101,41 @@ pub enum GovernanceEvent {
         /// Who made the change.
         actor: String,
     },
+    /// A package was installed: its agents, workflows, tools and the
+    /// connections it brings.
+    PackageInstalled {
+        /// Installed package.
+        package_id: String,
+        /// Installed version.
+        version: String,
+        /// Publisher the package declares.
+        publisher: String,
+        /// Fingerprint of the key that signed it, when it is signed.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        key_fingerprint: Option<String>,
+        /// Whether the package carried a verified signature.
+        signed: bool,
+        /// Who installed it.
+        actor: String,
+    },
+    /// An installed package was replaced by another version.
+    PackageUpdated {
+        /// Updated package.
+        package_id: String,
+        /// Version before the update.
+        from_version: String,
+        /// Version after the update.
+        to_version: String,
+        /// Publisher the incoming package declares.
+        publisher: String,
+        /// Fingerprint of the key that signed the incoming package.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        key_fingerprint: Option<String>,
+        /// Whether the incoming package carried a verified signature.
+        signed: bool,
+        /// Who updated it.
+        actor: String,
+    },
     /// An agent was uninstalled.
     Uninstalled {
         /// Uninstalled agent.
@@ -105,14 +148,26 @@ pub enum GovernanceEvent {
 }
 
 impl GovernanceEvent {
-    /// Agent the event is about.
-    pub fn agent_id(&self) -> &str {
+    /// Agent, or package, the event is about.
+    pub fn subject_id(&self) -> &str {
         match self {
             GovernanceEvent::AccessChanged { agent_id, .. }
             | GovernanceEvent::Installed { agent_id, .. }
             | GovernanceEvent::Updated { agent_id, .. }
             | GovernanceEvent::Uninstalled { agent_id, .. }
             | GovernanceEvent::OverrideChanged { agent_id, .. } => agent_id,
+            GovernanceEvent::PackageInstalled { package_id, .. }
+            | GovernanceEvent::PackageUpdated { package_id, .. } => package_id,
+        }
+    }
+
+    /// Journal run the event is recorded in: the run of its agent, or the run
+    /// of its package.
+    pub fn run_id(&self) -> String {
+        match self {
+            GovernanceEvent::PackageInstalled { package_id, .. }
+            | GovernanceEvent::PackageUpdated { package_id, .. } => package_run_id(package_id),
+            other => governance_run_id(other.subject_id()),
         }
     }
 
@@ -124,6 +179,8 @@ impl GovernanceEvent {
             GovernanceEvent::Updated { .. } => JournalEntryKind::AgentUpdated,
             GovernanceEvent::Uninstalled { .. } => JournalEntryKind::AgentUninstalled,
             GovernanceEvent::OverrideChanged { .. } => JournalEntryKind::AgentOverrideChanged,
+            GovernanceEvent::PackageInstalled { .. } => JournalEntryKind::PackageInstalled,
+            GovernanceEvent::PackageUpdated { .. } => JournalEntryKind::PackageUpdated,
         }
     }
 }
@@ -147,7 +204,7 @@ impl GovernanceRecord {
         };
         let payload = serde_json::to_value(&record).map_err(GovernanceError::Serialize)?;
         Ok(JournalEntryDraft {
-            run_id: governance_run_id(event.agent_id()),
+            run_id: event.run_id(),
             ts,
             kind: event.journal_kind(),
             payload,
@@ -223,6 +280,43 @@ mod tests {
                 serde_json::from_value(draft.payload).expect("payload round trip");
             assert_eq!(back.event, event);
         }
+    }
+
+    // A package event lands in the run of its package, under its own kind.
+    #[test]
+    fn test_package_events_map_to_the_package_run() {
+        // GIVEN an installation and an update of the same package
+        let installed = GovernanceEvent::PackageInstalled {
+            package_id: "crm".into(),
+            version: "1.0.0".into(),
+            publisher: "Acme".into(),
+            key_fingerprint: Some("ab".repeat(32)),
+            signed: true,
+            actor: "api".into(),
+        };
+        let updated = GovernanceEvent::PackageUpdated {
+            package_id: "crm".into(),
+            from_version: "1.0.0".into(),
+            to_version: "1.1.0".into(),
+            publisher: "Acme".into(),
+            key_fingerprint: None,
+            signed: false,
+            actor: "api".into(),
+        };
+
+        // WHEN their drafts are built
+        let a = GovernanceRecord::draft(&installed, "2026-01-01T00:00:00Z".into()).expect("draft");
+        let b = GovernanceRecord::draft(&updated, "2026-01-01T00:00:00Z".into()).expect("draft");
+
+        // THEN both land in the package run, each under its kind, and round-trip
+        assert_eq!(a.run_id, "governance:package:crm");
+        assert_eq!(b.run_id, "governance:package:crm");
+        assert_eq!(a.kind, JournalEntryKind::PackageInstalled);
+        assert_eq!(b.kind, JournalEntryKind::PackageUpdated);
+        assert_eq!(a.payload["event"], "package_installed");
+        assert!(b.payload.get("key_fingerprint").is_none());
+        let back: GovernanceRecord = serde_json::from_value(a.payload).expect("round trip");
+        assert_eq!(back.event, installed);
     }
 
     // The payload names who did what, readable without the Rust types.

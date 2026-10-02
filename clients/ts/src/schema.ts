@@ -1855,6 +1855,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/packages/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/install`: install a package, or update it.
+         * @description The preview is computed again and its refusal applies: an invalid
+         *     signature, an unsigned package when governance requires a signature, an
+         *     older version without `allowDowngrade`, an agent another package owns.
+         *     Python dependencies need `depsConfirmed`; an update that adds accesses,
+         *     required connections or MCP servers needs `changesConfirmed`. The MCP
+         *     servers the package brings are added like `POST /api/v1/mcp/servers`
+         *     adds one. The installation is recorded in the audit journal.
+         */
+        post: operations["install_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/preview`: what the package contains, who signed
+         *     it, what it asks for, which connections it requires and brings, and what
+         *     an update adds. Nothing is written.
+         */
+        post: operations["preview_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/trusted-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts. */
+        get: operations["list_trusted_keys"];
+        put?: never;
+        /**
+         * `POST /api/v1/packages/trusted-keys`: trust a publisher key. A package
+         *     signed by it is then shown under the label given here.
+         */
+        post: operations["trust_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/trusted-keys/{fingerprint}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/packages/trusted-keys/{fingerprint}`: stop trusting a
+         *     publisher key.
+         */
+        delete: operations["remove_trusted_key"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plan-cache/clear": {
         parameters: {
             query?: never;
@@ -3084,6 +3172,29 @@ export interface components {
             /** @description Flat list of all available A2A skills. */
             skills: components["schemas"]["SkillListing"][];
         };
+        /** @description One access an agent asks for. */
+        AccessPreview: {
+            /**
+             * @description Identifier of the access: a tool name, `mcp:<server>/<tool>`, or
+             *     `pkg:<package>/<tool>`.
+             */
+            accessId: string;
+            /** @description What the access lets the agent do. */
+            permits: string;
+            /** @description Using it is sensitive. */
+            sensitive: boolean;
+        };
+        /** @description An access the update grants that the installed version did not. */
+        AddedAccess: {
+            /** @description Identifier of the access. */
+            accessId: string;
+            /** @description Agent that gains it. */
+            agentId: string;
+            /** @description What it lets the agent do. */
+            permits: string;
+            /** @description Using it is sensitive. */
+            sensitive: boolean;
+        };
         /** @description Response body for agent list. */
         AgentListResponse: {
             /** @description All registered agents. */
@@ -3141,6 +3252,19 @@ export interface components {
          * @enum {string}
          */
         AgentOriginDto: "package" | "interface";
+        /** @description One agent of the package. */
+        AgentPreview: {
+            /** @description Accesses the agent asks for, as governance resolves them. */
+            access: components["schemas"]["AccessPreview"][];
+            /** @description Example requests. */
+            examples: string[];
+            /** @description Identifier. */
+            id: string;
+            /** @description What the agent is for. */
+            mission: string;
+            /** @description Display name. */
+            name: string;
+        };
         /** @description Response body for agent operations. */
         AgentResponse: {
             /** @description Agent identifier (UUID v4). */
@@ -3360,6 +3484,21 @@ export interface components {
          * @enum {string}
          */
         BrokenLinkReason: "hash_mismatch" | "prev_hash_mismatch" | "signature_invalid" | "unknown_signing_key";
+        /** @description An MCP server the package brings. */
+        BroughtServerPreview: {
+            /** @description A connection of that name already exists; it is left as it is. */
+            alreadyPresent: boolean;
+            /** @description Executable spawned, for `stdio`. */
+            command: string;
+            /** @description Server name. */
+            name: string;
+            /** @description The server sends data off this machine. */
+            remote: boolean;
+            /** @description `stdio`, `streamable-http` or `sse`. */
+            transport: string;
+            /** @description Address, for a network transport. */
+            url?: string | null;
+        };
         /** @description Response for `DELETE /api/v1/notifications/channels/:id`. */
         ChannelDeleteResponse: {
             /** @description Identifier of the deleted channel. */
@@ -3910,6 +4049,54 @@ export interface components {
             /** @description Semver version of the agent. */
             version: string;
         };
+        /** @description Why the package cannot be installed as it is. */
+        InstallRefusal: {
+            /** @enum {string} */
+            code: "invalid_signature";
+            /** @description Why. */
+            reason: string;
+        } | {
+            /** @enum {string} */
+            code: "signature_required";
+        } | {
+            /** @enum {string} */
+            code: "downgrade";
+            /** @description Incoming version. */
+            incoming: string;
+            /** @description Installed version. */
+            installed: string;
+        } | {
+            /** @description The identifier. */
+            agent: string;
+            /** @enum {string} */
+            code: "agent_taken";
+            /**
+             * @description The package that owns it, `None` for an agent created in the
+             *     interface.
+             */
+            owner?: string | null;
+        };
+        /** @description What was installed. */
+        InstallReport: {
+            /** @description Agents installed. */
+            agents: string[];
+            /** @description MCP servers added. */
+            mcpServersAdded: string[];
+            /** @description Package identifier. */
+            name: string;
+            /** @description What the user should know, as the preview said. */
+            notices: components["schemas"]["PackageNotice"][];
+            /** @description Version it replaced, for an update. */
+            previousVersion?: string | null;
+            /** @description Publisher and signature, as recorded. */
+            signature: components["schemas"]["SignaturePreview"];
+            /** @description Python tools installed. */
+            tools: string[];
+            /** @description Installed version. */
+            version: string;
+            /** @description Workflows installed. */
+            workflows: string[];
+        };
         /** @description One agent of the machine: installed, running, or both. */
         InstalledAgentView: {
             /** @description Name of the Python class of the agent. */
@@ -3997,6 +4184,20 @@ export interface components {
              * @description Invocation timeout in seconds (default: 120).
              */
             timeout_secs?: number | null;
+        };
+        /** @description One Python tool of the package. */
+        ItemPreview: {
+            /** @description What it does. */
+            description: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external` or `execute_code`.
+             */
+            family: string;
+            /** @description Identifier, unique in the package. */
+            name: string;
+            /** @description Its family is sensitive. */
+            sensitive: boolean;
         };
         /**
          * @description The exportable head anchor of the global chain.
@@ -4183,6 +4384,93 @@ export interface components {
         OkResponse: {
             /** @description Confirmation flag. */
             ok: boolean;
+        };
+        /**
+         * @description Error body of the package routes: the message, and a stable code a client
+         *     can act on.
+         */
+        PackageErrorBody: {
+            /**
+             * @description Stable code: `archive`, `invalid_signature`, `signature_required`,
+             *     `downgrade`, `agent_taken`, `deps_confirmation_required`,
+             *     `changes_confirmation_required`, `mcp_unavailable`, `mcp_server`,
+             *     `environment`, `invalid_key`, `not_found`, `journal_unavailable`,
+             *     `internal`.
+             */
+            code: string;
+            /** @description Human-readable description. */
+            error: string;
+        };
+        /** @description Body of `POST /api/v1/packages/install`. */
+        PackageInstallRequest: {
+            /** @description Install a version older than the installed one. */
+            allowDowngrade?: boolean;
+            /** @description The user accepted what an update adds. */
+            changesConfirmed?: boolean;
+            /** @description The user accepted the Python dependencies the package installs. */
+            depsConfirmed?: boolean;
+            /** @description Path of the `.apo` file on this machine. */
+            path: string;
+        };
+        /** @description Something the user should know before installing. */
+        PackageNotice: {
+            /** @enum {string} */
+            code: "unsigned";
+        } | {
+            /** @enum {string} */
+            code: "untrusted_publisher";
+            /** @description Fingerprint of the signing key. */
+            fingerprint: string;
+        } | {
+            /** @enum {string} */
+            code: "missing_connection";
+            /** @description Connection type. */
+            type: string;
+        } | {
+            /** @enum {string} */
+            code: "server_already_present";
+            /** @description Server name. */
+            name: string;
+        };
+        /** @description Everything the user sees before installing a package. */
+        PackagePreview: {
+            /** @description Agents. */
+            agents: components["schemas"]["AgentPreview"][];
+            /** @description What the package delivers. */
+            description: string;
+            /** @description Installed version, when the package is installed. */
+            installedVersion?: string | null;
+            /** @description MCP servers the package brings. */
+            mcpServers: components["schemas"]["BroughtServerPreview"][];
+            /** @description Package identifier. */
+            name: string;
+            /** @description What the user should know. */
+            notices: components["schemas"]["PackageNotice"][];
+            /** @description Python requirements installed in the package environment. */
+            pip: string[];
+            refusal?: null | components["schemas"]["InstallRefusal"];
+            /** @description Connections the package requires. */
+            requires: components["schemas"]["RequiredConnectionPreview"][];
+            /** @description SDK requirement the package was built against. */
+            sdk: string;
+            /** @description Publisher and signature. */
+            signature: components["schemas"]["SignaturePreview"];
+            /** @description Governance requires a signed package. */
+            signatureRequired: boolean;
+            /** @description Python tools. */
+            tools: components["schemas"]["ItemPreview"][];
+            /** @description Triggers the package proposes. */
+            triggers: components["schemas"]["TriggerPreview"][];
+            update?: null | components["schemas"]["UpdateDiff"];
+            /** @description Incoming version. */
+            version: string;
+            /** @description Workflows. */
+            workflows: components["schemas"]["WorkflowPreview"][];
+        };
+        /** @description Body of the preview and of the installation: the archive. */
+        PackagePreviewRequest: {
+            /** @description Path of the `.apo` file on this machine. */
+            path: string;
         };
         /**
          * @description One pending HITL approval entry.
@@ -4375,6 +4663,17 @@ export interface components {
              *     tell the two runtimes apart.
              */
             reaches_running_agents: boolean;
+        };
+        /** @description A connection the package requires. */
+        RequiredConnectionPreview: {
+            /** @description The package itself brings an MCP server of that name. */
+            broughtByPackage: boolean;
+            /** @description A connection of that type exists on this machine. */
+            present: boolean;
+            /** @description Why the package needs it. */
+            reason: string;
+            /** @description Connection type, as the package names it. */
+            type: string;
         };
         /** @description Response body for the reset route. */
         ResetResponse: {
@@ -4623,6 +4922,29 @@ export interface components {
             /** @description Current status: `"running"`, `"completed"`, or `"failed"`. */
             status: string;
         };
+        /** @description The publisher and the signature, as the preview shows them. */
+        SignaturePreview: {
+            /** @description Publisher name the package declares. Not verified. */
+            declaredPublisher: string;
+            /** @description SHA-256 fingerprint of the signing key, when the signature holds. */
+            keyFingerprint?: string | null;
+            /**
+             * @description Name to show for the publisher: the label of the keyring when the key
+             *     is trusted, otherwise the name the package declares.
+             */
+            publisher: string;
+            /** @description Why the signature does not hold, when it does not. */
+            reason?: string | null;
+            /** @description State of the signature. */
+            status: components["schemas"]["SignatureStatus"];
+            /** @description The signing key is in the keyring. */
+            trusted: boolean;
+        };
+        /**
+         * @description State of the signature of a package.
+         * @enum {string}
+         */
+        SignatureStatus: "unsigned" | "signed" | "invalid";
         /** @description Abridged skill descriptor included in the agent list response. */
         SkillDto: {
             /** @description Unique skill identifier (e.g. `"read-excel"`). */
@@ -5069,10 +5391,39 @@ export interface components {
             /** @description Last-modified timestamp (ISO 8601). */
             updated_at: string;
         };
+        /** @description A trigger the package proposes. Installing does not arm it. */
+        TriggerPreview: {
+            /** @description Identifier. */
+            id: string;
+            /** @description `cron`, `interval`, `file_watch` or `webhook`. */
+            source: string;
+            /** @description Agent or workflow it starts. */
+            target: string;
+        };
         /** @description Trigger source description used in create/update requests. */
         TriggerSourceInput: Record<string, never> & {
             /** @description Source type: `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`. */
             type: string;
+        };
+        /** @description Body of `POST /api/v1/packages/trusted-keys`. */
+        TrustKeyRequest: {
+            /** @description Name to show for the publisher. */
+            label: string;
+            /** @description The publisher's public key: 64 hexadecimal characters. */
+            publicKey: string;
+        };
+        /** @description A trusted publisher key. */
+        TrustedKeyView: {
+            /** @description When it was added. */
+            addedAt: string;
+            /** @description SHA-256 fingerprint of the key. */
+            fingerprint: string;
+            /** @description Name shown for the publisher. */
+            label: string;
+            /** @description Who put the key there: `user` or `policy`. */
+            origin: string;
+            /** @description The public key, 64 hexadecimal characters. */
+            publicKey: string;
         };
         /** @description Request body for `POST /api/v1/llm/loaded-models/unload`. */
         UnloadModelRequest: {
@@ -5113,6 +5464,24 @@ export interface components {
              * @description New minimum throttling interval (s). Absent keeps the existing one.
              */
             min_interval_seconds?: number | null;
+        };
+        /** @description What an update changes, against the installed version. */
+        UpdateDiff: {
+            /**
+             * @description Accesses the incoming package defaults grant that the installed ones
+             *     did not.
+             */
+            addedAccess: components["schemas"]["AddedAccess"][];
+            /** @description MCP servers brought by the incoming version only. */
+            addedMcpServers: string[];
+            /** @description Connection types required by the incoming version only. */
+            addedRequires: string[];
+            /** @description The incoming version is older than the installed one. */
+            downgrade: boolean;
+            /** @description Installed version. */
+            fromVersion: string;
+            /** @description Incoming version. */
+            toVersion: string;
         };
         /** @description Request body for `PUT /api/v1/llm/backends/:name`. */
         UpdateLlmBackendRequest: {
@@ -5216,6 +5585,19 @@ export interface components {
              *     parses as one.
              */
             inputs?: Record<string, never>;
+        };
+        /** @description One workflow of the package. */
+        WorkflowPreview: {
+            /** @description What it does. */
+            description: string;
+            /** @description Action family of the most sensitive thing it does. */
+            family: string;
+            /** @description Identifier, unique in the package. */
+            name: string;
+            /** @description Its family is sensitive. */
+            sensitive: boolean;
+            /** @description Names of its steps, in order. */
+            steps: string[];
         };
         /** @description A run with its steps. */
         WorkflowRunDetailView: {
@@ -9576,6 +9958,254 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    install_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallReport"];
+                };
+            };
+            /** @description The file cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description A signed package is required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Older version, or agent owned elsewhere */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Invalid package or signature, or MCP server refused */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description A confirmation is missing */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Store, environment or journal failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal, or no MCP manager for the servers it brings */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    preview_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackagePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description The preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackagePreview"];
+                };
+            };
+            /** @description The file cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Not a valid package */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    list_trusted_keys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trusted keys */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustedKeyView"][];
+                };
+            };
+            /** @description The keyring cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    trust_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrustKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description The key is trusted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustedKeyView"];
+                };
+            };
+            /** @description Not a public key, or an empty label */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description The keyring cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    remove_trusted_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description SHA-256 fingerprint of the key */
+                fingerprint: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key is removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such key */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description The keyring cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
                 };
             };
         };
