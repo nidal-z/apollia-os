@@ -38,8 +38,6 @@ use super::types::{
     ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, InjectedInstruction,
     PendingChatApprovals, PlanPhase, ToolCallRecord, ToolCallStatus, ToolDecision, TurnOutcome,
 };
-use crate::a2a::A2AInvoker;
-use crate::chat::a2a_tools::generate_a2a_tool_specs;
 use crate::chat::plan_actor::PlanHandle;
 use crate::chat::plan_tool::{
     self, PLAN_ADD_STEP_TOOL_NAME, PLAN_MODIFY_STEP_TOOL_NAME, PLAN_PROPOSE_TOOL_NAME,
@@ -49,6 +47,7 @@ use crate::chat::plan_tool::{
 use crate::chat::todo_handle::TodoHandle;
 use crate::chat::todo_tool::{run_todo_write, todo_write_spec, TODO_WRITE_TOOL_NAME};
 use crate::chat::turn_router::classify_turn;
+use crate::composition::Composer;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
@@ -201,7 +200,6 @@ pub struct BuiltInChatAgentDeps {
     pub tool_invoker: Arc<dyn ToolInvoker>,
     pub event_bus: EventBusSender,
     pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
-    pub a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Optional per-session todo store. When present, the `todo_write` built-in
     /// tool is advertised to the LLM and handled inside the ReAct loop.
     pub todo: Option<TodoHandle>,
@@ -226,8 +224,9 @@ pub struct BuiltInChatAgent {
     event_bus: EventBusSender,
     /// Optional user memory repository for injecting user context into the system prompt.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
-    /// Optional A2A invoker for discovering worker agent skills as virtual tools.
-    a2a_invoker: Option<Arc<A2AInvoker>>,
+    /// Reads the agents and workflows granted to the agent, offered as
+    /// tools. `None` offers none of them.
+    composer: Option<Arc<dyn Composer>>,
     /// Context window manager: compacts `llm_messages` inside the ReAct loop
     /// when accumulated messages exceed the model's window threshold.
     context_manager: ContextManager,

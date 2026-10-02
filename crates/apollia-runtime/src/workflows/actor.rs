@@ -64,6 +64,13 @@ impl WorkflowActor {
                     let _ = reply.send(launched);
                 }
                 WorkflowCommand::Cancel { run_id, reply } => self.cancel(run_id, reply).await,
+                WorkflowCommand::Describe { workflow, reply } => {
+                    let descriptor = match (&self.host, qualify(&workflow, None)) {
+                        (Some(host), Ok(id)) => host.describe(&id),
+                        _ => None,
+                    };
+                    let _ = reply.send(descriptor);
+                }
                 WorkflowCommand::Catalogue { reply } => {
                     let mut workflows = self.host.as_ref().map(|h| h.list()).unwrap_or_default();
                     workflows.sort_by(|a, b| a.id.cmp(&b.id));
@@ -88,7 +95,10 @@ impl WorkflowActor {
         inputs: Value,
         parent: Option<ParentRun>,
     ) -> Result<Launched, WorkflowError> {
-        let workflow_id = qualify(workflow, parent.as_ref().map(|p| p.workflow_id.as_str()))?;
+        let workflow_id = qualify(
+            workflow,
+            parent.as_ref().and_then(|p| p.workflow_id.as_deref()),
+        )?;
         let depth = parent.as_ref().map_or(1, |p| p.depth + 1);
         if depth > MAX_DEPTH {
             return Err(WorkflowError::TooDeep(depth));
@@ -112,7 +122,7 @@ impl WorkflowActor {
             .create_workflow_run(NewWorkflowRun {
                 run_id: run_id.clone(),
                 workflow_id: workflow_id.clone(),
-                parent_run_id: parent.as_ref().map(|p| p.run_id.clone()),
+                parent_run_id: parent.as_ref().and_then(|p| p.run_id.clone()),
                 depth,
                 inputs: inputs.clone(),
                 steps: descriptor.steps.clone(),

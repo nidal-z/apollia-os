@@ -10,7 +10,6 @@ pub mod compatibility;
 pub mod invoker;
 pub mod sidechain;
 pub mod telemetry;
-pub mod tools_provider;
 
 pub use aliases::{AliasTarget, InvocationAliases};
 pub use compatibility::{check_compatibility, A2ACompatibilityWarning, CompatSeverity, SemVer};
@@ -23,7 +22,6 @@ pub use invoker::{
     RuntimeContextConfig, SkillListing,
 };
 pub use sidechain::{SidechainLogger, SidechainRepository, SidechainRow};
-pub use tools_provider::A2AToolsProvider;
 
 use std::collections::HashSet;
 use std::future::Future;

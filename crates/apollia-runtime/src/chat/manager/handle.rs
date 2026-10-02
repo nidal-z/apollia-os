@@ -157,6 +157,7 @@ impl ChatSessionManagerHandle {
             plan_handle,
             hook_executor,
             package_tools: None,
+            composer: None,
             pause_tokens: HashMap::new(),
             pause_states: HashMap::new(),
             pending_injections: HashMap::new(),

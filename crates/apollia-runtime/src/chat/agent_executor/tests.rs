@@ -150,7 +150,6 @@ fn deps(router: Arc<LlmRouter>, bus: EventBusSender) -> AgentExecutorDeps {
         tool_registry: ToolRegistryHandle::start(),
         tool_invoker: Arc::new(NoTool),
         event_bus: bus,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     }

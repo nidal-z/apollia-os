@@ -129,6 +129,8 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
         Option<apollia_mcp::manager::McpClientManagerHandle>,
     /// Executors of the package tools, built for the Apollia agent.
     pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    /// Runs the agents and workflows the Apollia agent was granted.
+    pub(in crate::chat::manager) composer: Option<Arc<dyn crate::composition::Composer>>,
     pub(in crate::chat::manager) chat_tools_config_for_session: Option<Arc<ChatToolsConfig>>,
     pub(in crate::chat::manager) mcp_loading: LoadingMode,
     pub(in crate::chat::manager) tool_search_limit: usize,

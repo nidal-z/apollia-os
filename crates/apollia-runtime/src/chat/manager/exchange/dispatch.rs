@@ -172,6 +172,7 @@ impl ChatSessionManager {
                 pending_user_inputs_for_session,
                 mcp_handle_for_session,
                 package_tools,
+                composer: self.composer.clone(),
                 chat_tools_config_for_session,
                 mcp_loading,
                 tool_search_limit,
