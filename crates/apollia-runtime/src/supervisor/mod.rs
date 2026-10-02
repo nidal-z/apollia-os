@@ -174,6 +174,10 @@ pub struct SupervisorConfig {
     /// more reliable on small local models. `None` resolves to the agent
     /// default. Read once at boot.
     pub chat_tool_turn_temperature: Option<f32>,
+
+    /// The `[workflows]` section of `apollia.toml`: the budget a workflow run
+    /// starts with, shared by everything it runs. Read once at boot.
+    pub workflows_config: apollia_core::WorkflowsConfig,
 }
 
 impl SupervisorConfig {
@@ -238,6 +242,10 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `AppState` so the desktop journals what it changes outside the HTTP
     /// routes (a native account connected or disconnected).
     pub connection_governance: crate::governance::ConnectionGovernance,
+    /// The hash-chained audit journal, shared with `AppState`, so the host
+    /// records what it installs outside the HTTP routes (the packages its
+    /// binary ships). `None` when the journal could not be opened.
+    pub audit_journal: Option<AuditJournalHandle>,
     /// HITL task repository, persists `input_required` prompts/contexts.
     ///
     /// Shared between `AppState` (resume handler) and `TimeoutWatcher`.
@@ -266,6 +274,9 @@ pub struct SupervisorHandles<B: ExecutionBackend> {
     /// `Some` after Phase 13 of the Supervisor startup sequence.
     /// `None` when the chat subsystem failed to start (warning logged).
     pub chat_manager: Option<crate::chat::ChatSessionManagerHandle>,
+    /// Handle to the workflow actor, to which the package host is attached
+    /// once the runtime is up. `None` without a task store.
+    pub workflows: Option<crate::workflows::WorkflowHandle>,
     /// ORIA plan cache repository, stores cached execution plans.
     ///
     /// `Some` when `plan_cache.db` opened successfully.
@@ -372,7 +383,6 @@ pub struct Supervisor {
 /// (`api_config` is consumed by value), which would forbid a later `&self`
 /// borrow; threading the needed config fields here keeps the helpers callable.
 struct AutoLoadCtx<'a, B: ExecutionBackend> {
-    agent_loader: &'a Arc<dyn AgentLoader>,
     backend_factory: &'a Option<Arc<dyn crate::api::routes_agents::AgentBackendFactory>>,
     base_backend: &'a B,
     registry_handle: &'a AgentRegistryHandle,
@@ -385,4 +395,6 @@ struct AutoLoadCtx<'a, B: ExecutionBackend> {
     data_dir: &'a std::path::Path,
     /// Observability config wired into each agent's coordinator.
     obs_config: &'a apollia_core::ObservabilityConfig,
+    /// How long an agent stays loaded after its last call.
+    idle_unload: std::time::Duration,
 }

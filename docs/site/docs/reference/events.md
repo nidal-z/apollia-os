@@ -77,10 +77,8 @@ the event carries announces a request that is already settled.
 | Variant | Payload | What it reports |
 |---|---|---|
 | `AgentDegraded` | named fields | An agent moved to a degraded state. |
-| `AgentDisabled` | named fields | An installed agent was disabled (no longer loaded at boot). |
-| `AgentEnabled` | named fields | An installed agent was enabled for auto-start at boot. |
 | `AgentInstalled` | named fields | An agent was installed permanently. |
-| `AgentLoadFailed` | named fields | Loading an installed agent failed at boot. |
+| `AgentLoadFailed` | named fields | Loading an installed agent failed. |
 | `AgentMessageAcked` | named fields | A delivered message was acknowledged and removed from the store. |
 | `AgentMessageDelivered` | named fields | A pending message was leased to its recipient (delivered on receive). |
 | `AgentMessageDropped` | named fields | A message was dropped without being processed. |
@@ -237,6 +235,9 @@ the event carries announces a request that is already settled.
 | `TaskStarted` | named fields | A task started on an agent. |
 | `TodoUpdated` | named fields | The session todo list changed after a successful `todo_write`. |
 | `VerificationCompleted` | named fields | The post-run verification pass produced a verdict on an orchestrated run. |
+| `WorkflowStepCompleted` | named fields | A step of a workflow run ended without error. |
+| `WorkflowStepFailed` | named fields | A step of a workflow run raised, or was stopped with its run. |
+| `WorkflowStepStarted` | named fields | A declared step of a workflow run opened. |
 
 ### `trace-event`
 

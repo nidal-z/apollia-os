@@ -17,7 +17,7 @@
 mod attached;
 mod backend;
 mod bootstrap;
-mod bundled_agents;
+mod bundled_packages;
 mod commands;
 // REASON: this module is the content side of the in-app documentation reader.
 // The two Tauri commands that read the manifest and a page are registered by
@@ -241,10 +241,12 @@ fn main() {
         }
     };
 
-    // Extract bundled system agents (e.g. onboarding-agent) to disk and register
-    // them in the repository so the auto-load loop picks them up.
+    // The guide and the onboarding an earlier version installed as code are
+    // retired before the auto-load loop runs, so their code is never loaded
+    // again; both are installed as packages once the runtime, and its audit
+    // journal, are up.
     if let Some(ref repo) = boot_agent_repo {
-        bundled_agents::ensure_bundled_agents(repo, &apollia_data_dir);
+        bundled_packages::retire_code_agents(repo);
     }
 
     // Build the ChatAgentRunner so Chat Agent mode works in the ChatSessionManager.
@@ -303,6 +305,8 @@ fn main() {
         ..EmbeddedConfig::default()
     });
 
+    let agent_idle_unload =
+        std::time::Duration::from_secs(config.runtime_config.agent_idle_unload_secs);
     let runtime_handle: RuntimeHandle = or_exit(
         apollia_runtime::init_embedded(config),
         "start the embedded runtime",
@@ -338,14 +342,27 @@ fn main() {
             tools_config: &tools_config_lock,
         },
     );
-    // The Python tools of the installed packages join the registry, read from
-    // their manifests; each module is imported on its first call only.
+    // The packages the binary ships are installed, recorded in the audit
+    // journal; then the Python tools of the installed packages join the
+    // registry, read from their manifests, each module imported on its first
+    // call only.
     if let Some(worker) = apollia_runtime::worker_runtime() {
         let data_dir = apollia_data_dir.clone();
         let registry = runtime_handle.tool_registry_handle.clone();
         let chat = runtime_handle.chat_manager.clone();
+        let workflows = runtime_handle.workflows.clone();
+        let journal = runtime_handle.audit_journal.clone();
         worker.spawn(async move {
-            apollia_aip::package_tools::attach(&data_dir, &registry, chat.as_ref()).await;
+            bundled_packages::install_bundled_packages(&data_dir, journal).await;
+            apollia_aip::package_tools::attach(
+                &data_dir,
+                &registry,
+                chat.as_ref(),
+                agent_idle_unload,
+                &[apollia_aip::package_tools::ProfileGrant::onboarding()],
+            )
+            .await;
+            apollia_aip::package_tools::workflows::attach(&data_dir, workflows.as_ref()).await;
         });
     }
     // The agent-mode file tools read these roots. They come from the same
@@ -360,10 +377,11 @@ fn main() {
         let _ = plan_cache_lock.set(cache);
     }
 
-    // Auto-load installed agents now that the OnceLocks are populated so the
-    // ProductionBackendFactory can create real backends.
+    // Make the installed agents available now that the OnceLocks are
+    // populated, so the ProductionBackendFactory can build real backends when
+    // their first task arrives.
     if let Some(repo) = boot_agent_repo {
-        auto_load_installed_agents(repo, &factory, &runtime_handle);
+        auto_load_installed_agents(repo, &factory, &runtime_handle, agent_idle_unload);
     }
 
     // Open a second AgentRepository instance for Tauri IPC commands.

@@ -299,7 +299,6 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-memory/src/profile_schema.rs": 26,
     "scripts/check_release_artifacts.py": 1,
     # parser: French words the code matches on, or folds
-    "agents/system/onboarding-agent/agent.py": 36,
     # The typed-pause payload keys are the product's wire vocabulary (`genre`,
     # `libelle`, `autre`...): the parser and the TypedDict declaring them match on
     # those names. Only `autre` is a word the detector knows.
@@ -335,7 +334,8 @@ FRENCH_DATA: dict[str, int] = {
     "scripts/check_method_references.py": 18,
     "scripts/check_python_rules.py": 4,
     "tests/cli/seed/files/agents/onboarding-agent/agent.py": 28,
-    "tests/test_onboarding_heuristic_recovery.py": 9,
+    "agents/system/onboarding-agent/tools/onboarding.py": 21,
+    "tests/test_onboarding_tool.py": 2,
     # prompt: French text sent to a model, because the operator writes French
     "crates/apollia-desktop/src/commands/chat/title.rs": 17,
     # fixture: French user text, or a multi-byte character, a test feeds to the
@@ -357,8 +357,6 @@ FRENCH_DATA: dict[str, int] = {
     "sdk/tests/test_formatting.py": 2,
     "tests/integration/test_chat_memory.rs": 4,
     "tests/integration/test_onboarding.rs": 9,
-    "tests/test_onboarding_agent.py": 41,
-    "tests/test_onboarding_contracts.py": 2,
     # Latin, not French: the lorem ipsum of a search-result fixture shares its
     # function words with French ("et", "est", "qui", "in"). Named rather than
     # taught to the detector, because a Latin lexicon would blunt it.

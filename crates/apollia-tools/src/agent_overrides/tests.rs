@@ -215,3 +215,49 @@ fn test_saving_a_python_agent_again_keeps_overrides() {
     );
     assert_eq!(resolved.access, vec!["web_fetch"]);
 }
+
+// GIVEN a Python agent the user disabled and whose mission they overrode
+// WHEN a package adopts it as one of its declarative agents
+// THEN it runs no code any more, belongs to the package, and keeps both the
+// override and the disabled state; adopting it again changes nothing
+#[test]
+fn test_adopt_into_package_drops_the_code_and_keeps_the_user_state() {
+    let repo = AgentRepository::open(Path::new(":memory:")).unwrap();
+    repo.save(&crate::InstalledAgent {
+        name: "guide".into(),
+        version: "0.2.0".into(),
+        install_path: "/a/guide/agent.py".into(),
+        source_path: "/a/guide/agent.py".into(),
+        manifest: serde_json::from_value(json!({
+            "name": "guide",
+            "version": "0.2.0",
+            "description": "Helps.",
+            "tools_required": []
+        }))
+        .unwrap(),
+        enabled: true,
+        installed_at: "2026-10-01T00:00:00Z".into(),
+        updated_at: "2026-10-01T00:00:00Z".into(),
+    })
+    .unwrap();
+    repo.set_override("guide", OverrideField::Mission, &json!("Mine."))
+        .unwrap();
+    repo.set_enabled("guide", false).unwrap();
+
+    let adopted = repo.adopt_into_package("guide", "guide-pkg").unwrap();
+    let again = repo.adopt_into_package("guide", "guide-pkg").unwrap();
+
+    assert!(adopted);
+    assert!(!again, "an agent without code is left alone");
+    assert!(repo.get("guide").unwrap().is_none(), "no code any more");
+    let stored = repo.stored("guide").unwrap().unwrap();
+    assert_eq!(stored.origin, AgentOrigin::Package);
+    assert_eq!(stored.package.as_deref(), Some("guide-pkg"));
+    assert!(!stored.enabled);
+    let resolved = repo
+        .resolved("guide", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
+    assert_eq!(resolved.mission, "Mine.");
+    assert!(!repo.adopt_into_package("unknown", "guide-pkg").unwrap());
+}

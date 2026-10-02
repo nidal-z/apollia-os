@@ -12,12 +12,14 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyModule};
 use serde_json::Value;
 
+use super::grant::GrantedStores;
 use super::{dotted_module, PackageTool};
 use crate::bridge::cancel;
 use crate::context::RuntimeContext;
 
-/// The two Python helpers: importing the module and finding the decorated
-/// function, then calling it with `ctx` bound to the parameter that takes it.
+/// The Python helpers: importing the module and finding the decorated
+/// function (`load_decorated`, used for workflows too), then calling a tool
+/// with `ctx` bound to the parameter that takes it.
 ///
 /// The module is imported from its file under a name proper to its package
 /// root, so two packages that both ship `tools/calc.py` never share a module.
@@ -33,7 +35,7 @@ import os
 import sys
 
 
-def load_tool(root, site_packages, relative, unique, name):
+def load_decorated(root, site_packages, relative, unique, name, attr, kind):
     for path in reversed(site_packages):
         if path not in sys.path:
             sys.path.insert(0, path)
@@ -51,12 +53,16 @@ def load_tool(root, site_packages, relative, unique, name):
             sys.modules.pop(unique, None)
             raise
     for value in list(vars(module).values()):
-        spec = getattr(value, '__apollia_tool__', None)
+        spec = getattr(value, attr, None)
         if spec is None or getattr(spec, 'name', None) != name:
             continue
         if getattr(value, '__module__', None) == module.__name__:
             return value
-    raise LookupError(f'no @tool named {name!r} in {relative!r}')
+    raise LookupError(f'no @{kind} named {name!r} in {relative!r}')
+
+
+def load_tool(root, site_packages, relative, unique, name):
+    return load_decorated(root, site_packages, relative, unique, name, '__apollia_tool__', 'tool')
 
 
 async def call_tool(fn, ctx, arguments):
@@ -84,6 +90,7 @@ pub struct PackageToolExecutor {
     site_packages: Vec<PathBuf>,
     caller: String,
     cancel: CancellationToken,
+    granted: Option<GrantedStores>,
 }
 
 impl PackageToolExecutor {
@@ -102,7 +109,14 @@ impl PackageToolExecutor {
             site_packages,
             caller: caller.to_string(),
             cancel,
+            granted: None,
         }
+    }
+
+    /// The same executor, whose calls run with what `granted` gives.
+    pub(super) fn with_grant(mut self, granted: Option<GrantedStores>) -> Self {
+        self.granted = granted;
+        self
     }
 
     async fn run(&self, input: Value) -> Result<Value, ToolExecutionError> {
@@ -111,11 +125,14 @@ impl PackageToolExecutor {
                 message: format!("{}: the arguments must be an object", self.name),
             });
         }
+        self.tool.begin_call();
+        let _ended = CallEnd(Arc::clone(&self.tool));
         let call = Call {
             tool: Arc::clone(&self.tool),
             site_packages: self.site_packages.clone(),
             caller: self.caller.clone(),
             arguments: input.to_string(),
+            granted: self.granted.clone(),
         };
         let (slot, slot_for_cancel, slot_for_drop) = Python::with_gil(|py| {
             let slot: Py<PyDict> = PyDict::new(py).unbind();
@@ -163,6 +180,16 @@ impl ToolExecutor for PackageToolExecutor {
     }
 }
 
+/// Marks the end of a call when dropped, so a call dropped before it returns
+/// still counts as ended.
+struct CallEnd(Arc<PackageTool>);
+
+impl Drop for CallEnd {
+    fn drop(&mut self) {
+        self.0.end_call();
+    }
+}
+
 fn failure(code: &str, tool: &str, error: impl std::fmt::Display) -> ToolExecutionError {
     ToolExecutionError::ExecutionFailed {
         code: code.to_string(),
@@ -176,6 +203,7 @@ struct Call {
     site_packages: Vec<PathBuf>,
     caller: String,
     arguments: String,
+    granted: Option<GrantedStores>,
 }
 
 impl Call {
@@ -183,26 +211,22 @@ impl Call {
     /// JSON text of what the tool returned.
     fn run(&self, py: Python<'_>, slot: &Py<PyDict>) -> Result<String, ToolExecutionError> {
         let name = self.tool.full_name();
-        let helpers = HELPERS
-            .get_or_try_init(py, || -> PyResult<Py<PyModule>> {
-                Ok(PyModule::from_code(
-                    py,
-                    HELPERS_CODE,
-                    c"apollia_package_tools.py",
-                    c"apollia_package_tools",
-                )?
-                .unbind())
-            })
-            .map_err(|e| failure("internal", &name, e))?
-            .bind(py);
-        let function = self
-            .tool
-            .function
-            .get_or_try_init(py, || load(helpers, &self.tool, &self.site_packages))
-            .map_err(|e| failure("load_failed", &name, e))?
-            .bind(py);
-        let ctx = Py::new(py, RuntimeContext::for_package_tool(&self.caller))
-            .map_err(|e| failure("internal", &name, e))?;
+        let helpers = helpers(py).map_err(|e| failure("internal", &name, e))?;
+        let function = match self.tool.function(py) {
+            Some(function) => function,
+            None => {
+                let function = load(helpers, &self.tool, &self.site_packages)
+                    .map_err(|e| failure("load_failed", &name, e))?;
+                self.tool.keep_function(py, &function);
+                function
+            }
+        };
+        let function = function.bind(py);
+        let context = match &self.granted {
+            Some(granted) => granted.context(&self.caller),
+            None => RuntimeContext::for_package_tool(&self.caller),
+        };
+        let ctx = Py::new(py, context).map_err(|e| failure("internal", &name, e))?;
         let json = py
             .import("json")
             .map_err(|e| failure("internal", &name, e))?;
@@ -221,6 +245,21 @@ impl Call {
             .and_then(|text| text.extract::<String>())
             .map_err(|e| failure("invalid_output", &name, e))
     }
+}
+
+/// The helpers module, compiled once.
+pub(super) fn helpers(py: Python<'_>) -> PyResult<&Bound<'_, PyModule>> {
+    Ok(HELPERS
+        .get_or_try_init(py, || -> PyResult<Py<PyModule>> {
+            Ok(PyModule::from_code(
+                py,
+                HELPERS_CODE,
+                c"apollia_package_tools.py",
+                c"apollia_package_tools",
+            )?
+            .unbind())
+        })?
+        .bind(py))
 }
 
 /// Import the module of `tool` and return its decorated function.
@@ -263,10 +302,16 @@ fn load(
 }
 
 /// The name a package module is imported under: its dotted name, prefixed by
-/// a digest of the package root.
-fn module_name(root: &std::path::Path, dotted: &str) -> String {
+/// [`module_prefix`].
+pub(super) fn module_name(root: &std::path::Path, dotted: &str) -> String {
+    format!("{}.{dotted}", module_prefix(root))
+}
+
+/// The prefix every module of the package at `root` is imported under: a
+/// digest of the package root.
+pub(super) fn module_prefix(root: &std::path::Path) -> String {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     root.hash(&mut hasher);
-    format!("apollia_pkg_{:016x}.{dotted}", hasher.finish())
+    format!("apollia_pkg_{:016x}", hasher.finish())
 }

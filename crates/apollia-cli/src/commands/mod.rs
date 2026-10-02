@@ -116,4 +116,5 @@ pub mod trigger;
 pub mod update;
 pub mod user_memory;
 pub mod version;
+pub mod workflow;
 pub mod workspace;

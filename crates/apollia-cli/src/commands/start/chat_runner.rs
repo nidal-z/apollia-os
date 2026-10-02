@@ -187,23 +187,11 @@ impl apollia_runtime::chat::ChatAgentRunner for AIPChatAgentRunner {
             }
         };
 
-        // Augment allowed_tools with live A2A virtual skills so the ToolProxy
-        // accepts `a2a:*` calls (the registry filter would otherwise reject them).
         // An access to a connector tool without its account names the single
         // connected account, or nothing.
-        let mut allowed_tools =
+        let allowed_tools =
             apollia_runtime::connectors_bridge::resolve_connector_access(agent_name, allowed_tools)
                 .await;
-        if let Some(ref invoker) = a2a_invoker {
-            let descriptors = apollia_runtime::a2a::A2AToolsProvider::new(Arc::clone(invoker))
-                .build_tool_descriptors()
-                .await;
-            for desc in descriptors {
-                if !allowed_tools.iter().any(|n| n == &desc.name) {
-                    allowed_tools.push(desc.name);
-                }
-            }
-        }
 
         // Direct-path budget (principle #7): a Chat Agent turn on the CLI daemon
         // runs under the same runtime ceiling the desktop already applies to its

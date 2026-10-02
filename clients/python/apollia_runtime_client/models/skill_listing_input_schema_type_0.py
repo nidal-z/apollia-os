@@ -11,11 +11,7 @@ T = TypeVar("T", bound="SkillListingInputSchemaType0")
 
 @_attrs_define
 class SkillListingInputSchemaType0:
-    """Apollia schema for the payload fields (cf. `AgentSkill::input_schema`).
-    Used by `generate_a2a_tool_specs` to expose the worker's real contract
-    to the LLM (instead of a generic schema).
-
-    """
+    """Apollia schema for the payload fields (cf. `AgentSkill::input_schema`)."""
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 

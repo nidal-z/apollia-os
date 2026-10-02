@@ -249,10 +249,11 @@ The Python SDK is a third, softer case: PEP 440 normalises `0.1.0-preview` to
 `0.1.0rc0`. The source string stays `0.1.0-preview`, which is what the tag, the
 changelog and `apollia.__version__` all use.
 
-Guards: `bundled_versions_track_the_product_version` and
-`embedded_python_decorators_declare_the_bundled_version` in
-`crates/apollia-desktop/src/bundled_agents.rs` fail the build when a built-in
-agent drifts from the crate version.
+Guards: `the_guide_is_a_declarative_agent_with_its_knowledge_in_the_mission`
+and `the_onboarding_is_a_declarative_agent_granted_its_one_tool` in
+`crates/apollia-desktop/src/bundled_packages/tests.rs` fail the build when the
+embedded manifest of a built-in agent (`agents/system/*/apollia.toml`) drifts
+from the crate version.
 
 ---
 

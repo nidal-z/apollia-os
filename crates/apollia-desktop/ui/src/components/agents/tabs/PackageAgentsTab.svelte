@@ -8,7 +8,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { agents } from "$lib/stores/agents";
-  import { isActive, statusColor } from "../agentStatus";
+  import { isAvailable, statusColor } from "../agentStatus";
   import type { AgentPackageListItem } from "$lib/types";
 
   interface Props {
@@ -56,7 +56,7 @@
           {pa.role}
         </Badge>
         {#if linked}
-          <StatusDot color={statusColor(linked)} glow={isActive(linked)} size={5} />
+          <StatusDot color={statusColor(linked)} glow={isAvailable(linked)} size={5} />
         {/if}
       </div>
     {/each}

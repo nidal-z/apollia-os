@@ -188,6 +188,12 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os package`↴](#apollia-os-package)
 * [`apollia-os package build`↴](#apollia-os-package-build)
 * [`apollia-os package inspect`↴](#apollia-os-package-inspect)
+* [`apollia-os package preview`↴](#apollia-os-package-preview)
+* [`apollia-os package install`↴](#apollia-os-package-install)
+* [`apollia-os package trust`↴](#apollia-os-package-trust)
+* [`apollia-os package trust import`↴](#apollia-os-package-trust-import)
+* [`apollia-os package trust list`↴](#apollia-os-package-trust-list)
+* [`apollia-os package trust remove`↴](#apollia-os-package-trust-remove)
 * [`apollia-os policy`↴](#apollia-os-policy)
 * [`apollia-os policy keygen`↴](#apollia-os-policy-keygen)
 * [`apollia-os policy init`↴](#apollia-os-policy-init)
@@ -207,6 +213,11 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os batch resume`↴](#apollia-os-batch-resume)
 * [`apollia-os batch stop`↴](#apollia-os-batch-stop)
 * [`apollia-os batch retry`↴](#apollia-os-batch-retry)
+* [`apollia-os workflow`↴](#apollia-os-workflow)
+* [`apollia-os workflow run`↴](#apollia-os-workflow-run)
+* [`apollia-os workflow status`↴](#apollia-os-workflow-status)
+* [`apollia-os workflow logs`↴](#apollia-os-workflow-logs)
+* [`apollia-os workflow cancel`↴](#apollia-os-workflow-cancel)
 * [`apollia-os resilience`↴](#apollia-os-resilience)
 * [`apollia-os resilience list`↴](#apollia-os-resilience-list)
 * [`apollia-os resilience show`↴](#apollia-os-resilience-show)
@@ -315,11 +326,12 @@ Apollia OS CLI binary (apollia-os)
 * `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
-* `package` - Agent package archives: build a `.apo` from a folder, inspect one
+* `package` - Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
 * `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
 * `batch` - Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry)
+* `workflow` - Run the workflows of installed packages (run, status, logs, cancel)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
@@ -3047,7 +3059,7 @@ Check for and install updates from GitHub Releases
 
 ## `apollia-os package`
 
-Agent package archives: build a `.apo` from a folder, inspect one
+Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
 
 **Usage:** `apollia-os package <COMMAND>`
 
@@ -3055,6 +3067,9 @@ Agent package archives: build a `.apo` from a folder, inspect one
 
 * `build` - Build a `.apo` archive from a package folder
 * `inspect` - Show the manifest, the entries and the signature state of a `.apo` archive
+* `preview` - Show what a `.apo` package contains and asks for, before installing it
+* `install` - Install a `.apo` package, or update it
+* `trust` - Trusted publisher keys: a package signed by one is shown under its label
 
 
 
@@ -3091,6 +3106,94 @@ The signature state is `unsigned`, or `signed` with the declared publisher and t
 ###### **Arguments:**
 
 * `<FILE>` - The `.apo` archive
+
+
+
+## `apollia-os package preview`
+
+Show what a `.apo` package contains and asks for, before installing it.
+
+Reports the agents, workflows and tools, the accesses each agent asks for and what each permits, the publisher and the signature (trusted when its key is in the keyring), the connections the package requires (present or missing) and the MCP servers it brings, and, for an installed package, what the new version adds. Nothing is written. Needs the runtime.
+
+**Usage:** `apollia-os package preview <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The `.apo` archive
+
+
+
+## `apollia-os package install`
+
+Install a `.apo` package, or update it.
+
+A signature that does not hold is refused; an unsigned package installs with a notice. The local overrides of its agents are kept on update. Needs the runtime.
+
+**Usage:** `apollia-os package install [OPTIONS] <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The `.apo` archive
+
+###### **Options:**
+
+* `--confirm-deps` - Accept the Python dependencies the package installs
+* `--confirm-changes` - Accept what an update adds: accesses, required connections, MCP servers (read `package preview` first)
+* `--allow-downgrade` - Install a version older than the installed one
+
+
+
+## `apollia-os package trust`
+
+Trusted publisher keys: a package signed by one is shown under its label
+
+**Usage:** `apollia-os package trust <COMMAND>`
+
+###### **Subcommands:**
+
+* `import` - Trust a publisher's public key, given as 64 hexadecimal characters or as a file holding them
+* `list` - List the trusted publisher keys
+* `remove` - Stop trusting a publisher key
+
+
+
+## `apollia-os package trust import`
+
+Trust a publisher's public key, given as 64 hexadecimal characters or as a file holding them
+
+**Usage:** `apollia-os package trust import --label <LABEL> <KEY>`
+
+###### **Arguments:**
+
+* `<KEY>` - The key, or a file holding it
+
+###### **Options:**
+
+* `--label <LABEL>` - Name to show for the publisher
+
+
+
+## `apollia-os package trust list`
+
+List the trusted publisher keys
+
+**Usage:** `apollia-os package trust list`
+
+
+
+## `apollia-os package trust remove`
+
+Stop trusting a publisher key
+
+**Usage:** `apollia-os package trust remove [OPTIONS] <FINGERPRINT>`
+
+###### **Arguments:**
+
+* `<FINGERPRINT>` - SHA-256 fingerprint of the key, as `package trust list` shows it
+
+###### **Options:**
+
+* `--confirm` - Remove without asking
 
 
 
@@ -3357,6 +3460,84 @@ Run the failed items of a batch, and those waiting for an access, again
 ###### **Options:**
 
 * `--grant <GRANTS>` - A sensitive access granted for the rest of the batch; repeatable
+
+
+
+## `apollia-os workflow`
+
+Run the workflows of installed packages (run, status, logs, cancel)
+
+**Usage:** `apollia-os workflow <COMMAND>`
+
+###### **Subcommands:**
+
+* `run` - Run a workflow, in the runtime
+* `status` - Show a run: its status, its result and each of its steps
+* `logs` - The runs of a workflow, newest first
+* `cancel` - Stop a run: its step in progress is interrupted, the next ones never start
+
+
+
+## `apollia-os workflow run`
+
+Run a workflow, in the runtime
+
+**Usage:** `apollia-os workflow run [OPTIONS] <WORKFLOW>`
+
+###### **Arguments:**
+
+* `<WORKFLOW>` - The workflow, `<package>/<workflow>`
+
+###### **Options:**
+
+* `--input <KEY=VALUE>` - An input, as `key=value`; repeatable. A value is read as the type the workflow declares for it
+* `--wait` - Follow the run to its end; exit 3 when it fails or is stopped
+
+
+
+## `apollia-os workflow status`
+
+Show a run: its status, its result and each of its steps
+
+**Usage:** `apollia-os workflow status <RUN_ID>`
+
+###### **Arguments:**
+
+* `<RUN_ID>` - The run id `workflow run` printed
+
+
+
+## `apollia-os workflow logs`
+
+The runs of a workflow, newest first
+
+**Usage:** `apollia-os workflow logs [OPTIONS] <WORKFLOW>`
+
+###### **Arguments:**
+
+* `<WORKFLOW>` - The workflow, `<package>/<workflow>`
+
+###### **Options:**
+
+* `--limit <LIMIT>` - At most this many runs
+
+  Default value: `50`
+
+
+
+## `apollia-os workflow cancel`
+
+Stop a run: its step in progress is interrupted, the next ones never start
+
+**Usage:** `apollia-os workflow cancel [OPTIONS] <RUN_ID>`
+
+###### **Arguments:**
+
+* `<RUN_ID>` - The run id
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 

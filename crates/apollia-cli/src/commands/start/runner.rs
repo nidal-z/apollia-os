@@ -15,7 +15,6 @@ use apollia_memory::manager::MemoryManager;
 use apollia_oria::budget::StepBudget;
 use apollia_oria::engine::AgentRunner;
 use apollia_runtime::eventbus::EventBusSender;
-use apollia_runtime::A2AToolsProvider;
 use apollia_tools::{
     build_dispatcher_with, load_governance_snapshot, AuditTrailHandle, NativeDispatcherConfig,
     ToolRegistryHandle,
@@ -105,22 +104,13 @@ impl BridgeRunner {
             }
         };
 
-        // Extend allowed_tools with virtual A2A skill names before creating the
-        // proxy. An access to a connector tool without its account names the
-        // single connected account, or nothing.
-        let mut allowed_tools = apollia_runtime::connectors_bridge::resolve_connector_access(
+        // An access to a connector tool without its account names the single
+        // connected account, or nothing.
+        let allowed_tools = apollia_runtime::connectors_bridge::resolve_connector_access(
             &self.agent_id,
             self.allowed_tools.clone(),
         )
         .await;
-        if let Some(ref invoker) = self.a2a_invoker {
-            let a2a_descriptors = A2AToolsProvider::new(Arc::clone(invoker))
-                .build_tool_descriptors()
-                .await;
-            for desc in a2a_descriptors {
-                allowed_tools.push(desc.name);
-            }
-        }
 
         let governance_base = self
             .memory_base_dir
@@ -227,22 +217,13 @@ impl AgentRunner for BridgeRunner {
                 Arc::new(NoopToolInvoker),
             ));
 
-            // Extend allowed_tools with virtual A2A skill names before creating
-            // the proxy. An access to a connector tool without its account
-            // names the single connected account, or nothing.
-            let mut allowed_tools = apollia_runtime::connectors_bridge::resolve_connector_access(
+            // An access to a connector tool without its account names the
+            // single connected account, or nothing.
+            let allowed_tools = apollia_runtime::connectors_bridge::resolve_connector_access(
                 &agent_id,
                 allowed_tools,
             )
             .await;
-            if let Some(ref invoker) = a2a_invoker {
-                let a2a_descriptors = A2AToolsProvider::new(Arc::clone(invoker))
-                    .build_tool_descriptors()
-                    .await;
-                for desc in a2a_descriptors {
-                    allowed_tools.push(desc.name);
-                }
-            }
 
             let governance_base = memory_base_dir
                 .parent()

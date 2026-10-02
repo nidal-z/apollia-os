@@ -265,6 +265,12 @@ impl RuntimeContext {
         self.profile = pyo3::Python::with_gil(|py| pyo3::Py::new(py, profile).ok());
         self
     }
+    /// Attaches a memory interface to a context built without one, such as
+    /// the context of a package tool under a host grant.
+    pub(crate) fn with_memory(mut self, memory: crate::memory::MemoryInterface) -> Self {
+        self.memory = pyo3::Python::with_gil(|py| pyo3::Py::new(py, memory).ok());
+        self
+    }
     /// Propagates the total wall-clock budget (in seconds) from the manifest
     /// to feed `ctx.budget.wall_clock_remaining`.
     ///

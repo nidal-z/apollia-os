@@ -299,7 +299,8 @@ enum Commands {
     /// Check for and install updates from GitHub Releases.
     Update(commands::update::UpdateArgs),
 
-    /// Agent package archives: build a `.apo` from a folder, inspect one.
+    /// Agent package archives: build, inspect, preview and install a `.apo`,
+    /// and trust publisher keys.
     Package {
         /// Package subcommand.
         #[command(subcommand)]
@@ -328,6 +329,13 @@ enum Commands {
         /// Batch subcommand.
         #[command(subcommand)]
         command: commands::batch::BatchCommand,
+    },
+
+    /// Run the workflows of installed packages (run, status, logs, cancel).
+    Workflow {
+        /// Workflow subcommand.
+        #[command(subcommand)]
+        command: commands::workflow::WorkflowCommand,
     },
 
     /// Circuit breaker inspection and reset (list, show, reset).
@@ -719,10 +727,15 @@ fn main() {
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
             Commands::Update(args) => commands::update::run(&args, "Apollia-OS", json).await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
-            Commands::Package { command } => commands::package::run(&command, json),
+            Commands::Package { command } => {
+                commands::package::run(&command, cli.socket, json).await
+            }
             Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
             Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
+            Commands::Workflow { command } => {
+                commands::workflow::run(&command, cli.socket, json).await
+            }
             Commands::Resilience { command } => {
                 commands::resilience::run(&command, cli.socket, json).await
             }

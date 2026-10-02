@@ -151,6 +151,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         hooks_file_config,
         chat_file_config,
         filesystem_file_config,
+        workflows_file_config,
     ) = match loaded_config {
         Some(cfg) => (
             cfg.llm,
@@ -162,8 +163,9 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
             cfg.hooks,
             cfg.chat,
             cfg.filesystem,
+            cfg.workflows,
         ),
-        None => (None, None, None, None, None, None, None, None, None),
+        None => (None, None, None, None, None, None, None, None, None, None),
     };
 
     let llm_label = llm_config
@@ -231,6 +233,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 
     // Start all actors via Supervisor (ordered, with timeout + rollback)
     let runtime_config = runtime_file_config.unwrap_or_default();
+    let agent_idle_unload = std::time::Duration::from_secs(runtime_config.agent_idle_unload_secs);
     let hitl_config = hitl_file_config.unwrap_or_default();
     let tools_config = tools_file_config.unwrap_or_default();
     let mcp_config = mcp_file_config.unwrap_or_default();
@@ -275,6 +278,7 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
         plan_mode_default: chat_config.plan_mode_default,
         chat_default_workspace: chat_config.default_workspace.clone(),
         chat_tool_turn_temperature: chat_config.tool_turn_temperature,
+        workflows_config: workflows_file_config.unwrap_or_default(),
         filesystem_trusted_paths: filesystem_config.resolved_trusted_paths(),
     };
     let supervisor = Supervisor::new(config);
@@ -389,23 +393,39 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
 
     // Rewire auto-loaded agents now that the factory's OnceLocks are populated.
     //
-    // The Supervisor's Phase 11 (auto-load) calls factory.create_for_agent
-    // BEFORE we get a chance to populate the OnceLocks the factory closes
-    // over. As a result every auto-loaded agent is initially registered with
-    // a NoopBackend that fails every task. Iterate the same repository the
-    // Supervisor used and reissue create_for_agent (now wired) + replace the
-    // coordinator in the router. Idempotent: register_coordinator inserts
-    // into a HashMap so the previous entry is dropped cleanly.
+    // The Supervisor's Phase 11 registers every enabled agent on demand
+    // before we get a chance to populate the OnceLocks the factory closes
+    // over; a task arriving in that window would build its backend from
+    // empty locks. Replacing each coordinator with a fresh on-demand one
+    // closes the window. Nothing is imported here. Idempotent:
+    // register_coordinator inserts into a HashMap so the previous entry is
+    // dropped cleanly.
     if let Some(ref repo) = agent_repository_for_rewire {
-        rewire_auto_loaded_agents(repo, &factory_for_rewire, &handles, &handles.event_sender).await;
+        rewire_auto_loaded_agents(
+            repo,
+            &factory_for_rewire,
+            &handles,
+            &handles.event_sender,
+            agent_idle_unload,
+        )
+        .await;
     }
 
     // The Python tools of the installed packages join the registry, read from
-    // their manifests; each module is imported on its first call only.
+    // their manifests; each module is imported on its first call only. The
+    // onboarding tool the desktop installed keeps the profile it records.
     apollia_aip::package_tools::attach(
         &data_dir_for_package_tools,
         &handles.tool_registry_handle,
         handles.chat_manager.as_ref(),
+        agent_idle_unload,
+        &[apollia_aip::package_tools::ProfileGrant::onboarding()],
+    )
+    .await;
+    // The workflows of the installed packages, read from the same manifests.
+    apollia_aip::package_tools::workflows::attach(
+        &data_dir_for_package_tools,
+        handles.workflows.as_ref(),
     )
     .await;
 

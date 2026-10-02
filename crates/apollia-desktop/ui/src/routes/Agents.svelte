@@ -31,7 +31,6 @@
   import AgentListPanel from "../components/agents/AgentListPanel.svelte";
   import AgentDetailPane from "../components/agents/AgentDetailPane.svelte";
   import { createAgentActions } from "../components/agents/useAgentActions.svelte";
-  import { isActive } from "../components/agents/agentStatus";
   import type {
     AgentListItem,
     AgentPackageDetailView,
@@ -76,30 +75,14 @@
   // The command palette reaches this route by event rather than by import, so
   // it can name an action without depending on the screen that performs it. An
   // emission with no listener here is an entry that looks alive and does
-  // nothing, which is why these three are mounted with the route.
+  // nothing, which is why it is mounted with the route.
   $effect(() => {
     const openInstall = () => {
       installPackageOpen = true;
     };
-    // Start and stop go through the same toggle a row button uses, so they
-    // inherit its busy flag, its missing-path toast and its error reporting.
-    const startAll = () => {
-      void Promise.all(
-        allAssistants.filter((a) => !isActive(a)).map((a) => actions.toggleAgentRuntime(a)),
-      );
-    };
-    const stopAll = () => {
-      void Promise.all(
-        allAssistants.filter(isActive).map((a) => actions.toggleAgentRuntime(a)),
-      );
-    };
     window.addEventListener("apollia:agents:create", openInstall);
-    window.addEventListener("apollia:agents:start-all", startAll);
-    window.addEventListener("apollia:agents:stop-all", stopAll);
     return () => {
       window.removeEventListener("apollia:agents:create", openInstall);
-      window.removeEventListener("apollia:agents:start-all", startAll);
-      window.removeEventListener("apollia:agents:stop-all", stopAll);
     };
   });
 
@@ -319,7 +302,6 @@
         {apolliaChatSelected}
         connecting={$connectionStatus === "connecting"}
         {installingAgent}
-        agentActions={actions}
         onSelectAgent={selectAgent}
         onSelectPackage={selectPackage}
         onSelectApolliaChat={selectApolliaChat}

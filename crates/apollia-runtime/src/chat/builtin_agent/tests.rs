@@ -400,7 +400,6 @@ async fn test_simple_text_response() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -456,7 +455,6 @@ async fn test_turn_temperature_tracks_tool_exposure() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -487,7 +485,6 @@ async fn test_turn_temperature_defaults_when_unset() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -547,7 +544,6 @@ async fn test_no_hybrid_config_leaves_ceiling_flag_false() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -632,7 +628,6 @@ async fn run_ceiling_exchange(
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -796,7 +791,6 @@ async fn test_tool_call_authorized() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -863,7 +857,6 @@ async fn test_tool_call_hitl_accept() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -941,7 +934,6 @@ async fn test_tool_call_hitl_refuse() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1021,7 +1013,6 @@ async fn test_tool_call_hitl_always_accept() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1088,7 +1079,6 @@ async fn test_budget_exhausted() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1208,7 +1198,6 @@ async fn test_events_emitted_in_order() {
         tool_invoker: invoker,
         event_bus: event_tx,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1326,7 +1315,6 @@ async fn test_stream_tokens_emitted() {
         tool_invoker: invoker,
         event_bus: event_tx,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1389,7 +1377,6 @@ async fn test_stream_accumulation() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1486,7 +1473,6 @@ async fn test_stream_interrupted() {
         tool_invoker: invoker,
         event_bus: event_tx,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1610,7 +1596,6 @@ async fn test_stream_with_tool_call() {
         tool_invoker: invoker,
         event_bus: event_tx,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1702,7 +1687,6 @@ async fn test_build_system_prompt_with_non_empty_user_memory() {
         tool_invoker: invoker,
         event_bus,
         user_memory: Some(repo),
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1737,7 +1721,6 @@ async fn test_inject_memory_flag_gates_persona_block() {
         tool_invoker: invoker,
         event_bus,
         user_memory: Some(repo),
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1797,7 +1780,6 @@ async fn test_build_system_prompt_with_empty_user_memory() {
         tool_invoker: invoker,
         event_bus,
         user_memory: Some(repo),
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1822,7 +1804,6 @@ async fn test_build_system_prompt_without_repository() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -1849,7 +1830,6 @@ fn make_agent_no_memory() -> BuiltInChatAgent {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -2191,7 +2171,6 @@ fn agent_with(registry: ToolRegistryHandle, invoker: Arc<dyn ToolInvoker>) -> Bu
         tool_invoker: invoker,
         event_bus: make_event_bus(),
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -3050,7 +3029,6 @@ async fn test_pretooluse_deny_blocks_invocation() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -3131,7 +3109,6 @@ async fn test_pretooluse_rewrite_requires_an_approval() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -3220,7 +3197,6 @@ async fn test_pretooluse_allow_lets_tool_run() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -3294,7 +3270,6 @@ async fn test_pretooluse_decision_emits_hook_event() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -3452,7 +3427,6 @@ async fn test_posttooluse_injection_reaches_next_turn() {
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
@@ -3537,7 +3511,6 @@ fn plan_agent(
         tool_invoker: invoker,
         event_bus: make_event_bus(),
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan,
     })
@@ -3630,7 +3603,6 @@ fn plan_agent_with_bus(bus: EventBusSender, plan_mode: bool) -> BuiltInChatAgent
         tool_invoker: invoker,
         event_bus: bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: Some(plan_handle_for_test()),
     })
@@ -3951,7 +3923,6 @@ async fn test_react_loop_merges_stream_usage_into_response() {
         tool_invoker: invoker,
         event_bus: make_event_bus(),
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -4095,7 +4066,6 @@ async fn test_executing_phase_refuses_plan_propose_with_phase_message() {
         tool_invoker: invoker,
         event_bus: make_event_bus(),
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: Some(plan.clone()),
     })
@@ -4312,7 +4282,6 @@ async fn run_prefix_checker_turn(params: PrefixCheckerRun) -> ChatAgentResponse 
         tool_invoker: invoker,
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
