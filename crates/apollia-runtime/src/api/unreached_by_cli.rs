@@ -58,7 +58,7 @@ struct UnreachedOp {
 const LIVE_PROBE_EXCLUSION: &str = "get_task_timeline resolves the process home \
 instead of state.data_dir, so a live probe would read the real ~/.apollia";
 
-/// The eleven operations, in the order the coverage table lists them.
+/// The operations, in the order the coverage table lists them.
 fn unreached_ops() -> Vec<UnreachedOp> {
     vec![
         UnreachedOp {
@@ -214,6 +214,20 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             id: "disconnect_connector_account",
             method: Method::DELETE,
             path: "/api/v1/connectors/accounts/not-a-provider/probe",
+            absent_method: Method::GET,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "test_imap_mailbox",
+            method: Method::POST,
+            path: "/api/v1/connectors/imap/test",
+            absent_method: Method::GET,
+            live_probed: true,
+        },
+        UnreachedOp {
+            id: "add_imap_mailbox",
+            method: Method::POST,
+            path: "/api/v1/connectors/imap/accounts",
             absent_method: Method::GET,
             live_probed: true,
         },
@@ -408,8 +422,8 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
     let ops = unreached_ops();
     assert_eq!(
         ops.len(),
-        26,
-        "the census must carry the twenty-six operations the coverage table lists"
+        28,
+        "the census must carry the twenty-eight operations the coverage table lists"
     );
 
     // WHEN each is probed with a method its route does not declare
@@ -458,13 +472,13 @@ async fn test_every_operation_unreached_by_the_cli_is_mounted_on_the_router() {
         bound += 1;
     }
     assert_eq!(
-        bound, 23,
-        "the method binding of twenty-three operations must be probed"
+        bound, 25,
+        "the method binding of twenty-five operations must be probed"
     );
 }
 
 #[tokio::test]
-async fn test_twenty_three_of_the_twenty_six_operations_carry_a_live_probe() {
+async fn test_twenty_five_of_the_twenty_eight_operations_carry_a_live_probe() {
     // GIVEN the census table, which records which operations a live probe
     // invokes the handler of
     let ops = unreached_ops();
@@ -481,7 +495,7 @@ async fn test_twenty_three_of_the_twenty_six_operations_carry_a_live_probe() {
     // is the one whose handler reads the process home rather than the state's
     // data directory
     assert_eq!(
-        live, 23,
+        live, 25,
         "live probe count changed without the table saying so"
     );
     // Three exclusions, and they are not the same kind. `get_task_timeline`
@@ -1000,6 +1014,41 @@ async fn test_secret_routes_refuse_a_key_no_placeholder_can_carry() {
         text.contains("environment variable name"),
         "body was: {text}"
     );
+}
+
+#[tokio::test]
+async fn test_imap_routes_refuse_an_unusable_mailbox_before_reaching_a_server() {
+    // GIVEN the router the daemon serves
+    let dir = tempfile::tempdir().expect("temp dir");
+    let router = APIServer::build_router_for_test(base_state(dir.path()));
+
+    // WHEN a mailbox on an unknown domain without a server is tested, and a
+    // mailbox without a password is added
+    let (test_status, test_body) = call(
+        router.clone(),
+        Method::POST,
+        "/api/v1/connectors/imap/test",
+        Body::from(r#"{"email":"ana@example.test","password":"p"}"#),
+    )
+    .await;
+    let (add_status, add_body) = call(
+        router,
+        Method::POST,
+        "/api/v1/connectors/imap/accounts",
+        Body::from(r#"{"email":"ana@gmail.com","password":""}"#),
+    )
+    .await;
+
+    // THEN each handler answers its typed refusal, and none opened a
+    // connection, the secret store or the mailbox list
+    assert_eq!(test_status, StatusCode::BAD_REQUEST);
+    assert_eq!(json_of(&test_body)["code"], "unknown_provider");
+    assert_eq!(add_status, StatusCode::BAD_REQUEST);
+    assert_eq!(json_of(&add_body)["code"], "invalid_password");
+    assert!(!dir
+        .path()
+        .join(apollia_connectors::imap::IMAP_INDEX_FILE)
+        .exists());
 }
 
 #[tokio::test]

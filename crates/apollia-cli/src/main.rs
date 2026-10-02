@@ -350,6 +350,13 @@ enum Commands {
         command: commands::plan_cache::PlanCommand,
     },
 
+    /// Run the runtime as a service of your session (install, uninstall, status).
+    Service {
+        /// Service subcommand.
+        #[command(subcommand)]
+        command: commands::service::ServiceCommand,
+    },
+
     /// Diagnose the local Apollia environment (no runtime required).
     ///
     /// Verifies the Apollia home directory, the config file, local SQLite
@@ -500,6 +507,14 @@ fn init_tracing(cli: &Cli) {
     };
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(filter_str));
+    // The IMAP library traces the commands it sends, a login's password
+    // included; its target stays off whatever `RUST_LOG` asks.
+    let env_filter = match apollia_connectors::imap::LOG_DIRECTIVE
+        .parse::<tracing_subscriber::filter::Directive>()
+    {
+        Ok(directive) => env_filter.add_directive(directive),
+        Err(_) => env_filter,
+    };
 
     // Route diagnostics to stderr so they never corrupt stdout payloads
     // (notably `--json`): in-process commands (e.g. `mcp set-approval`) emit
@@ -741,6 +756,7 @@ fn main() {
                 commands::resilience::run(&command, cli.socket, json).await
             }
             Commands::Plan { command } => commands::plan_cache::run_plan(&command, json),
+            Commands::Service { command } => commands::service::run(&command, json),
             Commands::Doctor => commands::doctor::run(cli.socket, json).await,
             Commands::Inspect { path } => commands::inspect::run(&path, json, no_color),
             Commands::Logs(args) => commands::logs::run(&args, json).await,
@@ -1275,7 +1291,8 @@ mod tests {
                 assert!(matches!(
                     command,
                     AgentCommand::List {
-                        supports_a2a: false
+                        supports_a2a: false,
+                        definitions: false
                     }
                 ));
                 assert!(!cli.json);

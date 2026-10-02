@@ -174,6 +174,28 @@ check        "connector drive folder set"            "$BIN" connector drive fold
 check        "connector drive folder reset"          "$BIN" connector drive folder reset alice@example.invalid --confirm
 check        "connector drive folder picked list"    "$BIN" connector drive folder picked list alice@example.invalid
 check        "connector drive folder picked remove"  "$BIN" connector drive folder picked remove alice@example.invalid ghost-folder-id --confirm
+# IMAP mailbox: offline, no keychain. `list` reads the seeded data dir (no
+# mailbox); `add` without a password stops before the secret store; `test`
+# refuses an unknown domain before any connection, and reports a closed
+# loopback port as unreachable. Each failure carries its typed code.
+check        "connector imap list"                   "$BIN" connector imap list
+check_json   "connector imap list --json"            "$BIN" connector imap list --json
+imap_case() {
+    local label=$1 code=$2; shift 2
+    local out rc
+    out=$("$@" 2>&1); rc=$?
+    if [[ $rc -eq 1 ]] && printf '%s' "$out" | /usr/bin/grep -q "\"$code: "; then
+        _pass "$label → 1 ($code)"
+    else
+        _fail "$label → 1 ($code)" "got $rc | out: ${out:0:300}" "$rc"
+    fi
+}
+imap_case "connector imap add (no password)" missing_password \
+    env -u APOLLIA_IMAP_PASSWORD "$BIN" connector imap add ana@gmail.com --json
+imap_case "connector imap test (unknown domain)" unknown_provider \
+    env APOLLIA_IMAP_PASSWORD=e2e "$BIN" connector imap test ana@example.invalid --json
+imap_case "connector imap test (closed port)" unreachable \
+    env APOLLIA_IMAP_PASSWORD=e2e "$BIN" connector imap test ana@example.invalid --host 127.0.0.1 --port 9 --json
 # Revoking an absent account exits 0: the storage contract is idempotent
 # ("Returns Ok(()) even if the token was already gone",
 # crates/apollia-auth/src/multi_account.rs, delete). The same contract is
@@ -365,9 +387,51 @@ check_exit   "model recommend (off) → 2" 2 "$BIN" --socket "$OFFSOCK" model re
 check        "agent list (off, local fallback)"      "$BIN" --socket "$OFFSOCK" agent list
 check_content "agent list shows 4 seeded agents" "apollia-chat" "$BIN" --socket "$OFFSOCK" agent list
 check_exit   "agent install missing file → 1"  1     "$BIN" --socket "$OFFSOCK" agent install /tmp/never-exists.py
+# The definition and overrides of an agent live behind the runtime, which
+# journals every write: daemon off, each leaf refuses with 2, and a field or a
+# value the CLI can judge alone is refused with 1 before any call.
+check_exit   "agent show (off) → 2"            2     "$BIN" --socket "$OFFSOCK" agent show apollia-chat
+check_exit   "agent list --definitions (off) → 2" 2  "$BIN" --socket "$OFFSOCK" agent list --definitions
+check_exit   "agent set (off) → 2"             2     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission "Answer briefly."
+check_exit   "agent reset (off) → 2"           2     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --confirm
+check_exit   "agent set unknown field → 1"     1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat model qwen3
+check_exit   "agent set two missions → 1"      1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission one two
+check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --field model --confirm
 # Usage errors are exit 1 by contract (1 = usage, 2 = runtime): a script can
 # tell a typo from a stopped daemon.
 check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus
+
+# ── A.13b service (definition written, never loaded) ────────────────────────
+# `service install --no-load` writes the user-session definition under the
+# seeded HOME and stops there: launchd, systemd and Task Scheduler act on the
+# operator's real session whatever HOME says, so loading is the manual gesture.
+# `status` and `uninstall` match the manager's answer against this definition
+# file, so a service another home installed is neither reported nor stopped.
+# XDG_CONFIG_HOME is dropped so the Linux unit lands under the seeded HOME.
+section "A.13b service"
+case "$(uname -s)" in
+    Darwin) SVC_DEF="$HOME/Library/LaunchAgents/com.apollia.os.plist" ;;
+    Linux)  SVC_DEF="$HOME/.config/systemd/user/apollia-os.service" ;;
+    *)      SVC_DEF="$DATA/service/apollia-os.xml" ;;
+esac
+check_json_field "service status before install: not_installed" "d['state']" "not_installed" env -u XDG_CONFIG_HOME "$BIN" service status --json
+check        "service install --no-load"             env -u XDG_CONFIG_HOME "$BIN" service install --no-load
+[[ -f "$SVC_DEF" ]] && _pass "service install wrote the definition in place" || _fail "service install wrote the definition in place" "absent: $SVC_DEF"
+# The Windows XML is UTF-16, which grep does not read; the Rust tests pin it.
+if [[ "$(uname -s)" == Darwin || "$(uname -s)" == Linux ]]; then
+    BIN_ABS=$("${E2E_PYTHON:-python3}" -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$BIN")
+    if /usr/bin/grep -qF "$BIN_ABS" "$SVC_DEF" && /usr/bin/grep -qE '(<string>start</string>|" start$)' "$SVC_DEF"; then
+        _pass "service definition runs the absolute binary with start"
+    else
+        _fail "service definition runs the absolute binary with start" "binary $BIN_ABS or start missing in $SVC_DEF"
+    fi
+fi
+check_json_field "service status: installed"        "d['installed']" "True"    env -u XDG_CONFIG_HOME "$BIN" service status --json
+check_json_field "service status: stopped"          "d['state']"     "stopped" env -u XDG_CONFIG_HOME "$BIN" service status --json
+check_exit   "service uninstall (no --confirm) → 1" 1 env -u XDG_CONFIG_HOME "$BIN" service uninstall
+check        "service uninstall --confirm"           env -u XDG_CONFIG_HOME "$BIN" service uninstall --confirm
+[[ ! -f "$SVC_DEF" ]] && _pass "service uninstall removed the definition" || _fail "service uninstall removed the definition" "still present: $SVC_DEF"
+check_exit   "service uninstall (absent) → 1"      1 env -u XDG_CONFIG_HOME "$BIN" service uninstall --confirm
 
 # ── A.14 un-exercised VARIANTS (every leaf itself has a real invocation) ─────
 # Coverage counts real invocations only (scripts/check_cli_e2e_coverage.py), so

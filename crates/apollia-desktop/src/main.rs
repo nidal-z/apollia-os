@@ -59,12 +59,17 @@ pub type SharedLlmRouter = Arc<std::sync::RwLock<Option<Arc<LlmRouter>>>>;
 fn main() {
     // Initialize tracing so Rust logs appear in the terminal during development.
     // RUST_LOG controls verbosity (e.g. RUST_LOG=apollia=debug); defaults to info.
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("apollia=info,warn")),
-        )
-        .init();
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("apollia=info,warn"));
+    // The IMAP library traces the commands it sends, a login's password
+    // included; its target stays off whatever `RUST_LOG` asks.
+    let env_filter = match apollia_runtime::connectors_bridge::IMAP_LOG_DIRECTIVE
+        .parse::<tracing_subscriber::filter::Directive>()
+    {
+        Ok(directive) => env_filter.add_directive(directive),
+        Err(_) => env_filter,
+    };
+    tracing_subscriber::fmt().with_env_filter(env_filter).init();
 
     let apollia_data_dir = {
         let home = apollia_core::paths::home_dir_or_temp()

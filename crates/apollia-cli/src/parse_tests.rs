@@ -24,6 +24,7 @@ use crate::commands::package::PackageCommand as ApoPackageCommand;
 use crate::commands::permissions::PermissionsCommand;
 use crate::commands::policy::PolicyCommand;
 use crate::commands::project::{ProjectAgentsCommand, ProjectCommand, ProjectTemplatesCommand};
+use crate::commands::service::ServiceCommand;
 use crate::commands::task::TaskCommand;
 use crate::commands::tools::{
     ToolsApprovalsCmd, ToolsCommand, ToolsConfigCmd, ToolsCredentialsCmd,
@@ -36,6 +37,96 @@ fn parse(args: &[&str]) -> Cli {
 }
 
 // ─── agent ───────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cli_parses_agent_set_with_list_values() {
+    // GIVEN "apollia-os agent set invoices access file_read web_fetch"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "agent",
+        "set",
+        "invoices",
+        "access",
+        "file_read",
+        "web_fetch",
+    ]);
+    // THEN the agent, the field and every value are carried through
+    let Commands::Agent {
+        command:
+            AgentCommand::Set {
+                agent_id,
+                field,
+                values,
+            },
+    } = cli.command
+    else {
+        panic!("expected agent set");
+    };
+    assert_eq!(agent_id, "invoices");
+    assert_eq!(field, "access");
+    assert_eq!(values, vec!["file_read", "web_fetch"]);
+}
+
+#[test]
+fn test_cli_parses_agent_set_with_no_value() {
+    // GIVEN "apollia-os agent set invoices sources" (an empty list)
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "agent", "set", "invoices", "sources"]);
+    // THEN the values are empty
+    let Commands::Agent {
+        command: AgentCommand::Set { values, .. },
+    } = cli.command
+    else {
+        panic!("expected agent set");
+    };
+    assert!(values.is_empty());
+}
+
+#[test]
+fn test_cli_parses_agent_reset() {
+    // GIVEN "apollia-os agent reset invoices --field mission --confirm"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "agent",
+        "reset",
+        "invoices",
+        "--field",
+        "mission",
+        "--confirm",
+    ]);
+    // THEN the field and the confirmation are carried through
+    let Commands::Agent {
+        command:
+            AgentCommand::Reset {
+                agent_id,
+                field,
+                confirm,
+            },
+    } = cli.command
+    else {
+        panic!("expected agent reset");
+    };
+    assert_eq!(agent_id, "invoices");
+    assert_eq!(field.as_deref(), Some("mission"));
+    assert!(confirm);
+}
+
+#[test]
+fn test_cli_parses_agent_list_definitions() {
+    // GIVEN "apollia-os agent list --definitions"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "agent", "list", "--definitions"]);
+    // THEN the stored agents are asked for
+    let Commands::Agent {
+        command: AgentCommand::List { definitions, .. },
+    } = cli.command
+    else {
+        panic!("expected agent list");
+    };
+    assert!(definitions);
+}
 
 #[test]
 fn test_cli_parses_agent_package_list() {
@@ -1474,4 +1565,60 @@ fn test_cli_policy_sign_requires_a_key() {
     let result = Cli::try_parse_from(["apollia-os", "policy", "sign", "./policy"]);
     // THEN it is a usage error
     assert!(result.is_err());
+}
+
+// ─── service ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_cli_parses_service_install_with_no_load() {
+    // GIVEN "apollia-os service install --no-load"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "service", "install", "--no-load"]);
+    // THEN the install verb carries the write-only flag
+    let Commands::Service { command } = cli.command else {
+        panic!("expected service");
+    };
+    assert!(matches!(command, ServiceCommand::Install { no_load: true }));
+}
+
+#[test]
+fn test_cli_parses_service_install_loads_by_default() {
+    // GIVEN "apollia-os service install"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "service", "install"]);
+    // THEN the service is handed to the manager unless asked otherwise
+    let Commands::Service { command } = cli.command else {
+        panic!("expected service");
+    };
+    assert!(matches!(
+        command,
+        ServiceCommand::Install { no_load: false }
+    ));
+}
+
+#[test]
+fn test_cli_parses_service_uninstall_with_confirm() {
+    // GIVEN "apollia-os service uninstall --confirm"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "service", "uninstall", "--confirm"]);
+    // THEN the destruction is confirmed
+    let Commands::Service { command } = cli.command else {
+        panic!("expected service");
+    };
+    assert!(matches!(
+        command,
+        ServiceCommand::Uninstall { confirm: true }
+    ));
+}
+
+#[test]
+fn test_cli_parses_service_status() {
+    // GIVEN "apollia-os service status"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "service", "status"]);
+    // THEN the status verb is selected
+    let Commands::Service { command } = cli.command else {
+        panic!("expected service");
+    };
+    assert!(matches!(command, ServiceCommand::Status));
 }

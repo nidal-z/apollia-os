@@ -50,8 +50,32 @@ pub(in crate::commands::agent) fn format_a2a_agent_list(resp: &serde_json::Value
 
 /// Render `agent info` from the local `agents.db` row when the runtime
 /// registry returns 404 (e.g. disabled or not-yet-loaded agents).
-pub(in crate::commands::agent) fn run_info_local_fallback(agent_id: &str, json: bool) -> i32 {
-    match local_agent_detail(agent_id) {
+pub(in crate::commands::agent) fn run_info_local_fallback(
+    agent_id: &str,
+    definition: Option<serde_json::Value>,
+    json: bool,
+) -> i32 {
+    let detail = match (local_agent_detail(agent_id), &definition) {
+        (Some(mut detail), _) => {
+            if let Some(map) = detail.as_object_mut() {
+                map.insert(
+                    "definition".into(),
+                    definition.clone().unwrap_or(serde_json::Value::Null),
+                );
+            }
+            Some(detail)
+        }
+        // A declarative agent runs no code: its definition is all there is.
+        (None, Some(definition)) => Some(serde_json::json!({
+            "agent_id": null,
+            "name": definition.get("id").cloned().unwrap_or(serde_json::Value::Null),
+            "version": definition.get("version").cloned().unwrap_or(serde_json::Value::Null),
+            "state": "stopped",
+            "definition": definition,
+        })),
+        (None, None) => None,
+    };
+    match detail {
         Some(detail) => {
             if json {
                 println!(
@@ -60,6 +84,9 @@ pub(in crate::commands::agent) fn run_info_local_fallback(agent_id: &str, json: 
                 );
             } else {
                 format_local_agent_detail(&detail);
+                if let Some(definition) = &definition {
+                    super::print_definition_section(definition);
+                }
             }
             exit_codes::SUCCESS
         }

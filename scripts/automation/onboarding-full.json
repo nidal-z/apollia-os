@@ -160,8 +160,8 @@
     },
     {
       "kind": "stubInvoke",
-      "command": "start_model_download",
-      "reject": "automation: start_model_download refused (seeded fault, curated llm)",
+      "command": "start_variant_download",
+      "reject": "automation: start_variant_download refused (seeded fault, curated llm)",
       "once": true
     },
     {
@@ -178,7 +178,7 @@
     {
       "kind": "expect",
       "testid": "llm-download-error",
-      "contains": "start_model_download refused"
+      "contains": "start_variant_download refused"
     },
     {
       "kind": "expect",
@@ -190,7 +190,7 @@
     },
     {
       "kind": "stubInvoke",
-      "command": "start_model_download",
+      "command": "start_variant_download",
       "resolve": "automation-curated-llm-download",
       "once": true
     },
@@ -221,7 +221,7 @@
     },
     {
       "kind": "clearStubs",
-      "command": "start_model_download"
+      "command": "start_variant_download"
     },
     {
       "kind": "click",

@@ -27,14 +27,13 @@
     getHardwareProfile,
     searchHfModels,
     getHfModel,
-    startModelDownload,
+    startVariantDownload,
     cancelModelDownload,
     listInstalledModels,
     deleteInstalledModel,
     listenDownloadProgress,
     type HardwareProfile,
     type HfModelCard,
-    type HfFile,
     type DownloadProgress,
     type InstalledModel,
   } from "$lib/ipc/modelHub";
@@ -210,28 +209,26 @@
     destDir = typeof selected === "string" ? selected : (selected as { path: string }).path;
   }
 
-  async function startDownload(file: HfFile): Promise<void> {
+  async function downloadGroup(group: GgufGroup): Promise<void> {
     const card = modelDetail ?? searchResults.find((m) => m.repo_id === expandedModel);
-    if (card?.gated && !hfToken) {
+    if (!card) return;
+    if (card.gated && !hfToken) {
       showTokenForm = true;
       return;
     }
+    const first = group.files[0];
+    if (!first) return;
     try {
-      await startModelDownload({
-        url: file.download_url,
-        filename: file.filename,
+      await startVariantDownload({
+        repo_id: card.repo_id,
+        selector: { kind: "gguf", file: first.filename },
         hf_token: hfToken || null,
-        repo_id: card?.repo_id ?? null,
         dest_dir: destDir,
       });
-      addToast($t("settings.model_hub.downloads.downloading_toast", { values: { filename: file.filename } }), "info");
+      addToast($t("settings.model_hub.downloads.downloading_toast", { values: { filename: group.fullName } }), "info");
     } catch (e) {
       reportError(e, { surface: "toast" });
     }
-  }
-
-  async function downloadGroup(group: GgufGroup): Promise<void> {
-    for (const file of group.files) await startDownload(file);
   }
 
   async function cancelDownload(id: string): Promise<void> {
@@ -325,7 +322,6 @@
     downloads={downloadList}
     onToggle={expandModel}
     onDownloadGroup={downloadGroup}
-    onDownloadFile={startDownload}
     onLoadMore={() => search(true)}
     onRetry={() => search()}
     onClearFilters={clearFilters}

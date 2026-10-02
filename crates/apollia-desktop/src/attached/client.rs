@@ -124,6 +124,26 @@ impl AttachedClient {
         Ok(())
     }
 
+    /// `GET path`, its JSON answer read as `T`.
+    pub(crate) async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T, AttachedError> {
+        self.send_json(self.http.get(self.url(path))).await
+    }
+
+    /// `POST path` with a JSON body, its JSON answer read as `T`.
+    pub(crate) async fn post<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &impl serde::Serialize,
+    ) -> Result<T, AttachedError> {
+        self.send_json(self.http.post(self.url(path)).json(body))
+            .await
+    }
+
+    /// `DELETE path`, its JSON answer read as `T`.
+    pub(crate) async fn delete<T: DeserializeOwned>(&self, path: &str) -> Result<T, AttachedError> {
+        self.send_json(self.http.delete(self.url(path))).await
+    }
+
     /// Whether the runtime answers its health route, within a short deadline.
     pub(crate) async fn is_alive(&self) -> bool {
         let request = self

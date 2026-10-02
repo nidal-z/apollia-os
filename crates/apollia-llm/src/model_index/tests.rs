@@ -322,3 +322,185 @@ fn a_source_override_to_another_model_is_refused() {
     ));
     assert!(index.get("qwen").unwrap().source_file_override.is_none());
 }
+
+#[test]
+fn vision_is_carried_only_by_a_model_the_engine_can_show_an_image() {
+    // GIVEN the same GGUF installed twice, once with its projector in its
+    //       folder and once alone, and two MLX folders, one multimodal
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let template = "{% if tools %}{{ tools }}{% endif %}<think>";
+    let header = gguf(&[
+        ("general.architecture", "gemma3"),
+        ("tokenizer.chat_template", template),
+    ]);
+    write(root, "with/gemma-Q4_K_M.gguf", &header);
+    write(
+        root,
+        "with/mmproj-gemma-f16.gguf",
+        &gguf(&[("general.architecture", "clip")]),
+    );
+    write(root, "alone/gemma-Q4_K_M.gguf", &header);
+    write(
+        root,
+        "seeing/config.json",
+        br#"{"vision_config":{"hidden_size":1}}"#,
+    );
+    write(root, "seeing/model.safetensors", b"weights");
+    write(root, "blind/config.json", br#"{"model_type":"qwen3"}"#);
+    write(root, "blind/model.safetensors", b"weights");
+
+    // WHEN the index is read
+    let index = rebuilt(root);
+    let caps = |id: &str| {
+        index
+            .get(id)
+            .and_then(|m| m.capabilities.clone())
+            .expect("capabilities are computed at rebuild")
+    };
+
+    // THEN the GGUF with its projector reads images in the formats of
+    //      llama-server, the one without does not, and only the MLX folder
+    //      with a vision_config reads images, in the formats of the MLX engine
+    let with = caps("with/gemma-Q4_K_M");
+    assert!(with.vision);
+    assert_eq!(with.image_formats, ["jpeg", "png", "tga", "bmp", "gif"]);
+    assert!(with.tools && with.reasoning);
+    let alone = caps("alone/gemma-Q4_K_M");
+    assert!(!alone.vision);
+    assert!(alone.image_formats.is_empty());
+    assert!(alone.tools && alone.reasoning);
+    let seeing = caps("seeing");
+    assert!(seeing.vision);
+    assert!(seeing.image_formats.iter().any(|f| f == "webp"));
+    assert!(!caps("blind").vision);
+}
+
+#[test]
+fn an_index_written_before_capabilities_gets_them_at_the_next_rebuild() {
+    // GIVEN an index entry without capabilities, the file unchanged since
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    write(
+        root,
+        "a.gguf",
+        &gguf(&[
+            ("general.architecture", "qwen3"),
+            ("tokenizer.chat_template", "{{ tools }}"),
+        ]),
+    );
+    let mut index = rebuilt(root);
+    index.models[0].capabilities = None;
+
+    // WHEN the index is rebuilt
+    index.rebuild(root).unwrap();
+
+    // THEN the header is read again and the capabilities filled
+    let caps = index.models[0].capabilities.clone().expect("filled");
+    assert!(caps.tools);
+}
+
+/// A GGUF header carrying the given string pairs, then one `u32` pair: what an
+/// embeddings conversion writes for `{arch}.pooling_type`.
+fn gguf_with_u32(pairs: &[(&str, &str)], key: &str, value: u32) -> Vec<u8> {
+    let mut out = gguf(pairs);
+    let count = (pairs.len() as u64 + 1).to_le_bytes();
+    out[16..24].copy_from_slice(&count);
+    out.extend_from_slice(&(key.len() as u64).to_le_bytes());
+    out.extend_from_slice(key.as_bytes());
+    out.extend_from_slice(&4u32.to_le_bytes());
+    out.extend_from_slice(&value.to_le_bytes());
+    out
+}
+
+/// The SHA-256 the registry pins for multilingual-e5-small.
+const E5_DIGEST: &str = "0a34067a40f25d3149b36885faa62bee0e5284d0f9edc102acfc00e115d953e8";
+
+#[test]
+fn a_gguf_whose_header_carries_a_pooling_key_is_filed_as_embeddings() {
+    // GIVEN two qwen3 GGUFs, one carrying an embeddings pooling key (as
+    //       Qwen3-Embedding does) and one without (a chat model), and a bert
+    //       one pooled by mean (as multilingual-e5-small is)
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    write(
+        root,
+        "qwen3-embedding.gguf",
+        &gguf_with_u32(
+            &[("general.architecture", "qwen3")],
+            "qwen3.pooling_type",
+            3,
+        ),
+    );
+    write(
+        root,
+        "e5.gguf",
+        &gguf_with_u32(&[("general.architecture", "bert")], "bert.pooling_type", 1),
+    );
+    write(
+        root,
+        "qwen3-chat.gguf",
+        &gguf(&[("general.architecture", "qwen3")]),
+    );
+
+    // WHEN the index is rebuilt
+    let index = rebuilt(root);
+
+    // THEN the pooled ones are embeddings and the chat model a language model
+    assert_eq!(
+        index.get("qwen3-embedding").unwrap().category,
+        ModelCategory::Embeddings
+    );
+    assert_eq!(index.get("e5").unwrap().category, ModelCategory::Embeddings);
+    assert_eq!(
+        index.get("qwen3-chat").unwrap().category,
+        ModelCategory::Language
+    );
+}
+
+#[test]
+fn a_digest_pinned_by_an_embeddings_entry_files_the_model_as_embeddings() {
+    // GIVEN an imported GGUF whose header carries no pooling key
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let path = write(
+        root,
+        "e5-old-conversion.gguf",
+        &gguf(&[("general.architecture", "bert")]),
+    );
+    let mut index = ModelIndex::default();
+    index.record(root, &path, ModelOrigin::Import).unwrap();
+    assert_eq!(
+        index.get("e5-old-conversion").unwrap().category,
+        ModelCategory::Language
+    );
+
+    // WHEN its digest, the one the registry pins for e5, is stored, and the
+    //      index is rebuilt with the file unchanged
+    index.set_digest(&path, E5_DIGEST.to_owned(), true).unwrap();
+    let after_digest = index.get("e5-old-conversion").unwrap().category;
+    index.rebuild(root).unwrap();
+
+    // THEN the entry is recognised by its digest, before and after the rebuild
+    assert_eq!(after_digest, ModelCategory::Embeddings);
+    assert_eq!(
+        index.get("e5-old-conversion").unwrap().category,
+        ModelCategory::Embeddings
+    );
+}
+
+#[test]
+fn a_digest_no_entry_pins_leaves_the_header_category() {
+    // GIVEN an imported chat GGUF
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let path = write(root, "qwen.gguf", &llama("Qwen"));
+    let mut index = ModelIndex::default();
+    index.record(root, &path, ModelOrigin::Import).unwrap();
+
+    // WHEN a digest no embeddings entry pins is stored
+    index.set_digest(&path, "1".repeat(64), false).unwrap();
+
+    // THEN it stays a language model
+    assert_eq!(index.get("qwen").unwrap().category, ModelCategory::Language);
+}

@@ -184,8 +184,18 @@ pub(in crate::commands::agent) async fn run_info(
         let msg = file_path_hint(HintVerb::Show, agent_id);
         return print_compact_error_and_exit(&msg, json);
     }
+    // The definition comes from agents.db through the runtime; an agent the
+    // registry has never loaded may still have one, and a runtime agent may
+    // have none (a module started by path).
+    let definition = client.get_agent_definition(agent_id).await.ok();
     match client.get_agent(agent_id).await {
-        Ok(resp) => {
+        Ok(mut resp) => {
+            if let Some(map) = resp.as_object_mut() {
+                map.insert(
+                    "definition".into(),
+                    definition.clone().unwrap_or(serde_json::Value::Null),
+                );
+            }
             if json {
                 println!(
                     "{}",
@@ -193,6 +203,9 @@ pub(in crate::commands::agent) async fn run_info(
                 );
             } else {
                 format_agent_detail(&resp);
+                if let Some(definition) = &definition {
+                    print_definition_section(definition);
+                }
             }
             exit_codes::SUCCESS
         }
@@ -201,7 +214,7 @@ pub(in crate::commands::agent) async fn run_info(
         // repository so `apollia-os agent show` works on every installed
         // agent regardless of its runtime state.
         Err(ClientError::ServerError { status: 404, .. }) => {
-            run_info_local_fallback(agent_id, json)
+            run_info_local_fallback(agent_id, definition, json)
         }
         Err(e) => handle_error(e, json),
     }

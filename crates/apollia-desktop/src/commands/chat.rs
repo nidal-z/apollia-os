@@ -11,7 +11,7 @@ use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::attached::RuntimeLink;
+use crate::attached::{segment, RuntimeLink};
 
 /// Automatic session naming lives in `title`, the on-disk export in `export`.
 pub mod export;
@@ -410,10 +410,19 @@ pub async fn authorize_chat_tool(
 /// Deliver user answers to a pending `ask_user` tool request.
 #[tauri::command]
 pub async fn respond_user_input(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     request_id: String,
     answers: Vec<apollia_tools::tools::ask_user::UserAnswer>,
 ) -> Result<(), String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            let path = format!("/api/v1/user-inputs/{}/answer", segment(&request_id));
+            let body = serde_json::json!({ "answers": answers });
+            let _: serde_json::Value = remote.post(&path, &body).await?;
+            return Ok(());
+        }
+    };
     let manager = state
         .chat_manager
         .as_ref()
@@ -428,10 +437,19 @@ pub async fn respond_user_input(
 /// Reject a pending `ask_user` request with a mandatory reason.
 #[tauri::command]
 pub async fn respond_user_input_rejected(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     request_id: String,
     reason: String,
 ) -> Result<(), String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => {
+            let path = format!("/api/v1/user-inputs/{}/reject", segment(&request_id));
+            let body = serde_json::json!({ "reason": reason });
+            let _: serde_json::Value = remote.post(&path, &body).await?;
+            return Ok(());
+        }
+    };
     let manager = state
         .chat_manager
         .as_ref()
@@ -446,8 +464,12 @@ pub async fn respond_user_input_rejected(
 /// List all currently pending `ask_user` requests (for inbox / reconnection).
 #[tauri::command]
 pub async fn list_pending_user_inputs(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
 ) -> Result<Vec<apollia_runtime::chat::manager::PendingUserInputView>, String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => return Ok(remote.get("/api/v1/user-inputs").await?),
+    };
     let manager = state
         .chat_manager
         .as_ref()

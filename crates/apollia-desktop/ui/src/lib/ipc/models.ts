@@ -107,8 +107,8 @@ export type RecommendCaveat =
 /** A reason the embedded engine will not run a file. */
 export type RecommendBlocker =
   | { kind: "not_generative"; architecture: string }
+  | { kind: "pooled_output"; architecture: string; pooling_type: number }
   | { kind: "unknown_pre_tokenizer"; pre_tokenizer: string; llama_cpp_tag: string }
-  | { kind: "sharded_download"; shard_count: number }
   | { kind: "not_gguf"; detail: string };
 
 /** What the compatibility gate concluded about a file. */

@@ -30,12 +30,18 @@ use tokio::sync::OnceCell;
 pub mod availability;
 mod descriptors;
 mod google;
+mod imap;
 mod microsoft;
 
 pub use descriptors::{
     all_connector_descriptors, google_tool_descriptors, microsoft_tool_descriptors,
 };
 pub use google::{build_google_executors, GoogleChatToolInvoker};
+pub use imap::{build_imap_executors, imap_tool_descriptors};
+
+/// Log filter directive a binary adds so the IMAP library's trace of the
+/// commands it sends, a login's password included, never reaches a log.
+pub use apollia_connectors::imap::LOG_DIRECTIVE as IMAP_LOG_DIRECTIVE;
 pub use microsoft::build_microsoft_executors;
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
