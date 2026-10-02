@@ -158,3 +158,25 @@ fn test_verify_minisign_malformed_signature_is_invalid_signature() {
         "{result:?}"
     );
 }
+
+#[test]
+fn test_compiled_distribution_key_is_absent_or_decodable() {
+    // GIVEN the distribution key compiled into this build
+    let compiled = apollia_signing::distribution::distribution_public_key();
+
+    // WHEN it is used to check a signature it did not make
+    let checked = compiled.map(|key| {
+        verify_minisign(
+            vector("manifest.json").as_bytes(),
+            &vector("manifest.json.sig"),
+            key,
+        )
+    });
+
+    // THEN either no key is compiled, or the key decodes and only the
+    // signature is refused
+    match checked {
+        None => {}
+        Some(result) => assert!(matches!(result, Err(DistributionError::Rejected { .. }))),
+    }
+}

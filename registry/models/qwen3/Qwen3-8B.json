@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "qwen3/Qwen3-8B",
+  "kind": "language",
+  "label": "Qwen3 8B",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3-8B"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen3-8B",
+  "description": {
+    "fr": "Modèle Qwen3 de taille moyenne, à l'aise avec les outils et le raisonnement, pour la rédaction et les agents du quotidien.",
+    "en": "A mid-sized Qwen3 model, at ease with tools and reasoning, for everyday writing and agents."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": false,
+    "source": "https://huggingface.co/Qwen/Qwen3-8B/tree/main"
+  },
+  "memory": {
+    "min_gb": 5.1,
+    "source": "https://huggingface.co/Qwen/Qwen3-8B-GGUF/blob/main/Qwen3-8B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "source": "https://huggingface.co/Qwen/Qwen3-8B/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": true,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/Qwen/Qwen3-8B/blob/main/tokenizer_config.json"
+    }
+  ],
+  "repos": [
+    "Qwen/Qwen3-8B",
+    "Qwen/Qwen3-8B-GGUF",
+    "unsloth/Qwen3-8B-GGUF",
+    "bartowski/Qwen_Qwen3-8B-GGUF",
+    "Qwen/Qwen3-8B-MLX-4bit",
+    "mlx-community/Qwen3-8B-4bit",
+    "lmstudio-community/Qwen3-8B-MLX-4bit"
+  ],
+  "template": "crates/apollia-llm/src/capabilities/fixtures/chat_template_qwen3_4b.jinja"
+}

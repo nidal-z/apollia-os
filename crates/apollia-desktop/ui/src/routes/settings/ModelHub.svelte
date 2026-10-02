@@ -8,7 +8,7 @@
    * each section renders through a `model-hub/*` subcomponent.
    */
   import { onMount, onDestroy } from "svelte";
-  import { t } from "svelte-i18n";
+  import { locale, t } from "svelte-i18n";
   import type { UnlistenFn } from "@tauri-apps/api/event";
   import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
   import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
@@ -32,6 +32,7 @@
     listInstalledModels,
     deleteInstalledModel,
     listenDownloadProgress,
+    listModelCards,
     type HardwareProfile,
     type HfModelCard,
     type DownloadProgress,
@@ -105,6 +106,9 @@
   );
 
   onMount(async () => {
+    // Opening the catalogue refreshes the signed model cards and keeps a copy,
+    // which is what a download then writes next to the model.
+    listModelCards($locale ?? "en").catch((e) => reportError(e, { surface: "toast" }));
     await loadHardware();
     await loadInstalledModels();
     await search();

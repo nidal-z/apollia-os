@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "qwen3.5/Qwen3.5-122B-A10B",
+  "kind": "language",
+  "label": "Qwen3.5 122B A10B",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B",
+  "description": {
+    "fr": "Le plus grand modèle Qwen3.5 de la sélection, à experts, pour les postes de travail très dotés en mémoire : qualité de réponse élevée sur les tâches complexes.",
+    "en": "The largest Qwen3.5 model of the selection, a mixture of experts, for workstations with a lot of memory: high answer quality on complex tasks."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B/tree/main"
+  },
+  "memory": {
+    "min_gb": 76.6,
+    "source": "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/blob/main/Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00003.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "source": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": true,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/Qwen/Qwen3.5-122B-A10B/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "Qwen/Qwen3.5-122B-A10B",
+    "unsloth/Qwen3.5-122B-A10B-GGUF",
+    "bartowski/Qwen_Qwen3.5-122B-A10B-GGUF",
+    "lmstudio-community/Qwen3.5-122B-A10B-GGUF",
+    "mlx-community/Qwen3.5-122B-A10B-4bit"
+  ],
+  "template": "registry/models/templates/qwen3.5.jinja"
+}

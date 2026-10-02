@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "gemma4/gemma-4-26B-A4B-it",
+  "kind": "language",
+  "label": "Gemma 4 26B A4B",
+  "publisher": "Google",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/google/gemma-4-26B-A4B-it"
+  },
+  "source_url": "https://huggingface.co/google/gemma-4-26B-A4B-it",
+  "description": {
+    "fr": "Modèle Gemma 4 à experts : rapide pour sa taille, il lit les images, appelle des outils et peut réfléchir sur demande. Il demande la mémoire de l'ensemble.",
+    "en": "A mixture-of-experts Gemma 4 model: fast for its size, it reads images, calls tools and can think on request. It needs the memory of the whole."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/google/gemma-4-26B-A4B-it/tree/main"
+  },
+  "memory": {
+    "min_gb": 17.0,
+    "source": "https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF/blob/main/gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "source": "https://huggingface.co/google/gemma-4-26B-A4B-it/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": false,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/google/gemma-4-26B-A4B-it/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "google/gemma-4-26B-A4B-it",
+    "unsloth/gemma-4-26B-A4B-it-GGUF",
+    "ggml-org/gemma-4-26B-A4B-it-GGUF",
+    "bartowski/gemma-4-26B-A4B-it-GGUF",
+    "mlx-community/gemma-4-26b-a4b-it-4bit",
+    "lmstudio-community/gemma-4-26B-A4B-it-MLX-4bit"
+  ],
+  "template": "registry/models/templates/gemma4.jinja"
+}

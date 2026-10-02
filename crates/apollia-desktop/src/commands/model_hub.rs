@@ -255,6 +255,7 @@ pub async fn start_model_download(
             let digest = progress.sha256.clone();
             let verified = progress.integrity_verified;
             tauri::async_runtime::spawn_blocking(move || {
+                super::model_cards::copy_card_for_download(&path, repo.as_deref());
                 super::model_index::record_download(
                     &models_dir(),
                     &path,
@@ -318,6 +319,7 @@ pub async fn start_variant_download(
             let digest = progress.sha256.clone();
             let verified = progress.integrity_verified;
             tauri::async_runtime::spawn_blocking(move || {
+                super::model_cards::copy_card_for_download(&path, repo.as_deref());
                 super::model_index::record_download(
                     &models_dir(),
                     &path,

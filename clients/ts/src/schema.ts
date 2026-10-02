@@ -1105,6 +1105,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/registry/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/registry/card?id=...&lang=...` */
+        get: operations["get_model_card"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/registry/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/registry/cards?lang=...` */
+        get: operations["list_model_cards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/registry/model/{org}/{repo}": {
         parameters: {
             query?: never;
@@ -1114,6 +1148,23 @@ export interface paths {
         };
         /** `GET /api/v1/llm/registry/model/:org/:repo?hf_token=...` */
         get: operations["get_registry_model"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/registry/readme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/registry/readme?repo=...` */
+        get: operations["get_model_readme"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3826,6 +3877,26 @@ export interface components {
             /** @description Role of the message sender. */
             role: string;
         };
+        /** @description The catalogue's cards, or why there are none. */
+        ModelCardsResponse: {
+            /** @description Every card, in the asked language. */
+            cards: Record<string, never>[];
+            /** @description A sentence for the user when the catalogue is empty. */
+            message?: string | null;
+            /**
+             * @description Where the index came from when `status` is `ok`: `primary`, `mirror`
+             *     or `cache`.
+             */
+            origin?: string | null;
+            /** @description The official publishers and the recognised converters. */
+            publishers: Record<string, never>;
+            /**
+             * @description `ok`, `offline` (nothing answered and no copy is kept), `disabled`
+             *     (turned off by configuration or policy) or `no_trusted_key` (this build
+             *     carries no distribution key).
+             */
+            status: string;
+        };
         /** @description Description of a model file on disk. */
         ModelInfo: {
             /** @description Model filename (e.g. `"whisper-large-v3-fr-q5_0.bin"`). */
@@ -3998,6 +4069,19 @@ export interface components {
         PutMcpSecretBody: {
             /** @description The secret. Stored, never answered back. */
             value: string;
+        };
+        /** @description A README, as text. */
+        ReadmeResponse: {
+            /** @description Its owner. */
+            author: string;
+            /** @description The licence its front matter declares. */
+            license?: string | null;
+            /** @description The repository, `owner/name`. */
+            repo: string;
+            /** @description The page of the repository. */
+            source_url: string;
+            /** @description The text. */
+            text: string;
         };
         /** @description Request body for `POST /api/v1/user-inputs/{id}/reject`. */
         RejectUserInputRequest: {
@@ -7440,6 +7524,81 @@ export interface operations {
             };
         };
     };
+    get_model_card: {
+        parameters: {
+            query: {
+                /** @description Identifier of the card, for example qwen3/Qwen3-8B */
+                id: string;
+                /** @description Language of the texts, fr or en; English when absent */
+                lang?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The card in the asked language, English when that language is not written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No kept catalogue, or no card with that identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The kept copy was refused */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_model_cards: {
+        parameters: {
+            query?: {
+                /** @description Language of the texts, fr or en; English when absent */
+                lang?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cards of the catalogue, or an empty catalogue with the reason */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelCardsResponse"];
+                };
+            };
+            /** @description The index was refused: its signature does not hold or it is not an index */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_registry_model: {
         parameters: {
             query?: {
@@ -7484,6 +7643,65 @@ export interface operations {
             };
             /** @description Upstream HuggingFace error */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_model_readme: {
+        parameters: {
+            query: {
+                /** @description The repository, owner/name */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The README as text, with the repository, its owner and its licence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadmeResponse"];
+                };
+            };
+            /** @description The repository identifier is not owner/name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The repository has no README */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The README is larger than 512 KiB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description README unavailable offline */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

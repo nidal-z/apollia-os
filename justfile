@@ -707,6 +707,8 @@ guards:
       "scripts/check_docs_routes.py"
       "scripts/check_file_language.py"
       "scripts/check_eventbus_variants.py"
+      "scripts/check_embedded_docs_size.py"
+      "scripts/check_embedded_docs_size.py --selftest"
       "scripts/check_download_sums.py"
       "scripts/check_guard_verdicts.py"
       "scripts/check_http_clients.py"
