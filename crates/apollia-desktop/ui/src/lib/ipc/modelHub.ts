@@ -134,6 +134,8 @@ export interface InstalledModel {
   name: string;
   size_bytes: number;
   kind: "llm" | "stt";
+  /** False when the weights matched no published or verified digest. */
+  origin_verified: boolean;
   in_use: boolean;
   used_by: string | null;
 }

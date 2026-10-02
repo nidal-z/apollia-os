@@ -3,7 +3,8 @@
 //! The index itself lives in `apollia_llm::model_index`; this module decides
 //! where it is kept (beside the models, in `~/.apollia/models/`) and when it is
 //! written: reconciled with the disk at startup, extended when a download or an
-//! import finishes, trimmed when a model is deleted. The Hub lists what the
+//! import finishes (with the digest of the weights and whether it was
+//! verified), trimmed when a model is deleted. The Hub lists what the
 //! index holds.
 //!
 //! Every function takes the models directory as an argument so the tests run
@@ -52,37 +53,71 @@ pub(crate) fn current(models_dir: &Path) -> Result<ModelIndex, ModelIndexError> 
     }
 }
 
-/// Add the model that owns `path` once a download or an import has finished.
-pub(crate) fn record(
+/// Add an imported model with its digest and whether that digest matched a
+/// known one.
+pub(crate) fn record_import(
+    models_dir: &Path,
+    path: &Path,
+    sha256: String,
+    origin_verified: bool,
+) -> Result<String, ModelIndexError> {
+    record_with_digest(
+        models_dir,
+        path,
+        ModelOrigin::Import,
+        Some(sha256),
+        origin_verified,
+    )
+}
+
+fn record_with_digest(
     models_dir: &Path,
     path: &Path,
     origin: ModelOrigin,
+    sha256: Option<String>,
+    origin_verified: bool,
 ) -> Result<String, ModelIndexError> {
     let mut index = load_or_empty(models_dir);
     let id = index.record(models_dir, path, origin)?.id.clone();
+    if let Some(sha256) = sha256 {
+        index.set_digest(path, sha256, origin_verified)?;
+    }
     index.save(&index_path(models_dir))?;
     tracing::event!(
         tracing::Level::INFO,
         id = %id,
         path = %path.display(),
+        origin_verified = origin_verified,
         "model.index.recorded"
     );
     Ok(id)
 }
 
-/// Record a finished download, logging rather than failing: the file is on
-/// disk either way and the next startup reconciliation indexes it.
+/// The digest a finished download computed, and whether it matched the one
+/// its repository publishes.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct DownloadDigest {
+    /// SHA-256 of the weights, lowercase hex, when the downloader has one.
+    pub(crate) sha256: Option<String>,
+    /// Whether it matched the repository's reference.
+    pub(crate) verified: bool,
+}
+
+/// Record a finished download with the digest the downloader computed and
+/// whether it matched the repository's, logging rather than failing: the file
+/// is on disk either way and the next startup reconciliation indexes it.
 pub(crate) fn record_download(
     models_dir: &Path,
     path: &Path,
     repo_id: Option<String>,
     file: String,
+    digest: DownloadDigest,
 ) {
     let origin = match repo_id {
         Some(repo) => ModelOrigin::Catalog { repo, file },
         None => ModelOrigin::Import,
     };
-    if let Err(e) = record(models_dir, path, origin) {
+    if let Err(e) = record_with_digest(models_dir, path, origin, digest.sha256, digest.verified) {
         tracing::event!(
             tracing::Level::WARN,
             path = %path.display(),
@@ -171,7 +206,13 @@ mod tests {
         let path = dir.join("qwen.gguf");
         std::fs::write(&path, b"GGUF").unwrap();
 
-        record_download(dir, &path, Some("org/qwen-GGUF".into()), "qwen.gguf".into());
+        record_download(
+            dir,
+            &path,
+            Some("org/qwen-GGUF".into()),
+            "qwen.gguf".into(),
+            DownloadDigest::default(),
+        );
 
         let index = current(dir).unwrap();
         assert_eq!(

@@ -24,6 +24,7 @@
 //! files are gone is dropped, and what the disk cannot tell (origin, digest,
 //! pin, overrides) is carried over from the previous entry.
 
+pub mod import;
 mod overrides;
 mod scan;
 
@@ -351,6 +352,40 @@ impl ModelIndex {
             })?;
         model.origin = origin;
         Ok(model)
+    }
+
+    /// Store the SHA-256 of the model that owns `path`, and whether it was
+    /// verified against a published or already verified digest.
+    ///
+    /// # Errors
+    /// [`ModelIndexError::NotIndexed`] when no model owns `path`.
+    pub fn set_digest(
+        &mut self,
+        path: &Path,
+        sha256: String,
+        origin_verified: bool,
+    ) -> Result<(), ModelIndexError> {
+        let model = self
+            .models
+            .iter_mut()
+            .find(|m| m.owns(path))
+            .ok_or_else(|| ModelIndexError::NotIndexed {
+                path: path.to_path_buf(),
+            })?;
+        model.sha256 = Some(sha256);
+        model.origin_verified = origin_verified;
+        Ok(())
+    }
+
+    /// The digests of the models whose origin is verified: what an import of
+    /// the same weights is compared with.
+    #[must_use]
+    pub fn verified_digests(&self) -> Vec<&str> {
+        self.models
+            .iter()
+            .filter(|m| m.origin_verified)
+            .filter_map(|m| m.sha256.as_deref())
+            .collect()
     }
 
     /// The model carrying `id`.

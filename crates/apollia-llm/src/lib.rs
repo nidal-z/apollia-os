@@ -71,6 +71,9 @@ pub use hf_registry::{
     HfRegistryClient, HfSearchFilter, SearchPage, VariantError, VariantFile, VariantPlan,
     VariantSelector,
 };
+pub use model_index::import::{
+    check_import, ImportCheck, ImportCheckError, ImportRule as ModelImportRule,
+};
 pub use model_index::{
     IndexedModel, ModelCategory, ModelFormat, ModelIndex, ModelIndexError, ModelOrigin,
 };

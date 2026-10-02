@@ -2703,6 +2703,8 @@
         "total": "{size} sur le disque",
         "empty": "Aucun modèle installé pour le moment.",
         "in_use": "Utilisé",
+        "unverified_origin": "origine non vérifiée",
+        "unverified_origin_help": "Son empreinte ne correspond à aucune empreinte publiée ou déjà vérifiée.",
         "delete": "Supprimer",
         "delete_title": "Supprimer le modèle ?",
         "delete_message": "Supprimer définitivement « {name} » du disque ? Cette action est irréversible.",
