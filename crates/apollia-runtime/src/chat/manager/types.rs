@@ -102,14 +102,15 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     pub(in crate::chat::manager) tool_registry: ToolRegistryHandle,
     pub(in crate::chat::manager) event_bus: EventBusSender,
     pub(in crate::chat::manager) a2a_for_agent: Option<Arc<A2AInvoker>>,
-    pub(in crate::chat::manager) session_user_memory:
-        Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    /// The principle 6 injections gathered for the session (user memory,
+    /// past sessions block); the project context is added by the exchange.
+    pub(in crate::chat::manager) apollia_context: ApolliaContext,
     pub(in crate::chat::manager) pending_approvals: PendingChatApprovals,
-    pub(in crate::chat::manager) budget: StepBudget,
+    /// Autonomy tier of the exchange; the executor derives the budget, the
+    /// verification and the critic from it.
     pub(in crate::chat::manager) autonomy_level: AutonomyLevel,
-    pub(in crate::chat::manager) level_config: AutonomyLevelConfig,
-    pub(in crate::chat::manager) verification: Option<VerificationLoop>,
-    pub(in crate::chat::manager) critic: Option<CriticPass>,
+    /// Runtime ceiling the tier's budget is capped by.
+    pub(in crate::chat::manager) runtime_budget: StepBudgetConfig,
     pub(in crate::chat::manager) history: Vec<ChatMessage>,
     pub(in crate::chat::manager) available_tools: Vec<String>,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,

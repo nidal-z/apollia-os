@@ -23,6 +23,9 @@ class ResolvedAgentResponse:
 
     Attributes:
         access (list[str]): Tools granted.
+        autonomy (str): Autonomy tier the agent runs at: `assisted`, `supervised`,
+            `bounded_autonomous` or `long_autonomous`. The user's, else the
+            package's, else the global default.
         definition (ResolvedAgentResponseDefinition): The definition as the package declares it, before any override.
         enabled (bool): Whether the agent is active.
         examples (list[str]): Example requests.
@@ -31,7 +34,7 @@ class ResolvedAgentResponse:
         name (str): Display name.
         origin (AgentOriginDto): Where an agent comes from.
         overridden (list[str]): Fields whose value is the user's rather than the package's:
-            `name`, `mission`, `examples`, `access`, `sources`.
+            `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
         sources (list[str]): Sources checked.
         version (str): Version of the definition.
         model (AgentModelResponse | None | Unset):
@@ -39,6 +42,7 @@ class ResolvedAgentResponse:
     """
 
     access: list[str]
+    autonomy: str
     definition: ResolvedAgentResponseDefinition
     enabled: bool
     examples: list[str]
@@ -57,6 +61,8 @@ class ResolvedAgentResponse:
         from ..models.agent_model_response import AgentModelResponse
 
         access = self.access
+
+        autonomy = self.autonomy
 
         definition = self.definition.to_dict()
 
@@ -97,6 +103,7 @@ class ResolvedAgentResponse:
         field_dict.update(
             {
                 "access": access,
+                "autonomy": autonomy,
                 "definition": definition,
                 "enabled": enabled,
                 "examples": examples,
@@ -123,6 +130,8 @@ class ResolvedAgentResponse:
 
         d = dict(src_dict)
         access = cast(list[str], d.pop("access"))
+
+        autonomy = d.pop("autonomy")
 
         definition = ResolvedAgentResponseDefinition.from_dict(d.pop("definition"))
 
@@ -172,6 +181,7 @@ class ResolvedAgentResponse:
 
         resolved_agent_response = cls(
             access=access,
+            autonomy=autonomy,
             definition=definition,
             enabled=enabled,
             examples=examples,
