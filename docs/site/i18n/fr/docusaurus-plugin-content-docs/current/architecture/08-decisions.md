@@ -452,6 +452,44 @@ Les dépendances Python tierces déclarées par un agent sont installées dans
 l'environnement virtuel propre à cet agent, après consentement explicite, et
 l'opérateur voit la liste avant que cela n'arrive.
 
+## Archive de paquet {#package-archive}
+
+Un paquet d'agents voyage en un seul fichier `.apo` : une archive zip qui porte
+le manifeste `apollia.toml` à sa racine, les modules Python et les ressources du
+paquet à leurs chemins relatifs et, quand l'auteur l'a signé, un fichier
+`SIGNATURE` (voir [Signatures](#signing-schemes)) et un fichier `SIGNATURE.key`
+qui porte la clé publique qui l'a produit. La signature couvre toutes les autres
+entrées. La construction de l'archive valide le manifeste et refuse un dossier
+dont les modules définissent des outils ou des workflows que le manifeste ne
+décrit pas ; elle n'exécute aucun Python.
+
+Le zip a été préféré au `tar.gz` : tout système d'exploitation l'ouvre sans outil,
+et son répertoire central permet de lire le manifeste sans décompresser le
+reste, ce dont un aperçu d'installation a besoin. Un `tar.gz` n'a pas d'index,
+lire un fichier y oblige à décompresser tout ce qui le précède, et il aurait
+coûté les deux mêmes dépendances directes (`tar` et `flate2`) sans rien de cela.
+Lire le zip avec un code
+maison a été écarté : un analyseur d'archives est une surface d'attaque, et une
+surface non auditée est pire qu'une surface maintenue.
+
+Une archive vient d'ailleurs, sa lecture est donc bornée. Une entrée au chemin
+absolu, à composant `..`, à barre oblique inverse ou à préfixe de lecteur est
+refusée, comme un lien symbolique et un nom présent deux fois. L'archive est
+plafonnée à 256 Mio, 4096 entrées, 64 Mio par entrée décompressée et 512 Mio
+décompressés au total, le manifeste à 1 Mio. Les plafonds portent sur les octets
+réellement décompressés, pas sur les tailles que l'archive déclare : un en-tête
+menteur ne les lève pas. Un paquet au-delà d'un plafond est aussi refusé à la
+construction, si bien qu'Apollia lit tout ce qu'il construit.
+
+Le coût est deux dépendances directes du moteur, `zip` et `flate2`, toutes deux
+déjà dans l'arbre par le programme de mise à jour du bureau ; aucune crate n'est
+entrée dans le fichier de verrouillage. `zip` est compilée avec deflate seul :
+ni chiffrement, ni bzip2, lzma, zstd ou deflate64. `flate2` est déclarée à côté
+pour une seule raison, choisir l'implémentation en Rust pur (`miniz_oxide`) de
+ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
+sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
+une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
+
 ## Intégration hôte {#host-integration}
 
 L'API HTTP versionnée est un contrat de pilotage, pas un détail

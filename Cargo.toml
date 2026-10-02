@@ -140,6 +140,16 @@ ed25519-dalek = { version = "2", default-features = false, features = ["std", "z
 # (apollia-signing). Already in the tree through tauri-plugin-updater.
 minisign-verify = "0.2"
 
+# --- Archives ---
+# The `.apo` agent package is a zip archive (apollia-aip). Deflate only, read
+# and write: no AES, bzip2, lzma, zstd or deflate64. Already in the tree through
+# tauri-plugin-updater. See the `package-archive` decision.
+zip = { version = "4", default-features = false, features = ["deflate-flate2"] }
+# Declared only to give zip's deflate its pure-Rust backend (miniz_oxide);
+# without a backend feature flate2 refuses to compile. Already in the tree
+# through png and tauri-plugin-updater.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+
 # --- Random ---
 # rand 0.9 = the latest widely adopted stable major (0.10 has only just
 # shipped and the ecosystem is not aligned yet: avoid duplicate versions).

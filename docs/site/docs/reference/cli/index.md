@@ -183,6 +183,9 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os mcp secret delete`↴](#apollia-os-mcp-secret-delete)
 * [`apollia-os mcp server`↴](#apollia-os-mcp-server)
 * [`apollia-os update`↴](#apollia-os-update)
+* [`apollia-os package`↴](#apollia-os-package)
+* [`apollia-os package build`↴](#apollia-os-package-build)
+* [`apollia-os package inspect`↴](#apollia-os-package-inspect)
 * [`apollia-os workspace`↴](#apollia-os-workspace)
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
@@ -287,6 +290,7 @@ Apollia OS CLI binary (apollia-os)
 * `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
+* `package` - Agent package archives: build a `.apo` from a folder, inspect one
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
@@ -2991,6 +2995,55 @@ Check for and install updates from GitHub Releases
 
 * `--check` - Only check for a newer version without downloading or installing
 * `--yes` - Install without asking for interactive confirmation
+
+
+
+## `apollia-os package`
+
+Agent package archives: build a `.apo` from a folder, inspect one
+
+**Usage:** `apollia-os package <COMMAND>`
+
+###### **Subcommands:**
+
+* `build` - Build a `.apo` archive from a package folder
+* `inspect` - Show the manifest, the entries and the signature state of a `.apo` archive
+
+
+
+## `apollia-os package build`
+
+Build a `.apo` archive from a package folder.
+
+Validates `apollia.toml`, refuses a folder whose Python modules define tools or workflows that the manifest does not describe (write the descriptors with `python -m apollia describe <folder>`), and writes the archive. No Python code runs.
+
+**Usage:** `apollia-os package build [OPTIONS] <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Package folder, holding `apollia.toml` at its root
+
+###### **Options:**
+
+* `--sign` - Sign the archive with the author key. The key is read from the secret store under `--key`; it is generated and stored there the first time
+* `--key <LABEL>` - Label of the author key in the secret store
+
+  Default value: `default`
+* `-o`, `--output <FILE>` - Archive to write. Default: `<name>-<version>.apo` in the current folder
+
+
+
+## `apollia-os package inspect`
+
+Show the manifest, the entries and the signature state of a `.apo` archive.
+
+The signature state is `unsigned`, or `signed` with the declared publisher and the fingerprint of the key. A signature that does not match the content is refused with exit 1.
+
+**Usage:** `apollia-os package inspect <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The `.apo` archive
 
 
 
