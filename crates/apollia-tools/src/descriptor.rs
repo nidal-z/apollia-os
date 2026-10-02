@@ -116,6 +116,8 @@ pub enum FamilySource {
     Unsourced,
     /// Fixed in Apollia's own code (native tools, native connectors).
     Builtin,
+    /// Declared by the package that ships the tool, in its `apollia.toml`.
+    Package,
 }
 
 /// Coarse-grained risk classification surfaced in approval UIs.
@@ -208,6 +210,14 @@ pub enum ToolKind {
         transport: McpTransport,
         /// Name of the specific tool exposed by that server.
         tool_name: String,
+    },
+    /// Python tool shipped by an installed package, `pkg:<package>/<tool>`.
+    /// Its module is loaded on the first call, never at registration.
+    Package {
+        /// Name of the package that ships the tool.
+        package: String,
+        /// Python module, relative to the package root (`tools/invoices.py`).
+        module: String,
     },
     /// Python tool registered by the agent author at runtime.
     Custom {

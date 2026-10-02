@@ -299,6 +299,10 @@ impl ChatSessionManager {
                     info!("chat.router.reloaded");
                     self.llm_router = router;
                 }
+                ChatCommand::SetPackageTools { host } => {
+                    info!("chat.package_tools.set");
+                    self.package_tools = Some(host);
+                }
                 ChatCommand::ResolveFsHitl {
                     request_id,
                     decision,
