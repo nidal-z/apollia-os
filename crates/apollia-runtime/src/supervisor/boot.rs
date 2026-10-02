@@ -52,7 +52,11 @@ impl Supervisor {
         // Phase 3: ToolRegistry + native tool registration
         info!("supervisor.tool_registry.starting");
         let tool_registry_handle = ToolRegistryHandle::start();
-        register_builtin_tools(&tool_registry_handle).await;
+        register_builtin_tools(
+            &tool_registry_handle,
+            &crate::connectors_bridge::connected_accounts().await,
+        )
+        .await;
 
         // Phase 3b: MCP Client Manager, reads server list from mcp.db (SQLite).
         //
@@ -87,8 +91,17 @@ impl Supervisor {
         // process until a model is requested, so a fresh install with no default
         // model still yields a supervisor the router factory can capture. `None`
         // when the binary is absent, leaving local inference unconfigured.
+        //
+        // The base is the default configuration; the default preset of each
+        // model is laid over it at every request, read from `system.db`.
+        let system_db_path = self
+            .config
+            .data_dir
+            .join(apollia_core::paths::DataFile::System.file_name());
         let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
             crate::llama_server::LlamaServerConfig::default(),
+            Some(system_db_path.clone()),
+            Some(event_sender.clone()),
         )
         .ok();
         if let Some(supervisor) = &llama_server_supervisor {
@@ -96,10 +109,6 @@ impl Supervisor {
         }
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
-        let system_db_path = self
-            .config
-            .data_dir
-            .join(apollia_core::paths::DataFile::System.file_name());
         let (llm_router, llm_backend_repo) = self
             .start_llm_router(&system_db_path, &llama_server_supervisor)
             .await;
@@ -187,6 +196,13 @@ impl Supervisor {
 
         // Phase 8c: the one-shot access upgrade of governance.db, journaled.
         crate::governance::access_upgrade::run_at_startup(
+            &self.config.data_dir,
+            audit_journal_handle.as_ref(),
+        );
+
+        // Phase 8d: the settings the chat kept before it was the Apollia
+        // agent, carried over once the access upgrade has read them.
+        crate::agents::apollia::carry_over::run_at_startup(
             &self.config.data_dir,
             audit_journal_handle.as_ref(),
         );
@@ -425,6 +441,63 @@ impl Supervisor {
         // route can replace the active router without restarting the daemon.
         // Other consumers (chat manager, embedded runtime) keep their own
         // direct handle and stay reachable via the supervisor handle struct.
+        // The batch engine runs an agent without code on every item of a
+        // source; it needs the task store and the agent executor, and resumes
+        // the batches left running as soon as it starts. No source reader is
+        // registered yet: a launch on any kind answers that it is unknown.
+        let batches = match (&task_repository, &chat_manager) {
+            (Some(repo), Some(chat)) => Some(crate::batch::BatchHandle::spawn(
+                repo.clone(),
+                Arc::new(apollia_core::batch_source::SourceRegistry::new()),
+                crate::batch::AgentItemRunner::new(
+                    crate::agents::task::AgentTaskLauncher {
+                        router: router_handle.clone(),
+                        chat: chat.clone(),
+                        repository: Some(repo.clone()),
+                        event_bus: event_sender.clone(),
+                        observability: self.config.obs_config.clone(),
+                    },
+                    self.config.data_dir.clone(),
+                ),
+            )),
+            _ => None,
+        };
+        // The workflow engine records each run and its steps in the task
+        // store; the agent of a step runs through the agent executor, as a
+        // task of its own. The Python host is attached once the runtime is
+        // up, by whoever embeds the interpreter.
+        let mut step_agents: Option<Arc<dyn crate::workflows::AgentRunner>> = None;
+        let workflows = task_repository.as_ref().map(|repo| {
+            let agents = chat_manager.as_ref().map(|chat| {
+                Arc::new(crate::workflows::LaunchedAgentRunner::new(
+                    crate::agents::task::AgentTaskLauncher {
+                        router: router_handle.clone(),
+                        chat: chat.clone(),
+                        repository: Some(repo.clone()),
+                        event_bus: event_sender.clone(),
+                        observability: self.config.obs_config.clone(),
+                    },
+                    self.config.data_dir.clone(),
+                )) as Arc<dyn crate::workflows::AgentRunner>
+            });
+            step_agents = agents.clone();
+            crate::workflows::WorkflowHandle::spawn(
+                repo.clone(),
+                event_sender.clone(),
+                self.config.workflows_config.budget(),
+                agents,
+            )
+        });
+        // An agent calls the agents and workflows it was granted through the
+        // same executor and the same engine a workflow step uses.
+        if let (Some(chat), Some(agents), Some(engine)) = (&chat_manager, step_agents, &workflows) {
+            chat.set_composer(Arc::new(crate::composition::RuntimeComposer::new(
+                agents,
+                engine.clone(),
+                self.config.data_dir.clone(),
+            )))
+            .await;
+        }
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
         let state = AppState {
             router_handle: router_handle.clone(),
@@ -465,6 +538,8 @@ impl Supervisor {
             runner_proxy: runner_supervisor.as_ref().map(|s| s.proxy()),
             llama_server_supervisor: llama_server_supervisor.clone(),
             secret_store: crate::inference_servers::default_store_opener(),
+            batches,
+            workflows: workflows.clone(),
         };
         let api_server = APIServer::new(self.config.api_config, state);
 
@@ -542,13 +617,12 @@ impl Supervisor {
 
         // Phase 11: Auto-load installed agents
         //
-        // After AllReady, load all enabled agents from the repository,
-        // validate via AgentLoader, register in AgentRegistry, transition to
-        // Active, create an ExecutionCoordinator, and register in TaskRouter.
-        // This mirrors the full start_agent flow from routes_agents.rs.
-        // Errors are logged but never block the boot (graceful degradation).
+        // After AllReady, register every enabled agent from the manifest its
+        // store holds, transition it to Active, and give the TaskRouter a
+        // coordinator whose backend imports the agent on its first task.
+        // Nothing is imported here. Errors are logged but never block the
+        // boot (graceful degradation).
         Self::auto_load_installed_agents(AutoLoadCtx {
-            agent_loader: &agent_loader_for_autoload,
             backend_factory: &backend_factory_for_autoload,
             base_backend: &backend_for_autoload,
             registry_handle: &registry_handle,
@@ -558,6 +632,7 @@ impl Supervisor {
             agent_repository: self.config.agent_repository.as_ref(),
             data_dir: &self.config.data_dir,
             obs_config: &self.config.obs_config,
+            idle_unload: Duration::from_secs(self.config.runtime_config.agent_idle_unload_secs),
         })
         .await;
 
@@ -571,12 +646,14 @@ impl Supervisor {
             trigger_engine,
             audit_trail: audit_trail_handle,
             connection_governance,
+            audit_journal: audit_journal_handle,
             task_repository: task_repository.clone(),
             pending_approvals: pending_approvals.clone(),
             plan_gates: plan_gates.clone(),
             notification_engine,
             llm_call_repository,
             chat_manager,
+            workflows,
             plan_cache,
             mailbox_handle: Some(mailbox_handle),
             user_memory,

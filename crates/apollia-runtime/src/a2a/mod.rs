@@ -10,9 +10,8 @@ pub mod compatibility;
 pub mod invoker;
 pub mod sidechain;
 pub mod telemetry;
-pub mod tools_provider;
 
-pub use aliases::InvocationAliases;
+pub use aliases::{AliasTarget, InvocationAliases};
 pub use compatibility::{check_compatibility, A2ACompatibilityWarning, CompatSeverity, SemVer};
 pub use telemetry::{
     A2ASkillTelemetry, A2AStepProvenance, InvocationRecord, TelemetryHandle, TelemetryStore,
@@ -23,7 +22,6 @@ pub use invoker::{
     RuntimeContextConfig, SkillListing,
 };
 pub use sidechain::{SidechainLogger, SidechainRepository, SidechainRow};
-pub use tools_provider::A2AToolsProvider;
 
 use std::collections::HashSet;
 use std::future::Future;
@@ -609,6 +607,7 @@ mod tests {
         AgentEntry {
             id: AgentId::new_v4(),
             manifest: AgentManifest {
+                autonomy_level: None,
                 format_version: 1,
                 name: name.to_string(),
                 version: "0.1.0".to_string(),

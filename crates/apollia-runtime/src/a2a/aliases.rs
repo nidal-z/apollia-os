@@ -10,7 +10,8 @@
 //! So the client names the invocation itself, in the request body, and the
 //! runtime binds that name to the task as soon as the task is submitted, which
 //! happens well before the answer. `DELETE /api/v1/tasks/{id}` then accepts
-//! either name.
+//! either name. An invocation of a workflow binds the name to its run instead,
+//! and the same `DELETE` stops the run.
 //!
 //! The binding lives exactly as long as the call: bound after the submission,
 //! released when the invocation returns, whatever it returns. Nothing persists,
@@ -20,15 +21,25 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-/// Client-chosen names bound to the tasks they currently designate.
+/// What a client name designates while its invocation runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AliasTarget {
+    /// A task, cancelled through the task router: a skill or an agent.
+    Task(String),
+    /// A workflow run, cancelled through the workflow engine.
+    WorkflowRun(String),
+}
+
+/// Client-chosen names bound to the tasks or workflow runs they currently
+/// designate.
 ///
-/// Shared between the delegation path, which binds, and the task routes, which
+/// Shared between the invocation paths, which bind, and the task routes, which
 /// resolve. A plain mutex around a map rather than an actor: every operation is
 /// a single map access with no await inside, so there is no lock held across a
 /// suspension point and no actor whose mailbox this would belong in.
 #[derive(Debug, Default)]
 pub struct InvocationAliases {
-    bound: Mutex<HashMap<String, String>>,
+    bound: Mutex<HashMap<String, AliasTarget>>,
 }
 
 impl InvocationAliases {
@@ -39,13 +50,18 @@ impl InvocationAliases {
     /// ambiguous, and cancelling the wrong task is worse than refusing the
     /// name.
     pub fn bind(&self, client_id: &str, task_id: &str) -> bool {
+        self.bind_target(client_id, AliasTarget::Task(task_id.to_owned()))
+    }
+
+    /// Bind `client_id` to `target`, as [`Self::bind`] does for a task.
+    pub fn bind_target(&self, client_id: &str, target: AliasTarget) -> bool {
         let Ok(mut bound) = self.bound.lock() else {
             return false;
         };
         match bound.entry(client_id.to_owned()) {
             std::collections::hash_map::Entry::Occupied(_) => false,
             std::collections::hash_map::Entry::Vacant(slot) => {
-                slot.insert(task_id.to_owned());
+                slot.insert(target);
                 true
             }
         }
@@ -53,6 +69,14 @@ impl InvocationAliases {
 
     /// The task a client name currently designates, if it designates one.
     pub fn resolve(&self, client_id: &str) -> Option<String> {
+        match self.resolve_target(client_id)? {
+            AliasTarget::Task(task_id) => Some(task_id),
+            AliasTarget::WorkflowRun(_) => None,
+        }
+    }
+
+    /// The task or workflow run a client name currently designates.
+    pub fn resolve_target(&self, client_id: &str) -> Option<AliasTarget> {
         self.bound.lock().ok()?.get(client_id).cloned()
     }
 
@@ -132,5 +156,20 @@ mod tests {
         assert!(accepted);
         assert_eq!(aliases.resolve("import-42").as_deref(), Some("task-second"));
         assert_eq!(aliases.len(), 1);
+    }
+
+    #[test]
+    fn a_name_bound_to_a_workflow_run_is_not_read_as_a_task() {
+        // GIVEN a name bound to a workflow run
+        let aliases = InvocationAliases::default();
+        assert!(aliases.bind_target("close-42", AliasTarget::WorkflowRun("run-9".into())));
+
+        // WHEN it is resolved as a task, then as any target
+        let as_task = aliases.resolve("close-42");
+        let as_target = aliases.resolve_target("close-42");
+
+        // THEN the task router never receives a run id, and the target names the run
+        assert!(as_task.is_none());
+        assert_eq!(as_target, Some(AliasTarget::WorkflowRun("run-9".into())));
     }
 }

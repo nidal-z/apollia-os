@@ -14,6 +14,7 @@
 //! path. `is_local` is therefore left `false` (no GBNF grammar is attached).
 
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use apollia_core::{LlmBackendConfig, LlmProvider};
@@ -36,6 +37,10 @@ pub struct LlamaServerBackend {
     /// setting, or the supervisor's default, capped at the model's training
     /// length. `None` only when neither the setting nor the header is known.
     n_ctx: Option<u32>,
+    /// The window the process serving this model is launched with, after the
+    /// environment and the model's default preset. Read from `system.db` when
+    /// the backend is built, then taken from the lease of every request.
+    launched_n_ctx: AtomicU32,
     /// Own cancellation token: the router builds its factory-provided backends
     /// outside its own token's scope, and local inference cancellation is
     /// best-effort (the supervisor can kill the process).
@@ -62,12 +67,15 @@ impl LlamaServerBackend {
             )),
             None => n_ctx,
         };
+        let launched_n_ctx =
+            supervisor.window_for(&supervisor.default_load_blocking(&backend_name), n_ctx);
         Arc::new(Self {
             supervisor,
             backend_name,
             model_id,
             model_path,
             n_ctx,
+            launched_n_ctx: AtomicU32::new(launched_n_ctx),
             cancel: CancellationToken::new(),
             client: Mutex::new(None),
         })
@@ -80,12 +88,13 @@ impl LlamaServerBackend {
     async fn ready_client(&self) -> Result<(Arc<OpenAICompatibleClient>, ModelLease), LlmError> {
         let lease = self
             .supervisor
-            .ensure_model(self.model_path.clone(), self.n_ctx)
+            .ensure_model(&self.backend_name, self.model_path.clone(), self.n_ctx)
             .await
             .map_err(|e| LlmError::BackendUnavailable {
                 backend: self.backend_name.clone(),
                 reason: format!("llama-server: {e}"),
             })?;
+        self.launched_n_ctx.store(lease.n_ctx(), Ordering::Relaxed);
         let base = lease.base_url().to_owned();
 
         let mut guard = self.client.lock().await;
@@ -177,7 +186,7 @@ impl CompletionModel for LlamaServerBackend {
         // usable window. Reporting it lets the router size context compaction
         // and the context gauge, and avoid sending a prompt that overflows the
         // server (a hard 400 from llama-server).
-        Some(self.supervisor.effective_n_ctx(self.n_ctx) as usize)
+        Some(self.launched_n_ctx.load(Ordering::Relaxed) as usize)
     }
 }
 

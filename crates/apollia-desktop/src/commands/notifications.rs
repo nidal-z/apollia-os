@@ -5,11 +5,9 @@
 //! (`serde_json::Value`) to avoid duplicating the Rust types already defined in
 //! `apollia-notifications`.
 
-use apollia_runtime::embedded::RuntimeHandle;
+use crate::attached::RuntimeLink;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-
-use super::{http_delete_json, http_get_json, http_post_json, http_put_json};
 
 /// Public description of a notification channel for the UI.
 #[derive(Debug, Serialize)]
@@ -64,9 +62,9 @@ pub struct NotificationLogEntry {
 /// Delegates to `GET /api/v1/notifications/channels` on the internal REST API.
 #[tauri::command]
 pub async fn list_notification_channels(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
 ) -> Result<Vec<NotificationChannel>, String> {
-    let json = http_get_json(state.api_port, "/api/v1/notifications/channels").await?;
+    let json = state.get_json("/api/v1/notifications/channels").await?;
 
     let channels = json
         .get("channels")
@@ -125,11 +123,11 @@ pub async fn list_notification_channels(
 /// return only the requested channel.
 #[tauri::command]
 pub async fn test_notification_channel(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     channel_id: String,
 ) -> Result<ChannelTestResult, String> {
     let body = serde_json::json!({});
-    let json = http_post_json(state.api_port, "/api/v1/notifications/test", &body).await?;
+    let json = state.post_json("/api/v1/notifications/test", &body).await?;
 
     let results = json
         .get("results")
@@ -167,12 +165,12 @@ pub async fn test_notification_channel(
 /// Delegates to `GET /api/v1/notifications/logs?last=N`.
 #[tauri::command]
 pub async fn get_notification_logs(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     limit: Option<u32>,
 ) -> Result<Vec<NotificationLogEntry>, String> {
     let l = limit.unwrap_or(50);
     let path = format!("/api/v1/notifications/logs?last={l}");
-    let json = http_get_json(state.api_port, &path).await?;
+    let json = state.get_json(&path).await?;
 
     let entries = json
         .get("entries")
@@ -220,7 +218,7 @@ pub async fn get_notification_logs(
 /// Delegates to `GET /api/v1/notifications/logs?last=500`, then filters.
 #[tauri::command]
 pub async fn list_runtime_activity(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     days: Option<i64>,
 ) -> Result<Vec<NotificationLogEntry>, String> {
     const ACTIVITY_EVENTS: &[&str] = &[
@@ -234,7 +232,7 @@ pub async fn list_runtime_activity(
     let cutoff = chrono::Utc::now() - chrono::Duration::days(window_days);
 
     let path = "/api/v1/notifications/logs?last=500";
-    let json = http_get_json(state.api_port, path).await?;
+    let json = state.get_json(path).await?;
     let entries = json
         .get("entries")
         .and_then(|v| v.as_array())
@@ -402,12 +400,14 @@ fn parse_channel_view(json: &serde_json::Value) -> NotificationChannelView {
 /// Delegates to `POST /api/v1/notifications/channels`.
 #[tauri::command]
 pub async fn create_notification_channel(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     channel: CreateChannelRequest,
 ) -> Result<NotificationChannelView, String> {
     let body =
         serde_json::to_value(&channel).map_err(|e| format!("failed to serialize request: {e}"))?;
-    let json = http_post_json(state.api_port, "/api/v1/notifications/channels", &body).await?;
+    let json = state
+        .post_json("/api/v1/notifications/channels", &body)
+        .await?;
     Ok(parse_channel_view(&json))
 }
 
@@ -416,14 +416,14 @@ pub async fn create_notification_channel(
 /// Delegates to `PUT /api/v1/notifications/channels/:id`.
 #[tauri::command]
 pub async fn update_notification_channel(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     id: String,
     channel: UpdateChannelRequest,
 ) -> Result<NotificationChannelView, String> {
     let body =
         serde_json::to_value(&channel).map_err(|e| format!("failed to serialize request: {e}"))?;
     let path = format!("/api/v1/notifications/channels/{id}");
-    let json = http_put_json(state.api_port, &path, &body).await?;
+    let json = state.put_json(&path, &body).await?;
     Ok(parse_channel_view(&json))
 }
 
@@ -432,11 +432,11 @@ pub async fn update_notification_channel(
 /// Delegates to `DELETE /api/v1/notifications/channels/:id`.
 #[tauri::command]
 pub async fn delete_notification_channel(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     id: String,
 ) -> Result<(), String> {
     let path = format!("/api/v1/notifications/channels/{id}");
-    http_delete_json(state.api_port, &path).await?;
+    state.delete_json(&path).await?;
     Ok(())
 }
 
@@ -444,10 +444,8 @@ pub async fn delete_notification_channel(
 ///
 /// Delegates to `GET /api/v1/notifications/events`.
 #[tauri::command]
-pub async fn get_notification_events(
-    state: State<'_, RuntimeHandle>,
-) -> Result<Vec<String>, String> {
-    let json = http_get_json(state.api_port, "/api/v1/notifications/events").await?;
+pub async fn get_notification_events(state: State<'_, RuntimeLink>) -> Result<Vec<String>, String> {
+    let json = state.get_json("/api/v1/notifications/events").await?;
 
     let events = json
         .get("events")
@@ -467,11 +465,13 @@ pub async fn get_notification_events(
 /// Delegates to `PUT /api/v1/notifications/events`.
 #[tauri::command]
 pub async fn set_notification_events(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     events: Vec<String>,
 ) -> Result<(), String> {
     let body = serde_json::json!({ "events": events });
-    http_put_json(state.api_port, "/api/v1/notifications/events", &body).await?;
+    state
+        .put_json("/api/v1/notifications/events", &body)
+        .await?;
     Ok(())
 }
 

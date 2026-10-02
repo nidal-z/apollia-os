@@ -764,6 +764,7 @@ mod tests {
     impl crate::api::routes_agents::AgentLoader for AlwaysOkLoader {
         fn load_and_validate(&self, _path: &Path) -> Result<AgentManifest, String> {
             Ok(AgentManifest {
+                autonomy_level: None,
                 format_version: 1,
                 name: "test-agent".into(),
                 version: "0.1.0".into(),
@@ -874,6 +875,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
 
         APIServer::build_router_for_test(state)

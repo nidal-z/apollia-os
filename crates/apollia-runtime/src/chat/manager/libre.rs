@@ -69,9 +69,10 @@ pub(in crate::chat::manager) fn build_prefix_checker(
     ))
 }
 
-/// Load the persisted Chat-Libre overrides from the injected governance
-/// database. `None`, or a database that does not exist yet, yields the empty
-/// overrides: this function never resolves a path from the process home
+/// Load the persisted Chat-Libre overrides: the settings of the Apollia agent
+/// (beside the injected governance database) and the allow rules of
+/// `governance.db`. `None`, or a database that does not exist yet, yields the
+/// empty overrides: this function never resolves a path from the process home
 /// directory, so a mount without a governance path reads nothing.
 pub(in crate::chat::manager) fn load_chat_libre_overrides(
     governance_db: Option<&std::path::Path>,
@@ -85,43 +86,10 @@ pub(in crate::chat::manager) fn load_chat_libre_overrides(
         return out;
     }
 
-    apply_chat_libre_config(&mut out, db_path);
+    super::apollia_agent::apply_apollia_agent(&mut out, db_path);
     apply_chat_prefix_allow_rules(&mut out, db_path);
 
     out
-}
-
-/// Apply the free-chat config (`chat_libre_config`) to the overrides.
-/// Silent fallback if the database is absent or unreadable.
-fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Path) {
-    let Ok(repo) = ChatLibreConfigRepository::open(db_path) else {
-        return;
-    };
-    let Ok(cfg) = repo.load() else {
-        return;
-    };
-    if !cfg.system_prompt.trim().is_empty() {
-        out.system_prompt = Some(cfg.system_prompt);
-    }
-    // chat_libre_config.allowed_tools are the auto-authorized tools (HITL
-    // skipped), matching the UX label "tools allowed without confirmation".
-    // They go into pre_authorized_tools, not available_tools: the LLM still
-    // sees the whole registry, but these tools no longer trigger a popup.
-    for tool in cfg.allowed_tools {
-        if apollia_permissions::is_code_executor(&tool) {
-            warn!(
-                tool = %tool,
-                "chat.rule.preauth.refused"
-            );
-            continue;
-        }
-        out.pre_authorized_tools.insert(tool);
-    }
-    if let Some(b) = cfg.llm_backend {
-        if !b.trim().is_empty() {
-            out.llm_backend = Some(b);
-        }
-    }
 }
 
 /// Add to the overrides the tools auto-authorized via `allow` rules scoped to
@@ -273,29 +241,23 @@ pub(in crate::chat::manager) fn accumulate_exchange_metrics(
     }
 }
 
-/// Enrich `system_prompt` with the project context block when injection is
-/// enabled and both a project id and a provider are available.
-async fn maybe_inject_project_context(
-    system_prompt: String,
+/// The project context source of the exchange, when injection is enabled and
+/// both a project id and a provider are available.
+fn project_context_source(
     should_inject: bool,
     session_project_id: &Option<String>,
     project_ctx: &Option<Arc<dyn ProjectContextProvider>>,
-) -> String {
+) -> Option<ProjectContextSource> {
     if !should_inject {
-        return system_prompt;
+        return None;
     }
     let (Some(pid), Some(provider)) = (session_project_id, project_ctx) else {
-        return system_prompt;
+        return None;
     };
-    match provider.build_context(pid).await {
-        Some(ctx) => {
-            let mut enriched = system_prompt;
-            enriched.push_str("\n\n");
-            enriched.push_str(&ctx);
-            enriched
-        }
-        None => system_prompt,
-    }
+    Some(ProjectContextSource {
+        project_id: pid.clone(),
+        provider: Arc::clone(provider),
+    })
 }
 
 /// Resolve the conversation summary for the exchange.
@@ -348,17 +310,15 @@ async fn resolve_exchange_summary(params: ExchangeSummaryParams<'_>) -> Option<S
 /// linear.
 pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangeParams) {
     let LibreExchangeParams {
+        agent_id,
         llm_router,
         tool_registry,
         event_bus,
         a2a_for_agent,
-        session_user_memory,
+        mut apollia_context,
         pending_approvals,
-        budget,
         autonomy_level,
-        level_config,
-        verification,
-        critic,
+        runtime_budget,
         history,
         available_tools,
         authorized_tools,
@@ -373,6 +333,8 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         project_repo_for_session,
         pending_user_inputs_for_session,
         mcp_handle_for_session,
+        package_tools,
+        composer,
         chat_tools_config_for_session,
         mcp_loading,
         tool_search_limit,
@@ -416,6 +378,11 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         .as_deref()
         .map(super::dispatcher::effective_disabled_tools)
         .unwrap_or_default();
+    // An access to a connector tool without its account names the single
+    // connected account, or nothing.
+    let available_tools =
+        crate::connectors_bridge::resolve_connector_access(&agent_id, available_tools).await;
+    let mcp_index = super::disabled::only_granted(mcp_index, &available_tools);
     let (available_tools, mcp_index) =
         super::disabled::without_disabled(available_tools, mcp_index, &disabled);
 
@@ -446,6 +413,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
             mcp_loading,
             mcp_index: mcp_index.clone(),
             tool_search_limit,
+            package_tools,
         },
         &a2a_for_agent,
         hook_executor.clone(),
@@ -479,26 +447,6 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     } else {
         build_prefix_checker(governance_db_path)
     };
-    let agent = BuiltInChatAgent::new(BuiltInChatAgentDeps {
-        llm_router,
-        tool_registry,
-        tool_invoker: session_invoker.invoker,
-        event_bus,
-        user_memory: session_user_memory,
-        a2a_invoker: a2a_for_agent,
-        todo,
-        plan,
-    })
-    .with_workspace_path(session_invoker.workspace)
-    .with_mcp_index(agent_mcp_index, tool_search_limit)
-    .with_plan_mode(session_plan_mode)
-    .with_plan_phase_start(session_plan_phase)
-    .with_hook_executor(hook_executor)
-    .with_pending_injection(pending_injection)
-    .with_tool_turn_temperature(tool_turn_temperature)
-    .with_prefix_checker(prefix_checker)
-    .with_preferred_backend(preferred_backend);
-
     // Inject project context on first message OR right after the
     // session was linked to a project (consumed flag).
     tracing::info!(
@@ -508,13 +456,49 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
         has_provider = project_ctx.is_some(),
         "chat.project_context.gate"
     );
-    let system_prompt = maybe_inject_project_context(
-        system_prompt,
+    apollia_context.project = project_context_source(
         inject_project_context && !is_companion,
         &session_project_id,
         &project_ctx,
-    )
-    .await;
+    );
+    // The session runs its agent: Apollia, whose stored prompt is the mission,
+    // whose session tools are its granted tools and whose stored backend is
+    // its model; or a declarative agent, as resolved when the message is sent.
+    let spec = AgentRunSpec {
+        agent_id,
+        mission: system_prompt,
+        granted_tools: available_tools,
+        model: preferred_backend,
+        autonomy: autonomy_level,
+    };
+    let executor = AgentExecutor::new(
+        spec,
+        AgentExecutorDeps {
+            llm_router,
+            tool_registry,
+            tool_invoker: session_invoker.invoker,
+            event_bus,
+            todo,
+            plan,
+        },
+        apollia_context,
+        SessionWiring {
+            workspace_path: session_invoker.workspace,
+            mcp_index: agent_mcp_index,
+            tool_search_limit,
+            plan_mode: session_plan_mode,
+            plan_phase: session_plan_phase,
+            hook_executor,
+            pending_injection,
+            tool_turn_temperature,
+            prefix_checker,
+            approval_timeout: Some(crate::chat::builtin_agent::CHAT_APPROVAL_TIMEOUT),
+            shared_budget: None,
+            composition: composer.map(|composer| Composition { composer, depth: 1 }),
+        },
+        &runtime_budget,
+        cancel,
+    );
     let summary = resolve_exchange_summary(ExchangeSummaryParams {
         history: &history,
         context_window_size,
@@ -530,25 +514,17 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
     let turn_span = tracing::info_span!("chat.react.turn", session_id = %sid, run_id = %run_id);
     let result = crate::perf_trace::instrument_turn(
         &sid,
-        agent.execute(
-            &sid,
-            &mid,
-            &run_id,
-            &user_msg,
-            &history,
-            &system_prompt,
-            &available_tools,
-            &authorized_tools,
-            &pending_approvals,
-            &budget,
-            summary.as_deref(),
+        executor.run(RunInput {
+            session_id: &sid,
+            message_id: &mid,
+            run_id: &run_id,
+            user_message: &user_msg,
+            history: &history,
+            authorized_tools: &authorized_tools,
+            pending_approvals: &pending_approvals,
+            summary: summary.as_deref(),
             context_window_size,
-            Some(&autonomy_level),
-            verification.as_ref(),
-            critic.as_ref(),
-            Some(&level_config),
-            cancel,
-        ),
+        }),
     )
     .instrument(turn_span)
     .await;
@@ -570,7 +546,7 @@ pub(in crate::chat::manager) async fn run_libre_exchange(params: LibreExchangePa
 
 /// Resolve the native invoker for a session and wrap it in a composite invoker
 /// when an A2A invoker is configured.
-async fn build_session_invoker(
+pub(in crate::chat::manager) async fn build_session_invoker(
     workspace_params: WorkspaceResolutionParams,
     a2a_for_agent: &Option<Arc<A2AInvoker>>,
     hook_executor: Option<Arc<HookExecutor>>,

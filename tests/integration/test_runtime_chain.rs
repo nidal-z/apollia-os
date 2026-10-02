@@ -111,6 +111,8 @@ fn build_app_state() -> AppState<MockBackend> {
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
+        batches: None,
+        workflows: None,
     }
 }
 

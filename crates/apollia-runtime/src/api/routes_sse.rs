@@ -567,6 +567,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/stream", get(stream_task::<MockBackend>))

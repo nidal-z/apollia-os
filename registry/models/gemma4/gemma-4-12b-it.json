@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "gemma4/gemma-4-12b-it",
+  "kind": "language",
+  "label": "Gemma 4 12B",
+  "publisher": "Google",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/google/gemma-4-12B-it"
+  },
+  "source_url": "https://huggingface.co/google/gemma-4-12B-it",
+  "description": {
+    "fr": "Modèle Gemma 4 de taille moyenne : images, outils et réflexion sur demande, pour un usage polyvalent sur un poste de 16 Go.",
+    "en": "A mid-sized Gemma 4 model: images, tools and thinking on request, for versatile use on a 16 GB machine."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/google/gemma-4-12B-it/tree/main"
+  },
+  "memory": {
+    "min_gb": 7.2,
+    "source": "https://huggingface.co/unsloth/gemma-4-12b-it-GGUF/blob/main/gemma-4-12b-it-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 1.0,
+    "top_p": 0.95,
+    "top_k": 64,
+    "source": "https://huggingface.co/google/gemma-4-12B-it/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": false,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/google/gemma-4-12B-it/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "google/gemma-4-12B-it",
+    "unsloth/gemma-4-12b-it-GGUF",
+    "ggml-org/gemma-4-12b-it-GGUF",
+    "bartowski/gemma-4-12b-it-GGUF",
+    "mlx-community/gemma-4-12B-it-4bit",
+    "lmstudio-community/gemma-4-12B-it-MLX-4bit"
+  ],
+  "template": "registry/models/templates/gemma4.jinja"
+}

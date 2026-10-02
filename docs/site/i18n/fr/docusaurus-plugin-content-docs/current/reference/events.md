@@ -90,8 +90,6 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | Variante | Charge utile |
 |---|---|
 | `AgentDegraded` | champs nommés |
-| `AgentDisabled` | champs nommés |
-| `AgentEnabled` | champs nommés |
 | `AgentInstalled` | champs nommés |
 | `AgentLoadFailed` | champs nommés |
 | `AgentMessageAcked` | champs nommés |
@@ -161,6 +159,7 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | `LlmModelFailed` | champs nommés |
 | `LlmModelLoading` | champs nommés |
 | `LlmModelReady` | champs nommés |
+| `LlmModelReloaded` | champs nommés |
 | `LlmResponseCaptured` | champs nommés |
 | `MetaLlmBudgetExceeded` | champs nommés |
 | `TokenBudgetUpdated` | champs nommés |
@@ -247,6 +246,9 @@ que le `request_id` porté par l'événement annonce une demande déjà tranché
 | `TaskStarted` | champs nommés |
 | `TodoUpdated` | champs nommés |
 | `VerificationCompleted` | champs nommés |
+| `WorkflowStepCompleted` | champs nommés |
+| `WorkflowStepFailed` | champs nommés |
+| `WorkflowStepStarted` | champs nommés |
 
 ### `trace-event`
 

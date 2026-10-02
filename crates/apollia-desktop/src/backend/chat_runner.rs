@@ -69,8 +69,9 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
         agent_name: &str,
         task: apollia_core::AIPTask,
     ) -> Result<apollia_core::AIPResult, String> {
-        // 1. Resolve agent name → install_path
-        let install_path = {
+        // 1. Resolve agent name → install_path, and the access list of the
+        // agent as resolved (its declared access, then the user's override).
+        let (install_path, allowed_tools) = {
             let repo = self
                 .agent_repo
                 .lock()
@@ -79,8 +80,14 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
                 .get(agent_name)
                 .map_err(|e| format!("agent repo error: {e}"))?
                 .ok_or_else(|| format!("agent not found in repository: {agent_name}"))?;
-            agent.install_path.clone()
+            let access = apollia_tools::GrantedAccess::new(None, &agent.manifest).read(&repo);
+            (agent.install_path.clone(), access)
         };
+        // An access to a connector tool without its account names the single
+        // connected account, or nothing.
+        let allowed_tools =
+            apollia_runtime::connectors_bridge::resolve_connector_access(agent_name, allowed_tools)
+                .await;
 
         // 2. Load Python module + create bridge.
         // Inject the per-agent venv site-packages so top-level imports of
@@ -90,16 +97,6 @@ impl apollia_runtime::chat::ChatAgentRunner for ProductionChatAgentRunner {
             .map_err(|e| e.to_string())?;
         let validated =
             apollia_aip::validator::validate_agent(&module).map_err(|e| e.to_string())?;
-        // Merge required + optional tools: the manifest contract says agents
-        // may call any tool from either list. Excluding optional tools would
-        // hide `ask_user` and similar HITL helpers from Python agents.
-        let allowed_tools: Vec<String> = validated
-            .manifest
-            .tools_required
-            .iter()
-            .chain(validated.manifest.tools_optional.iter())
-            .cloned()
-            .collect();
         let memory_namespace = validated.manifest.memory_namespace.clone();
         let user_memory_write = validated.manifest.user_memory_write;
         // Capture datasources/templates and the agent directory.

@@ -66,8 +66,6 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
         "list_chat_sessions",
         "list_agents",
         "install_agent",
-        "start_agent",
-        "stop_agent",
         "list_tasks",
         "get_task_timeline",
         "cancel_task",
@@ -395,4 +393,171 @@ async fn test_an_answer_to_a_question_is_posted_to_the_daemon() {
 
     // THEN the daemon received the answers
     assert_eq!(answered["status"], "answered");
+}
+
+// ── Commands served by one runtime route ─────────────────────────────────
+
+#[tokio::test]
+async fn test_a_route_command_reaches_the_daemon_with_each_verb_and_the_token() {
+    // GIVEN a daemon that answers each verb of a route-backed command, only
+    // when the token of this installation comes with it
+    let server = MockServer::start().await;
+    let auth = format!("Bearer {TOKEN}");
+    for (verb, route) in [
+        ("GET", "/api/v1/mcp/servers"),
+        ("POST", "/api/v1/triggers"),
+        ("PUT", "/api/v1/notifications/channels/c-1"),
+        ("PATCH", "/api/v1/mcp/servers/fs/approval"),
+        ("DELETE", "/api/v1/llm/backends/local"),
+    ] {
+        Mock::given(method(verb))
+            .and(path(route))
+            .and(header("authorization", auth.as_str()))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "verb": verb })),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+    }
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+    let body = serde_json::json!({ "name": "x" });
+
+    // WHEN the attached arm sends each of them
+    let answers = [
+        link.get_json("/api/v1/mcp/servers").await.unwrap(),
+        link.post_json("/api/v1/triggers", &body).await.unwrap(),
+        link.put_json("/api/v1/notifications/channels/c-1", &body)
+            .await
+            .unwrap(),
+        link.patch_json("/api/v1/mcp/servers/fs/approval", &body)
+            .await
+            .unwrap(),
+        link.delete_json("/api/v1/llm/backends/local")
+            .await
+            .unwrap(),
+    ];
+
+    // THEN each reached the daemon with its own verb and came back as JSON
+    let verbs: Vec<&str> = answers.iter().filter_map(|a| a["verb"].as_str()).collect();
+    assert_eq!(verbs, ["GET", "POST", "PUT", "PATCH", "DELETE"]);
+}
+
+#[tokio::test]
+async fn test_a_route_command_refused_by_the_daemon_shows_its_message() {
+    // GIVEN a daemon that refuses to remove an MCP server it does not know
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/mcp/servers/ghost"))
+        .respond_with(
+            ResponseTemplate::new(404)
+                .set_body_json(serde_json::json!({ "error": "unknown server ghost" })),
+        )
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the attached arm asks for the removal
+    let error = link
+        .delete_json("/api/v1/mcp/servers/ghost")
+        .await
+        .unwrap_err();
+
+    // THEN the interface reads the daemon's own words, not an unavailability
+    assert_eq!(error, "unknown server ghost");
+}
+
+#[test]
+fn test_models_mcp_connections_and_notifications_pass_the_gate_attached() {
+    // GIVEN the screens of models, MCP servers, connections, notifications
+    // and triggers, through the command each one opens with
+    let screens = [
+        "update_llm_backend",
+        "list_loaded_models",
+        "list_mcp_servers",
+        "add_mcp_server",
+        "list_connections",
+        "list_notification_channels",
+        "list_triggers",
+        "list_tools",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = screens
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none answers that the service makes it unavailable
+    assert!(refused.is_empty(), "refused: {refused:?}");
+}
+
+#[test]
+fn test_a_window_command_runs_attached_and_carries_its_reason() {
+    // GIVEN the commands of the window, which read no state of the runtime
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = WINDOW_COMMANDS
+        .iter()
+        .map(|(name, _)| *name)
+        .filter(|name| gate(LinkMode::Attached, name).is_err())
+        .collect();
+
+    // THEN none is refused, each says why it needs no route, and none is
+    // also on the routed list
+    assert!(refused.is_empty(), "refused: {refused:?}");
+    for (name, reason) in WINDOW_COMMANDS {
+        assert!(!reason.trim().is_empty(), "{name} gives no reason");
+        assert!(!ROUTED_COMMANDS.contains(name), "{name} is listed twice");
+    }
+    assert!(gate(LinkMode::Attached, "quit_app").is_ok());
+}
+
+// ── The profile ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_the_daemon_profile_reads_as_the_page_draws_it_and_an_entry_is_put_by_key() {
+    // GIVEN a daemon holding one profile entry, and accepting a write to a
+    // dotted key
+    let server = MockServer::start().await;
+    let entry = serde_json::json!({
+        "key": "tools.daily", "value": "tableur", "written_by": "user",
+        "created_at": "2026-10-02T00:00:00Z", "updated_at": "2026-10-02T00:00:00Z",
+        "in_schema": true,
+    });
+    Mock::given(method("GET"))
+        .and(path("/api/v1/profile"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "schema_entries": [entry.clone()], "extras": [], "entries": [entry.clone()],
+            "last_updated_at": "2026-10-02T00:00:00Z",
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/profile/entries/tools.daily"))
+        .and(body_json(serde_json::json!({ "value": "tableur" })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(entry))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the attached arm reads the profile and writes the entry
+    let profile: apollia_runtime::profile::UserProfileView =
+        client.get("/api/v1/profile").await.unwrap();
+    let body = apollia_runtime::api::routes_profile::SetProfileEntryBody {
+        value: "tableur".to_owned(),
+    };
+    let stored: apollia_runtime::profile::ProfileEntryView = client
+        .put(
+            &format!("/api/v1/profile/entries/{}", segment("tools.daily")),
+            &body,
+        )
+        .await
+        .unwrap();
+
+    // THEN both read as the view the profile page draws
+    assert_eq!(profile.schema_entries.len(), 1);
+    assert_eq!(profile.entries[0].key, "tools.daily");
+    assert_eq!(stored.value, "tableur");
+    assert!(gate(LinkMode::Attached, "set_profile_entry").is_ok());
 }

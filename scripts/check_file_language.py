@@ -273,6 +273,11 @@ BILINGUAL_DATA = (
     "crates/apollia-desktop/ui/src/lib/i18n/en.json",
     "crates/apollia-desktop/ui/src/lib/i18n/fr.json",
     "crates/apollia-desktop/ui/src/lib/i18n/glossary.json",
+    # Model cards: one description and one explanation per locale.
+    "crates/apollia-llm/src/model_cards/fixtures/",
+    # The sentence of a generated model card, one template per locale.
+    "crates/apollia-llm/src/hf_registry/generated_sentences.json",
+    "registry/models/",
     "scripts/automation/",
 )
 
@@ -294,12 +299,16 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-memory/src/profile_schema.rs": 26,
     "scripts/check_release_artifacts.py": 1,
     # parser: French words the code matches on, or folds
-    "agents/system/onboarding-agent/agent.py": 36,
     # The typed-pause payload keys are the product's wire vocabulary (`genre`,
     # `libelle`, `autre`...): the parser and the TypedDict declaring them match on
     # those names. Only `autre` is a word the detector knows.
     "crates/apollia-core/src/hitl_payload.rs": 3,
     "sdk/apollia/hitl.py": 1,
+    # The type of a model card author field is written `liste` or `booleen` in
+    # the card files, and the readers of those files match on those values.
+    "crates/apollia-desktop/ui/src/lib/ipc/modelHub.ts": 1,
+    "crates/apollia-llm/src/model_cards/mod.rs": 1,
+    "scripts/check-model-families.py": 1,
     "crates/apollia-cli/src/commands/chat_stream.rs": 3,
     "crates/apollia-cli/src/commands/chat_stream/classify.rs": 1,
     "crates/apollia-cli/src/commands/run.rs": 2,
@@ -325,7 +334,8 @@ FRENCH_DATA: dict[str, int] = {
     "scripts/check_method_references.py": 18,
     "scripts/check_python_rules.py": 4,
     "tests/cli/seed/files/agents/onboarding-agent/agent.py": 28,
-    "tests/test_onboarding_heuristic_recovery.py": 9,
+    "agents/system/onboarding-agent/tools/onboarding.py": 21,
+    "tests/test_onboarding_tool.py": 2,
     # prompt: French text sent to a model, because the operator writes French
     "crates/apollia-desktop/src/commands/chat/title.rs": 17,
     # fixture: French user text, or a multi-byte character, a test feeds to the
@@ -335,6 +345,7 @@ FRENCH_DATA: dict[str, int] = {
     "crates/apollia-core/src/observability.rs": 1,
     "crates/apollia-core/src/utils.rs": 2,
     "crates/apollia-desktop/ui/src/lib/automations/humanize.test.ts": 20,
+    "crates/apollia-llm/src/model_cards/tests.rs": 2,
     "crates/apollia-desktop/ui/src/lib/chat/attachments.test.ts": 1,
     "crates/apollia-desktop/ui/src/lib/i18n/audit-i18n.test.ts": 12,
     "crates/apollia-desktop/ui/src/lib/i18n/i18n-locale-switch.test.ts": 1,
@@ -346,8 +357,6 @@ FRENCH_DATA: dict[str, int] = {
     "sdk/tests/test_formatting.py": 2,
     "tests/integration/test_chat_memory.rs": 4,
     "tests/integration/test_onboarding.rs": 9,
-    "tests/test_onboarding_agent.py": 41,
-    "tests/test_onboarding_contracts.py": 2,
     # Latin, not French: the lorem ipsum of a search-result fixture shares its
     # function words with French ("et", "est", "qui", "in"). Named rather than
     # taught to the detector, because a Latin lexicon would blunt it.

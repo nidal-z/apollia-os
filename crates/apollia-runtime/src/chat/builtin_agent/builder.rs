@@ -9,7 +9,7 @@ impl BuiltInChatAgent {
             tool_invoker: deps.tool_invoker,
             event_bus: deps.event_bus,
             user_memory: deps.user_memory,
-            a2a_invoker: deps.a2a_invoker,
+            composer: None,
             context_manager: ContextManager::from_config(&ORIAConfig::default()),
             meta_handle: None,
             workspace_path: None,
@@ -25,7 +25,36 @@ impl BuiltInChatAgent {
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
             prefix_checker: None,
             preferred_backend: None,
+            agent_id: crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_string(),
+            approval_timeout: Some(CHAT_APPROVAL_TIMEOUT),
         }
+    }
+
+    /// Set the delay after which a pending tool approval is refused. `None`
+    /// waits for the human however long it takes.
+    pub fn with_approval_timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.approval_timeout = timeout;
+        self
+    }
+
+    /// The delay after which a pending tool approval is refused.
+    #[cfg(test)]
+    pub(crate) fn approval_timeout(&self) -> Option<Duration> {
+        self.approval_timeout
+    }
+
+    /// Name the agent this loop runs for. Its model is resolved, and a
+    /// fallback said, under this identifier.
+    pub fn with_agent_id(mut self, agent_id: impl Into<String>) -> Self {
+        self.agent_id = agent_id.into();
+        self
+    }
+
+    /// Offer the agents and workflows the agent was granted, read through
+    /// `composer`. `None` offers none of them.
+    pub fn with_composer(mut self, composer: Option<Arc<dyn Composer>>) -> Self {
+        self.composer = composer;
+        self
     }
 
     /// Route the turn's calls to the backend the session prefers. `None`, or

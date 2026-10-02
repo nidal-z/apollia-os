@@ -92,12 +92,10 @@ BASELINE: dict[str, str] = {
     "Delete rather than wire.",
     "with_llm_router_and_reasoner@apollia-oria": "superseded: `wire_engine_with_llm` "
     "calls `with_llm_router` then `with_reasoner` separately. Delete rather than wire.",
-    "with_session_filter@apollia-tools": "defect, open, and the chain has no middle: "
-    "`apollia run --allowed-tools` / `--disallowed-tools` build a `session_config` "
-    "fragment (`commands/run.rs:868`) and push it into the AIP input payload. Nothing "
-    "on the runtime side reads that key, so `SessionToolPolicy::into_tool_filter` is "
-    "never called and `dispatch()` never evaluates a filter. Both ends exist, the wire "
-    "between them does not, and the operator gets no error.",
+    "with_session_filter@apollia-tools": "dead, open: the run flags that fed it and "
+    "the runtime conversion are gone, and the tools a run may call are the access "
+    "list of its agent, checked before the dispatcher (`aip/context/tool_invoke.rs`). "
+    "Nothing installs a session filter; the builder awaits its removal.",
     "with_file_path_extractor@apollia-tools": "defect, open: nothing installs the "
     "extractor, so a bash command that touches files reports none of them upward. Its "
     "only caller is a unit test of the extraction itself.",

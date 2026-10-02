@@ -4,9 +4,11 @@
 //! chat hybride feature. The `ChatSessionManager` actor and
 //! `BuiltInChatAgent` build on top of these primitives.
 //! `AgentChatExecutor` handles Chat Agent mode via Python agents.
+//! `AgentExecutor` is the only constructor of `BuiltInChatAgent` outside tests.
 
 pub mod a2a_tools;
 pub mod agent_chat;
+pub mod agent_executor;
 pub mod builtin_agent;
 pub mod extractor;
 pub mod manager;
@@ -24,8 +26,12 @@ pub mod todo_tool;
 pub mod turn_router;
 pub mod types;
 
-pub use a2a_tools::{generate_a2a_tool_specs, CompositeToolInvoker};
+pub use a2a_tools::CompositeToolInvoker;
 pub use agent_chat::{AgentChatExecutor, ChatAgentRunner};
+pub use agent_executor::{
+    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition,
+    ProjectContextSource, RunInput, SessionWiring,
+};
 pub use builtin_agent::{
     BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, NativeChatToolInvoker,
     DEFAULT_CONTEXT_WINDOW_SIZE, DEFAULT_SYSTEM_PROMPT,
@@ -34,8 +40,8 @@ pub use extractor::{
     extract_user_memory, spawn_extraction, ExtractionError, ExtractionResult, UserMemoryExtractor,
 };
 pub use manager::{
-    ChatPlanSnapshot, ChatSessionManagerHandle, ChatToolsConfig, InjectError, PauseError,
-    PendingUserInputView, SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
+    AgentTaskRun, ChatPlanSnapshot, ChatSessionManagerHandle, ChatToolsConfig, InjectError,
+    PauseError, PendingUserInputView, SessionAuthorizationView, APOLLIA_CHAT_AGENT_ID,
 };
 pub use plan_actor::{spawn_plan_actor, PlanHandle, PlanStoreError};
 pub use project_context::DefaultProjectContextProvider;

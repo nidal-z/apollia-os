@@ -192,9 +192,9 @@ kept out of it (they cannot be represented there) precisely because they are
 evaluated per invocation. Anything left raises the approval prompt.
 
 **Code executors are exempt from every blanket authorization.** `bash_executor`
-and its siblings are filtered out of the pre-authorized set on all three routes
-that fill it: the chat configuration, agent-scoped allow rules, and global allow
-rules. "Always allow" on one is refused at persistence time as well. Outside a
+and its siblings are filtered out of the pre-authorized set on both routes that
+fill it: agent-scoped allow rules and global allow rules. "Always allow" on one
+is refused at persistence time as well. Outside a
 targeted prefix rule, which only ever covers a single simple command, every
 invocation asks, every time. This is the single invariant that survives all the
 paths above, and it exists because a blanket allow on a shell is a blanket allow

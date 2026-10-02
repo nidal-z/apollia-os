@@ -86,30 +86,42 @@ fn delete_event_requires_confirm_phrase() {
     assert_eq!(d.approval_risk_level, Some(ApprovalRiskLevel::Critical));
 }
 
+fn accounts() -> [apollia_auth::AccountId; 1] {
+    [apollia_auth::AccountId::new("ada@example.com")]
+}
+
 #[test]
 fn google_executors_come_from_the_runtime_not_the_interface() {
     // GIVEN a process with no desktop: this test binary links apollia-runtime
     // and nothing of apollia-desktop, and no Tauri context exists
-    // WHEN the Google executors are built
-    let executors = build_google_executors();
-    // THEN the set is non-empty and every executor answers to its own op id
+    // WHEN the Google executors of a connected account are built
+    let executors = build_google_executors(&accounts());
+    // THEN the set is non-empty and every executor answers to the tool of
+    // its account
     assert!(
         !executors.is_empty(),
         "the runtime must provide the Google executors on its own"
     );
     let names: Vec<&str> = executors.iter().map(|e| e.name()).collect();
     for op in ["gmail.send", "gcal.list_events", "gdrive.workspace_write"] {
-        assert!(names.contains(&op), "`{op}` has no executor in the runtime");
+        let name = format!("conn:google:ada@example.com/{op}");
+        assert!(
+            names.contains(&name.as_str()),
+            "`{name}` has no executor in the runtime"
+        );
     }
 }
 
 #[test]
 fn every_google_descriptor_has_a_runtime_executor() {
-    // GIVEN the descriptors registered at supervisor boot, which is what an
+    // GIVEN the descriptors a connected account publishes, which is what an
     // installed agent sees in its tool catalogue
-    let descriptors = google_tool_descriptors();
+    let descriptors = connection_tools::account_descriptors(
+        apollia_auth::ConnectorProvider::Google,
+        "ada@example.com",
+    );
     // WHEN they are crossed with the executors the runtime builds
-    let executors = build_google_executors();
+    let executors = build_google_executors(&accounts());
     let names: Vec<&str> = executors.iter().map(|e| e.name()).collect();
     // THEN no descriptor is advertised without something able to run it: that
     // gap is what answered `UnknownTool` outside the desktop
@@ -125,22 +137,48 @@ fn every_google_descriptor_has_a_runtime_executor() {
 }
 
 #[test]
+fn every_microsoft_descriptor_has_a_runtime_executor() {
+    // GIVEN the descriptors a connected Microsoft account publishes
+    let descriptors = connection_tools::account_descriptors(
+        apollia_auth::ConnectorProvider::Microsoft,
+        "ada@example.com",
+    );
+    // WHEN they are crossed with the executors the runtime builds
+    let executors = build_microsoft_executors(&accounts());
+    let names: Vec<&str> = executors.iter().map(|e| e.name()).collect();
+    // THEN each descriptor has an executor, and nothing more is built
+    assert_eq!(names.len(), descriptors.len());
+    for d in &descriptors {
+        assert!(names.contains(&d.name.as_str()), "{}", d.name);
+    }
+}
+
+#[test]
 fn a_google_call_reaches_an_executor_with_no_desktop() {
     // GIVEN a dispatcher holding only what the runtime supplies, which is the
     // shape `apollia-os start` builds on a machine where no interface runs
-    let dispatcher = apollia_tools::executor::ToolDispatcher::new(build_google_executors());
+    let dispatcher =
+        apollia_tools::executor::ToolDispatcher::new(build_google_executors(&accounts()));
     // WHEN the tool surface is enumerated
     let names = dispatcher.tool_names();
     // THEN a Google op is a name the dispatcher resolves, so a call to it is
     // executed rather than refused as unknown
     assert!(
-        names.contains(&"gmail.send"),
+        names.contains(&"conn:google:ada@example.com/gmail.send"),
         "gmail.send must be dispatchable without the desktop"
     );
     assert!(
-        names.contains(&"gsheets.read_values"),
+        names.contains(&"conn:google:ada@example.com/gsheets.read_values"),
         "the runtime set is the full one, not the twelve ops the desktop carried"
     );
+}
+
+/// Every connector operation descriptor, Google, Microsoft and the mailbox.
+fn all_connector_descriptors() -> Vec<apollia_tools::ToolDescriptor> {
+    let mut all = google_tool_descriptors();
+    all.extend(microsoft_tool_descriptors());
+    all.extend(imap_tool_descriptors());
+    all
 }
 
 fn connector_descriptor(id: &str) -> apollia_tools::ToolDescriptor {

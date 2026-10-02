@@ -17,6 +17,7 @@ fn trust_banner_states_the_in_process_model() {
 
 fn test_manifest(name: &str) -> AgentManifest {
     AgentManifest {
+        autonomy_level: None,
         format_version: 1,
         name: name.to_string(),
         version: "0.1.0".to_string(),
@@ -663,4 +664,13 @@ fn test_override_value_follows_the_field_shape() {
     assert_eq!(empty.unwrap(), serde_json::json!([]));
     assert!(too_many.unwrap_err().contains("exactly one value"));
     assert!(unknown.unwrap_err().contains("unknown field"));
+}
+
+#[test]
+fn test_uninstall_refuses_the_apollia_agent() {
+    // GIVEN the identifier of the Apollia agent, the built-in chat
+    // WHEN it is uninstalled, confirmed
+    let code = run_uninstall(apollia_tools::APOLLIA_AGENT_ID, true, true);
+    // THEN the command refuses it with a usage error, before touching any file
+    assert_eq!(code, exit_codes::GENERAL_ERROR);
 }

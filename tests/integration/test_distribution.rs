@@ -81,6 +81,7 @@ fn write_bundled_manifest(tmp: &TempDir) -> PathBuf {
 /// Builds a minimal `InstalledAgent` with the given timestamp.
 fn pre_installed_agent(name: &str, installed_at: &str) -> InstalledAgent {
     let manifest = AgentManifest {
+        autonomy_level: None,
         format_version: 1,
         name: name.to_string(),
         version: "1.0.0".to_string(),
@@ -165,6 +166,7 @@ fn supervisor_config(
         chat_default_workspace: None,
         filesystem_trusted_paths: Vec::new(),
         chat_tool_turn_temperature: None,
+        workflows_config: apollia_core::WorkflowsConfig::default(),
     }
 }
 

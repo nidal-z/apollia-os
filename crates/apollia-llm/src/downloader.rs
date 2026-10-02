@@ -165,7 +165,8 @@ pub struct DownloadRequest {
     pub expected_sha256: Option<String>,
 }
 
-type ProgressCallback = Arc<dyn Fn(DownloadProgress) + Send + Sync + 'static>;
+/// The function a download reports its progress to.
+pub type ProgressCallback = Arc<dyn Fn(DownloadProgress) + Send + Sync + 'static>;
 
 /// Manager for concurrent downloads.
 ///
@@ -237,6 +238,31 @@ impl DownloadManager {
         id
     }
 
+    /// Run one download to its end in the calling task, through the same
+    /// checks as [`Self::start`]: the status before any byte is written, the
+    /// SHA-256 against [`DownloadRequest::expected_sha256`], and the file
+    /// deleted when it does not match. For a caller that waits on the result,
+    /// such as the command line.
+    ///
+    /// # Errors
+    /// Every [`DownloadError`] the download can meet; on
+    /// [`DownloadError::IntegrityMismatch`] nothing is left on disk.
+    pub async fn download(
+        &self,
+        request: DownloadRequest,
+        on_progress: ProgressCallback,
+    ) -> Result<DownloadOutcome, DownloadError> {
+        let id = Uuid::new_v4().to_string();
+        run_download(
+            self.client.clone(),
+            request,
+            id,
+            CancellationToken::new(),
+            on_progress,
+        )
+        .await
+    }
+
     /// Cancel an in-flight download.
     ///
     /// # Errors
@@ -263,15 +289,15 @@ impl Default for DownloadManager {
 
 /// What a finished download hands back.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct DownloadOutcome {
+pub struct DownloadOutcome {
     /// Where the file was written.
-    pub(crate) dest_path: PathBuf,
+    pub dest_path: PathBuf,
     /// Size of the file on disk.
-    pub(crate) bytes: u64,
+    pub bytes: u64,
     /// SHA-256 of the file on disk, lowercase hex.
-    pub(crate) sha256: String,
+    pub sha256: String,
     /// True when `sha256` was checked against a published reference.
-    pub(crate) integrity_verified: bool,
+    pub integrity_verified: bool,
 }
 
 /// Run one download and report a failure through `on_progress`, so the
@@ -653,6 +679,7 @@ async fn persist_sampling_defaults(
         top_p: gen_config.top_p.map(|v| v as f32),
         top_k: gen_config.top_k,
         repetition_penalty: gen_config.repetition_penalty.map(|v| v as f32),
+        ..crate::model_defaults::ModelDefaults::default()
     };
 
     if defaults.is_empty() {

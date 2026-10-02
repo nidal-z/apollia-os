@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "qwen3.5/Qwen3.5-27B",
+  "kind": "language",
+  "label": "Qwen3.5 27B",
+  "publisher": "Qwen",
+  "license": {
+    "id": "apache-2.0",
+    "source": "https://huggingface.co/Qwen/Qwen3.5-27B"
+  },
+  "source_url": "https://huggingface.co/Qwen/Qwen3.5-27B",
+  "description": {
+    "fr": "Modèle Qwen3.5 dense et solide, pour les tâches longues qui demandent de la rigueur : raisonnement en plusieurs étapes, synthèses fouillées, agents exigeants. Il demande un poste bien doté.",
+    "en": "A solid dense Qwen3.5 model for long tasks that call for rigour: multi-step reasoning, thorough syntheses, demanding agents. It needs a well-equipped machine."
+  },
+  "capabilities": {
+    "tools": true,
+    "reasoning": true,
+    "vision": true,
+    "source": "https://huggingface.co/Qwen/Qwen3.5-27B/tree/main"
+  },
+  "memory": {
+    "min_gb": 16.8,
+    "source": "https://huggingface.co/unsloth/Qwen3.5-27B-GGUF/blob/main/Qwen3.5-27B-Q4_K_M.gguf"
+  },
+  "defaults": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "source": "https://huggingface.co/Qwen/Qwen3.5-27B/blob/main/generation_config.json"
+  },
+  "author_fields": [
+    {
+      "name": "enable_thinking",
+      "type": "booleen",
+      "default": true,
+      "explanation": {
+        "fr": "Active ou coupe la réflexion visible avant la réponse. Coupée, le modèle répond plus vite ; active, il pose mieux les problèmes en plusieurs étapes.",
+        "en": "Turns the visible thinking before the answer on or off. Off, the model answers faster; on, it handles multi-step problems better."
+      },
+      "source": "https://huggingface.co/Qwen/Qwen3.5-27B/blob/main/chat_template.jinja"
+    }
+  ],
+  "repos": [
+    "Qwen/Qwen3.5-27B",
+    "unsloth/Qwen3.5-27B-GGUF",
+    "bartowski/Qwen_Qwen3.5-27B-GGUF",
+    "lmstudio-community/Qwen3.5-27B-GGUF",
+    "mlx-community/Qwen3.5-27B-4bit"
+  ],
+  "template": "registry/models/templates/qwen3.5.jinja"
+}

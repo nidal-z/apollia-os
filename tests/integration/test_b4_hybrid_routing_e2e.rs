@@ -160,10 +160,15 @@ fn make_agent(router: Arc<LlmRouter>, tool_registry: ToolRegistryHandle) -> Buil
         tool_invoker: Arc::new(AlwaysFailingInvoker),
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     })
+}
+
+/// The access list of the agent: the failing tool must be granted, or the loop
+/// refuses the call as unknown and never counts it as a tool failure.
+fn granted_bash() -> Vec<String> {
+    vec!["bash_executor".to_string()]
 }
 
 fn authorized_bash() -> HashSet<String> {
@@ -173,6 +178,7 @@ fn authorized_bash() -> HashSet<String> {
 }
 
 // GIVEN a hybrid router whose ceiling is well above the session cost
+//   AND an agent granted bash_executor
 //   AND a local backend that fails three consecutive tool calls
 // WHEN the ReAct loop reaches the escalation threshold
 // THEN the frontier backend is invoked and the response does not flag the ceiling
@@ -194,7 +200,7 @@ async fn b4_escalation_accepted_routes_to_frontier() {
             "go",
             &[],
             "",
-            &[],
+            &granted_bash(),
             &authorized_bash(),
             &approvals,
             &budget,
@@ -222,6 +228,7 @@ async fn b4_escalation_accepted_routes_to_frontier() {
 }
 
 // GIVEN a hybrid router whose ceiling has already been reached
+//   AND an agent granted bash_executor
 //   AND a local backend that fails consecutive tool calls then stops
 // WHEN the ReAct loop reaches the escalation threshold
 // THEN the loop stays local, the frontier is never invoked, and the ceiling is flagged
@@ -244,7 +251,7 @@ async fn b4_ceiling_blocked_stays_local_and_flags() {
             "go",
             &[],
             "",
-            &[],
+            &granted_bash(),
             &authorized_bash(),
             &approvals,
             &budget,
@@ -318,7 +325,7 @@ async fn b4_below_threshold_never_escalates() {
             "go",
             &[],
             "",
-            &[],
+            &granted_bash(),
             &authorized_bash(),
             &approvals,
             &budget,

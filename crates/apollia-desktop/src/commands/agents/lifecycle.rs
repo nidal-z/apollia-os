@@ -1,6 +1,9 @@
-//! The commands that change an agent's state: start, stop, install, uninstall,
-//! enable, disable, update, and the restart an update owes the operator when it
-//! cycled a running agent.
+//! The commands that change an agent's state: install, uninstall, update, and
+//! the restart an update owes the operator when it cycled a running agent.
+//!
+//! There is no start, stop, enable or disable here: an installed agent is
+//! always available, loaded by its first task and released once idle. The
+//! install makes it available at once.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -16,29 +19,25 @@ use super::{
     agent_repository, apollia_data_dir, http_post_json, now_rfc3339, restart_outcome,
     InstallAgentResponse, UpdateAgentResponse,
 };
-use crate::attached::{segment, RuntimeLink};
+use crate::attached::RuntimeLink;
 
-/// Starts an agent from a Python file.
-///
-/// Delegates to `POST /api/v1/agents` because loading Python requires
-/// `AgentLoader` and `BackendFactory`, which are not on `RuntimeHandle`.
-/// Returns the new agent's `AgentId` (UUID). Attached to a daemon, the same
-/// route is reached over the daemon's API.
-#[tauri::command]
-pub async fn start_agent(link: State<'_, RuntimeLink>, path: String) -> Result<String, String> {
-    match link.inner() {
-        RuntimeLink::Embedded(runtime) => start_agent_inner(runtime.api_port, &path).await,
-        RuntimeLink::Attached(remote) => {
-            let body = serde_json::json!({ "agent_path": path });
-            agent_id_of(&remote.post("/api/v1/agents", &body).await?)
-        }
-    }
-}
-
-/// Inner logic for [`start_agent`], callable without Tauri `State`.
+/// Registers the agent at `path` with the runtime, through
+/// `POST /api/v1/agents`: loading Python requires `AgentLoader` and
+/// `BackendFactory`, which are not on `RuntimeHandle`. Returns its `AgentId`.
 async fn start_agent_inner(api_port: u16, path: &str) -> Result<String, String> {
     let body = serde_json::json!({ "agent_path": path });
     agent_id_of(&http_post_json(api_port, "/api/v1/agents", &body).await?)
+}
+
+/// Registers a freshly installed agent with the embedded runtime, so that a
+/// task reaches it without anyone starting it. A failure is reported and
+/// leaves the install in place: the agent becomes available at the next
+/// launch.
+pub(crate) async fn make_available(api_port: u16, name: &str, install_path: &std::path::Path) {
+    let path = install_path.to_string_lossy();
+    if let Err(e) = start_agent_inner(api_port, &path).await {
+        tracing::warn!(agent = %name, cause = %e, "agent.install.register_failed");
+    }
 }
 
 /// The `agent_id` of a start answer.
@@ -60,25 +59,7 @@ fn is_running(state: &ProcessState) -> bool {
     )
 }
 
-/// Stops an agent (transition Stopping → Stopped).
-///
-/// Delegates directly to the registry and TaskRouter handles, bypassing the
-/// REST API; the full cycle is replicated to guarantee event ordering on the
-/// EventBus. Attached to a daemon, `DELETE /api/v1/agents/{id}` runs the
-/// same cycle there.
-#[tauri::command]
-pub async fn stop_agent(link: State<'_, RuntimeLink>, agent_id: String) -> Result<(), String> {
-    match link.inner() {
-        RuntimeLink::Embedded(runtime) => stop_agent_inner(runtime, &agent_id).await,
-        RuntimeLink::Attached(remote) => {
-            let path = format!("/api/v1/agents/{}", segment(&agent_id));
-            let _: serde_json::Value = remote.delete(&path).await?;
-            Ok(())
-        }
-    }
-}
-
-/// Inner logic for [`stop_agent`], callable without Tauri `State`.
+/// Takes the running instance of an agent out of service before an update.
 ///
 /// The order is load-bearing: `Stopping` first so the window sees the
 /// transition, then the coordinator leaves the router so no new task is
@@ -128,19 +109,32 @@ async fn stop_agent_inner(runtime: &RuntimeHandle, agent_id: &str) -> Result<(),
 /// Installs an agent permanently from a Python file.
 ///
 /// Validates the Python module via `AgentLoader`, copies the file to
-/// `~/.apollia/agents/<name>/agent.py`, and persists the entry in `agents.db`.
+/// `~/.apollia/agents/<name>/agent.py`, persists the entry in `agents.db`, and
+/// makes the agent available in the runtime at once: nobody starts it.
 /// Emits a `RuntimeEvent::AgentInstalled` on the EventBus. Attached to a
-/// daemon, the daemon validates, copies and records it.
+/// daemon, the daemon validates, copies, records and registers it.
 #[tauri::command]
 pub async fn install_agent(
     path: String,
     link: State<'_, RuntimeLink>,
     app: tauri::AppHandle,
 ) -> Result<InstallAgentResponse, String> {
-    if let RuntimeLink::Attached(remote) = link.inner() {
-        let body = serde_json::json!({ "path": path });
-        return Ok(remote.post("/api/v1/agents/installed", &body).await?);
-    }
+    let runtime = match link.inner() {
+        RuntimeLink::Attached(remote) => {
+            let body = serde_json::json!({ "path": path });
+            let installed: InstallAgentResponse =
+                remote.post("/api/v1/agents/installed", &body).await?;
+            let body = serde_json::json!({ "agent_path": installed.install_path });
+            if let Err(e) = remote
+                .post::<serde_json::Value>("/api/v1/agents", &body)
+                .await
+            {
+                tracing::warn!(agent = %installed.name, cause = %e, "agent.install.register_failed");
+            }
+            return Ok(installed);
+        }
+        RuntimeLink::Embedded(runtime) => runtime,
+    };
     let loader = app
         .try_state::<Arc<dyn AgentLoader>>()
         .ok_or_else(|| "agent loader not available".to_string())?;
@@ -159,6 +153,8 @@ pub async fn install_agent(
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))??;
+
+    make_available(runtime.api_port, &agent.name, &agent.install_path).await;
 
     if let Some(event_bus) = app.try_state::<EventBusSender>() {
         let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentInstalled {
@@ -212,80 +208,15 @@ pub async fn uninstall_agent(
         let _ = std::fs::remove_dir_all(parent);
     }
 
-    // Remove from in-memory registry so list_agents no longer returns it.
-    // find_by_name returns None if the agent was never started; that is fine.
+    // Remove from in-memory registry so list_agents no longer returns it, and
+    // drop its coordinator for good: a stopped agent would otherwise be loaded
+    // again by the next task that names it.
     if let Ok(Some(agent_id)) = runtime.registry_handle.find_by_name(&name).await {
-        let _ = runtime
-            .router_handle
-            .unregister_coordinator(&agent_id)
-            .await;
+        let _ = runtime.router_handle.forget_coordinator(&agent_id).await;
         let _ = runtime.registry_handle.unregister(agent_id.as_str()).await;
     }
 
     let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentUninstalled { name });
-
-    Ok(())
-}
-
-/// Enables an installed agent for auto-start at boot.
-///
-/// Sets `enabled = true` in `agents.db`.
-/// Emits a `RuntimeEvent::AgentEnabled` on the EventBus.
-#[tauri::command]
-pub async fn enable_agent(
-    name: String,
-    repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
-    event_bus: State<'_, EventBusSender>,
-) -> Result<(), String> {
-    let repo_clone = Arc::clone(&repo);
-    let name_clone = name.clone();
-    tokio::task::spawn_blocking(move || {
-        let repo = repo_clone
-            .lock()
-            .map_err(|e| format!("mutex poisoned: {e}"))?;
-        repo.set_enabled(&name_clone, true).map_err(|e| match e {
-            apollia_tools::AgentRepositoryError::NotFound(n) => {
-                format!("agent '{n}' not found in installed agents")
-            }
-            other => format!("database error: {other}"),
-        })
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
-
-    let _ = event_bus.send(apollia_core::events::RuntimeEvent::AgentEnabled { name: name.clone() });
-
-    Ok(())
-}
-
-/// Disables an installed agent (it will no longer load at boot).
-///
-/// Sets `enabled = false` in `agents.db`.
-/// Emits a `RuntimeEvent::AgentDisabled` on the EventBus.
-#[tauri::command]
-pub async fn disable_agent(
-    name: String,
-    repo: State<'_, Arc<std::sync::Mutex<AgentRepository>>>,
-    event_bus: State<'_, EventBusSender>,
-) -> Result<(), String> {
-    let repo_clone = Arc::clone(&repo);
-    let name_clone = name.clone();
-    tokio::task::spawn_blocking(move || {
-        let repo = repo_clone
-            .lock()
-            .map_err(|e| format!("mutex poisoned: {e}"))?;
-        repo.set_enabled(&name_clone, false).map_err(|e| match e {
-            apollia_tools::AgentRepositoryError::NotFound(n) => {
-                format!("agent '{n}' not found in installed agents")
-            }
-            other => format!("database error: {other}"),
-        })
-    })
-    .await
-    .map_err(|e| format!("spawn_blocking failed: {e}"))??;
-
-    let _ =
-        event_bus.send(apollia_core::events::RuntimeEvent::AgentDisabled { name: name.clone() });
 
     Ok(())
 }

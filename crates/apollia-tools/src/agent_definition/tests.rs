@@ -34,7 +34,7 @@ fn over(field: OverrideField, value: Value) -> AgentOverride {
 fn test_resolve_without_override_is_the_definition() {
     let agent = stored();
 
-    let resolved = resolve(&agent, &[], None);
+    let resolved = resolve(&agent, &[], None, AutonomyLevel::Assisted);
 
     assert_eq!(resolved.id, "invoices");
     assert_eq!(resolved.name, "Invoices");
@@ -61,7 +61,7 @@ fn test_resolve_overridden_mission() {
         json!("Extract totals and flag duplicates."),
     )];
 
-    let resolved = resolve(&agent, &overrides, None);
+    let resolved = resolve(&agent, &overrides, None, AutonomyLevel::Assisted);
 
     assert_eq!(resolved.mission, "Extract totals and flag duplicates.");
     assert_eq!(resolved.name, "Invoices");
@@ -83,7 +83,7 @@ fn test_resolve_added_access() {
         json!(["file_read", "pkg:office/extract_totals", "web_fetch"]),
     )];
 
-    let resolved = resolve(&agent, &overrides, None);
+    let resolved = resolve(&agent, &overrides, None, AutonomyLevel::Assisted);
 
     assert_eq!(
         resolved.access,
@@ -103,7 +103,7 @@ fn test_resolve_removed_access() {
         json!(["pkg:office/extract_totals"]),
     )];
 
-    let resolved = resolve(&agent, &overrides, None);
+    let resolved = resolve(&agent, &overrides, None, AutonomyLevel::Assisted);
 
     assert_eq!(resolved.access, vec!["pkg:office/extract_totals"]);
     assert!(!resolved.access.contains(&"file_read".to_owned()));
@@ -122,7 +122,7 @@ fn test_resolve_carries_the_assigned_model() {
         preset_id: None,
     };
 
-    let resolved = resolve(&agent, &[], Some(model.clone()));
+    let resolved = resolve(&agent, &[], Some(model.clone()), AutonomyLevel::Assisted);
 
     assert_eq!(resolved.model, Some(model));
 }
@@ -178,4 +178,95 @@ fn test_definition_from_manifest() {
             "defaults": {"access": ["file_write", "file_read"], "sources": ["documents"]}
         })
     );
+}
+
+/// The stored agent with `autonomy` declared among its defaults.
+fn stored_declaring(autonomy: &str) -> StoredAgent {
+    let mut agent = stored();
+    agent.definition["defaults"]["autonomy"] = json!(autonomy);
+    agent
+}
+
+#[test]
+fn test_resolve_reads_the_declared_autonomy() {
+    // GIVEN an agent whose definition declares the supervised tier
+    let agent = stored_declaring("supervised");
+
+    // WHEN it is resolved under an assisted global default
+    let resolved = resolve(&agent, &[], None, AutonomyLevel::Assisted);
+
+    // THEN the tier is the declared one
+    assert_eq!(resolved.autonomy, AutonomyLevel::Supervised);
+    assert!(resolved.overridden.is_empty());
+}
+
+#[test]
+fn test_resolve_autonomy_override_wins_over_the_declared_one() {
+    // GIVEN an agent declaring the supervised tier, overridden to the long one
+    let agent = stored_declaring("supervised");
+    let overrides = [over(OverrideField::Autonomy, json!("long_autonomous"))];
+
+    // WHEN it is resolved
+    let resolved = resolve(&agent, &overrides, None, AutonomyLevel::Assisted);
+
+    // THEN the tier is the user's and is marked overridden
+    assert_eq!(resolved.autonomy, AutonomyLevel::LongAutonomous);
+    assert_eq!(resolved.overridden, vec![OverrideField::Autonomy]);
+}
+
+#[test]
+fn test_resolve_autonomy_falls_back_to_the_global_default() {
+    // GIVEN an agent that declares no tier, and one that declares an unknown one
+    let silent = stored();
+    let garbled = stored_declaring("unbounded");
+
+    // WHEN both are resolved under a bounded global default
+    let from_silent = resolve(&silent, &[], None, AutonomyLevel::BoundedAutonomous);
+    let from_garbled = resolve(&garbled, &[], None, AutonomyLevel::BoundedAutonomous);
+
+    // THEN both run at the global default
+    assert_eq!(from_silent.autonomy, AutonomyLevel::BoundedAutonomous);
+    assert_eq!(from_garbled.autonomy, AutonomyLevel::BoundedAutonomous);
+}
+
+#[test]
+fn test_autonomy_override_value_is_one_of_the_four_tiers() {
+    // GIVEN the autonomy field
+
+    // WHEN a tier, an unknown name and a list are checked
+    let tier = OverrideField::Autonomy.check(&json!("supervised"));
+    let unknown = OverrideField::Autonomy.check(&json!("unbounded"));
+    let list = OverrideField::Autonomy.check(&json!(["supervised"]));
+
+    // THEN only the tier is accepted, and the field is parsed by its name
+    assert_eq!(tier, Ok(()));
+    assert_eq!(unknown, Err(OverrideValueError::ExpectedAutonomyLevel));
+    assert_eq!(list, Err(OverrideValueError::ExpectedAutonomyLevel));
+    assert_eq!(
+        OverrideField::parse("autonomy"),
+        Ok(OverrideField::Autonomy)
+    );
+}
+
+#[test]
+fn test_definition_from_manifest_carries_the_declared_autonomy() {
+    // GIVEN a manifest the SDK built with `@agent(autonomy_level="supervised")`
+    let manifest: AgentManifest = serde_json::from_value(json!({
+        "name": "notes",
+        "version": "1.0.0",
+        "description": "Takes notes.",
+        "tools_required": [],
+        "autonomy_level": "supervised"
+    }))
+    .unwrap();
+
+    // WHEN its definition is built and resolved
+    let definition = definition_from_manifest(&manifest);
+    let mut agent = stored();
+    agent.definition = definition.clone();
+    let resolved = resolve(&agent, &[], None, AutonomyLevel::Assisted);
+
+    // THEN the tier sits among the defaults and is the one the agent runs at
+    assert_eq!(definition["defaults"]["autonomy"], json!("supervised"));
+    assert_eq!(resolved.autonomy, AutonomyLevel::Supervised);
 }

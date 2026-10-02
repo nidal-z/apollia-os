@@ -68,6 +68,8 @@ hound            = { workspace = true }
 scraper          = { workspace = true }
 url              = { workspace = true }
 urlencoding      = { workspace = true }
+# Reads the documentation archive the build script embeds.
+zip              = { workspace = true }
 
 # macOS only: read the NSWindow.windowNumber so the dev automation screenshot
 # can target the app window by id (already in the tree via tauri).

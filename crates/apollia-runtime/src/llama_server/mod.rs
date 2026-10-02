@@ -19,12 +19,15 @@
 
 mod config;
 mod engine_facts;
+mod load_settings;
 mod loaded;
 mod ngl;
 mod parallel;
 mod projector;
+mod reload;
 
-pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError};
+pub use config::{FlashAttn, LlamaServerConfig, ParseFlashAttnError, SpecType};
+pub use load_settings::LoadSettings;
 pub use loaded::{LoadedModel, ModelLease, UnloadError};
 
 use std::net::TcpListener;
@@ -40,6 +43,7 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
+use apollia_core::EventBusSender;
 use config::{build_args, display_opt, env_getter, resolve_env_overrides};
 
 /// Errors from spawning or supervising the embedded `llama-server`.
@@ -77,6 +81,9 @@ struct Instance {
     n_gpu_layers: i32,
     /// Server slots (`-np`), `None` when the engine default was left alone.
     n_parallel: Option<u32>,
+    /// Preset load settings the process was launched with. A request for the
+    /// same model under other settings relaunches it.
+    load: LoadSettings,
     port: u16,
     child: Child,
     /// Value of the supervisor's tick when this instance was last requested.
@@ -96,13 +103,20 @@ struct Instance {
 impl Instance {
     /// A freshly healthy process launched with `config`, used once at `tick`,
     /// serving no request yet.
-    fn new(config: LlamaServerConfig, port: u16, child: Child, tick: u64) -> Self {
+    fn new(
+        config: LlamaServerConfig,
+        load: LoadSettings,
+        port: u16,
+        child: Child,
+        tick: u64,
+    ) -> Self {
         let now = Utc::now();
         Self {
             model_path: config.model_path,
             n_ctx: config.n_ctx,
             n_gpu_layers: config.n_gpu_layers,
             n_parallel: config.n_parallel,
+            load,
             port,
             child,
             last_used: tick,
@@ -199,6 +213,11 @@ pub struct LlamaServerSupervisor {
     respawn_lock: Arc<Mutex<()>>,
     /// Set during shutdown so the supervision task stops respawning.
     shutting_down: Arc<Mutex<bool>>,
+    /// `system.db`, where the default preset of each model is read at every
+    /// request. `None` launches every model without a preset.
+    system_db: Option<PathBuf>,
+    /// Where a relaunch under new load settings is announced.
+    events: Option<EventBusSender>,
 }
 
 impl LlamaServerSupervisor {
@@ -210,7 +229,11 @@ impl LlamaServerSupervisor {
     /// [`ensure_model`](Self::ensure_model), so a fresh install with no model yet
     /// still yields a usable supervisor that the router factory can capture.
     /// Call [`spawn_supervision`](Self::spawn_supervision) to enable auto-respawn.
-    pub fn new(config: LlamaServerConfig) -> Result<Arc<Self>, LlamaServerError> {
+    pub fn new(
+        config: LlamaServerConfig,
+        system_db: Option<PathBuf>,
+        events: Option<EventBusSender>,
+    ) -> Result<Arc<Self>, LlamaServerError> {
         let bin_path = locate_llama_server_binary()?;
         // The reported window must be the one the server will actually launch
         // with, otherwise an `APOLLIA_LLAMA_N_CTX` override would leave the
@@ -230,6 +253,8 @@ impl LlamaServerSupervisor {
             tick: Arc::new(AtomicU64::new(0)),
             respawn_lock: Arc::new(Mutex::new(())),
             shutting_down: Arc::new(Mutex::new(false)),
+            system_db,
+            events,
         }))
     }
 
@@ -242,10 +267,9 @@ impl LlamaServerSupervisor {
     ///
     /// The backend's own `context_window` (chosen at onboarding or in the
     /// settings) wins over the default; `APOLLIA_LLAMA_N_CTX` wins over both.
-    /// Reported to the router by the backend, so compaction and the context
-    /// gauge are sized against the window the process really has.
+    /// A preset's window comes in as `requested`, see `window_for`.
     #[must_use]
-    pub fn effective_n_ctx(&self, requested: Option<u32>) -> u32 {
+    fn effective_n_ctx(&self, requested: Option<u32>) -> u32 {
         if self.n_ctx_pinned {
             return self.n_ctx;
         }
@@ -257,47 +281,19 @@ impl LlamaServerSupervisor {
         self.max_loaded
     }
 
-    /// Make `model_path` servable and return a lease on the process serving it.
-    ///
-    /// Returns immediately when that model already has a live process, which is
-    /// what makes a second resident model worth having: the hand-off between two
-    /// agents on two models costs a lookup rather than a reload. Otherwise a
-    /// process is started, evicting the least recently used one first when the
-    /// residency ceiling is reached.
-    ///
-    /// The URL is carried by the lease rather than read back through a separate
-    /// accessor: with several instances alive, "the current one" is not a
-    /// well-defined question, and a caller that asked for a specific model must
-    /// not receive another one's port. Holding the lease for the length of a
-    /// request is what lets [`unload_model`](Self::unload_model) refuse to stop
-    /// a model in the middle of an answer.
-    ///
-    /// # Errors
-    ///
-    /// [`LlamaServerError`] when the process cannot be spawned or never becomes
-    /// healthy.
-    pub async fn ensure_model(
-        &self,
-        model_path: String,
-        n_ctx: Option<u32>,
-    ) -> Result<ModelLease, LlamaServerError> {
-        let n_ctx = self.effective_n_ctx(n_ctx);
-        let _guard = self.respawn_lock.lock().await;
-        if let Some(lease) = self.touch_live_instance(&model_path, n_ctx).await {
-            return Ok(lease);
-        }
-        self.evict_until_below_ceiling().await;
-        self.spawn_instance(model_path, n_ctx).await
-    }
-
     /// Return a lease on a live instance for `model_path`, marking it as just
     /// used. Drops an instance whose process has died, so the caller respawns
     /// instead of handing out a dead port.
-    async fn touch_live_instance(&self, model_path: &str, n_ctx: u32) -> Option<ModelLease> {
+    async fn touch_live_instance(
+        &self,
+        model_path: &str,
+        n_ctx: u32,
+        load: &LoadSettings,
+    ) -> Option<ModelLease> {
         let mut instances = self.instances.lock().await;
         let idx = instances
             .iter()
-            .position(|i| i.model_path == model_path && i.n_ctx == n_ctx)?;
+            .position(|i| i.model_path == model_path && i.n_ctx == n_ctx && &i.load == load)?;
         if !instances[idx].is_running() {
             let dead = instances.remove(idx);
             tracing::warn!(model = %dead.model_path, port = dead.port, "llama.server.instance.dead");
@@ -307,6 +303,7 @@ impl LlamaServerSupervisor {
         instances[idx].last_used_at = Utc::now();
         Some(ModelLease::new(
             instances[idx].base_url(),
+            instances[idx].n_ctx,
             Arc::clone(&instances[idx].in_flight),
         ))
     }
@@ -353,7 +350,7 @@ impl LlamaServerSupervisor {
             // not succeeded yet. Carried across iterations so a failure is
             // retried under backoff instead of being forgotten, which is what
             // keeps an endpoint alive between two requests.
-            let mut owed: Vec<(String, u32)> = Vec::new();
+            let mut owed: Vec<(String, u32, LoadSettings)> = Vec::new();
 
             loop {
                 if *self.shutting_down.lock().await {
@@ -365,14 +362,15 @@ impl LlamaServerSupervisor {
                 // launches llama-server without a `-m`. An evicted model is
                 // absent from this list on purpose: it was stopped deliberately
                 // and must not come back on its own.
-                for (model_path, n_ctx, reason) in self.take_dead_instances().await {
+                for (model_path, n_ctx, load, reason) in self.take_dead_instances().await {
                     tracing::error!(
                         model = %model_path,
                         reason = %reason,
                         "llama.server.exited"
                     );
-                    if !owed.contains(&(model_path.clone(), n_ctx)) {
-                        owed.push((model_path, n_ctx));
+                    let entry = (model_path, n_ctx, load);
+                    if !owed.contains(&entry) {
+                        owed.push(entry);
                     }
                 }
 
@@ -390,13 +388,20 @@ impl LlamaServerSupervisor {
                 // Serialise with ensure_model so two spawns never race.
                 let _guard = self.respawn_lock.lock().await;
                 let mut still_owed = Vec::new();
-                for (model_path, n_ctx) in owed.drain(..) {
+                for (model_path, n_ctx, load) in owed.drain(..) {
                     // A caller may have re-requested this model while we waited
                     // for the lock, in which case it is live again.
-                    if self.touch_live_instance(&model_path, n_ctx).await.is_some() {
+                    if self
+                        .touch_live_instance(&model_path, n_ctx, &load)
+                        .await
+                        .is_some()
+                    {
                         continue;
                     }
-                    match self.spawn_instance(model_path.clone(), n_ctx).await {
+                    match self
+                        .spawn_instance(model_path.clone(), n_ctx, load.clone())
+                        .await
+                    {
                         Ok(_) => tracing::info!(model = %model_path, "llama.server.respawned"),
                         Err(e) => {
                             tracing::error!(
@@ -404,7 +409,7 @@ impl LlamaServerSupervisor {
                                 error = %e,
                                 "llama.server.respawn.failed"
                             );
-                            still_owed.push((model_path, n_ctx));
+                            still_owed.push((model_path, n_ctx, load));
                         }
                     }
                 }
@@ -434,6 +439,8 @@ impl LlamaServerSupervisor {
             tick: Arc::new(AtomicU64::new(0)),
             respawn_lock: Arc::new(Mutex::new(())),
             shutting_down: Arc::new(Mutex::new(false)),
+            system_db: None,
+            events: None,
         }
     }
 
@@ -459,6 +466,8 @@ impl LlamaServerSupervisor {
             tick: Arc::new(AtomicU64::new(0)),
             respawn_lock: Arc::new(Mutex::new(())),
             shutting_down: Arc::new(Mutex::new(false)),
+            system_db: None,
+            events: None,
         })
     }
 
@@ -474,7 +483,7 @@ impl LlamaServerSupervisor {
 
     /// Remove every instance whose process has exited, returning what they were
     /// serving and why they are gone, so the caller can respawn them.
-    async fn take_dead_instances(&self) -> Vec<(String, u32, String)> {
+    async fn take_dead_instances(&self) -> Vec<(String, u32, LoadSettings, String)> {
         let mut instances = self.instances.lock().await;
         let mut dead = Vec::new();
         instances.retain_mut(|instance| match instance.child.try_wait() {
@@ -483,6 +492,7 @@ impl LlamaServerSupervisor {
                 dead.push((
                     instance.model_path.clone(),
                     instance.n_ctx,
+                    instance.load.clone(),
                     status.to_string(),
                 ));
                 false
@@ -491,6 +501,7 @@ impl LlamaServerSupervisor {
                 dead.push((
                     instance.model_path.clone(),
                     instance.n_ctx,
+                    instance.load.clone(),
                     format!("try_wait failed: {e}"),
                 ));
                 false
@@ -508,25 +519,31 @@ impl LlamaServerSupervisor {
         &self,
         model_path: String,
         n_ctx: u32,
+        load: LoadSettings,
     ) -> Result<ModelLease, LlamaServerError> {
-        let mut config = resolve_env_overrides(&*self.config.lock().await, env_getter);
+        let template_file = self.template_file(&load).await;
+        let mut base = self.config.lock().await.clone();
         // The index is a file beside the models, and a model it does not know
         // sends the lookup to the disk: off the async workers either way.
         let lookup = model_path.clone();
-        config.mmproj_path = tokio::task::spawn_blocking(move || projector::for_model(&lookup))
+        base.mmproj_path = tokio::task::spawn_blocking(move || projector::for_model(&lookup))
             .await
             .unwrap_or(None);
-        config.model_path = model_path;
-        // Already resolved by `effective_n_ctx`: the environment, then the
-        // backend's own window, then the default.
-        config.n_ctx = n_ctx;
-
-        // The slot count first: the offload plan sizes the cache those slots
-        // hold. See `parallel` for why a single slot was wrong.
-        parallel::apply_parallel_plan(&mut config);
-        // The count is planned from the model and the machine on a discrete
-        // accelerator; see `ngl` for why the literal 999 was wrong there.
-        ngl::apply_offload_plan(&mut config);
+        base.model_path = model_path;
+        base.chat_template_file = template_file.map(|path| path.display().to_string());
+        base.n_ctx = n_ctx;
+        // The preset, then the environment, then the plans: the slot count
+        // first, since the offload plan sizes the cache those slots hold (see
+        // `parallel` and `ngl` for why the literals were wrong). The window is
+        // already resolved by `effective_n_ctx`: the environment, then the
+        // preset, then the backend's own window, then the default.
+        let config = load_settings::compose(
+            &base,
+            &load,
+            env_getter,
+            parallel::apply_parallel_plan,
+            ngl::apply_offload_plan,
+        );
 
         let port = pick_free_port()?;
         let args = build_args(&config, port);
@@ -604,8 +621,12 @@ impl LlamaServerSupervisor {
 
         self.wait_until_healthy(&mut child, port).await?;
 
-        let instance = Instance::new(config, port, child, self.next_tick());
-        let lease = ModelLease::new(instance.base_url(), Arc::clone(&instance.in_flight));
+        let instance = Instance::new(config, load, port, child, self.next_tick());
+        let lease = ModelLease::new(
+            instance.base_url(),
+            instance.n_ctx,
+            Arc::clone(&instance.in_flight),
+        );
         tracing::info!(port, model = %instance.model_path, "llama.server.healthy");
         self.instances.lock().await.push(instance);
         Ok(lease)
@@ -830,6 +851,8 @@ mod test_support {
             tick: Arc::new(AtomicU64::new(0)),
             respawn_lock: Arc::new(Mutex::new(())),
             shutting_down: Arc::new(Mutex::new(false)),
+            system_db: None,
+            events: None,
         }
     }
 
@@ -851,7 +874,13 @@ mod test_support {
             n_parallel: Some(1),
             ..LlamaServerConfig::default()
         };
-        Instance::new(config, port, child, sup.next_tick())
+        Instance::new(
+            config,
+            super::LoadSettings::default(),
+            port,
+            child,
+            sup.next_tick(),
+        )
     }
 
     impl LlamaServerSupervisor {
@@ -869,7 +898,8 @@ mod test_support {
         /// Take a lease on a resident model the way a request does, without the
         /// spawn path `ensure_model` would fall back to.
         pub(crate) async fn lease_for_test(&self, model_path: &str) -> Option<ModelLease> {
-            self.touch_live_instance(model_path, self.n_ctx()).await
+            self.touch_live_instance(model_path, self.n_ctx(), &super::LoadSettings::default())
+                .await
         }
     }
 }
@@ -919,7 +949,9 @@ mod tests {
         let instance = live_instance(&sup, "/models/a.gguf", 9001).await;
         sup.instances.lock().await.push(instance);
 
-        let lease = sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
+        let lease = sup
+            .touch_live_instance("/models/a.gguf", sup.n_ctx(), &LoadSettings::default())
+            .await;
 
         assert_eq!(
             lease.as_ref().map(ModelLease::base_url),
@@ -940,7 +972,8 @@ mod tests {
         sup.instances.lock().await.push(a);
         sup.instances.lock().await.push(b);
         // Re-request A, making B the least recently used.
-        sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
+        sup.touch_live_instance("/models/a.gguf", sup.n_ctx(), &LoadSettings::default())
+            .await;
 
         sup.evict_until_below_ceiling().await;
 
@@ -976,7 +1009,9 @@ mod tests {
         instance.child.wait().await.expect("wait must succeed");
         sup.instances.lock().await.push(instance);
 
-        let lease = sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await;
+        let lease = sup
+            .touch_live_instance("/models/a.gguf", sup.n_ctx(), &LoadSettings::default())
+            .await;
 
         assert!(lease.is_none());
         assert!(sup.instances.lock().await.is_empty());

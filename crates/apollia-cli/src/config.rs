@@ -27,8 +27,8 @@
 use std::path::{Path, PathBuf};
 
 use apollia_core::{
-    ApiConfig, ChatConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig, RuntimeConfig,
-    ToolsConfig,
+    ApiConfig, ChatConfig, FilesystemConfig, HitlConfig, HooksConfig, McpConfig, ModelsConfig,
+    RuntimeConfig, ToolsConfig,
 };
 use apollia_llm::{BackendKind, LlmConfig};
 
@@ -111,6 +111,18 @@ pub struct ApolliaCConfig {
     /// `None` when absent; the [`FilesystemConfig`] defaults apply, which trust
     /// the user's home directory and nothing else.
     pub filesystem: Option<FilesystemConfig>,
+
+    /// Section `[models]`: the signed index of model cards the catalogue
+    /// reads, its mirror, and the switch that turns it off.
+    ///
+    /// `None` when absent; the [`ModelsConfig`] defaults apply.
+    pub models: Option<ModelsConfig>,
+
+    /// Section `[workflows]`: the budget a workflow run starts with, shared
+    /// by every agent and workflow it runs.
+    ///
+    /// `None` when absent; the [`apollia_core::WorkflowsConfig`] defaults apply.
+    pub workflows: Option<apollia_core::WorkflowsConfig>,
 }
 
 /// Names of the TOML sections that are now deprecated.
@@ -180,6 +192,8 @@ pub const KNOWN_SECTIONS: &[&str] = &[
     "hooks",
     "chat",
     "filesystem",
+    "models",
+    "workflows",
 ];
 
 /// Returns `true` when `section` is a recognized top-level `apollia.toml` section.
@@ -748,6 +762,8 @@ plan_mode_default = true
             hooks: None,
             chat: None,
             filesystem: None,
+            models: None,
+            workflows: None,
         };
 
         // THEN every field is optional and absent
@@ -760,12 +776,14 @@ plan_mode_default = true
         assert!(config.hooks.is_none());
         assert!(config.chat.is_none());
         assert!(config.filesystem.is_none());
+        assert!(config.models.is_none());
+        assert!(config.workflows.is_none());
 
         // AND the typed struct agrees with the key-path guard, so a section can
         // never again be settable without a field to land in.
         assert_eq!(
             KNOWN_SECTIONS.len(),
-            9,
+            11,
             "adding a section here means adding a field above, and a reader below"
         );
     }

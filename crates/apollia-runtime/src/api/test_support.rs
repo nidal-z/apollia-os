@@ -62,6 +62,7 @@ impl AgentLoader for StemLoader {
 /// A manifest with every optional part empty.
 pub(crate) fn manifest(name: &str) -> AgentManifest {
     AgentManifest {
+        autonomy_level: None,
         format_version: 1,
         name: name.to_owned(),
         version: "1.0.0".to_owned(),
@@ -145,6 +146,8 @@ pub(crate) fn app_state(loader: Arc<dyn AgentLoader>, data_dir: PathBuf) -> AppS
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: crate::inference_servers::default_store_opener(),
+        batches: None,
+        workflows: None,
     }
 }
 

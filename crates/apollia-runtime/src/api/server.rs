@@ -321,6 +321,15 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// Opens the secret store the LLM routes seal backend and server keys
     /// into. [`crate::inference_servers::default_store_opener`] in production.
     pub secret_store: crate::inference_servers::SecretStoreOpener,
+
+    /// Handle to the batch actor, which runs an agent on every item of a
+    /// source. `None` in unit tests and when the runtime has no task store or
+    /// no agent executor; the batch routes return 503.
+    pub batches: Option<crate::batch::BatchHandle>,
+
+    /// Handle to the workflow actor. `None` in unit tests and when the
+    /// runtime has no task store; the workflow routes return 503.
+    pub workflows: Option<crate::workflows::WorkflowHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -364,6 +373,8 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             runner_proxy: self.runner_proxy.clone(),
             llama_server_supervisor: self.llama_server_supervisor.clone(),
             secret_store: Arc::clone(&self.secret_store),
+            batches: self.batches.clone(),
+            workflows: self.workflows.clone(),
         }
     }
 }
@@ -806,6 +817,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         }
     }
 

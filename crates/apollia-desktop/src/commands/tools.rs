@@ -4,11 +4,9 @@
 //! `GET /api/v1/tools/:name`) to fetch the tool list and the full descriptor of
 //! a tool registered in the ToolRegistry.
 
-use apollia_runtime::embedded::RuntimeHandle;
+use crate::attached::RuntimeLink;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-
-use super::http_get_json;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -55,8 +53,8 @@ pub struct ToolDescriptorView {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Fetches the list of registered tools via the internal REST API.
-async fn list_tools_inner(port: u16) -> Result<Vec<ToolSummary>, String> {
-    let json = http_get_json(port, "/api/v1/tools").await?;
+async fn list_tools_inner(link: &RuntimeLink) -> Result<Vec<ToolSummary>, String> {
+    let json = link.get_json("/api/v1/tools").await?;
 
     let tools_array = json
         .get("tools")
@@ -129,13 +127,16 @@ fn read_family(
 /// Fetches a tool's descriptor via the internal REST API.
 ///
 /// Returns `Ok(None)` if the name is empty or the tool does not exist (404).
-async fn describe_tool_inner(port: u16, name: &str) -> Result<Option<ToolDescriptorView>, String> {
+async fn describe_tool_inner(
+    link: &RuntimeLink,
+    name: &str,
+) -> Result<Option<ToolDescriptorView>, String> {
     if name.is_empty() {
         return Ok(None);
     }
 
     let path = format!("/api/v1/tools/{name}");
-    match http_get_json(port, &path).await {
+    match link.get_json(&path).await {
         Ok(json) => {
             let (family, family_source) = read_family(&json);
             let view = ToolDescriptorView {
@@ -182,8 +183,8 @@ async fn describe_tool_inner(port: u16, name: &str) -> Result<Option<ToolDescrip
 
 /// Returns the list of tools registered in the runtime.
 #[tauri::command]
-pub async fn list_tools(state: State<'_, RuntimeHandle>) -> Result<Vec<ToolSummary>, String> {
-    list_tools_inner(state.api_port).await
+pub async fn list_tools(state: State<'_, RuntimeLink>) -> Result<Vec<ToolSummary>, String> {
+    list_tools_inner(&state).await
 }
 
 /// Returns the full descriptor of a tool by its name.
@@ -191,10 +192,10 @@ pub async fn list_tools(state: State<'_, RuntimeHandle>) -> Result<Vec<ToolSumma
 /// Returns `null` if the tool does not exist or the name is empty.
 #[tauri::command]
 pub async fn describe_tool(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     name: String,
 ) -> Result<Option<ToolDescriptorView>, String> {
-    describe_tool_inner(state.api_port, &name).await
+    describe_tool_inner(&state, &name).await
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

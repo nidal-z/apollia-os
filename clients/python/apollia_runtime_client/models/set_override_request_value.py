@@ -11,8 +11,8 @@ T = TypeVar("T", bound="SetOverrideRequestValue")
 
 @_attrs_define
 class SetOverrideRequestValue:
-    """The user's value: a string for `name` and `mission`, a list of strings
-    for `examples`, `access` and `sources`.
+    """The user's value: a string for `name` and `mission`, a tier name for
+    `autonomy`, a list of strings for `examples`, `access` and `sources`.
 
     """
 

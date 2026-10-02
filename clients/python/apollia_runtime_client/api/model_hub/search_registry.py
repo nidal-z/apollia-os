@@ -12,8 +12,10 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     q: str | Unset = UNSET,
+    format_: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     sort: str | Unset = UNSET,
+    fits_only: bool | Unset = UNSET,
     hf_token: str | Unset = UNSET,
 ) -> dict[str, Any]:
 
@@ -21,9 +23,13 @@ def _get_kwargs(
 
     params["q"] = q
 
+    params["format"] = format_
+
     params["limit"] = limit
 
     params["sort"] = sort
+
+    params["fits_only"] = fits_only
 
     params["hf_token"] = hf_token
 
@@ -45,10 +51,20 @@ def _parse_response(
         response_200 = cast(Any, None)
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ApiErrorBody.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 502:
         response_502 = ApiErrorBody.from_dict(response.json())
 
         return response_502
+
+    if response.status_code == 503:
+        response_503 = ApiErrorBody.from_dict(response.json())
+
+        return response_503
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -71,16 +87,24 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     q: str | Unset = UNSET,
+    format_: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     sort: str | Unset = UNSET,
+    fits_only: bool | Unset = UNSET,
     hf_token: str | Unset = UNSET,
 ) -> Response[Any | ApiErrorBody]:
-    """`GET /api/v1/llm/registry/search?q=...&limit=...&sort=...`
+    """`GET /api/v1/llm/registry/search?q=...&format=...&sort=...&fits_only=...`
+
+     Asks each organisation of the two publisher lists, by its `author=`, and
+    nothing else. Answers `503` with `search is unavailable offline` when no
+    organisation can be reached, never an empty list.
 
     Args:
         q (str | Unset):
+        format_ (str | Unset):
         limit (int | Unset):
         sort (str | Unset):
+        fits_only (bool | Unset):
         hf_token (str | Unset):
 
     Raises:
@@ -93,8 +117,10 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         q=q,
+        format_=format_,
         limit=limit,
         sort=sort,
+        fits_only=fits_only,
         hf_token=hf_token,
     )
 
@@ -109,16 +135,24 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     q: str | Unset = UNSET,
+    format_: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     sort: str | Unset = UNSET,
+    fits_only: bool | Unset = UNSET,
     hf_token: str | Unset = UNSET,
 ) -> Any | ApiErrorBody | None:
-    """`GET /api/v1/llm/registry/search?q=...&limit=...&sort=...`
+    """`GET /api/v1/llm/registry/search?q=...&format=...&sort=...&fits_only=...`
+
+     Asks each organisation of the two publisher lists, by its `author=`, and
+    nothing else. Answers `503` with `search is unavailable offline` when no
+    organisation can be reached, never an empty list.
 
     Args:
         q (str | Unset):
+        format_ (str | Unset):
         limit (int | Unset):
         sort (str | Unset):
+        fits_only (bool | Unset):
         hf_token (str | Unset):
 
     Raises:
@@ -132,8 +166,10 @@ def sync(
     return sync_detailed(
         client=client,
         q=q,
+        format_=format_,
         limit=limit,
         sort=sort,
+        fits_only=fits_only,
         hf_token=hf_token,
     ).parsed
 
@@ -142,16 +178,24 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     q: str | Unset = UNSET,
+    format_: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     sort: str | Unset = UNSET,
+    fits_only: bool | Unset = UNSET,
     hf_token: str | Unset = UNSET,
 ) -> Response[Any | ApiErrorBody]:
-    """`GET /api/v1/llm/registry/search?q=...&limit=...&sort=...`
+    """`GET /api/v1/llm/registry/search?q=...&format=...&sort=...&fits_only=...`
+
+     Asks each organisation of the two publisher lists, by its `author=`, and
+    nothing else. Answers `503` with `search is unavailable offline` when no
+    organisation can be reached, never an empty list.
 
     Args:
         q (str | Unset):
+        format_ (str | Unset):
         limit (int | Unset):
         sort (str | Unset):
+        fits_only (bool | Unset):
         hf_token (str | Unset):
 
     Raises:
@@ -164,8 +208,10 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         q=q,
+        format_=format_,
         limit=limit,
         sort=sort,
+        fits_only=fits_only,
         hf_token=hf_token,
     )
 
@@ -178,16 +224,24 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     q: str | Unset = UNSET,
+    format_: str | Unset = UNSET,
     limit: int | Unset = UNSET,
     sort: str | Unset = UNSET,
+    fits_only: bool | Unset = UNSET,
     hf_token: str | Unset = UNSET,
 ) -> Any | ApiErrorBody | None:
-    """`GET /api/v1/llm/registry/search?q=...&limit=...&sort=...`
+    """`GET /api/v1/llm/registry/search?q=...&format=...&sort=...&fits_only=...`
+
+     Asks each organisation of the two publisher lists, by its `author=`, and
+    nothing else. Answers `503` with `search is unavailable offline` when no
+    organisation can be reached, never an empty list.
 
     Args:
         q (str | Unset):
+        format_ (str | Unset):
         limit (int | Unset):
         sort (str | Unset):
+        fits_only (bool | Unset):
         hf_token (str | Unset):
 
     Raises:
@@ -202,8 +256,10 @@ async def asyncio(
         await asyncio_detailed(
             client=client,
             q=q,
+            format_=format_,
             limit=limit,
             sort=sort,
+            fits_only=fits_only,
             hf_token=hf_token,
         )
     ).parsed

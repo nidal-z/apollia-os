@@ -25,6 +25,7 @@ pub mod hf_registry;
 pub mod http_client;
 pub mod meta;
 pub mod meta_orchestrator;
+pub mod model_cards;
 pub mod model_defaults;
 pub mod model_index;
 pub mod pricing;
@@ -60,8 +61,8 @@ pub use apollia_core::config::LlmRoutingConfig;
 pub use capabilities::{Capabilities, VisionEngine};
 #[cfg(feature = "cloud")]
 pub use downloader::{
-    DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
-    VariantDownload,
+    DownloadError, DownloadId, DownloadManager, DownloadOutcome, DownloadProgress, DownloadRequest,
+    DownloadStatus, ProgressCallback, VariantDownload,
 };
 pub use gguf_probe::{parse_header, GgufHeaderFacts, GgufParseError};
 #[cfg(feature = "cloud")]
@@ -70,9 +71,10 @@ pub use grammar::{json_schema_to_gbnf, tool_specs_to_gbnf, GrammarError};
 pub use hardware::{AcceleratorProfile, CompatibilityBadge, HardwareProfile};
 #[cfg(feature = "cloud")]
 pub use hf_registry::{
-    CompatIssue, GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache,
-    HfRegistryClient, HfSearchFilter, SearchPage, VariantError, VariantFile, VariantPlan,
-    VariantSelector,
+    BoundedPage, BoundedSearch, BoundedSearchError, CompatIssue, FoundModel, GeneratedCard,
+    GenerationConfig, HfError, HfFile, HfModelCard, HfModelTypeCache, HfRegistryClient,
+    SearchAuthor, SearchContext, SearchFormat, SearchInputs, SearchSort, VariantError, VariantFile,
+    VariantPlan, VariantSelector,
 };
 pub use model_index::import::{
     check_import, ImportCheck, ImportCheckError, ImportRule as ModelImportRule,

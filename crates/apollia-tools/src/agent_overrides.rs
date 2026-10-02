@@ -12,6 +12,7 @@ use crate::agent_definition::{
 };
 use crate::agent_repository::{AgentRepository, AgentRepositoryError};
 use apollia_core::model_preset::AgentModel;
+use apollia_core::AutonomyLevel;
 
 const STORED_COLUMNS: &str =
     "name, origin, package, version, definition_json, enabled, installed_at, updated_at";
@@ -41,9 +42,6 @@ impl AgentRepository {
         rows.map(|row| row?.into_stored()).collect()
     }
 
-    // TEST-ONLY: no production path stores a declarative agent yet; an agent
-    // that runs code is stored by `AgentRepository::save`, which writes its
-    // definition the same way and keeps its overrides.
     /// Stores a declarative agent, or replaces the definition of an existing
     /// one.
     ///
@@ -78,6 +76,31 @@ impl AgentRepository {
             ],
         )?;
         Ok(())
+    }
+
+    /// Makes `name`, stored as an agent that runs code, a declarative agent
+    /// of `package`: its code columns are cleared and it is owned by the
+    /// package, so that the package installs over it as over its own agent.
+    /// Its overrides and its enabled state are left as they are. Returns
+    /// whether a row changed: `false` for an unknown name or an agent that
+    /// runs no code.
+    ///
+    /// # Errors
+    ///
+    /// [`AgentRepositoryError::Sqlite`].
+    pub fn adopt_into_package(
+        &self,
+        name: &str,
+        package: &str,
+    ) -> Result<bool, AgentRepositoryError> {
+        let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
+        let changed = conn.execute(
+            "UPDATE agents SET origin = 'package', package = ?2, install_path = NULL, \
+                 source_path = NULL, manifest_json = NULL, updated_at = datetime('now') \
+             WHERE name = ?1 AND install_path IS NOT NULL",
+            params![name, package],
+        )?;
+        Ok(changed > 0)
     }
 
     // TEST-ONLY: an update of an agent that runs code goes through
@@ -193,7 +216,8 @@ impl AgentRepository {
     }
 
     /// The agent `name` in force: its definition, then its overrides, with
-    /// `model` as read from `agent_model`.
+    /// `model` as read from `agent_model` and `default_autonomy` as the tier
+    /// when neither names one.
     ///
     /// # Errors
     ///
@@ -202,13 +226,14 @@ impl AgentRepository {
         &self,
         name: &str,
         model: Option<AgentModel>,
+        default_autonomy: AutonomyLevel,
     ) -> Result<Option<ResolvedAgent>, AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let Some(stored) = stored_in(&conn, name)? else {
             return Ok(None);
         };
         let overrides = overrides_in(&conn, name)?;
-        Ok(Some(resolve(&stored, &overrides, model)))
+        Ok(Some(resolve(&stored, &overrides, model, default_autonomy)))
     }
 }
 

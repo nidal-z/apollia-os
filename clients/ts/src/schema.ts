@@ -14,7 +14,8 @@ export interface paths {
         /**
          * Handler for `GET /api/v1/a2a/agents`.
          * @description Returns all agents with `supports_a2a = true` in active or degraded state,
-         *     along with their declared skills.
+         *     along with their declared skills, then the enabled agents that take a
+         *     message and the installed workflows.
          */
         get: operations["list_a2a_agents"];
         put?: never;
@@ -57,9 +58,12 @@ export interface paths {
         put?: never;
         /**
          * Handler for `POST /api/v1/a2a/invoke`.
-         * @description Invokes a Worker Agent by skill ID via the [`A2AInvoker`].
+         * @description Invokes a Worker Agent by skill ID via the [`A2AInvoker`], or an agent
+         *     that takes a message (`agent:<id>`) or a workflow
+         *     (`workflow:<package>/<name>`), and answers once it has ended.
          *     Returns 503 if the invoker is not initialized.
-         *     Returns 404 if the skill is not found, 503 if the agent is not active.
+         *     Returns 404 if the skill is not found, 503 if the agent is not active,
+         *     400 if the input does not fit what the target takes.
          */
         post: operations["invoke_by_skill"];
         delete?: never;
@@ -77,8 +81,9 @@ export interface paths {
         };
         /**
          * Handler for `GET /api/v1/a2a/skills`.
-         * @description Returns the flat list of all available A2A skills via the [`A2AInvoker`].
-         *     Returns 503 if the invoker is not initialized.
+         * @description Returns the flat list of all available A2A skills via the [`A2AInvoker`],
+         *     then one entry per enabled agent that takes a message and one per
+         *     installed workflow. Returns 503 if the invoker is not initialized.
          */
         get: operations["list_a2a_skills"];
         put?: never;
@@ -502,6 +507,47 @@ export interface paths {
          *     configured, and 500 on an internal error.
          */
         get: operations["verify_audit_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/batches`: the batches, newest first. */
+        get: operations["list_batches"];
+        put?: never;
+        /**
+         * `POST /api/v1/batches`: launch an agent on every item of a source.
+         * @description The items are read and recorded before the answer; they run in the
+         *     background, at most `concurrency` at once (1 by default, 16 at most).
+         *     Once more than `maxFailures` items have failed (10 by default), the
+         *     batch is interrupted: no further item starts.
+         */
+        post: operations["launch_batch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/batches/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/batches/{id}`: a batch with its items. */
+        get: operations["get_batch"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1022,6 +1068,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/dictation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/dictation?language_model_bytes=...` */
+        get: operations["list_dictation_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/embeddings": {
         parameters: {
             query?: never;
@@ -1185,6 +1248,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/registry/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/registry/card?id=...&lang=...` */
+        get: operations["get_model_card"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/registry/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/registry/cards?lang=...` */
+        get: operations["list_model_cards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/registry/model/{org}/{repo}": {
         parameters: {
             query?: never;
@@ -1202,6 +1299,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/registry/readme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/registry/readme?repo=...` */
+        get: operations["get_model_readme"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/registry/search": {
         parameters: {
             query?: never;
@@ -1209,7 +1323,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `GET /api/v1/llm/registry/search?q=...&limit=...&sort=...` */
+        /**
+         * `GET /api/v1/llm/registry/search?q=...&format=...&sort=...&fits_only=...`
+         * @description Asks each organisation of the two publisher lists, by its `author=`, and
+         *     nothing else. Answers `503` with `search is unavailable offline` when no
+         *     organisation can be reached, never an empty list.
+         */
         get: operations["search_registry"];
         put?: never;
         post?: never;
@@ -1816,6 +1935,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/packages/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/install`: install a package, or update it.
+         * @description The preview is computed again and its refusal applies: an invalid
+         *     signature, an unsigned package when governance requires a signature, an
+         *     older version without `allowDowngrade`, an agent another package owns.
+         *     Python dependencies need `depsConfirmed`; an update that adds accesses,
+         *     required connections or MCP servers needs `changesConfirmed`. The MCP
+         *     servers the package brings are added like `POST /api/v1/mcp/servers`
+         *     adds one. The installation is recorded in the audit journal.
+         */
+        post: operations["install_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/preview`: what the package contains, who signed
+         *     it, what it asks for, which connections it requires and brings, and what
+         *     an update adds. Nothing is written.
+         */
+        post: operations["preview_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/trusted-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts. */
+        get: operations["list_trusted_keys"];
+        put?: never;
+        /**
+         * `POST /api/v1/packages/trusted-keys`: trust a publisher key. A package
+         *     signed by it is then shown under the label given here.
+         */
+        post: operations["trust_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/trusted-keys/{fingerprint}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/packages/trusted-keys/{fingerprint}`: stop trusting a
+         *     publisher key.
+         */
+        delete: operations["remove_trusted_key"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plan-cache/clear": {
         parameters: {
             query?: never;
@@ -1852,6 +2059,64 @@ export interface paths {
         get: operations["get_plan_cache_stats"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/profile`: every entry of the profile. */
+        get: operations["get_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/entries/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/profile/entries/{key}`: creates or replaces one entry, as
+         *     written by the user.
+         */
+        put: operations["set_profile_entry"];
+        post?: never;
+        /** `DELETE /api/v1/profile/entries/{key}`: removes one entry. */
+        delete: operations["delete_profile_entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/profile/reset`: removes every entry the user sees, keeping
+         *     the onboarding markers.
+         */
+        post: operations["reset_user_profile"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2328,7 +2593,9 @@ export interface paths {
         put?: never;
         /**
          * Handler for `POST /api/v1/tasks`.
-         * @description Submits a new task to the specified agent via the TaskRouter.
+         * @description Submits a new task to the specified agent via the TaskRouter. A stored
+         *     agent that runs no code is run by the agent executor on the message the
+         *     input carries, outside any conversation.
          *     Returns 202 Accepted with the generated task_id on success.
          */
         post: operations["submit_task"];
@@ -2381,6 +2648,10 @@ export interface paths {
          *     over a task of the same spelling, which costs nothing: task ids are UUIDs
          *     and a client that picks one as its own name gets the task it meant either
          *     way.
+         *
+         *     A live `invocation_id` that names a workflow invoked through
+         *     `POST /api/v1/a2a/invoke` stops that run: the answer carries the run id and
+         *     the status the run ended with.
          */
         delete: operations["cancel_task"];
         options?: never;
@@ -2790,6 +3061,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workflow-runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/workflow-runs/{id}`: a run with its steps. */
+        get: operations["get_workflow_run"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflow-runs/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/workflow-runs/{id}/cancel`: stop a run.
+         * @description The step in progress is interrupted; the answer comes once the run has
+         *     ended, `canceled`, its remaining steps `not_started`.
+         */
+        post: operations["cancel_workflow_run"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workflows/{package}/{workflow}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/workflows/{package}/{workflow}/runs`: the history of a
+         *     workflow, newest first.
+         */
+        get: operations["list_workflow_runs"];
+        put?: never;
+        /**
+         * `POST /api/v1/workflows/{package}/{workflow}/runs`: run a workflow.
+         * @description The inputs are checked and the run recorded, with its declared steps,
+         *     before the answer; the run goes on in the background.
+         */
+        post: operations["launch_workflow"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/{id}": {
         parameters: {
             query?: never;
@@ -2841,11 +3175,28 @@ export interface components {
         };
         /** @description Entry in the A2A agent list. */
         A2aAgentDto: {
-            /** @description Unique agent identifier (UUID v4). */
+            /**
+             * @description Unique identifier: the registry UUID of an agent whose code declares
+             *     skills, `agent:<id>` for an agent that takes a message,
+             *     `workflow:<package>/<name>` for a workflow.
+             */
             agent_id: string;
+            /**
+             * @description JSON Schema of the input of an agent that takes a message or of a
+             *     workflow; `null` for an agent whose skills each declare their own.
+             */
+            input_schema?: Record<string, never> | null;
+            /**
+             * @description `skill` for an agent whose code declares skills, `agent` for an agent
+             *     that takes a message, `workflow` for a workflow.
+             */
+            kind: string;
             /** @description Agent name as declared in its manifest. */
             name: string;
-            /** @description Skills declared by this agent. */
+            /**
+             * @description Skills declared by this agent. An agent that takes a message and a
+             *     workflow each carry one, the entry `invoke` takes.
+             */
             skills: components["schemas"]["A2aSkillDto"][];
             /** @description Current process state (`active`, `degraded`, etc.). */
             state: string;
@@ -2884,6 +3235,13 @@ export interface components {
             id: string;
             /** @description Supported input modes (e.g. `["text", "data"]`). */
             input_modes: string[];
+            /** @description JSON Schema of the input `invoke` takes, when the entry declares one. */
+            input_schema?: Record<string, never> | null;
+            /**
+             * @description `skill`, `agent` or `workflow`: what `id` launches through
+             *     `POST /api/v1/a2a/invoke`.
+             */
+            kind: string;
             /** @description Human-readable skill name. */
             name: string;
             /** @description Supported output modes (e.g. `["text", "file"]`). */
@@ -2893,6 +3251,29 @@ export interface components {
         A2aSkillsResponse: {
             /** @description Flat list of all available A2A skills. */
             skills: components["schemas"]["SkillListing"][];
+        };
+        /** @description One access an agent asks for. */
+        AccessPreview: {
+            /**
+             * @description Identifier of the access: a tool name, `mcp:<server>/<tool>`, or
+             *     `pkg:<package>/<tool>`.
+             */
+            accessId: string;
+            /** @description What the access lets the agent do. */
+            permits: string;
+            /** @description Using it is sensitive. */
+            sensitive: boolean;
+        };
+        /** @description An access the update grants that the installed version did not. */
+        AddedAccess: {
+            /** @description Identifier of the access. */
+            accessId: string;
+            /** @description Agent that gains it. */
+            agentId: string;
+            /** @description What it lets the agent do. */
+            permits: string;
+            /** @description Using it is sensitive. */
+            sensitive: boolean;
         };
         /** @description Response body for agent list. */
         AgentListResponse: {
@@ -2951,6 +3332,19 @@ export interface components {
          * @enum {string}
          */
         AgentOriginDto: "package" | "interface";
+        /** @description One agent of the package. */
+        AgentPreview: {
+            /** @description Accesses the agent asks for, as governance resolves them. */
+            access: components["schemas"]["AccessPreview"][];
+            /** @description Example requests. */
+            examples: string[];
+            /** @description Identifier. */
+            id: string;
+            /** @description What the agent is for. */
+            mission: string;
+            /** @description Display name. */
+            name: string;
+        };
         /** @description Response body for agent operations. */
         AgentResponse: {
             /** @description Agent identifier (UUID v4). */
@@ -3077,6 +3471,84 @@ export interface components {
             /** @description Name of the tool. */
             tool_name: string;
         };
+        /** @description A batch with its items. */
+        BatchDetailView: {
+            batch: components["schemas"]["BatchView"];
+            items: components["schemas"]["BatchItemView"][];
+        };
+        /** @description Error body of the batch routes. */
+        BatchErrorResponse: {
+            /** @description What went wrong. */
+            error: string;
+        };
+        /** @description One item of a batch. */
+        BatchItemView: {
+            input: Record<string, never>;
+            /** @description Where it comes from inside the source. */
+            origin: string;
+            output?: string | null;
+            /**
+             * Format: int64
+             * @description Its position in the source, from 0.
+             */
+            rank: number;
+            sources?: Record<string, never> | null;
+            /** @description `pending`, `running`, `completed`, `failed` or `canceled`. */
+            status: string;
+            /** @description The task that ran it. */
+            taskId?: string | null;
+        };
+        /** @description What a batch is launched with. */
+        BatchLaunch: {
+            /** @description The agent every item is run by. */
+            agent: string;
+            /**
+             * Format: int32
+             * @description How many items run at once, 1 to 16; 1 when absent.
+             */
+            concurrency?: number | null;
+            /** @description The accesses granted for the duration of the batch. */
+            grants?: string[];
+            /**
+             * Format: int32
+             * @description How many failed items the batch tolerates; 10 when absent.
+             */
+            maxFailures?: number | null;
+            /** @description Where the items come from. */
+            source: components["schemas"]["SourceDescriptor"];
+        };
+        /** @description The batches, newest first. */
+        BatchListView: {
+            batches: components["schemas"]["BatchView"][];
+        };
+        /** @description A batch: what it was launched with, its state and its counters. */
+        BatchView: {
+            agent: string;
+            batchId: string;
+            /** Format: int64 */
+            canceled: number;
+            /** Format: int64 */
+            completed: number;
+            /** Format: int32 */
+            concurrency: number;
+            createdAt: string;
+            endedAt?: string | null;
+            /** Format: int64 */
+            failed: number;
+            grants: string[];
+            /**
+             * Format: int32
+             * @description Failed items tolerated before the batch is interrupted.
+             */
+            maxFailures: number;
+            /** @description The source descriptor, `{kind, location, options}`. */
+            source: Record<string, never>;
+            /** @description `running`, `completed` or `interrupted`. */
+            state: string;
+            /** Format: int64 */
+            total: number;
+            updatedAt: string;
+        };
         /** @description The first broken link found while walking a chain. */
         BrokenLink: {
             /** @description Why the link is considered broken. */
@@ -3092,6 +3564,21 @@ export interface components {
          * @enum {string}
          */
         BrokenLinkReason: "hash_mismatch" | "prev_hash_mismatch" | "signature_invalid" | "unknown_signing_key";
+        /** @description An MCP server the package brings. */
+        BroughtServerPreview: {
+            /** @description A connection of that name already exists; it is left as it is. */
+            alreadyPresent: boolean;
+            /** @description Executable spawned, for `stdio`. */
+            command: string;
+            /** @description Server name. */
+            name: string;
+            /** @description The server sends data off this machine. */
+            remote: boolean;
+            /** @description `stdio`, `streamable-http` or `sse`. */
+            transport: string;
+            /** @description Address, for a network transport. */
+            url?: string | null;
+        };
         /** @description Response for `DELETE /api/v1/notifications/channels/:id`. */
         ChannelDeleteResponse: {
             /** @description Identifier of the deleted channel. */
@@ -3267,7 +3754,7 @@ export interface components {
             familySource: string;
             /**
              * @description Tool identifier as the tool registry names it (`mcp:notion/search`,
-             *     `gmail.send`).
+             *     `conn:google:ada@example.com/gmail.send`).
              */
             id: string;
             /** @description Offered checked when the connection is granted to an agent. */
@@ -3481,6 +3968,26 @@ export interface components {
         DeleteServerResponse: {
             /** @description Name of the deleted server. */
             deleted: string;
+        };
+        /** @description Answer of `DELETE /api/v1/profile/entries/{key}`. */
+        DeletedProfileEntry: {
+            /** @description The key removed. */
+            deleted: string;
+        };
+        /** @description The dictation category of the registry, and the entry for this machine. */
+        DictationModelsResponse: {
+            /** @description The machine the recommendation was made for. */
+            hardware: components["schemas"]["HardwareResponse"];
+            language_model?: null | components["schemas"]["CountedLanguageModel"];
+            /** @description Every entry of the category, with its footprint and whether it fits. */
+            models: Record<string, never>[];
+            /**
+             * @description Why: `fits_beside` or `no_room_beside`, with the footprints compared,
+             *     in gibibytes.
+             */
+            reason?: Record<string, never> | null;
+            /** @description Identifier of the entry recommended for this machine. */
+            recommended?: string | null;
         };
         /** @description The embeddings category of the registry, and the entry for this machine. */
         EmbeddingModelsResponse: {
@@ -3709,6 +4216,54 @@ export interface components {
             /** @description Semver version of the agent. */
             version: string;
         };
+        /** @description Why the package cannot be installed as it is. */
+        InstallRefusal: {
+            /** @enum {string} */
+            code: "invalid_signature";
+            /** @description Why. */
+            reason: string;
+        } | {
+            /** @enum {string} */
+            code: "signature_required";
+        } | {
+            /** @enum {string} */
+            code: "downgrade";
+            /** @description Incoming version. */
+            incoming: string;
+            /** @description Installed version. */
+            installed: string;
+        } | {
+            /** @description The identifier. */
+            agent: string;
+            /** @enum {string} */
+            code: "agent_taken";
+            /**
+             * @description The package that owns it, `None` for an agent created in the
+             *     interface.
+             */
+            owner?: string | null;
+        };
+        /** @description What was installed. */
+        InstallReport: {
+            /** @description Agents installed. */
+            agents: string[];
+            /** @description MCP servers added. */
+            mcpServersAdded: string[];
+            /** @description Package identifier. */
+            name: string;
+            /** @description What the user should know, as the preview said. */
+            notices: components["schemas"]["PackageNotice"][];
+            /** @description Version it replaced, for an update. */
+            previousVersion?: string | null;
+            /** @description Publisher and signature, as recorded. */
+            signature: components["schemas"]["SignaturePreview"];
+            /** @description Python tools installed. */
+            tools: string[];
+            /** @description Installed version. */
+            version: string;
+            /** @description Workflows installed. */
+            workflows: string[];
+        };
         /** @description One agent of the machine: installed, running, or both. */
         InstalledAgentView: {
             /** @description Name of the Python class of the agent. */
@@ -3767,7 +4322,10 @@ export interface components {
         InvokeRequest: {
             /** @description Caller name (Director Agent), used for observability. */
             caller?: string | null;
-            /** @description JSON payload passed to the Worker Agent as input. */
+            /**
+             * @description JSON payload passed as input: the skill's payload, `{"message": ...}`
+             *     (or a bare string) for an agent, the typed inputs of a workflow.
+             */
             input: Record<string, never>;
             /**
              * @description A name the client chooses for this invocation, so it can cancel it.
@@ -3783,13 +4341,30 @@ export interface components {
              *     runs normally and the journal says so (`a2a.invocation_id.taken`).
              */
             invocation_id?: string | null;
-            /** @description Target skill identifier (e.g. `"read-excel"`). */
+            /**
+             * @description What to launch, as the card names it: a skill id (e.g.
+             *     `"read-excel"`), `agent:<id>` or `workflow:<package>/<name>`.
+             */
             skill_id: string;
             /**
              * Format: int64
              * @description Invocation timeout in seconds (default: 120).
              */
             timeout_secs?: number | null;
+        };
+        /** @description One Python tool of the package. */
+        ItemPreview: {
+            /** @description What it does. */
+            description: string;
+            /**
+             * @description Action family: `read`, `read_personal`, `write_or_delete`,
+             *     `send_external` or `execute_code`.
+             */
+            family: string;
+            /** @description Identifier, unique in the package. */
+            name: string;
+            /** @description Its family is sensitive. */
+            sensitive: boolean;
         };
         /**
          * @description The exportable head anchor of the global chain.
@@ -3930,6 +4505,26 @@ export interface components {
             /** @description Role of the message sender. */
             role: string;
         };
+        /** @description The catalogue's cards, or why there are none. */
+        ModelCardsResponse: {
+            /** @description Every card, in the asked language. */
+            cards: Record<string, never>[];
+            /** @description A sentence for the user when the catalogue is empty. */
+            message?: string | null;
+            /**
+             * @description Where the index came from when `status` is `ok`: `primary`, `mirror`
+             *     or `cache`.
+             */
+            origin?: string | null;
+            /** @description The official publishers and the recognised converters. */
+            publishers: Record<string, never>;
+            /**
+             * @description `ok`, `offline` (nothing answered and no copy is kept), `disabled`
+             *     (turned off by configuration or policy) or `no_trusted_key` (this build
+             *     carries no distribution key).
+             */
+            status: string;
+        };
         /** @description Description of a model file on disk. */
         ModelInfo: {
             /** @description Model filename (e.g. `"whisper-large-v3-fr-q5_0.bin"`). */
@@ -3956,6 +4551,93 @@ export interface components {
         OkResponse: {
             /** @description Confirmation flag. */
             ok: boolean;
+        };
+        /**
+         * @description Error body of the package routes: the message, and a stable code a client
+         *     can act on.
+         */
+        PackageErrorBody: {
+            /**
+             * @description Stable code: `archive`, `invalid_signature`, `signature_required`,
+             *     `downgrade`, `agent_taken`, `deps_confirmation_required`,
+             *     `changes_confirmation_required`, `mcp_unavailable`, `mcp_server`,
+             *     `environment`, `invalid_key`, `not_found`, `journal_unavailable`,
+             *     `internal`.
+             */
+            code: string;
+            /** @description Human-readable description. */
+            error: string;
+        };
+        /** @description Body of `POST /api/v1/packages/install`. */
+        PackageInstallRequest: {
+            /** @description Install a version older than the installed one. */
+            allowDowngrade?: boolean;
+            /** @description The user accepted what an update adds. */
+            changesConfirmed?: boolean;
+            /** @description The user accepted the Python dependencies the package installs. */
+            depsConfirmed?: boolean;
+            /** @description Path of the `.apo` file on this machine. */
+            path: string;
+        };
+        /** @description Something the user should know before installing. */
+        PackageNotice: {
+            /** @enum {string} */
+            code: "unsigned";
+        } | {
+            /** @enum {string} */
+            code: "untrusted_publisher";
+            /** @description Fingerprint of the signing key. */
+            fingerprint: string;
+        } | {
+            /** @enum {string} */
+            code: "missing_connection";
+            /** @description Connection type. */
+            type: string;
+        } | {
+            /** @enum {string} */
+            code: "server_already_present";
+            /** @description Server name. */
+            name: string;
+        };
+        /** @description Everything the user sees before installing a package. */
+        PackagePreview: {
+            /** @description Agents. */
+            agents: components["schemas"]["AgentPreview"][];
+            /** @description What the package delivers. */
+            description: string;
+            /** @description Installed version, when the package is installed. */
+            installedVersion?: string | null;
+            /** @description MCP servers the package brings. */
+            mcpServers: components["schemas"]["BroughtServerPreview"][];
+            /** @description Package identifier. */
+            name: string;
+            /** @description What the user should know. */
+            notices: components["schemas"]["PackageNotice"][];
+            /** @description Python requirements installed in the package environment. */
+            pip: string[];
+            refusal?: null | components["schemas"]["InstallRefusal"];
+            /** @description Connections the package requires. */
+            requires: components["schemas"]["RequiredConnectionPreview"][];
+            /** @description SDK requirement the package was built against. */
+            sdk: string;
+            /** @description Publisher and signature. */
+            signature: components["schemas"]["SignaturePreview"];
+            /** @description Governance requires a signed package. */
+            signatureRequired: boolean;
+            /** @description Python tools. */
+            tools: components["schemas"]["ItemPreview"][];
+            /** @description Triggers the package proposes. */
+            triggers: components["schemas"]["TriggerPreview"][];
+            update?: null | components["schemas"]["UpdateDiff"];
+            /** @description Incoming version. */
+            version: string;
+            /** @description Workflows. */
+            workflows: components["schemas"]["WorkflowPreview"][];
+        };
+        /** @description Body of the preview and of the installation: the archive. */
+        PackagePreviewRequest: {
+            /** @description Path of the `.apo` file on this machine. */
+            path: string;
         };
         /**
          * @description One pending HITL approval entry.
@@ -4078,10 +4760,43 @@ export interface components {
             /** @description Presets, sorted by model then name. */
             presets: components["schemas"]["PresetResponse"][];
         };
+        /** @description One profile entry, as the profile page draws it. */
+        ProfileEntryView: {
+            /** @description ISO 8601 creation timestamp. */
+            created_at: string;
+            /** @description `true` when the key is a field of the canonical profile schema. */
+            in_schema: boolean;
+            /** @description Flat storage key. */
+            key: string;
+            /** @description ISO 8601 last-update timestamp. */
+            updated_at: string;
+            /** @description Plain-text value. */
+            value: string;
+            /** @description Provenance tag (`onboarding`, `user`, `agent:<name>`). */
+            written_by: string;
+        };
+        /** @description Answer of `POST /api/v1/profile/reset`. */
+        ProfileReset: {
+            /** @description How many entries were removed. */
+            removed: number;
+        };
         /** @description Body of `PUT /api/v1/mcp/servers/:name/secrets/:key`. */
         PutMcpSecretBody: {
             /** @description The secret. Stored, never answered back. */
             value: string;
+        };
+        /** @description A README, as text. */
+        ReadmeResponse: {
+            /** @description Its owner. */
+            author: string;
+            /** @description The licence its front matter declares. */
+            license?: string | null;
+            /** @description The repository, `owner/name`. */
+            repo: string;
+            /** @description The page of the repository. */
+            source_url: string;
+            /** @description The text. */
+            text: string;
         };
         /** @description Request body for `POST /api/v1/user-inputs/{id}/reject`. */
         RejectUserInputRequest: {
@@ -4116,6 +4831,17 @@ export interface components {
              */
             reaches_running_agents: boolean;
         };
+        /** @description A connection the package requires. */
+        RequiredConnectionPreview: {
+            /** @description The package itself brings an MCP server of that name. */
+            broughtByPackage: boolean;
+            /** @description A connection of that type exists on this machine. */
+            present: boolean;
+            /** @description Why the package needs it. */
+            reason: string;
+            /** @description Connection type, as the package names it. */
+            type: string;
+        };
         /** @description Response body for the reset route. */
         ResetResponse: {
             reset: boolean;
@@ -4130,6 +4856,12 @@ export interface components {
         ResolvedAgentResponse: {
             /** @description Tools granted. */
             access: string[];
+            /**
+             * @description Autonomy tier the agent runs at: `assisted`, `supervised`,
+             *     `bounded_autonomous` or `long_autonomous`. The user's, else the
+             *     package's, else the global default.
+             */
+            autonomy: string;
             /** @description The definition as the package declares it, before any override. */
             definition: Record<string, never>;
             /** @description Whether the agent is active. */
@@ -4147,7 +4879,7 @@ export interface components {
             origin: components["schemas"]["AgentOriginDto"];
             /**
              * @description Fields whose value is the user's rather than the package's:
-             *     `name`, `mission`, `examples`, `access`, `sources`.
+             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
              */
             overridden: string[];
             /** @description Package the agent came with. */
@@ -4323,10 +5055,15 @@ export interface components {
         /** @description Body of `PUT /api/v1/agent-definitions/{name}/overrides/{field}`. */
         SetOverrideRequest: {
             /**
-             * @description The user's value: a string for `name` and `mission`, a list of strings
-             *     for `examples`, `access` and `sources`.
+             * @description The user's value: a string for `name` and `mission`, a tier name for
+             *     `autonomy`, a list of strings for `examples`, `access` and `sources`.
              */
             value: Record<string, never>;
+        };
+        /** @description Request body for `PUT /api/v1/profile/entries/{key}`. */
+        SetProfileEntryBody: {
+            /** @description Plain-text value. */
+            value: string;
         };
         /** @description Response body for the shutdown endpoint. */
         ShutdownResponse: {
@@ -4352,6 +5089,29 @@ export interface components {
             /** @description Current status: `"running"`, `"completed"`, or `"failed"`. */
             status: string;
         };
+        /** @description The publisher and the signature, as the preview shows them. */
+        SignaturePreview: {
+            /** @description Publisher name the package declares. Not verified. */
+            declaredPublisher: string;
+            /** @description SHA-256 fingerprint of the signing key, when the signature holds. */
+            keyFingerprint?: string | null;
+            /**
+             * @description Name to show for the publisher: the label of the keyring when the key
+             *     is trusted, otherwise the name the package declares.
+             */
+            publisher: string;
+            /** @description Why the signature does not hold, when it does not. */
+            reason?: string | null;
+            /** @description State of the signature. */
+            status: components["schemas"]["SignatureStatus"];
+            /** @description The signing key is in the keyring. */
+            trusted: boolean;
+        };
+        /**
+         * @description State of the signature of a package.
+         * @enum {string}
+         */
+        SignatureStatus: "unsigned" | "signed" | "invalid";
         /** @description Abridged skill descriptor included in the agent list response. */
         SkillDto: {
             /** @description Unique skill identifier (e.g. `"read-excel"`). */
@@ -4369,16 +5129,29 @@ export interface components {
             agent_name: string;
             /** @description Skill description. */
             description: string;
-            /**
-             * @description Apollia schema for the payload fields (cf. `AgentSkill::input_schema`).
-             *     Used by `generate_a2a_tool_specs` to expose the worker's real contract
-             *     to the LLM (instead of a generic schema).
-             */
+            /** @description Apollia schema for the payload fields (cf. `AgentSkill::input_schema`). */
             input_schema?: Record<string, never> | null;
+            /**
+             * @description What `skill_id` launches: `skill` for a skill an agent's code declares,
+             *     `agent` for an agent that takes a message (`agent:<id>`), `workflow`
+             *     for a workflow that takes typed inputs (`workflow:<package>/<name>`).
+             */
+            kind?: string;
             /** @description Skill identifier. */
             skill_id: string;
             /** @description Human-readable skill name. */
             skill_name: string;
+        };
+        /** @description The source a batch reads its items from. */
+        SourceDescriptor: {
+            /** @description The kind of source, as registered (a spreadsheet, a folder, a mailbox). */
+            kind: string;
+            /** @description What the source is opened on: a file path, a folder, a connection. */
+            location: string;
+            /** @description Options the kind understands, such as a sheet or a header row. */
+            options?: {
+                [key: string]: string;
+            };
         };
         /** @description SSE frame emitted by the mailbox observation stream. */
         SseMailboxEvent: Record<string, never> & {
@@ -4781,10 +5554,39 @@ export interface components {
             /** @description Last-modified timestamp (ISO 8601). */
             updated_at: string;
         };
+        /** @description A trigger the package proposes. Installing does not arm it. */
+        TriggerPreview: {
+            /** @description Identifier. */
+            id: string;
+            /** @description `cron`, `interval`, `file_watch` or `webhook`. */
+            source: string;
+            /** @description Agent or workflow it starts. */
+            target: string;
+        };
         /** @description Trigger source description used in create/update requests. */
         TriggerSourceInput: Record<string, never> & {
             /** @description Source type: `"cron"`, `"interval"`, `"oneshot"`, `"file_watch"`, `"webhook"`. */
             type: string;
+        };
+        /** @description Body of `POST /api/v1/packages/trusted-keys`. */
+        TrustKeyRequest: {
+            /** @description Name to show for the publisher. */
+            label: string;
+            /** @description The publisher's public key: 64 hexadecimal characters. */
+            publicKey: string;
+        };
+        /** @description A trusted publisher key. */
+        TrustedKeyView: {
+            /** @description When it was added. */
+            addedAt: string;
+            /** @description SHA-256 fingerprint of the key. */
+            fingerprint: string;
+            /** @description Name shown for the publisher. */
+            label: string;
+            /** @description Who put the key there: `user` or `policy`. */
+            origin: string;
+            /** @description The public key, 64 hexadecimal characters. */
+            publicKey: string;
         };
         /** @description Request body for `POST /api/v1/llm/loaded-models/unload`. */
         UnloadModelRequest: {
@@ -4826,6 +5628,24 @@ export interface components {
              */
             min_interval_seconds?: number | null;
         };
+        /** @description What an update changes, against the installed version. */
+        UpdateDiff: {
+            /**
+             * @description Accesses the incoming package defaults grant that the installed ones
+             *     did not.
+             */
+            addedAccess: components["schemas"]["AddedAccess"][];
+            /** @description MCP servers brought by the incoming version only. */
+            addedMcpServers: string[];
+            /** @description Connection types required by the incoming version only. */
+            addedRequires: string[];
+            /** @description The incoming version is older than the installed one. */
+            downgrade: boolean;
+            /** @description Installed version. */
+            fromVersion: string;
+            /** @description Incoming version. */
+            toVersion: string;
+        };
         /** @description Request body for `PUT /api/v1/llm/backends/:name`. */
         UpdateLlmBackendRequest: {
             /** @description Provider-specific configuration object. */
@@ -4862,6 +5682,17 @@ export interface components {
             on_busy?: string | null;
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
+        };
+        /** @description The whole profile: the schema fields, then the free-form entries. */
+        UserProfileView: {
+            /** @description Every entry, in the order the repository lists them. */
+            entries: components["schemas"]["ProfileEntryView"][];
+            /** @description Entries outside the schema. */
+            extras: components["schemas"]["ProfileEntryView"][];
+            /** @description The most recent `updated_at` across the entries. */
+            last_updated_at?: string | null;
+            /** @description Entries whose key is a field of the schema. */
+            schema_entries: components["schemas"]["ProfileEntryView"][];
         };
         /** @description Whether a newer build of one engine variant exists on the channel. */
         VariantUpdate: {
@@ -4914,6 +5745,85 @@ export interface components {
              * @description Number of distinct runs covered by the global chain.
              */
             runs_checked: number;
+        };
+        /** @description Error body of the workflow routes. */
+        WorkflowErrorResponse: {
+            /** @description What went wrong. */
+            error: string;
+            /** @description The input at fault, when an input was refused. */
+            field?: string | null;
+        };
+        /** @description Body of `POST /api/v1/workflows/{package}/{workflow}/runs`. */
+        WorkflowLaunch: {
+            /**
+             * @description The inputs, checked against the schema the workflow declares. A text
+             *     value given for a field of another type is read as that type when it
+             *     parses as one.
+             */
+            inputs?: Record<string, never>;
+        };
+        /** @description One workflow of the package. */
+        WorkflowPreview: {
+            /** @description What it does. */
+            description: string;
+            /** @description Action family of the most sensitive thing it does. */
+            family: string;
+            /** @description Identifier, unique in the package. */
+            name: string;
+            /** @description Its family is sensitive. */
+            sensitive: boolean;
+            /** @description Names of its steps, in order. */
+            steps: string[];
+        };
+        /** @description A run with its steps. */
+        WorkflowRunDetailView: {
+            run: components["schemas"]["WorkflowRunView"];
+            steps: components["schemas"]["WorkflowStepView"][];
+        };
+        /** @description The runs of a workflow, newest first. */
+        WorkflowRunListView: {
+            runs: components["schemas"]["WorkflowRunView"][];
+        };
+        /** @description A workflow run: what it was launched with, its status and its result. */
+        WorkflowRunView: {
+            /**
+             * Format: int32
+             * @description 1 for a run started on its own, one more per nested call.
+             */
+            depth: number;
+            endedAt?: string | null;
+            /** @description Why it failed or stopped. */
+            error?: string | null;
+            inputs: Record<string, never>;
+            /** @description What the workflow returned. */
+            output?: Record<string, never> | null;
+            /** @description The run whose step started this one, when one did. */
+            parentRunId?: string | null;
+            runId: string;
+            startedAt: string;
+            /** @description `running`, `completed`, `failed` or `canceled`. */
+            status: string;
+            /** @description `<package>/<workflow>`. */
+            workflowId: string;
+        };
+        /** @description One declared step of a run. */
+        WorkflowStepView: {
+            endedAt?: string | null;
+            error?: string | null;
+            name: string;
+            /** @description What the agent or workflow the step ran last returned. */
+            output?: string | null;
+            /**
+             * Format: int32
+             * @description Its position among the declared steps, from 0.
+             */
+            rank: number;
+            startedAt?: string | null;
+            /**
+             * @description `pending`, `running`, `completed`, `failed`, `canceled` or
+             *     `not_started`.
+             */
+            status: string;
         };
     };
     responses: never;
@@ -5035,7 +5945,16 @@ export interface operations {
                     "application/json": components["schemas"]["A2AInvocationResult"];
                 };
             };
-            /** @description Skill not found */
+            /** @description The input does not fit the agent or the workflow */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Skill, agent or workflow not found */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -5046,6 +5965,15 @@ export interface operations {
             };
             /** @description Invocation cancelled through its client-supplied id */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The agent or the workflow failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5211,7 +6139,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access or sources */
+                /** @description name, mission, examples, access, sources or autonomy */
                 field: string;
             };
             cookie?: never;
@@ -5267,7 +6195,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access or sources */
+                /** @description name, mission, examples, access, sources or autonomy */
                 field: string;
             };
             cookie?: never;
@@ -5992,6 +6920,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_batches: {
+        parameters: {
+            query?: {
+                /** @description At most this many batches, 50 when absent. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batches */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchListView"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    launch_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchLaunch"];
+            };
+        };
+        responses: {
+            /** @description Batch launched */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchView"];
+                };
+            };
+            /** @description Invalid launch, unknown source type, or an agent that cannot run a batch */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description The source could not be read */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    get_batch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Batch id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The batch and its items */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchDetailView"];
+                };
+            };
+            /** @description No such batch */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+            /** @description Batch engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchErrorResponse"];
                 };
             };
         };
@@ -7367,6 +8419,38 @@ export interface operations {
             };
         };
     };
+    list_dictation_models: {
+        parameters: {
+            query?: {
+                /** @description Size of the language model to fit beside; the largest installed one when absent */
+                language_model_bytes?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dictation models, whether each fits, and the one recommended for this machine */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictationModelsResponse"];
+                };
+            };
+            /** @description The shipped registry table is invalid */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_embedding_models: {
         parameters: {
             query?: {
@@ -7764,6 +8848,81 @@ export interface operations {
             };
         };
     };
+    get_model_card: {
+        parameters: {
+            query: {
+                /** @description Identifier of the card, for example qwen3/Qwen3-8B */
+                id: string;
+                /** @description Language of the texts, fr or en; English when absent */
+                lang?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The card in the asked language, English when that language is not written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description No kept catalogue, or no card with that identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The kept copy was refused */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_model_cards: {
+        parameters: {
+            query?: {
+                /** @description Language of the texts, fr or en; English when absent */
+                lang?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The cards of the catalogue, or an empty catalogue with the reason */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelCardsResponse"];
+                };
+            };
+            /** @description The index was refused: its signature does not hold or it is not an index */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_registry_model: {
         parameters: {
             query?: {
@@ -7817,15 +8976,78 @@ export interface operations {
             };
         };
     };
+    get_model_readme: {
+        parameters: {
+            query: {
+                /** @description The repository, owner/name */
+                repo: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The README as text, with the repository, its owner and its licence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadmeResponse"];
+                };
+            };
+            /** @description The repository identifier is not owner/name */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The repository has no README */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The README is larger than 512 KiB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description README unavailable offline */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     search_registry: {
         parameters: {
             query?: {
-                /** @description Search query */
+                /** @description Words of a model name, searched within the official publishers and the recognised converters only */
                 q?: string;
+                /** @description gguf (default) or mlx; mlx only on Apple Silicon */
+                format?: string;
                 /** @description Maximum number of results */
                 limit?: number;
-                /** @description Sort key */
+                /** @description best_match (default), likes, downloads or updated */
                 sort?: string;
+                /** @description Keep only the results with a variant recommended for this machine */
+                fits_only?: boolean;
                 /** @description HuggingFace token for gated models */
                 hf_token?: string;
             };
@@ -7835,15 +9057,33 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Matching GGUF models (HuggingFace model cards) */
+            /** @description Results with their generated cards, and the estimated capacity of this machine */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
+            /** @description Unknown sort, or MLX asked off Apple Silicon */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Upstream HuggingFace error */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Search unavailable offline */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9147,6 +10387,254 @@ export interface operations {
             };
         };
     };
+    install_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallReport"];
+                };
+            };
+            /** @description The file cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description A signed package is required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Older version, or agent owned elsewhere */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Invalid package or signature, or MCP server refused */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description A confirmation is missing */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Store, environment or journal failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal, or no MCP manager for the servers it brings */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    preview_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackagePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description The preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackagePreview"];
+                };
+            };
+            /** @description The file cannot be read */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Not a valid package */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    list_trusted_keys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trusted keys */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustedKeyView"][];
+                };
+            };
+            /** @description The keyring cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    trust_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrustKeyRequest"];
+            };
+        };
+        responses: {
+            /** @description The key is trusted */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustedKeyView"];
+                };
+            };
+            /** @description Not a public key, or an empty label */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description The keyring cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    remove_trusted_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description SHA-256 fingerprint of the key */
+                fingerprint: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The key is removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such key */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description The keyring cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
     clear_plan_cache: {
         parameters: {
             query?: never;
@@ -9213,6 +10701,150 @@ export interface operations {
                 };
             };
             /** @description Plan cache not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfileView"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_profile_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Flat storage key */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetProfileEntryBody"];
+            };
+        };
+        responses: {
+            /** @description The entry as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileEntryView"];
+                };
+            };
+            /** @description Empty or reserved key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_profile_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Flat storage key */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entry is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedProfileEntry"];
+                };
+            };
+            /** @description No entry has this key */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_user_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileReset"];
+                };
+            };
+            /** @description The profile store did not open */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -11367,6 +12999,190 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_workflow_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The run and its steps */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunDetailView"];
+                };
+            };
+            /** @description No such run */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description Workflow engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_workflow_run: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Run id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The run, stopped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunView"];
+                };
+            };
+            /** @description No such run */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description The run already ended */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description Workflow engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+        };
+    };
+    list_workflow_runs: {
+        parameters: {
+            query?: {
+                /** @description At most this many runs, 50 when absent. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Package that declares the workflow */
+                package: string;
+                /** @description Workflow name in the package */
+                workflow: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The runs of the workflow */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunListView"];
+                };
+            };
+            /** @description Workflow engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+        };
+    };
+    launch_workflow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package that declares the workflow */
+                package: string;
+                /** @description Workflow name in the package */
+                workflow: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkflowLaunch"];
+            };
+        };
+        responses: {
+            /** @description Run launched */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowRunView"];
+                };
+            };
+            /** @description An input does not fit the schema; `field` names it */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description No installed workflow by that name */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
+                };
+            };
+            /** @description Workflow engine or package host unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkflowErrorResponse"];
                 };
             };
         };

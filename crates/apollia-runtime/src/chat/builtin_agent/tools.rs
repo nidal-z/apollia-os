@@ -494,15 +494,17 @@ impl BuiltInChatAgent {
         });
 
         let rx = pending_approvals.register(key.clone());
-        pending_approvals.start_timeout(ApprovalTimeoutParams {
-            key,
-            duration: CHAT_APPROVAL_TIMEOUT,
-            event_bus: self.event_bus.clone(),
-            session_id: session_id.to_string(),
-            message_id: message_id.to_string(),
-            tool_call_id: call.id.clone(),
-            tool_name: call.name.clone(),
-        });
+        if let Some(duration) = self.approval_timeout {
+            pending_approvals.start_timeout(ApprovalTimeoutParams {
+                key,
+                duration,
+                event_bus: self.event_bus.clone(),
+                session_id: session_id.to_string(),
+                message_id: message_id.to_string(),
+                tool_call_id: call.id.clone(),
+                tool_name: call.name.clone(),
+            });
+        }
         // The human wait starts here, not inside the invoker. A refusal, whether
         // typed or reached by timeout, runs no tool at all, so this is the only
         // point at which the wait can be attributed to anything.

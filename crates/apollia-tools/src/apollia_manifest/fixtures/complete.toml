@@ -1,0 +1,106 @@
+# A complete apollia.toml, every table and every key the schema knows.
+# Any other key is refused, with its path, when the manifest is read.
+
+# Identity of the package. `name` is the prefix of its tools: pkg:invoices/<tool>.
+[package]
+name = "invoices"
+version = "1.2.0"
+publisher = "Example Accounting"
+description = "Reads supplier invoices and drafts the reminders."
+# Semver requirement on the SDK the package was built against.
+sdk = ">=0.3, <0.4"
+
+# A declarative agent: data only, no Python code.
+[[agents]]
+id = "invoice-clerk"
+name = "Invoice clerk"
+mission = "Read the supplier invoices of the month and list the late ones."
+examples = ["Which invoices are late?", "Draft a reminder for ACME."]
+
+# Defaults the package recommends; a local override always wins.
+[agents.defaults]
+# Native tool, MCP tool, and a tool of this package.
+access = ["file_read", "mcp:ledger/lookup", "pkg:invoices/extract_totals"]
+# "profile" lets the agent read the user profile.
+sources = ["profile"]
+# Autonomy tier: assisted, supervised, bounded_autonomous or long_autonomous.
+autonomy = "supervised"
+
+[agents.defaults.model]
+model = "qwen3-8b-instruct"
+preset = "balanced"
+
+# Request settings, the keys of the apollia-llm request structure.
+[agents.defaults.model.request]
+temperature = 0.2
+top_p = 0.9
+top_k = 40
+repetition_penalty = 1.05
+max_tokens = 2048
+seed = 7
+
+# A Python tool. The SDK writes this descriptor when it builds the package.
+[[tools]]
+name = "extract_totals"
+module = "tools/extract.py"
+description = "Extract the total, the due date and the supplier of an invoice."
+# One of: read, read_personal, write_or_delete, send_external, execute_code.
+action = "read_personal"
+
+# JSON Schema of the inputs.
+[tools.inputs]
+type = "object"
+required = ["path"]
+
+[tools.inputs.properties.path]
+type = "string"
+description = "Path of the invoice file."
+
+# A Python workflow with its declared steps.
+[[workflows]]
+name = "monthly-reminders"
+module = "workflows/reminders.py"
+description = "Find the late invoices and send one reminder per supplier."
+action = "send_external"
+steps = ["collect", "match", "send"]
+
+[workflows.inputs]
+type = "object"
+
+[workflows.inputs.properties.month]
+type = "string"
+
+# A connection the package needs; installing proposes to add it when missing.
+[[requires]]
+type = "gmail"
+reason = "Reminders are sent from the user's mailbox."
+
+# An MCP server the package brings; same keys as an mcp.toml server.
+[[mcp_servers]]
+name = "ledger"
+command = "uvx"
+args = ["ledger-mcp"]
+transport = "stdio"
+requires_approval = true
+init_timeout_secs = 20
+call_timeout_secs = 45
+max_response_bytes = 1048576
+max_tools = 32
+tags = ["accounting"]
+
+[mcp_servers.env]
+LEDGER_HOME = "${HOME}/ledger"
+
+# Python dependencies of the package environment, pinned.
+[pip]
+packages = ["pypdf==4.3.1"]
+
+# Triggers the package proposes; installing does not arm them on its own.
+[[triggers]]
+id = "first-monday"
+target = "monthly-reminders"
+input = "Run the monthly reminders."
+
+[triggers.source]
+type = "cron"
+schedule = "0 8 1-7 * MON"

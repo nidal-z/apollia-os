@@ -3,8 +3,8 @@ use super::*;
 /// Logical identifier of the system agent "Apollia Chat".
 ///
 /// Used as the key for `scope = 'agent'` permission rules, for the standing
-/// consents of Apollia, and for the free-chat config persisted in
-/// `governance.db`. Defined once, in `apollia-permissions`.
+/// consents of Apollia, and as the name of the Apollia agent in `agents.db`.
+/// Defined once, in `apollia-permissions`.
 pub const APOLLIA_CHAT_AGENT_ID: &str = apollia_permissions::APOLLIA_AGENT_ID;
 
 /// Subset of the runtime's native-tool config the chat dispatcher needs to
@@ -98,18 +98,23 @@ pub(in crate::chat::manager) struct AlwaysAcceptScopeCtx<'a> {
 /// spawned so the spawned future never captures the non-`Send` `&self`
 /// (the manager owns a `RefCell` via rusqlite).
 pub(in crate::chat::manager) struct LibreExchangeParams {
+    /// The agent the exchange runs: Apollia, or the declarative agent of an
+    /// agent session. Its model, connector accounts and journal entries are
+    /// resolved under this identifier.
+    pub(in crate::chat::manager) agent_id: String,
     pub(in crate::chat::manager) llm_router: Arc<LlmRouter>,
     pub(in crate::chat::manager) tool_registry: ToolRegistryHandle,
     pub(in crate::chat::manager) event_bus: EventBusSender,
     pub(in crate::chat::manager) a2a_for_agent: Option<Arc<A2AInvoker>>,
-    pub(in crate::chat::manager) session_user_memory:
-        Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
+    /// The principle 6 injections gathered for the session (user memory,
+    /// past sessions block); the project context is added by the exchange.
+    pub(in crate::chat::manager) apollia_context: ApolliaContext,
     pub(in crate::chat::manager) pending_approvals: PendingChatApprovals,
-    pub(in crate::chat::manager) budget: StepBudget,
+    /// Autonomy tier of the exchange; the executor derives the budget, the
+    /// verification and the critic from it.
     pub(in crate::chat::manager) autonomy_level: AutonomyLevel,
-    pub(in crate::chat::manager) level_config: AutonomyLevelConfig,
-    pub(in crate::chat::manager) verification: Option<VerificationLoop>,
-    pub(in crate::chat::manager) critic: Option<CriticPass>,
+    /// Runtime ceiling the tier's budget is capped by.
+    pub(in crate::chat::manager) runtime_budget: StepBudgetConfig,
     pub(in crate::chat::manager) history: Vec<ChatMessage>,
     pub(in crate::chat::manager) available_tools: Vec<String>,
     pub(in crate::chat::manager) authorized_tools: std::collections::HashSet<String>,
@@ -126,6 +131,10 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
         apollia_tools::tools::ask_user::PendingUserInputs,
     pub(in crate::chat::manager) mcp_handle_for_session:
         Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// Executors of the package tools, built for the agent of the exchange.
+    pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
+    /// Runs the agents and workflows the Apollia agent was granted.
+    pub(in crate::chat::manager) composer: Option<Arc<dyn crate::composition::Composer>>,
     pub(in crate::chat::manager) chat_tools_config_for_session: Option<Arc<ChatToolsConfig>>,
     pub(in crate::chat::manager) mcp_loading: LoadingMode,
     pub(in crate::chat::manager) tool_search_limit: usize,
@@ -284,4 +293,6 @@ pub(in crate::chat::manager) struct WorkspaceResolutionParams {
     pub(in crate::chat::manager) mcp_index: Vec<ToolIndexSnapshot>,
     /// Maximum `limit` accepted by the synthetic `tool_search` tool.
     pub(in crate::chat::manager) tool_search_limit: usize,
+    /// Executors of the package tools, built for the agent of the run.
+    pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
 }

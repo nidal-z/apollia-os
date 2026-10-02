@@ -196,6 +196,51 @@ if [[ -n "$TID" ]]; then
 else
     skip    "task lifecycle" "run --detach did not return a task_id (out: ${TRUN:0:120})"
 fi
+# ── an agent without code (no model wired) ──────────────────────────────────
+# The seed carries no agent without code, and its row counts are asserted
+# elsewhere, so one is written for this section and removed after it. With no
+# model wired the run cannot answer; what is asserted is the path: the task is
+# accepted by `run`, followed by the router, and recorded under that agent.
+section "agent without code"
+LEDGER_DEF='{"id":"seed-ledger","name":"Ledger clerk","mission":"Reconcile the ledger."}'
+if e2e_sqlite "$HOME/.apollia/agents.db" "INSERT INTO agents (name, origin, version, definition_json, enabled, installed_at, updated_at) VALUES ('seed-ledger', 'interface', '1.0.0', '$LEDGER_DEF', 1, '2026-07-16T09:00:00Z', '2026-07-16T09:00:00Z');" >/dev/null 2>&1; then
+    DRUN=$("${Q[@]}" run seed-ledger "Reconcile March." --detach --json 2>/dev/null)
+    DTID=$(printf '%s' "$DRUN" | "${E2E_PYTHON:-python3}" -c "import sys,json;d=json.load(sys.stdin);print(d.get('task_id') or d.get('id',''))" 2>/dev/null)
+    if [[ -n "$DTID" ]]; then
+        _pass "run agent without code --detach" "$DTID"
+        check         "task status <id> (agent without code)" "${Q[@]}" task status "$DTID"
+        check_content "task list --json names the agent without code" "seed-ledger" "${Q[@]}" task list --json
+        DROW=$(e2e_sqlite "$HOME/.apollia/hitl.db" "SELECT agent_name || '|' || (input_json IS NOT NULL) FROM tasks WHERE task_id = '$DTID';" 2>/dev/null)
+        [[ "$DROW" == "seed-ledger|1" ]] \
+            && _pass "hitl.db records the agent and the whole input" "$DROW" \
+            || _fail "hitl.db records the agent and the whole input" "row: ${DROW:-none}"
+    else
+        _fail "run agent without code --detach" "no task_id (out: ${DRUN:0:200})"
+    fi
+    e2e_sqlite "$HOME/.apollia/agents.db" "DELETE FROM agents WHERE name = 'seed-ledger';" >/dev/null 2>&1 || true
+else
+    skip "agent without code" "agents.db has no agents table to write the agent into"
+fi
+
+# ── batches ─────────────────────────────────────────────────────────────────
+# The batch engine runs in the daemon. The seed holds no batch, and no source
+# reader is registered yet: a launch on any source type is refused with 1
+# before anything is recorded, and the list stays empty.
+section "batches"
+check_json_field "batch list --json holds no batch" "len(d['batches'])" 0 "${Q[@]}" batch list --json
+check_exit    "batch run unknown source type → 1" 1  "${Q[@]}" batch run apollia-chat --source-type spreadsheet --source /data/requests.xlsx
+check_exit    "batch status unknown → 1"          1  "${Q[@]}" batch status 00000000-0000-0000-0000-000000000000
+
+# ── workflows ───────────────────────────────────────────────────────────────
+# The workflow engine runs in the daemon. The seed installs no package with a
+# workflow: a launch is refused with 1 before anything is recorded, and the
+# history of any workflow is empty.
+section "workflows"
+check_json_field "workflow logs --json holds no run" "len(d['runs'])" 0 "${Q[@]}" workflow logs invoices/close-month --json
+check_exit    "workflow run unknown → 1"          1  "${Q[@]}" workflow run invoices/close-month --input folder=/data/march
+check_exit    "workflow status unknown → 1"       1  "${Q[@]}" workflow status 00000000-0000-0000-0000-000000000000
+check_exit    "workflow cancel unknown → 1"       1  "${Q[@]}" workflow cancel 00000000-0000-0000-0000-000000000000 --confirm
+
 # `task resume` resolves the task id before touching its state, so an unknown
 # id is a deterministic refusal; the approve path on a real suspension stays a
 # variant below.
@@ -245,6 +290,18 @@ check_exit    "agent reset without --confirm → 1"  1 "${Q[@]}" agent reset apo
 check         "agent reset --field mission"        "${Q[@]}" agent reset apollia-chat --field mission --confirm
 check         "agent reset --confirm"              "${Q[@]}" agent reset apollia-chat --confirm
 check_exit    "agent set unknown agent → 1"        1 "${Q[@]}" agent set e2e-ghost-agent mission "x"
+# The settings of the chat are the overrides and the model of the Apollia
+# agent, written through the same routes and journaled the same way.
+check         "chat config set system-prompt"      "${Q[@]}" chat config set system-prompt "Answer in one line."
+check         "chat config set allowed-tools"      "${Q[@]}" chat config set allowed-tools "web_search,file_read"
+check         "chat config set llm-backend"        "${Q[@]}" chat config set llm-backend local-llama-server
+check_content "chat config get carries the prompt" "Answer in one line." "${Q[@]}" chat config get
+check_content "chat config get --json carries the model" "local-llama-server" "${Q[@]}" chat config get --json
+check_content "agent list --definitions has apollia:chat" "apollia:chat" "${Q[@]}" agent list --definitions
+check_exit    "chat config reset without --confirm → 1" 1 "${Q[@]}" chat config reset
+check         "chat config reset --confirm"        "${Q[@]}" chat config reset --confirm
+check_content "chat config get after reset"        "(runtime default)" "${Q[@]}" chat config get
+check_exit    "agent uninstall apollia:chat (built in) → 1" 1 "${Q[@]}" agent uninstall apollia:chat --confirm
 check         "audit verify (overrides journaled)"  "${Q[@]}" audit verify
 check         "agent package list"                 "${Q[@]}" agent package list
 check_content "agent package list has seed-office-pack" "seed-office-pack" "${Q[@]}" agent package show seed-office-pack
@@ -264,3 +321,55 @@ check         "eval report (empty jsonl)"          bash -c "printf '' > '$RUN_TM
 # missing suite is a deterministic refusal.
 check_exit    "eval run (missing suite) → 1"  1    "${Q[@]}" eval run "$RUN_TMP/never-written-suite.yaml"
 skip          "eval run <suite> (real model)" "runs the agent against a real model; covered as a capture in Track 3 when a model is wired"
+
+# ── .apo packages (preview, install, update, keyring) ───────────────────────
+# A tool-only package is built here, signed by a key generated for the run, and
+# driven through the runtime. The seed's row counts are asserted above; the
+# package this section installs is removed at its end.
+section "packages"
+RPKG="$RUN_TMP/runtime-pkg"; /bin/mkdir -p "$RPKG/tools"
+write_runtime_pkg() {
+    cat > "$RPKG/apollia.toml" <<TOML
+[package]
+name = "e2e-runtime-pkg"
+version = "$1"
+publisher = "E2E Publisher"
+sdk = ">=0.3"
+
+[[tools]]
+name = "ping"
+module = "tools/ping.py"
+description = "Answer pong."
+action = "read"
+inputs = { type = "object" }
+TOML
+    printf "@tool(name='ping')\nasync def ping(ctx, inputs):\n    return 'pong'\n" > "$RPKG/tools/ping.py"
+}
+write_runtime_pkg "1.1.0"
+"$BIN" package build "$RPKG" --sign --key e2e-runtime -o "$RUN_TMP/rpkg-1.1.0.apo" >/dev/null 2>&1
+write_runtime_pkg "1.0.0"
+"$BIN" package build "$RPKG" -o "$RUN_TMP/rpkg-1.0.0.apo" >/dev/null 2>&1
+check_json_field "package preview: name"            "d['name']"                  "e2e-runtime-pkg" "${Q[@]}" package preview "$RUN_TMP/rpkg-1.1.0.apo" --json
+check_json_field "package preview: signed, untrusted" "d['signature']['status']+'/'+str(d['signature']['trusted'])" "signed/False" "${Q[@]}" package preview "$RUN_TMP/rpkg-1.1.0.apo" --json
+check_json_field "package preview: the tool"        "d['tools'][0]['name']"      "ping"            "${Q[@]}" package preview "$RUN_TMP/rpkg-1.1.0.apo" --json
+check_content    "package preview (human) names the publisher" "E2E Publisher" "${Q[@]}" package preview "$RUN_TMP/rpkg-1.1.0.apo"
+check_json_field "package install: version"         "d['version']"               "1.1.0"           "${Q[@]}" package install "$RUN_TMP/rpkg-1.1.0.apo" --json
+check_json_field "package preview: installed version" "d['installedVersion']"    "1.1.0"           "${Q[@]}" package preview "$RUN_TMP/rpkg-1.0.0.apo" --json
+check_exit       "package install (older version) → 1" 1 "${Q[@]}" package install "$RUN_TMP/rpkg-1.0.0.apo"
+check_json_field "package install --allow-downgrade" "d['previousVersion']"      "1.1.0"           "${Q[@]}" package install "$RUN_TMP/rpkg-1.0.0.apo" --allow-downgrade --json
+# The author key generated by the signed build above is the one trusted here.
+RFP=$("${Q[@]}" package inspect "$RUN_TMP/rpkg-1.1.0.apo" --json 2>/dev/null | "${E2E_PYTHON:-python3}" -c "import sys,json;print(json.load(sys.stdin)['signature']['key_fingerprint'])" 2>/dev/null)
+RPUB=$("${E2E_PYTHON:-python3}" - "$RUN_TMP/rpkg-1.1.0.apo" <<'PY' 2>/dev/null
+import sys, zipfile
+print(zipfile.ZipFile(sys.argv[1]).read("SIGNATURE.key").decode().strip())
+PY
+)
+check_json_field "package trust import"             "d['fingerprint']"           "$RFP"            "${Q[@]}" package trust import "$RPUB" --label "E2E Corp" --json
+check_content    "package trust list names the label" "E2E Corp"                 "${Q[@]}" package trust list
+check_json_field "package preview: trusted publisher" "d['signature']['publisher']" "E2E Corp"      "${Q[@]}" package preview "$RUN_TMP/rpkg-1.1.0.apo" --json
+check            "package trust remove --confirm"   "${Q[@]}" package trust remove "$RFP" --confirm
+check_exit       "package trust remove (unknown) → 1" 1 "${Q[@]}" package trust remove "$RFP" --confirm
+check_exit       "package trust import (not a key) → 1" 1 "${Q[@]}" package trust import "not-a-key" --label "X"
+check            "audit verify (installation journaled)" "${Q[@]}" audit verify
+e2e_sqlite "$HOME/.apollia/agents.db" "DELETE FROM package_items WHERE package_name = 'e2e-runtime-pkg'; DELETE FROM installed_packages WHERE name = 'e2e-runtime-pkg';" >/dev/null 2>&1 || true
+/bin/rm -rf "$HOME/.apollia/agents/packages/e2e-runtime-pkg"

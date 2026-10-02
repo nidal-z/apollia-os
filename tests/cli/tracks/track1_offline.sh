@@ -105,12 +105,17 @@ check        "profile reset --confirm"               "$BIN" profile reset --conf
 # ── A.5 chat config ─────────────────────────────────────────────────────────
 section "A.5 chat config"
 GDB="$SCRATCH/governance.db"
-check        "chat config get (default)"             "$BIN" chat config get --db "$GDB"
-check        "chat config set system-prompt"         "$BIN" chat config set system-prompt "You are helpful." --db "$GDB"
-check        "chat config set allowed-tools"         "$BIN" chat config set allowed-tools "file_read,bash_executor" --db "$GDB"
-check_json   "chat config get --json"                "$BIN" chat config get --db "$GDB" --json
-check_exit   "chat config set bogus-key"  1          "$BIN" chat config set bogus-key x --db "$GDB"
-check        "chat config reset --confirm"           "$BIN" chat config reset --confirm --db "$GDB"
+# The settings of the chat are those of the Apollia agent, read and written
+# through the runtime's routes: with no runtime, get / set / reset exit 2. The
+# real reads and writes are in Track 2. A bad key is refused before the runtime.
+CHAT_OFF="$RUN_TMP/chat-off.sock"
+check_exit   "chat config get (runtime absent) → 2"  2 "$BIN" --socket "$CHAT_OFF" chat config get
+check_exit   "chat config get --json (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config get --json
+check_exit   "chat config set system-prompt (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config set system-prompt "You are helpful."
+check_exit   "chat config set bogus-key"  1          "$BIN" --socket "$CHAT_OFF" chat config set bogus-key x
+check_exit   "chat config reset --confirm (runtime absent) → 2" 2 "$BIN" --socket "$CHAT_OFF" chat config reset --confirm
+# Apollia is built in: uninstalling it is refused, exit 1.
+check_exit   "agent uninstall apollia:chat (built in) → 1" 1 "$BIN" agent uninstall apollia:chat --confirm
 check        "chat config permissions list (empty)"  "$BIN" chat config permissions list --db "$GDB"
 check_json   "chat config permissions list --json"   "$BIN" chat config permissions list --db "$GDB" --json
 check_exit   "chat config permissions delete (no id) → 1" 1 "$BIN" chat config permissions delete 9999 --confirm --db "$GDB"
@@ -334,6 +339,46 @@ check_exit "package inspect (tampered after signing) → 1" 1 "$BIN" package ins
 printf "@workflow(name='report', steps=['a'])\nasync def report(ctx, inputs):\n    pass\n" > "$PKG/tools/report.py"
 check_exit "package build (undescribed module) → 1" 1 "$BIN" package build "$PKG" -o "$SCRATCH/e2e-bad.apo"
 check_exit "package inspect (not an archive) → 1"   1 "$BIN" package inspect "$PKG/apollia.toml"
+# The preview, the installation and the keyring go through the runtime: with no
+# runtime they answer 2. A package file that does not exist is refused before
+# the runtime is reached, 1.
+PKGOFF="$RUN_TMP/package-off.sock"
+E2E_KEY="ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c"
+check_exit "package preview (runtime absent) → 2"       2 "$BIN" --socket "$PKGOFF" package preview "$SCRATCH/e2e.apo"
+check_exit "package install (runtime absent) → 2"       2 "$BIN" --socket "$PKGOFF" package install "$SCRATCH/e2e.apo"
+check_exit "package preview (missing file) → 1"         1 "$BIN" --socket "$PKGOFF" package preview "$SCRATCH/no-such.apo"
+check_exit "package install --json (missing file) → 1"  1 "$BIN" --socket "$PKGOFF" package install "$SCRATCH/no-such.apo" --json
+check_exit "package trust import (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust import "$E2E_KEY" --label "E2E"
+check_exit "package trust list (runtime absent) → 2"    2 "$BIN" --socket "$PKGOFF" package trust list
+check_exit "package trust remove (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust remove "$E2E_KEY" --confirm
+
+# ── A.13b organisation policy (files only) ──────────────────────────────────
+# The key pair and the policy folder are prepared under the scratch folder;
+# nothing is written to the system policy folder. `policy show` reads the
+# system folder, absent on a test machine, so it answers "none".
+section "A.13b organisation policy"
+POLKEYS="$SCRATCH/policy-keys"; POL="$SCRATCH/policy"
+check_content "policy keygen prints the fingerprint" '^[0-9a-f]{64}$' "$BIN" policy keygen --out "$POLKEYS" -q
+check_content "policy keygen: org.key is 0600" '^0o600$' "${E2E_PYTHON:-python3}" -c 'import os,sys;print(oct(os.stat(sys.argv[1]).st_mode & 0o777))' "$POLKEYS/org.key"
+check_exit "policy keygen (key already there) → 1" 1 "$BIN" policy keygen --out "$POLKEYS"
+check_content "policy init writes policy.toml" 'policy\.toml$' "$BIN" policy init "$POL" -q
+check_json_field "policy sign: publisher" "d['publisher']" "E2E IT" "$BIN" policy sign --key "$POLKEYS/org.key" --publisher "E2E IT" "$POL" --json
+check_json_field "policy verify: valid" "d['verdict']" "valid" "$BIN" policy verify "$POL" --json
+check_content "policy verify (human)" '^valid$' "$BIN" policy verify "$POL"
+# One byte of the signed policy is altered: the signature no longer holds.
+"${E2E_PYTHON:-python3}" - "$POL/policy.toml" <<'PY'
+import sys
+path = sys.argv[1]
+data = bytearray(open(path, "rb").read())
+data[0] ^= 0x01
+open(path, "wb").write(bytes(data))
+PY
+check_exit "policy verify (one byte altered) → 1" 1 "$BIN" policy verify "$POL"
+check_content "policy verify --json (one byte altered): reason" '"reason": "signature"' bash -c "'$BIN' policy verify '$POL' --json; true"
+check_content "policy verify (human, one byte altered): reason" 'refused \(signature\)' bash -c "'$BIN' policy verify '$POL'; true"
+check_exit "policy verify (missing folder) → 1" 1 "$BIN" policy verify "$SCRATCH/no-such-policy"
+check_content "policy show: none" '^none$' "$BIN" policy show
+check_json_field "policy show --json: none" "d['state']" "none" "$BIN" policy show --json
 
 # ── A.13 exit-code contract (runtime-bound commands, daemon OFF → 2) ─────────
 section "A.13 exit-code contract (daemon off)"
@@ -370,6 +415,30 @@ check_exit   "agent reset (off) → 2"           2     "$BIN" --socket "$OFFSOCK
 check_exit   "agent set unknown field → 1"     1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat model qwen3
 check_exit   "agent set two missions → 1"      1     "$BIN" --socket "$OFFSOCK" agent set apollia-chat mission one two
 check_exit   "agent reset unknown field → 1"   1     "$BIN" --socket "$OFFSOCK" agent reset apollia-chat --field model --confirm
+# An agent without code runs in the runtime too, by the same `run` leaf: daemon
+# off, it refuses with 2 before any call, whatever the agent.
+check_exit   "run agent without code (off) → 2" 2    "$BIN" --socket "$OFFSOCK" run seed-ledger "Reconcile March."
+check_exit   "run agent without code --json (off) → 2" 2 "$BIN" --socket "$OFFSOCK" --json run seed-ledger "Reconcile March."
+# A batch runs in the runtime: daemon off, each leaf refuses with 2, in human
+# and in --json mode; a malformed source option is a usage error, 1, before
+# any call.
+check_exit   "batch run (off) → 2"             2     "$BIN" --socket "$OFFSOCK" batch run seed-ledger --source-type spreadsheet --source /data/requests.xlsx
+check_exit   "batch run --json (off) → 2"      2     "$BIN" --socket "$OFFSOCK" --json batch run seed-ledger --source-type spreadsheet --source /data/requests.xlsx --concurrency 2 --max-failures 3
+check_exit   "batch status (off) → 2"          2     "$BIN" --socket "$OFFSOCK" batch status 00000000-0000-0000-0000-000000000000
+check_exit   "batch list --json (off) → 2"     2     "$BIN" --socket "$OFFSOCK" --json batch list
+check_exit   "batch run bad --option → 1"      1     "$BIN" --socket "$OFFSOCK" batch run seed-ledger --source-type spreadsheet --source /data/requests.xlsx --option sheet
+check_exit   "batch run without source → 1"    1     "$BIN" --socket "$OFFSOCK" batch run seed-ledger
+# A workflow runs in the runtime: daemon off, each leaf refuses with 2; an
+# identifier without its package, a malformed --input, or a stop without
+# --confirm off a terminal is a usage error, 1, before any call.
+check_exit   "workflow run (off) → 2"          2     "$BIN" --socket "$OFFSOCK" workflow run invoices/close-month --input folder=/data/march
+check_exit   "workflow run --json (off) → 2"   2     "$BIN" --socket "$OFFSOCK" --json workflow run invoices/close-month --input folder=/data/march --wait
+check_exit   "workflow status (off) → 2"       2     "$BIN" --socket "$OFFSOCK" workflow status 00000000-0000-0000-0000-000000000000
+check_exit   "workflow logs --json (off) → 2"  2     "$BIN" --socket "$OFFSOCK" --json workflow logs invoices/close-month
+check_exit   "workflow cancel (off) → 2"       2     "$BIN" --socket "$OFFSOCK" workflow cancel 00000000-0000-0000-0000-000000000000 --confirm
+check_exit   "workflow cancel no confirm → 1"  1     "$BIN" --socket "$OFFSOCK" --json workflow cancel 00000000-0000-0000-0000-000000000000
+check_exit   "workflow run bare name → 1"      1     "$BIN" --socket "$OFFSOCK" workflow run close-month
+check_exit   "workflow run bad --input → 1"    1     "$BIN" --socket "$OFFSOCK" workflow run invoices/close-month --input folder
 # Usage errors are exit 1 by contract (1 = usage, 2 = runtime): a script can
 # tell a typo from a stopped daemon.
 check_exit   "clap usage refusal → 1"  1  "$BIN" agent list --bogus

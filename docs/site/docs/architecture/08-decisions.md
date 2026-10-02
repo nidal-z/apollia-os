@@ -270,6 +270,42 @@ transitive crate, and serves to compare a file with what its repository
 declares, not to resist a forger: the TLS connection to the repository carries
 that guarantee, and a file that matches neither identifier is deleted.
 
+### The model registry {#model-registry}
+
+The catalogue of models reads one online index of model cards. A card is a
+short text written for this project, in French and in English: what the model
+is good at, the capabilities its chat template declares, the memory it asks
+for, the sampling values its publisher recommends, the switches its template
+exposes, its licence and the page of its original repository. Every value a
+card repeats from a model repository cites the address it was read from; no
+README text is copied into a card, and a README is read from the repository
+only when the user asks for it, as text, never written to disk. The cards are
+written in this repository, so that a card is added or corrected without a new
+version of the application.
+
+The registry is read under the local-first principle. The index is a static
+file, requested when the catalogue opens and at no other time, by a request
+that carries no body, no query, no cookie and no identifier: the registry
+learns nothing about who reads it, and no user data is sent. It is signed in
+the minisign format by the dedicated distribution key described under
+[Signatures](#signing-schemes), whose public half is compiled into the binary
+and is the only key accepted; an index whose signature does not hold is
+refused, never used. The index is served from object storage operated in
+France, behind a domain of the project, with access logs kept for a short
+period only. When that address does not answer, the same signed index is read
+from the release mirror on GitHub, under the same verification. The last index
+accepted is kept on disk, and the card of a model is copied next to it when it
+is downloaded, so an installed model reads its card offline.
+
+An organisation replaces the address by an internal mirror, or turns the
+registry off, through the `[models]` section of `apollia.toml`.
+A mirror changes where the index comes from, never who may sign it. Without
+network and without a kept copy, the catalogue is empty and says so, nothing is
+recommended, and a model can still be imported from a disk.
+
+The cost is a network source the catalogue depends on: no index ships with the
+application, so a first launch without network has no recommendation.
+
 ## Speech to text {#speech-to-text}
 
 Transcription runs out of process, in a sidecar built on whisper, so a model
@@ -501,8 +537,12 @@ health route every two seconds rather than assuming the daemon is there, so an
 unanswered probe shows the runtime as disconnected at once. A command without a
 route yet answers a typed error that names it, instead of reaching for state
 the process never built; `scripts/check_attached_coverage.py` counts the routed
-commands against the registered ones, on a descending ratchet. Quitting the
-attached desktop leaves the daemon serving.
+commands against the registered ones, on a descending ratchet. A command that
+belongs to the window rather than to the runtime (quitting, restarting,
+checking for an update, listing the microphones) needs no route: it is named
+in a list beside the routed ones, with the reason it reads no runtime state,
+and the same script refuses an entry without one. Quitting the attached
+desktop leaves the daemon serving.
 
 Version 0.3.0 delivers both modes.
 
@@ -551,6 +591,30 @@ pure-Rust backend (`miniz_oxide`) of that deflate: `zip` leaves the backend to
 the caller, `flate2` refuses to compile without one, and the `deflate` feature
 of `zip` that would pick one itself pulls in `zopfli` and `zlib-rs`, which the
 tree does not hold.
+
+The packages Apollia ships inside its own binary, the in-app guide first, are
+not signed. The desktop assembles each of them on start from files embedded at
+compile time and installs it through the same path as any package. The
+installation knows them as embedded because the desktop says so, never because
+an archive says so: nothing inside a file can claim that origin, and the same
+archive handed over from elsewhere is a plain unsigned package. An embedded
+package installs with no notice about its signature, and an organisation policy
+that requires signed packages does not refuse it. The exemption is bounded to
+that origin. Its reason is that the binary carrying the package is what the
+distribution signature covers, so signing the package again would prove
+nothing more. Like any package, it is recorded in the audit journal, a newer
+installed version is never downgraded, and the user's overrides and the
+disabled state of its agents survive an update.
+
+A package tool runs with a bare context: no memory, no user profile. One
+exception is decided by the host, never by a package. The onboarding of
+Apollia ships as a declarative agent with one tool that records the profile
+facts of the first conversation, the right the onboarding agent held when it
+ran code. The runtime grants that tool the user profile, writable, and the
+memory of the onboarding, which the desktop reads to learn that the
+onboarding is complete. The grant names the package, the module and the
+source the binary carries: a tool whose module on disk is not that source byte
+for byte, whatever its package is called, gets nothing.
 
 ## Host integration {#host-integration}
 

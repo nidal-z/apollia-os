@@ -18,26 +18,24 @@ use tracing::{debug, error, info, warn};
 
 use apollia_core::plan::{Plan, PlanMutation};
 use apollia_core::todo::TodoItem;
-use apollia_core::{
-    AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, RunId, RuntimeEvent, StepBudgetConfig,
-};
+use apollia_core::{AutonomyLevel, RunId, RuntimeEvent, StepBudgetConfig};
 use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_mcp::session::LoadingMode;
 use apollia_mcp::tool_search::{ToolIndexSnapshot, ToolSearchExecutor};
 use apollia_memory::user_memory::UserMemoryRepository;
-use apollia_oria::budget::StepBudget;
-use apollia_oria::verification::{CriticPass, VerificationLoop};
 use apollia_permissions::prefix_rule_engine::RuleAction;
 use apollia_permissions::PrefixRuleEngine;
-use apollia_tools::chat_libre_config::ChatLibreConfigRepository;
 use apollia_tools::governance_db::GOVERNANCE_DB_FILENAME;
 use apollia_tools::{ProjectRepository, ToolRegistryHandle};
 
 use super::a2a_tools::CompositeToolInvoker;
 use super::agent_chat::{AgentChatExecutor, AgentChatRequest, ChatAgentRunner};
+use super::agent_executor::{
+    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, Composition,
+    ProjectContextSource, RunInput, SessionWiring,
+};
 use super::builtin_agent::{
-    BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, HitlInvokerParams,
-    NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
+    ChatAgentResponse, HitlInvokerParams, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
 };
 use super::extractor::UserMemoryExtractor;
 use super::plan_actor::{spawn_plan_actor, PlanHandle};
@@ -182,6 +180,13 @@ struct ChatSessionManager {
     /// Shared lifecycle hook executor, cloned into each exchange so the ReAct
     /// loop can run PreToolUse and the best-effort hooks. `None` disables hooks.
     hook_executor: Option<Arc<HookExecutor>>,
+    /// Source of the executors of the package tools, set once the embedded
+    /// interpreter is available. `None` leaves every `pkg:` tool unrunnable.
+    package_tools: Option<Arc<dyn crate::package_tools::PackageToolHost>>,
+    /// Reads and runs the agents and workflows an agent was granted, set once
+    /// the workflow engine is up. `None` offers no `agent:` or `workflow:`
+    /// tool.
+    composer: Option<Arc<dyn crate::composition::Composer>>,
     /// Per-session cooperative pause tokens.
     ///
     /// A fresh [`CancellationToken`] is inserted when a turn is dispatched and a
@@ -211,9 +216,12 @@ struct ChatSessionManager {
 }
 
 mod actor;
+mod agent_task;
+mod apollia_agent;
 mod authz;
 mod command;
 mod control;
+mod declarative;
 mod disabled;
 mod dispatcher;
 mod exchange;
@@ -246,6 +254,19 @@ pub(in crate::chat::manager) use types::{
     ResolvedSessionInvoker, WorkspaceResolutionParams,
 };
 
+/// The executors of the package tools for one run of `caller`, stopped by
+/// `cancel`; none while no host is set.
+pub(in crate::chat::manager) fn package_executors(
+    host: &Option<Arc<dyn crate::package_tools::PackageToolHost>>,
+    caller: &str,
+    cancel: &CancellationToken,
+) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {
+    host.as_ref()
+        .map(|host| host.executors(caller, cancel))
+        .unwrap_or_default()
+}
+
+pub use agent_task::AgentTaskRun;
 pub use command::ChatCommand;
 pub use handle::ChatSessionManagerHandle;
 pub use types::{

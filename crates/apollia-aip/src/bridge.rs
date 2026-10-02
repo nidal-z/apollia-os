@@ -23,7 +23,7 @@ use pyo3::types::PyDict;
 
 use crate::validator::ValidatedAgent;
 
-mod cancel;
+pub(crate) mod cancel;
 
 /// Errors that can occur when calling a Python agent via the bridge.
 #[derive(Debug, thiserror::Error)]

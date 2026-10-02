@@ -27,14 +27,16 @@ use super::LlamaServerSupervisor;
 #[derive(Debug)]
 pub struct ModelLease {
     base_url: String,
+    n_ctx: u32,
     in_flight: Arc<AtomicUsize>,
 }
 
 impl ModelLease {
-    pub(super) fn new(base_url: String, in_flight: Arc<AtomicUsize>) -> Self {
+    pub(super) fn new(base_url: String, n_ctx: u32, in_flight: Arc<AtomicUsize>) -> Self {
         in_flight.fetch_add(1, Ordering::AcqRel);
         Self {
             base_url,
+            n_ctx,
             in_flight,
         }
     }
@@ -43,6 +45,13 @@ impl ModelLease {
     #[must_use]
     pub fn base_url(&self) -> &str {
         &self.base_url
+    }
+
+    /// Context window of one request on the process, in tokens: the window
+    /// it was launched with, after the environment and the model's preset.
+    #[must_use]
+    pub fn n_ctx(&self) -> u32 {
+        self.n_ctx
     }
 }
 
@@ -244,7 +253,11 @@ mod tests {
         let pid_a = a.child.id().expect("a has a pid");
         sup.instances.lock().await.push(a);
         let lease = sup
-            .touch_live_instance("/models/a.gguf", sup.n_ctx())
+            .touch_live_instance(
+                "/models/a.gguf",
+                sup.n_ctx(),
+                &crate::llama_server::LoadSettings::default(),
+            )
             .await
             .expect("a is live");
 
@@ -296,7 +309,14 @@ mod tests {
         let b = live_instance(&sup, "/models/b.gguf", 9002).await;
         sup.instances.lock().await.push(a);
         sup.instances.lock().await.push(b);
-        drop(sup.touch_live_instance("/models/a.gguf", sup.n_ctx()).await);
+        drop(
+            sup.touch_live_instance(
+                "/models/a.gguf",
+                sup.n_ctx(),
+                &crate::llama_server::LoadSettings::default(),
+            )
+            .await,
+        );
 
         // WHEN the resident models are listed
         let listed = sup.loaded_models().await;

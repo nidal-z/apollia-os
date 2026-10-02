@@ -1,7 +1,8 @@
 //! Tauri IPC commands for the Model Hub.
 //!
 //! - [`get_hardware_profile`]: detects the machine's RAM, CPU and GPU
-//! - [`search_hf_models`]: searches HuggingFace GGUF models
+//! - [`search_hf_models`]: searches the official publishers and the recognised
+//!   converters, one HuggingFace organisation at a time
 //! - [`get_hf_model`]: full metadata for a HuggingFace model
 //! - [`start_model_download`]: downloads a GGUF file
 //! - [`start_variant_download`]: downloads a whole variant (parts, projector,
@@ -60,18 +61,23 @@ impl From<HardwareProfile> for HardwareProfileView {
     }
 }
 
-/// HuggingFace search parameters.
+/// Search parameters. The search only ever asks the organisations of the two
+/// publisher lists; the query names a model, never an owner.
 #[derive(Debug, Deserialize)]
 pub struct HfSearchParams {
+    /// Words of a model name.
+    #[serde(default)]
     pub query: String,
-    pub limit: Option<u32>,
+    /// `gguf` (default) or `mlx`, the latter on Apple Silicon only.
+    #[serde(default)]
+    pub format: apollia_llm::SearchFormat,
+    /// `best_match` (default), `likes`, `downloads` or `updated`.
     pub sort: Option<String>,
-    /// Filter by HF task (defaults to `"text-generation"`).
-    pub pipeline_tag: Option<String>,
-    /// Filter by ISO 639-1 language (e.g. `"fr"`, `"en"`).
-    pub language: Option<String>,
-    /// Pagination cursor: full `rel="next"` URL returned by the previous page.
-    pub next_cursor: Option<String>,
+    /// Maximum number of results.
+    pub limit: Option<u32>,
+    /// Keep only the results one of whose variants is recommended here.
+    #[serde(default)]
+    pub fits_only: bool,
     /// Optional HF token (for gated models).
     pub hf_token: Option<String>,
 }
@@ -120,35 +126,46 @@ pub async fn get_hardware_profile() -> Result<HardwareProfileView, String> {
     Ok(HardwareProfileView::from(profile))
 }
 
-/// Searches GGUF models on HuggingFace.
+/// Searches the official publishers and the recognised converters.
 ///
-/// Returns a list of [`HfModelCard`] with hardware-compatibility badges.
+/// Returns the bounded page: each result with its generated card, the
+/// estimated capacity of this machine, and the organisations that could not
+/// be reached. Offline, the error says the search is unavailable.
 #[tauri::command]
 pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Value, String> {
-    use apollia_llm::{HfRegistryClient, HfSearchFilter};
+    use apollia_llm::model_cards::default_cache_dir;
+    use apollia_llm::{BoundedSearch, HfRegistryClient, SearchInputs, SearchSort};
 
+    let sort = match params.sort.as_deref() {
+        None => SearchSort::default(),
+        Some(key) => SearchSort::from_key(key).ok_or_else(|| format!("unknown sort: {key}"))?,
+    };
+    let search = BoundedSearch {
+        query: params.query,
+        format: params.format,
+        sort,
+        limit: params.limit,
+        fits_only: params.fits_only,
+    };
     let hardware = tokio::task::spawn_blocking(detect_hardware).await.ok();
+    let cache_dir = default_cache_dir(&super::model_cards::data_dir());
+    let inputs = tokio::task::spawn_blocking(move || SearchInputs::load(&cache_dir))
+        .await
+        .map_err(|e| format!("search inputs unavailable: {e}"))?;
 
     let client = HfRegistryClient::new(params.hf_token);
-    let filter = HfSearchFilter {
-        filter: Some("gguf".to_string()),
-        sort: params.sort,
-        limit: params.limit,
-        pipeline_tag: Some(
-            params
-                .pipeline_tag
-                .unwrap_or_else(|| "text-generation".to_string()),
-        ),
-        language: params.language,
-        next_cursor: params.next_cursor,
-    };
-
     let page = client
-        .search(&params.query, filter, hardware.as_ref())
+        .search_bounded(&search, &inputs.context(hardware.as_ref()))
         .await
-        .map_err(|e| format!("HuggingFace search failed: {e}"))?;
+        .map_err(|e| e.to_string())?;
 
-    serde_json::to_value(page).map_err(|e| format!("serialization error: {e}"))
+    let mut value = serde_json::to_value(page).map_err(|e| format!("serialization error: {e}"))?;
+    // The bounded search has no further page. The Hub screen still reads a
+    // cursor, so it is answered as the last page.
+    if let Some(object) = value.as_object_mut() {
+        object.insert("next_cursor".to_owned(), serde_json::Value::Null);
+    }
+    Ok(value)
 }
 
 /// Fetches the full metadata for a HuggingFace model.
@@ -218,11 +235,14 @@ pub async fn start_model_download(
         .await
         .map_err(|e| format!("failed to create model directory: {e}"))?;
 
-    // A file from a HuggingFace repository is checked against the SHA-256 its
-    // tree publishes. When that reference cannot be read, the download is
-    // refused rather than run unverified.
-    let expected_sha256 = match request.repo_id.as_deref() {
-        Some(repo_id) => {
+    // A dictation file of the catalogue is checked against the digest the
+    // table pins, with no request to the Hub. Any other file from a HuggingFace
+    // repository is checked against the SHA-256 its tree publishes; when that
+    // reference cannot be read, the download is refused rather than run
+    // unverified.
+    let expected_sha256 = match (pinned_digest(&request.url), request.repo_id.as_deref()) {
+        (Some(sha), _) => Some(sha),
+        (None, Some(repo_id)) => {
             let path = hf_repo_path(&request.url, request.filename.as_deref());
             let client = apollia_llm::HfRegistryClient::new(request.hf_token.clone());
             let sha = client
@@ -231,7 +251,7 @@ pub async fn start_model_download(
                 .map_err(|e| format!("cannot verify the download, refusing it: {e}"))?;
             Some(sha)
         }
-        None => None,
+        (None, None) => None,
     };
 
     let dl_request = DownloadRequest {
@@ -255,6 +275,7 @@ pub async fn start_model_download(
             let digest = progress.sha256.clone();
             let verified = progress.integrity_verified;
             tauri::async_runtime::spawn_blocking(move || {
+                super::model_cards::copy_card_for_download(&path, repo.as_deref());
                 super::model_index::record_download(
                     &models_dir(),
                     &path,
@@ -272,6 +293,15 @@ pub async fn start_model_download(
 
     let id = manager.lock().await.start(dl_request, on_progress);
     Ok(id)
+}
+
+/// The digest the catalogue pins for the file at `url`, when `url` is the
+/// address of one of its dictation entries.
+fn pinned_digest(url: &str) -> Option<String> {
+    apollia_llm::recommend::DictationCatalogue::embedded()
+        .ok()?
+        .by_url(url)
+        .map(|entry| entry.sha256.clone())
 }
 
 /// Starts downloading every file of one variant as a single download: each
@@ -318,6 +348,7 @@ pub async fn start_variant_download(
             let digest = progress.sha256.clone();
             let verified = progress.integrity_verified;
             tauri::async_runtime::spawn_blocking(move || {
+                super::model_cards::copy_card_for_download(&path, repo.as_deref());
                 super::model_index::record_download(
                     &models_dir(),
                     &path,
@@ -609,6 +640,34 @@ pub async fn delete_installed_model(path: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_dictation_file_the_onboarding_offers_is_checked_against_a_pinned_digest() {
+        // GIVEN the download addresses of the dictation step of the onboarding
+        let catalog = include_str!("../../ui/src/components/onboarding/onboardingCatalogs.ts");
+        let urls: Vec<&str> = catalog
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("url: \""))
+            .filter_map(|rest| rest.strip_suffix("\","))
+            .collect();
+        assert_eq!(urls.len(), 5, "{urls:?}");
+
+        // WHEN the download command looks up the digest of each
+        let digests: Vec<Option<String>> = urls.iter().map(|u| pinned_digest(u)).collect();
+
+        // THEN every one is the 64-digit digest the catalogue pins, and an
+        // address outside the catalogue has none
+        for (url, digest) in urls.iter().zip(&digests) {
+            let digest = digest
+                .as_deref()
+                .unwrap_or_else(|| panic!("{url} has no digest"));
+            assert_eq!(digest.len(), 64, "{url}");
+        }
+        assert_eq!(
+            pinned_digest("https://huggingface.co/acme/model/resolve/main/x.bin"),
+            None
+        );
+    }
 
     #[test]
     fn hf_repo_path_reads_the_path_after_the_revision() {

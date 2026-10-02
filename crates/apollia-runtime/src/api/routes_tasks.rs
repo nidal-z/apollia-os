@@ -13,6 +13,7 @@ use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
 use crate::router::SubmitError;
 
+mod declarative;
 mod pause;
 /// The task list an operator reads, history included.
 pub mod summaries;
@@ -65,6 +66,21 @@ pub struct TaskResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<Object>)]
     pub token_budget: Option<TokenBudget>,
+}
+
+impl TaskResponse {
+    /// The answer to an accepted submission.
+    fn submitted(task_id: TaskId) -> Self {
+        Self {
+            task_id: task_id.to_string(),
+            status: "submitted".into(),
+            run_id: None,
+            result: None,
+            error: None,
+            error_code: None,
+            token_budget: None,
+        }
+    }
 }
 
 /// Standard error response body.
@@ -246,7 +262,9 @@ pub async fn list_tasks<B: ExecutionBackend + Clone>(
 
 /// Handler for `POST /api/v1/tasks`.
 ///
-/// Submits a new task to the specified agent via the TaskRouter.
+/// Submits a new task to the specified agent via the TaskRouter. A stored
+/// agent that runs no code is run by the agent executor on the message the
+/// input carries, outside any conversation.
 /// Returns 202 Accepted with the generated task_id on success.
 #[utoipa::path(
     post,
@@ -263,6 +281,10 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<SubmitTaskRequest>,
 ) -> Result<(StatusCode, Json<TaskResponse>), (StatusCode, Json<ErrorResponse>)> {
+    if let Some(agent) = declarative::stored_agent_without_code(&state, &req.agent_id)? {
+        let task_id = declarative::launch(&state, &agent, req.input).await?;
+        return Ok((StatusCode::ACCEPTED, Json(TaskResponse::submitted(task_id))));
+    }
     let input = json_to_aip_input(req.input);
 
     let task_id = state
@@ -271,18 +293,7 @@ pub async fn submit_task<B: ExecutionBackend + Clone>(
         .await
         .map_err(submit_error_to_response)?;
 
-    Ok((
-        StatusCode::ACCEPTED,
-        Json(TaskResponse {
-            task_id: task_id.to_string(),
-            status: "submitted".into(),
-            run_id: None,
-            result: None,
-            error: None,
-            error_code: None,
-            token_budget: None,
-        }),
-    ))
+    Ok((StatusCode::ACCEPTED, Json(TaskResponse::submitted(task_id))))
 }
 
 /// Handler for `GET /api/v1/tasks/{id}`.
@@ -379,6 +390,10 @@ pub async fn get_task<B: ExecutionBackend + Clone>(
 /// over a task of the same spelling, which costs nothing: task ids are UUIDs
 /// and a client that picks one as its own name gets the task it meant either
 /// way.
+///
+/// A live `invocation_id` that names a workflow invoked through
+/// `POST /api/v1/a2a/invoke` stops that run: the answer carries the run id and
+/// the status the run ended with.
 #[utoipa::path(
     delete,
     path = "/api/v1/tasks/{id}",
@@ -393,11 +408,17 @@ pub async fn cancel_task<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(task_id): Path<String>,
 ) -> Result<Json<TaskResponse>, (StatusCode, Json<ErrorResponse>)> {
-    let task_id = state
+    let target = state
         .a2a_invoker
         .as_ref()
-        .and_then(|invoker| invoker.aliases().resolve(&task_id))
-        .unwrap_or(task_id);
+        .and_then(|invoker| invoker.aliases().resolve_target(&task_id));
+    let task_id = match target {
+        Some(crate::a2a::AliasTarget::WorkflowRun(run_id)) => {
+            return cancel_workflow_run_by_alias(&state, run_id).await;
+        }
+        Some(crate::a2a::AliasTarget::Task(task_id)) => task_id,
+        None => task_id,
+    };
 
     let status = state
         .router_handle
@@ -424,6 +445,36 @@ pub async fn cancel_task<B: ExecutionBackend + Clone>(
                 error: format!("task not found: {task_id}"),
             }),
         )),
+    }
+}
+
+/// Stops the workflow run a client invocation name designates.
+async fn cancel_workflow_run_by_alias<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    run_id: String,
+) -> Result<Json<TaskResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let refuse = |status: StatusCode, error: String| (status, Json(ErrorResponse { error }));
+    let Some(engine) = state.workflows.as_ref() else {
+        return Err(refuse(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "the workflow engine is not running in this runtime".into(),
+        ));
+    };
+    match engine.cancel(&run_id).await {
+        Ok(run) => Ok(Json(TaskResponse {
+            task_id: run.run_id,
+            status: run.status,
+            run_id: None,
+            result: None,
+            error: run.error,
+            error_code: None,
+            token_budget: None,
+        })),
+        Err(e @ crate::workflows::WorkflowError::UnknownRun(_))
+        | Err(e @ crate::workflows::WorkflowError::AlreadyEnded(_)) => {
+            Err(refuse(StatusCode::NOT_FOUND, e.to_string()))
+        }
+        Err(e) => Err(refuse(StatusCode::SERVICE_UNAVAILABLE, e.to_string())),
     }
 }
 
@@ -780,6 +831,7 @@ mod tests {
 
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {
+            autonomy_level: None,
             format_version: 1,
             name: name.to_string(),
             version: "0.1.0".to_string(),
@@ -862,6 +914,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -918,6 +972,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         }
     }
 
@@ -1037,6 +1093,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<MockBackend>))
@@ -1126,6 +1184,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         let router = Router::new()
             .route("/api/v1/tasks", post(submit_task::<NeverMockBackend>))
@@ -1459,6 +1519,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         let app = Router::new()
             .route(
@@ -1589,6 +1651,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         Router::new()
             .route("/api/v1/tasks/:id/resume", post(resume_task::<MockBackend>))

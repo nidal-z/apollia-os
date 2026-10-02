@@ -1804,6 +1804,7 @@ mod tool_proxy_a2a_tests {
 
     fn make_excel_manifest() -> AgentManifest {
         AgentManifest {
+            autonomy_level: None,
             format_version: 1,
             name: "excel-worker".to_string(),
             version: "0.1.0".to_string(),
@@ -2256,4 +2257,9 @@ mod miri_pure {
         assert_eq!(super::effective_memory_namespace("mem", None), "mem");
         assert_eq!(super::effective_memory_namespace("mem", Some("")), "mem");
     }
+}
+
+#[cfg(test)]
+mod access {
+    mod tests;
 }

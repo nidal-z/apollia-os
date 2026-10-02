@@ -3,18 +3,45 @@
 //!
 //! The definition is the `[[agents]]` entry of an `apollia.toml`, kept as JSON
 //! (`id`, `name`, `mission`, `examples`, `defaults.access`, `defaults.sources`,
-//! `defaults.model`). It is never written by the user: an update replaces it
+//! `defaults.model`, `defaults.autonomy`). It is never written by the user: an update replaces it
 //! whole. What the user changes is an override, one per field, stored apart;
 //! the resolved agent is the definition, then each override in place of the
 //! field it names.
 //!
 //! The model of an agent is not an override: it lives in `agent_model` of
 //! `system.db` and is passed to [`resolve`] as read there.
+//!
+//! The autonomy tier is an override like the mission: the definition declares
+//! it, the user may replace it, and when neither says anything the global
+//! default passed to [`resolve`] applies.
 
 use apollia_core::model_preset::AgentModel;
-use apollia_core::AgentManifest;
+use apollia_core::{AgentManifest, AutonomyLevel};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+
+/// Identifier of the Apollia agent, the built-in chat.
+pub const APOLLIA_AGENT_ID: &str = apollia_permissions::APOLLIA_AGENT_ID;
+
+/// Version of the definition of the Apollia agent.
+pub const APOLLIA_DEFINITION_VERSION: &str = "1";
+
+/// The definition of the Apollia agent: its name, and nothing the user has
+/// to undo. No mission leaves the built-in prompt of its tier in force.
+pub fn apollia_definition() -> Value {
+    json!({
+        "id": APOLLIA_AGENT_ID,
+        "name": "Apollia",
+        "mission": "",
+        "defaults": {},
+    })
+}
+
+/// Whether `name` is an agent of the product itself, which the user changes
+/// but never uninstalls.
+pub fn is_built_in_agent(name: &str) -> bool {
+    name == APOLLIA_AGENT_ID
+}
 
 /// Where an agent comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -59,15 +86,18 @@ pub enum OverrideField {
     Access,
     /// Sources checked for the agent.
     Sources,
+    /// Autonomy tier: budget, verification, critic.
+    Autonomy,
 }
 
 /// Every overridable field, in display order.
-pub const OVERRIDE_FIELDS: [OverrideField; 5] = [
+pub const OVERRIDE_FIELDS: [OverrideField; 6] = [
     OverrideField::Name,
     OverrideField::Mission,
     OverrideField::Examples,
     OverrideField::Access,
     OverrideField::Sources,
+    OverrideField::Autonomy,
 ];
 
 /// A value that does not fit the field it is written to.
@@ -75,7 +105,9 @@ pub const OVERRIDE_FIELDS: [OverrideField; 5] = [
 #[non_exhaustive]
 pub enum OverrideValueError {
     /// The field name is not one of [`OVERRIDE_FIELDS`].
-    #[error("unknown field '{0}', expected one of name, mission, examples, access, sources")]
+    #[error(
+        "unknown field '{0}', expected one of name, mission, examples, access, sources, autonomy"
+    )]
     UnknownField(String),
     /// The field takes a string.
     #[error("field '{0}' takes a string")]
@@ -83,6 +115,11 @@ pub enum OverrideValueError {
     /// The field takes a list of strings.
     #[error("field '{0}' takes a list of strings")]
     ExpectedList(&'static str),
+    /// The autonomy field takes one of the four tiers.
+    #[error(
+        "field 'autonomy' takes one of assisted, supervised, bounded_autonomous, long_autonomous"
+    )]
+    ExpectedAutonomyLevel,
 }
 
 impl OverrideField {
@@ -94,6 +131,7 @@ impl OverrideField {
             OverrideField::Examples => "examples",
             OverrideField::Access => "access",
             OverrideField::Sources => "sources",
+            OverrideField::Autonomy => "autonomy",
         }
     }
 
@@ -118,13 +156,14 @@ impl OverrideField {
     }
 
     /// JSON pointer of the field in a definition.
-    fn pointer(self) -> &'static str {
+    pub(crate) fn pointer(self) -> &'static str {
         match self {
             OverrideField::Name => "/name",
             OverrideField::Mission => "/mission",
             OverrideField::Examples => "/examples",
             OverrideField::Access => "/defaults/access",
             OverrideField::Sources => "/defaults/sources",
+            OverrideField::Autonomy => "/defaults/autonomy",
         }
     }
 
@@ -132,10 +171,15 @@ impl OverrideField {
     ///
     /// # Errors
     ///
-    /// [`OverrideValueError::ExpectedString`] or
-    /// [`OverrideValueError::ExpectedList`].
+    /// [`OverrideValueError::ExpectedString`],
+    /// [`OverrideValueError::ExpectedList`] or
+    /// [`OverrideValueError::ExpectedAutonomyLevel`].
     pub fn check(self, value: &Value) -> Result<(), OverrideValueError> {
-        if self.is_list() {
+        if self == OverrideField::Autonomy {
+            if autonomy_of(value).is_none() {
+                return Err(OverrideValueError::ExpectedAutonomyLevel);
+            }
+        } else if self.is_list() {
             let is_list_of_strings = value
                 .as_array()
                 .is_some_and(|items| items.iter().all(Value::is_string));
@@ -147,6 +191,11 @@ impl OverrideField {
         }
         Ok(())
     }
+}
+
+/// The tier a value names, if it names one.
+fn autonomy_of(value: &Value) -> Option<AutonomyLevel> {
+    value.as_str().and_then(|raw| raw.parse().ok())
 }
 
 /// An agent as stored: its package definition and where it comes from.
@@ -204,21 +253,26 @@ pub struct ResolvedAgent {
     pub sources: Vec<String>,
     /// The model assigned to the agent in `system.db`, if any.
     pub model: Option<AgentModel>,
+    /// Autonomy tier: the user's override, else the definition's, else the
+    /// global default.
+    pub autonomy: AutonomyLevel,
     /// Fields whose value comes from an override rather than the definition.
     pub overridden: Vec<OverrideField>,
     /// The definition the overrides apply to, unchanged.
     pub definition: Value,
 }
 
-/// Resolves `stored` with its `overrides`, and the `model` read from
-/// `agent_model`.
+/// Resolves `stored` with its `overrides`, the `model` read from
+/// `agent_model`, and the global `default_autonomy`.
 ///
 /// A field without an override takes the definition's value; a field the
-/// definition lacks reads as empty.
+/// definition lacks reads as empty, and an autonomy tier neither names reads
+/// as `default_autonomy`.
 pub fn resolve(
     stored: &StoredAgent,
     overrides: &[AgentOverride],
     model: Option<AgentModel>,
+    default_autonomy: AutonomyLevel,
 ) -> ResolvedAgent {
     let value_of = |field: OverrideField| -> Option<&Value> {
         overrides
@@ -264,6 +318,9 @@ pub fn resolve(
         access: list(OverrideField::Access),
         sources: list(OverrideField::Sources),
         model,
+        autonomy: value_of(OverrideField::Autonomy)
+            .and_then(autonomy_of)
+            .unwrap_or(default_autonomy),
         overridden,
         definition: stored.definition.clone(),
     }
@@ -274,7 +331,7 @@ pub fn resolve(
 ///
 /// The mission is the declared system prompt, or the description when there
 /// is none; the access is the required then optional tools; the sources are
-/// the declared data sources.
+/// the declared data sources; the autonomy is the declared tier.
 pub fn definition_from_manifest(manifest: &AgentManifest) -> Value {
     let mission = manifest
         .system_prompt
@@ -297,6 +354,9 @@ pub fn definition_from_manifest(manifest: &AgentManifest) -> Value {
     }
     if !manifest.datasources.is_empty() {
         defaults.insert("sources".into(), json!(manifest.datasources));
+    }
+    if let Some(level) = manifest.autonomy_level {
+        defaults.insert("autonomy".into(), json!(level.as_str()));
     }
     let mut definition = Map::new();
     definition.insert("id".into(), json!(manifest.name));

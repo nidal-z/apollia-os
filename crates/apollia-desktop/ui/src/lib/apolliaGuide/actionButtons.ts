@@ -9,9 +9,9 @@
  * prompt-injected links, both the action kind AND the payload shape are
  * validated before a button is rendered.
  *
- * The route allowlist is the enforced counterpart of
- * `agent.py::_ALLOWED_ROUTES`: the agent proposes, this file decides. Parsing
- * and execution are now client-side; the agent is the source of the block.
+ * The guide's mission lists the routes it may propose; this file decides.
+ * Parsing and execution are client-side; the agent is the source of the
+ * block.
  */
 import { navigateTo, type Route } from "$lib/stores/navigation";
 
@@ -44,7 +44,8 @@ export interface SafeActionButton {
  * ```apollia-actions
  * [{"label": "...", "action": "navigate", "payload": {"route": "/agents"}}]
  * ```
- * Mirrors `agent.py::_ACTION_RE`. `[\s\S]` spans newlines (JS has no DOTALL).
+ * The shape the guide's mission asks for. `[\s\S]` spans newlines (JS has no
+ * DOTALL).
  */
 const ACTION_BLOCK_RE = /```apollia-actions\s*(\[[\s\S]*?\])\s*```/;
 
@@ -80,9 +81,9 @@ export function parseApolliaActions(content: string): {
 }
 
 /**
- * Allowlist of routes the coach is allowed to deep-link to. `agent.py` keeps
- * its own `_ALLOWED_ROUTES` list, but this map is the one enforced: routes
- * absent from it are dropped silently. `/onboarding` is deliberately absent,
+ * Allowlist of routes the coach is allowed to deep-link to. The guide is a
+ * declarative agent and filters nothing itself: this map is the one enforced,
+ * routes absent from it are dropped silently. `/onboarding` is deliberately absent,
  * onboarding is a modal, not a route.
  */
 const ROUTE_ALLOWLIST: Record<string, Route> = {

@@ -157,6 +157,22 @@ impl ToolExecutor for UnavailableTool {
     }
 }
 
+/// Whether `disabled` disables the tool `name`.
+///
+/// A tool is disabled when `disabled` names it. The tool of a connected account
+/// (`conn:<connection>/<operation>`) is also disabled when `disabled` names its
+/// operation: a bare operation name disables it for every account.
+#[must_use]
+pub fn is_disabled(name: &str, disabled: &[String]) -> bool {
+    let operation = name
+        .strip_prefix("conn:")
+        .and_then(|rest| rest.rsplit_once('/'))
+        .map(|(_, operation)| operation);
+    disabled
+        .iter()
+        .any(|d| d == name || operation.is_some_and(|op| d == op))
+}
+
 /// Build a [`ToolDispatcher`] like [`build_native_dispatcher`] but with extra
 /// executors appended after the native ones, typically MCP tools.
 ///
@@ -176,7 +192,7 @@ pub fn build_dispatcher_with(
     extra: Vec<Box<dyn ToolExecutor>>,
 ) -> ToolDispatcher {
     let mut executors: Vec<Box<dyn ToolExecutor>> = Vec::with_capacity(16);
-    let is_active = |name: &str| !cfg.disabled_tools.iter().any(|n| n == name);
+    let is_active = |name: &str| !is_disabled(name, &cfg.disabled_tools);
 
     if is_active("bash_executor") {
         executors.push(Box::new(BashExecutor::new()));
@@ -444,21 +460,45 @@ mod tests {
     // dispatcher like a disabled native, and a call to them does not run.
     #[tokio::test]
     async fn a_disabled_mcp_or_connector_tool_is_not_dispatched() {
-        // GIVEN an MCP tool and a connector tool disabled, and one MCP tool not
-        let cfg = config_disabling(&["mcp:notion/create_page", "gmail.send"]);
+        // GIVEN an MCP tool, a connector operation and the tool of one
+        // account disabled, and the tools of two accounts plus one MCP tool
+        let cfg = config_disabling(&[
+            "mcp:notion/create_page",
+            "gmail.send",
+            "conn:google:pro@example.com/gcal.create_event",
+        ]);
         let extra: Vec<Box<dyn ToolExecutor>> = vec![
             Box::new(NamedTool("mcp:notion/create_page")),
-            Box::new(NamedTool("gmail.send")),
+            Box::new(NamedTool("conn:google:pro@example.com/gmail.send")),
+            Box::new(NamedTool("conn:google:home@example.com/gmail.send")),
+            Box::new(NamedTool("conn:google:pro@example.com/gcal.create_event")),
+            Box::new(NamedTool("conn:google:home@example.com/gcal.create_event")),
             Box::new(NamedTool("mcp:notion/search")),
         ];
 
         // WHEN the dispatcher is built with them
         let dispatcher = build_dispatcher_with(&cfg, extra);
 
-        // THEN the disabled ones are absent and the enabled one is registered
+        // THEN the disabled ones are absent, the operation disabled for every
+        // account, and the others are registered
         let names = dispatcher.tool_names();
         assert!(!names.contains(&"mcp:notion/create_page"), "{names:?}");
-        assert!(!names.contains(&"gmail.send"), "{names:?}");
+        assert!(
+            !names.contains(&"conn:google:pro@example.com/gmail.send"),
+            "{names:?}"
+        );
+        assert!(
+            !names.contains(&"conn:google:home@example.com/gmail.send"),
+            "{names:?}"
+        );
+        assert!(
+            !names.contains(&"conn:google:pro@example.com/gcal.create_event"),
+            "{names:?}"
+        );
+        assert!(
+            names.contains(&"conn:google:home@example.com/gcal.create_event"),
+            "{names:?}"
+        );
         assert!(names.contains(&"mcp:notion/search"), "{names:?}");
         // AND a call to a disabled one is refused as unknown, never executed
         let refused = dispatcher

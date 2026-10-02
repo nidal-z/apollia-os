@@ -156,6 +156,9 @@ impl ChatSessionManager {
                     };
                     let _ = reply.send(result);
                 }
+                ChatCommand::RunAgentTask { run, reply } => {
+                    let _ = reply.send(self.handle_run_agent_task(run));
+                }
                 ChatCommand::PauseSession { session_id, reply } => {
                     let result = self.handle_pause_session(&session_id);
                     let _ = reply.send(result);
@@ -295,6 +298,14 @@ impl ChatSessionManager {
                 ChatCommand::ReloadLlm { router } => {
                     info!("chat.router.reloaded");
                     self.llm_router = router;
+                }
+                ChatCommand::SetPackageTools { host } => {
+                    info!("chat.package_tools.set");
+                    self.package_tools = Some(host);
+                }
+                ChatCommand::SetComposer { composer } => {
+                    info!("chat.composer.set");
+                    self.composer = Some(composer);
                 }
                 ChatCommand::ResolveFsHitl {
                     request_id,

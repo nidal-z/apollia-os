@@ -291,6 +291,45 @@ déclare, non à résister à un faussaire : la connexion TLS au dépôt porte c
 garantie, et un fichier qui ne correspond à aucun des deux identifiants est
 supprimé.
 
+### Le registre des modèles {#model-registry}
+
+Le catalogue des modèles lit un index en ligne de fiches de modèles. Une fiche
+est un texte court rédigé pour ce projet, en français et en anglais : ce que le
+modèle sait bien faire, les capacités que déclare son gabarit de conversation,
+la mémoire qu'il demande, les valeurs d'échantillonnage que recommande son
+éditeur, les réglages qu'expose son gabarit, sa licence et la page de son dépôt
+d'origine. Chaque valeur qu'une fiche reprend d'un dépôt de modèle cite
+l'adresse où elle a été lue ; aucun texte de README n'est recopié dans une
+fiche, et un README n'est lu depuis le dépôt qu'à la demande de l'utilisateur,
+en texte, sans jamais être écrit sur le disque. Les fiches sont écrites dans ce
+dépôt, pour qu'une fiche soit ajoutée ou corrigée sans nouvelle version de
+l'application.
+
+Le registre est lu sous le principe du local d'abord. L'index est un fichier
+statique, demandé à l'ouverture du catalogue et à aucun autre moment, par une
+requête sans corps, sans paramètre, sans cookie et sans identifiant : le
+registre n'apprend rien de qui le lit, et aucune donnée de l'utilisateur n'est
+envoyée. Il est signé au format minisign par la clé de distribution dédiée
+décrite dans [Signatures](#signing-schemes), dont la moitié publique est
+compilée dans le binaire et est la seule clé acceptée ; un index dont la
+signature ne tient pas est refusé, jamais utilisé. L'index est servi depuis un
+stockage objet opéré en France, derrière un domaine du projet, avec des
+journaux d'accès conservés peu de temps. Quand cette adresse ne répond pas, le
+même index signé est lu depuis le miroir des versions publiées sur GitHub, avec
+la même vérification. Le dernier index accepté est gardé sur le disque, et la
+fiche d'un modèle est copiée à côté de lui à son téléchargement : un modèle
+installé lit sa fiche hors ligne.
+
+Une organisation remplace l'adresse par un miroir interne, ou coupe le
+registre, par la section `[models]` d'`apollia.toml`. Un miroir
+change l'origine de l'index, jamais qui peut le signer. Sans réseau et sans
+copie gardée, le catalogue est vide et le dit, rien n'est recommandé, et un
+modèle peut toujours être importé depuis un disque.
+
+Le coût est une source réseau dont dépend le catalogue : aucun index n'est
+livré avec l'application, donc un premier lancement sans réseau n'a pas de
+recommandation.
+
 ## Reconnaissance vocale {#speech-to-text}
 
 La transcription tourne hors processus, dans un sidecar bâti sur whisper, si
@@ -542,8 +581,12 @@ qu'une sonde sans réponse montre aussitôt le runtime déconnecté. Une command
 encore sans route répond une erreur typée qui la nomme, au lieu d'aller chercher
 un état que le processus n'a jamais construit ;
 `scripts/check_attached_coverage.py` compte les commandes routées face aux
-commandes enregistrées, sur un cliquet descendant. Quitter le bureau rattaché
-laisse le démon servir.
+commandes enregistrées, sur un cliquet descendant. Une commande qui relève de
+la fenêtre plutôt que du runtime (quitter, redémarrer, chercher une mise à jour,
+lister les micros) n'a pas besoin de route : elle figure dans une liste à côté
+des commandes routées, avec la raison pour laquelle elle ne lit aucun état du
+runtime, et le même script refuse une entrée sans raison. Quitter le bureau
+rattaché laisse le démon servir.
 
 La version 0.3.0 livre les deux modes.
 
@@ -595,6 +638,32 @@ pour une seule raison, choisir l'implémentation en Rust pur (`miniz_oxide`) de
 ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
 sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
 une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
+
+Les paquets qu'Apollia livre dans son propre binaire, le guide de l'application
+d'abord, ne sont pas signés. Le bureau assemble chacun d'eux au démarrage à
+partir de fichiers embarqués à la compilation et l'installe par le même chemin
+que tout paquet. L'installation les reconnaît comme embarqués parce que le
+bureau le dit, jamais parce qu'une archive le dit : rien dans un fichier ne peut
+revendiquer cette origine, et la même archive remise d'ailleurs est un paquet
+non signé ordinaire. Un paquet embarqué s'installe sans avertissement sur sa
+signature, et une politique d'organisation qui exige des paquets signés ne le
+refuse pas. L'exemption est bornée à cette origine. Sa raison : le binaire qui
+porte le paquet est ce que couvre la signature de la distribution, si bien que
+signer le paquet une seconde fois ne prouverait rien de plus. Comme tout paquet,
+il est inscrit au journal d'audit, une version installée plus récente n'est
+jamais rétrogradée, et les surcharges de l'utilisateur comme l'état désactivé de
+ses agents survivent à une mise à jour.
+
+Un outil de paquet s'exécute avec un contexte nu : ni mémoire, ni profil de
+l'utilisateur. Une exception est décidée par l'hôte, jamais par un paquet.
+L'onboarding d'Apollia est livré comme un agent déclaratif doté d'un outil qui
+enregistre les faits de profil de la première conversation, le droit que
+l'agent d'onboarding tenait quand il exécutait du code. Le runtime accorde à cet
+outil le profil de l'utilisateur, en écriture, et la mémoire de l'onboarding,
+que le bureau lit pour savoir que l'onboarding est terminé. L'accord nomme le
+paquet, le module et la source que porte le binaire : un outil dont le module
+sur le disque n'est pas cette source octet pour octet, quel que soit le nom de
+son paquet, n'obtient rien.
 
 ## Intégration hôte {#host-integration}
 

@@ -26,7 +26,7 @@ séparément sous `~/.apollia/`.
 
 ## Sections
 
-Neuf sections sont lues. Une section en dehors de cette liste est ignorée, et
+Dix sections sont lues. Une section en dehors de cette liste est ignorée, et
 `apollia-os config set` la rejette plutôt que d'accepter une valeur que rien ne
 consultera jamais.
 
@@ -41,6 +41,7 @@ consultera jamais.
 | `[hooks]` | Gestionnaires de hooks de cycle de vie (commande ou HTTP). |
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
 | `[filesystem]` | Le journal réversible, et les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
+| `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
 
 L'application desktop lit une section supplémentaire, `[observability]`,
 documentée plus bas. Elle n'est pas modifiable depuis la CLI.
@@ -194,6 +195,16 @@ Le journal réversible, et les chemins dans lesquels un agent travaille sans qu'
 | --- | --- | --- | --- |
 | `journal` | `JournalConfig` | défaut du type | Sous-section dédiée au journal réversible. |
 | `trusted_paths` | `Vec<PathBuf>` | `vec![PathBuf::from("~")]` | Chemins qu'un agent peut lire et écrire sans demande d'approbation. |
+
+### `[workflows]`
+
+Le budget avec lequel démarre l'exécution d'un workflow. Il est partagé : chaque agent qu'une étape lance et chaque workflow qu'une étape appelle y puisent.
+
+| Clé | Type | Valeur par défaut | Signification |
+| --- | --- | --- | --- |
+| `max_steps` | `u32` | `200` | Étapes qu'une exécution peut faire, ses étapes déclarées et les tours des agents qu'elle lance confondus. Bornes : [1, 100000]. |
+| `max_tool_calls` | `u32` | `400` | Appels d'outils qu'une exécution peut faire, ceux des agents qu'elle lance compris. Bornes : [1, 100000]. |
+| `wall_clock_secs` | `u64` | `3600` | Durée d'une exécution, en secondes (une heure). Bornes : [1, 86400]. |
 
 ### `[observability]`
 

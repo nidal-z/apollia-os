@@ -1,5 +1,7 @@
 //! Error type of the crate.
 
+use std::path::PathBuf;
+
 use apollia_auth::AuthError;
 
 /// Errors raised while building, signing, storing or parsing signed material.
@@ -65,5 +67,14 @@ pub enum SigningError {
     InvalidPublisher {
         /// Why the name was refused.
         reason: &'static str,
+    },
+    /// A private key file could not be created, written or read.
+    #[error("private key file {}", path.display())]
+    KeyFile {
+        /// The file.
+        path: PathBuf,
+        /// The underlying failure.
+        #[source]
+        source: std::io::Error,
     },
 }

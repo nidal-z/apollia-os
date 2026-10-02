@@ -151,6 +151,12 @@ pub(in crate::commands::agent) async fn run_package_uninstall(
 
 /// `apollia-os agent uninstall <name>`: remove an installed agent.
 pub(in crate::commands::agent) fn run_uninstall(name: &str, confirm: bool, json: bool) -> i32 {
+    // Apollia is part of the product: its store refuses to delete it, and the
+    // command says so before reading anything.
+    if apollia_tools::is_built_in_agent(name) {
+        let refusal = apollia_tools::AgentRepositoryError::BuiltIn(name.to_owned());
+        return print_error_and_exit(&refusal.to_string(), json);
+    }
     let data_dir = apollia_data_dir();
     let repo = match open_repository_or_create(&data_dir) {
         Ok(r) => r,

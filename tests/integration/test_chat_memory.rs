@@ -242,7 +242,6 @@ async fn test_user_memory_store_recall_injection() {
         tool_invoker,
         event_bus,
         user_memory: Some(repo_arc),
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });
@@ -522,7 +521,6 @@ async fn test_agent_mode_user_context() {
         tool_invoker,
         event_bus,
         user_memory: Some(repo_arc),
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });

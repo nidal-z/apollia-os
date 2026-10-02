@@ -1,10 +1,19 @@
-//! `apollia-os package` subcommands: build and inspect `.apo` archives.
+//! `apollia-os package` subcommands: build, inspect, preview and install
+//! `.apo` archives, and keep the keyring of trusted publisher keys.
 //!
-//! Both leaves work on files alone and never reach the runtime. `build` reads a
-//! package folder, validates its `apollia.toml`, and writes one `.apo` archive,
-//! signed on request with the author key kept in the secret store. `inspect`
-//! reads an archive and reports its manifest, its entries and the state of its
-//! signature; a signature that does not hold is a refusal, exit 1.
+//! `build` and `inspect` work on files alone and never reach the runtime.
+//! `build` reads a package folder, validates its `apollia.toml`, and writes one
+//! `.apo` archive, signed on request with the author key kept in the secret
+//! store. `inspect` reads an archive and reports its manifest, its entries and
+//! the state of its signature; a signature that does not hold is a refusal,
+//! exit 1.
+//!
+//! `preview`, `install` and `trust` go through the runtime (see [`remote`]):
+//! the preview reads the installed packages, the keyring, the connections and
+//! the governance of the runtime, and the installation adds MCP servers and
+//! writes the audit journal.
+
+mod remote;
 
 use std::path::{Path, PathBuf};
 
@@ -54,10 +63,71 @@ pub enum PackageCommand {
         /// The `.apo` archive.
         file: PathBuf,
     },
+    /// Show what a `.apo` package contains and asks for, before installing it.
+    ///
+    /// Reports the agents, workflows and tools, the accesses each agent asks
+    /// for and what each permits, the publisher and the signature (trusted
+    /// when its key is in the keyring), the connections the package requires
+    /// (present or missing) and the MCP servers it brings, and, for an
+    /// installed package, what the new version adds. Nothing is written.
+    /// Needs the runtime.
+    Preview {
+        /// The `.apo` archive.
+        file: PathBuf,
+    },
+    /// Install a `.apo` package, or update it.
+    ///
+    /// A signature that does not hold is refused; an unsigned package
+    /// installs with a notice. The local overrides of its agents are kept on
+    /// update. Needs the runtime.
+    Install {
+        /// The `.apo` archive.
+        file: PathBuf,
+        /// Accept the Python dependencies the package installs.
+        #[arg(long)]
+        confirm_deps: bool,
+        /// Accept what an update adds: accesses, required connections, MCP
+        /// servers (read `package preview` first).
+        #[arg(long)]
+        confirm_changes: bool,
+        /// Install a version older than the installed one.
+        #[arg(long)]
+        allow_downgrade: bool,
+    },
+    /// Trusted publisher keys: a package signed by one is shown under its label.
+    Trust {
+        /// Keyring subcommand.
+        #[command(subcommand)]
+        command: TrustCommand,
+    },
+}
+
+/// `apollia-os package trust <verb>`.
+#[derive(Debug, Subcommand)]
+pub enum TrustCommand {
+    /// Trust a publisher's public key, given as 64 hexadecimal characters or
+    /// as a file holding them.
+    Import {
+        /// The key, or a file holding it.
+        key: String,
+        /// Name to show for the publisher.
+        #[arg(long)]
+        label: String,
+    },
+    /// List the trusted publisher keys.
+    List,
+    /// Stop trusting a publisher key.
+    Remove {
+        /// SHA-256 fingerprint of the key, as `package trust list` shows it.
+        fingerprint: String,
+        /// Remove without asking.
+        #[arg(long)]
+        confirm: bool,
+    },
 }
 
 /// Execute a `package` subcommand and return the process exit code.
-pub fn run(cmd: &PackageCommand, json: bool) -> i32 {
+pub async fn run(cmd: &PackageCommand, socket: Option<PathBuf>, json: bool) -> i32 {
     match cmd {
         PackageCommand::Build {
             dir,
@@ -66,6 +136,21 @@ pub fn run(cmd: &PackageCommand, json: bool) -> i32 {
             output,
         } => run_build(dir, *sign, key, output.as_deref(), json),
         PackageCommand::Inspect { file } => run_inspect(file, json),
+        PackageCommand::Preview { file } => remote::run_preview(file, socket, json).await,
+        PackageCommand::Install {
+            file,
+            confirm_deps,
+            confirm_changes,
+            allow_downgrade,
+        } => {
+            let options = remote::InstallFlags {
+                confirm_deps: *confirm_deps,
+                confirm_changes: *confirm_changes,
+                allow_downgrade: *allow_downgrade,
+            };
+            remote::run_install(file, options, socket, json).await
+        }
+        PackageCommand::Trust { command } => remote::run_trust(command, socket, json).await,
     }
 }
 

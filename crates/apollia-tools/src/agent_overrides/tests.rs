@@ -39,7 +39,8 @@ fn test_save_definition_round_trips() {
     assert_eq!(stored.package.as_deref(), Some("office"));
     assert_eq!(stored.version, "1.0.0");
     assert_eq!(stored.definition["mission"], "Extract the totals.");
-    assert_eq!(repo.list_stored().unwrap().len(), 1);
+    // The stored agents are this one and Apollia, which every file holds.
+    assert_eq!(repo.list_stored().unwrap().len(), 2);
     // A declarative agent runs no code: it is not an installed Python agent.
     assert!(repo.get("invoices").unwrap().is_none());
     assert!(repo.list().unwrap().is_empty());
@@ -72,7 +73,10 @@ fn test_replace_definition_keeps_overrides() {
     )
     .unwrap();
 
-    let resolved = repo.resolved("invoices", None).unwrap().unwrap();
+    let resolved = repo
+        .resolved("invoices", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
     assert_eq!(resolved.version, "2.0.0");
     assert_eq!(resolved.name, "Invoices v2");
     assert_eq!(resolved.mission, "Mine.");
@@ -95,7 +99,10 @@ fn test_reset_overrides_returns_to_defaults() {
 
     assert_eq!(removed.len(), 2);
     assert!(repo.overrides("invoices").unwrap().is_empty());
-    let resolved = repo.resolved("invoices", None).unwrap().unwrap();
+    let resolved = repo
+        .resolved("invoices", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
     assert_eq!(resolved.mission, "Extract the totals.");
     assert_eq!(resolved.access, vec!["file_read"]);
     assert!(resolved.overridden.is_empty());
@@ -126,7 +133,10 @@ fn test_set_then_remove_override_returns_previous_values() {
     assert_eq!(second, Some(json!("A")));
     assert_eq!(removed, Some(json!("B")));
     assert_eq!(again, None);
-    let resolved = repo.resolved("invoices", None).unwrap().unwrap();
+    let resolved = repo
+        .resolved("invoices", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
     assert_eq!(resolved.mission, "Extract the totals.");
 }
 
@@ -194,11 +204,60 @@ fn test_saving_a_python_agent_again_keeps_overrides() {
     repo.save(&agent("1.1.0", &["file_read", "file_write"]))
         .unwrap();
 
-    let resolved = repo.resolved("notes", None).unwrap().unwrap();
+    let resolved = repo
+        .resolved("notes", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
     assert_eq!(resolved.version, "1.1.0");
     assert_eq!(
         resolved.definition["defaults"]["access"],
         json!(["file_read", "file_write"])
     );
     assert_eq!(resolved.access, vec!["web_fetch"]);
+}
+
+// GIVEN a Python agent the user disabled and whose mission they overrode
+// WHEN a package adopts it as one of its declarative agents
+// THEN it runs no code any more, belongs to the package, and keeps both the
+// override and the disabled state; adopting it again changes nothing
+#[test]
+fn test_adopt_into_package_drops_the_code_and_keeps_the_user_state() {
+    let repo = AgentRepository::open(Path::new(":memory:")).unwrap();
+    repo.save(&crate::InstalledAgent {
+        name: "guide".into(),
+        version: "0.2.0".into(),
+        install_path: "/a/guide/agent.py".into(),
+        source_path: "/a/guide/agent.py".into(),
+        manifest: serde_json::from_value(json!({
+            "name": "guide",
+            "version": "0.2.0",
+            "description": "Helps.",
+            "tools_required": []
+        }))
+        .unwrap(),
+        enabled: true,
+        installed_at: "2026-10-01T00:00:00Z".into(),
+        updated_at: "2026-10-01T00:00:00Z".into(),
+    })
+    .unwrap();
+    repo.set_override("guide", OverrideField::Mission, &json!("Mine."))
+        .unwrap();
+    repo.set_enabled("guide", false).unwrap();
+
+    let adopted = repo.adopt_into_package("guide", "guide-pkg").unwrap();
+    let again = repo.adopt_into_package("guide", "guide-pkg").unwrap();
+
+    assert!(adopted);
+    assert!(!again, "an agent without code is left alone");
+    assert!(repo.get("guide").unwrap().is_none(), "no code any more");
+    let stored = repo.stored("guide").unwrap().unwrap();
+    assert_eq!(stored.origin, AgentOrigin::Package);
+    assert_eq!(stored.package.as_deref(), Some("guide-pkg"));
+    assert!(!stored.enabled);
+    let resolved = repo
+        .resolved("guide", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
+    assert_eq!(resolved.mission, "Mine.");
+    assert!(!repo.adopt_into_package("unknown", "guide-pkg").unwrap());
 }

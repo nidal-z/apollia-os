@@ -15,10 +15,10 @@
 //! part that opens a browser, and the executors reach the same OS keychain
 //! through the `OnceCell` singletons below.
 //!
-//! An account is resolved lazily on each call, so the descriptors are
-//! registered at supervisor boot regardless of when, or whether, an account is
-//! connected; a call with none answers a clear message rather than a missing
-//! tool.
+//! Each connected account publishes its own tools, named
+//! `conn:<provider>:<account>/<operation>` (see [`connection_tools`]), and each
+//! executor runs with the token of its account. A provider with no connected
+//! account publishes none.
 
 use std::sync::Arc;
 
@@ -28,14 +28,17 @@ use serde_json::Value;
 use tokio::sync::OnceCell;
 
 pub mod availability;
+pub mod connection_tools;
 mod descriptors;
 mod google;
 mod imap;
 mod microsoft;
 
-pub use descriptors::{
-    all_connector_descriptors, google_tool_descriptors, microsoft_tool_descriptors,
+pub use connection_tools::{
+    build_connector_executors, connected_accounts, connector_descriptors_for,
+    register_account_tools, resolve_connector_access,
 };
+pub use descriptors::{google_tool_descriptors, microsoft_tool_descriptors};
 pub use google::{build_google_executors, GoogleChatToolInvoker};
 pub use imap::{build_imap_executors, imap_tool_descriptors};
 
@@ -46,14 +49,16 @@ pub use microsoft::build_microsoft_executors;
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 #[cfg(test)]
+mod test_support;
+#[cfg(test)]
 mod tests;
 
 // ─── Chat Libre invoker (Google) ────────────────────────────────────────────
 //
 // `NativeChatToolInvoker` uses a hardcoded match on tool names. Connector
 // tools are not in that match, so we surface an injected [`ToolInvoker`]
-// implementation it can delegate to when the LLM calls `gmail.send`,
-// `gcal.list_events`, `gdrive.workspace_write`, etc.
+// implementation it can delegate to when the LLM calls the tool of an
+// account, `conn:google:<account>/gmail.send` and the like.
 //
 // The invoker owns lazy-initialised [`AuthManager`] + [`GoogleConnector`]
 // singletons. They share the OS keychain with the parallel singleton in

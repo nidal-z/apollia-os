@@ -37,6 +37,7 @@ use commands::model::ModelCommand;
 use commands::notify::NotifyCommand;
 use commands::package::PackageCommand;
 use commands::permissions::PermissionsCommand;
+use commands::policy::PolicyCommand;
 use commands::project::ProjectCommand;
 use commands::resilience::ResilienceCommand;
 use commands::stt::SttCommand;
@@ -148,19 +149,6 @@ enum Commands {
         /// quit. Incompatible with --alternatives.
         #[arg(long, conflicts_with = "alternatives")]
         plan: bool,
-
-        /// Restrict this session to the listed tools only (comma-separated).
-        ///
-        /// When specified, only the named tools can be invoked. All other tools
-        /// are blocked regardless of the global configuration.
-        #[arg(long, value_delimiter = ',', value_name = "TOOL")]
-        allowed_tools: Vec<String>,
-
-        /// Explicitly block the listed tools for this session (comma-separated).
-        ///
-        /// Takes priority over `--allowed-tools` when the same tool appears in both.
-        #[arg(long, value_delimiter = ',', value_name = "TOOL")]
-        disallowed_tools: Vec<String>,
 
         /// Autonomy tier for this run (default: assisted).
         ///
@@ -311,11 +299,19 @@ enum Commands {
     /// Check for and install updates from GitHub Releases.
     Update(commands::update::UpdateArgs),
 
-    /// Agent package archives: build a `.apo` from a folder, inspect one.
+    /// Agent package archives: build, inspect, preview and install a `.apo`,
+    /// and trust publisher keys.
     Package {
         /// Package subcommand.
         #[command(subcommand)]
         command: PackageCommand,
+    },
+
+    /// Organisation policy: create the key, write, sign, verify, show.
+    Policy {
+        /// Policy subcommand.
+        #[command(subcommand)]
+        command: PolicyCommand,
     },
 
     /// Workspace inspection and initialization (status, init).
@@ -327,6 +323,20 @@ enum Commands {
 
     /// Automated code or plan review via the apollia-review agent.
     Review(commands::review::ReviewArgs),
+
+    /// Run an agent on every item of a source (run, status, list).
+    Batch {
+        /// Batch subcommand.
+        #[command(subcommand)]
+        command: commands::batch::BatchCommand,
+    },
+
+    /// Run the workflows of installed packages (run, status, logs, cancel).
+    Workflow {
+        /// Workflow subcommand.
+        #[command(subcommand)]
+        command: commands::workflow::WorkflowCommand,
+    },
 
     /// Circuit breaker inspection and reset (list, show, reset).
     Resilience {
@@ -550,8 +560,6 @@ struct RunDispatch {
     detach: bool,
     alternatives: bool,
     plan: bool,
-    allowed_tools: Vec<String>,
-    disallowed_tools: Vec<String>,
     autonomy: Option<String>,
 }
 
@@ -567,8 +575,6 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         detach,
         alternatives,
         plan,
-        allowed_tools,
-        disallowed_tools,
         autonomy,
     } = dispatch;
     if input.is_empty() && input_json.is_none() {
@@ -591,25 +597,9 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         detach,
         alternatives,
         plan,
-        allowed_tools,
-        disallowed_tools,
         autonomy: autonomy.as_deref(),
     })
     .await
-}
-
-/// Run a memory subcommand, printing its output or error.
-fn run_memory(command: &commands::memory::MemoryCommand, json: bool) -> i32 {
-    if let Some(code) = commands::memory::confirmation(command, json) {
-        return code;
-    }
-    match commands::memory::run(command, json) {
-        Ok(output) => {
-            println!("{output}");
-            exit_codes::SUCCESS
-        }
-        Err(e) => output::emit_error(json, exit_codes::GENERAL_ERROR, &e.to_string()),
-    }
 }
 
 /// Run the embedded MCP server, mapping its result to an exit code.
@@ -689,8 +679,6 @@ fn main() {
                 detach,
                 alternatives,
                 plan,
-                allowed_tools,
-                disallowed_tools,
                 autonomy,
             } => {
                 run_run(RunDispatch {
@@ -703,8 +691,6 @@ fn main() {
                     detach,
                     alternatives,
                     plan,
-                    allowed_tools,
-                    disallowed_tools,
                     autonomy,
                 })
                 .await
@@ -716,7 +702,7 @@ fn main() {
             Commands::Tools { command } => commands::tools::run(&command, cli.socket, json).await,
             Commands::Audit { command } => commands::audit::run(&command, cli.socket, json).await,
             Commands::Hooks { command } => commands::hooks::run(&command, cli.socket, json).await,
-            Commands::Memory { command } => run_memory(&command, json),
+            Commands::Memory { command } => commands::memory::run_and_print(&command, json),
             Commands::Llm { command } => commands::llm::run(&command, cli.socket, json).await,
             Commands::Model { command } => commands::model::run(&command, cli.socket, json).await,
             Commands::Trigger { command } => {
@@ -735,14 +721,21 @@ fn main() {
                 list,
                 command,
             } => match command {
-                Some(sub) => chat::run_hygiene(&sub, json),
+                Some(sub) => chat::run_hygiene(&sub, cli.socket, json).await,
                 None => chat::run(resume.as_deref(), list, cli.socket, json, no_color).await,
             },
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
             Commands::Update(args) => commands::update::run(&args, "Apollia-OS", json).await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
-            Commands::Package { command } => commands::package::run(&command, json),
+            Commands::Package { command } => {
+                commands::package::run(&command, cli.socket, json).await
+            }
+            Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
+            Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
+            Commands::Workflow { command } => {
+                commands::workflow::run(&command, cli.socket, json).await
+            }
             Commands::Resilience { command } => {
                 commands::resilience::run(&command, cli.socket, json).await
             }
@@ -1053,53 +1046,29 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parses_run_allowed_tools() {
-        // GIVEN a run carrying two tool names in --allowed-tools, comma separated
-        // WHEN clap parses the argument line
-        let cli = parse(&[
+    fn test_cli_run_refuses_session_tool_filters() {
+        // GIVEN a run carrying --allowed-tools, then one carrying
+        // --disallowed-tools: the tools of a run are the access list of its agent
+        // WHEN clap parses each argument line
+        let allowed = Cli::try_parse_from([
             "apollia-os",
             "run",
             "hello",
             "ping",
             "--allowed-tools",
-            "file_read,bash_executor",
+            "file_read",
         ]);
-        // THEN the list is split into two names rather than kept as one string
-        match &cli.command {
-            Commands::Run { allowed_tools, .. } => {
-                assert_eq!(
-                    allowed_tools,
-                    &vec!["file_read".to_string(), "bash_executor".to_string()]
-                );
-            }
-            other => panic!("expected Commands::Run, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cli_parses_run_disallowed_tools_priority() {
-        // GIVEN a run carrying two tool names in --disallowed-tools, comma separated
-        // WHEN clap parses the argument line
-        let cli = parse(&[
+        let disallowed = Cli::try_parse_from([
             "apollia-os",
             "run",
             "hello",
             "ping",
             "--disallowed-tools",
-            "bash_executor,file_write",
+            "bash_executor",
         ]);
-        // THEN the list is split into two names rather than kept as one string
-        match &cli.command {
-            Commands::Run {
-                disallowed_tools, ..
-            } => {
-                assert_eq!(
-                    disallowed_tools,
-                    &vec!["bash_executor".to_string(), "file_write".to_string()]
-                );
-            }
-            other => panic!("expected Commands::Run, got {other:?}"),
-        }
+        // THEN both are refused as unknown arguments
+        assert!(allowed.is_err(), "--allowed-tools must be refused");
+        assert!(disallowed.is_err(), "--disallowed-tools must be refused");
     }
 
     #[test]

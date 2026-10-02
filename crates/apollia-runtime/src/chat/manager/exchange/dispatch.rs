@@ -6,33 +6,24 @@
 use super::super::*;
 
 impl ChatSessionManager {
-    /// Build the system prompt for a Libre/Companion exchange, optionally
-    /// enriched with cross-session context on the first message.
-    pub(super) fn build_libre_system_prompt(
-        &self,
-        base_prompt: &str,
-        content: &str,
-        enrich: bool,
-    ) -> String {
-        let mut prompt = base_prompt.to_string();
-        if enrich {
-            if let Some(block) = self.build_cross_session_context(content) {
-                prompt.push_str("\n\n");
-                prompt.push_str(&block);
-            }
-        }
-        prompt
-    }
-
-    /// Spawn the BuiltInChatAgent background task for a Libre/Companion exchange.
+    /// Spawn the agent executor background task for a Libre/Companion
+    /// exchange, or for an agent session on `declarative`, a declarative
+    /// agent as resolved for this message.
+    // REASON: the resolved agent joins the four identifiers of the exchange; a
+    // struct would carry the same five values one call further.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn dispatch_libre_exchange(
         &mut self,
         session_id: &str,
         message_id: &str,
         content: &str,
         run_id: &RunId,
+        declarative: Option<apollia_tools::ResolvedAgent>,
     ) -> Result<(), ChatError> {
         let message_id = message_id.to_string();
+        if let Some(agent) = &declarative {
+            super::super::declarative::require_enabled(agent)?;
+        }
         {
             let llm_router = self.llm_router.clone().ok_or(ChatError::NoLlmConfigured)?;
             // Read and consume the late-link injection flag, it triggers a
@@ -66,15 +57,6 @@ impl ChatSessionManager {
                 .get(session_id)
                 .ok_or_else(|| ChatError::InternalError("session vanished".into()))?;
 
-            // Companion sessions are intentionally isolated from user memory and
-            // cross-session history (memory stays at the agent's initiative).
-            // The companion helps with the platform, not the user's personal context.
-            let session_user_memory = if session.mode == ChatMode::Companion {
-                None
-            } else {
-                self.user_memory.clone()
-            };
-
             // `session.history` already ends with the in-flight user message
             // (pushed before dispatch). The agent re-adds it from `user_msg`,
             // so the history handed to the agent drops that trailing entry to
@@ -84,17 +66,46 @@ impl ChatSessionManager {
                 session.history[..session.history.len().saturating_sub(1)].to_vec();
             let session_plan_mode = session.plan_mode;
             let session_plan_phase = session.plan_phase;
-            let preferred_backend = session.llm_backend.clone();
-            let is_companion = session.mode == ChatMode::Companion;
+            let preferred_backend = match &declarative {
+                Some(agent) => agent.model.as_ref().map(|m| m.model_id.clone()),
+                None => session.llm_backend.clone(),
+            };
+            // A declarative agent is isolated as the companion is: no
+            // principle 6 injection, no project context, no prefix rule of
+            // Apollia.
+            let is_companion = session.mode == ChatMode::Companion || declarative.is_some();
             let inject_project_context = is_first_message || force_inject_project_context;
-            // On the first message, enrich the system prompt with cross-session context.
-            // Companion sessions are excluded, they must not inherit personal history.
-            let system_prompt = self.build_libre_system_prompt(
-                &session.system_prompt,
-                content,
-                is_first_message && !is_companion,
-            );
-            let available_tools = session.available_tools.clone();
+            // The principle 6 injections gathered here (user memory, and the
+            // past sessions block on the first message) are made by the
+            // executor for the Apollia agent only. Companion sessions are
+            // isolated from both: the companion helps with the platform, not
+            // with the user's personal context.
+            let apollia_context = if is_companion {
+                ApolliaContext::default()
+            } else {
+                ApolliaContext {
+                    user_memory: self.user_memory.clone(),
+                    past_sessions: if is_first_message {
+                        self.build_cross_session_context(content)
+                    } else {
+                        None
+                    },
+                    project: None,
+                }
+            };
+            let system_prompt = match &declarative {
+                Some(agent) => agent.mission.clone(),
+                None => session.system_prompt.clone(),
+            };
+            // The agent is offered its granted accesses, read on every message
+            // so a change on its card applies to open conversations.
+            let available_tools = match &declarative {
+                Some(agent) => agent.access.clone(),
+                None => {
+                    super::super::apollia_agent::apollia_access(self.governance_db_path.as_deref())
+                        .unwrap_or_else(|| session.available_tools.clone())
+                }
+            };
             // Live merge: governance.db is re-read on every message so Apollia
             // Chat config changes (auto-authorized tools, agent-scoped rules)
             // apply to already-open Libre sessions without closing/reopening the
@@ -108,24 +119,20 @@ impl ChatSessionManager {
             );
             let pending_approvals = self.pending_chat_approvals.clone();
 
-            // Resolve the autonomy tier and build the effective budget from it.
-            // `runtime_budget` is the ceiling: `from_capped` guarantees no tier
-            // raises the budget above it (principle #7). The verification loop and
-            // critic are constructed only when the tier requests verification;
-            // Chat Libre declares no manifest check commands, so the loop is
-            // critic-driven (empty command list).
-            let autonomy_config = AutonomyConfig::default();
-            let autonomy_level = autonomy_config.default_level;
-            let level_config = autonomy_config.level_config(autonomy_level);
-            let budget = StepBudget::from_capped(&level_config.budget, &self.runtime_budget);
-            let (verification, critic) = if level_config.run_verification {
-                (
-                    Some(VerificationLoop::new(Vec::new(), Vec::new())),
-                    Some(CriticPass::new(llm_router.clone())),
-                )
-            } else {
-                (None, None)
-            };
+            // The tier of the agent: a declarative agent's as resolved; the
+            // Apollia agent's is the global default, as any agent that names
+            // none. The executor builds the budget from it, capped by
+            // `runtime_budget` (principle #7), and the verification loop and
+            // critic when the tier asks for them.
+            let autonomy_level = declarative
+                .as_ref()
+                .map_or_else(crate::agents::global_default_autonomy, |agent| {
+                    agent.autonomy
+                });
+            let agent_id = declarative.map_or_else(
+                || apollia_tools::APOLLIA_AGENT_ID.to_string(),
+                |agent| agent.id,
+            );
             let sid = session_id.to_string();
             let mid = message_id.clone();
             let user_msg = content.to_string();
@@ -146,6 +153,7 @@ impl ChatSessionManager {
 
             let pending_user_inputs_for_session = self.pending_user_inputs.clone();
             let mcp_handle_for_session = self.mcp_handle.clone();
+            let package_tools = package_executors(&self.package_tools, &agent_id, &cancel);
             let chat_tools_config_for_session = self.chat_tools_config.clone();
             let mcp_loading = self.mcp_loading;
             let tool_search_limit = self.tool_search_limit;
@@ -166,17 +174,15 @@ impl ChatSessionManager {
             };
 
             tokio::spawn(run_libre_exchange(LibreExchangeParams {
+                agent_id,
                 llm_router,
                 tool_registry,
                 event_bus,
                 a2a_for_agent,
-                session_user_memory,
+                apollia_context,
                 pending_approvals,
-                budget,
                 autonomy_level,
-                level_config,
-                verification,
-                critic,
+                runtime_budget: self.runtime_budget.clone(),
                 history,
                 available_tools,
                 authorized_tools,
@@ -191,6 +197,8 @@ impl ChatSessionManager {
                 project_repo_for_session,
                 pending_user_inputs_for_session,
                 mcp_handle_for_session,
+                package_tools,
+                composer: self.composer.clone(),
                 chat_tools_config_for_session,
                 mcp_loading,
                 tool_search_limit,

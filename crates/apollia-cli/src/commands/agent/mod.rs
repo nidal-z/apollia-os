@@ -82,13 +82,13 @@ pub enum AgentCommand {
     },
     /// Override one field of an agent's definition; a package update keeps it.
     ///
-    /// Fields: `name` and `mission` take one value; `examples`, `access` and
-    /// `sources` take the whole list, one value per item (none for an empty
-    /// list). Recorded in the audit journal.
+    /// Fields: `name`, `mission` and `autonomy` take one value; `examples`,
+    /// `access` and `sources` take the whole list, one value per item (none
+    /// for an empty list). Recorded in the audit journal.
     Set {
         /// Agent identifier.
         agent_id: String,
-        /// Field to override: name, mission, examples, access or sources.
+        /// Field to override: name, mission, examples, access, sources or autonomy.
         field: String,
         /// The value, or the items of a list.
         #[arg(num_args = 0..)]
@@ -288,7 +288,7 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
 /// Return true if `arg` looks like a file path rather than an agent name or UUID.
 ///
 /// Detects the common mistake of passing a Python module path (e.g. `agents/foo.py`)
-/// to commands that expect a name or UUID (e.g. `apollia-guide`).
+/// to commands that expect a name or UUID (e.g. `onboarding-agent`).
 fn looks_like_file_path(arg: &str) -> bool {
     arg.contains('/') || arg.contains('\\') || arg.ends_with(".py")
 }

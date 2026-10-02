@@ -1,35 +1,26 @@
 /**
  * Runtime action controller for the Agents surface.
  *
- * Owns the per-entity `busy` flags and the start / stop toggles for both single
- * agents and packages. Exposed as a rune-based factory so the sidebar rows, the
- * detail header, and the settings tab all read the same live `busyKeys` map
- * without re-deriving it. Errors surface through the humanized `reportError`
+ * Owns the per-agent `busy` flags and the update and uninstall actions. Exposed
+ * as a rune-based factory so the sidebar rows and the detail header read the
+ * same live `busyKeys` map without re-deriving it. There is no start nor stop:
+ * an agent is loaded by its first task and released once idle. Errors surface through the humanized `reportError`
  * toast; domain messages (missing path, partial package failures) use i18n.
  */
 import { get } from "svelte/store";
 import { t } from "svelte-i18n";
 import { agents } from "$lib/stores/agents";
-import { triggers } from "$lib/stores/sse";
-import {
-  packageRuntimeState,
-  startPackage,
-  stopPackage,
-} from "$lib/stores/agentPackages";
 import { addToast } from "$lib/components/ui/toast/store";
 import { reportError } from "$lib/errors/reportError";
 import type { HumanizedError } from "$lib/errors/humanize";
 import {
   clearMemory,
-  startAgent,
-  stopAgent,
   uninstallAgent,
   updateAgent,
   type UpdateAgentResult,
 } from "$lib/ipc/agents";
 import { listAgents } from "$lib/ipc/connections";
-import { isActive } from "./agentStatus";
-import type { AgentListItem, AgentPackageListItem } from "$lib/types";
+import type { AgentListItem } from "$lib/types";
 
 export interface AgentActions {
   readonly busyKeys: Record<string, boolean>;
@@ -43,8 +34,6 @@ export interface AgentActions {
    */
   readonly updateError: HumanizedError | null;
   isBusy(key: string): boolean;
-  toggleAgentRuntime(a: AgentListItem): Promise<void>;
-  togglePackageRuntime(pkg: AgentPackageListItem): Promise<void>;
   update(a: AgentListItem, path: string): Promise<void>;
   clearUpdateError(): void;
   uninstall(a: AgentListItem, deleteMemory: boolean): Promise<void>;
@@ -56,59 +45,6 @@ export function createAgentActions(): AgentActions {
 
   function setBusy(key: string, value: boolean): void {
     busyKeys = { ...busyKeys, [key]: value };
-  }
-
-  async function toggleAgentRuntime(a: AgentListItem): Promise<void> {
-    const key = `agent:${a.name}`;
-    if (busyKeys[key]) return;
-    setBusy(key, true);
-    try {
-      if (isActive(a)) {
-        if (a.id) await stopAgent(a.id);
-      } else if (a.install_path) {
-        await startAgent(a.install_path);
-      } else {
-        addToast(
-          get(t)("agents.start_missing_path", { values: { name: a.name } }),
-          "error",
-        );
-      }
-    } catch (err) {
-      reportError(err, { surface: "toast" });
-    } finally {
-      setBusy(key, false);
-    }
-  }
-
-  async function togglePackageRuntime(pkg: AgentPackageListItem): Promise<void> {
-    const key = `pkg:${pkg.name}`;
-    if (busyKeys[key]) return;
-    const agentsSnap = get(agents);
-    const triggersSnap = get(triggers);
-    const state = packageRuntimeState(pkg, agentsSnap, triggersSnap);
-    setBusy(key, true);
-    try {
-      const result =
-        state.status === "running" || state.status === "partial"
-          ? await stopPackage(pkg, agentsSnap, triggersSnap)
-          : await startPackage(pkg, agentsSnap, triggersSnap);
-      if (result.errors.length > 0) {
-        addToast(
-          get(t)("agents.package_errors", {
-            values: {
-              name: pkg.name,
-              count: result.errors.length,
-              first: result.errors[0],
-            },
-          }),
-          "error",
-        );
-      }
-    } catch (err) {
-      reportError(err, { surface: "toast" });
-    } finally {
-      setBusy(key, false);
-    }
   }
 
   /**
@@ -231,8 +167,6 @@ export function createAgentActions(): AgentActions {
       return updateError;
     },
     isBusy: (key: string) => busyKeys[key] === true,
-    toggleAgentRuntime,
-    togglePackageRuntime,
     update,
     clearUpdateError: () => {
       updateError = null;

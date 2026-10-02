@@ -38,8 +38,6 @@ use super::types::{
     ApprovalTimeoutParams, ChatError, ChatMessage, ChatRole, InjectedInstruction,
     PendingChatApprovals, PlanPhase, ToolCallRecord, ToolCallStatus, ToolDecision, TurnOutcome,
 };
-use crate::a2a::A2AInvoker;
-use crate::chat::a2a_tools::generate_a2a_tool_specs;
 use crate::chat::plan_actor::PlanHandle;
 use crate::chat::plan_tool::{
     self, PLAN_ADD_STEP_TOOL_NAME, PLAN_MODIFY_STEP_TOOL_NAME, PLAN_PROPOSE_TOOL_NAME,
@@ -49,10 +47,12 @@ use crate::chat::plan_tool::{
 use crate::chat::todo_handle::TodoHandle;
 use crate::chat::todo_tool::{run_todo_write, todo_write_spec, TODO_WRITE_TOOL_NAME};
 use crate::chat::turn_router::classify_turn;
+use crate::composition::Composer;
 use crate::eventbus::EventBusSender;
 use crate::hooks::executor::{HookDecision, HookExecutor};
 
 mod builder;
+mod catalog;
 mod context_window;
 mod helpers;
 mod hitl;
@@ -65,11 +65,13 @@ mod stream;
 mod tool_guide;
 mod tools;
 
+#[cfg(test)]
+pub(in crate::chat::builtin_agent) use helpers::build_tool_specs;
 pub(in crate::chat::builtin_agent) use helpers::{
-    build_llm_messages, build_tool_specs, executing_denies_proposal, extract_hostname,
-    is_plan_tool, next_failure_count, plan_gate_denies, promote_discovered_tools,
-    run_verification_with_retry, stamp_inject_provenance, step_status_token, truncate_preview,
-    truncate_tool_output, unknown_tool_reason,
+    build_llm_messages, executing_denies_proposal, extract_hostname, is_plan_tool,
+    next_failure_count, plan_gate_denies, promote_discovered_tools, run_verification_with_retry,
+    stamp_inject_provenance, step_status_token, truncate_preview, truncate_tool_output,
+    unknown_tool_reason,
 };
 pub use invoker::{HitlInvokerParams, NativeChatToolInvoker};
 pub use response::{ChatAgentResponse, ConsolidatedVerificationReport};
@@ -90,8 +92,8 @@ mod todo_compaction_tests;
 #[cfg(test)]
 mod verification_wire_tests;
 
-/// Default timeout for chat tool approval requests (5 minutes).
-const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
+/// Delay after which a tool approval of a conversation is refused (5 minutes).
+pub(crate) const CHAT_APPROVAL_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Maximum number of read-only tool calls executed concurrently within a single
 /// agent turn. Write calls and read-only calls awaiting approval stay
@@ -161,6 +163,7 @@ const TOOL_OUTPUT_MAX_LEN: usize = 4000;
 /// Re-exported base system prompts. The single source of truth lives in the
 /// `apollia-prompts` crate (English; tier-selected by `build_system_prompt`).
 pub use apollia_prompts::blocks::{DEFAULT_SYSTEM_PROMPT, PERSEVERANCE_SYSTEM_PROMPT};
+pub use prompt::built_in_prompt;
 
 /// Maximum number of verification retry iterations per run.
 ///
@@ -197,7 +200,6 @@ pub struct BuiltInChatAgentDeps {
     pub tool_invoker: Arc<dyn ToolInvoker>,
     pub event_bus: EventBusSender,
     pub user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
-    pub a2a_invoker: Option<Arc<A2AInvoker>>,
     /// Optional per-session todo store. When present, the `todo_write` built-in
     /// tool is advertised to the LLM and handled inside the ReAct loop.
     pub todo: Option<TodoHandle>,
@@ -222,8 +224,9 @@ pub struct BuiltInChatAgent {
     event_bus: EventBusSender,
     /// Optional user memory repository for injecting user context into the system prompt.
     user_memory: Option<Arc<std::sync::Mutex<UserMemoryRepository>>>,
-    /// Optional A2A invoker for discovering worker agent skills as virtual tools.
-    a2a_invoker: Option<Arc<A2AInvoker>>,
+    /// Reads the agents and workflows granted to the agent, offered as
+    /// tools. `None` offers none of them.
+    composer: Option<Arc<dyn Composer>>,
     /// Context window manager: compacts `llm_messages` inside the ReAct loop
     /// when accumulated messages exceed the model's window threshold.
     context_manager: ContextManager,
@@ -289,6 +292,12 @@ pub struct BuiltInChatAgent {
     /// when the router can reach it, and to the default otherwise (said with
     /// `LlmAgentModelFallback`). `None` routes to the default.
     preferred_backend: Option<String>,
+    /// Identifier of the agent this loop runs for, named in the model
+    /// resolution and its fallback event. Defaults to the Apollia agent.
+    agent_id: String,
+    /// Delay after which a pending tool approval is refused. `None` waits for
+    /// the human however long it takes.
+    approval_timeout: Option<Duration>,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.

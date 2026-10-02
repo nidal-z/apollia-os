@@ -47,8 +47,13 @@ pub(super) fn emit_chat_error(msg: String, json: bool) {
     let _ = crate::output::emit_error(json, exit_codes::GENERAL_ERROR, &msg);
 }
 
-/// Synchronous entry point for `chat <subcommand>`.
-pub fn run_hygiene(cmd: &ChatHygieneCommand, json: bool) -> i32 {
+/// Entry point for `chat <subcommand>`. Only `chat config` reaches the
+/// runtime, through `socket`.
+pub async fn run_hygiene(
+    cmd: &ChatHygieneCommand,
+    socket: Option<std::path::PathBuf>,
+    json: bool,
+) -> i32 {
     match cmd {
         ChatHygieneCommand::Delete {
             session_id,
@@ -66,7 +71,9 @@ pub fn run_hygiene(cmd: &ChatHygieneCommand, json: bool) -> i32 {
             format,
             db,
         } => run_chat_export(session_id, output.as_deref(), format, db.as_deref(), json),
-        ChatHygieneCommand::Config { command } => crate::commands::chat_config::run(command, json),
+        ChatHygieneCommand::Config { command } => {
+            crate::commands::chat_config::run(command, socket, json).await
+        }
     }
 }
 

@@ -364,6 +364,8 @@ fn base_state(data_dir: &std::path::Path) -> AppState<MockBackend> {
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: crate::inference_servers::default_store_opener(),
+        batches: None,
+        workflows: None,
     }
 }
 

@@ -535,6 +535,7 @@ mod tests {
 
     fn test_manifest(name: &str) -> AgentManifest {
         AgentManifest {
+            autonomy_level: None,
             format_version: 1,
             name: name.to_string(),
             version: "0.1.0".to_string(),
@@ -637,6 +638,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         let config = APIServerConfig {
             socket_path: socket_path.clone(),
@@ -814,6 +817,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -940,6 +945,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         let api_config = crate::api::APIServerConfig {
             socket_path: socket_path.clone(),
@@ -1061,6 +1068,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {
@@ -1274,6 +1283,8 @@ mod tests {
             runner_proxy: None,
             llama_server_supervisor: None,
             secret_store: crate::inference_servers::default_store_opener(),
+            batches: None,
+            workflows: None,
         };
         let api = crate::api::APIServer::new(
             crate::api::APIServerConfig {

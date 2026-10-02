@@ -119,6 +119,8 @@ async fn test_runtime_starts_without_llm_router() {
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
+        batches: None,
+        workflows: None,
     };
 
     // WHEN the APIServer starts
@@ -279,6 +281,8 @@ async fn test_runtime_continues_after_llm_init_failure() {
         runner_proxy: None,
         llama_server_supervisor: None,
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
+        batches: None,
+        workflows: None,
     };
 
     let api = APIServer::new(

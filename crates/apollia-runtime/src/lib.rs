@@ -15,8 +15,10 @@ pub mod analyzers;
 pub mod api;
 pub mod audit_journal;
 pub mod backend_keys;
+pub mod batch;
 pub mod chat;
 pub mod commands;
+pub mod composition;
 pub mod connections;
 pub mod connectors_bridge;
 pub mod coordinator;
@@ -31,20 +33,24 @@ pub mod llama_server_backend;
 pub mod llm_timings;
 pub mod mailbox;
 pub mod observability;
+pub mod on_demand;
+pub mod package_tools;
+pub mod packages;
 pub mod perf_trace;
 pub mod plan_approval;
+pub mod profile;
 pub mod projects;
 pub mod registry;
 pub mod replay;
 pub mod router;
 pub mod runner_supervisor;
-pub mod session;
 pub mod session_metrics;
 pub mod session_replay;
 pub mod shutdown;
 pub mod stt;
 pub mod supervisor;
 pub mod timeout_watcher;
+pub mod workflows;
 
 #[cfg(test)]
 mod test_support;
@@ -71,14 +77,13 @@ pub use mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 // A2A routing
 pub use a2a::{
     make_delegate_fn, resolve_skill, A2AAgentCard, A2AError, A2AInvocationResult, A2AInvokeRequest,
-    A2AInvoker, A2ASkillInfo, A2AToolsProvider, A2aDelegateFn, A2aDelegateResult, A2aError,
-    A2aErrorResponse, SkillListing,
+    A2AInvoker, A2ASkillInfo, A2aDelegateFn, A2aDelegateResult, A2aError, A2aErrorResponse,
+    SkillListing,
 };
 
 // Chat subsystem
 pub use chat::ChatSessionManagerHandle;
 
-pub use session::SessionConfig;
 pub use session_metrics::{SessionMetricsActor, SessionMetricsStore};
 
 pub use stt::{SttEngineError, SttEngineHandle, SttStatus, TranscriptSource};

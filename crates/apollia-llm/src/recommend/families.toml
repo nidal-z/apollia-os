@@ -90,6 +90,29 @@
 #   query_prefix    text put before a search query, as its model card asks
 #   passage_prefix  text put before a passage to index, as its model card asks
 #   source          URL the facts above were read from
+#
+# ── Dictation ─────────────────────────────────────────────────────────────
+#
+# [[dictation]] describes one speech-to-text model file for the dictation
+# engine (whisper.cpp). Like an embeddings entry it is pinned to one file by its
+# digest and never ranked against a language model; the machine is offered the
+# largest file that still fits beside the language model it runs.
+#
+#   id              stable key, the name `apollia-os stt model download` takes
+#   label           what the operator reads
+#   publisher       the organisation that trained it
+#   released        ISO date the upstream model repository was published on
+#                   the Hub
+#   license         SPDX identifier, read on the repository carrying the file
+#   repo            the HuggingFace repository carrying the file, `owner/name`
+#   file            the whisper.cpp file within it (`.bin`, GGML header)
+#   quantization    the quantisation of that file, F16 when it has none
+#   size_bytes      its size, as the repository tree reports it
+#   sha256          its SHA-256, read from the repository tree (`lfs.oid`). The
+#                   download is checked against it
+#   card            the identifier of the dictation card describing the model,
+#                   under `registry/models/dictation/`
+#   source          URL the size and digest were read from
 
 schema_version = 1
 
@@ -448,3 +471,274 @@ query_prefix = "Instruct: Given a web search query, retrieve relevant passages t
 passage_prefix = ""
 source = "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B"
 notes = "Its header names the qwen3 architecture, the same as the chat models of that generation: only its pooling key tells it apart, which is why the gate reads that key."
+
+# ── Dictation ─────────────────────────────────────────────────────────────
+#
+# Listed with the French fine-tune first: on a tie in size the file met first
+# is the one offered, and the product speaks French first.
+
+[[dictation]]
+id = "whisper-large-v3-french"
+label = "Whisper Large-v3 French"
+publisher = "bofenghuang"
+released = "2023-11-27"
+license = "mit"
+repo = "bofenghuang/whisper-large-v3-french"
+file = "ggml-model.bin"
+quantization = "F16"
+size_bytes = 3095033483
+sha256 = "5ab80e8f3a3e6b01d0edae18e297e2a7d37f39a2095e96693cab19de115bb4b3"
+card = "whisper-large-v3-french"
+source = "https://huggingface.co/bofenghuang/whisper-large-v3-french/tree/main"
+
+[[dictation]]
+id = "whisper-large-v3-french-q5_0"
+label = "Whisper Large-v3 French Q5_0"
+publisher = "bofenghuang"
+released = "2023-11-27"
+license = "mit"
+repo = "bofenghuang/whisper-large-v3-french"
+file = "ggml-model-q5_0.bin"
+quantization = "Q5_0"
+size_bytes = 1081140203
+sha256 = "d8da7cb6cdadfac47829abf46fe8cd36fcfef06db5601bfd8acbcd40579010a5"
+card = "whisper-large-v3-french"
+source = "https://huggingface.co/bofenghuang/whisper-large-v3-french/tree/main"
+
+[[dictation]]
+id = "whisper-tiny"
+label = "Whisper Tiny"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-tiny.bin"
+quantization = "F16"
+size_bytes = 77691713
+sha256 = "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21"
+card = "whisper-tiny"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-tiny-q5_1"
+label = "Whisper Tiny Q5_1"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-tiny-q5_1.bin"
+quantization = "Q5_1"
+size_bytes = 32152673
+sha256 = "818710568da3ca15689e31a743197b520007872ff9576237bda97bd1b469c3d7"
+card = "whisper-tiny"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-tiny-q8_0"
+label = "Whisper Tiny Q8_0"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-tiny-q8_0.bin"
+quantization = "Q8_0"
+size_bytes = 43537433
+sha256 = "c2085835d3f50733e2ff6e4b41ae8a2b8d8110461e18821b09a15c40c42d1cca"
+card = "whisper-tiny"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-base"
+label = "Whisper Base"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-base.bin"
+quantization = "F16"
+size_bytes = 147951465
+sha256 = "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"
+card = "whisper-base"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-base-q5_1"
+label = "Whisper Base Q5_1"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-base-q5_1.bin"
+quantization = "Q5_1"
+size_bytes = 59707625
+sha256 = "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898"
+card = "whisper-base"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-base-q8_0"
+label = "Whisper Base Q8_0"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-base-q8_0.bin"
+quantization = "Q8_0"
+size_bytes = 81768585
+sha256 = "c577b9a86e7e048a0b7eada054f4dd79a56bbfa911fbdacf900ac5b567cbb7d9"
+card = "whisper-base"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-small"
+label = "Whisper Small"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-small.bin"
+quantization = "F16"
+size_bytes = 487601967
+sha256 = "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
+card = "whisper-small"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-small-q5_1"
+label = "Whisper Small Q5_1"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-small-q5_1.bin"
+quantization = "Q5_1"
+size_bytes = 190085487
+sha256 = "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb"
+card = "whisper-small"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-small-q8_0"
+label = "Whisper Small Q8_0"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-small-q8_0.bin"
+quantization = "Q8_0"
+size_bytes = 264464607
+sha256 = "49c8fb02b65e6049d5fa6c04f81f53b867b5ec9540406812c643f177317f779f"
+card = "whisper-small"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-medium"
+label = "Whisper Medium"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-medium.bin"
+quantization = "F16"
+size_bytes = 1533763059
+sha256 = "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208"
+card = "whisper-medium"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-medium-q5_0"
+label = "Whisper Medium Q5_0"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-medium-q5_0.bin"
+quantization = "Q5_0"
+size_bytes = 539212467
+sha256 = "19fea4b380c3a618ec4723c3eef2eb785ffba0d0538cf43f8f235e7b3b34220f"
+card = "whisper-medium"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-medium-q8_0"
+label = "Whisper Medium Q8_0"
+publisher = "OpenAI"
+released = "2022-09-26"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-medium-q8_0.bin"
+quantization = "Q8_0"
+size_bytes = 823369779
+sha256 = "42a1ffcbe4167d224232443396968db4d02d4e8e87e213d3ee2e03095dea6502"
+card = "whisper-medium"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-large-v3"
+label = "Whisper Large-v3"
+publisher = "OpenAI"
+released = "2023-11-07"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-large-v3.bin"
+quantization = "F16"
+size_bytes = 3095033483
+sha256 = "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2"
+card = "whisper-large-v3-q5"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-large-v3-q5_0"
+label = "Whisper Large-v3 Q5_0"
+publisher = "OpenAI"
+released = "2023-11-07"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-large-v3-q5_0.bin"
+quantization = "Q5_0"
+size_bytes = 1081140203
+sha256 = "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"
+card = "whisper-large-v3-q5"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-large-v3-turbo"
+label = "Whisper Large-v3 Turbo"
+publisher = "OpenAI"
+released = "2024-10-01"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-large-v3-turbo.bin"
+quantization = "F16"
+size_bytes = 1624555275
+sha256 = "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69"
+card = "whisper-large-v3-turbo-q5"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-large-v3-turbo-q5_0"
+label = "Whisper Large-v3 Turbo Q5_0"
+publisher = "OpenAI"
+released = "2024-10-01"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-large-v3-turbo-q5_0.bin"
+quantization = "Q5_0"
+size_bytes = 574041195
+sha256 = "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"
+card = "whisper-large-v3-turbo-q5"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"
+
+[[dictation]]
+id = "whisper-large-v3-turbo-q8_0"
+label = "Whisper Large-v3 Turbo Q8_0"
+publisher = "OpenAI"
+released = "2024-10-01"
+license = "mit"
+repo = "ggerganov/whisper.cpp"
+file = "ggml-large-v3-turbo-q8_0.bin"
+quantization = "Q8_0"
+size_bytes = 874188075
+sha256 = "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1"
+card = "whisper-large-v3-turbo-q5"
+source = "https://huggingface.co/ggerganov/whisper.cpp/tree/main"

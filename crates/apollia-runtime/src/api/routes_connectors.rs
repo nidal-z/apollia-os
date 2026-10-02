@@ -231,7 +231,34 @@ pub(crate) async fn complete_connector_consent<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     body: Json<CompleteConsentBody>,
 ) -> Result<Json<ConnectedAccountResponse>, ApiError> {
-    complete_consent(&state.connection_governance, body).await
+    let connected = complete_consent(&state.connection_governance, body).await?;
+    if let Some(registry) = &state.tool_registry_handle {
+        publish_account_tools(registry, &connected.0).await;
+    }
+    Ok(connected)
+}
+
+/// Publish the tools of the account `connected` names, so it is usable without
+/// a restart. A failure is logged: the account is connected, and its tools are
+/// published at the next start.
+async fn publish_account_tools(
+    registry: &apollia_tools::ToolRegistryHandle,
+    connected: &ConnectedAccountResponse,
+) {
+    let Some(provider) = ConnectorProvider::from_id(&connected.provider) else {
+        return;
+    };
+    if let Err(error) =
+        crate::connectors_bridge::register_account_tools(registry, provider, &connected.account_id)
+            .await
+    {
+        tracing::event!(
+            tracing::Level::WARN,
+            provider = %provider.id(),
+            error = %error,
+            "connectors.account.tools.unpublished"
+        );
+    }
 }
 
 /// Body of [`complete_connector_consent`]: validate, admit, exchange, journal.

@@ -188,10 +188,31 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os package`↴](#apollia-os-package)
 * [`apollia-os package build`↴](#apollia-os-package-build)
 * [`apollia-os package inspect`↴](#apollia-os-package-inspect)
+* [`apollia-os package preview`↴](#apollia-os-package-preview)
+* [`apollia-os package install`↴](#apollia-os-package-install)
+* [`apollia-os package trust`↴](#apollia-os-package-trust)
+* [`apollia-os package trust import`↴](#apollia-os-package-trust-import)
+* [`apollia-os package trust list`↴](#apollia-os-package-trust-list)
+* [`apollia-os package trust remove`↴](#apollia-os-package-trust-remove)
+* [`apollia-os policy`↴](#apollia-os-policy)
+* [`apollia-os policy keygen`↴](#apollia-os-policy-keygen)
+* [`apollia-os policy init`↴](#apollia-os-policy-init)
+* [`apollia-os policy sign`↴](#apollia-os-policy-sign)
+* [`apollia-os policy verify`↴](#apollia-os-policy-verify)
+* [`apollia-os policy show`↴](#apollia-os-policy-show)
 * [`apollia-os workspace`↴](#apollia-os-workspace)
 * [`apollia-os workspace status`↴](#apollia-os-workspace-status)
 * [`apollia-os workspace init`↴](#apollia-os-workspace-init)
 * [`apollia-os review`↴](#apollia-os-review)
+* [`apollia-os batch`↴](#apollia-os-batch)
+* [`apollia-os batch run`↴](#apollia-os-batch-run)
+* [`apollia-os batch status`↴](#apollia-os-batch-status)
+* [`apollia-os batch list`↴](#apollia-os-batch-list)
+* [`apollia-os workflow`↴](#apollia-os-workflow)
+* [`apollia-os workflow run`↴](#apollia-os-workflow-run)
+* [`apollia-os workflow status`↴](#apollia-os-workflow-status)
+* [`apollia-os workflow logs`↴](#apollia-os-workflow-logs)
+* [`apollia-os workflow cancel`↴](#apollia-os-workflow-cancel)
 * [`apollia-os resilience`↴](#apollia-os-resilience)
 * [`apollia-os resilience list`↴](#apollia-os-resilience-list)
 * [`apollia-os resilience show`↴](#apollia-os-resilience-show)
@@ -221,6 +242,10 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os connector client-secret set`↴](#apollia-os-connector-client-secret-set)
 * [`apollia-os connector api-key`↴](#apollia-os-connector-api-key)
 * [`apollia-os connector api-key set`↴](#apollia-os-connector-api-key-set)
+* [`apollia-os connector imap`↴](#apollia-os-connector-imap)
+* [`apollia-os connector imap test`↴](#apollia-os-connector-imap-test)
+* [`apollia-os connector imap add`↴](#apollia-os-connector-imap-add)
+* [`apollia-os connector imap list`↴](#apollia-os-connector-imap-list)
 * [`apollia-os connector drive`↴](#apollia-os-connector-drive)
 * [`apollia-os connector drive folder`↴](#apollia-os-connector-drive-folder)
 * [`apollia-os connector drive folder list`↴](#apollia-os-connector-drive-folder-list)
@@ -296,9 +321,12 @@ Apollia OS CLI binary (apollia-os)
 * `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
-* `package` - Agent package archives: build a `.apo` from a folder, inspect one
+* `package` - Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
+* `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
+* `batch` - Run an agent on every item of a source (run, status, list)
+* `workflow` - Run the workflows of installed packages (run, status, logs, cancel)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
@@ -392,12 +420,6 @@ Use the positional `<INPUT>` for free-text input (react/conversational agents). 
 
    Requires the runtime to support plan alternatives (ORIA engine with LLM).
 * `--plan` - Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit. Incompatible with --alternatives
-* `--allowed-tools <TOOL>` - Restrict this session to the listed tools only (comma-separated).
-
-   When specified, only the named tools can be invoked. All other tools are blocked regardless of the global configuration.
-* `--disallowed-tools <TOOL>` - Explicitly block the listed tools for this session (comma-separated).
-
-   Takes priority over `--allowed-tools` when the same tool appears in both.
 * `--autonomy <LEVEL>` - Autonomy tier for this run (default: assisted).
 
    Controls the execution budget, memory injection, and verification. Accepted values: assisted, supervised, bounded_autonomous, long_autonomous.
@@ -486,14 +508,14 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name` and `mission` take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
+Fields: `name`, `mission` and `autonomy` take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
 ###### **Arguments:**
 
 * `<AGENT_ID>` - Agent identifier
-* `<FIELD>` - Field to override: name, mission, examples, access or sources
+* `<FIELD>` - Field to override: name, mission, examples, access, sources or autonomy
 * `<VALUES>` - The value, or the items of a list
 
 
@@ -2475,9 +2497,9 @@ Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ###### **Subcommands:**
 
-* `get` - Print the current chat libre configuration
-* `set` - Update one field of the chat libre configuration
-* `reset` - Reset the configuration to the defaults (empty prompt, no tools)
+* `get` - Print the settings of the free chat (the Apollia agent)
+* `set` - Update one setting of the free chat (the Apollia agent)
+* `reset` - Reset the settings to the defaults (no prompt, no tools, default model)
 * `permissions` - Manage persisted permission rules scoped to the Apollia Chat agent
 * `authorizations` - Inspect or revoke in-memory session authorizations
 
@@ -2485,43 +2507,34 @@ Manage the Chat Libre configuration (system prompt, allowed tools, backend)
 
 ## `apollia-os chat config get`
 
-Print the current chat libre configuration
+Print the settings of the free chat (the Apollia agent)
 
-**Usage:** `apollia-os chat config get [OPTIONS]`
-
-###### **Options:**
-
-* `--db <PATH>`
+**Usage:** `apollia-os chat config get`
 
 
 
 ## `apollia-os chat config set`
 
-Update one field of the chat libre configuration
+Update one setting of the free chat (the Apollia agent)
 
-**Usage:** `apollia-os chat config set [OPTIONS] <KEY> <VALUE>`
+**Usage:** `apollia-os chat config set <KEY> <VALUE>`
 
 ###### **Arguments:**
 
 * `<KEY>` - Field name: `system-prompt`, `allowed-tools`, or `llm-backend`
 * `<VALUE>` - New value. For `allowed-tools`, expects a comma-separated list. For `llm-backend`, the literal `none` clears the backend
 
-###### **Options:**
-
-* `--db <PATH>`
-
 
 
 ## `apollia-os chat config reset`
 
-Reset the configuration to the defaults (empty prompt, no tools)
+Reset the settings to the defaults (no prompt, no tools, default model)
 
 **Usage:** `apollia-os chat config reset [OPTIONS]`
 
 ###### **Options:**
 
 * `--confirm`
-* `--db <PATH>`
 
 
 
@@ -3041,7 +3054,7 @@ Check for and install updates from GitHub Releases
 
 ## `apollia-os package`
 
-Agent package archives: build a `.apo` from a folder, inspect one
+Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
 
 **Usage:** `apollia-os package <COMMAND>`
 
@@ -3049,6 +3062,9 @@ Agent package archives: build a `.apo` from a folder, inspect one
 
 * `build` - Build a `.apo` archive from a package folder
 * `inspect` - Show the manifest, the entries and the signature state of a `.apo` archive
+* `preview` - Show what a `.apo` package contains and asks for, before installing it
+* `install` - Install a `.apo` package, or update it
+* `trust` - Trusted publisher keys: a package signed by one is shown under its label
 
 
 
@@ -3085,6 +3101,181 @@ The signature state is `unsigned`, or `signed` with the declared publisher and t
 ###### **Arguments:**
 
 * `<FILE>` - The `.apo` archive
+
+
+
+## `apollia-os package preview`
+
+Show what a `.apo` package contains and asks for, before installing it.
+
+Reports the agents, workflows and tools, the accesses each agent asks for and what each permits, the publisher and the signature (trusted when its key is in the keyring), the connections the package requires (present or missing) and the MCP servers it brings, and, for an installed package, what the new version adds. Nothing is written. Needs the runtime.
+
+**Usage:** `apollia-os package preview <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The `.apo` archive
+
+
+
+## `apollia-os package install`
+
+Install a `.apo` package, or update it.
+
+A signature that does not hold is refused; an unsigned package installs with a notice. The local overrides of its agents are kept on update. Needs the runtime.
+
+**Usage:** `apollia-os package install [OPTIONS] <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The `.apo` archive
+
+###### **Options:**
+
+* `--confirm-deps` - Accept the Python dependencies the package installs
+* `--confirm-changes` - Accept what an update adds: accesses, required connections, MCP servers (read `package preview` first)
+* `--allow-downgrade` - Install a version older than the installed one
+
+
+
+## `apollia-os package trust`
+
+Trusted publisher keys: a package signed by one is shown under its label
+
+**Usage:** `apollia-os package trust <COMMAND>`
+
+###### **Subcommands:**
+
+* `import` - Trust a publisher's public key, given as 64 hexadecimal characters or as a file holding them
+* `list` - List the trusted publisher keys
+* `remove` - Stop trusting a publisher key
+
+
+
+## `apollia-os package trust import`
+
+Trust a publisher's public key, given as 64 hexadecimal characters or as a file holding them
+
+**Usage:** `apollia-os package trust import --label <LABEL> <KEY>`
+
+###### **Arguments:**
+
+* `<KEY>` - The key, or a file holding it
+
+###### **Options:**
+
+* `--label <LABEL>` - Name to show for the publisher
+
+
+
+## `apollia-os package trust list`
+
+List the trusted publisher keys
+
+**Usage:** `apollia-os package trust list`
+
+
+
+## `apollia-os package trust remove`
+
+Stop trusting a publisher key
+
+**Usage:** `apollia-os package trust remove [OPTIONS] <FINGERPRINT>`
+
+###### **Arguments:**
+
+* `<FINGERPRINT>` - SHA-256 fingerprint of the key, as `package trust list` shows it
+
+###### **Options:**
+
+* `--confirm` - Remove without asking
+
+
+
+## `apollia-os policy`
+
+Organisation policy: create the key, write, sign, verify, show
+
+**Usage:** `apollia-os policy <COMMAND>`
+
+###### **Subcommands:**
+
+* `keygen` - Create the organisation key pair in a folder
+* `init` - Write a commented `policy.toml` that imposes nothing, dated now
+* `sign` - Sign the `policy.toml` of a folder with the organisation private key
+* `verify` - Check a policy folder: schema, signature, and rights in the system folder
+* `show` - Show the policy the runtime reads at startup, or none
+
+
+
+## `apollia-os policy keygen`
+
+Create the organisation key pair in a folder.
+
+Writes `org.key`, the private key, readable by its owner only from the moment it is created, and `org.pub`, the public key; prints the fingerprint of the public key. Existing files are never replaced. Keep `org.key` off the workstations.
+
+**Usage:** `apollia-os policy keygen --out <DIR>`
+
+###### **Options:**
+
+* `--out <DIR>` - Folder that receives `org.key` and `org.pub`, created when missing
+
+
+
+## `apollia-os policy init`
+
+Write a commented `policy.toml` that imposes nothing, dated now.
+
+The folder is created when missing; an existing `policy.toml` is never replaced.
+
+**Usage:** `apollia-os policy init <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Policy folder
+
+
+
+## `apollia-os policy sign`
+
+Sign the `policy.toml` of a folder with the organisation private key.
+
+Writes `SIGNATURE` and `org.pub` next to it, replacing earlier ones. A policy that breaks the schema is not signed.
+
+**Usage:** `apollia-os policy sign [OPTIONS] --key <FILE> <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Policy folder
+
+###### **Options:**
+
+* `--key <FILE>` - The organisation private key, as written by `policy keygen`
+* `--publisher <NAME>` - Publisher name declared in the signature
+
+  Default value: `Organisation`
+
+
+
+## `apollia-os policy verify`
+
+Check a policy folder: schema, signature, and rights in the system folder.
+
+The rights are checked when the folder is the one the runtime reads. A folder that does not hold is refused with exit 1, whatever the cause; the cause (`schema`, `signature`, `key`, `owner`, or `missing` when the folder does not exist) is named in the message, and `--json` carries the verdict, the reason and its detail.
+
+**Usage:** `apollia-os policy verify <DIR>`
+
+###### **Arguments:**
+
+* `<DIR>` - Policy folder
+
+
+
+## `apollia-os policy show`
+
+Show the policy the runtime reads at startup, or none
+
+**Usage:** `apollia-os policy show`
 
 
 
@@ -3134,6 +3325,145 @@ Automated code or plan review via the apollia-review agent
 * `--task <ID>` - Apollia task ID whose execution plan should be reviewed
 * `--pr <N>` - GitHub pull-request number to fetch via `gh pr diff`
 * `--diff <FILE>` - Local diff / patch file to analyse
+
+
+
+## `apollia-os batch`
+
+Run an agent on every item of a source (run, status, list)
+
+**Usage:** `apollia-os batch <COMMAND>`
+
+###### **Subcommands:**
+
+* `run` - Run an agent on every item of a source, in the runtime
+* `status` - Show a batch: its state, its counters and each of its items
+* `list` - List the batches, newest first
+
+
+
+## `apollia-os batch run`
+
+Run an agent on every item of a source, in the runtime
+
+**Usage:** `apollia-os batch run [OPTIONS] --source-type <SOURCE_TYPE> --source <SOURCE> <AGENT>`
+
+###### **Arguments:**
+
+* `<AGENT>` - The agent every item is run by: a stored agent without code
+
+###### **Options:**
+
+* `--source-type <SOURCE_TYPE>` - The type of source, as a reader registers it
+* `--source <SOURCE>` - What the source is opened on: a file, a folder, a connection
+* `--option <KEY=VALUE>` - An option of the source type, as `key=value`; repeatable
+* `--grant <GRANTS>` - An access granted for the duration of the batch; repeatable
+* `--concurrency <CONCURRENCY>` - How many items run at once, 1 to 16 (default 1)
+* `--max-failures <MAX_FAILURES>` - Failed items tolerated before the batch is interrupted (default 10)
+
+
+
+## `apollia-os batch status`
+
+Show a batch: its state, its counters and each of its items
+
+**Usage:** `apollia-os batch status <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id `batch run` printed
+
+
+
+## `apollia-os batch list`
+
+List the batches, newest first
+
+**Usage:** `apollia-os batch list [OPTIONS]`
+
+###### **Options:**
+
+* `--limit <LIMIT>` - At most this many batches
+
+  Default value: `50`
+
+
+
+## `apollia-os workflow`
+
+Run the workflows of installed packages (run, status, logs, cancel)
+
+**Usage:** `apollia-os workflow <COMMAND>`
+
+###### **Subcommands:**
+
+* `run` - Run a workflow, in the runtime
+* `status` - Show a run: its status, its result and each of its steps
+* `logs` - The runs of a workflow, newest first
+* `cancel` - Stop a run: its step in progress is interrupted, the next ones never start
+
+
+
+## `apollia-os workflow run`
+
+Run a workflow, in the runtime
+
+**Usage:** `apollia-os workflow run [OPTIONS] <WORKFLOW>`
+
+###### **Arguments:**
+
+* `<WORKFLOW>` - The workflow, `<package>/<workflow>`
+
+###### **Options:**
+
+* `--input <KEY=VALUE>` - An input, as `key=value`; repeatable. A value is read as the type the workflow declares for it
+* `--wait` - Follow the run to its end; exit 3 when it fails or is stopped
+
+
+
+## `apollia-os workflow status`
+
+Show a run: its status, its result and each of its steps
+
+**Usage:** `apollia-os workflow status <RUN_ID>`
+
+###### **Arguments:**
+
+* `<RUN_ID>` - The run id `workflow run` printed
+
+
+
+## `apollia-os workflow logs`
+
+The runs of a workflow, newest first
+
+**Usage:** `apollia-os workflow logs [OPTIONS] <WORKFLOW>`
+
+###### **Arguments:**
+
+* `<WORKFLOW>` - The workflow, `<package>/<workflow>`
+
+###### **Options:**
+
+* `--limit <LIMIT>` - At most this many runs
+
+  Default value: `50`
+
+
+
+## `apollia-os workflow cancel`
+
+Stop a run: its step in progress is interrupted, the next ones never start
+
+**Usage:** `apollia-os workflow cancel [OPTIONS] <RUN_ID>`
+
+###### **Arguments:**
+
+* `<RUN_ID>` - The run id
+
+###### **Options:**
+
+* `--confirm` - Skip the interactive confirmation prompt
 
 
 
@@ -3367,6 +3697,7 @@ Operates on the multi-account keyring without requiring the runtime to be starte
 * `client-id` - Manage OAuth client_id overrides in `~/.apollia/oauth-clients.toml`
 * `client-secret` - Manage OAuth client_secret overrides in `~/.apollia/oauth-clients.toml`
 * `api-key` - Manage API key overrides (Google Picker) in `~/.apollia/oauth-clients.toml`
+* `imap` - A mailbox reached over IMAP with an application password: test, add, list. Read-only: nothing in the mailbox is ever changed
 * `drive` - Manage per-account Google Drive folder preferences
 
 
@@ -3520,6 +3851,68 @@ Pass an empty string (`""`) to clear the override.
 
 * `<PROVIDER>` - Provider id: `google` or `microsoft`
 * `<API_KEY>` - New API key value. Empty string clears the override
+
+
+
+## `apollia-os connector imap`
+
+A mailbox reached over IMAP with an application password: test, add, list. Read-only: nothing in the mailbox is ever changed
+
+**Usage:** `apollia-os connector imap <COMMAND>`
+
+###### **Subcommands:**
+
+* `test` - Log in to a mailbox and open its inbox read-only; store nothing
+* `add` - Verify a mailbox like `test`, then connect it: the password goes to the secret store, the rest to `~/.apollia/imap-accounts.json`
+* `list` - List the mailboxes connected on this machine
+
+
+
+## `apollia-os connector imap test`
+
+Log in to a mailbox and open its inbox read-only; store nothing.
+
+For a known provider (Gmail, iCloud, Yahoo, Orange, Free, La Poste) the address is enough; the server and port are filled in.
+
+**Usage:** `apollia-os connector imap test [OPTIONS] <EMAIL>`
+
+###### **Arguments:**
+
+* `<EMAIL>` - Address of the mailbox
+
+###### **Options:**
+
+* `--host <HOST>` - IMAP server; filled from the address for a known provider
+* `--port <PORT>` - IMAP port, implicit TLS; the provider's, else 993
+* `--username <USERNAME>` - Identifier sent at login; the address when absent
+* `--password-stdin` - Read the application password from the first line of standard input, instead of `APOLLIA_IMAP_PASSWORD`
+
+
+
+## `apollia-os connector imap add`
+
+Verify a mailbox like `test`, then connect it: the password goes to the secret store, the rest to `~/.apollia/imap-accounts.json`
+
+**Usage:** `apollia-os connector imap add [OPTIONS] <EMAIL>`
+
+###### **Arguments:**
+
+* `<EMAIL>` - Address of the mailbox
+
+###### **Options:**
+
+* `--host <HOST>` - IMAP server; filled from the address for a known provider
+* `--port <PORT>` - IMAP port, implicit TLS; the provider's, else 993
+* `--username <USERNAME>` - Identifier sent at login; the address when absent
+* `--password-stdin` - Read the application password from the first line of standard input, instead of `APOLLIA_IMAP_PASSWORD`
+
+
+
+## `apollia-os connector imap list`
+
+List the mailboxes connected on this machine
+
+**Usage:** `apollia-os connector imap list`
 
 
 

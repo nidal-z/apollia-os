@@ -1,25 +1,22 @@
 use std::sync::Arc;
 
-use apollia_auth::{AccountId, AuthManager, GoogleScope};
+use apollia_auth::{AccountId, GoogleScope};
 use apollia_connectors::google::calendar::{EventUpdate, ListEventsFilter};
 use apollia_connectors::google::drive_workspace::{FolderWrite, NameSearch, WorkspaceWrite};
 use apollia_connectors::google::GoogleConnector;
 use serde_json::{json, Value};
 
-use super::{
-    bearer_for, build_event_draft, extract_compose, gmail_send_error, refresh_closure,
-    resolve_account,
-};
+use super::{bearer_for, build_event_draft, extract_compose, gmail_send_error, refresh_closure};
 use crate::connectors_bridge::{get_str, get_str_opt, get_u32_or, parse_rfc3339};
 
 pub(crate) async fn gmail_send(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let mail = extract_compose(input)?;
     let scopes = [GoogleScope::MailSend];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let result = connector
         .gmail()
@@ -31,12 +28,12 @@ pub(crate) async fn gmail_send(
 
 pub(crate) async fn gmail_compose_draft(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let mail = extract_compose(input)?;
     let scopes = [GoogleScope::MailDraftsCreate];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let result = connector
         .gmail()
@@ -48,7 +45,7 @@ pub(crate) async fn gmail_compose_draft(
 
 pub(crate) async fn gcal_list_events(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let cal = get_str_opt(input, "calendar_id").unwrap_or_else(|| "primary".to_string());
@@ -67,7 +64,7 @@ pub(crate) async fn gcal_list_events(
         query: get_str_opt(input, "q"),
     };
     let scopes = [GoogleScope::CalendarRead];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let events = connector
         .calendar()
@@ -79,13 +76,13 @@ pub(crate) async fn gcal_list_events(
 
 pub(crate) async fn gcal_get_event(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let cal = get_str_opt(input, "calendar_id").unwrap_or_else(|| "primary".to_string());
     let event_id = get_str(input, "event_id")?;
     let scopes = [GoogleScope::CalendarRead];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let event = connector
         .calendar()
@@ -97,13 +94,13 @@ pub(crate) async fn gcal_get_event(
 
 pub(crate) async fn gcal_create_event(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let cal = get_str_opt(input, "calendar_id").unwrap_or_else(|| "primary".to_string());
     let draft = build_event_draft(input)?;
     let scopes = [GoogleScope::CalendarWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let event = connector
         .calendar()
@@ -115,14 +112,14 @@ pub(crate) async fn gcal_create_event(
 
 pub(crate) async fn gcal_update_event(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let cal = get_str_opt(input, "calendar_id").unwrap_or_else(|| "primary".to_string());
     let event_id = get_str(input, "event_id")?;
     let draft = build_event_draft(input)?;
     let scopes = [GoogleScope::CalendarWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let event = connector
         .calendar()
@@ -142,13 +139,13 @@ pub(crate) async fn gcal_update_event(
 
 pub(crate) async fn gcal_delete_event(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let cal = get_str_opt(input, "calendar_id").unwrap_or_else(|| "primary".to_string());
     let event_id = get_str(input, "event_id")?;
     let scopes = [GoogleScope::CalendarWrite];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .calendar()
@@ -166,7 +163,7 @@ fn resolve_drive_root(account_id: &AccountId) -> String {
 
 pub(crate) async fn gdrive_list_my_files(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let explicit_folder_id = get_str_opt(input, "folder_id");
@@ -177,7 +174,7 @@ pub(crate) async fn gdrive_list_my_files(
         .map(|n| n as u32)
         .unwrap_or(50);
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let root_path = resolve_drive_root(&account);
     let mut refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
 
@@ -238,14 +235,14 @@ pub(crate) async fn gdrive_list_my_files(
 
 pub(crate) async fn gdrive_find_by_name(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let name = get_str(input, "name")?;
     let mime_filter = get_str_opt(input, "mime_type_filter");
     let exact = input.get("exact").and_then(Value::as_bool).unwrap_or(false);
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let files = connector
         .drive()
@@ -268,12 +265,12 @@ pub(crate) async fn gdrive_find_by_name(
 
 pub(crate) async fn gdrive_workspace_list(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let agent_slug = get_str(input, "agent_slug")?;
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let root_path = resolve_drive_root(&account);
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let files = connector
@@ -286,12 +283,12 @@ pub(crate) async fn gdrive_workspace_list(
 
 pub(crate) async fn gdrive_workspace_read(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let file_id = get_str(input, "file_id")?;
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let bytes = connector
         .drive()
@@ -310,7 +307,7 @@ pub(crate) async fn gdrive_workspace_read(
 
 pub(crate) async fn gdrive_workspace_write(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let agent_slug = get_str(input, "agent_slug")?;
@@ -318,7 +315,7 @@ pub(crate) async fn gdrive_workspace_write(
     let content = get_str(input, "content")?;
     let mime_type = get_str_opt(input, "mime_type");
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let root_path = resolve_drive_root(&account);
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let file = connector
@@ -341,12 +338,12 @@ pub(crate) async fn gdrive_workspace_write(
 
 pub(crate) async fn gdrive_workspace_delete(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let file_id = get_str(input, "file_id")?;
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     connector
         .drive()
@@ -358,8 +355,7 @@ pub(crate) async fn gdrive_workspace_delete(
 
 // ─── Picker-aware handlers ──────────────────────────────────────────────────
 
-pub(crate) async fn gdrive_list_picked_folders(auth: &Arc<AuthManager>) -> Result<Value, String> {
-    let account = resolve_account(auth).await?;
+pub(crate) async fn gdrive_list_picked_folders(account: &AccountId) -> Result<Value, String> {
     let folders = apollia_auth::drive_prefs::list_picked_folders("google", account.as_str());
     Ok(json!({
         "folders": folders.iter().map(|f| json!({
@@ -372,12 +368,12 @@ pub(crate) async fn gdrive_list_picked_folders(auth: &Arc<AuthManager>) -> Resul
 
 pub(crate) async fn gdrive_list_files_in(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let folder_id = get_str(input, "folder_id")?;
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let files = connector
         .drive()
@@ -389,7 +385,7 @@ pub(crate) async fn gdrive_list_files_in(
 
 pub(crate) async fn gdrive_read_file(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     // Same as gdrive.workspace_read but accessible outside the Apollia
@@ -397,7 +393,7 @@ pub(crate) async fn gdrive_read_file(
     // in a picked folder.
     let file_id = get_str(input, "file_id")?;
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let bytes = connector
         .drive()
@@ -416,7 +412,7 @@ pub(crate) async fn gdrive_read_file(
 
 pub(crate) async fn gdrive_write_to_folder(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let explicit_folder_id = get_str_opt(input, "folder_id");
@@ -428,7 +424,7 @@ pub(crate) async fn gdrive_write_to_folder(
     let content = get_str(input, "content")?;
     let mime_type = get_str_opt(input, "mime_type");
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let root_path = resolve_drive_root(&account);
     let mut refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
 
@@ -468,13 +464,13 @@ pub(crate) async fn gdrive_write_to_folder(
 
 pub(crate) async fn gdrive_workspace_share(
     connector: &Arc<GoogleConnector>,
-    auth: &Arc<AuthManager>,
+    account: &AccountId,
     input: &Value,
 ) -> Result<Value, String> {
     let file_id = get_str(input, "file_id")?;
     let email = get_str(input, "email")?;
     let scopes = [GoogleScope::DriveWorkspace];
-    let (account, token) = bearer_for(connector, auth, &scopes).await?;
+    let (account, token) = bearer_for(connector, account, &scopes).await?;
     let refresh = refresh_closure(connector.clone(), account, scopes.to_vec());
     let permission_id = connector
         .drive()

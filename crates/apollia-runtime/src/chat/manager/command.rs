@@ -154,6 +154,13 @@ pub enum ChatCommand {
         /// snapshot with `plan: None` for a known session that has no plan yet.
         reply: oneshot::Sender<Result<ChatPlanSnapshot, ChatError>>,
     },
+    /// Run an agent on one message, outside any conversation.
+    RunAgentTask {
+        /// The run.
+        run: super::agent_task::AgentTaskRun,
+        /// Answered once the run has started.
+        reply: oneshot::Sender<Result<(), ChatError>>,
+    },
     /// Cooperatively pause the active ReAct turn for a session.
     PauseSession {
         /// Target session.
@@ -250,6 +257,16 @@ pub enum ChatCommand {
     ReloadLlm {
         /// New router to use for subsequent requests.
         router: Option<Arc<LlmRouter>>,
+    },
+    /// Hand the source of the package tool executors to the actor.
+    SetPackageTools {
+        /// Used by every run that starts afterwards.
+        host: Arc<dyn crate::package_tools::PackageToolHost>,
+    },
+    /// Hand the composer of the granted agent and workflow calls to the actor.
+    SetComposer {
+        /// Used by every run that starts afterwards.
+        composer: Arc<dyn crate::composition::Composer>,
     },
     /// Fork a session, creating a child with a copy of the history.
     ForkSession {

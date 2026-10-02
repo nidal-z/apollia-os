@@ -1,16 +1,15 @@
-//! A2A virtual tool integration for Chat Libre mode.
+//! A2A virtual tool routing for Chat Libre mode.
 //!
-//! Exposes skills from active A2A agents as virtual tools prefixed with `"a2a:"`,
-//! allowing the LLM to invoke worker agents transparently alongside native tools.
+//! Routes a call to a tool prefixed with `"a2a:"` to the worker agent that
+//! declares the skill. No skill is offered to the model on its own: an agent
+//! reaches another one through the accesses it was granted.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use apollia_core::AIPPart;
-use apollia_llm::types::ToolSpec;
 use apollia_llm::ToolInvoker;
-use tracing::warn;
 
 use crate::a2a::invoker::A2AError;
 use crate::a2a::{A2AInvokeRequest, A2AInvoker};
@@ -22,132 +21,6 @@ const A2A_PREFIX: &str = "a2a:";
 
 /// Timeout applied to A2A invocations initiated from the chat.
 const CHAT_A2A_TIMEOUT: Duration = Duration::from_secs(120);
-
-/// Generate virtual [`ToolSpec`]s from the skills of all active A2A agents.
-///
-/// Each skill becomes a tool named `"a2a:{skill_id}"` whose JSON Schema is
-/// derived from the worker's declared `input_schema` (cf.
-/// [`apollia_core::AgentSkill::input_schema`]). If the worker doesn't publish
-/// an input schema (anti-pattern), falls back to a permissive open-object
-/// schema so the LLM can still attempt an invocation with a free-form payload.
-///
-/// Returns an empty list if no A2A agents with skills are available.
-pub async fn generate_a2a_tool_specs(a2a_invoker: &A2AInvoker) -> Vec<ToolSpec> {
-    let skills = match a2a_invoker.list_skills().await {
-        Ok(skills) => skills,
-        Err(e) => {
-            warn!(error = %e, "a2a.skills.list.failed");
-            return vec![];
-        }
-    };
-
-    skills
-        .into_iter()
-        .map(|skill| {
-            let description = if skill.description.is_empty() {
-                format!("{} (via {})", skill.skill_name, skill.agent_name)
-            } else {
-                format!("{} (via {})", skill.description, skill.agent_name)
-            };
-
-            let parameters = skill
-                .input_schema
-                .as_ref()
-                .map(apollia_input_schema_to_json_schema)
-                .unwrap_or_else(default_open_schema);
-
-            ToolSpec {
-                name: format!("{}{}", A2A_PREFIX, skill.skill_id),
-                description,
-                parameters,
-            }
-        })
-        .collect()
-}
-
-/// Converts the Apollia format (`{"<field>": {"type": "...", "description":
-/// "...", "required": bool}}`) into canonical JSON Schema `{"type": "object",
-/// "properties": {...}, "required": [...]}` that LLMs (Claude, OpenAI, Ollama,
-/// etc.) can interpret to generate valid tool calls.
-///
-/// Fields recognized on the Apollia side:
-/// - `type` (string): copied as-is
-/// - `description` (string): copied as-is
-/// - `required` (bool): consumed to build `required: [...]`, then removed from
-///   the property schema (JSON Schema does not support `required` at the level
-///   of an individual property)
-/// - any other field (e.g. `enum`, `items`, `properties`, `default`): copied
-///   as-is without transformation
-///
-/// If the provided schema is not an object (rare, e.g. a malformed worker),
-/// falls back to an open schema to avoid breaking the invocation.
-fn apollia_input_schema_to_json_schema(schema: &serde_json::Value) -> serde_json::Value {
-    let serde_json::Value::Object(fields) = schema else {
-        return default_open_schema();
-    };
-
-    let mut properties = serde_json::Map::with_capacity(fields.len());
-    let mut required: Vec<serde_json::Value> = Vec::new();
-
-    for (field_name, field_def) in fields {
-        let serde_json::Value::Object(field_obj) = field_def else {
-            // Non-object definition (rare, e.g. `field: "string"`): pass the
-            // value through as a raw `description` to stay safe with the
-            // autoparser.
-            let desc = field_def.as_str().unwrap_or("").to_string();
-            properties.insert(field_name.clone(), serde_json::json!({"description": desc}));
-            continue;
-        };
-
-        // Keep ONLY `description` on the property and consume `required` for
-        // the top-level array. Other fields (`type`, `enum`, `items`, nested
-        // `properties`...) are deliberately omitted: llama.cpp's PEG
-        // autoparser tries to generate a complete grammar from each property
-        // and raises a `std::exception` (rc = -3) on incomplete complex types
-        // (`array` without `items`, `object` without deep `properties`,
-        // unions, etc.). The LLM copes well with just `field_name +
-        // description` and inference stays relevant.
-        let description = field_obj
-            .get("description")
-            .and_then(|v| v.as_str())
-            .map(str::to_string)
-            .or_else(|| {
-                field_obj
-                    .get("type")
-                    .and_then(|v| v.as_str())
-                    .map(|t| format!("(type: {t})"))
-            })
-            .unwrap_or_default();
-
-        if let Some(req) = field_obj.get("required").and_then(|v| v.as_bool()) {
-            if req {
-                required.push(serde_json::Value::String(field_name.clone()));
-            }
-        }
-
-        properties.insert(
-            field_name.clone(),
-            serde_json::json!({"description": description}),
-        );
-    }
-
-    // Deliberately omit `additionalProperties` and an empty `required: []`.
-    let mut schema = serde_json::Map::new();
-    schema.insert("type".into(), serde_json::Value::String("object".into()));
-    schema.insert("properties".into(), serde_json::Value::Object(properties));
-    if !required.is_empty() {
-        schema.insert("required".into(), serde_json::Value::Array(required));
-    }
-    serde_json::Value::Object(schema)
-}
-
-/// Open schema used when a worker does not expose an `input_schema`.
-fn default_open_schema() -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "properties": {},
-    })
-}
 
 /// Maximum consecutive failures before the circuit breaker opens for a skill.
 const A2A_CIRCUIT_BREAKER_THRESHOLD: u32 = 3;
@@ -227,12 +100,9 @@ impl ToolInvoker for CompositeToolInvoker {
                 }
             }
 
-            // Full pass-through of the `arguments` dict as the A2A payload:
-            // this dict is the JSON built by the LLM from the schema we expose
-            // to it in `generate_a2a_tool_specs` (itself derived from the
-            // worker's `input_schema`). The A2A runtime wraps it in a
-            // `DataPart` on the `delegate_inner` side, and the worker reads it
-            // via `extract_a2a_payload(task)`.
+            // Full pass-through of the `arguments` dict as the A2A payload.
+            // The A2A runtime wraps it in a `DataPart` on the `delegate_inner`
+            // side, and the worker reads it via `extract_a2a_payload(task)`.
             let input = arguments.clone();
 
             // SubagentStart (non-blocking, best-effort): the worker agent name is
@@ -372,8 +242,6 @@ mod tests {
 
     use apollia_core::{AgentManifest, AgentSkill, ProcessState};
 
-    use super::apollia_input_schema_to_json_schema;
-
     use crate::a2a::invoker::A2AInvoker;
     use crate::a2a::{A2aDelegateResult, A2aError};
     use crate::eventbus::EventBus;
@@ -394,6 +262,7 @@ mod tests {
             .collect();
 
         AgentManifest {
+            autonomy_level: None,
             format_version: 1,
             name: name.to_string(),
             version: "0.1.0".to_string(),
@@ -512,119 +381,6 @@ mod tests {
             bus_tx,
             apollia_core::A2AConfig::default(),
         )
-    }
-
-    #[tokio::test]
-    async fn test_generate_a2a_tool_specs_creates_prefixed_tools() {
-        // GIVEN A2AInvoker with excel-worker (3 skills)
-        let invoker = make_invoker_with_agent(
-            "excel-worker",
-            &[
-                ("read-excel", "Read an Excel file"),
-                ("edit-excel", "Edit an Excel file"),
-                ("analyze-excel", "Analyze an Excel file"),
-            ],
-            make_ok_delegate("ok"),
-        )
-        .await;
-
-        // WHEN generate_a2a_tool_specs()
-        let specs = super::generate_a2a_tool_specs(&invoker).await;
-
-        // THEN 3 ToolSpec with names "a2a:read-excel", "a2a:edit-excel", "a2a:analyze-excel"
-        assert_eq!(specs.len(), 3);
-        let names: Vec<&str> = specs.iter().map(|s| s.name.as_str()).collect();
-        assert!(
-            names.contains(&"a2a:read-excel"),
-            "missing a2a:read-excel in {names:?}"
-        );
-        assert!(
-            names.contains(&"a2a:edit-excel"),
-            "missing a2a:edit-excel in {names:?}"
-        );
-        assert!(
-            names.contains(&"a2a:analyze-excel"),
-            "missing a2a:analyze-excel in {names:?}"
-        );
-
-        // AND each description contains "(via excel-worker)"
-        for spec in &specs {
-            assert!(
-                spec.description.contains("(via excel-worker)"),
-                "description '{}' does not contain '(via excel-worker)'",
-                spec.description
-            );
-        }
-
-        // AND each input_schema falls back to an open-object schema (no
-        // `input_schema` declared on the test manifest, generate_a2a_tool_specs
-        // returns `{"type": "object", "additionalProperties": true}`).
-        for spec in &specs {
-            assert_eq!(
-                spec.parameters.get("type").and_then(|v| v.as_str()),
-                Some("object"),
-                "expected open-object fallback schema, got {:?}",
-                spec.parameters,
-            );
-            assert!(
-                spec.parameters.get("properties").is_some(),
-                "fallback schema should have an empty `properties` object",
-            );
-        }
-    }
-
-    #[test]
-    fn test_apollia_input_schema_to_json_schema_conversion() {
-        // GIVEN the custom Apollia format
-        let schema = serde_json::json!({
-            "series": {"type": "array", "description": "List of series", "required": true},
-            "orientation": {"type": "string", "description": "vertical|horizontal", "required": false},
-        });
-
-        // WHEN converted
-        let json_schema = apollia_input_schema_to_json_schema(&schema);
-
-        // THEN it produces a defensive JSON Schema: top-level type + properties
-        // limited to descriptions only (no `type`, `items` etc. on inner props,
-        // for compatibility with llama.cpp's PEG autoparser).
-        assert_eq!(json_schema["type"], "object");
-        assert!(
-            json_schema.get("additionalProperties").is_none(),
-            "additionalProperties should not be emitted",
-        );
-        let props = &json_schema["properties"];
-        assert_eq!(props["series"]["description"], "List of series");
-        assert!(
-            props["series"].get("type").is_none(),
-            "inner `type` should be stripped to avoid llama.cpp autoparser issues",
-        );
-        assert!(
-            props["series"].get("required").is_none(),
-            "`required` should be hoisted to top-level array",
-        );
-        assert_eq!(props["orientation"]["description"], "vertical|horizontal");
-        let required = json_schema["required"].as_array().expect("required arr");
-        assert_eq!(required.len(), 1);
-        assert_eq!(required[0], "series");
-    }
-
-    #[tokio::test]
-    async fn test_no_a2a_agents_no_a2a_specs() {
-        // GIVEN A2AInvoker with no registered agents
-        let (bus_tx, _) = EventBus::new();
-        let registry = AgentRegistry::spawn(bus_tx.clone());
-        let invoker = A2AInvoker::new_for_test(
-            registry,
-            make_ok_delegate("ok"),
-            bus_tx,
-            apollia_core::A2AConfig::default(),
-        );
-
-        // WHEN generate_a2a_tool_specs()
-        let specs = super::generate_a2a_tool_specs(&invoker).await;
-
-        // THEN empty list
-        assert!(specs.is_empty(), "expected no specs, got {}", specs.len());
     }
 
     #[tokio::test]
