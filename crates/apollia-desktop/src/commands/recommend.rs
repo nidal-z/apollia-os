@@ -18,8 +18,8 @@
 
 use apollia_llm::hardware::{detect as detect_hardware, HardwareProfile};
 use apollia_llm::recommend::{
-    resolve, FamilyManifest, Recommendation, ResolveError, ResolveOptions, RuntimeShape,
-    SelectionFamily,
+    resolve, retain_fitting, FamilyManifest, Recommendation, ResolveError, ResolveOptions,
+    RuntimeShape, SelectionFamily,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{event, Level};
@@ -39,6 +39,10 @@ pub struct RecommendParams {
     /// lowered it through `APOLLIA_LLAMA_N_CTX` can pass the real value and see
     /// the larger models that then fit.
     pub n_ctx: Option<u32>,
+    /// Keep, in the editorial selection, only the sizes that fit this
+    /// machine. The ranked list already holds only what fits.
+    #[serde(default)]
+    pub fits_only: bool,
 }
 
 /// The answer, with the two failure modes kept apart from the success.
@@ -126,13 +130,16 @@ fn remember(n_ctx: u32, outcome: &RecommendOutcome) {
 #[tauri::command]
 pub async fn recommend_models(params: RecommendParams) -> Result<RecommendOutcome, String> {
     let cache_key = params.n_ctx.unwrap_or(0);
-    if let Some(outcome) = cached(cache_key) {
-        return Ok(truncated(outcome, params.limit));
-    }
-
     let profile = tokio::task::spawn_blocking(detect_hardware)
         .await
         .map_err(|e| format!("hardware detection failed: {e}"))?;
+    if let Some(outcome) = cached(cache_key) {
+        return Ok(fitting(
+            truncated(outcome, params.limit),
+            params.fits_only,
+            &profile,
+        ));
+    }
 
     let mut options = ResolveOptions {
         hf_token: params.hf_token,
@@ -147,7 +154,26 @@ pub async fn recommend_models(params: RecommendParams) -> Result<RecommendOutcom
 
     let outcome = recommend_for(&profile, &options).await?;
     remember(cache_key, &outcome);
-    Ok(truncated(outcome, params.limit))
+    Ok(fitting(
+        truncated(outcome, params.limit),
+        params.fits_only,
+        &profile,
+    ))
+}
+
+/// Cut the editorial selection to the sizes that fit `profile`, when asked.
+fn fitting(
+    mut outcome: RecommendOutcome,
+    fits_only: bool,
+    profile: &HardwareProfile,
+) -> RecommendOutcome {
+    if fits_only {
+        let (RecommendOutcome::Ok { selection, .. }
+        | RecommendOutcome::Unreachable { selection, .. }
+        | RecommendOutcome::Empty { selection, .. }) = &mut outcome;
+        retain_fitting(selection, profile);
+    }
+    outcome
 }
 
 /// The decision behind [`recommend_models`], for a given machine and Hub.
@@ -280,5 +306,50 @@ mod tests {
         assert_eq!(families.len(), manifest.families().len());
         assert!(families[0]["variants"][0]["gguf_repos"].is_array());
         assert!(families[0]["variants"][0]["mlx_repos"].is_array());
+    }
+
+    #[tokio::test]
+    async fn offline_the_selection_is_cut_to_what_fits_when_asked() {
+        // GIVEN a small machine and a HuggingFace that does not answer
+        let small = HardwareProfile {
+            total_ram_gb: 8.0,
+            available_ram_gb: 4.0,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 4,
+            accelerator: AcceleratorProfile::None,
+            memory_budget_gb: 4.8,
+        };
+        let options = ResolveOptions {
+            hub_base: Some(UNREACHABLE_HUB.to_owned()),
+            ..ResolveOptions::default()
+        };
+        let outcome = recommend_for(&small, &options)
+            .await
+            .expect("an unreachable hub is an outcome, not an error");
+        let whole = match &outcome {
+            RecommendOutcome::Unreachable { selection, .. } => selection.clone(),
+            other => panic!("expected the unreachable outcome, got {other:?}"),
+        };
+
+        // WHEN the selection is asked with and without the fit parameter
+        let kept = fitting(outcome.clone(), true, &small);
+        let untouched = fitting(outcome, false, &small);
+
+        // THEN the fit parameter keeps a non-empty part of it, every size of
+        // which fits, and without it nothing is cut
+        let RecommendOutcome::Unreachable { selection, .. } = kept else {
+            panic!("the outcome keeps its status");
+        };
+        let count = |s: &[SelectionFamily]| s.iter().map(|f| f.variants.len()).sum::<usize>();
+        assert!(count(&selection) > 0);
+        assert!(count(&selection) < count(&whole));
+        assert!(selection
+            .iter()
+            .flat_map(|f| f.variants.iter())
+            .all(|v| v.fits(&small)));
+        let RecommendOutcome::Unreachable { selection, .. } = untouched else {
+            panic!("the outcome keeps its status");
+        };
+        assert_eq!(count(&selection), count(&whole));
     }
 }

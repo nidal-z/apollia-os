@@ -1180,7 +1180,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** `GET /api/v1/llm/registry/search?q=...&limit=...&sort=...` */
+        /**
+         * `GET /api/v1/llm/registry/search?q=...&format=...&sort=...&fits_only=...`
+         * @description Asks each organisation of the two publisher lists, by its `author=`, and
+         *     nothing else. Answers `503` with `search is unavailable offline` when no
+         *     organisation can be reached, never an empty list.
+         */
         get: operations["search_registry"];
         put?: never;
         post?: never;
@@ -7714,12 +7719,16 @@ export interface operations {
     search_registry: {
         parameters: {
             query?: {
-                /** @description Search query */
+                /** @description Words of a model name, searched within the official publishers and the recognised converters only */
                 q?: string;
+                /** @description gguf (default) or mlx; mlx only on Apple Silicon */
+                format?: string;
                 /** @description Maximum number of results */
                 limit?: number;
-                /** @description Sort key */
+                /** @description best_match (default), likes, downloads or updated */
                 sort?: string;
+                /** @description Keep only the results with a variant recommended for this machine */
+                fits_only?: boolean;
                 /** @description HuggingFace token for gated models */
                 hf_token?: string;
             };
@@ -7729,15 +7738,33 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Matching GGUF models (HuggingFace model cards) */
+            /** @description Results with their generated cards, and the estimated capacity of this machine */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
+            /** @description Unknown sort, or MLX asked off Apple Silicon */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Upstream HuggingFace error */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Search unavailable offline */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

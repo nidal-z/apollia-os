@@ -1,0 +1,10 @@
+{
+  "conversion": {
+    "fr": "Conversion {format} de {origin} par {owner}.",
+    "en": "{format} conversion of {origin} by {owner}."
+  },
+  "publication": {
+    "fr": "Modèle au format {format} publié par {owner}.",
+    "en": "{format} model published by {owner}."
+  }
+}

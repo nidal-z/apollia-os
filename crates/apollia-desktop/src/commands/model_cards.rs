@@ -12,7 +12,7 @@ use apollia_llm::model_cards::fetch::{open_catalogue, CatalogueView, RegistrySou
 use apollia_llm::model_cards::{compiled_public_key, default_cache_dir};
 
 /// The data directory of this installation.
-fn data_dir() -> std::path::PathBuf {
+pub(crate) fn data_dir() -> std::path::PathBuf {
     let home = apollia_core::paths::home_dir_or_temp();
     apollia_core::paths::data_dir_under(home)
 }
