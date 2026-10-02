@@ -232,6 +232,7 @@ check_exit    "batch run unknown source type → 1" 1  "${Q[@]}" batch run apoll
 check_exit    "batch status unknown → 1"          1  "${Q[@]}" batch status 00000000-0000-0000-0000-000000000000
 check_exit    "batch stop unknown → 1"            1  "${Q[@]}" batch stop 00000000-0000-0000-0000-000000000000
 check_exit    "batch retry unknown → 1"           1  "${Q[@]}" batch retry 00000000-0000-0000-0000-000000000000
+check_exit    "batch export unknown → 1"          1  "${Q[@]}" batch export 00000000-0000-0000-0000-000000000000 --format json -o -
 
 # `task resume` resolves the task id before touching its state, so an unknown
 # id is a deterministic refusal; the approve path on a real suspension stays a

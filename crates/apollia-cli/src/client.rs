@@ -376,6 +376,12 @@ impl RuntimeClient {
         })
     }
 
+    /// Send a GET request and return the status and the body as bytes, for
+    /// an answer that is a file rather than text.
+    pub async fn get_bytes(&self, uri: &str) -> Result<(u16, Bytes), ClientError> {
+        self.request_bytes("GET", uri, None).await
+    }
+
     /// Internal: send an HTTP request over Unix socket.
     async fn request(
         &self,
@@ -383,6 +389,20 @@ impl RuntimeClient {
         uri: &str,
         body: Option<&serde_json::Value>,
     ) -> Result<RawResponse, ClientError> {
+        let (status, body_bytes) = self.request_bytes(method, uri, body).await?;
+        Ok(RawResponse {
+            status,
+            body: String::from_utf8_lossy(&body_bytes).to_string(),
+        })
+    }
+
+    /// Internal: send an HTTP request over Unix socket, the body kept as bytes.
+    async fn request_bytes(
+        &self,
+        method: &str,
+        uri: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<(u16, Bytes), ClientError> {
         let stream = connect_runtime(&self.socket_path).await.map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound
                 || e.kind() == std::io::ErrorKind::ConnectionRefused
@@ -439,12 +459,7 @@ impl RuntimeClient {
             .await
             .map_err(|e| ClientError::Http(e.to_string()))?
             .to_bytes();
-        let body_str = String::from_utf8_lossy(&body_bytes).to_string();
-
-        Ok(RawResponse {
-            status,
-            body: body_str,
-        })
+        Ok((status, body_bytes))
     }
 }
 

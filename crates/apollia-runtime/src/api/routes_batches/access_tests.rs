@@ -98,7 +98,7 @@ struct Fixture {
 /// A connector operation that sends outside the machine: a sensitive access
 /// that can be granted for a batch.
 fn sending_tool() -> String {
-    crate::connectors_bridge::all_connector_descriptors()
+    crate::connectors_bridge::google_tool_descriptors()
         .into_iter()
         .find(|d| d.family == ActionFamily::SendExternal)
         .map(|d| d.name)

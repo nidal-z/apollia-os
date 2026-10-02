@@ -71,6 +71,8 @@ reqwest            = { workspace = true, features = ["json", "stream"] }
 # Temporary WAV for RunnerSttBackend (serialises the PCM buffers before
 # sending them to the runner through /stt/transcribe).
 tempfile           = { workspace = true }
+# Excel export of a batch. See the `package-archive` decision.
+rust_xlsxwriter    = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wmi = { workspace = true }
@@ -80,6 +82,8 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 tempfile = { workspace = true }
 http-body-util = { workspace = true }
 proptest = { workspace = true }
+# Reads back the Excel export in its tests.
+zip = { workspace = true }
 
 [lints]
 workspace = true

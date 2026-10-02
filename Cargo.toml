@@ -153,6 +153,13 @@ zip = { version = "4", default-features = false, features = ["deflate-flate2"] }
 # through png and tauri-plugin-updater.
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 
+# --- Spreadsheets ---
+# Writes the Excel export of a batch (apollia-runtime). A writer only, no
+# network. Pinned to the last release that depends on zip 4; its `deflate`
+# feature of zip brings `zopfli` and `zlib-rs`. See the `package-archive`
+# decision.
+rust_xlsxwriter = { version = "=0.92.0", default-features = false }
+
 # --- Random ---
 # rand 0.9 = the latest widely adopted stable major (0.10 has only just
 # shipped and the ecosystem is not aligned yet: avoid duplicate versions).

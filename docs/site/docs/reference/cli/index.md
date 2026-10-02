@@ -207,6 +207,7 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os batch resume`↴](#apollia-os-batch-resume)
 * [`apollia-os batch stop`↴](#apollia-os-batch-stop)
 * [`apollia-os batch retry`↴](#apollia-os-batch-retry)
+* [`apollia-os batch export`↴](#apollia-os-batch-export)
 * [`apollia-os resilience`↴](#apollia-os-resilience)
 * [`apollia-os resilience list`↴](#apollia-os-resilience-list)
 * [`apollia-os resilience show`↴](#apollia-os-resilience-show)
@@ -319,7 +320,7 @@ Apollia OS CLI binary (apollia-os)
 * `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
-* `batch` - Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry)
+* `batch` - Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export)
 * `resilience` - Circuit breaker inspection and reset (list, show, reset)
 * `plan` - Plan domain management (cache: stats, clear, evict)
 * `service` - Run the runtime as a service of your session (install, uninstall, status)
@@ -3232,7 +3233,7 @@ Automated code or plan review via the apollia-review agent
 
 ## `apollia-os batch`
 
-Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry)
+Run an agent on every item of a source (run, status, list, accesses, pause, resume, stop, retry, export)
 
 **Usage:** `apollia-os batch <COMMAND>`
 
@@ -3246,6 +3247,7 @@ Run an agent on every item of a source (run, status, list, accesses, pause, resu
 * `resume` - Resume a paused batch
 * `stop` - Stop a batch: running items are cancelled, pending ones never run
 * `retry` - Run the failed items of a batch, and those waiting for an access, again
+* `export` - Export the result of a batch to a file: one row per item, its input columns, its output, its status and the sources it cites
 
 
 
@@ -3357,6 +3359,26 @@ Run the failed items of a batch, and those waiting for an access, again
 ###### **Options:**
 
 * `--grant <GRANTS>` - A sensitive access granted for the rest of the batch; repeatable
+
+
+
+## `apollia-os batch export`
+
+Export the result of a batch to a file: one row per item, its input columns, its output, its status and the sources it cites
+
+**Usage:** `apollia-os batch export [OPTIONS] --format <FORMAT> <BATCH_ID>`
+
+###### **Arguments:**
+
+* `<BATCH_ID>` - The batch id
+
+###### **Options:**
+
+* `--format <FORMAT>` - The file format
+
+  Possible values: `xlsx`, `csv`, `json`
+
+* `-o`, `--output <PATH>` - Where to write the file; `-` writes it to standard output. Default: `batch-<id>.<format>` in the current folder
 
 
 
