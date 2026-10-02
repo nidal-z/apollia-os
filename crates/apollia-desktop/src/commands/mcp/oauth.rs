@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use apollia_auth::{SecretStore, MCP_CLIENT_ID_SERVICE};
 use serde::{Deserialize, Serialize};
 
 // ─── MCP HTTP OAuth IPC ──────────────────────────────────────────────────────
@@ -113,23 +114,15 @@ pub async fn mcp_oauth_discover(
     })
 }
 
-/// Keychain service slot for user-entered OAuth client ids.
-///
-/// Holds the values typed into the wizard's OAuth client id input when the
-/// catalog enrichment declares `oauth_pre_registered_client_id_env` and
-/// neither the runtime env var nor the build-time constant resolves. Keeps
-/// non-technical users out of the terminal while still supporting power-user
-/// overrides (enterprise tenants that want their own Figma app).
-const MCP_CLIENT_ID_SERVICE: &str = "apollia-mcp-client-ids";
-
 /// Resolve a pre-registered OAuth client id, with three fallback layers so
 /// end users get a turnkey experience.
 ///
 /// Lookup order (mirrors the Google/Microsoft connector pattern):
 /// 1. **Runtime env var** matching `env_var`, for dev / power-user override
 ///    (e.g. `APOLLIA_FIGMA_CLIENT_ID=xxx` exported before launch).
-/// 2. **Keychain stored value** - set via the wizard input or settings panel
-///    by users who don't want to touch env vars but registered their own app.
+/// 2. **Stored value** - read from the shared secret store under
+///    [`MCP_CLIENT_ID_SERVICE`], written by `apollia-os mcp oauth client-id`
+///    for users who don't want to touch env vars but registered their own app.
 /// 3. **Build-time constant** baked into the binary via `option_env!` - set
 ///    when the release pipeline runs with `APOLLIA_BUILD_FIGMA_CLIENT_ID`
 ///    in the environment (cf. `OAUTH-SETUP-TUTO.md §4`). End users of the
@@ -157,10 +150,14 @@ pub fn mcp_oauth_resolve_client_id(env_var: String) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Persist a user-entered OAuth client id to the OS keychain.
-///
+/// Read the client id stored for `env_var` from the configured secret store
+/// (OS keychain by default, encrypted files when `APOLLIA_TOKEN_STORAGE=file`).
 fn load_stored_client_id(env_var: &str) -> Option<String> {
     let store = apollia_auth::select_secret_store().ok()?;
+    stored_client_id_in(&*store, env_var)
+}
+
+fn stored_client_id_in(store: &dyn SecretStore, env_var: &str) -> Option<String> {
     store.get(MCP_CLIENT_ID_SERVICE, env_var).ok().flatten()
 }
 
@@ -242,4 +239,43 @@ pub async fn mcp_oauth_login(
         email: token.identity_email,
         scopes: token.scope,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_client_id_service_keeps_its_keychain_name() {
+        // GIVEN the service the desktop and the CLI stored client ids under
+        // before the constant moved to apollia-auth
+        // WHEN the shared constant is read
+        // THEN it is the same name, so no stored client id has to move
+        assert_eq!(MCP_CLIENT_ID_SERVICE, "apollia-mcp-client-ids");
+    }
+
+    #[test]
+    fn test_stored_client_id_round_trips_in_age_file_mode() {
+        // GIVEN a client id written to the encrypted-file store the way the
+        // CLI writes it: service MCP_CLIENT_ID_SERVICE, account the env var
+        let dir = tempfile::tempdir().expect("tempdir");
+        let store =
+            apollia_auth::AgeFileSecretStore::new(dir.path().to_path_buf(), "test-pass".into())
+                .expect("age store");
+        store
+            .set(
+                MCP_CLIENT_ID_SERVICE,
+                "APOLLIA_FIGMA_CLIENT_ID",
+                "client-123",
+            )
+            .expect("set");
+
+        // WHEN the desktop resolver reads it back, for that variable and another
+        let found = stored_client_id_in(&store, "APOLLIA_FIGMA_CLIENT_ID");
+        let other = stored_client_id_in(&store, "APOLLIA_OTHER_CLIENT_ID");
+
+        // THEN the stored value comes back, and an unknown variable finds nothing
+        assert_eq!(found.as_deref(), Some("client-123"));
+        assert!(other.is_none());
+    }
 }

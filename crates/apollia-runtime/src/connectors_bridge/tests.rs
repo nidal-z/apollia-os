@@ -1,5 +1,6 @@
 use apollia_connectors::google::operations as google_operations;
-use apollia_tools::descriptor::ApprovalRiskLevel;
+use apollia_connectors::operation::ApprovalPolicy;
+use apollia_tools::descriptor::{ActionFamily, ApprovalRiskLevel, FamilySource};
 
 use super::*;
 
@@ -140,4 +141,86 @@ fn a_google_call_reaches_an_executor_with_no_desktop() {
         names.contains(&"gsheets.read_values"),
         "the runtime set is the full one, not the twelve ops the desktop carried"
     );
+}
+
+fn connector_descriptor(id: &str) -> apollia_tools::ToolDescriptor {
+    all_connector_descriptors()
+        .into_iter()
+        .find(|d| d.name == id)
+        .unwrap_or_else(|| panic!("no connector descriptor named {id}"))
+}
+
+fn connector_operation(id: &str) -> apollia_connectors::operation::OperationSpec {
+    google_operations()
+        .iter()
+        .chain(apollia_connectors::microsoft::operations().iter())
+        .find(|op| op.id == id)
+        .cloned()
+        .unwrap_or_else(|| panic!("no connector operation named {id}"))
+}
+
+#[test]
+fn an_auto_approved_operation_reads_personal_data() {
+    // GIVEN an operation the connector auto-approves
+    let op = connector_operation("gcal.list_events");
+    assert_eq!(op.approval, ApprovalPolicy::AutoApprove);
+    // WHEN it is translated into a tool descriptor
+    let d = connector_descriptor(op.id);
+    // THEN it reads personal data, a classification fixed in Apollia's code
+    assert_eq!(d.family, ActionFamily::ReadPersonal);
+    assert_eq!(d.family_source, FamilySource::Builtin);
+}
+
+#[test]
+fn a_send_operation_sends_outside_whatever_its_approval() {
+    // GIVEN the two operations whose verb is `send`
+    for id in ["gmail.send", "outlook.send"] {
+        let op = connector_operation(id);
+        assert_eq!(op.action, "send");
+        // WHEN each is translated into a tool descriptor
+        let d = connector_descriptor(id);
+        // THEN it sends outside, even though its approval policy is a write's
+        assert_eq!(d.family, ActionFamily::SendExternal, "{id}");
+        assert_eq!(d.family_source, FamilySource::Builtin, "{id}");
+    }
+}
+
+#[test]
+fn an_operation_requiring_approval_writes_or_deletes() {
+    // GIVEN an operation that always requires approval and does not send
+    let op = connector_operation("gcal.create_event");
+    assert_eq!(op.approval, ApprovalPolicy::AlwaysRequireApproval);
+    assert_ne!(op.action, "send");
+    // WHEN it is translated into a tool descriptor
+    let d = connector_descriptor(op.id);
+    // THEN it writes or deletes
+    assert_eq!(d.family, ActionFamily::WriteOrDelete);
+    assert_eq!(d.family_source, FamilySource::Builtin);
+}
+
+#[test]
+fn an_operation_requiring_a_confirm_phrase_writes_or_deletes() {
+    // GIVEN an operation guarded by a confirmation phrase
+    let op = connector_operation("gcal.delete_event");
+    assert_eq!(op.approval, ApprovalPolicy::ConfirmPhrase);
+    // WHEN it is translated into a tool descriptor
+    let d = connector_descriptor(op.id);
+    // THEN it writes or deletes
+    assert_eq!(d.family, ActionFamily::WriteOrDelete);
+    assert_eq!(d.family_source, FamilySource::Builtin);
+}
+
+#[test]
+fn every_connector_descriptor_is_classified() {
+    // GIVEN every connector descriptor registered at boot
+    // WHEN their families are read
+    // THEN none is left unclassified nor exempt
+    for d in all_connector_descriptors() {
+        assert!(
+            !matches!(d.family, ActionFamily::Unclassified | ActionFamily::Exempt),
+            "{} has family {:?}",
+            d.name,
+            d.family
+        );
+    }
 }

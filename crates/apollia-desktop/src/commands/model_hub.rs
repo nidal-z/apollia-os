@@ -40,11 +40,16 @@ pub struct HardwareProfileView {
     pub cpu_cores: u32,
     pub accelerator: AcceleratorProfile,
     pub memory_budget_gb: f64,
+    /// What a model can occupy here, in GB rounded to the tenth; the same
+    /// figure the runtime's hardware route publishes.
+    pub total_capacity_gb: f64,
 }
 
 impl From<HardwareProfile> for HardwareProfileView {
     fn from(p: HardwareProfile) -> Self {
+        let total_capacity_gb = apollia_llm::recommend::estimated_capacity_gb(&p);
         Self {
+            total_capacity_gb,
             total_ram_gb: p.total_ram_gb,
             available_ram_gb: p.available_ram_gb,
             cpu_model: p.cpu_model,

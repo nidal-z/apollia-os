@@ -56,6 +56,9 @@ pub struct RuntimeHandle {
     pub trigger_engine: TriggerEngineHandle,
     /// Optional handle to the AuditTrail.
     pub audit_trail: Option<AuditTrailHandle>,
+    /// Admission policy and journal of connection events. The desktop admits
+    /// and journals a native account through it, the HTTP routes the rest.
+    pub connection_governance: crate::governance::ConnectionGovernance,
     /// Read access to the TaskRepository.
     pub task_repository: Option<Arc<TaskRepository>>,
     /// Pending approvals.
@@ -228,6 +231,12 @@ pub struct EmbeddedConfig {
     /// `Some(port)` and MUST also set [`api_token`](EmbeddedConfig::api_token)
     /// so the port is authenticated.
     pub tcp_port: Option<u16>,
+    /// A listener the host already bound on `tcp_port`, served as is.
+    ///
+    /// A host that decides at startup whether to run a runtime by claiming the
+    /// port passes the claimed listener here, so the port is never released
+    /// between the decision and the serve. `None` binds `tcp_port` at startup.
+    pub tcp_listener: Option<std::net::TcpListener>,
     /// Bearer token honored on the TCP listener, or `None` for no TCP auth.
     ///
     /// Only meaningful when [`tcp_port`](EmbeddedConfig::tcp_port) is `Some`.
@@ -309,6 +318,7 @@ impl Default for EmbeddedConfig {
         let home = apollia_core::paths::home_dir_or_temp();
         Self {
             tcp_port: None,
+            tcp_listener: None,
             api_token: None,
             socket_path: apollia_core::paths::socket_path_under(&home),
             data_dir: apollia_core::paths::data_dir_under(home),
@@ -352,6 +362,7 @@ impl EmbeddedConfig {
             filesystem: Option<apollia_core::FilesystemConfig>,
             observability: Option<ObservabilityConfig>,
         }
+        apollia_core::config::warn_retired_keys(content);
         if let Ok(s) = toml::from_str::<TomlSections>(content) {
             self.llm_config = s.llm;
             if let Some(rc) = s.runtime {
@@ -501,6 +512,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
             socket_path: config.socket_path,
             bind_addr: "127.0.0.1".to_owned(),
             tcp_port,
+            tcp_listener: config.tcp_listener,
             api_token: config.api_token,
             // Embedded hosts are loopback-only; TLS is a daemon-only concern.
             ..APIServerConfig::default()
@@ -546,6 +558,7 @@ async fn start_supervisor_and_wait(config: EmbeddedConfig) -> Result<RuntimeHand
         llm_router: handles.llm_router,
         trigger_engine: handles.trigger_engine,
         audit_trail: handles.audit_trail,
+        connection_governance: handles.connection_governance,
         task_repository: handles.task_repository,
         pending_approvals: handles.pending_approvals,
         plan_gates: handles.plan_gates,

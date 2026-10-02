@@ -171,6 +171,17 @@ impl MemoryArchitecture {
 }
 
 /// Bandwidth of an Apple chip, from its marketing name.
+/// The memory a model can occupy on this machine, in gigabytes rounded to the
+/// tenth: the figure shown beside the "fits on this device" filter.
+///
+/// It is [`MemoryArchitecture::total_capacity_gb`], so a model under it is one
+/// the estimator does not call too large.
+#[must_use]
+pub fn estimated_capacity_gb(profile: &HardwareProfile) -> f64 {
+    let raw = MemoryArchitecture::of(profile).total_capacity_gb(profile);
+    (raw * 10.0).round() / 10.0
+}
+
 fn apple_bandwidth(chip: &str) -> f64 {
     let lower = chip.to_lowercase();
     if lower.contains("ultra") {
@@ -198,7 +209,8 @@ pub struct OffloadPlan {
     pub device_gb: f64,
     /// What stays in system memory, in gibibytes.
     pub host_gb: f64,
-    /// Whether every layer reached the accelerator.
+    /// Whether every layer reached the accelerator and the accelerator holds
+    /// them. Always false without an accelerator.
     pub fully_offloaded: bool,
     /// Rough generation throughput, in tokens per second.
     ///
@@ -250,13 +262,17 @@ pub fn plan_offload(
 
     match arch {
         // One pool: every layer goes to the accelerator, and the only question
-        // the placement answers is how fast the pool is.
+        // the placement answers is how fast the pool is. The model is fully
+        // offloaded only when the pool holds it: past the budget nothing is
+        // left to split onto, and the engine fails to load.
         MemoryArchitecture::Unified { bandwidth_gbps } => OffloadPlan {
             n_gpu_layers: layers,
             total_layers: layers,
             device_gb: resident_gb,
             host_gb: 0.0,
-            fully_offloaded: true,
+            fully_offloaded: super::fit::estimate_memory(weights_bytes, facts, shape, true)
+                .total_gb
+                < profile.memory_budget_gb,
             tokens_per_second: throughput(active_gb, 0.0, bandwidth_gbps, bandwidth_gbps),
         },
 

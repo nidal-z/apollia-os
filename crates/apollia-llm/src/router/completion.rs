@@ -38,13 +38,12 @@ impl LlmRouter {
     ) -> Result<CompletionResponse, LlmError> {
         let backend_key = backend_name.unwrap_or(&self.default);
 
-        let backend =
-            self.backends
-                .get(backend_key)
-                .ok_or_else(|| LlmError::BackendUnavailable {
-                    backend: backend_key.to_owned(),
-                    reason: "not found in router".to_owned(),
-                })?;
+        let backend = self
+            .lookup(backend_key)
+            .ok_or_else(|| LlmError::BackendUnavailable {
+                backend: backend_key.to_owned(),
+                reason: "not found in router".to_owned(),
+            })?;
 
         // Log the prompt at TRACE only, never at INFO.
         if obs.debug_log_prompt {
@@ -152,7 +151,7 @@ impl LlmRouter {
 
         let mut last_err = primary_err;
         for &candidate in fallbacks {
-            if candidate == primary || !self.backends.contains_key(candidate) {
+            if candidate == primary || self.lookup(candidate).is_none() {
                 continue;
             }
             if let Some(b) = bus {
@@ -205,13 +204,12 @@ impl LlmRouter {
     > {
         let backend_key = backend_name.unwrap_or(&self.default);
 
-        let backend =
-            self.backends
-                .get(backend_key)
-                .ok_or_else(|| LlmError::BackendUnavailable {
-                    backend: backend_key.to_owned(),
-                    reason: "not found in router".to_owned(),
-                })?;
+        let backend = self
+            .lookup(backend_key)
+            .ok_or_else(|| LlmError::BackendUnavailable {
+                backend: backend_key.to_owned(),
+                reason: "not found in router".to_owned(),
+            })?;
 
         if obs.debug_log_prompt {
             tracing::trace!(prompt = ?req.messages, "llm.stream.prompt");

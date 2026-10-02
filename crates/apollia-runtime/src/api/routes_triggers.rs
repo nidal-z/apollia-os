@@ -715,6 +715,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: Some(Arc::new(std::sync::Mutex::new(repo))),
@@ -735,6 +736,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         }
     }
 
@@ -1176,6 +1178,7 @@ mod tests {
             tool_registry_handle: None,
             audit_trail: None,
             audit_journal: None,
+            connection_governance: Default::default(),
             obs_config: apollia_core::ObservabilityConfig::default(),
             llm_call_repository: None,
             trigger_def_repo: None,
@@ -1196,6 +1199,7 @@ mod tests {
             resilience_layer: None,
             runner_proxy: None,
             llama_server_supervisor: None,
+            secret_store: crate::inference_servers::default_store_opener(),
         };
 
         let router = Router::new()

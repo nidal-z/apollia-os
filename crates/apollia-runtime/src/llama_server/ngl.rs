@@ -73,12 +73,16 @@ fn plan_gpu_layers(config: &LlamaServerConfig) -> Option<i32> {
         n_ubatch: config.n_ubatch.unwrap_or(512),
     };
 
-    let plan = apollia_llm::recommend::plan_offload(weights_bytes, &facts, &profile, &shape);
+    // The same assessment that grades the model in the Hub and the ranking, so
+    // a model shown as fitting is the one launched with every layer offloaded.
+    let fit = apollia_llm::recommend::assess_fit(weights_bytes, &facts, &profile, &shape);
+    let plan = fit.plan;
     tracing::info!(
         model = %config.model_path,
         n_gpu_layers = plan.n_gpu_layers,
         total_layers = plan.total_layers,
         fully_offloaded = plan.fully_offloaded,
+        badge = ?fit.badge,
         "llama.server.ngl.planned"
     );
     i32::try_from(plan.n_gpu_layers).ok()

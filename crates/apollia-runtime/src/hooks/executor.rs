@@ -998,7 +998,10 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn test_subagent_start_receives_payload() {
-        // GIVEN a SubagentStart handler that captures its stdin payload
+        // GIVEN a SubagentStart handler that captures its stdin payload, run
+        //       as `/bin/sh <script>`: the first execution of a file written a
+        //       moment earlier waits for macOS to assess it, and under a
+        //       parallel test run that wait outlasted the 5 s timeout
         let dir = tempfile::tempdir().expect("tempdir");
         let capture = dir.path().join("payload.json");
         let script = write_script(
@@ -1008,7 +1011,7 @@ mod tests {
         );
         let exec = executor_with(vec![cmd_handler(
             vec![HookEventKind::SubagentStart],
-            vec![script],
+            vec!["/bin/sh".to_string(), script],
             5_000,
         )]);
 

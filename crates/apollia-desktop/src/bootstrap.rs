@@ -474,6 +474,24 @@ pub(crate) fn setup_stt_hotkey(
     }
 }
 
+/// Record an origin for every MCP server stored without one (see
+/// [`crate::mcp::origin::backfill_origins`]). Never fatal: a server left
+/// without origin reads as custom.
+pub(crate) fn backfill_mcp_origins(data_dir: &std::path::Path) {
+    let path = data_dir.join(apollia_core::paths::DataFile::Mcp.file_name());
+    let result = apollia_mcp::McpServerRepository::open(&path).and_then(|repo| {
+        crate::mcp::origin::backfill_origins(&repo, &crate::mcp::load_builtin_enrichments())
+    });
+    match result {
+        Ok(written) => tracing::info!(written, "mcp.origin.backfill.completed"),
+        Err(e) => tracing::warn!(
+            error = %e,
+            detail = "servers without origin read as custom",
+            "mcp.origin.backfill.failed"
+        ),
+    }
+}
+
 /// Returns `value`, or ends the process on a startup step that has no recovery.
 ///
 /// `main` has no caller to return an error to, and the six steps that used

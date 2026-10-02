@@ -17,7 +17,7 @@ rust-version.workspace = true
 # crate (sidecar). The desktop no longer forwards any `local-*` or `stt-*`
 # feature to the runtime; inference is dispatched to the runner over HTTP IPC.
 default = ["cloud"]
-## Turns on the cloud backends (Anthropic, OpenAI-compatible, and so on).
+## Turns on the HTTP backends (OpenAI-compatible servers, Ollama).
 cloud = ["apollia-runtime/cloud"]
 
 [dependencies]
@@ -65,10 +65,6 @@ sysinfo          = { workspace = true }
 arboard          = { workspace = true }
 enigo            = { workspace = true }
 hound            = { workspace = true }
-# Inherit the workspace declaration: it carries `windows-native` too, which this
-# crate's own redeclaration used to drop, silently leaving Windows credentials in
-# keyring's in-memory mock instead of the Credential Manager.
-keyring          = { workspace = true }
 scraper          = { workspace = true }
 url              = { workspace = true }
 urlencoding      = { workspace = true }

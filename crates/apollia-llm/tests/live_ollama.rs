@@ -1,10 +1,9 @@
-//! Live checks of the native Ollama client against a running server.
+//! Live checks of Ollama reached through the OpenAI-compatible client.
 //!
 //! Ignored by default: they need Ollama on 127.0.0.1:11434 with the model named
-//! by `APOLLIA_TEST_OLLAMA_MODEL` pulled (default `qwen3.5`). They prove the one
-//! thing the offline tests cannot, which is that the server honours the window
-//! the client asks for, since the whole point of the native client is that the
-//! OpenAI-compatible endpoint did not.
+//! by `APOLLIA_TEST_OLLAMA_MODEL` pulled (default `qwen3.5`). They prove what
+//! the offline tests cannot: that a real server answers `/api/show` with a
+//! window, and that a tool call and its result survive its `/v1` endpoint.
 //!
 //! ```sh
 //! cargo test -p apollia-llm --test live_ollama -- --ignored --nocapture
@@ -12,7 +11,7 @@
 
 #![cfg(feature = "cloud")]
 
-use apollia_llm::backends::ollama::{OllamaClient, OllamaConfig, DEFAULT_NUM_CTX};
+use apollia_llm::backends::openai::{ApiBackendConfig, OpenAICompatibleClient};
 use apollia_llm::types::{
     ChatMessage, CompletionModel, CompletionRequest, StreamChunk, ToolCall, ToolSpec,
 };
@@ -37,22 +36,10 @@ fn tool() -> ToolSpec {
     }
 }
 
-async fn loaded_window(model: &str) -> Option<u64> {
-    let ps: serde_json::Value = reqwest::get(format!("{ROOT}/api/ps"))
-        .await
-        .ok()?
-        .json()
-        .await
-        .ok()?;
-    ps["models"].as_array()?.iter().find_map(|m| {
-        let name = m["name"].as_str()?;
-        (name == model || name.strip_suffix(":latest") == Some(model))
-            .then(|| m["context_length"].as_u64())
-            .flatten()
-    })
-}
-
-async fn collect(client: &OllamaClient, req: CompletionRequest) -> (String, Vec<ToolCall>, u32) {
+async fn collect(
+    client: &dyn CompletionModel,
+    req: CompletionRequest,
+) -> (String, Vec<ToolCall>, u32) {
     let mut stream = client
         .stream(req)
         .await
@@ -71,18 +58,22 @@ async fn collect(client: &OllamaClient, req: CompletionRequest) -> (String, Vec<
 
 #[tokio::test]
 #[ignore = "needs a running Ollama; run with --ignored"]
-async fn the_server_runs_at_the_window_the_client_asks_for() {
-    // GIVEN the window the client chooses for this model
+async fn the_window_is_read_and_a_tool_turn_runs_through_v1() {
+    // GIVEN the window the server shows for this model, and a client on its
+    // OpenAI-compatible endpoint
     let model = model();
-    let num_ctx = OllamaClient::num_ctx(ROOT, &model, None).await;
-    assert!(num_ctx <= DEFAULT_NUM_CTX);
-    let client = OllamaClient::new(
-        OllamaConfig {
+    let window = apollia_llm::server_window::ollama_window(ROOT, &model, None).await;
+    assert!(window.is_some(), "/api/show gave no window");
+    let client = OpenAICompatibleClient::with_idle_timeout(
+        &ApiBackendConfig {
             name: "ollama".into(),
-            root: ROOT.into(),
+            api_url: format!("{ROOT}/v1"),
+            api_key_env: String::new(),
             model: model.clone(),
-            num_ctx,
+            context_window: window.map(|w| w as usize),
+            llama_cpp_extensions: false,
         },
+        String::new(),
         CancellationToken::new(),
         std::time::Duration::from_secs(300),
     );
@@ -102,13 +93,11 @@ async fn the_server_runs_at_the_window_the_client_asks_for() {
         },
     )
     .await;
-    println!("window {num_ctx}, prompt {prompt_tokens} tokens, text {text:?}, calls {calls:?}");
+    println!("window {window:?}, prompt {prompt_tokens} tokens, text {text:?}, calls {calls:?}");
 
-    // THEN the model saw its tool and called it, and the server loaded the
-    // model at the requested window rather than at its own 4096
+    // THEN the model saw its tool and called it
     assert!(!calls.is_empty(), "the tool schema did not reach the model");
     assert_eq!(calls[0].name, "fs_read_dir");
-    assert_eq!(loaded_window(&model).await, Some(u64::from(num_ctx)));
 
     // WHEN the result is sent back
     let mut follow_up = history;

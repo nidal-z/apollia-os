@@ -75,6 +75,10 @@ pub struct HfModelCard {
     pub repo_id: String,
     /// Author / organization.
     pub author: Option<String>,
+    /// Whether the owner is an official publisher, a recognised converter, or
+    /// neither (`None`), read from the lists embedded with the curated table.
+    #[serde(default)]
+    pub publisher_kind: Option<crate::recommend::PublisherKind>,
     /// Download count (rolling 30 days).
     pub downloads: u64,
     /// Number of likes.
@@ -206,11 +210,22 @@ const HF_MAX_JSON_BYTES: u64 = 8 * 1024 * 1024;
 pub struct HfRegistryClient {
     client: reqwest::Client,
     token: Option<String>,
+    /// Root of the JSON API, `https://huggingface.co/api` unless overridden.
+    api_base: String,
+    /// Root of the file host, `https://huggingface.co` unless overridden.
+    cdn_base: String,
 }
 
 impl HfRegistryClient {
     /// Create a new client. `token` is optional (only for gated models).
     pub fn new(token: Option<String>) -> Self {
+        Self::with_hub_base(token, HF_CDN_BASE)
+    }
+
+    /// Create a client addressing a Hub at `base` rather than HuggingFace, for
+    /// a mirror or a test server. `base` is the host root, without `/api`.
+    pub fn with_hub_base(token: Option<String>, base: &str) -> Self {
+        let base = base.trim_end_matches('/');
         let client = apollia_core::net::safe_client_builder()
             .user_agent("Apollia-OS/1.0")
             .timeout(std::time::Duration::from_secs(30))
@@ -219,7 +234,12 @@ impl HfRegistryClient {
             // backend that will not initialise; every setting above it is a
             // literal fixed in this file.
             .expect("the TLS backend failed to initialise");
-        Self { client, token }
+        Self {
+            client,
+            token,
+            api_base: format!("{base}/api"),
+            cdn_base: base.to_owned(),
+        }
     }
 
     fn auth_headers(&self) -> reqwest::header::HeaderMap {
@@ -296,9 +316,10 @@ impl HfRegistryClient {
         hardware: Option<&HardwareProfile>,
         type_cache: Option<&HfModelTypeCache>,
     ) -> Result<HfModelCard, HfError> {
-        let meta_url = format!("{HF_API_BASE}/models/{repo_id}");
-        let tree_url = format!("{HF_API_BASE}/models/{repo_id}/tree/main?recursive=true");
-        let config_url = format!("{HF_CDN_BASE}/{repo_id}/resolve/main/config.json");
+        let api = &self.api_base;
+        let meta_url = format!("{api}/models/{repo_id}");
+        let tree_url = format!("{api}/models/{repo_id}/tree/main?recursive=true");
+        let config_url = format!("{}/{repo_id}/resolve/main/config.json", self.cdn_base);
 
         // Check cache before firing the config.json request.
         let cached_model_type = if let Some(cache) = type_cache {
@@ -388,7 +409,7 @@ impl HfRegistryClient {
     /// GGUF derivation: quantizers do not republish the config file (it comes
     /// from the upstream repo).
     pub async fn resolve_base_model(&self, repo_id: &str) -> Option<String> {
-        let url = format!("{HF_API_BASE}/models/{repo_id}");
+        let url = format!("{}/models/{repo_id}", self.api_base);
         let resp = self
             .client
             .get(&url)
@@ -437,12 +458,15 @@ impl HfRegistryClient {
         selector: &VariantSelector,
     ) -> Result<VariantPlan, HfError> {
         let entries = self.tree(repo_id).await?;
-        Ok(plan_variant(HF_CDN_BASE, repo_id, &entries, selector)?)
+        Ok(plan_variant(&self.cdn_base, repo_id, &entries, selector)?)
     }
 
     /// The recursive tree of `main`.
     async fn tree(&self, repo_id: &str) -> Result<Vec<TreeEntry>, HfError> {
-        let url = format!("{HF_API_BASE}/models/{repo_id}/tree/main?recursive=true");
+        let url = format!(
+            "{}/models/{repo_id}/tree/main?recursive=true",
+            self.api_base
+        );
         let resp = self
             .client
             .get(&url)
@@ -468,7 +492,10 @@ impl HfRegistryClient {
     ///
     /// Returns `None` if the file is absent (model with no explicit generation config).
     pub async fn get_generation_config(&self, repo_id: &str) -> Option<GenerationConfig> {
-        let url = format!("{HF_CDN_BASE}/{repo_id}/resolve/main/generation_config.json");
+        let url = format!(
+            "{}/{repo_id}/resolve/main/generation_config.json",
+            self.cdn_base
+        );
         let resp = self
             .client
             .get(&url)
@@ -592,6 +619,46 @@ mod tests {
         assert!(extract_base_model_from_json(&payload).is_none());
     }
 
+    #[test]
+    fn a_file_the_old_badge_called_tight_gets_the_estimator_verdict_in_the_hub() {
+        // GIVEN a 16 GiB file on a 32 GB Apple Silicon machine (24 GB budget):
+        // the old badge, 16 x 1.1 = 17.6 over 70 % of 24 = 16.8, said
+        // "might fit"; the estimator, weights plus cache plus overhead, says
+        // it fits
+        let profile = HardwareProfile {
+            total_ram_gb: 32.0,
+            available_ram_gb: 20.0,
+            cpu_model: "test".to_owned(),
+            cpu_cores: 8,
+            accelerator: crate::hardware::AcceleratorProfile::AppleSilicon {
+                chip: "M3 Max".to_owned(),
+                generation: 3,
+                vram_gb: 32.0,
+            },
+            memory_budget_gb: 24.0,
+        };
+        let size: u64 = 16 * 1024 * 1024 * 1024;
+        let entries: Vec<TreeEntry> = serde_json::from_value(json!([
+            { "type": "file", "path": "model-Q4_K_M.gguf", "size": size }
+        ]))
+        .expect("tree parses");
+
+        // WHEN the Hub lists the file
+        let files = build_gguf_files(&entries, "org/model-GGUF", Some(&profile));
+
+        // THEN its badge is the estimator's, the same one the ranking and the
+        // offload plan read for the same inputs
+        let fit = crate::recommend::assess_fit(
+            size,
+            &crate::gguf_probe::GgufHeaderFacts::default(),
+            &profile,
+            &crate::recommend::RuntimeShape::default(),
+        );
+        assert_eq!(fit.badge, CompatibilityBadge::Fits);
+        assert!(fit.plan.fully_offloaded);
+        assert_eq!(files[0].compatibility, Some(CompatibilityBadge::Fits));
+    }
+
     /// A tree recorded from `ggml-org/SmolVLM-256M-Instruct-GGUF`: two plain
     /// git files and four LFS files.
     const RECORDED_TREE: &str = include_str!("hf_registry/fixtures/tree_smolvlm_256m.json");
@@ -650,5 +717,53 @@ mod tests {
         // WHEN the base model is extracted
         // THEN the malformed tag is ignored rather than taken for a repo id
         assert!(extract_base_model_from_json(&payload).is_none());
+    }
+
+    /// A search page recorded from the HuggingFace API on 2026-10-01:
+    /// `models?search=Qwen3-4B&filter=gguf&sort=downloads&limit=20`.
+    const RECORDED_SEARCH: &str = include_str!("hf_registry/fixtures/search_qwen3_4b_gguf.json");
+
+    #[test]
+    fn a_recorded_search_marks_official_and_converter_owners() {
+        // GIVEN a search page recorded from the HuggingFace API, mixing the
+        // publisher's own repository, recognised converters and other owners
+        let page: serde_json::Value =
+            serde_json::from_str(RECORDED_SEARCH).expect("recorded search parses");
+        let items = page.as_array().expect("a search page is an array");
+
+        // WHEN each item is read as a model card
+        let cards: Vec<HfModelCard> = items
+            .iter()
+            .filter_map(|m| parse_model_list_item(m, None))
+            .collect();
+        let kind = |repo: &str| {
+            cards
+                .iter()
+                .find(|c| c.repo_id == repo)
+                .expect("the repository is in the recorded page")
+                .publisher_kind
+        };
+
+        // THEN every item parses, and each carries the kind of its owner
+        assert_eq!(cards.len(), items.len());
+        assert_eq!(
+            kind("Qwen/Qwen3-4B-GGUF"),
+            Some(crate::recommend::PublisherKind::Official)
+        );
+        assert_eq!(
+            kind("unsloth/Qwen3-4B-GGUF"),
+            Some(crate::recommend::PublisherKind::Converter)
+        );
+        assert_eq!(
+            kind("bartowski/Qwen_Qwen3-4B-GGUF"),
+            Some(crate::recommend::PublisherKind::Converter)
+        );
+        assert_eq!(
+            kind("lmstudio-community/Qwen3.5-4B-GGUF"),
+            Some(crate::recommend::PublisherKind::Converter)
+        );
+        assert_eq!(kind("MaziyarPanahi/Qwen3-4B-GGUF"), None);
+        let unmarked = cards.iter().filter(|c| c.publisher_kind.is_none()).count();
+        assert!(unmarked > 0, "the page holds owners on neither list");
     }
 }
