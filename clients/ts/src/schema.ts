@@ -942,6 +942,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/dictation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/llm/dictation?language_model_bytes=...` */
+        get: operations["list_dictation_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/embeddings": {
         parameters: {
             query?: never;
@@ -3520,6 +3537,21 @@ export interface components {
         DeletedProfileEntry: {
             /** @description The key removed. */
             deleted: string;
+        };
+        /** @description The dictation category of the registry, and the entry for this machine. */
+        DictationModelsResponse: {
+            /** @description The machine the recommendation was made for. */
+            hardware: components["schemas"]["HardwareResponse"];
+            language_model?: null | components["schemas"]["CountedLanguageModel"];
+            /** @description Every entry of the category, with its footprint and whether it fits. */
+            models: Record<string, never>[];
+            /**
+             * @description Why: `fits_beside` or `no_room_beside`, with the footprints compared,
+             *     in gibibytes.
+             */
+            reason?: Record<string, never> | null;
+            /** @description Identifier of the entry recommended for this machine. */
+            recommended?: string | null;
         };
         /** @description The embeddings category of the registry, and the entry for this machine. */
         EmbeddingModelsResponse: {
@@ -7123,6 +7155,38 @@ export interface operations {
             };
             /** @description Backend repository not available */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_dictation_models: {
+        parameters: {
+            query?: {
+                /** @description Size of the language model to fit beside; the largest installed one when absent */
+                language_model_bytes?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dictation models, whether each fits, and the one recommended for this machine */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictationModelsResponse"];
+                };
+            };
+            /** @description The shipped registry table is invalid */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

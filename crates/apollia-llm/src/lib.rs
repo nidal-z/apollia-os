@@ -61,8 +61,8 @@ pub use apollia_core::config::LlmRoutingConfig;
 pub use capabilities::{Capabilities, VisionEngine};
 #[cfg(feature = "cloud")]
 pub use downloader::{
-    DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,
-    VariantDownload,
+    DownloadError, DownloadId, DownloadManager, DownloadOutcome, DownloadProgress, DownloadRequest,
+    DownloadStatus, ProgressCallback, VariantDownload,
 };
 pub use gguf_probe::{parse_header, GgufHeaderFacts, GgufParseError};
 #[cfg(feature = "cloud")]

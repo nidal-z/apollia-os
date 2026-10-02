@@ -52,6 +52,16 @@ pub enum ManifestError {
         reason: String,
     },
 
+    /// A `[[dictation]]` entry carries a value no download can be checked
+    /// against.
+    #[error("dictation entry '{id}' is invalid: {reason}")]
+    InvalidDictation {
+        /// The entry's id.
+        id: String,
+        /// What is wrong with it.
+        reason: String,
+    },
+
     /// The table declares a schema version this build does not read.
     #[error("model family table declares schema version {found}, this build reads {expected}")]
     SchemaVersion {

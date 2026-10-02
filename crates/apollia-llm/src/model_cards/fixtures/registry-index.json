@@ -1103,7 +1103,7 @@
       "publisher": "OpenAI",
       "license": {
         "id": "mit",
-        "source": "https://huggingface.co/openai/whisper-base"
+        "source": "https://huggingface.co/ggerganov/whisper.cpp"
       },
       "source_url": "https://huggingface.co/openai/whisper-base",
       "description": {
@@ -1167,7 +1167,7 @@
       "publisher": "OpenAI",
       "license": {
         "id": "mit",
-        "source": "https://huggingface.co/openai/whisper-large-v3"
+        "source": "https://huggingface.co/ggerganov/whisper.cpp"
       },
       "source_url": "https://huggingface.co/openai/whisper-large-v3",
       "description": {
@@ -1225,13 +1225,77 @@
       ]
     },
     {
+      "id": "whisper-medium",
+      "kind": "dictation",
+      "label": "Whisper Medium",
+      "publisher": "OpenAI",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/ggerganov/whisper.cpp"
+      },
+      "source_url": "https://huggingface.co/openai/whisper-medium",
+      "description": {
+        "fr": "Modèle de dictée de grande taille, d'avant la génération Large-v3 : précis, plus lent que Turbo pour une qualité voisine.",
+        "en": "A large dictation model from before the Large-v3 generation: accurate, slower than Turbo for a similar quality."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/openai/whisper-medium"
+      },
+      "memory": {
+        "min_gb": 0.5,
+        "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-medium-q5_0.bin"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openai/whisper-medium"
+      ]
+    },
+    {
+      "id": "whisper-small",
+      "kind": "dictation",
+      "label": "Whisper Small",
+      "publisher": "OpenAI",
+      "license": {
+        "id": "mit",
+        "source": "https://huggingface.co/ggerganov/whisper.cpp"
+      },
+      "source_url": "https://huggingface.co/openai/whisper-small",
+      "description": {
+        "fr": "Modèle de dictée intermédiaire : plus juste que le modèle de base sur les noms et la ponctuation, encore rapide sur un poste sans carte graphique.",
+        "en": "A mid-sized dictation model: more accurate than the base model on names and punctuation, still quick on a machine without a graphics card."
+      },
+      "capabilities": {
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "source": "https://huggingface.co/openai/whisper-small"
+      },
+      "memory": {
+        "min_gb": 0.2,
+        "source": "https://huggingface.co/ggerganov/whisper.cpp/blob/main/ggml-small-q5_1.bin"
+      },
+      "defaults": {
+        "source": ""
+      },
+      "author_fields": [],
+      "repos": [
+        "openai/whisper-small"
+      ]
+    },
+    {
       "id": "whisper-tiny",
       "kind": "dictation",
       "label": "Whisper Tiny",
       "publisher": "OpenAI",
       "license": {
         "id": "mit",
-        "source": "https://huggingface.co/openai/whisper-tiny"
+        "source": "https://huggingface.co/ggerganov/whisper.cpp"
       },
       "source_url": "https://huggingface.co/openai/whisper-tiny",
       "description": {

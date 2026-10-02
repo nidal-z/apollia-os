@@ -5,6 +5,7 @@
 //! - `GET /api/v1/llm/registry/model/:org/:repo`, model metadata + file list
 //! - `GET /api/v1/llm/recommend`                 , models ranked for this machine
 //! - `GET /api/v1/llm/embeddings`                , embeddings models, and the one for this machine
+//! - `GET /api/v1/llm/dictation`                 , dictation models, whether each fits, and the one for this machine
 //! - `GET /api/v1/llm/registry/cards`            , the signed model cards, when the catalogue opens
 //! - `GET /api/v1/llm/registry/card`             , one model card, from the kept copy
 //! - `GET /api/v1/llm/registry/readme`           , the README of a repository, as text
@@ -23,6 +24,7 @@ use crate::coordinator::ExecutionBackend;
 
 #[cfg(feature = "cloud")]
 pub mod cards;
+pub mod dictation;
 pub mod embeddings;
 
 // ─────────────────────────────────────────────
@@ -365,6 +367,10 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route(
             "/api/v1/llm/embeddings",
             get(embeddings::list_embedding_models::<B>),
+        )
+        .route(
+            "/api/v1/llm/dictation",
+            get(dictation::list_dictation_models::<B>),
         );
 
     #[cfg(feature = "cloud")]

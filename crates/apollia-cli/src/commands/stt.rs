@@ -123,7 +123,7 @@ pub async fn run(cmd: &SttCommand, socket: Option<PathBuf>, json: bool) -> i32 {
         },
         SttCommand::Model { command } => match command {
             SttModelCommand::List => run_model_list(socket, json).await,
-            SttModelCommand::Download { name } => run_model_download(name, json),
+            SttModelCommand::Download { name } => run_model_download(name, json).await,
         },
         SttCommand::Config { command } => match command {
             SttConfigCommand::Get => run_config_get(socket, json).await,
@@ -359,10 +359,13 @@ async fn run_model_list(socket: Option<PathBuf>, json: bool) -> i32 {
 
 /// `apollia-os stt model download <name>`: download a model from HuggingFace.
 ///
-/// Uses the `hf-hub` crate directly (no runtime connection required).
-/// Default repository: `bofenghuang/whisper-large-v3-french`.
-fn run_model_download(name: &str, json: bool) -> i32 {
-    let (repo_id, filename) = resolve_model_spec(name);
+/// The file goes through the verified downloader every model goes through: a
+/// dictation entry of the catalogue is checked against the digest the table
+/// pins, any other file against the SHA-256 its repository tree publishes, and
+/// a file that does not match is deleted. No runtime connection is required.
+/// Default model: the French fine-tune `whisper-large-v3-french-q5_0`.
+async fn run_model_download(name: &str, json: bool) -> i32 {
+    let spec = resolve_model_spec(name);
 
     let dest_dir = default_models_dir();
     if let Err(e) = std::fs::create_dir_all(&dest_dir) {
@@ -372,54 +375,76 @@ fn run_model_download(name: &str, json: bool) -> i32 {
         );
     }
 
-    let dest_path = dest_dir.join(&filename);
+    let dest_path = dest_dir.join(&spec.file);
     if dest_path.exists() {
         report_model_already_exists(&dest_path, json);
         return exit_codes::SUCCESS;
     }
 
-    if !json {
-        println!("Downloading {filename} from {repo_id}...");
-    }
-
-    let pb = build_download_progress(&filename, json);
-
-    let cached_path = match fetch_model(repo_id, &filename) {
-        Ok(p) => p,
-        Err(msg) => {
-            if let Some(ref bar) = pb {
-                bar.finish_and_clear();
+    let expected_sha256 = match spec.pinned_sha256.clone() {
+        Some(sha) => sha,
+        None => match apollia_llm::HfRegistryClient::new(None)
+            .lfs_sha256(&spec.repo, &spec.file)
+            .await
+        {
+            Ok(sha) => sha,
+            Err(e) => {
+                return emit_stt_error(
+                    &format!("cannot verify the download, refusing it: {e}"),
+                    json,
+                )
             }
-            return emit_stt_error(&msg, json);
-        }
+        },
     };
 
-    if let Some(ref bar) = pb {
-        bar.set_message("Copying to models directory...");
+    if !json {
+        println!("Downloading {} from {}...", spec.file, spec.repo);
     }
+    let pb = build_download_progress(&spec.file, json);
+    let on_progress: apollia_llm::ProgressCallback = {
+        let bar = pb.clone();
+        std::sync::Arc::new(move |progress: apollia_llm::DownloadProgress| {
+            if let Some(bar) = &bar {
+                let mb = progress.downloaded_bytes as f64 / (1024.0 * 1024.0);
+                bar.set_message(format!("Downloading... {mb:.1} MB"));
+            }
+        })
+    };
 
-    if let Err(e) = std::fs::copy(&cached_path, &dest_path) {
-        if let Some(ref bar) = pb {
-            bar.finish_and_clear();
-        }
-        return emit_stt_error(
-            &format!(
-                "failed to copy {} to {}: {e}",
-                cached_path.display(),
-                dest_path.display()
-            ),
-            json,
-        );
-    }
-
+    let request = download_request(&spec, dest_dir, expected_sha256);
+    let result = apollia_llm::DownloadManager::new()
+        .download(request, on_progress)
+        .await;
     if let Some(ref bar) = pb {
         bar.finish_and_clear();
     }
+    match result {
+        Ok(outcome) => {
+            report_model_downloaded(&outcome.dest_path, outcome.bytes, json);
+            exit_codes::SUCCESS
+        }
+        Err(e) => emit_stt_error(&format!("download failed: {e}"), json),
+    }
+}
 
-    let size_bytes = std::fs::metadata(&dest_path).map(|m| m.len()).unwrap_or(0);
-    report_model_downloaded(&dest_path, size_bytes, json);
-
-    exit_codes::SUCCESS
+/// The request handed to the verified downloader for `spec`, checked against
+/// `expected_sha256`.
+fn download_request(
+    spec: &ModelSpec,
+    dest_dir: PathBuf,
+    expected_sha256: String,
+) -> apollia_llm::DownloadRequest {
+    apollia_llm::DownloadRequest {
+        url: format!(
+            "https://huggingface.co/{}/resolve/main/{}",
+            spec.repo, spec.file
+        ),
+        dest_dir,
+        filename: Some(spec.file.clone()),
+        hf_token: None,
+        repo_id: None,
+        expected_sha256: Some(expected_sha256),
+    }
 }
 
 /// Report that the target model file is already present on disk.
@@ -452,6 +477,7 @@ fn report_model_downloaded(dest_path: &Path, size_bytes: u64, json: bool) {
                 "path": dest_path.display().to_string(),
                 "size_bytes": size_bytes,
                 "size_mb": format!("{size_mb:.1}"),
+                "verified": true,
             }))
             .unwrap_or_default()
         );
@@ -474,17 +500,6 @@ fn build_download_progress(filename: &str, json: bool) -> Option<indicatif::Prog
     bar.set_message(format!("Downloading {filename}..."));
     bar.enable_steady_tick(std::time::Duration::from_millis(120));
     Some(bar)
-}
-
-/// Fetch `filename` from the HuggingFace `repo_id`, returning the cached path.
-///
-/// Returns a human-readable error message on failure.
-fn fetch_model(repo_id: &str, filename: &str) -> Result<PathBuf, String> {
-    let api = hf_hub::api::sync::Api::new()
-        .map_err(|e| format!("failed to initialize HuggingFace API: {e}"))?;
-    let repo = api.model(repo_id.to_string());
-    repo.get(filename)
-        .map_err(|e| format!("download failed: {e}"))
 }
 
 /// `apollia-os stt transcriptions delete <id>`: delete a transcription.
@@ -628,73 +643,148 @@ fn default_models_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("/tmp/apollia/models"))
 }
 
-/// Resolve a model name to a `(repo_id, filename)` pair.
-///
-/// Recognizes the built-in alias `whisper-large-v3-fr-q5_0` for the default
-/// French model. Other names are treated as HuggingFace `repo_id/filename`
-/// if they contain a `/`, or as a filename in the default repo otherwise.
-fn resolve_model_spec(name: &str) -> (&str, String) {
-    const DEFAULT_REPO: &str = "bofenghuang/whisper-large-v3-french";
-    const DEFAULT_FILENAME: &str = "whisper-large-v3-fr-q5_0.bin";
+/// The file a model name designates, and the digest the catalogue pins for
+/// it when it is one of its dictation entries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ModelSpec {
+    /// HuggingFace repository, `owner/name`.
+    repo: String,
+    /// File within the repository, also its name in the models directory.
+    file: String,
+    /// The SHA-256 the catalogue pins; `None` for a file outside it, whose
+    /// digest is read from the repository tree before the download.
+    pinned_sha256: Option<String>,
+}
 
-    match name {
-        "whisper-large-v3-fr-q5_0" | "default" => (DEFAULT_REPO, DEFAULT_FILENAME.to_string()),
-        other if other.contains('/') => {
-            let parts: Vec<&str> = other.splitn(3, '/').collect();
-            if parts.len() >= 3 {
-                let repo = &other[..parts[0].len() + 1 + parts[1].len()];
-                let file = parts[2].to_string();
-                (repo, file)
-            } else {
-                (other, DEFAULT_FILENAME.to_string())
-            }
-        }
-        other => (DEFAULT_REPO, format!("{other}.bin")),
+/// Identifier of the catalogue entry the `default` alias designates.
+const DEFAULT_ENTRY: &str = "whisper-large-v3-french-q5_0";
+
+/// Resolve a model name to the file it designates.
+///
+/// `default` and the former alias `whisper-large-v3-fr-q5_0` name the French
+/// fine-tune. A catalogue entry is named by its identifier (`whisper-base`)
+/// or by its file stem (`ggml-base`). `owner/name/file` names any file of a
+/// repository, the catalogue's digest applying when it is one of its entries.
+/// Any other name is a `.bin` file of the default repository.
+fn resolve_model_spec(name: &str) -> ModelSpec {
+    let catalogue = apollia_llm::recommend::DictationCatalogue::embedded().ok();
+    let entry_spec = |entry: &apollia_llm::recommend::DictationModel| ModelSpec {
+        repo: entry.repo.clone(),
+        file: entry.file.clone(),
+        pinned_sha256: Some(entry.sha256.clone()),
+    };
+    let find = |pred: &dyn Fn(&apollia_llm::recommend::DictationModel) -> bool| {
+        catalogue
+            .as_ref()
+            .and_then(|c| c.models().iter().find(|m| pred(m)).map(entry_spec))
+    };
+    let alias = match name {
+        "default" | "whisper-large-v3-fr-q5_0" => DEFAULT_ENTRY,
+        other => other,
+    };
+    if let Some(spec) = find(&|m| m.id == alias || m.file == format!("{alias}.bin")) {
+        return spec;
     }
+    let default = find(&|m| m.id == DEFAULT_ENTRY);
+    let (default_repo, default_file) = default.map_or_else(
+        || {
+            (
+                "bofenghuang/whisper-large-v3-french".to_owned(),
+                "ggml-model-q5_0.bin".to_owned(),
+            )
+        },
+        |d| (d.repo, d.file),
+    );
+    let parts: Vec<&str> = name.splitn(3, '/').collect();
+    let (repo, file) = match parts.as_slice() {
+        [owner, repo, file] => (format!("{owner}/{repo}"), (*file).to_owned()),
+        [owner, repo] => (format!("{owner}/{repo}"), default_file),
+        _ => (default_repo, format!("{name}.bin")),
+    };
+    find(&|m| m.repo == repo && m.file == file).unwrap_or(ModelSpec {
+        repo,
+        file,
+        pinned_sha256: None,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // GIVEN the built-in alias "whisper-large-v3-fr-q5_0"
-    // WHEN resolve_model_spec is called
-    // THEN it returns the default repo and filename
     #[test]
-    fn resolve_default_model_alias() {
-        let (repo, file) = resolve_model_spec("whisper-large-v3-fr-q5_0");
-        assert_eq!(repo, "bofenghuang/whisper-large-v3-french");
-        assert_eq!(file, "whisper-large-v3-fr-q5_0.bin");
+    fn the_default_aliases_name_the_french_entry_and_its_pinned_digest() {
+        // GIVEN the two names the default model has always answered to
+        for name in ["default", "whisper-large-v3-fr-q5_0"] {
+            // WHEN each is resolved
+            let spec = resolve_model_spec(name);
+
+            // THEN it is the French file the repository really carries, with
+            // the digest the catalogue pins for it
+            assert_eq!(spec.repo, "bofenghuang/whisper-large-v3-french", "{name}");
+            assert_eq!(spec.file, "ggml-model-q5_0.bin", "{name}");
+            assert_eq!(
+                spec.pinned_sha256.as_deref(),
+                Some("d8da7cb6cdadfac47829abf46fe8cd36fcfef06db5601bfd8acbcd40579010a5"),
+                "{name}"
+            );
+        }
     }
 
-    // GIVEN the "default" alias
-    // WHEN resolve_model_spec is called
-    // THEN it returns the default repo and filename
     #[test]
-    fn resolve_default_keyword() {
-        let (repo, file) = resolve_model_spec("default");
-        assert_eq!(repo, "bofenghuang/whisper-large-v3-french");
-        assert_eq!(file, "whisper-large-v3-fr-q5_0.bin");
+    fn a_catalogue_entry_is_found_by_id_by_stem_and_by_its_full_path() {
+        // GIVEN the three ways to name the Base model of whisper.cpp
+        let names = [
+            "whisper-base",
+            "ggml-base",
+            "ggerganov/whisper.cpp/ggml-base.bin",
+        ];
+
+        // WHEN each is resolved
+        let specs: Vec<ModelSpec> = names.iter().map(|n| resolve_model_spec(n)).collect();
+
+        // THEN all three are the same pinned file
+        for spec in &specs {
+            assert_eq!(spec.repo, "ggerganov/whisper.cpp");
+            assert_eq!(spec.file, "ggml-base.bin");
+            assert_eq!(spec.pinned_sha256.as_ref().map(String::len), Some(64));
+        }
     }
 
-    // GIVEN a repo/owner/filename format
-    // WHEN resolve_model_spec is called
-    // THEN it splits correctly into repo and filename
     #[test]
-    fn resolve_full_repo_path() {
-        let (repo, file) = resolve_model_spec("ggerganov/whisper.cpp/ggml-base.bin");
-        assert_eq!(repo, "ggerganov/whisper.cpp");
-        assert_eq!(file, "ggml-base.bin");
+    fn a_name_outside_the_catalogue_has_no_pinned_digest() {
+        // GIVEN a bare name and a full path the catalogue does not carry
+        // WHEN they are resolved
+        let bare = resolve_model_spec("e2e-stt-present");
+        let foreign = resolve_model_spec("acme/whisper-x/ggml-x.bin");
+
+        // THEN each is its file, and its digest is left to the repository tree
+        assert_eq!(bare.repo, "bofenghuang/whisper-large-v3-french");
+        assert_eq!(bare.file, "e2e-stt-present.bin");
+        assert_eq!(bare.pinned_sha256, None);
+        assert_eq!(foreign.repo, "acme/whisper-x");
+        assert_eq!(foreign.file, "ggml-x.bin");
+        assert_eq!(foreign.pinned_sha256, None);
     }
 
-    // GIVEN a bare name without slashes
-    // WHEN resolve_model_spec is called
-    // THEN it uses the default repo and appends .bin
     #[test]
-    fn resolve_bare_name() {
-        let (repo, file) = resolve_model_spec("ggml-base");
-        assert_eq!(repo, "bofenghuang/whisper-large-v3-french");
-        assert_eq!(file, "ggml-base.bin");
+    fn the_download_request_carries_the_digest_it_is_checked_against() {
+        // GIVEN the resolved default model and a models directory
+        let spec = resolve_model_spec("default");
+        let sha = spec.pinned_sha256.clone().expect("pinned");
+        let dir = PathBuf::from("/tmp/apollia-models");
+
+        // WHEN the request for the verified downloader is built
+        let request = download_request(&spec, dir.clone(), sha.clone());
+
+        // THEN it fetches the repository file and refuses any other bytes
+        assert_eq!(
+            request.url,
+            "https://huggingface.co/bofenghuang/whisper-large-v3-french/resolve/main/ggml-model-q5_0.bin"
+        );
+        assert_eq!(request.dest_dir, dir);
+        assert_eq!(request.filename.as_deref(), Some("ggml-model-q5_0.bin"));
+        assert_eq!(request.expected_sha256, Some(sha));
     }
 
     // GIVEN the default models directory function
