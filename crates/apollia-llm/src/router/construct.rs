@@ -83,6 +83,7 @@ impl LlmRouter {
             default: config.default.clone(),
             routing: config.routing.clone(),
             servers: Default::default(),
+            live: Default::default(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         })
@@ -135,6 +136,7 @@ impl LlmRouter {
             default: config.default.clone(),
             routing: config.routing.clone(),
             servers: Default::default(),
+            live: Default::default(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::new(
                 bus,
@@ -166,6 +168,7 @@ impl LlmRouter {
             default,
             routing: None,
             servers: Default::default(),
+            live: Default::default(),
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         }
@@ -235,6 +238,7 @@ impl LlmRouter {
             default,
             routing: None,
             servers: Default::default(),
+            live: Default::default(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         })
@@ -326,6 +330,7 @@ impl LlmRouter {
             default,
             routing: None,
             servers: Default::default(),
+            live: Default::default(),
             cancellation_token,
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         })
@@ -357,6 +362,7 @@ impl LlmRouter {
             default: String::new(),
             routing: None,
             servers: Default::default(),
+            live: Default::default(),
             cancellation_token: CancellationToken::new(),
             session_budget: Arc::new(Mutex::new(SessionBudgetTracker::default())),
         }

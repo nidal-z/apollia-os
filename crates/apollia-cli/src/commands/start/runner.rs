@@ -207,6 +207,7 @@ impl AgentRunner for BridgeRunner {
         let secrets_declared = self.secrets_declared.clone();
         let secrets_data_dir = self.secrets_data_dir.clone();
         let mcp_handle = self.mcp_handle.clone();
+        let declared_backend = self.manifest.llm_backend.clone();
         // Live view of the Direct-path budget, shared into ctx.tools and ctx.llm.
         let budget_view = Arc::new(self.budget.to_live_budget_view());
 
@@ -334,6 +335,20 @@ impl AgentRunner for BridgeRunner {
                     agent_id == "onboarding-agent",
                 )
             };
+            // The model this agent asks for, read again at each `ctx.llm` call.
+            let agent_model = {
+                let data_dir = secrets_data_dir.clone().unwrap_or_else(|| {
+                    let home = apollia_core::paths::home_dir_or_temp()
+                        .display()
+                        .to_string();
+                    apollia_core::paths::data_dir_under(home)
+                });
+                apollia_llm::AgentModelBinding::new(
+                    agent_id.clone(),
+                    declared_backend,
+                    Some(data_dir.join(apollia_core::paths::DataFile::System.file_name())),
+                )
+            };
 
             let built = Python::with_gil(|py| {
                 let ctx = RuntimeContext::new_with_llm(
@@ -360,6 +375,7 @@ impl AgentRunner for BridgeRunner {
                     secrets_data_dir.as_deref().and_then(open_secret_store),
                     secrets_declared,
                 ))
+                .with_agent_model(agent_model)
                 // task_id used to label ctx.log() in the trace.
                 .with_task_id(task.task_id.clone())
                 .with_run_id(task.run_id.clone());

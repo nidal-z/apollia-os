@@ -1486,6 +1486,58 @@
         }
       }
     },
+    "/api/v1/llm/agents/{agent}/model/fallback": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "`GET /api/v1/llm/agents/{agent}/model/fallback`: the last time the agent's\nmodel was not available since the runtime started, for its sheet.",
+        "operationId": "get_agent_model_fallback",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The agent's last fallback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentModelFallbackResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The agent's model has not fallen back since the runtime started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No LLM router configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/backends": {
       "get": {
         "tags": [
@@ -7059,6 +7111,34 @@
           }
         }
       },
+      "AgentModelFallbackResponse": {
+        "type": "object",
+        "description": "The last time an agent's model was not available, so a call ran on the\ndefault model instead.",
+        "required": [
+          "agent",
+          "requested",
+          "used",
+          "at"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Agent name."
+          },
+          "at": {
+            "type": "string",
+            "description": "When it happened, RFC 3339."
+          },
+          "requested": {
+            "type": "string",
+            "description": "Model the agent asked for: the user's assignment, or the backend its\nmanifest declares."
+          },
+          "used": {
+            "type": "string",
+            "description": "Model that served the call instead."
+          }
+        }
+      },
       "AgentModelResponse": {
         "type": "object",
         "description": "The model assigned to an agent.",
@@ -9076,7 +9156,7 @@
           },
           "reaches_running_agents": {
             "type": "boolean",
-            "description": "Whether the rebuilt router reaches agents that are already running.\n\n`false` today, and not a transient state: the agent execution path reads\nits router from a `OnceLock` populated at boot, a different cell from the\none this route rewrites. A reload therefore reaches chat and this API,\nand an already-running agent keeps the router it started with until the\ndaemon restarts. Reported rather than hidden, because the failure it\nproduces on the Python side, `'NoneType' object has no attribute\n'complete'`, names none of this."
+            "description": "Whether the rebuilt router reaches agents that are already running.\n\n`true`: the router this one replaces is superseded by it, and an agent\nstarted before the reload reads the router in force at each call\n(`LlmRouter::latest`), so it picks the reload up without a restart.\nKept in the response so a client that warned about the opposite can\ntell the two runtimes apart."
           }
         }
       },

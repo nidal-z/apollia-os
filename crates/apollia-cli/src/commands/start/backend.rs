@@ -102,7 +102,8 @@ impl ExecutionBackend for AIPProductionBackend {
         engine = wire_engine_with_llm(
             engine,
             self.llm_router.clone(),
-            &self.agent_id,
+            &self.agent_model(),
+            Some(&self.event_bus),
             step_budget_max,
         );
 

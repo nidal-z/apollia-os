@@ -110,13 +110,11 @@ pub struct ReloadRouterResponse {
     pub default: String,
     /// Whether the rebuilt router reaches agents that are already running.
     ///
-    /// `false` today, and not a transient state: the agent execution path reads
-    /// its router from a `OnceLock` populated at boot, a different cell from the
-    /// one this route rewrites. A reload therefore reaches chat and this API,
-    /// and an already-running agent keeps the router it started with until the
-    /// daemon restarts. Reported rather than hidden, because the failure it
-    /// produces on the Python side, `'NoneType' object has no attribute
-    /// 'complete'`, names none of this.
+    /// `true`: the router this one replaces is superseded by it, and an agent
+    /// started before the reload reads the router in force at each call
+    /// (`LlmRouter::latest`), so it picks the reload up without a restart.
+    /// Kept in the response so a client that warned about the opposite can
+    /// tell the two runtimes apart.
     pub reaches_running_agents: bool,
 }
 
@@ -628,6 +626,13 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
         Err(_) => Vec::new(),
     };
     let new_router = new_router.with_servers(endpoints);
+    // `system.db` does not hold `[llm.routing]` nor the agents' last
+    // fallbacks: both come from the router this one replaces.
+    let previous = state.llm_router.read().await.clone();
+    let new_router = match previous.as_ref() {
+        Some(previous) => new_router.carry_over_from(previous),
+        None => new_router,
+    };
     let backends = new_router.list();
     let default = new_router.default_name().to_owned();
     let arc_router = Arc::new(new_router);
@@ -635,6 +640,11 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
     {
         let mut cell = state.llm_router.write().await;
         *cell = Some(arc_router.clone());
+    }
+    // A running agent holds the router it started with; it reaches this one
+    // at its next call.
+    if let Some(previous) = previous {
+        previous.supersede(&arc_router);
     }
 
     if let Some(chat) = state.chat_manager.as_ref() {
@@ -650,6 +660,6 @@ pub async fn reload_llm_router<B: ExecutionBackend + Clone>(
     Ok(Json(ReloadRouterResponse {
         backends,
         default,
-        reaches_running_agents: false,
+        reaches_running_agents: true,
     }))
 }
