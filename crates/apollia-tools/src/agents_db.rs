@@ -1,8 +1,8 @@
 //! Versioned schema of `agents.db`, shared by every store in the file.
 //!
-//! `agents.db` holds the installed-agent registry (`installed_agents`, owned
-//! by [`crate::agent_repository`]) and the package tables
-//! (`installed_packages`, `package_agents`, owned by
+//! `agents.db` holds the agents (`agents` and `agent_overrides`, owned by
+//! [`crate::agent_repository`]) and the package tables
+//! (`installed_packages`, `package_items`, owned by
 //! [`crate::package_repository`]). `PRAGMA user_version` belongs to the
 //! database file, not to a table, so the two repositories share one
 //! migration list: whichever opens first brings the whole file to the
@@ -13,13 +13,13 @@ use rusqlite::Connection;
 use apollia_core::schema::Migration;
 
 /// Current schema version of `agents.db`.
-pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 1;
+pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 2;
 
 /// Numbered migration steps of `agents.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`AGENTS_DB_SCHEMA_VERSION`].
-pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] = &[migrate_v1];
+pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -29,6 +29,117 @@ pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] = &[migrate_v1];
 fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(include_str!("../migrations/007_agent_tables.sql"))?;
     conn.execute_batch(include_str!("../migrations/008_package_tables.sql"))
+}
+
+/// v2: `installed_agents` becomes `agents`, `package_agents` becomes
+/// `package_items`, and `agent_overrides` is created.
+///
+/// Every agent row is copied with its code columns, the package it was
+/// linked to, and a definition read from its manifest; every package link
+/// becomes an item of kind `agent`. The two old tables are then dropped. The
+/// whole step runs in one transaction, so a failure leaves the file at v1.
+fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let tx = conn.unchecked_transaction()?;
+    tx.execute_batch(include_str!("../migrations/011_agents_and_overrides.sql"))?;
+    if table_exists(&tx, "installed_agents")? {
+        copy_installed_agents(&tx)?;
+    }
+    if table_exists(&tx, "package_agents")? {
+        tx.execute_batch(
+            "INSERT OR IGNORE INTO package_items (package_name, kind, item_id)
+                 SELECT package_name, 'agent', agent_name FROM package_agents;",
+        )?;
+    }
+    tx.execute_batch(
+        "DROP TABLE IF EXISTS installed_agents;
+         DROP TABLE IF EXISTS package_agents;",
+    )?;
+    tx.commit()
+}
+
+fn table_exists(conn: &Connection, name: &str) -> Result<bool, rusqlite::Error> {
+    conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+        [name],
+        |row| row.get(0),
+    )
+}
+
+/// One row of `installed_agents`, with the package it was linked to.
+type LegacyAgentRow = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    bool,
+    String,
+    String,
+    Option<String>,
+);
+
+fn copy_installed_agents(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let package_link = if table_exists(conn, "package_agents")? {
+        "(SELECT package_name FROM package_agents p WHERE p.agent_name = a.name \
+          ORDER BY package_name LIMIT 1)"
+    } else {
+        "NULL"
+    };
+    let rows: Vec<LegacyAgentRow> = {
+        let mut stmt = conn.prepare(&format!(
+            "SELECT name, version, install_path, source_path, manifest_json, enabled, \
+                    installed_at, updated_at, {package_link} \
+             FROM installed_agents a"
+        ))?;
+        let mapped = stmt.query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+                row.get(8)?,
+            ))
+        })?;
+        mapped.collect::<Result<_, _>>()?
+    };
+    for (
+        name,
+        version,
+        install_path,
+        source_path,
+        manifest_json,
+        enabled,
+        installed,
+        updated,
+        package,
+    ) in rows
+    {
+        let definition =
+            crate::agent_definition::definition_from_manifest_json(&name, &manifest_json);
+        conn.execute(
+            "INSERT OR IGNORE INTO agents \
+                 (name, origin, package, version, definition_json, install_path, source_path, \
+                  manifest_json, enabled, installed_at, updated_at) \
+             VALUES (?1, 'package', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            rusqlite::params![
+                name,
+                package,
+                version,
+                definition.to_string(),
+                install_path,
+                source_path,
+                manifest_json,
+                enabled,
+                installed,
+                updated
+            ],
+        )?;
+    }
+    Ok(())
 }
 
 /// Opens the file's schema at the current version, or refuses it.
@@ -61,7 +172,7 @@ mod tests {
 
     // GIVEN a database written by a pre-versioning binary, with rows
     // WHEN opening it through the versioned layer
-    // THEN the rows survive and the version is stamped
+    // THEN the rows survive in the current tables and the version is stamped
     #[test]
     fn test_agents_db_old_format_migrates_and_keeps_rows() {
         let conn = Connection::open_in_memory().unwrap();
@@ -76,13 +187,134 @@ mod tests {
         open_agents_schema(&conn).unwrap();
 
         let name: String = conn
-            .query_row("SELECT name FROM installed_agents", [], |row| row.get(0))
+            .query_row("SELECT name FROM agents", [], |row| row.get(0))
             .unwrap();
         assert_eq!(name, "mailer");
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, i64::from(AGENTS_DB_SCHEMA_VERSION));
+    }
+
+    // GIVEN a v0 file with an agent linked to a package, a second agent and a
+    //   damaged manifest
+    // WHEN it is migrated to the current version
+    // THEN `agents` holds every agent with its code columns, its package and
+    //   a definition read from its manifest; `package_items` holds the link;
+    //   `agent_overrides` exists and is empty; the old tables are gone
+    #[test]
+    fn test_agents_db_v0_rows_become_agents_and_package_items() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(AGENTS_V0_SQL).unwrap();
+        conn.execute_batch(
+            r#"INSERT INTO installed_agents
+                   (name, version, install_path, source_path, manifest_json, enabled,
+                    installed_at, updated_at)
+               VALUES ('triage', '2.1.0', '/a/triage/agent.py', '/src/triage.py',
+                       '{"name":"triage","version":"2.1.0","description":"Sorts the inbox.",
+                         "tools_required":["file_read"],"tools_optional":["web_fetch"],
+                         "examples":["Sort today"],"datasources":["mail"]}',
+                       0, '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z');
+               INSERT INTO installed_agents (name, version, install_path, source_path, manifest_json)
+               VALUES ('broken', '0.1.0', '/a/broken/agent.py', '/src/broken.py', 'not json');
+               INSERT INTO installed_packages (name, version, root_path, manifest_json)
+               VALUES ('office', '1.0.0', '/p/office', '{}');
+               INSERT INTO package_agents (package_name, agent_name) VALUES ('office', 'triage');"#,
+        )
+        .unwrap();
+
+        open_agents_schema(&conn).unwrap();
+
+        let (origin, package, enabled, install_path, definition): (
+            String,
+            Option<String>,
+            bool,
+            String,
+            String,
+        ) = conn
+            .query_row(
+                "SELECT origin, package, enabled, install_path, definition_json
+                 FROM agents WHERE name = 'triage'",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(origin, "package");
+        assert_eq!(package.as_deref(), Some("office"));
+        assert!(!enabled);
+        assert_eq!(install_path, "/a/triage/agent.py");
+        let definition: serde_json::Value = serde_json::from_str(&definition).unwrap();
+        assert_eq!(
+            definition,
+            serde_json::json!({
+                "id": "triage",
+                "name": "triage",
+                "mission": "Sorts the inbox.",
+                "examples": ["Sort today"],
+                "defaults": {"access": ["file_read", "web_fetch"], "sources": ["mail"]}
+            })
+        );
+        let broken: String = conn
+            .query_row(
+                "SELECT definition_json FROM agents WHERE name = 'broken'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(broken.contains(r#""id":"broken""#));
+        let items: Vec<(String, String, String)> = conn
+            .prepare("SELECT package_name, kind, item_id FROM package_items")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            items,
+            vec![("office".into(), "agent".into(), "triage".into())]
+        );
+        let overrides: i64 = conn
+            .query_row("SELECT COUNT(*) FROM agent_overrides", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(overrides, 0);
+        let old_tables: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE name IN ('installed_agents', 'package_agents')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(old_tables, 0);
+    }
+
+    // GIVEN a file already at the current version
+    // WHEN it is opened again
+    // THEN nothing is replayed and the tables are intact
+    #[test]
+    fn test_agents_db_second_open_is_a_no_op() {
+        let conn = Connection::open_in_memory().unwrap();
+        open_agents_schema(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO agents (name, version, definition_json) VALUES ('a', '1', '{}')",
+            [],
+        )
+        .unwrap();
+
+        open_agents_schema(&conn).unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
     }
 
     // GIVEN a database stamped by a newer binary

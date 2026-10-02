@@ -1257,7 +1257,8 @@ mod tests {
                 assert!(matches!(
                     command,
                     AgentCommand::List {
-                        supports_a2a: false
+                        supports_a2a: false,
+                        definitions: false
                     }
                 ));
                 assert!(!cli.json);

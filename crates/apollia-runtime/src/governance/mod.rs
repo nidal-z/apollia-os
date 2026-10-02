@@ -38,5 +38,7 @@ pub use contract::{
     GovernanceError, InstallSubject,
 };
 pub use no_policy::NoPolicyGovernance;
-pub use record::{governance_run_id, AccessChange, GovernanceEvent, GovernanceRecord};
+pub use record::{
+    governance_run_id, AccessChange, GovernanceEvent, GovernanceRecord, OverrideChange,
+};
 pub use tool_attributes::{tool_attributes, ToolAttributes};

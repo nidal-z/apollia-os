@@ -89,6 +89,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/agent-definitions`: every stored agent, resolved. */
+        get: operations["list_agent_definitions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-definitions/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/agent-definitions/{name}`: one agent, resolved. */
+        get: operations["get_agent_definition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-definitions/{name}/overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/agent-definitions/{name}/overrides`: back to defaults,
+         *     every override of the agent removed.
+         */
+        delete: operations["reset_agent_overrides"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-definitions/{name}/overrides/{field}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/agent-definitions/{name}/overrides/{field}`: set the user's
+         *     value of a field. Kept through every update of the package.
+         */
+        put: operations["set_agent_override"];
+        post?: never;
+        /**
+         * `DELETE /api/v1/agent-definitions/{name}/overrides/{field}`: remove the
+         *     user's value of a field; the package default applies again.
+         */
+        delete: operations["remove_agent_override"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents": {
         parameters: {
             query?: never;
@@ -1185,7 +1263,10 @@ export interface paths {
         put?: never;
         /**
          * `POST /api/v1/mcp/servers`, Add a new MCP server and persist it to `mcp.db`.
-         * @description Spawns the server process and registers its tools, then saves the configuration.
+         * @description The addition is first submitted to the connection admission; a refusal
+         *     answers `403 Forbidden` with its reason, before any process is spawned and
+         *     before anything is written to `mcp.db`. Spawns the server process and
+         *     registers its tools, then saves the configuration and journals the addition.
          *     Returns `201 Created` with the server status on success.
          *     Returns `409 Conflict` when a server with the same name is already managed.
          *     Returns `400 Bad Request` for invalid configurations or spawn failures.
@@ -1244,7 +1325,8 @@ export interface paths {
         post?: never;
         /**
          * `DELETE /api/v1/mcp/servers/:name`, Remove an MCP server and delete it from `mcp.db`.
-         * @description Shuts down the session, unregisters the server, then removes its database entry.
+         * @description Shuts down the session, unregisters the server, removes its database entry,
+         *     then journals the removal.
          *     Returns `200 OK` with `{"removed": "<name>"}` on success.
          *     Returns `404 Not Found` when no server with the given name is managed.
          *     Returns `503 Service Unavailable` when MCP is not configured.
@@ -1289,8 +1371,8 @@ export interface paths {
         get?: never;
         /**
          * `PUT /api/v1/mcp/servers/:name/config`, Replace a server configuration and restart the session.
-         * @description Removes the current session, starts a new one with the updated configuration, then
-         *     upserts the entry in `mcp.db`.
+         * @description Removes the current session, starts a new one with the updated configuration,
+         *     upserts the entry in `mcp.db`, then journals the change.
          *     Returns `200 OK` with the new [`McpServerStatus`] on success.
          *     Returns `404 Not Found` when no server with `name` is managed.
          *     Returns `400 Bad Request` when the new session fails to start.
@@ -2568,6 +2650,11 @@ export interface components {
              */
             preset_id?: number | null;
         };
+        /**
+         * @description Where an agent comes from.
+         * @enum {string}
+         */
+        AgentOriginDto: "package" | "interface";
         /** @description Response body for agent operations. */
         AgentResponse: {
             /** @description Agent identifier (UUID v4). */
@@ -3475,6 +3562,37 @@ export interface components {
             /** @description Snapshot for every tool the runtime has seen at least one event for. */
             circuit_breakers: Record<string, never>[];
         };
+        /** @description An agent in force: its definition, then the user's overrides. */
+        ResolvedAgentResponse: {
+            /** @description Tools granted. */
+            access: string[];
+            /** @description The definition as the package declares it, before any override. */
+            definition: Record<string, never>;
+            /** @description Whether the agent is active. */
+            enabled: boolean;
+            /** @description Example requests. */
+            examples: string[];
+            /** @description Identifier. */
+            id: string;
+            /** @description What the agent is for, used as its instructions. */
+            mission: string;
+            model?: null | components["schemas"]["AgentModelResponse"];
+            /** @description Display name. */
+            name: string;
+            /** @description Where the agent comes from. */
+            origin: components["schemas"]["AgentOriginDto"];
+            /**
+             * @description Fields whose value is the user's rather than the package's:
+             *     `name`, `mission`, `examples`, `access`, `sources`.
+             */
+            overridden: string[];
+            /** @description Package the agent came with. */
+            package?: string | null;
+            /** @description Sources checked. */
+            sources: string[];
+            /** @description Version of the definition. */
+            version: string;
+        };
         /** @description One resolved HITL approval entry. */
         ResolvedApprovalResponse: {
             agent_name: string;
@@ -3637,6 +3755,14 @@ export interface components {
         SetEventsRequest: {
             /** @description New list of global events. */
             events: string[];
+        };
+        /** @description Body of `PUT /api/v1/agent-definitions/{name}/overrides/{field}`. */
+        SetOverrideRequest: {
+            /**
+             * @description The user's value: a string for `name` and `mission`, a list of strings
+             *     for `examples`, `access` and `sources`.
+             */
+            value: Record<string, never>;
         };
         /** @description Response body for the shutdown endpoint. */
         ShutdownResponse: {
@@ -4367,6 +4493,216 @@ export interface operations {
                 };
             };
             /** @description A2A invoker not initialized */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_agent_definitions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Stored agents, by identifier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"][];
+                };
+            };
+            /** @description Store error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_agent_definition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agent in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_agent_overrides: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Back to defaults; the agent in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_agent_override: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+                /** @description name, mission, examples, access or sources */
+                field: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetOverrideRequest"];
+            };
+        };
+        responses: {
+            /** @description Override set; the agent in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Unknown field, or a value of the wrong shape */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    remove_agent_override: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+                /** @description name, mission, examples, access or sources */
+                field: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Override removed, or there was none; the agent in force */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedAgentResponse"];
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Unknown field */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Audit journal not available */
             503: {
                 headers: {
                     [name: string]: unknown;

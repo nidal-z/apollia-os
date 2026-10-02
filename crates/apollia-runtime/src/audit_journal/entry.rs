@@ -63,6 +63,9 @@ pub enum JournalEntryKind {
     /// An agent was uninstalled. The payload is a
     /// [`crate::governance::GovernanceRecord`].
     AgentUninstalled,
+    /// A local override of an agent was set or removed. The payload is a
+    /// [`crate::governance::GovernanceRecord`].
+    AgentOverrideChanged,
     /// A connection was added: an MCP server, a native account, or a folder. The payload is a
     /// [`crate::governance::ConnectionRecord`].
     ConnectionAdded,
@@ -123,6 +126,7 @@ impl JournalEntryKind {
             JournalEntryKind::AgentInstalled => "agent_installed",
             JournalEntryKind::AgentUpdated => "agent_updated",
             JournalEntryKind::AgentUninstalled => "agent_uninstalled",
+            JournalEntryKind::AgentOverrideChanged => "agent_override_changed",
             JournalEntryKind::ConnectionAdded => "connection_added",
             JournalEntryKind::ConnectionModified => "connection_modified",
             JournalEntryKind::ConnectionRemoved => "connection_removed",
@@ -159,6 +163,7 @@ impl JournalEntryKind {
             "agent_installed" => JournalEntryKind::AgentInstalled,
             "agent_updated" => JournalEntryKind::AgentUpdated,
             "agent_uninstalled" => JournalEntryKind::AgentUninstalled,
+            "agent_override_changed" => JournalEntryKind::AgentOverrideChanged,
             "connection_added" => JournalEntryKind::ConnectionAdded,
             "connection_modified" => JournalEntryKind::ConnectionModified,
             "connection_removed" => JournalEntryKind::ConnectionRemoved,
@@ -324,15 +329,19 @@ mod tests {
         assert_eq!(back, kind);
     }
 
-    // The four governance kinds round-trip through their stable tags.
+    // The governance kinds round-trip through their stable tags.
     #[test]
     fn test_governance_kinds_tags_round_trip() {
-        // GIVEN the four governance kinds and their expected tags
+        // GIVEN the governance kinds and their expected tags
         let cases = [
             (JournalEntryKind::AccessChanged, "access_changed"),
             (JournalEntryKind::AgentInstalled, "agent_installed"),
             (JournalEntryKind::AgentUpdated, "agent_updated"),
             (JournalEntryKind::AgentUninstalled, "agent_uninstalled"),
+            (
+                JournalEntryKind::AgentOverrideChanged,
+                "agent_override_changed",
+            ),
         ];
         for (kind, expected) in cases {
             // WHEN converting to its tag and back

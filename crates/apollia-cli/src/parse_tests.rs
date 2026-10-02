@@ -36,6 +36,96 @@ fn parse(args: &[&str]) -> Cli {
 // ─── agent ───────────────────────────────────────────────────────────────────
 
 #[test]
+fn test_cli_parses_agent_set_with_list_values() {
+    // GIVEN "apollia-os agent set invoices access file_read web_fetch"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "agent",
+        "set",
+        "invoices",
+        "access",
+        "file_read",
+        "web_fetch",
+    ]);
+    // THEN the agent, the field and every value are carried through
+    let Commands::Agent {
+        command:
+            AgentCommand::Set {
+                agent_id,
+                field,
+                values,
+            },
+    } = cli.command
+    else {
+        panic!("expected agent set");
+    };
+    assert_eq!(agent_id, "invoices");
+    assert_eq!(field, "access");
+    assert_eq!(values, vec!["file_read", "web_fetch"]);
+}
+
+#[test]
+fn test_cli_parses_agent_set_with_no_value() {
+    // GIVEN "apollia-os agent set invoices sources" (an empty list)
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "agent", "set", "invoices", "sources"]);
+    // THEN the values are empty
+    let Commands::Agent {
+        command: AgentCommand::Set { values, .. },
+    } = cli.command
+    else {
+        panic!("expected agent set");
+    };
+    assert!(values.is_empty());
+}
+
+#[test]
+fn test_cli_parses_agent_reset() {
+    // GIVEN "apollia-os agent reset invoices --field mission --confirm"
+    // WHEN the top-level parser reads it
+    let cli = parse(&[
+        "apollia-os",
+        "agent",
+        "reset",
+        "invoices",
+        "--field",
+        "mission",
+        "--confirm",
+    ]);
+    // THEN the field and the confirmation are carried through
+    let Commands::Agent {
+        command:
+            AgentCommand::Reset {
+                agent_id,
+                field,
+                confirm,
+            },
+    } = cli.command
+    else {
+        panic!("expected agent reset");
+    };
+    assert_eq!(agent_id, "invoices");
+    assert_eq!(field.as_deref(), Some("mission"));
+    assert!(confirm);
+}
+
+#[test]
+fn test_cli_parses_agent_list_definitions() {
+    // GIVEN "apollia-os agent list --definitions"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "agent", "list", "--definitions"]);
+    // THEN the stored agents are asked for
+    let Commands::Agent {
+        command: AgentCommand::List { definitions, .. },
+    } = cli.command
+    else {
+        panic!("expected agent list");
+    };
+    assert!(definitions);
+}
+
+#[test]
 fn test_cli_parses_agent_package_list() {
     // GIVEN "apollia-os agent package list"
     // WHEN the top-level parser reads it

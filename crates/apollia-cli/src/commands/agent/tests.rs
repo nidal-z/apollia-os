@@ -641,3 +641,25 @@ fn file_path_hint_offers_a_command_an_operator_can_really_run() {
         );
     }
 }
+
+#[test]
+fn test_override_value_follows_the_field_shape() {
+    // GIVEN values typed for a string field and for a list field
+    let one = vec!["Sort the inbox.".to_owned()];
+    let two = vec!["file_read".to_owned(), "web_fetch".to_owned()];
+    // WHEN they are turned into override values
+    let mission = definition::override_value("mission", &one);
+    let access = definition::override_value("access", &two);
+    let empty = definition::override_value("sources", &[]);
+    let too_many = definition::override_value("mission", &two);
+    let unknown = definition::override_value("model", &one);
+    // THEN a string field takes exactly one value and a list field any number
+    assert_eq!(mission.unwrap(), serde_json::json!("Sort the inbox."));
+    assert_eq!(
+        access.unwrap(),
+        serde_json::json!(["file_read", "web_fetch"])
+    );
+    assert_eq!(empty.unwrap(), serde_json::json!([]));
+    assert!(too_many.unwrap_err().contains("exactly one value"));
+    assert!(unknown.unwrap_err().contains("unknown field"));
+}

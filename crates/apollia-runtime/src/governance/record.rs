@@ -27,6 +27,16 @@ pub enum AccessChange {
     Revoked,
 }
 
+/// What happened to a local override.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OverrideChange {
+    /// The user's value was written.
+    Set,
+    /// The user's value was removed; the package default applies again.
+    Removed,
+}
+
 /// An event governance records: who did what to which agent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
@@ -66,6 +76,18 @@ pub enum GovernanceEvent {
         /// Who updated it.
         actor: String,
     },
+    /// A local override of an agent was set or removed.
+    OverrideChanged {
+        /// Agent whose override changed.
+        agent_id: String,
+        /// Overridden field (`name`, `mission`, `examples`, `access`,
+        /// `sources`).
+        field: String,
+        /// Whether the value was written or removed.
+        change: OverrideChange,
+        /// Who made the change.
+        actor: String,
+    },
     /// An agent was uninstalled.
     Uninstalled {
         /// Uninstalled agent.
@@ -84,7 +106,8 @@ impl GovernanceEvent {
             GovernanceEvent::AccessChanged { agent_id, .. }
             | GovernanceEvent::Installed { agent_id, .. }
             | GovernanceEvent::Updated { agent_id, .. }
-            | GovernanceEvent::Uninstalled { agent_id, .. } => agent_id,
+            | GovernanceEvent::Uninstalled { agent_id, .. }
+            | GovernanceEvent::OverrideChanged { agent_id, .. } => agent_id,
         }
     }
 
@@ -95,6 +118,7 @@ impl GovernanceEvent {
             GovernanceEvent::Installed { .. } => JournalEntryKind::AgentInstalled,
             GovernanceEvent::Updated { .. } => JournalEntryKind::AgentUpdated,
             GovernanceEvent::Uninstalled { .. } => JournalEntryKind::AgentUninstalled,
+            GovernanceEvent::OverrideChanged { .. } => JournalEntryKind::AgentOverrideChanged,
         }
     }
 }
@@ -170,6 +194,15 @@ mod tests {
                     actor: "user".into(),
                 },
                 JournalEntryKind::AgentUninstalled,
+            ),
+            (
+                GovernanceEvent::OverrideChanged {
+                    agent_id: "a1".into(),
+                    field: "mission".into(),
+                    change: OverrideChange::Set,
+                    actor: "user".into(),
+                },
+                JournalEntryKind::AgentOverrideChanged,
             ),
         ];
         for (event, kind) in events {

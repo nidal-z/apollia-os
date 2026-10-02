@@ -230,6 +230,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .route("/api/v1/notifications/test", post(test_channels::<B>))
         .route("/api/v1/notifications/logs", get(notification_logs::<B>))
         .merge(llm_routes::<B>())
+        .merge(crate::api::routes_agent_definitions::agent_definition_routes::<B>())
         .merge(model_hub_routes::<B>())
         .merge(resilience_router::<B>())
         // Chat session routes
