@@ -124,6 +124,11 @@ impl ChatSessionManager {
 
             let pending_user_inputs_for_session = self.pending_user_inputs.clone();
             let mcp_handle_for_session = self.mcp_handle.clone();
+            let package_tools = package_executors(
+                &self.package_tools,
+                apollia_tools::APOLLIA_AGENT_ID,
+                &cancel,
+            );
             let chat_tools_config_for_session = self.chat_tools_config.clone();
             let mcp_loading = self.mcp_loading;
             let tool_search_limit = self.tool_search_limit;
@@ -166,6 +171,7 @@ impl ChatSessionManager {
                 project_repo_for_session,
                 pending_user_inputs_for_session,
                 mcp_handle_for_session,
+                package_tools,
                 chat_tools_config_for_session,
                 mcp_loading,
                 tool_search_limit,

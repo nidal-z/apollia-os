@@ -127,6 +127,8 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
         apollia_tools::tools::ask_user::PendingUserInputs,
     pub(in crate::chat::manager) mcp_handle_for_session:
         Option<apollia_mcp::manager::McpClientManagerHandle>,
+    /// Executors of the package tools, built for the Apollia agent.
+    pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
     pub(in crate::chat::manager) chat_tools_config_for_session: Option<Arc<ChatToolsConfig>>,
     pub(in crate::chat::manager) mcp_loading: LoadingMode,
     pub(in crate::chat::manager) tool_search_limit: usize,
@@ -285,4 +287,6 @@ pub(in crate::chat::manager) struct WorkspaceResolutionParams {
     pub(in crate::chat::manager) mcp_index: Vec<ToolIndexSnapshot>,
     /// Maximum `limit` accepted by the synthetic `tool_search` tool.
     pub(in crate::chat::manager) tool_search_limit: usize,
+    /// Executors of the package tools, built for the agent of the run.
+    pub(in crate::chat::manager) package_tools: Vec<Box<dyn apollia_tools::executor::ToolExecutor>>,
 }

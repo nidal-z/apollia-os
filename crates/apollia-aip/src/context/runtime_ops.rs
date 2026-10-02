@@ -149,22 +149,31 @@ impl RuntimeContext {
             input_response: None,
         }
     }
+    /// The context a package tool runs with, on behalf of the agent `caller`
+    /// that called it: `ctx.agent_name` is the caller, `ctx.logger` and
+    /// `ctx.log` report under its name. No LLM, no tool proxy and no memory
+    /// are attached: the calling agent's engine runs those, not the tool.
+    pub fn for_package_tool(caller: &str) -> Self {
+        Self::bare(caller.to_string())
+    }
+
     /// Builds a minimal context for intra-crate unit tests.
     ///
     /// All optional fields are `None`. Must never be called in production code.
     #[cfg(test)]
     pub(crate) fn for_test() -> Self {
-        let test_agent_id = AgentId::new_v4();
+        Self::bare("test-agent".to_string())
+    }
+
+    /// A context with every optional surface left unset and the nested ones
+    /// built in no-op mode.
+    fn bare(agent_name: String) -> Self {
+        let agent_id = AgentId::new_v4();
         let (a2a_iface, events_iface, datasources_iface, templates_iface, secrets_iface) =
             pyo3::Python::with_gil(|py| {
-                let a2a = crate::a2a::A2AInterface::new(None, "test-agent".to_string(), 0, None);
-                let events = crate::events::EventsInterface::new(
-                    None,
-                    None,
-                    test_agent_id.clone(),
-                    None,
-                    None,
-                );
+                let a2a = crate::a2a::A2AInterface::new(None, agent_name.clone(), 0, None);
+                let events =
+                    crate::events::EventsInterface::new(None, None, agent_id.clone(), None, None);
                 let ds = crate::datasources::DatasourcesInterface::new(Vec::new());
                 let tp = crate::templates::TemplatesInterface::new(Vec::new());
                 let sc = crate::secrets::SecretsInterface::new(None, Vec::new());
@@ -185,7 +194,7 @@ impl RuntimeContext {
             supports_mailbox: false,
             mailbox_allowlist: None,
             mailbox_send_requires_approval: false,
-            agent_name: "test-agent".to_string(),
+            agent_name,
             user_context: None,
             a2a_invoker: None,
             user_memory_writable: false,
@@ -197,7 +206,7 @@ impl RuntimeContext {
             notify: None,
             stt: None,
             profile: None,
-            agent_id: test_agent_id,
+            agent_id,
             task_id: None,
             a2a_iface,
             events_iface,

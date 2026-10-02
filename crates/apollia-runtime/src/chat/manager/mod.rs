@@ -180,6 +180,9 @@ struct ChatSessionManager {
     /// Shared lifecycle hook executor, cloned into each exchange so the ReAct
     /// loop can run PreToolUse and the best-effort hooks. `None` disables hooks.
     hook_executor: Option<Arc<HookExecutor>>,
+    /// Source of the executors of the package tools, set once the embedded
+    /// interpreter is available. `None` leaves every `pkg:` tool unrunnable.
+    package_tools: Option<Arc<dyn crate::package_tools::PackageToolHost>>,
     /// Per-session cooperative pause tokens.
     ///
     /// A fresh [`CancellationToken`] is inserted when a turn is dispatched and a
@@ -245,6 +248,18 @@ pub(in crate::chat::manager) use types::{
     LibreExchangeParams, LibreSessionDefaults, PendingUserInputMeta, RegisterUserInputReplyParams,
     ResolvedSessionInvoker, WorkspaceResolutionParams,
 };
+
+/// The executors of the package tools for one run of `caller`, stopped by
+/// `cancel`; none while no host is set.
+pub(in crate::chat::manager) fn package_executors(
+    host: &Option<Arc<dyn crate::package_tools::PackageToolHost>>,
+    caller: &str,
+    cancel: &CancellationToken,
+) -> Vec<Box<dyn apollia_tools::executor::ToolExecutor>> {
+    host.as_ref()
+        .map(|host| host.executors(caller, cancel))
+        .unwrap_or_default()
+}
 
 pub use agent_task::AgentTaskRun;
 pub use command::ChatCommand;

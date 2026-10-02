@@ -338,6 +338,16 @@ fn main() {
             tools_config: &tools_config_lock,
         },
     );
+    // The Python tools of the installed packages join the registry, read from
+    // their manifests; each module is imported on its first call only.
+    if let Some(worker) = apollia_runtime::worker_runtime() {
+        let data_dir = apollia_data_dir.clone();
+        let registry = runtime_handle.tool_registry_handle.clone();
+        let chat = runtime_handle.chat_manager.clone();
+        worker.spawn(async move {
+            apollia_aip::package_tools::attach(&data_dir, &registry, chat.as_ref()).await;
+        });
+    }
     // The agent-mode file tools read these roots. They come from the same
     // `[filesystem] trusted_paths` the chat classifies against, so one setting
     // governs both surfaces instead of the hardcoded home directory this used

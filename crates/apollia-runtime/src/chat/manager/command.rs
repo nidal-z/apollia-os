@@ -258,6 +258,11 @@ pub enum ChatCommand {
         /// New router to use for subsequent requests.
         router: Option<Arc<LlmRouter>>,
     },
+    /// Hand the source of the package tool executors to the actor.
+    SetPackageTools {
+        /// Used by every run that starts afterwards.
+        host: Arc<dyn crate::package_tools::PackageToolHost>,
+    },
     /// Fork a session, creating a child with a copy of the history.
     ForkSession {
         /// Parent session to fork from.
