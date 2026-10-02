@@ -592,6 +592,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/llm/agents/{agent}/model/fallback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/llm/agents/{agent}/model/fallback`: the last time the agent's
+         *     model was not available since the runtime started, for its sheet.
+         */
+        get: operations["get_agent_model_fallback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/llm/backends": {
         parameters: {
             query?: never;
@@ -2593,6 +2613,23 @@ export interface components {
             /** @description Messages sorted by `sent_at` descending (most recent first). */
             messages: components["schemas"]["AgentMessageDto"][];
         };
+        /**
+         * @description The last time an agent's model was not available, so a call ran on the
+         *     default model instead.
+         */
+        AgentModelFallbackResponse: {
+            /** @description Agent name. */
+            agent: string;
+            /** @description When it happened, RFC 3339. */
+            at: string;
+            /**
+             * @description Model the agent asked for: the user's assignment, or the backend its
+             *     manifest declares.
+             */
+            requested: string;
+            /** @description Model that served the call instead. */
+            used: string;
+        };
         /** @description The model assigned to an agent. */
         AgentModelResponse: {
             /** @description Agent name. */
@@ -3494,13 +3531,11 @@ export interface components {
             /**
              * @description Whether the rebuilt router reaches agents that are already running.
              *
-             *     `false` today, and not a transient state: the agent execution path reads
-             *     its router from a `OnceLock` populated at boot, a different cell from the
-             *     one this route rewrites. A reload therefore reaches chat and this API,
-             *     and an already-running agent keeps the router it started with until the
-             *     daemon restarts. Reported rather than hidden, because the failure it
-             *     produces on the Python side, `'NoneType' object has no attribute
-             *     'complete'`, names none of this.
+             *     `true`: the router this one replaces is superseded by it, and an agent
+             *     started before the reload reads the router in force at each call
+             *     (`LlmRouter::latest`), so it picks the reload up without a restart.
+             *     Kept in the response so a client that warned about the opposite can
+             *     tell the two runtimes apart.
              */
             reaches_running_agents: boolean;
         };
@@ -5414,6 +5449,47 @@ export interface operations {
                 };
             };
             /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_agent_model_fallback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent name */
+                agent: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The agent's last fallback */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentModelFallbackResponse"];
+                };
+            };
+            /** @description The agent's model has not fallen back since the runtime started */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No LLM router configured */
             503: {
                 headers: {
                     [name: string]: unknown;

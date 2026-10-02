@@ -36,10 +36,25 @@ impl BuiltInChatAgent {
         // Real context window of the active model, in tokens, when it reports one.
         // `None` (e.g. cloud backend or before the local model loads) leaves the
         // context gauge in an "unknown" state rather than showing a wrong value.
-        let context_window_tokens = self
-            .llm_router
-            .context_window_tokens()
-            .and_then(|w| u32::try_from(w).ok());
+        // The backend the session prefers when the router reaches it; the
+        // default otherwise, and a preference the router lacks is said on the
+        // bus rather than failing the turn.
+        let turn_backend = self.preferred_backend.as_deref().and_then(|name| {
+            self.llm_router.resolve_agent_model(
+                crate::chat::manager::APOLLIA_CHAT_AGENT_ID,
+                Some(name),
+                None,
+                Some(&self.event_bus),
+            )
+        });
+        let context_window_tokens = match turn_backend.as_deref() {
+            Some(name) => self
+                .llm_router
+                .get(Some(name))
+                .and_then(|backend| backend.context_window()),
+            None => self.llm_router.context_window_tokens(),
+        }
+        .and_then(|w| u32::try_from(w).ok());
         // Prompt-token count of the most recent LLM call. Overwritten each turn so
         // it reflects the current context occupancy (not a cumulative sum) for the
         // context gauge.
@@ -271,7 +286,7 @@ impl BuiltInChatAgent {
                             },
                         ));
                     }
-                    r = self.llm_router.stream_with_observability(None, request, &obs) => r,
+                    r = self.llm_router.stream_with_observability(turn_backend.as_deref(), request, &obs) => r,
                 }
             };
             let stream = stream_result.map_err(|e| ChatError::InternalError(e.to_string()))?;
@@ -356,12 +371,14 @@ impl BuiltInChatAgent {
             };
             let _ = self.event_bus.send(RuntimeEvent::LlmResponseCaptured {
                 run_id: run_id.clone(),
-                backend: self.llm_router.default_name().to_string(),
-                // The turn streams through the default backend (`None` above),
-                // so its model is the one that answered.
+                backend: turn_backend
+                    .clone()
+                    .unwrap_or_else(|| self.llm_router.default_name().to_string()),
+                // The turn streams through `turn_backend` (the default when
+                // `None`), so its model is the one that answered.
                 model: self
                     .llm_router
-                    .get(None)
+                    .get(turn_backend.as_deref())
                     .map(|b| b.model_id().to_owned())
                     .unwrap_or_default(),
                 content: accumulated_text.clone(),

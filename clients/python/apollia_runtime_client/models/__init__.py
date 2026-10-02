@@ -11,6 +11,7 @@ from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
 from .agent_message_dto_payload import AgentMessageDtoPayload
 from .agent_messages_response import AgentMessagesResponse
+from .agent_model_fallback_response import AgentModelFallbackResponse
 from .agent_model_response import AgentModelResponse
 from .agent_response import AgentResponse
 from .agent_response_manifest_type_0 import AgentResponseManifestType0
@@ -212,6 +213,7 @@ __all__ = (
     "AgentMessageDto",
     "AgentMessageDtoPayload",
     "AgentMessagesResponse",
+    "AgentModelFallbackResponse",
     "AgentModelResponse",
     "AgentResponse",
     "AgentResponseManifestType0",

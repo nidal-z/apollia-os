@@ -24,7 +24,15 @@ impl BuiltInChatAgent {
             pending_injection: None,
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
             prefix_checker: None,
+            preferred_backend: None,
         }
+    }
+
+    /// Route the turn's calls to the backend the session prefers. `None`, or
+    /// a backend the router cannot reach, keeps the default.
+    pub fn with_preferred_backend(mut self, backend: Option<String>) -> Self {
+        self.preferred_backend = backend;
+        self
     }
 
     /// Attach the per-invocation prefix-rule checker. `None` keeps the

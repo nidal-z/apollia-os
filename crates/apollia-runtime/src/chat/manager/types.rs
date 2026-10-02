@@ -150,6 +150,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Operator instruction to consume on a resume turn, when this exchange is a
     /// resume carrying a queued injection. `None` for ordinary turns.
     pub(in crate::chat::manager) pending_injection: Option<InjectedInstruction>,
+    /// Backend the session prefers (the free chat's stored choice), tried
+    /// before the default at each call of the turn.
+    pub(in crate::chat::manager) preferred_backend: Option<String>,
 }
 
 /// Resolved tool invoker plus the agent workspace path for a session.

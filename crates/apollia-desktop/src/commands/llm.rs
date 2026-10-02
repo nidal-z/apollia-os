@@ -427,6 +427,12 @@ pub async fn reload_llm_from_db(
         runtime.llama_server_supervisor.clone(),
     );
 
+    // `system.db` holds neither `[llm.routing]` nor the agents' last
+    // fallbacks: both come from the router this one replaces.
+    let previous = shared
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
     let new_router = match LlmRouter::from_backend_configs_with_override(
         all_configs,
         default_name.clone(),
@@ -434,7 +440,10 @@ pub async fn reload_llm_from_db(
     )
     .await
     {
-        Ok(router) => Arc::new(router),
+        Ok(router) => Arc::new(match previous.as_ref() {
+            Some(previous) => router.carry_over_from(previous),
+            None => router,
+        }),
         Err(e) => {
             let reason = format!("failed to build LLM router: {e}");
             emit_reload_outcome(
@@ -455,7 +464,12 @@ pub async fn reload_llm_from_db(
         let mut guard = shared.write().map_err(|e| format!("lock poisoned: {e}"))?;
         let old = guard.take();
         drop(old);
-        *guard = Some(new_router);
+        *guard = Some(Arc::clone(&new_router));
+    }
+    // A running agent holds the router it started with; it reaches this one
+    // at its next call.
+    if let Some(previous) = previous {
+        previous.supersede(&new_router);
     }
 
     // The runtime keeps its OWN LlmRouter cell, consumed by the REST API

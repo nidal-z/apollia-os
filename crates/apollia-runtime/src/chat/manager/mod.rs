@@ -228,6 +228,8 @@ mod user_input;
 #[cfg(test)]
 mod plan_regression_tests;
 #[cfg(test)]
+mod preferred_backend_tests;
+#[cfg(test)]
 mod tests;
 
 pub(in crate::chat::manager) use dispatcher::{
