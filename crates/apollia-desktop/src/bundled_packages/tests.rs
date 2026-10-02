@@ -1,0 +1,232 @@
+//! The guide shipped as a package: its manifest, its archive, its
+//! installation over the guide earlier versions ran as code.
+
+use std::sync::Mutex;
+
+use apollia_runtime::governance::{
+    AccessCall, AccessDecision, DeclaredAccess, EffectiveAccess, GovernanceContract,
+    GovernanceError, GovernanceEvent, InstallSubject,
+};
+use apollia_tools::apo_archive::{ApoArchive, SignatureState};
+use apollia_tools::{AgentOrigin, InstalledAgent, OverrideField};
+
+use super::*;
+
+/// Governance that requires a signature, as a strict organisation would,
+/// and keeps what it records.
+#[derive(Default)]
+struct StrictGovernance {
+    recorded: Mutex<Vec<GovernanceEvent>>,
+}
+
+impl GovernanceContract for StrictGovernance {
+    fn effective_accesses(
+        &self,
+        _agent_id: &str,
+        declared: &[DeclaredAccess],
+    ) -> Vec<EffectiveAccess> {
+        declared
+            .iter()
+            .map(|a| EffectiveAccess {
+                access_id: a.access_id.clone(),
+                permits: a.permits.clone(),
+                sensitive: a.declared_sensitive,
+            })
+            .collect()
+    }
+
+    fn decide(&self, _call: &AccessCall<'_>) -> AccessDecision {
+        AccessDecision::Allowed
+    }
+
+    fn signature_required(&self, _subject: &InstallSubject<'_>) -> bool {
+        true
+    }
+
+    fn record(&self, event: &GovernanceEvent) -> Result<(), GovernanceError> {
+        self.recorded.lock().unwrap().push(event.clone());
+        Ok(())
+    }
+}
+
+fn agents(dir: &Path) -> AgentRepository {
+    AgentRepository::open(&apollia_core::paths::DataFile::Agents.path(dir)).unwrap()
+}
+
+/// The row an earlier desktop wrote for the guide: Python code at `version`.
+fn code_guide(dir: &Path, version: &str) -> InstalledAgent {
+    let path = dir.join("agents/apollia-guide/agent.py");
+    InstalledAgent {
+        name: GUIDE.into(),
+        version: version.into(),
+        install_path: path.clone(),
+        source_path: path,
+        manifest: serde_json::from_value(serde_json::json!({
+            "name": GUIDE,
+            "version": version,
+            "description": "Coach.",
+            "tools_required": []
+        }))
+        .unwrap(),
+        enabled: true,
+        installed_at: "2026-09-01T00:00:00Z".into(),
+        updated_at: "2026-09-01T00:00:00Z".into(),
+    }
+}
+
+#[test]
+fn the_guide_is_a_declarative_agent_with_its_knowledge_in_the_mission() {
+    // GIVEN the manifest and the knowledge base embedded in the binary
+    // WHEN the manifest of the guide is assembled
+    let manifest = guide_manifest().unwrap();
+
+    // THEN it is one agent, no code, its mission carrying both knowledge files
+    assert_eq!(manifest.package.name, GUIDE);
+    assert_eq!(manifest.package.version, env!("CARGO_PKG_VERSION"));
+    assert!(manifest.tools.is_empty() && manifest.workflows.is_empty());
+    assert!(manifest.pip.is_none() && manifest.mcp_servers.is_empty());
+    assert_eq!(manifest.agents.len(), 1);
+    let agent = &manifest.agents[0];
+    assert_eq!(agent.id, GUIDE);
+    assert!(!agent.examples.is_empty());
+    assert!(
+        agent.defaults.access.is_empty(),
+        "the guide is granted nothing"
+    );
+    assert!(agent.mission.contains(KNOWLEDGE_HEADING));
+    for knowledge in GUIDE_KNOWLEDGE {
+        let first_line = knowledge.lines().next().unwrap();
+        assert!(agent.mission.contains(first_line), "{first_line}");
+    }
+}
+
+#[test]
+fn the_knowledge_names_no_retired_contract_and_no_missing_screen() {
+    // GIVEN the knowledge base the guide answers from
+    let knowledge = GUIDE_KNOWLEDGE.join("\n");
+
+    // WHEN it is searched for the old agent contract and for screens the
+    // application does not have
+    let retired = [
+        "manifest()",
+        "run()",
+        "@on_message",
+        "@skill",
+        "ctx.a2a",
+        "agent start",
+        "/pipelines",
+        "/triggers",
+        "/onboarding",
+    ];
+
+    // THEN none is there
+    for needle in retired {
+        assert!(!knowledge.contains(needle), "{needle}");
+    }
+}
+
+#[test]
+fn the_guide_assembles_into_an_unsigned_archive() {
+    // GIVEN an empty data directory
+    let dir = tempfile::tempdir().unwrap();
+
+    // WHEN the guide is assembled
+    let path = assemble_guide(dir.path()).unwrap();
+
+    // THEN the archive reads back with the assembled manifest, unsigned, and
+    // no staging folder is left behind
+    let mut archive = ApoArchive::open(&path).unwrap();
+    assert_eq!(archive.manifest(), &guide_manifest().unwrap());
+    assert_eq!(archive.signature_state().unwrap(), SignatureState::Unsigned);
+    let left: Vec<_> = std::fs::read_dir(path.parent().unwrap())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(left, vec![format!("{GUIDE}.apo")]);
+}
+
+#[tokio::test]
+async fn a_guide_installed_as_code_becomes_the_package_agent_and_stays_disabled() {
+    // GIVEN the guide an earlier version installed as Python code, at an
+    // older version, with its mission overridden and disabled by the user
+    let dir = tempfile::tempdir().unwrap();
+    let repo = agents(dir.path());
+    repo.save(&code_guide(dir.path(), "0.1.0")).unwrap();
+    repo.set_override(GUIDE, OverrideField::Mission, &serde_json::json!("Mine."))
+        .unwrap();
+    repo.set_enabled(GUIDE, false).unwrap();
+    let governance = StrictGovernance::default();
+
+    // WHEN the desktop starts: the code guide is retired before the agents
+    // that run code are loaded, then the shipped guide is installed under a
+    // governance that requires signatures
+    retire_code_guide(&repo);
+    let archive = assemble_guide(dir.path()).unwrap();
+    let outcome = install_embedded(&archive, dir.path(), &governance)
+        .await
+        .unwrap();
+
+    // THEN the guide runs no code, carries the shipped definition, keeps the
+    // user's override, and is still disabled
+    assert!(
+        matches!(outcome, EmbeddedOutcome::Installed(_)),
+        "{outcome:?}"
+    );
+    assert!(repo.get(GUIDE).unwrap().is_none(), "no code is loaded");
+    let stored = repo.stored(GUIDE).unwrap().unwrap();
+    assert_eq!(stored.origin, AgentOrigin::Package);
+    assert_eq!(stored.package.as_deref(), Some(GUIDE));
+    assert_eq!(stored.version, env!("CARGO_PKG_VERSION"));
+    assert!(!stored.enabled, "a disabled guide is never enabled again");
+    let resolved = repo
+        .resolved(GUIDE, None, apollia_core::AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
+    assert_eq!(resolved.mission, "Mine.");
+    assert_eq!(resolved.autonomy, apollia_core::AutonomyLevel::Assisted);
+    assert!(governance
+        .recorded
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|e| matches!(e, GovernanceEvent::PackageInstalled { signed: false, .. })));
+}
+
+#[tokio::test]
+async fn a_newer_guide_is_not_downgraded_and_the_current_one_is_left_alone() {
+    // GIVEN the guide package installed at a version newer than the binary's
+    let dir = tempfile::tempdir().unwrap();
+    let governance = StrictGovernance::default();
+    let mut newer = guide_manifest().unwrap();
+    newer.package.version = "99.0.0".into();
+    let src = dir.path().join("newer");
+    std::fs::create_dir_all(&src).unwrap();
+    std::fs::write(src.join("apollia.toml"), newer.to_toml().unwrap()).unwrap();
+    let newer_apo = dir.path().join("newer.apo");
+    build_from_dir(&src, &newer_apo, &BuildOptions::default()).unwrap();
+    install_embedded(&newer_apo, dir.path(), &governance)
+        .await
+        .unwrap();
+
+    // WHEN the binary's guide is installed, then installed over itself
+    let archive = assemble_guide(dir.path()).unwrap();
+    let kept = install_embedded(&archive, dir.path(), &governance)
+        .await
+        .unwrap();
+    let other = tempfile::tempdir().unwrap();
+    let other_archive = assemble_guide(other.path()).unwrap();
+    install_embedded(&other_archive, other.path(), &governance)
+        .await
+        .unwrap();
+    let again = install_embedded(&other_archive, other.path(), &governance)
+        .await
+        .unwrap();
+
+    // THEN the newer version stays, and the same version installs nothing
+    assert!(matches!(kept, EmbeddedOutcome::Newer { ref installed, .. } if installed == "99.0.0"));
+    assert_eq!(
+        agents(dir.path()).stored(GUIDE).unwrap().unwrap().version,
+        "99.0.0"
+    );
+    assert!(matches!(again, EmbeddedOutcome::Current { .. }));
+}

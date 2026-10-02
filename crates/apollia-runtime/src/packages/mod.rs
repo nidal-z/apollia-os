@@ -17,7 +17,9 @@
 //!   package, and records the installation in the audit journal.
 //!
 //! A signature that does not hold is refused. An unsigned package installs
-//! with a notice, unless the governance contract requires a signature. A
+//! with a notice, unless the governance contract requires a signature; a
+//! package Apollia ships inside its binary is the exception, see
+//! [`install_embedded`]. A
 //! version older than the installed one is refused unless the caller allows
 //! it. The user's overrides of an agent survive an update: only the package
 //! definition is replaced.
@@ -32,6 +34,7 @@
 //! it by the label the user gave. Any other signed package is named by the
 //! publisher it declares, which nothing verifies, and by its key fingerprint.
 
+mod embedded;
 mod install;
 mod preview;
 mod uninstall;
@@ -39,18 +42,21 @@ mod uninstall;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_embedded;
+#[cfg(test)]
 mod tests_install;
 #[cfg(test)]
 mod tests_uninstall;
 
 use apollia_tools::apo_archive::ApoError;
 
+pub use embedded::{install_embedded, EmbeddedOutcome, EMBEDDED_ACTOR};
 pub use install::{
     commit, prepare, CommitTargets, InstallOptions, InstallReport, McpServerAdder, StagedInstall,
 };
 pub use preview::{
     connection_matches, preview, AccessPreview, AddedAccess, AgentPreview, BroughtServerPreview,
-    InstallRefusal, ItemPreview, PackageNotice, PackagePreview, PreviewSources,
+    InstallRefusal, ItemPreview, PackageNotice, PackageOrigin, PackagePreview, PreviewSources,
     RequiredConnectionPreview, SignaturePreview, SignatureStatus, TriggerPreview, UpdateDiff,
     WorkflowPreview,
 };
