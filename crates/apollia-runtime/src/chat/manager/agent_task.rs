@@ -30,6 +30,8 @@ pub struct AgentTaskRun {
     /// Stops the run at its next checkpoint, and refuses the approvals it
     /// waits on.
     pub cancel: CancellationToken,
+    /// Plan cache of the runtime, for an agent that plans first.
+    pub plan_cache: Option<crate::chat::agent_executor::plan_first::SharedPlanCache>,
     /// Receives the outcome once the run has ended.
     pub done: oneshot::Sender<Result<ChatAgentResponse, ChatError>>,
 }
@@ -148,6 +150,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
         mut spec,
         message,
         cancel,
+        plan_cache,
         done,
     } = run;
     let mcp_index: Vec<ToolIndexSnapshot> = match (wiring.mcp_loading, &wiring.mcp_handle) {
@@ -205,6 +208,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             a2a_invoker: wiring.a2a_invoker,
             todo: None,
             plan: None,
+            plan_cache,
         },
         ApolliaContext::default(),
         SessionWiring {
@@ -216,6 +220,7 @@ async fn run_agent_task(wiring: AgentTaskWiring, run: AgentTaskRun) {
             tool_search_limit: wiring.tool_search_limit,
             hook_executor: wiring.hook_executor,
             tool_turn_temperature,
+            tool_output_dir: crate::chat::builtin_agent::default_tool_output_dir(),
             ..SessionWiring::default()
         },
         &wiring.runtime_budget,

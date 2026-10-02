@@ -4,10 +4,6 @@
 //! In orchestrated mode, the stream displays the execution plan, step-by-step
 //! progression, and replanning events. In direct mode, the legacy
 //! behaviour is preserved.
-//!
-//! With `--alternatives`, displays two plan alternatives (conservative vs. exploratory)
-//! received via the `plan_alternatives_generated` SSE event and prompts for a choice
-//! before the task proceeds.
 
 use std::path::PathBuf;
 use std::time::Instant;
@@ -51,8 +47,6 @@ pub struct RunCommandArgs<'a> {
     pub stream: bool,
     /// Submit and return immediately without waiting.
     pub detach: bool,
-    /// Show two plan alternatives and prompt for a choice before executing.
-    pub alternatives: bool,
     /// Pause after plan generation to review and approve the plan before
     /// execution. Forces the plan gate active for this run and streams the
     /// `plan_approval_required` event to collect the operator's decision.
@@ -69,8 +63,6 @@ pub struct RunCommandArgs<'a> {
 ///
 /// Submits a task to the specified agent and waits for the result.
 /// With `--detach`, returns immediately after submission and prints the task ID.
-/// With `--alternatives`, activates the binary feedback mode: the SSE stream will
-/// pause on `plan_alternatives_generated` and prompt the operator to choose a plan.
 /// The tools the run may call are the access list of the agent.
 /// Returns the process exit code.
 pub async fn run(args: RunCommandArgs<'_>) -> i32 {
@@ -82,7 +74,6 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
         json,
         stream,
         detach,
-        alternatives,
         plan,
         autonomy,
     } = args;
@@ -157,15 +148,14 @@ pub async fn run(args: RunCommandArgs<'_>) -> i32 {
     // The router now stores task output alongside status (see router.rs), so polling
     // correctly surfaces the agent result without SSE race conditions.
     //
-    // With `--stream` or `--alternatives`: SSE streaming shows plan/step events in real time.
-    let code = if stream || alternatives || plan {
+    // With `--stream` or `--plan`: SSE streaming shows plan/step events in real time.
+    let code = if stream || plan {
         stream_task(StreamTaskArgs {
             client: &client,
             task_id: &task_id,
             json,
             start,
             terminal_only: false,
-            alternatives,
             plan,
         })
         .await

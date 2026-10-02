@@ -4311,11 +4311,17 @@ export interface components {
             origin: components["schemas"]["AgentOriginDto"];
             /**
              * @description Fields whose value is the user's rather than the package's:
-             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
+             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
+             *     `planning`.
              */
             overridden: string[];
             /** @description Package the agent came with. */
             package?: string | null;
+            /**
+             * @description Whether the agent plans a task before acting on it: `never`, `auto` or
+             *     `always`. The user's, else the package's, else `auto`.
+             */
+            planning: string;
             /** @description Sources checked. */
             sources: string[];
             /** @description Version of the definition. */
@@ -4488,7 +4494,8 @@ export interface components {
         SetOverrideRequest: {
             /**
              * @description The user's value: a string for `name` and `mission`, a tier name for
-             *     `autonomy`, a list of strings for `examples`, `access` and `sources`.
+             *     `autonomy`, a mode for `planning`, a list of strings for `examples`,
+             *     `access` and `sources`.
              */
             value: Record<string, never>;
         };
@@ -5389,7 +5396,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources or autonomy */
+                /** @description name, mission, examples, access, sources, autonomy or planning */
                 field: string;
             };
             cookie?: never;
@@ -5445,7 +5452,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access, sources or autonomy */
+                /** @description name, mission, examples, access, sources, autonomy or planning */
                 field: string;
             };
             cookie?: never;

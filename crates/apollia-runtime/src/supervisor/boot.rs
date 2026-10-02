@@ -452,6 +452,7 @@ impl Supervisor {
                         repository: Some(repo.clone()),
                         event_bus: event_sender.clone(),
                         observability: self.config.obs_config.clone(),
+                        plan_cache: plan_cache.clone(),
                     },
                     self.config.data_dir.clone(),
                 ),

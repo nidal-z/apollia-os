@@ -51,8 +51,8 @@ pub mod tools;
 
 pub use agent_definition::{
     apollia_definition, definition_from_manifest, is_built_in_agent, resolve as resolve_agent,
-    AgentOrigin, AgentOverride, OverrideField, OverrideValueError, ResolvedAgent, StoredAgent,
-    APOLLIA_AGENT_ID, OVERRIDE_FIELDS,
+    AgentOrigin, AgentOverride, OverrideField, OverrideValueError, PlanningMode, ResolvedAgent,
+    StoredAgent, APOLLIA_AGENT_ID, OVERRIDE_FIELDS,
 };
 pub use agent_repository::{AgentRepository, AgentRepositoryError, InstalledAgent};
 pub use audit::{

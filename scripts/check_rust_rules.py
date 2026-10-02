@@ -167,6 +167,9 @@ ARC_MUTEX_COUNTS: dict[str, int] = {
     "crates/apollia-runtime/src/api/routes_triggers/support.rs": 1,
     "crates/apollia-runtime/src/api/server.rs": 14,
     "crates/apollia-runtime/src/chat/agent_executor.rs": 1,
+    # The plan cache the runtime opens at boot, forwarded as ORIA's
+    # `with_shared_plan_cache` takes it; the executor holds no lock of its own.
+    "crates/apollia-runtime/src/chat/agent_executor/plan_first.rs": 1,
     "crates/apollia-runtime/src/chat/builtin_agent/invoker.rs": 2,
     "crates/apollia-runtime/src/chat/builtin_agent/mod.rs": 2,
     "crates/apollia-runtime/src/chat/extractor.rs": 4,
@@ -209,6 +212,7 @@ ARC_MUTEX_ALIASES: set[str] = {
     "crates/apollia-runtime/src/api/server.rs::SharedLlmRouter",
     "crates/apollia-runtime/src/api/server.rs::SharedSttEngine",
     "crates/apollia-runtime/src/api/server.rs::SharedSttRepository",
+    "crates/apollia-runtime/src/chat/agent_executor/plan_first.rs::SharedPlanCache",
     "crates/apollia-runtime/src/session_metrics.rs::SessionMetricsStore",
     "crates/apollia-workspace/src/assembler.rs::SnapshotCache",
 }

@@ -100,6 +100,8 @@ pub struct AgentTaskLauncher<B: ExecutionBackend> {
     pub event_bus: EventBusSender,
     /// Limits applied to the recorded request and output.
     pub observability: ObservabilityConfig,
+    /// Plan cache of the runtime, for an agent that plans first.
+    pub plan_cache: Option<crate::chat::agent_executor::plan_first::SharedPlanCache>,
 }
 
 /// The request an agent reads from a task input: its text parts, then any
@@ -215,6 +217,7 @@ impl<B: ExecutionBackend> AgentTaskLauncher<B> {
                 spec: AgentRunSpec::from_resolved(agent),
                 message,
                 cancel,
+                plan_cache: self.plan_cache.clone(),
                 done: done_tx,
             })
             .await;

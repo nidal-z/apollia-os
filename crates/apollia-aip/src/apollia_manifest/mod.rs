@@ -21,6 +21,7 @@ mod tests;
 use std::collections::BTreeMap;
 
 use apollia_core::AutonomyLevel;
+use apollia_tools::PlanningMode;
 use serde::{Deserialize, Serialize};
 
 pub use validate::is_valid_identifier;
@@ -191,6 +192,11 @@ pub struct AgentDefaults {
     /// says anything, the global default applies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub autonomy: Option<AutonomyLevel>,
+    /// Whether the agent plans a task before acting on it: `never`, `auto`
+    /// or `always`. The user may override it; when neither says anything, the
+    /// agent plans when the task reads as a multi-step one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub planning: Option<PlanningMode>,
 }
 
 /// `[agents.defaults.model]`: the shape the SDK manifest carries too, so a

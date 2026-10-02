@@ -19,7 +19,8 @@ class SetOverrideRequest:
 
     Attributes:
         value (SetOverrideRequestValue): The user's value: a string for `name` and `mission`, a tier name for
-            `autonomy`, a list of strings for `examples`, `access` and `sources`.
+            `autonomy`, a mode for `planning`, a list of strings for `examples`,
+            `access` and `sources`.
     """
 
     value: SetOverrideRequestValue

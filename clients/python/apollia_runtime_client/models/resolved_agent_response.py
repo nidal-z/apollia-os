@@ -34,7 +34,10 @@ class ResolvedAgentResponse:
         name (str): Display name.
         origin (AgentOriginDto): Where an agent comes from.
         overridden (list[str]): Fields whose value is the user's rather than the package's:
-            `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
+            `name`, `mission`, `examples`, `access`, `sources`, `autonomy`,
+            `planning`.
+        planning (str): Whether the agent plans a task before acting on it: `never`, `auto` or
+            `always`. The user's, else the package's, else `auto`.
         sources (list[str]): Sources checked.
         version (str): Version of the definition.
         model (AgentModelResponse | None | Unset):
@@ -51,6 +54,7 @@ class ResolvedAgentResponse:
     name: str
     origin: AgentOriginDto
     overridden: list[str]
+    planning: str
     sources: list[str]
     version: str
     model: AgentModelResponse | None | Unset = UNSET
@@ -79,6 +83,8 @@ class ResolvedAgentResponse:
         origin = self.origin.value
 
         overridden = self.overridden
+
+        planning = self.planning
 
         sources = self.sources
 
@@ -112,6 +118,7 @@ class ResolvedAgentResponse:
                 "name": name,
                 "origin": origin,
                 "overridden": overridden,
+                "planning": planning,
                 "sources": sources,
                 "version": version,
             }
@@ -148,6 +155,8 @@ class ResolvedAgentResponse:
         origin = AgentOriginDto(d.pop("origin"))
 
         overridden = cast(list[str], d.pop("overridden"))
+
+        planning = d.pop("planning")
 
         sources = cast(list[str], d.pop("sources"))
 
@@ -190,6 +199,7 @@ class ResolvedAgentResponse:
             name=name,
             origin=origin,
             overridden=overridden,
+            planning=planning,
             sources=sources,
             version=version,
             model=model,

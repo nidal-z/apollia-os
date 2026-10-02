@@ -404,10 +404,7 @@ Use the positional `<INPUT>` for free-text input (react/conversational agents). 
 * `--detach` - Submit the task and return immediately without waiting for the result.
 
    The task ID is printed so it can be tracked with `apollia-os task status <id>`.
-* `--alternatives` - Display two alternative plans (conservative vs. exploratory) and choose which one to execute before submitting the task.
-
-   Requires the runtime to support plan alternatives (ORIA engine with LLM).
-* `--plan` - Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit. Incompatible with --alternatives
+* `--plan` - Pause after plan generation to review and approve the plan before execution. Prompts to approve, reject (with optional feedback), or quit
 * `--autonomy <LEVEL>` - Autonomy tier for this run (default: assisted).
 
    Controls the execution budget, memory injection, and verification. Accepted values: assisted, supervised, bounded_autonomous, long_autonomous.
@@ -496,14 +493,14 @@ Display detailed information about an agent, with its definition as resolved (pa
 
 Override one field of an agent's definition; a package update keeps it.
 
-Fields: `name`, `mission` and `autonomy` take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
+Fields: `name`, `mission`, `autonomy` and `planning` take one value; `examples`, `access` and `sources` take the whole list, one value per item (none for an empty list). Recorded in the audit journal.
 
 **Usage:** `apollia-os agent set <AGENT_ID> <FIELD> [VALUES]...`
 
 ###### **Arguments:**
 
 * `<AGENT_ID>` - Agent identifier
-* `<FIELD>` - Field to override: name, mission, examples, access, sources or autonomy
+* `<FIELD>` - Field to override: name, mission, examples, access, sources, autonomy or planning
 * `<VALUES>` - The value, or the items of a list
 
 

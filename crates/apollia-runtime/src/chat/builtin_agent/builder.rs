@@ -27,7 +27,16 @@ impl BuiltInChatAgent {
             preferred_backend: None,
             agent_id: crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_string(),
             approval_timeout: Some(CHAT_APPROVAL_TIMEOUT),
+            tool_output_dir: None,
+            resilience: apollia_oria::ResilienceLayer::default(),
         }
+    }
+
+    /// Keep a tool output too long for the context whole in `dir`, and give
+    /// the model its beginning and the path. `None` cuts it instead.
+    pub fn with_tool_output_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
+        self.tool_output_dir = dir;
+        self
     }
 
     /// Set the delay after which a pending tool approval is refused. `None`

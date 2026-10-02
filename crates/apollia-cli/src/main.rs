@@ -137,17 +137,10 @@ enum Commands {
         #[arg(long)]
         detach: bool,
 
-        /// Display two alternative plans (conservative vs. exploratory) and choose
-        /// which one to execute before submitting the task.
-        ///
-        /// Requires the runtime to support plan alternatives (ORIA engine with LLM).
-        #[arg(long)]
-        alternatives: bool,
-
         /// Pause after plan generation to review and approve the plan before
         /// execution. Prompts to approve, reject (with optional feedback), or
-        /// quit. Incompatible with --alternatives.
-        #[arg(long, conflicts_with = "alternatives")]
+        /// quit.
+        #[arg(long)]
         plan: bool,
 
         /// Autonomy tier for this run (default: assisted).
@@ -550,7 +543,6 @@ struct RunDispatch {
     input_json: Option<String>,
     stream: bool,
     detach: bool,
-    alternatives: bool,
     plan: bool,
     autonomy: Option<String>,
 }
@@ -565,7 +557,6 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         input_json,
         stream,
         detach,
-        alternatives,
         plan,
         autonomy,
     } = dispatch;
@@ -587,7 +578,6 @@ async fn run_run(dispatch: RunDispatch) -> i32 {
         json,
         stream,
         detach,
-        alternatives,
         plan,
         autonomy: autonomy.as_deref(),
     })
@@ -669,7 +659,6 @@ fn main() {
                 input_json,
                 stream,
                 detach,
-                alternatives,
                 plan,
                 autonomy,
             } => {
@@ -681,7 +670,6 @@ fn main() {
                     input_json,
                     stream,
                     detach,
-                    alternatives,
                     plan,
                     autonomy,
                 })
@@ -993,15 +981,13 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parses_run_alternatives_flag() {
-        // GIVEN "apollia-os run hello ping --alternatives"
+    fn test_cli_run_refuses_the_alternatives_flag() {
+        // GIVEN "apollia-os run hello ping --alternatives": a plan is never
+        // offered as two alternatives
+        let result = Cli::try_parse_from(["apollia-os", "run", "hello", "ping", "--alternatives"]);
         // WHEN clap parses the argument line
-        let cli = parse(&["apollia-os", "run", "hello", "ping", "--alternatives"]);
-        // THEN the alternatives flag is up
-        match &cli.command {
-            Commands::Run { alternatives, .. } => assert!(*alternatives),
-            other => panic!("expected Commands::Run, got {other:?}"),
-        }
+        // THEN the flag is unknown
+        assert!(result.is_err(), "--alternatives must be refused");
     }
 
     #[test]
@@ -1014,22 +1000,6 @@ mod tests {
             Commands::Run { plan, .. } => assert!(*plan),
             other => panic!("expected Commands::Run, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn test_cli_run_plan_and_alternatives_conflict() {
-        // GIVEN run with both --plan and --alternatives
-        let result = Cli::try_parse_from([
-            "apollia-os",
-            "run",
-            "hello",
-            "ping",
-            "--plan",
-            "--alternatives",
-        ]);
-        // WHEN clap parses the argument line
-        // THEN parsing fails due to the conflict
-        assert!(result.is_err(), "--plan and --alternatives must conflict");
     }
 
     #[test]

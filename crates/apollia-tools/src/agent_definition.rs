@@ -14,6 +14,10 @@
 //! The autonomy tier is an override like the mission: the definition declares
 //! it, the user may replace it, and when neither says anything the global
 //! default passed to [`resolve`] applies.
+//!
+//! So is the planning mode (`defaults.planning`): whether the agent plans a
+//! task before acting on it. When neither says anything it is
+//! [`PlanningMode::Auto`].
 
 use apollia_core::model_preset::AgentModel;
 use apollia_core::{AgentManifest, AutonomyLevel};
@@ -41,6 +45,45 @@ pub fn apollia_definition() -> Value {
 /// but never uninstalls.
 pub fn is_built_in_agent(name: &str) -> bool {
     name == APOLLIA_AGENT_ID
+}
+
+/// Whether an agent plans a task before acting on it.
+///
+/// A plan is a list of steps written first, run level by level, checked, and
+/// kept in the plan cache for the next identical task.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlanningMode {
+    /// Never: the agent acts step by step, choosing each tool as it goes.
+    Never,
+    /// When the task reads as a multi-step one.
+    #[default]
+    Auto,
+    /// Always.
+    Always,
+}
+
+impl PlanningMode {
+    /// Every mode, in display order.
+    pub const ALL: [PlanningMode; 3] = [
+        PlanningMode::Never,
+        PlanningMode::Auto,
+        PlanningMode::Always,
+    ];
+
+    /// Stored and wire form.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PlanningMode::Never => "never",
+            PlanningMode::Auto => "auto",
+            PlanningMode::Always => "always",
+        }
+    }
+
+    /// Reads the stored form; `None` for any other value.
+    pub fn parse(raw: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.as_str() == raw)
+    }
 }
 
 /// Where an agent comes from.
@@ -88,16 +131,19 @@ pub enum OverrideField {
     Sources,
     /// Autonomy tier: budget, verification, critic.
     Autonomy,
+    /// Whether the agent plans a task before acting on it.
+    Planning,
 }
 
 /// Every overridable field, in display order.
-pub const OVERRIDE_FIELDS: [OverrideField; 6] = [
+pub const OVERRIDE_FIELDS: [OverrideField; 7] = [
     OverrideField::Name,
     OverrideField::Mission,
     OverrideField::Examples,
     OverrideField::Access,
     OverrideField::Sources,
     OverrideField::Autonomy,
+    OverrideField::Planning,
 ];
 
 /// A value that does not fit the field it is written to.
@@ -106,7 +152,7 @@ pub const OVERRIDE_FIELDS: [OverrideField; 6] = [
 pub enum OverrideValueError {
     /// The field name is not one of [`OVERRIDE_FIELDS`].
     #[error(
-        "unknown field '{0}', expected one of name, mission, examples, access, sources, autonomy"
+        "unknown field '{0}', expected one of name, mission, examples, access, sources, autonomy, planning"
     )]
     UnknownField(String),
     /// The field takes a string.
@@ -120,6 +166,9 @@ pub enum OverrideValueError {
         "field 'autonomy' takes one of assisted, supervised, bounded_autonomous, long_autonomous"
     )]
     ExpectedAutonomyLevel,
+    /// The planning field takes one of the three modes.
+    #[error("field 'planning' takes one of never, auto, always")]
+    ExpectedPlanningMode,
 }
 
 impl OverrideField {
@@ -132,6 +181,7 @@ impl OverrideField {
             OverrideField::Access => "access",
             OverrideField::Sources => "sources",
             OverrideField::Autonomy => "autonomy",
+            OverrideField::Planning => "planning",
         }
     }
 
@@ -164,6 +214,7 @@ impl OverrideField {
             OverrideField::Access => "/defaults/access",
             OverrideField::Sources => "/defaults/sources",
             OverrideField::Autonomy => "/defaults/autonomy",
+            OverrideField::Planning => "/defaults/planning",
         }
     }
 
@@ -172,12 +223,17 @@ impl OverrideField {
     /// # Errors
     ///
     /// [`OverrideValueError::ExpectedString`],
-    /// [`OverrideValueError::ExpectedList`] or
-    /// [`OverrideValueError::ExpectedAutonomyLevel`].
+    /// [`OverrideValueError::ExpectedList`],
+    /// [`OverrideValueError::ExpectedAutonomyLevel`] or
+    /// [`OverrideValueError::ExpectedPlanningMode`].
     pub fn check(self, value: &Value) -> Result<(), OverrideValueError> {
         if self == OverrideField::Autonomy {
             if autonomy_of(value).is_none() {
                 return Err(OverrideValueError::ExpectedAutonomyLevel);
+            }
+        } else if self == OverrideField::Planning {
+            if planning_of(value).is_none() {
+                return Err(OverrideValueError::ExpectedPlanningMode);
             }
         } else if self.is_list() {
             let is_list_of_strings = value
@@ -196,6 +252,11 @@ impl OverrideField {
 /// The tier a value names, if it names one.
 fn autonomy_of(value: &Value) -> Option<AutonomyLevel> {
     value.as_str().and_then(|raw| raw.parse().ok())
+}
+
+/// The planning mode a value names, if it names one.
+fn planning_of(value: &Value) -> Option<PlanningMode> {
+    value.as_str().and_then(PlanningMode::parse)
 }
 
 /// An agent as stored: its package definition and where it comes from.
@@ -256,6 +317,9 @@ pub struct ResolvedAgent {
     /// Autonomy tier: the user's override, else the definition's, else the
     /// global default.
     pub autonomy: AutonomyLevel,
+    /// Whether the agent plans first: the user's override, else the
+    /// definition's, else [`PlanningMode::Auto`].
+    pub planning: PlanningMode,
     /// Fields whose value comes from an override rather than the definition.
     pub overridden: Vec<OverrideField>,
     /// The definition the overrides apply to, unchanged.
@@ -266,8 +330,9 @@ pub struct ResolvedAgent {
 /// `agent_model`, and the global `default_autonomy`.
 ///
 /// A field without an override takes the definition's value; a field the
-/// definition lacks reads as empty, and an autonomy tier neither names reads
-/// as `default_autonomy`.
+/// definition lacks reads as empty, an autonomy tier neither names reads
+/// as `default_autonomy`, and a planning mode neither names reads as
+/// [`PlanningMode::Auto`].
 pub fn resolve(
     stored: &StoredAgent,
     overrides: &[AgentOverride],
@@ -321,6 +386,9 @@ pub fn resolve(
         autonomy: value_of(OverrideField::Autonomy)
             .and_then(autonomy_of)
             .unwrap_or(default_autonomy),
+        planning: value_of(OverrideField::Planning)
+            .and_then(planning_of)
+            .unwrap_or_default(),
         overridden,
         definition: stored.definition.clone(),
     }

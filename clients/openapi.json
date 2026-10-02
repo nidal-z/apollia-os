@@ -366,7 +366,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources or autonomy",
+            "description": "name, mission, examples, access, sources, autonomy or planning",
             "required": true,
             "schema": {
               "type": "string"
@@ -445,7 +445,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access, sources or autonomy",
+            "description": "name, mission, examples, access, sources, autonomy or planning",
             "required": true,
             "schema": {
               "type": "string"
@@ -11464,6 +11464,7 @@
           "access",
           "sources",
           "autonomy",
+          "planning",
           "overridden",
           "definition"
         ],
@@ -11526,7 +11527,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`."
+            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`,\n`planning`."
           },
           "package": {
             "type": [
@@ -11534,6 +11535,10 @@
               "null"
             ],
             "description": "Package the agent came with."
+          },
+          "planning": {
+            "type": "string",
+            "description": "Whether the agent plans a task before acting on it: `never`, `auto` or\n`always`. The user's, else the package's, else `auto`."
           },
           "sources": {
             "type": "array",
@@ -11900,7 +11905,7 @@
         "properties": {
           "value": {
             "type": "object",
-            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a list of strings for `examples`, `access` and `sources`."
+            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a mode for `planning`, a list of strings for `examples`,\n`access` and `sources`."
           }
         }
       },

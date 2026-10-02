@@ -78,6 +78,7 @@ pub(super) async fn launch<B: ExecutionBackend + Clone>(
         repository: state.task_repository.clone(),
         event_bus: state.event_sender.clone(),
         observability: state.obs_config.clone(),
+        plan_cache: state.plan_cache.clone(),
     };
     launcher
         .launch(agent, &input, message)

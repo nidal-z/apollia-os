@@ -82,13 +82,14 @@ pub enum AgentCommand {
     },
     /// Override one field of an agent's definition; a package update keeps it.
     ///
-    /// Fields: `name`, `mission` and `autonomy` take one value; `examples`,
+    /// Fields: `name`, `mission`, `autonomy` and `planning` take one value; `examples`,
     /// `access` and `sources` take the whole list, one value per item (none
     /// for an empty list). Recorded in the audit journal.
     Set {
         /// Agent identifier.
         agent_id: String,
-        /// Field to override: name, mission, examples, access, sources or autonomy.
+        /// Field to override: name, mission, examples, access, sources, autonomy
+        /// or planning.
         field: String,
         /// The value, or the items of a list.
         #[arg(num_args = 0..)]
