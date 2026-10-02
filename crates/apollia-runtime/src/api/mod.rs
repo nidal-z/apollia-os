@@ -46,6 +46,9 @@ mod unreached_by_cli;
 #[cfg(test)]
 mod tls_test_material;
 
+#[cfg(test)]
+pub(crate) mod test_support;
+
 pub use middleware::{load_or_generate_token, AuthError, TokenAuthLayer, TokenFileError};
 pub use server::{
     APIServer, APIServerConfig, APIServerError, APIServerHandle, AppState, PRODUCT_MARKER,

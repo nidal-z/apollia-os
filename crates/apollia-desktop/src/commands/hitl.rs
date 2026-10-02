@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::http_post_json;
+use crate::attached::{segment, RuntimeLink};
 
 /// Filesystem decision serialized from the frontend.
 ///
@@ -101,8 +102,9 @@ pub async fn respond_hitl_filesystem(
         .map_err(|e| e.to_string())
 }
 
-/// Pending approval for display in the UI.
-#[derive(Debug, Serialize)]
+/// Pending approval for display in the UI. A subset of the daemon's
+/// `GET /api/v1/approvals/pending` entry, so the attached arm reads it as is.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PendingApproval {
     /// Identifier of the suspended task.
     pub task_id: String,
@@ -120,11 +122,18 @@ pub struct PendingApproval {
 ///
 /// Reads the `task_id`s from `PendingApprovals` (in-memory state), then
 /// enriches each entry with details from `TaskRepository` (SQLite) when
-/// available. Returns an empty list if HITL is not configured.
+/// available. Returns an empty list if HITL is not configured. Attached to a
+/// daemon, the daemon's route answers the same entries.
 #[tauri::command]
 pub async fn list_pending_approvals(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
 ) -> Result<Vec<PendingApproval>, String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(state) => state,
+        RuntimeLink::Attached(remote) => {
+            return Ok(remote.get("/api/v1/approvals/pending").await?)
+        }
+    };
     let pending = match state.pending_approvals.as_ref() {
         Some(pa) => pa,
         None => return Ok(Vec::new()),
@@ -192,7 +201,7 @@ pub async fn list_pending_approvals(
 /// - the task does not exist (404)
 #[tauri::command]
 pub async fn resume_task(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     task_id: String,
     approved: bool,
     reason: Option<String>,
@@ -206,14 +215,22 @@ pub async fn resume_task(
         body["reason"] = serde_json::Value::String(r);
     }
 
-    let path = format!("/api/v1/tasks/{task_id}/resume");
-    http_post_json(state.api_port, &path, &body).await?;
+    let path = format!("/api/v1/tasks/{}/resume", segment(&task_id));
+    match link.inner() {
+        RuntimeLink::Embedded(state) => {
+            http_post_json(state.api_port, &path, &body).await?;
+        }
+        RuntimeLink::Attached(remote) => {
+            let _: serde_json::Value = remote.post(&path, &body).await?;
+        }
+    }
 
     Ok(())
 }
 
 /// Resolved approval (approved or rejected) for display in the UI history.
-#[derive(Debug, Serialize)]
+/// The daemon's `GET /api/v1/approvals/resolved` entry carries the same fields.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ResolvedApproval {
     /// Task identifier (truncated to 8 characters on the UI side).
     pub task_id: String,
@@ -232,13 +249,25 @@ pub struct ResolvedApproval {
 /// Lists the resolved approvals from the last `days` days (max `limit`).
 ///
 /// Reads the `task_approvals` table via `TaskRepository::list_resolved_approvals()`.
-/// Returns an empty list if `TaskRepository` is unavailable.
+/// Returns an empty list if `TaskRepository` is unavailable. Attached to a
+/// daemon, the daemon's route answers.
 #[tauri::command]
 pub async fn list_resolved_approvals(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     limit: Option<u32>,
     days: Option<u32>,
 ) -> Result<Vec<ResolvedApproval>, String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(state) => state,
+        RuntimeLink::Attached(remote) => {
+            let path = format!(
+                "/api/v1/approvals/resolved?limit={}&days={}",
+                limit.unwrap_or(20),
+                days.unwrap_or(7)
+            );
+            return Ok(remote.get(&path).await?);
+        }
+    };
     let repo = match state.task_repository.as_ref() {
         Some(r) => r,
         None => return Ok(Vec::new()),

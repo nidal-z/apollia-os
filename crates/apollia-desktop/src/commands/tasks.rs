@@ -2,55 +2,27 @@
 //!
 //! `list_tasks` and `submit_task` delegate to the runtime handles.
 //! `get_task_timeline` calls the internal REST API `GET /api/v1/tasks/{id}/timeline`
-//! to avoid duplicating the aggregation logic.
+//! to avoid duplicating the aggregation logic. The list, the launch, the
+//! detail and the cancellation also serve a desktop attached to a daemon,
+//! through the routes of `/api/v1/tasks`.
 
-use apollia_core::{AIPInput, AIPPart, TaskStatus, TextPart};
+use apollia_core::{AIPInput, AIPPart, TextPart};
+use apollia_runtime::api::routes_tasks::summaries::{task_summaries, PERSISTED_TASK_LIMIT};
 use apollia_runtime::embedded::RuntimeHandle;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::State;
 
 use super::http_get_json;
+use crate::attached::{segment, RuntimeLink};
 
-/// Optional filter for the task list.
-#[derive(Debug, Deserialize)]
-pub struct TaskFilter {
-    /// Filter by status (submitted, working, completed, failed, etc.).
-    pub status: Option<String>,
-    /// Filter by agent identifier.
-    pub agent_id: Option<String>,
-}
+/// Optional filter for the task list, the one the daemon route reads.
+pub use apollia_runtime::api::routes_tasks::summaries::TaskFilter;
 
-/// Summary of a task for display in the UI.
-#[derive(Debug, Serialize)]
-pub struct TaskSummary {
-    /// Unique task identifier.
-    pub id: String,
-    /// Identifier of the assigned agent.
-    pub agent_id: String,
-    /// Name of the assigned agent.
-    pub agent_name: String,
-    /// Current status.
-    pub status: String,
-    /// Preview of the input text (truncated).
-    pub input_preview: String,
-    /// Full output text (possibly truncated by observability).
-    pub output_text: Option<String>,
-    /// Execution duration in milliseconds.
-    pub duration_ms: Option<u64>,
-    /// ISO8601 creation date.
-    pub created_at: String,
-}
+/// Summary of a task for display in the UI, the one the daemon route answers.
+pub use apollia_runtime::api::routes_tasks::summaries::TaskSummary;
 
-/// Converts a `TaskStatus` into a snake_case string for the frontend.
-fn status_to_string(status: &TaskStatus) -> String {
-    serde_json::to_value(status)
-        .ok()
-        .and_then(|v| v.as_str().map(String::from))
-        .unwrap_or_else(|| format!("{status:?}"))
-}
-
-/// Maximum number of historical tasks to load from SQLite.
-const PERSISTED_TASK_LIMIT: usize = 50;
+/// The snake_case name of a status, as the API spells it.
+use apollia_runtime::api::routes_tasks::summaries::status_label as status_to_string;
 
 /// Lists all tasks with optional filtering by status or agent.
 ///
@@ -59,220 +31,52 @@ const PERSISTED_TASK_LIMIT: usize = 50;
 /// 2. **SQLite** (TaskRepository): historical tasks persisted across restarts.
 ///
 /// Runtime tasks take priority: if a task exists in both sources, only the
-/// runtime version is kept.
+/// runtime version is kept. Attached to a daemon, the daemon builds the same
+/// list with the same function.
 #[tauri::command]
 pub async fn list_tasks(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     filter: Option<TaskFilter>,
 ) -> Result<Vec<TaskSummary>, String> {
-    let all = state
-        .router_handle
-        .all_tasks()
+    let filter = filter.unwrap_or_default();
+    match link.inner() {
+        RuntimeLink::Embedded(state) => task_summaries(
+            &state.router_handle,
+            &state.registry_handle,
+            state.task_repository.as_deref(),
+            &filter,
+        )
         .await
-        .map_err(|e| e.to_string())?;
-
-    // Resolve the agent name once to filter the persisted tasks (which lack the
-    // runtime UUID but carry the agent name).
-    let filter_agent_name = resolve_filter_agent_name(&state, filter.as_ref()).await;
-
-    let mut summaries = Vec::with_capacity(all.len());
-    let mut seen_task_ids = std::collections::HashSet::new();
-
-    // 1. Runtime tasks (current session, in-memory).
-    append_runtime_tasks(
-        &state,
-        &all,
-        filter.as_ref(),
-        &mut summaries,
-        &mut seen_task_ids,
-    )
-    .await;
-
-    // 2. Persisted tasks from SQLite (historical, survived restart).
-    append_persisted_tasks(
-        &state,
-        filter.as_ref(),
-        filter_agent_name.as_deref(),
-        &mut summaries,
-        &mut seen_task_ids,
-    )
-    .await;
-
-    Ok(summaries)
-}
-
-/// Resolve the filter's agent UUID to the agent *name* used by persisted rows.
-///
-/// Returns `None` when no agent filter is set or the agent cannot be resolved.
-async fn resolve_filter_agent_name(
-    state: &RuntimeHandle,
-    filter: Option<&TaskFilter>,
-) -> Option<String> {
-    let agent_id = filter.and_then(|f| f.agent_id.as_ref())?;
-    state
-        .registry_handle
-        .get_agent(agent_id.as_str())
-        .await
-        .ok()
-        .flatten()
-        .map(|e| e.manifest.name.clone())
-}
-
-/// Append the in-memory runtime tasks (current session) that pass the filter.
-async fn append_runtime_tasks(
-    state: &RuntimeHandle,
-    all: &[(apollia_core::TaskId, apollia_core::AgentId, TaskStatus)],
-    filter: Option<&TaskFilter>,
-    summaries: &mut Vec<TaskSummary>,
-    seen_task_ids: &mut std::collections::HashSet<String>,
-) {
-    for (task_id, agent_id, status) in all {
-        let status_str = status_to_string(status);
-
-        if !runtime_task_matches(filter, agent_id.as_str(), &status_str) {
-            continue;
+        .map_err(|e| e.to_string()),
+        RuntimeLink::Attached(remote) => {
+            let mut query = Vec::new();
+            if let Some(status) = &filter.status {
+                query.push(format!("status={}", segment(status)));
+            }
+            if let Some(agent_id) = &filter.agent_id {
+                query.push(format!("agent_id={}", segment(agent_id)));
+            }
+            let path = match query.is_empty() {
+                true => "/api/v1/tasks/summaries".to_string(),
+                false => format!("/api/v1/tasks/summaries?{}", query.join("&")),
+            };
+            Ok(remote.get(&path).await?)
         }
-
-        let agent_name = state
-            .registry_handle
-            .get_agent(agent_id.as_str())
-            .await
-            .ok()
-            .flatten()
-            .map(|e| e.manifest.name.clone())
-            .unwrap_or_default();
-
-        let (input_preview, output_text, duration_ms, created_at) =
-            fetch_runtime_task_fields(state, task_id.as_str()).await;
-
-        seen_task_ids.insert(task_id.to_string());
-
-        summaries.push(TaskSummary {
-            id: task_id.to_string(),
-            agent_id: agent_id.to_string(),
-            agent_name,
-            status: status_str,
-            input_preview,
-            output_text,
-            duration_ms,
-            created_at,
-        });
-    }
-}
-
-/// Append the historical SQLite-persisted tasks that pass the filter and were
-/// not already produced by the runtime source.
-async fn append_persisted_tasks(
-    state: &RuntimeHandle,
-    filter: Option<&TaskFilter>,
-    filter_agent_name: Option<&str>,
-    summaries: &mut Vec<TaskSummary>,
-    seen_task_ids: &mut std::collections::HashSet<String>,
-) {
-    let Some(repo) = state.task_repository.as_ref() else {
-        return;
-    };
-    let Ok(persisted) = repo.list_recent_tasks(PERSISTED_TASK_LIMIT).await else {
-        return;
-    };
-    for row in persisted {
-        if seen_task_ids.contains(&row.task_id) {
-            continue;
-        }
-        if !persisted_task_matches(filter, filter_agent_name, &row) {
-            continue;
-        }
-
-        seen_task_ids.insert(row.task_id.clone());
-
-        summaries.push(TaskSummary {
-            id: row.task_id,
-            agent_id: String::new(),
-            agent_name: row.agent_name,
-            status: row.status,
-            input_preview: row.input_preview,
-            output_text: row.output_text,
-            duration_ms: row.duration_ms.map(|ms| ms as u64),
-            created_at: row.created_at,
-        });
-    }
-}
-
-/// Whether a runtime task passes the optional status/agent filter.
-fn runtime_task_matches(filter: Option<&TaskFilter>, agent_id: &str, status_str: &str) -> bool {
-    let Some(f) = filter else { return true };
-    if let Some(ref filter_status) = f.status {
-        if status_str != filter_status {
-            return false;
-        }
-    }
-    if let Some(ref filter_agent) = f.agent_id {
-        if agent_id != filter_agent.as_str() {
-            return false;
-        }
-    }
-    true
-}
-
-/// Whether a persisted task row passes the optional status/agent filter.
-///
-/// `filter_agent_name` is the resolved agent *name* (persisted rows carry the
-/// name, not the runtime UUID).
-fn persisted_task_matches(
-    filter: Option<&TaskFilter>,
-    filter_agent_name: Option<&str>,
-    row: &apollia_tools::PersistedTaskSummary,
-) -> bool {
-    let Some(f) = filter else { return true };
-    if let Some(ref filter_status) = f.status {
-        if &row.status != filter_status {
-            return false;
-        }
-    }
-    if let Some(name) = filter_agent_name {
-        if row.agent_name != name {
-            return false;
-        }
-    }
-    true
-}
-
-/// Fetch the input preview / output / duration / created_at for a runtime task
-/// from the persisted observability store, defaulting to empties when absent.
-async fn fetch_runtime_task_fields(
-    state: &RuntimeHandle,
-    task_id: &str,
-) -> (String, Option<String>, Option<u64>, String) {
-    let Some(repo) = state.task_repository.as_ref() else {
-        return (String::new(), None, None, String::new());
-    };
-    match repo.get_task_detail(task_id).await {
-        Ok(Some(detail)) => {
-            let preview = detail
-                .input_text
-                .as_deref()
-                .unwrap_or("")
-                .chars()
-                .take(120)
-                .collect::<String>();
-            let dur = detail.duration_ms.map(|ms| ms as u64);
-            (preview, detail.output_text, dur, detail.created_at)
-        }
-        _ => (String::new(), None, None, String::new()),
     }
 }
 
 /// Submits a task to an agent and returns the generated `TaskId`.
 ///
 /// Builds an `AIPInput` from the raw text provided by the frontend and submits
-/// it via `TaskRouterHandle::submit()`.
+/// it via `TaskRouterHandle::submit()`, or `POST /api/v1/tasks` when attached
+/// to a daemon.
 ///
 /// `allowed_tools` and `disallowed_tools` are accepted for compatibility with
 /// the CLI (`--allowed-tools` / `--disallowed-tools`) but are not yet propagated
 /// to the runtime; they will be passed through the AIP metadata later.
 #[tauri::command]
 pub async fn submit_task(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     agent_id: String,
     input: String,
     allowed_tools: Option<Vec<String>>,
@@ -299,6 +103,18 @@ pub async fn submit_task(
         parts: vec![AIPPart::Text(TextPart { text: input })],
     };
 
+    let state = match link.inner() {
+        RuntimeLink::Embedded(state) => state,
+        RuntimeLink::Attached(remote) => {
+            let body = serde_json::json!({ "agent_id": agent_id, "input": aip_input });
+            let accepted: serde_json::Value = remote.post("/api/v1/tasks", &body).await?;
+            return accepted
+                .get("task_id")
+                .and_then(|v| v.as_str())
+                .map(String::from)
+                .ok_or_else(|| "missing task_id in response".to_string());
+        }
+    };
     let task_id = state
         .router_handle
         .submit(&agent_id, aip_input)
@@ -310,15 +126,25 @@ pub async fn submit_task(
 
 /// Cancels a running task.
 ///
-/// Calls `DELETE /api/v1/tasks/{id}` via the internal REST API.
+/// Calls `DELETE /api/v1/tasks/{id}` via the internal REST API, or the
+/// daemon's when attached.
 /// Returns `true` if the task was cancelled, `false` if already finished or not found.
 #[tauri::command]
-pub async fn cancel_task(state: State<'_, RuntimeHandle>, task_id: String) -> Result<bool, String> {
-    let path = format!("/api/v1/tasks/{task_id}");
-    match super::http_delete_json(state.api_port, &path).await {
-        Ok(_) => Ok(true),
-        Err(e) if e.contains("404") => Ok(false),
-        Err(e) => Err(e),
+pub async fn cancel_task(link: State<'_, RuntimeLink>, task_id: String) -> Result<bool, String> {
+    let path = format!("/api/v1/tasks/{}", segment(&task_id));
+    match link.inner() {
+        RuntimeLink::Embedded(state) => {
+            match super::http_delete_json(state.api_port, &path).await {
+                Ok(_) => Ok(true),
+                Err(e) if e.contains("404") => Ok(false),
+                Err(e) => Err(e),
+            }
+        }
+        RuntimeLink::Attached(remote) => match remote.delete::<serde_json::Value>(&path).await {
+            Ok(_) => Ok(true),
+            Err(crate::attached::AttachedError::Refused { status: 404, .. }) => Ok(false),
+            Err(e) => Err(e.into()),
+        },
     }
 }
 
@@ -344,11 +170,14 @@ pub async fn delete_task(state: State<'_, RuntimeHandle>, task_id: String) -> Re
 /// is returned as-is to the frontend.
 #[tauri::command]
 pub async fn get_task_timeline(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     task_id: String,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let path = format!("/api/v1/tasks/{task_id}/timeline");
-    let json = http_get_json(state.api_port, &path).await?;
+    let path = format!("/api/v1/tasks/{}/timeline", segment(&task_id));
+    let json: serde_json::Value = match link.inner() {
+        RuntimeLink::Embedded(state) => http_get_json(state.api_port, &path).await?,
+        RuntimeLink::Attached(remote) => remote.get(&path).await?,
+    };
 
     match json.get("events").and_then(|v| v.as_array()) {
         Some(events) => Ok(events.clone()),
@@ -509,6 +338,7 @@ fn parse_sidechains(json: serde_json::Value) -> Vec<DelegationTreeNode> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use apollia_core::TaskStatus;
 
     #[test]
     fn test_parse_sidechains_extracts_fields() {

@@ -204,6 +204,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agents/installed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/agents/installed`. */
+        get: operations["list_installed_agents"];
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/agents/installed`.
+         * @description Emits `RuntimeEvent::AgentInstalled` once the agent is recorded.
+         */
+        post: operations["install_agent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents/{id}": {
         parameters: {
             query?: never;
@@ -2186,6 +2207,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tasks/summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/tasks/summaries`. */
+        get: operations["list_task_summaries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks/{id}": {
         parameters: {
             query?: never;
@@ -2570,6 +2608,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/user-inputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/user-inputs`. */
+        get: operations["list_pending_user_inputs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user-inputs/{id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handler for `POST /api/v1/user-inputs/{id}/answer`. */
+        post: operations["answer_user_input"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/user-inputs/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handler for `POST /api/v1/user-inputs/{id}/reject`. */
+        post: operations["reject_user_input"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/webhooks/{id}": {
         parameters: {
             query?: never;
@@ -2747,6 +2836,20 @@ export interface components {
             supports_a2a: boolean;
             /** @description Agent version from manifest. */
             version?: string | null;
+        };
+        /** @description Skill declared by an agent in its manifest. */
+        AgentSkillView: {
+            /** @description Short skill description. */
+            description: string;
+            /** @description Unique skill identifier (e.g. `"read-excel"`). */
+            id: string;
+            /** @description Human-readable skill name. */
+            name: string;
+        };
+        /** @description Request body for `POST /api/v1/user-inputs/{id}/answer`. */
+        AnswerUserInputRequest: {
+            /** @description One answer per question, matched by the question `id`. */
+            answers: Record<string, never>[];
         };
         /**
          * @description Canonical error body for every non-2xx response in the spec.
@@ -3291,6 +3394,74 @@ export interface components {
             /** @description Identifier assigned to the injected message. */
             message_id: string;
         };
+        /** @description Request body for `POST /api/v1/agents/installed`. */
+        InstallAgentRequest: {
+            /** @description Path of the Python module on this machine. */
+            path: string;
+        };
+        /** @description Response body for an install. */
+        InstallAgentResponse: {
+            /** @description Install path on disk. */
+            install_path: string;
+            /** @description Unique name of the installed agent. */
+            name: string;
+            /** @description Semver version of the agent. */
+            version: string;
+        };
+        /** @description One agent of the machine: installed, running, or both. */
+        InstalledAgentView: {
+            /** @description Name of the Python class of the agent. */
+            agent_class?: string | null;
+            /** @description Semantic role: `"worker"`, `"assistant"`, `"system"`, or `None`. */
+            agent_type?: string | null;
+            /** @description Description from the manifest. */
+            description?: string | null;
+            /** @description Whether the agent loads at boot. */
+            enabled: boolean;
+            /** @description Prompt examples of typical uses. */
+            examples: string[];
+            /** @description Execution mode (`"auto"`, `"direct"`, `"orchestrated"`). */
+            execution_mode?: string | null;
+            /** @description Runtime identifier, `None` when installed but not started. */
+            id?: string | null;
+            /**
+             * @description Install path on disk, `None` for an agent started without being
+             *     installed.
+             */
+            install_path?: string | null;
+            /**
+             * @description Install timestamp (RFC 3339), `None` for an agent started without
+             *     being installed.
+             */
+            installed_at?: string | null;
+            /** @description What the agent does not do. */
+            limitations: string[];
+            /** @description Primary memory namespace, as the manifest declares it. */
+            memory_namespace?: string | null;
+            /** @description Unique agent name. */
+            name: string;
+            /**
+             * @description Runtime state (`"active"`, `"degraded"`, `"stopped"`...), `None` when
+             *     not started.
+             */
+            runtime_status?: string | null;
+            /** @description Configuration needed before the first use. */
+            setup_notes?: string | null;
+            /** @description Shared memory namespaces the agent reads. */
+            shared_memory_namespaces: string[];
+            /** @description Declared skills. */
+            skills: components["schemas"]["AgentSkillView"][];
+            /** @description Whether the agent takes part in agent-to-agent calls. */
+            supports_a2a: boolean;
+            /** @description Free-form tags for routing and discovery. */
+            tags: string[];
+            /** @description Tools the agent uses when present. */
+            tools_optional: string[];
+            /** @description Tools the agent requires. */
+            tools_required: string[];
+            /** @description Semver version. */
+            version: string;
+        };
         /** @description Request body for `POST /api/v1/a2a/invoke`. */
         InvokeRequest: {
             /** @description Caller name (Director Agent), used for observability. */
@@ -3505,6 +3676,19 @@ export interface components {
             suspended_at: string;
             task_id: string;
         };
+        /** @description Snapshot of a pending `ask_user` request, safe to send across the IPC boundary. */
+        PendingUserInputView: {
+            /** @description Optional context string from the agent. */
+            context?: string | null;
+            /** @description ISO-8601 timestamp when the request was registered. */
+            created_at: string;
+            /** @description Questions serialised as JSON (Vec<UserQuestion>). */
+            questions_json: string;
+            /** @description Unique request identifier. */
+            request_id: string;
+            /** @description Chat session that owns this request. */
+            session_id: string;
+        };
         /** @description Request body for `POST /api/v1/llm/ping`. */
         PingRequest: {
             /** @description Backend name to ping; uses the router default if `null` or omitted. */
@@ -3597,6 +3781,11 @@ export interface components {
         PutMcpSecretBody: {
             /** @description The secret. Stored, never answered back. */
             value: string;
+        };
+        /** @description Request body for `POST /api/v1/user-inputs/{id}/reject`. */
+        RejectUserInputRequest: {
+            /** @description Why the user declined to answer. */
+            reason: string;
         };
         /** @description Success response body for reload. */
         ReloadResponse: {
@@ -4049,6 +4238,28 @@ export interface components {
             task_id: string;
             /** @description Token budget accumulated over all LLM calls for this task. */
             token_budget?: Record<string, never> | null;
+        };
+        /** @description One task of the view. */
+        TaskSummary: {
+            /** @description Runtime identifier of the agent, empty for a task read from the store. */
+            agent_id: string;
+            /** @description Name of the agent. */
+            agent_name: string;
+            /** @description ISO 8601 creation date, empty when the store has no row yet. */
+            created_at: string;
+            /**
+             * Format: int64
+             * @description Execution duration in milliseconds.
+             */
+            duration_ms?: number | null;
+            /** @description Unique task identifier. */
+            id: string;
+            /** @description The first characters of the input. */
+            input_preview: string;
+            /** @description Output text, as the store kept it. */
+            output_text?: string | null;
+            /** @description Current status. */
+            status: string;
         };
         /**
          * @description Body for [`test_live_server`]: the optional read-only probe to run against
@@ -4843,6 +5054,77 @@ export interface operations {
             };
             /** @description Invalid agent module */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_installed_agents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Installed agents with their runtime state, then agents started without being installed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstalledAgentView"][];
+                };
+            };
+            /** @description agents.db or the registry cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    install_agent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstallAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallAgentResponse"];
+                };
+            };
+            /** @description File absent or module refused */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The install cannot be written */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9277,6 +9559,40 @@ export interface operations {
             };
         };
     };
+    list_task_summaries: {
+        parameters: {
+            query?: {
+                /** @description Keep only the tasks in this status (`working`, `completed`...). */
+                status?: string;
+                /** @description Keep only the tasks of this agent, by runtime identifier. */
+                agent_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Tasks of the running process, then the recent stored ones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskSummary"][];
+                };
+            };
+            /** @description Task router unavailable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_task: {
         parameters: {
             query?: never;
@@ -10215,6 +10531,121 @@ export interface operations {
                 };
             };
             /** @description Trigger engine unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_pending_user_inputs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Questions waiting for the user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingUserInputView"][];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    answer_user_input: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerUserInputRequest"];
+            };
+        };
+        responses: {
+            /** @description Answers delivered to the agent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such pending request, or the agent stopped waiting */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reject_user_input: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectUserInputRequest"];
+            };
+        };
+        responses: {
+            /** @description The agent is told the user declined */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such pending request, or the agent stopped waiting */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

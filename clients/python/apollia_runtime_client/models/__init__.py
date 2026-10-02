@@ -16,6 +16,9 @@ from .agent_model_response import AgentModelResponse
 from .agent_origin_dto import AgentOriginDto
 from .agent_response import AgentResponse
 from .agent_response_manifest_type_0 import AgentResponseManifestType0
+from .agent_skill_view import AgentSkillView
+from .answer_user_input_request import AnswerUserInputRequest
+from .answer_user_input_request_answers_item import AnswerUserInputRequestAnswersItem
 from .api_error_body import ApiErrorBody
 from .audit_event_response import AuditEventResponse
 from .audit_journal_page_response import AuditJournalPageResponse
@@ -75,6 +78,9 @@ from .health_response import HealthResponse
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
+from .install_agent_request import InstallAgentRequest
+from .install_agent_response import InstallAgentResponse
+from .installed_agent_view import InstalledAgentView
 from .invoke_request import InvokeRequest
 from .invoke_request_input import InvokeRequestInput
 from .journal_anchor import JournalAnchor
@@ -97,6 +103,7 @@ from .ok_response import OkResponse
 from .pending_approval_response import PendingApprovalResponse
 from .pending_approval_response_context_type_0 import PendingApprovalResponseContextType0
 from .pending_approval_response_payload_type_0 import PendingApprovalResponsePayloadType0
+from .pending_user_input_view import PendingUserInputView
 from .ping_request import PingRequest
 from .ping_response import PingResponse
 from .plan_cache_stats_response import PlanCacheStatsResponse
@@ -107,6 +114,7 @@ from .preset_response_load import PresetResponseLoad
 from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
 from .put_mcp_secret_body import PutMcpSecretBody
+from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
 from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
@@ -156,6 +164,7 @@ from .task_list_response import TaskListResponse
 from .task_response import TaskResponse
 from .task_response_result_type_0 import TaskResponseResultType0
 from .task_response_token_budget_type_0 import TaskResponseTokenBudgetType0
+from .task_summary import TaskSummary
 from .test_live_request import TestLiveRequest
 from .test_live_request_probe_type_0 import TestLiveRequestProbeType0
 from .test_server_request import TestServerRequest
@@ -223,6 +232,9 @@ __all__ = (
     "AgentOriginDto",
     "AgentResponse",
     "AgentResponseManifestType0",
+    "AgentSkillView",
+    "AnswerUserInputRequest",
+    "AnswerUserInputRequestAnswersItem",
     "ApiErrorBody",
     "AuditEventResponse",
     "AuditJournalPageResponse",
@@ -282,6 +294,9 @@ __all__ = (
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",
+    "InstallAgentRequest",
+    "InstallAgentResponse",
+    "InstalledAgentView",
     "InvokeRequest",
     "InvokeRequestInput",
     "JournalAnchor",
@@ -304,6 +319,7 @@ __all__ = (
     "PendingApprovalResponse",
     "PendingApprovalResponseContextType0",
     "PendingApprovalResponsePayloadType0",
+    "PendingUserInputView",
     "PingRequest",
     "PingResponse",
     "PlanCacheStatsResponse",
@@ -314,6 +330,7 @@ __all__ = (
     "PresetResponseRequest",
     "PresetsListResponse",
     "PutMcpSecretBody",
+    "RejectUserInputRequest",
     "ReloadResponse",
     "ReloadRouterResponse",
     "ReloadRouterResponseBackendsItem",
@@ -361,6 +378,7 @@ __all__ = (
     "TaskResponse",
     "TaskResponseResultType0",
     "TaskResponseTokenBudgetType0",
+    "TaskSummary",
     "TestLiveRequest",
     "TestLiveRequestProbeType0",
     "TestServerRequest",
