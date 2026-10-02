@@ -79,6 +79,10 @@ pub enum AgentRepositoryError {
     #[error("agent '{0}' not found")]
     NotFound(String),
 
+    /// The agent is part of Apollia itself and cannot be uninstalled.
+    #[error("agent '{0}' is built into Apollia and cannot be uninstalled")]
+    BuiltIn(String),
+
     /// Manifest JSON serialization/deserialization error.
     #[error("manifest serialisation error: {0}")]
     SerdeError(#[from] serde_json::Error),
@@ -233,8 +237,13 @@ impl AgentRepository {
     ///
     /// # Errors
     ///
+    /// - [`AgentRepositoryError::BuiltIn`] for the Apollia agent, which is
+    ///   never uninstalled
     /// - [`AgentRepositoryError::Sqlite`] on a SQLite error
     pub fn delete(&self, name: &str) -> Result<(), AgentRepositoryError> {
+        if crate::agent_definition::is_built_in_agent(name) {
+            return Err(AgentRepositoryError::BuiltIn(name.to_owned()));
+        }
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let tx = conn.unchecked_transaction()?;
         tx.execute(
@@ -467,8 +476,9 @@ mod tests {
             conn.query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))
                 .expect("table agents should exist")
         };
-        // THEN the query runs, so the table exists, and it is empty
-        assert_eq!(count, 0);
+        // THEN the query runs, so the table exists, and it holds the Apollia
+        // agent alone
+        assert_eq!(count, 1);
     }
 
     // save() + get() round-trip with a serde manifest
@@ -526,6 +536,38 @@ mod tests {
         repo.delete("to-delete").expect("delete should succeed");
         // THEN the read no longer finds it
         assert!(repo.get("to-delete").expect("get after delete").is_none());
+    }
+
+    // delete() refuses the Apollia agent
+    #[test]
+    fn test_delete_refuses_the_apollia_agent() {
+        // GIVEN a repository, which always holds the Apollia agent, with one
+        // override on it
+        let repo = open_test_repo();
+        repo.set_override(
+            crate::APOLLIA_AGENT_ID,
+            crate::OverrideField::Mission,
+            &serde_json::json!("Be brief."),
+        )
+        .expect("override");
+
+        // WHEN the Apollia agent is deleted
+        let err = repo
+            .delete(crate::APOLLIA_AGENT_ID)
+            .expect_err("Apollia is never uninstalled");
+
+        // THEN the refusal is typed, and the agent and its override remain
+        assert!(matches!(err, AgentRepositoryError::BuiltIn(ref n) if n == "apollia:chat"));
+        assert!(repo
+            .stored(crate::APOLLIA_AGENT_ID)
+            .expect("stored")
+            .is_some());
+        assert_eq!(
+            repo.overrides(crate::APOLLIA_AGENT_ID)
+                .expect("overrides")
+                .len(),
+            1
+        );
     }
 
     // list_enabled() filters the disabled ones

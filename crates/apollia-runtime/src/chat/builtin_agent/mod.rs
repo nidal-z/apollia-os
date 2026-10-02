@@ -161,6 +161,7 @@ const TOOL_OUTPUT_MAX_LEN: usize = 4000;
 /// Re-exported base system prompts. The single source of truth lives in the
 /// `apollia-prompts` crate (English; tier-selected by `build_system_prompt`).
 pub use apollia_prompts::blocks::{DEFAULT_SYSTEM_PROMPT, PERSEVERANCE_SYSTEM_PROMPT};
+pub use prompt::built_in_prompt;
 
 /// Maximum number of verification retry iterations per run.
 ///

@@ -743,7 +743,7 @@ fn main() {
                 list,
                 command,
             } => match command {
-                Some(sub) => chat::run_hygiene(&sub, json),
+                Some(sub) => chat::run_hygiene(&sub, cli.socket, json).await,
                 None => chat::run(resume.as_deref(), list, cli.socket, json, no_color).await,
             },
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,

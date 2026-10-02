@@ -30,6 +30,8 @@
 //! [`FamilyConsentStore`] holds the standing consents ("always" for one agent
 //! and one action family, permanent or for one batch run), and
 //! [`run_access_upgrade`] converts, once, the rules persisted before them.
+//! [`read_legacy_chat_config`] reads, once, the settings of the built-in chat
+//! that the runtime carries over to the Apollia agent.
 //!
 //! [`PermissionAuditLog`] reads the `permission_audit` table of `governance.db`
 //! for the `apollia permissions audit` command and for the desktop audit view.
@@ -37,6 +39,7 @@
 
 pub mod access_upgrade;
 pub mod audit_log;
+pub mod chat_config_upgrade;
 pub mod error;
 pub mod executor_guard;
 pub mod family_consent;
@@ -48,6 +51,9 @@ pub use access_upgrade::{
     run_access_upgrade, AccessUpgradeReport, UpgradeChange, UpgradeEntry, ALL_AGENTS,
 };
 pub use audit_log::{PermissionAuditEntry, PermissionAuditLog};
+pub use chat_config_upgrade::{
+    drop_legacy_chat_config, read_legacy_chat_config, LegacyChatConfig, LegacyChatConfigState,
+};
 pub use error::PermissionError;
 pub use executor_guard::{is_code_executor, is_single_simple_command, CODE_EXECUTOR_TOOLS};
 pub use family_consent::{

@@ -69,9 +69,10 @@ pub(in crate::chat::manager) fn build_prefix_checker(
     ))
 }
 
-/// Load the persisted Chat-Libre overrides from the injected governance
-/// database. `None`, or a database that does not exist yet, yields the empty
-/// overrides: this function never resolves a path from the process home
+/// Load the persisted Chat-Libre overrides: the settings of the Apollia agent
+/// (beside the injected governance database) and the allow rules of
+/// `governance.db`. `None`, or a database that does not exist yet, yields the
+/// empty overrides: this function never resolves a path from the process home
 /// directory, so a mount without a governance path reads nothing.
 pub(in crate::chat::manager) fn load_chat_libre_overrides(
     governance_db: Option<&std::path::Path>,
@@ -85,43 +86,10 @@ pub(in crate::chat::manager) fn load_chat_libre_overrides(
         return out;
     }
 
-    apply_chat_libre_config(&mut out, db_path);
+    super::apollia_agent::apply_apollia_agent(&mut out, db_path);
     apply_chat_prefix_allow_rules(&mut out, db_path);
 
     out
-}
-
-/// Apply the free-chat config (`chat_libre_config`) to the overrides.
-/// Silent fallback if the database is absent or unreadable.
-fn apply_chat_libre_config(out: &mut ChatLibreOverrides, db_path: &std::path::Path) {
-    let Ok(repo) = ChatLibreConfigRepository::open(db_path) else {
-        return;
-    };
-    let Ok(cfg) = repo.load() else {
-        return;
-    };
-    if !cfg.system_prompt.trim().is_empty() {
-        out.system_prompt = Some(cfg.system_prompt);
-    }
-    // chat_libre_config.allowed_tools are the auto-authorized tools (HITL
-    // skipped), matching the UX label "tools allowed without confirmation".
-    // They go into pre_authorized_tools, not available_tools: the LLM still
-    // sees the whole registry, but these tools no longer trigger a popup.
-    for tool in cfg.allowed_tools {
-        if apollia_permissions::is_code_executor(&tool) {
-            warn!(
-                tool = %tool,
-                "chat.rule.preauth.refused"
-            );
-            continue;
-        }
-        out.pre_authorized_tools.insert(tool);
-    }
-    if let Some(b) = cfg.llm_backend {
-        if !b.trim().is_empty() {
-            out.llm_backend = Some(b);
-        }
-    }
 }
 
 /// Add to the overrides the tools auto-authorized via `allow` rules scoped to

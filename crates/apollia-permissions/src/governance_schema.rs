@@ -2,9 +2,11 @@
 //!
 //! `governance.db` gathers the runtime governance tables: `permission_rules`,
 //! `permission_audit`, `family_consents` and `governance_upgrades` (owned by
-//! this crate), plus `tools`,
-//! `tool_credentials` and `chat_libre_config` (owned by `apollia-tools`,
-//! whose `GovernanceDb` reuses this list). `PRAGMA user_version` belongs to
+//! this crate), plus `tools` and
+//! `tool_credentials` (owned by `apollia-tools`, whose `GovernanceDb` reuses
+//! this list). The legacy `chat_libre_config` table that v1 creates is read
+//! once by [`crate::chat_config_upgrade`], then dropped by the runtime once
+//! carried over to the Apollia agent. `PRAGMA user_version` belongs to
 //! the database file, not to a table, so the three openers
 //! ([`crate::prefix_rule_engine::PrefixRuleEngine`],
 //! [`crate::audit_log::PermissionAuditLog`], and `GovernanceDb`) share one

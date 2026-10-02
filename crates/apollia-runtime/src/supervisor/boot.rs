@@ -196,6 +196,13 @@ impl Supervisor {
             audit_journal_handle.as_ref(),
         );
 
+        // Phase 8d: the settings the chat kept before it was the Apollia
+        // agent, carried over once the access upgrade has read them.
+        crate::agents::apollia::carry_over::run_at_startup(
+            &self.config.data_dir,
+            audit_journal_handle.as_ref(),
+        );
+
         // Connections answer to governance: admitted before they are added,
         // journaled when they change. No policy is deposited yet.
         let connection_governance =

@@ -1,5 +1,17 @@
 use super::*;
 
+/// The built-in prompt of a tier, used when the agent has no mission: the
+/// assisted tier uses [`DEFAULT_SYSTEM_PROMPT`], every autonomous tier
+/// [`PERSEVERANCE_SYSTEM_PROMPT`].
+pub fn built_in_prompt(level: AutonomyLevel) -> &'static str {
+    match level {
+        AutonomyLevel::Assisted => DEFAULT_SYSTEM_PROMPT,
+        AutonomyLevel::Supervised
+        | AutonomyLevel::BoundedAutonomous
+        | AutonomyLevel::LongAutonomous => PERSEVERANCE_SYSTEM_PROMPT,
+    }
+}
+
 impl BuiltInChatAgent {
     /// Build the effective system prompt for the given autonomy level.
     ///
@@ -25,12 +37,7 @@ impl BuiltInChatAgent {
         // built-in profile.
         let base_prompt = match custom_prompt {
             Some(custom) if !custom.is_empty() => custom,
-            _ => match level {
-                AutonomyLevel::Assisted => DEFAULT_SYSTEM_PROMPT,
-                AutonomyLevel::Supervised
-                | AutonomyLevel::BoundedAutonomous
-                | AutonomyLevel::LongAutonomous => PERSEVERANCE_SYSTEM_PROMPT,
-            },
+            _ => built_in_prompt(level),
         };
 
         // Dynamic blocks owned by the caller; apollia-prompts only composes.

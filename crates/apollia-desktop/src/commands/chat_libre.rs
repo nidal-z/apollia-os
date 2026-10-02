@@ -1,8 +1,10 @@
 //! Tauri IPC commands for governing the Apollia free chat.
 //!
 //! Covers:
-//! - read/write of the free chat's persisted config
-//!   (`chat_libre_config` in `governance.db`);
+//! - read/write of the settings of the free chat, which are those of the
+//!   Apollia agent: its mission and access overrides and its model, reached
+//!   through the runtime's routes so every write is journaled, in the shape
+//!   the chat settings panel shows them;
 //! - list/delete of the `scope = 'agent'` rules created by the chat's
 //!   "Always allow" button (`agent_id = "apollia:chat"`).
 //!
@@ -11,36 +13,37 @@
 use std::path::PathBuf;
 
 use apollia_permissions::PrefixRuleEngine;
+use apollia_runtime::agents::apollia::{self, ChatConfigView, ConfigWrite};
 use apollia_runtime::chat::SessionAuthorizationView;
 use apollia_runtime::embedded::RuntimeHandle;
-use apollia_tools::chat_libre_config::{ChatLibreConfig, ChatLibreConfigRepository};
 use apollia_tools::GovernanceDb;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use super::tool_governance::PermissionRuleDto;
+use crate::attached::RuntimeLink;
 
 /// Logical identifier of the Apollia Chat system agent.
 ///
 /// Must stay aligned with `apollia_runtime::chat::APOLLIA_CHAT_AGENT_ID`.
 pub const APOLLIA_CHAT_AGENT_ID: &str = "apollia:chat";
 
-/// Frontend DTO for [`ChatLibreConfig`].
+/// Frontend DTO of the chat settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatLibreConfigDto {
-    /// Default system prompt. Empty means no override.
+    /// Mission of Apollia. Empty means no override.
     #[serde(default)]
     pub system_prompt: String,
-    /// Tools auto-allowed by default. Empty means no override.
+    /// Accesses of Apollia. Empty means no override.
     #[serde(default)]
     pub allowed_tools: Vec<String>,
-    /// Preferred LLM backend. `None` means runtime default.
+    /// Model of Apollia. `None` means runtime default.
     #[serde(default)]
     pub llm_backend: Option<String>,
 }
 
-impl From<ChatLibreConfig> for ChatLibreConfigDto {
-    fn from(c: ChatLibreConfig) -> Self {
+impl From<ChatConfigView> for ChatLibreConfigDto {
+    fn from(c: ChatConfigView) -> Self {
         Self {
             system_prompt: c.system_prompt,
             allowed_tools: c.allowed_tools,
@@ -49,7 +52,7 @@ impl From<ChatLibreConfig> for ChatLibreConfigDto {
     }
 }
 
-impl From<ChatLibreConfigDto> for ChatLibreConfig {
+impl From<ChatLibreConfigDto> for ChatConfigView {
     fn from(c: ChatLibreConfigDto) -> Self {
         Self {
             system_prompt: c.system_prompt,
@@ -68,48 +71,76 @@ fn ensure_governance_db() -> Result<PathBuf, String> {
     Ok(db.path().to_path_buf())
 }
 
-/// Reads the free chat's persisted configuration.
-///
-/// # Errors
-///
-/// Returns a Tauri-serializable error if `governance.db` cannot be opened or
-/// read.
-#[tauri::command]
-pub async fn get_chat_libre_config(
-    _state: State<'_, RuntimeHandle>,
-) -> Result<ChatLibreConfigDto, String> {
-    let db_path = ensure_governance_db()?;
-    let repo = ChatLibreConfigRepository::open(&db_path)
-        .map_err(|e| format!("failed to open chat_libre_config: {e}"))?;
-    let cfg = repo
-        .load()
-        .map_err(|e| format!("failed to load chat_libre_config: {e}"))?;
-    Ok(cfg.into())
+/// The settings of the chat as the runtime holds them now.
+async fn current_config(link: &RuntimeLink) -> Result<ChatConfigView, String> {
+    let resolved = link.get_json(&apollia::definition_path()).await?;
+    Ok(ChatConfigView::from_resolved(&resolved))
 }
 
-/// Persists the free chat's configuration (UPSERT on the single id=1 row).
+/// Reads the settings of the free chat: the mission, the accesses and the
+/// model of the Apollia agent.
 ///
 /// # Errors
 ///
-/// Returns a Tauri-serializable error if `governance.db` cannot be opened or
-/// if the write fails.
+/// Returns a Tauri-serializable error if the runtime cannot be reached or
+/// does not hold the Apollia agent.
+#[tauri::command]
+pub async fn get_chat_libre_config(
+    link: State<'_, RuntimeLink>,
+) -> Result<ChatLibreConfigDto, String> {
+    Ok(current_config(link.inner()).await?.into())
+}
+
+/// Writes the settings of the free chat as overrides and the model of the
+/// Apollia agent. Only the fields that changed are written.
+///
+/// # Errors
+///
+/// Returns a Tauri-serializable error if the runtime cannot be reached or
+/// refuses a write.
 #[tauri::command]
 pub async fn update_chat_libre_config(
-    _state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     config: ChatLibreConfigDto,
 ) -> Result<(), String> {
-    let db_path = ensure_governance_db()?;
-    let repo = ChatLibreConfigRepository::open(&db_path)
-        .map_err(|e| format!("failed to open chat_libre_config: {e}"))?;
-    let cfg: ChatLibreConfig = config.into();
-    repo.save(&cfg)
-        .map_err(|e| format!("failed to save chat_libre_config: {e}"))?;
-    tracing::info!(
-        prompt_len = cfg.system_prompt.len(),
-        allowed_tools = cfg.allowed_tools.len(),
-        llm_backend = ?cfg.llm_backend,
+    let link = link.inner();
+    let current = current_config(link).await?;
+    let writes = apollia::changes(&current, &config.into());
+    for write in &writes {
+        apply_write(link, write).await?;
+    }
+    tracing::event!(
+        tracing::Level::INFO,
+        writes = writes.len(),
         "chat.config.updated"
     );
+    Ok(())
+}
+
+/// Runs one write through the runtime's routes.
+async fn apply_write(link: &RuntimeLink, write: &ConfigWrite) -> Result<(), String> {
+    match write {
+        ConfigWrite::SetMission(_) | ConfigWrite::SetAccess(_) => {
+            let body = write.override_body().unwrap_or_default();
+            link.put_json(&write.path(), &body).await?;
+        }
+        ConfigWrite::ClearMission | ConfigWrite::ClearAccess | ConfigWrite::ClearModel => {
+            link.delete_json(&write.path()).await?;
+        }
+        ConfigWrite::SetModel(backend) => {
+            let provider = link
+                .get_json(&apollia::backend_path(backend))
+                .await
+                .ok()
+                .and_then(|b| {
+                    b.get("provider")
+                        .and_then(|p| p.as_str())
+                        .map(str::to_owned)
+                });
+            let body = apollia::model_body(backend, provider.as_deref());
+            link.put_json(&write.path(), &body).await?;
+        }
+    }
     Ok(())
 }
 

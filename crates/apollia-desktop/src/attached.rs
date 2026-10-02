@@ -116,6 +116,9 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_messages",
     "list_tools",
     "verify_audit_run",
+    // The settings of the chat, which are those of the Apollia agent.
+    "get_chat_libre_config",
+    "update_chat_libre_config",
     // The user profile, over `/api/v1/profile`.
     "delete_profile_entry",
     "get_profile",

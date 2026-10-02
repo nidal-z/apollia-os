@@ -122,7 +122,13 @@ async fn test_list_and_read_resolved_agent() {
 
     // THEN
     assert_eq!(listed, StatusCode::OK);
-    assert_eq!(list.as_array().unwrap().len(), 1);
+    let ids: Vec<&str> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|a| a["id"].as_str())
+        .collect();
+    assert_eq!(ids, vec!["apollia:chat", "invoices"]);
     assert_eq!(read, StatusCode::OK);
     assert_eq!(agent["mission"], "Extract the totals.");
     assert_eq!(agent["origin"], "package");
@@ -271,4 +277,41 @@ async fn test_override_routes_refuse() {
     )
     .await;
     assert_eq!(untouched["mission"], "Extract the totals.");
+}
+
+// GIVEN the Apollia agent every agents.db holds, and a signed journal
+// WHEN the settings of the chat panel are written as the routes take them,
+//      then read back
+// THEN Apollia is an agent of origin interface, and the panel reads back the
+//      prompt and tools it wrote
+#[tokio::test]
+async fn test_chat_settings_are_the_overrides_of_apollia() {
+    use crate::agents::apollia::{changes, definition_path, ChatConfigView, ConfigWrite};
+
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let (state, _journal) = state(&dir, true).await;
+    let (_, before) = call(state.clone(), "GET", &definition_path(), None).await;
+    let desired = ChatConfigView {
+        system_prompt: "Answer in French.".into(),
+        allowed_tools: vec!["web_search".into()],
+        llm_backend: None,
+    };
+
+    // WHEN
+    for write in changes(&ChatConfigView::from_resolved(&before), &desired) {
+        let method = match write {
+            ConfigWrite::ClearMission | ConfigWrite::ClearAccess => "DELETE",
+            _ => "PUT",
+        };
+        let (status, _) = call(state.clone(), method, &write.path(), write.override_body()).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    let (read, after) = call(state, "GET", &definition_path(), None).await;
+
+    // THEN
+    assert_eq!(read, StatusCode::OK);
+    assert_eq!(before["origin"], "interface");
+    assert_eq!(before["name"], "Apollia");
+    assert_eq!(ChatConfigView::from_resolved(&after), desired);
 }

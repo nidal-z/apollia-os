@@ -7,19 +7,23 @@
 //! database file, not to a table, so the two repositories share one
 //! migration list: whichever opens first brings the whole file to the
 //! current version, and both refuse a file written by a newer binary.
+//!
+//! The file always holds one agent nobody installed: Apollia, the built-in
+//! chat, written by the v3 step with origin `interface`. It cannot be
+//! uninstalled ([`crate::AgentRepository::delete`] refuses it).
 
 use rusqlite::Connection;
 
 use apollia_core::schema::Migration;
 
 /// Current schema version of `agents.db`.
-pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 2;
+pub(crate) const AGENTS_DB_SCHEMA_VERSION: u32 = 3;
 
 /// Numbered migration steps of `agents.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`AGENTS_DB_SCHEMA_VERSION`].
-pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
+pub(crate) const AGENTS_DB_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -55,6 +59,25 @@ fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
          DROP TABLE IF EXISTS package_agents;",
     )?;
     tx.commit()
+}
+
+/// v3: the Apollia agent, the built-in chat, becomes a row of `agents`.
+///
+/// Its definition names it and leaves everything else empty: no mission (the
+/// built-in prompt of its tier applies), no access, no source. What the user
+/// had set for the chat is carried over as overrides by the runtime, which
+/// also holds the files the old settings lived in.
+fn migrate_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "INSERT OR IGNORE INTO agents (name, origin, version, definition_json, enabled) \
+         VALUES (?1, 'interface', ?2, ?3, 1)",
+        rusqlite::params![
+            crate::agent_definition::APOLLIA_AGENT_ID,
+            crate::agent_definition::APOLLIA_DEFINITION_VERSION,
+            crate::agent_definition::apollia_definition().to_string(),
+        ],
+    )?;
+    Ok(())
 }
 
 fn table_exists(conn: &Connection, name: &str) -> Result<bool, rusqlite::Error> {
@@ -187,7 +210,11 @@ mod tests {
         open_agents_schema(&conn).unwrap();
 
         let name: String = conn
-            .query_row("SELECT name FROM agents", [], |row| row.get(0))
+            .query_row(
+                "SELECT name FROM agents WHERE origin = 'package'",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(name, "mailer");
         let version: i64 = conn
@@ -311,10 +338,59 @@ mod tests {
 
         open_agents_schema(&conn).unwrap();
 
-        let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM agents", [], |row| row.get(0))
+        let names: Vec<String> = conn
+            .prepare("SELECT name FROM agents ORDER BY name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
             .unwrap();
-        assert_eq!(count, 1);
+        assert_eq!(names, vec!["a".to_string(), "apollia:chat".to_string()]);
+    }
+
+    // GIVEN a fresh file, and a file at v2 holding a package agent
+    // WHEN each is opened through the versioned layer
+    // THEN both hold the Apollia agent, of origin interface, named Apollia,
+    //   with an empty mission, and the package agent is kept
+    #[test]
+    fn test_agents_db_v3_writes_the_apollia_agent() {
+        let fresh = Connection::open_in_memory().unwrap();
+        let at_v2 = Connection::open_in_memory().unwrap();
+        for step in &AGENTS_DB_MIGRATIONS[..2] {
+            step(&at_v2).unwrap();
+        }
+        at_v2.pragma_update(None, "user_version", 2).unwrap();
+        at_v2
+            .execute(
+                "INSERT INTO agents (name, version, definition_json) VALUES ('mailer', '1', '{}')",
+                [],
+            )
+            .unwrap();
+
+        open_agents_schema(&fresh).unwrap();
+        open_agents_schema(&at_v2).unwrap();
+
+        for conn in [&fresh, &at_v2] {
+            let (origin, definition): (String, String) = conn
+                .query_row(
+                    "SELECT origin, definition_json FROM agents WHERE name = 'apollia:chat'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .unwrap();
+            assert_eq!(origin, "interface");
+            let definition: serde_json::Value = serde_json::from_str(&definition).unwrap();
+            assert_eq!(definition["name"], "Apollia");
+            assert_eq!(definition["mission"], "");
+        }
+        let kept: i64 = at_v2
+            .query_row(
+                "SELECT COUNT(*) FROM agents WHERE name = 'mailer'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(kept, 1);
     }
 
     // GIVEN a database stamped by a newer binary
