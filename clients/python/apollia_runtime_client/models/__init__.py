@@ -245,6 +245,15 @@ from .update_trigger_request import UpdateTriggerRequest
 from .user_profile_view import UserProfileView
 from .verify_chain_report import VerifyChainReport
 from .verify_journal_report import VerifyJournalReport
+from .workflow_error_response import WorkflowErrorResponse
+from .workflow_launch import WorkflowLaunch
+from .workflow_launch_inputs import WorkflowLaunchInputs
+from .workflow_run_detail_view import WorkflowRunDetailView
+from .workflow_run_list_view import WorkflowRunListView
+from .workflow_run_view import WorkflowRunView
+from .workflow_run_view_inputs import WorkflowRunViewInputs
+from .workflow_run_view_output_type_0 import WorkflowRunViewOutputType0
+from .workflow_step_view import WorkflowStepView
 
 __all__ = (
     "A2AAgentDto",
@@ -488,4 +497,13 @@ __all__ = (
     "UserProfileView",
     "VerifyChainReport",
     "VerifyJournalReport",
+    "WorkflowErrorResponse",
+    "WorkflowLaunch",
+    "WorkflowLaunchInputs",
+    "WorkflowRunDetailView",
+    "WorkflowRunListView",
+    "WorkflowRunView",
+    "WorkflowRunViewInputs",
+    "WorkflowRunViewOutputType0",
+    "WorkflowStepView",
 )

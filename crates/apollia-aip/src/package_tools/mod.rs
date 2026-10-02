@@ -15,6 +15,7 @@
 //! [`apollia_runtime::package_tools::PackageToolHost`].
 
 mod executor;
+pub mod workflows;
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

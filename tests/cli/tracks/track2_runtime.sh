@@ -231,6 +231,16 @@ check_json_field "batch list --json holds no batch" "len(d['batches'])" 0 "${Q[@
 check_exit    "batch run unknown source type → 1" 1  "${Q[@]}" batch run apollia-chat --source-type spreadsheet --source /data/requests.xlsx
 check_exit    "batch status unknown → 1"          1  "${Q[@]}" batch status 00000000-0000-0000-0000-000000000000
 
+# ── workflows ───────────────────────────────────────────────────────────────
+# The workflow engine runs in the daemon. The seed installs no package with a
+# workflow: a launch is refused with 1 before anything is recorded, and the
+# history of any workflow is empty.
+section "workflows"
+check_json_field "workflow logs --json holds no run" "len(d['runs'])" 0 "${Q[@]}" workflow logs invoices/close-month --json
+check_exit    "workflow run unknown → 1"          1  "${Q[@]}" workflow run invoices/close-month --input folder=/data/march
+check_exit    "workflow status unknown → 1"       1  "${Q[@]}" workflow status 00000000-0000-0000-0000-000000000000
+check_exit    "workflow cancel unknown → 1"       1  "${Q[@]}" workflow cancel 00000000-0000-0000-0000-000000000000 --confirm
+
 # `task resume` resolves the task id before touching its state, so an unknown
 # id is a deterministic refusal; the approve path on a real suspension stays a
 # variant below.

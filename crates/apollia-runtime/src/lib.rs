@@ -46,6 +46,7 @@ pub mod shutdown;
 pub mod stt;
 pub mod supervisor;
 pub mod timeout_watcher;
+pub mod workflows;
 
 #[cfg(test)]
 mod test_support;

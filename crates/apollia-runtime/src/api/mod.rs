@@ -35,6 +35,7 @@ pub mod routes_tools;
 pub mod routes_trace;
 pub mod routes_triggers;
 pub mod routes_webhooks;
+pub mod routes_workflows;
 pub mod server;
 
 // The eleven API operations no CLI leaf addresses, probed against the real

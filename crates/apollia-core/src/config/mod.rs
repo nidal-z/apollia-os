@@ -46,6 +46,7 @@ mod runtime;
 mod tools;
 mod triggers;
 mod web;
+mod workflows;
 
 #[cfg(test)]
 mod autonomy_tests;
@@ -75,6 +76,7 @@ pub use triggers::TriggersConfig;
 pub use web::{
     BraveBackendConfig, DuckDuckGoBackendConfig, WebReadConfig, WebSearchBackend, WebSearchConfig,
 };
+pub use workflows::WorkflowsConfig;
 
 // ─────────────────────────────────────────────
 // Errors
