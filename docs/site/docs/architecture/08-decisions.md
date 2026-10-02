@@ -412,7 +412,8 @@ Zip was taken over a `tar.gz`: any operating system opens it without a tool,
 and its central directory lets the manifest be read without decompressing the
 rest, which is what an install preview needs. A `tar.gz` has no index, so
 reading one file means decompressing everything before it, and it would have
-made two crates direct dependencies instead of one. Reading zip with code of
+cost the same two direct dependencies (`tar` and `flate2`) for none of that.
+Reading zip with code of
 our own was rejected: an archive parser is an attack surface, and an unaudited
 one is a worse surface than a maintained one.
 
@@ -424,11 +425,14 @@ the manifest at 1 MiB. The caps apply to the bytes actually decompressed, not to
 the sizes the archive declares, so a lying header does not lift them. A package
 over any cap is refused at build time too, so what Apollia builds it can read.
 
-The cost is the `zip` crate as a direct dependency, compiled with deflate only:
-no encryption, no bzip2, lzma, zstd or deflate64. It was already in the tree
-through the desktop updater. `flate2` is declared beside it for one reason, to
-give that deflate its pure-Rust backend (`miniz_oxide`), which it already used
-elsewhere in the tree; no crate entered the lock file.
+The cost is two direct dependencies of the runtime, `zip` and `flate2`, both
+already in the tree through the desktop updater; no crate entered the lock
+file. `zip` is compiled with deflate only: no encryption, no bzip2, lzma, zstd
+or deflate64. `flate2` is declared beside it for one reason, to choose the
+pure-Rust backend (`miniz_oxide`) of that deflate: `zip` leaves the backend to
+the caller, `flate2` refuses to compile without one, and the `deflate` feature
+of `zip` that would pick one itself pulls in `zopfli` and `zlib-rs`, which the
+tree does not hold.
 
 ## Host integration {#host-integration}
 

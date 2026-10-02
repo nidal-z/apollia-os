@@ -445,8 +445,9 @@ décrit pas ; elle n'exécute aucun Python.
 Le zip a été préféré au `tar.gz` : tout système d'exploitation l'ouvre sans outil,
 et son répertoire central permet de lire le manifeste sans décompresser le
 reste, ce dont un aperçu d'installation a besoin. Un `tar.gz` n'a pas d'index,
-lire un fichier y oblige à décompresser tout ce qui le précède, et il aurait fait
-de deux crates des dépendances directes au lieu d'une. Lire le zip avec un code
+lire un fichier y oblige à décompresser tout ce qui le précède, et il aurait
+coûté les deux mêmes dépendances directes (`tar` et `flate2`) sans rien de cela.
+Lire le zip avec un code
 maison a été écarté : un analyseur d'archives est une surface d'attaque, et une
 surface non auditée est pire qu'une surface maintenue.
 
@@ -459,12 +460,14 @@ réellement décompressés, pas sur les tailles que l'archive déclare : un en-t
 menteur ne les lève pas. Un paquet au-delà d'un plafond est aussi refusé à la
 construction, si bien qu'Apollia lit tout ce qu'il construit.
 
-Le coût est la crate `zip` en dépendance directe, compilée avec deflate seul :
-ni chiffrement, ni bzip2, lzma, zstd ou deflate64. Elle était déjà dans l'arbre
-par le programme de mise à jour du bureau. `flate2` est déclarée à côté pour une
-seule raison, donner à ce deflate son implémentation en Rust pur
-(`miniz_oxide`), qu'elle utilisait déjà ailleurs dans l'arbre ; aucune crate
-n'est entrée dans le fichier de verrouillage.
+Le coût est deux dépendances directes du moteur, `zip` et `flate2`, toutes deux
+déjà dans l'arbre par le programme de mise à jour du bureau ; aucune crate n'est
+entrée dans le fichier de verrouillage. `zip` est compilée avec deflate seul :
+ni chiffrement, ni bzip2, lzma, zstd ou deflate64. `flate2` est déclarée à côté
+pour une seule raison, choisir l'implémentation en Rust pur (`miniz_oxide`) de
+ce deflate : `zip` laisse ce choix à l'appelant, `flate2` refuse de compiler
+sans implémentation, et la fonctionnalité `deflate` de `zip`, qui en choisirait
+une d'elle-même, tire `zopfli` et `zlib-rs`, absentes de l'arbre.
 
 ## Intégration hôte {#host-integration}
 
