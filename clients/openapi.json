@@ -366,7 +366,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access or sources",
+            "description": "name, mission, examples, access, sources or autonomy",
             "required": true,
             "schema": {
               "type": "string"
@@ -445,7 +445,7 @@
           {
             "name": "field",
             "in": "path",
-            "description": "name, mission, examples, access or sources",
+            "description": "name, mission, examples, access, sources or autonomy",
             "required": true,
             "schema": {
               "type": "string"
@@ -10706,6 +10706,7 @@
           "examples",
           "access",
           "sources",
+          "autonomy",
           "overridden",
           "definition"
         ],
@@ -10716,6 +10717,10 @@
               "type": "string"
             },
             "description": "Tools granted."
+          },
+          "autonomy": {
+            "type": "string",
+            "description": "Autonomy tier the agent runs at: `assisted`, `supervised`,\n`bounded_autonomous` or `long_autonomous`. The user's, else the\npackage's, else the global default."
           },
           "definition": {
             "type": "object",
@@ -10764,7 +10769,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`."
+            "description": "Fields whose value is the user's rather than the package's:\n`name`, `mission`, `examples`, `access`, `sources`, `autonomy`."
           },
           "package": {
             "type": [
@@ -11138,7 +11143,7 @@
         "properties": {
           "value": {
             "type": "object",
-            "description": "The user's value: a string for `name` and `mission`, a list of strings\nfor `examples`, `access` and `sources`."
+            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a list of strings for `examples`, `access` and `sources`."
           }
         }
       },

@@ -4046,6 +4046,12 @@ export interface components {
         ResolvedAgentResponse: {
             /** @description Tools granted. */
             access: string[];
+            /**
+             * @description Autonomy tier the agent runs at: `assisted`, `supervised`,
+             *     `bounded_autonomous` or `long_autonomous`. The user's, else the
+             *     package's, else the global default.
+             */
+            autonomy: string;
             /** @description The definition as the package declares it, before any override. */
             definition: Record<string, never>;
             /** @description Whether the agent is active. */
@@ -4063,7 +4069,7 @@ export interface components {
             origin: components["schemas"]["AgentOriginDto"];
             /**
              * @description Fields whose value is the user's rather than the package's:
-             *     `name`, `mission`, `examples`, `access`, `sources`.
+             *     `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
              */
             overridden: string[];
             /** @description Package the agent came with. */
@@ -4239,8 +4245,8 @@ export interface components {
         /** @description Body of `PUT /api/v1/agent-definitions/{name}/overrides/{field}`. */
         SetOverrideRequest: {
             /**
-             * @description The user's value: a string for `name` and `mission`, a list of strings
-             *     for `examples`, `access` and `sources`.
+             * @description The user's value: a string for `name` and `mission`, a tier name for
+             *     `autonomy`, a list of strings for `examples`, `access` and `sources`.
              */
             value: Record<string, never>;
         };
@@ -5130,7 +5136,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access or sources */
+                /** @description name, mission, examples, access, sources or autonomy */
                 field: string;
             };
             cookie?: never;
@@ -5186,7 +5192,7 @@ export interface operations {
             path: {
                 /** @description Agent identifier */
                 name: string;
-                /** @description name, mission, examples, access or sources */
+                /** @description name, mission, examples, access, sources or autonomy */
                 field: string;
             };
             cookie?: never;

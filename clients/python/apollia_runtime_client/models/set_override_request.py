@@ -18,8 +18,8 @@ class SetOverrideRequest:
     """Body of `PUT /api/v1/agent-definitions/{name}/overrides/{field}`.
 
     Attributes:
-        value (SetOverrideRequestValue): The user's value: a string for `name` and `mission`, a list of strings
-            for `examples`, `access` and `sources`.
+        value (SetOverrideRequestValue): The user's value: a string for `name` and `mission`, a tier name for
+            `autonomy`, a list of strings for `examples`, `access` and `sources`.
     """
 
     value: SetOverrideRequestValue

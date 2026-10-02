@@ -72,7 +72,10 @@ fn test_replace_definition_keeps_overrides() {
     )
     .unwrap();
 
-    let resolved = repo.resolved("invoices", None).unwrap().unwrap();
+    let resolved = repo
+        .resolved("invoices", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
     assert_eq!(resolved.version, "2.0.0");
     assert_eq!(resolved.name, "Invoices v2");
     assert_eq!(resolved.mission, "Mine.");
@@ -95,7 +98,10 @@ fn test_reset_overrides_returns_to_defaults() {
 
     assert_eq!(removed.len(), 2);
     assert!(repo.overrides("invoices").unwrap().is_empty());
-    let resolved = repo.resolved("invoices", None).unwrap().unwrap();
+    let resolved = repo
+        .resolved("invoices", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
     assert_eq!(resolved.mission, "Extract the totals.");
     assert_eq!(resolved.access, vec!["file_read"]);
     assert!(resolved.overridden.is_empty());
@@ -126,7 +132,10 @@ fn test_set_then_remove_override_returns_previous_values() {
     assert_eq!(second, Some(json!("A")));
     assert_eq!(removed, Some(json!("B")));
     assert_eq!(again, None);
-    let resolved = repo.resolved("invoices", None).unwrap().unwrap();
+    let resolved = repo
+        .resolved("invoices", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
     assert_eq!(resolved.mission, "Extract the totals.");
 }
 
@@ -194,7 +203,10 @@ fn test_saving_a_python_agent_again_keeps_overrides() {
     repo.save(&agent("1.1.0", &["file_read", "file_write"]))
         .unwrap();
 
-    let resolved = repo.resolved("notes", None).unwrap().unwrap();
+    let resolved = repo
+        .resolved("notes", None, AutonomyLevel::Assisted)
+        .unwrap()
+        .unwrap();
     assert_eq!(resolved.version, "1.1.0");
     assert_eq!(
         resolved.definition["defaults"]["access"],

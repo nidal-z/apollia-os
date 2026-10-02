@@ -36,12 +36,12 @@ impl BuiltInChatAgent {
         // Real context window of the active model, in tokens, when it reports one.
         // `None` (e.g. cloud backend or before the local model loads) leaves the
         // context gauge in an "unknown" state rather than showing a wrong value.
-        // The backend the session prefers when the router reaches it; the
+        // The backend the agent prefers when the router reaches it; the
         // default otherwise, and a preference the router lacks is said on the
         // bus rather than failing the turn.
         let turn_backend = self.preferred_backend.as_deref().and_then(|name| {
             self.llm_router.resolve_agent_model(
-                crate::chat::manager::APOLLIA_CHAT_AGENT_ID,
+                &self.agent_id,
                 Some(name),
                 None,
                 Some(&self.event_bus),

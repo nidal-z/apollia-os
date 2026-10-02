@@ -812,6 +812,7 @@ agent = A()
         assert!(!engine.has_reasoner());
 
         let manifest = AgentManifest {
+            autonomy_level: None,
             format_version: 1,
             name: "regression-orchestrated".to_string(),
             version: "0.1.0".to_string(),

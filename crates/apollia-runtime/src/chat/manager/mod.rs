@@ -18,15 +18,11 @@ use tracing::{debug, error, info, warn};
 
 use apollia_core::plan::{Plan, PlanMutation};
 use apollia_core::todo::TodoItem;
-use apollia_core::{
-    AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, RunId, RuntimeEvent, StepBudgetConfig,
-};
+use apollia_core::{AutonomyLevel, RunId, RuntimeEvent, StepBudgetConfig};
 use apollia_llm::{LlmRouter, ToolInvoker};
 use apollia_mcp::session::LoadingMode;
 use apollia_mcp::tool_search::{ToolIndexSnapshot, ToolSearchExecutor};
 use apollia_memory::user_memory::UserMemoryRepository;
-use apollia_oria::budget::StepBudget;
-use apollia_oria::verification::{CriticPass, VerificationLoop};
 use apollia_permissions::prefix_rule_engine::RuleAction;
 use apollia_permissions::PrefixRuleEngine;
 use apollia_tools::chat_libre_config::ChatLibreConfigRepository;
@@ -35,9 +31,12 @@ use apollia_tools::{ProjectRepository, ToolRegistryHandle};
 
 use super::a2a_tools::CompositeToolInvoker;
 use super::agent_chat::{AgentChatExecutor, AgentChatRequest, ChatAgentRunner};
+use super::agent_executor::{
+    AgentExecutor, AgentExecutorDeps, AgentRunSpec, ApolliaContext, ProjectContextSource, RunInput,
+    SessionWiring,
+};
 use super::builtin_agent::{
-    BuiltInChatAgent, BuiltInChatAgentDeps, ChatAgentResponse, HitlInvokerParams,
-    NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
+    ChatAgentResponse, HitlInvokerParams, NativeChatToolInvoker, DEFAULT_CONTEXT_WINDOW_SIZE,
 };
 use super::extractor::UserMemoryExtractor;
 use super::plan_actor::{spawn_plan_actor, PlanHandle};

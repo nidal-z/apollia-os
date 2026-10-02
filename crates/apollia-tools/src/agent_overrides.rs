@@ -12,6 +12,7 @@ use crate::agent_definition::{
 };
 use crate::agent_repository::{AgentRepository, AgentRepositoryError};
 use apollia_core::model_preset::AgentModel;
+use apollia_core::AutonomyLevel;
 
 const STORED_COLUMNS: &str =
     "name, origin, package, version, definition_json, enabled, installed_at, updated_at";
@@ -193,7 +194,8 @@ impl AgentRepository {
     }
 
     /// The agent `name` in force: its definition, then its overrides, with
-    /// `model` as read from `agent_model`.
+    /// `model` as read from `agent_model` and `default_autonomy` as the tier
+    /// when neither names one.
     ///
     /// # Errors
     ///
@@ -202,13 +204,14 @@ impl AgentRepository {
         &self,
         name: &str,
         model: Option<AgentModel>,
+        default_autonomy: AutonomyLevel,
     ) -> Result<Option<ResolvedAgent>, AgentRepositoryError> {
         let conn = self.conn.lock().unwrap_or_else(|p| p.into_inner());
         let Some(stored) = stored_in(&conn, name)? else {
             return Ok(None);
         };
         let overrides = overrides_in(&conn, name)?;
-        Ok(Some(resolve(&stored, &overrides, model)))
+        Ok(Some(resolve(&stored, &overrides, model, default_autonomy)))
     }
 }
 

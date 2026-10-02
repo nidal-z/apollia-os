@@ -289,6 +289,9 @@ pub struct BuiltInChatAgent {
     /// when the router can reach it, and to the default otherwise (said with
     /// `LlmAgentModelFallback`). `None` routes to the default.
     preferred_backend: Option<String>,
+    /// Identifier of the agent this loop runs for, named in the model
+    /// resolution and its fallback event. Defaults to the Apollia agent.
+    agent_id: String,
 }
 
 /// Mutable accumulators threaded through one ReAct turn's tool-call handling.

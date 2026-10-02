@@ -77,8 +77,12 @@ pub struct ResolvedAgentResponse {
     pub sources: Vec<String>,
     /// The model assigned to the agent, if any.
     pub model: Option<AgentModelResponse>,
+    /// Autonomy tier the agent runs at: `assisted`, `supervised`,
+    /// `bounded_autonomous` or `long_autonomous`. The user's, else the
+    /// package's, else the global default.
+    pub autonomy: String,
     /// Fields whose value is the user's rather than the package's:
-    /// `name`, `mission`, `examples`, `access`, `sources`.
+    /// `name`, `mission`, `examples`, `access`, `sources`, `autonomy`.
     pub overridden: Vec<String>,
     /// The definition as the package declares it, before any override.
     #[schema(value_type = Object)]
@@ -99,6 +103,7 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
             access: agent.access,
             sources: agent.sources,
             model: agent.model.map(Into::into),
+            autonomy: agent.autonomy.as_str().to_owned(),
             overridden: agent
                 .overridden
                 .into_iter()
@@ -112,8 +117,8 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
 /// Body of `PUT /api/v1/agent-definitions/{name}/overrides/{field}`.
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SetOverrideRequest {
-    /// The user's value: a string for `name` and `mission`, a list of strings
-    /// for `examples`, `access` and `sources`.
+    /// The user's value: a string for `name` and `mission`, a tier name for
+    /// `autonomy`, a list of strings for `examples`, `access` and `sources`.
     #[schema(value_type = Object)]
     pub value: serde_json::Value,
 }
@@ -193,7 +198,7 @@ fn resolved<B: ExecutionBackend + Clone>(
         }
         None => None,
     };
-    repo.resolved(name, model)
+    repo.resolved(name, model, crate::agents::global_default_autonomy())
         .map_err(store_error)?
         .map(Into::into)
         .ok_or_else(|| api_err(StatusCode::NOT_FOUND, format!("agent '{name}' not found")))
@@ -248,7 +253,7 @@ pub async fn get_agent_definition<B: ExecutionBackend + Clone>(
     tag = "agents",
     params(
         ("name" = String, Path, description = "Agent identifier"),
-        ("field" = String, Path, description = "name, mission, examples, access or sources"),
+        ("field" = String, Path, description = "name, mission, examples, access, sources or autonomy"),
     ),
     request_body = SetOverrideRequest,
     responses(
@@ -286,7 +291,7 @@ pub async fn set_agent_override<B: ExecutionBackend + Clone>(
     tag = "agents",
     params(
         ("name" = String, Path, description = "Agent identifier"),
-        ("field" = String, Path, description = "name, mission, examples, access or sources"),
+        ("field" = String, Path, description = "name, mission, examples, access, sources or autonomy"),
     ),
     responses(
         (status = 200, description = "Override removed, or there was none; the agent in force", body = ResolvedAgentResponse),

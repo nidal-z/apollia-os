@@ -25,7 +25,15 @@ impl BuiltInChatAgent {
             tool_turn_temperature: DEFAULT_TOOL_TURN_TEMPERATURE,
             prefix_checker: None,
             preferred_backend: None,
+            agent_id: crate::chat::manager::APOLLIA_CHAT_AGENT_ID.to_string(),
         }
+    }
+
+    /// Name the agent this loop runs for. Its model is resolved, and a
+    /// fallback said, under this identifier.
+    pub fn with_agent_id(mut self, agent_id: impl Into<String>) -> Self {
+        self.agent_id = agent_id.into();
+        self
     }
 
     /// Route the turn's calls to the backend the session prefers. `None`, or
