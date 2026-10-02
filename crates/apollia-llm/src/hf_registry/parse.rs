@@ -5,7 +5,7 @@
 //! turn them into the crate's types live here.
 
 use crate::hardware::{CompatibilityBadge, HardwareProfile};
-use crate::hf_registry::compat::{compat_from_pipeline_tag, extract_model_type};
+use crate::hf_registry::compat::{compat_from_pipeline_tag, extract_config_facts, ConfigFacts};
 use crate::hf_registry::{
     CompatIssue, HfFile, HfModelCard, HfModelTypeCache, HfSearchFilter, TreeEntry, HF_API_BASE,
     HF_CDN_BASE,
@@ -89,9 +89,18 @@ pub(super) fn build_gguf_files(
                 compatibility,
                 download_url: format!("{HF_CDN_BASE}/{repo_id}/resolve/main/{}", e.path),
                 sha256: e.lfs.as_ref().and_then(|lfs| normalize_sha256(&lfs.oid)),
+                quantization: file_quantization(&e.path),
             }
         })
         .collect()
+}
+
+/// The quantisation a file name declares, a projector never declaring one.
+fn file_quantization(path: &str) -> Option<String> {
+    if crate::model_index::is_projector_name(std::path::Path::new(path)) {
+        return None;
+    }
+    crate::recommend::gguf_file_quantization(path)
 }
 
 /// The badge of a file the Hub lists by size alone.
@@ -144,25 +153,25 @@ pub(super) fn reevaluate_gguf_compat(card: &mut HfModelCard) {
         _ => {}
     }
 }
-/// Determine the `model_type`: prefer the cache, then `config.json`.
+/// Determine what `config.json` says: prefer the cache, then the response.
 /// On a miss, populate the cache with the resolved value.
-pub(super) async fn resolve_model_type(
-    cached_model_type: Option<Option<String>>,
+pub(super) async fn resolve_config_facts(
+    cached: Option<Option<ConfigFacts>>,
     config_resp: Result<Option<reqwest::Response>, reqwest::Error>,
     type_cache: Option<&HfModelTypeCache>,
     repo_id: &str,
-) -> Option<String> {
-    if let Some(cached) = cached_model_type {
+) -> Option<ConfigFacts> {
+    if let Some(cached) = cached {
         return cached;
     }
-    let mt = match config_resp {
-        Ok(Some(r)) => extract_model_type(Ok(r)).await,
+    let facts = match config_resp {
+        Ok(Some(r)) => extract_config_facts(Ok(r)).await,
         _ => None,
     };
     if let Some(cache) = type_cache {
-        cache.set(repo_id, mt.clone()).await;
+        cache.set(repo_id, facts.clone()).await;
     }
-    mt
+    facts
 }
 /// Build the `/api/models` search URL from the query and filters.
 pub(super) fn build_search_url(query: &str, filter: &HfSearchFilter) -> String {
@@ -262,6 +271,7 @@ pub(super) fn parse_model_list_item(
                         compatibility: None,
                         download_url: format!("{HF_CDN_BASE}/{repo_id}/resolve/main/{name}"),
                         sha256: None,
+                        quantization: file_quantization(name),
                     })
                 })
                 .collect()
@@ -274,6 +284,13 @@ pub(super) fn parse_model_list_item(
     }
 
     let publisher_kind = crate::recommend::publisher_kind(&repo_id);
+    // A search result lists names only: no template, so tools and reasoning
+    // stay unknown, and vision is the projector a download would fetch.
+    let capabilities = crate::capabilities::Capabilities::default().with_catalogue_vision(
+        gguf_files
+            .iter()
+            .any(|f| crate::model_index::is_projector_name(std::path::Path::new(&f.filename))),
+    );
 
     Some(HfModelCard {
         repo_id,
@@ -289,6 +306,8 @@ pub(super) fn parse_model_list_item(
         generation_config: None,
         compatibility_issue,
         model_type: None,
+        capabilities,
+        variants: Vec::new(),
     })
 }
 pub(super) fn format_size(bytes: u64) -> String {

@@ -30,6 +30,7 @@
     type RecommendedModel,
     type SystemInfo,
   } from "$lib/ipc/models";
+  import { startVariantDownload } from "$lib/ipc/modelHub";
   import {
     Cpu,
     HardDrive,
@@ -312,13 +313,14 @@
     llmDownloadProgress = null;
     llmDownloadingModel = { filename: model.file.filename };
     try {
-      llmDownloadId = await startModelDownload({
-        url: model.file.download_url,
-        filename: model.file.filename,
-        // The repository is known from the resolution rather than parsed back
-        // out of the URL, so the downloader can fetch the publisher's own
-        // generation_config.json afterwards.
-        repo_id: model.file.repo_id || extractHfRepoId(model.file.download_url),
+      // A recommendation can be a split model, named by its first part: the
+      // variant download fetches every part, and the projector when the
+      // repository publishes one. The resolution always names the repository;
+      // an empty one is refused by the backend with its own error.
+      llmDownloadId = await startVariantDownload({
+        repo_id: model.file.repo_id || extractHfRepoId(model.file.download_url) || "",
+        selector: { kind: "gguf", file: model.file.filename },
+        hf_token: null,
         dest_dir: destDir,
       });
     } catch (err: unknown) {

@@ -14,6 +14,7 @@
 //! regardless of which feature is enabled.
 
 pub mod backends;
+pub mod capabilities;
 pub mod context_window;
 pub mod downloader;
 pub mod gguf_probe;
@@ -56,6 +57,7 @@ pub use meta_orchestrator::{
 };
 
 pub use apollia_core::config::LlmRoutingConfig;
+pub use capabilities::{Capabilities, VisionEngine};
 #[cfg(feature = "cloud")]
 pub use downloader::{
     DownloadError, DownloadId, DownloadManager, DownloadProgress, DownloadRequest, DownloadStatus,

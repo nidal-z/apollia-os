@@ -11,7 +11,8 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 
 use super::{ModelCategory, ModelFormat};
-use crate::gguf_probe::{probe_file, SCREEN_BYTES};
+use crate::capabilities::{mlx_chat_template, mlx_config_has_vision, Capabilities, VisionEngine};
+use crate::gguf_probe::{probe_file, CONFIRM_BYTES};
 
 /// Deepest sub-folder level the walk enters below the models directory.
 const MAX_DEPTH: usize = 8;
@@ -72,20 +73,26 @@ pub(super) fn assign_ids(root: &Path, models: &[FoundModel]) -> Vec<String> {
         .collect()
 }
 
-/// The category and parameter label a model's header declares.
-pub(super) fn read_header(model: &FoundModel) -> (ModelCategory, Option<String>) {
+/// The category, the parameter label and the template capabilities a model's
+/// header declares. Vision is not decided here: it depends on the files beside
+/// the model, which [`with_usable_vision`] reads at every rebuild.
+///
+/// A GGUF header is read to the confirm depth: the chat template sits past the
+/// vocabulary, which a screening read stops short of.
+pub(super) fn read_header(model: &FoundModel) -> (ModelCategory, Option<String>, Capabilities) {
     if model.ggml_dictation {
-        return (ModelCategory::Dictation, None);
+        return (ModelCategory::Dictation, None, Capabilities::default());
     }
     match model.format {
-        ModelFormat::Gguf => match probe_file(&model.path, SCREEN_BYTES) {
+        ModelFormat::Gguf => match probe_file(&model.path, CONFIRM_BYTES) {
             Ok(facts) => {
                 let category = if facts.architecture.as_deref() == Some("whisper") {
                     ModelCategory::Dictation
                 } else {
                     ModelCategory::Language
                 };
-                (category, facts.size_label)
+                let caps = Capabilities::from_gguf_header(&facts);
+                (category, facts.size_label, caps)
             }
             Err(e) => {
                 tracing::event!(
@@ -94,10 +101,40 @@ pub(super) fn read_header(model: &FoundModel) -> (ModelCategory, Option<String>)
                     error = %e,
                     "model.index.header.unreadable"
                 );
-                (ModelCategory::Language, None)
+                (ModelCategory::Language, None, Capabilities::default())
             }
         },
-        ModelFormat::Mlx => (mlx_category(&model.path), None),
+        ModelFormat::Mlx => {
+            let template = mlx_chat_template(&model.path);
+            (
+                mlx_category(&model.path),
+                None,
+                Capabilities::from_chat_template(template.as_deref()),
+            )
+        }
+    }
+}
+
+/// `caps` with vision set from what the engine will actually be given: a GGUF
+/// model reads images only with a projector attached as an annex, which the
+/// runtime passes as `--mmproj`; an MLX folder only when its `config.json`
+/// declares a `vision_config`. A dictation model never does.
+pub(super) fn with_usable_vision(model: &FoundModel, caps: Capabilities) -> Capabilities {
+    let caps = caps.with_catalogue_vision(false);
+    if model.ggml_dictation {
+        return caps;
+    }
+    match model.format {
+        ModelFormat::Gguf if !model.annexes.is_empty() => {
+            caps.with_vision(VisionEngine::LlamaServer)
+        }
+        ModelFormat::Mlx
+            if std::fs::read_to_string(model.path.join("config.json"))
+                .is_ok_and(|text| mlx_config_has_vision(&text)) =>
+        {
+            caps.with_vision(VisionEngine::VllmMlx)
+        }
+        _ => caps,
     }
 }
 

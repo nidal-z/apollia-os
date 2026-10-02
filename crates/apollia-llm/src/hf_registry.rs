@@ -16,6 +16,7 @@ use thiserror::Error;
 
 use crate::hardware::{CompatibilityBadge, HardwareProfile};
 
+mod card;
 mod compat;
 mod parse;
 mod variant;
@@ -24,7 +25,7 @@ use compat::compat_from_model_type;
 pub use compat::HfModelTypeCache;
 use parse::{
     build_gguf_files, build_search_url, extract_base_model_from_json, lfs_sha256_by_path,
-    parse_model_list_item, parse_next_link, reevaluate_gguf_compat, resolve_model_type,
+    parse_model_list_item, parse_next_link, reevaluate_gguf_compat, resolve_config_facts,
 };
 use variant::plan_variant;
 pub use variant::{VariantError, VariantFile, VariantPlan, VariantSelector};
@@ -99,6 +100,15 @@ pub struct HfModelCard {
     pub compatibility_issue: Option<CompatIssue>,
     /// HF model type from `config.json` (e.g. `"LlamaForCausalLM"`).
     pub model_type: Option<String>,
+    /// What the model can do: tools and reasoning from its chat template,
+    /// vision when the repository publishes a projector (GGUF) or declares a
+    /// `vision_config` (MLX). A search result carries vision alone.
+    #[serde(default)]
+    pub capabilities: crate::capabilities::Capabilities,
+    /// The short list of variants, at most one per level, each sized and
+    /// graded for this machine. Empty on a search result, which has no sizes.
+    #[serde(default)]
+    pub variants: Vec<crate::recommend::ModelVariant>,
 }
 
 /// Reasons a model is incompatible with llama.cpp.
@@ -132,6 +142,11 @@ pub struct HfFile {
     /// search result only lists names).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
+    /// Quantisation the file name declares (`Q4_K_M`, `BF16`), read here so
+    /// no surface has to parse a file name. `None` for a projector and a name
+    /// that declares none.
+    #[serde(default)]
+    pub quantization: Option<String>,
 }
 
 /// Recommended generation parameters from `generation_config.json`.
@@ -387,18 +402,21 @@ impl HfRegistryClient {
         // Re-evaluate NoGgufFiles based on authoritative tree data.
         reevaluate_gguf_compat(&mut card);
 
-        // Determine model_type: prefer cache, then config_resp.
-        let model_type =
-            resolve_model_type(cached_model_type, config_resp, type_cache, repo_id).await;
+        // What config.json says: prefer cache, then config_resp.
+        let config = resolve_config_facts(cached_model_type, config_resp, type_cache, repo_id)
+            .await
+            .unwrap_or_default();
 
-        card.model_type = model_type.clone();
+        card.model_type = config.model_type.clone();
 
         // Refine compat with model_type only if pipeline_tag didn't already flag an issue.
         if card.compatibility_issue.is_none() {
-            if let Some(ref mt) = model_type {
+            if let Some(ref mt) = config.model_type {
                 card.compatibility_issue = compat_from_model_type(mt);
             }
         }
+
+        card::fill(&mut card, &meta_json, &tree_entries, &config, hardware);
 
         Ok(card)
     }

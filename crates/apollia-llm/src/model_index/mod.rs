@@ -127,6 +127,13 @@ pub struct IndexedModel {
     /// Another weights file of the same model to load instead of `path`.
     #[serde(default)]
     pub source_file_override: Option<PathBuf>,
+    /// What the model can do: tools and reasoning from its chat template,
+    /// vision only when the engine can read an image for it (a GGUF with its
+    /// projector attached, an MLX folder whose `config.json` declares a
+    /// `vision_config`). `None` in an index written before it was computed;
+    /// the next rebuild fills it.
+    #[serde(default)]
+    pub capabilities: Option<crate::capabilities::Capabilities>,
 }
 
 impl IndexedModel {
@@ -472,10 +479,15 @@ struct VersionProbe {
 fn merge(found: scan::FoundModel, id: String, before: Option<&IndexedModel>) -> IndexedModel {
     let unchanged = before
         .is_some_and(|b| b.size_bytes == found.size_bytes && b.modified_at == found.modified_at);
-    let (category, parameters) = match before {
-        Some(b) if unchanged => (b.category, b.parameters.clone()),
+    let (category, parameters, template_caps) = match before {
+        Some(b) if unchanged && b.capabilities.is_some() => (
+            b.category,
+            b.parameters.clone(),
+            b.capabilities.clone().unwrap_or_default(),
+        ),
         _ => scan::read_header(&found),
     };
+    let capabilities = scan::with_usable_vision(&found, template_caps);
     let source_file_override = before
         .and_then(|b| b.source_file_override.clone())
         .filter(|p| p.is_file());
@@ -496,5 +508,6 @@ fn merge(found: scan::FoundModel, id: String, before: Option<&IndexedModel>) -> 
         pinned_at: before.and_then(|b| b.pinned_at),
         category_override: before.and_then(|b| b.category_override),
         source_file_override,
+        capabilities: Some(capabilities),
     }
 }

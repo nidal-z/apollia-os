@@ -153,9 +153,12 @@ pub async fn search_hf_models(params: HfSearchParams) -> Result<serde_json::Valu
 
 /// Fetches the full metadata for a HuggingFace model.
 ///
-/// Includes the list of GGUF files with size and compatibility badge, the
-/// recommended generation parameters from `generation_config.json`, and the
-/// architecture type from `config.json` (with a 24h session cache).
+/// Includes the list of GGUF files with size, quantisation and compatibility
+/// badge, the capabilities of the model, its short list of variants (each
+/// sized, graded, marked when fully offloaded or already downloaded, one of
+/// them recommended), the recommended generation parameters from
+/// `generation_config.json`, and the architecture type from `config.json`
+/// (with a 24h session cache).
 #[tauri::command]
 pub async fn get_hf_model(
     cache: State<'_, Arc<apollia_llm::HfModelTypeCache>>,
@@ -175,6 +178,15 @@ pub async fn get_hf_model(
     // Best-effort fetch of generation_config.json (separate from config.json)
     if let Some(gen_config) = client.get_generation_config(&repo_id).await {
         card.generation_config = Some(gen_config);
+    }
+
+    // Which variants are already on this machine: read from the model index,
+    // best-effort, since a card is still worth showing without it.
+    let dir = models_dir();
+    if let Ok(Ok(index)) =
+        tokio::task::spawn_blocking(move || super::model_index::current(&dir)).await
+    {
+        apollia_llm::recommend::mark_downloaded(&mut card.variants, &index);
     }
 
     serde_json::to_value(card).map_err(|e| format!("serialization error: {e}"))
@@ -397,6 +409,9 @@ pub struct InstalledModelView {
     pub in_use: bool,
     /// Human-readable owner when `in_use` (e.g. `LLM backend 'local-code'`).
     pub used_by: Option<String>,
+    /// What the model can do, vision included only when the engine can read
+    /// an image for it. `None` until the index has been rebuilt by this build.
+    pub capabilities: Option<apollia_llm::Capabilities>,
 }
 
 /// A model file referenced by the active configuration.
@@ -517,6 +532,7 @@ fn installed_view(model: &IndexedModel, refs: &[ModelRef]) -> InstalledModelView
         origin_verified: model.origin_verified,
         in_use: owner.is_some(),
         used_by: owner,
+        capabilities: model.capabilities.clone(),
     }
 }
 
