@@ -1,23 +1,29 @@
-//! The packages the desktop binary ships: the guide of Apollia.
+//! The packages the desktop binary ships: the guide and the onboarding of
+//! Apollia.
 //!
 //! The guide is a declarative agent: a mission, examples and defaults, no
 //! code. Its manifest and its knowledge base are embedded in the binary by
-//! `include_str!`. On start, unless the installed guide is already the version
-//! the binary carries, the desktop assembles them into a `.apo` archive under
-//! `<data dir>/agents/bundled/`, the knowledge appended to the mission, and
-//! installs it through the same path as any package
+//! `include_str!`. The onboarding is a declarative agent too, with one tool
+//! that records the profile facts of the first conversation; its manifest and
+//! the source of its tool are embedded the same way.
+//!
+//! On start, unless the installed package is already the version the binary
+//! carries, the desktop assembles each into a `.apo` archive under
+//! `<data dir>/agents/bundled/` (for the guide, the knowledge appended to the
+//! mission) and installs it through the same path as any package
 //! ([`apollia_runtime::packages::install_embedded`]): unsigned and recognised
 //! as embedded, recorded in the audit journal, never downgrading a newer
-//! version, keeping the user's overrides and leaving a disabled guide
+//! version, keeping the user's overrides and leaving a disabled agent
 //! disabled.
 //!
-//! A guide installed by an earlier version ran Python code. Before the agents
-//! that run code are loaded, [`retire_code_guide`] turns that row into the
-//! declarative agent of the guide package, so the code is never loaded again
-//! and the package installs over it as over its own agent.
+//! Both agents ran Python code in earlier versions. Before the agents that run
+//! code are loaded, [`retire_code_agents`] turns each such row into the
+//! declarative agent of its package, so the code is never loaded again and
+//! the package installs over it as over its own agent.
 
 use std::path::{Path, PathBuf};
 
+use apollia_aip::package_tools::grant::{ONBOARDING_MODULE, ONBOARDING_PACKAGE, ONBOARDING_SOURCE};
 use apollia_runtime::audit_journal::AuditJournalHandle;
 use apollia_runtime::governance::NoPolicyGovernance;
 use apollia_runtime::packages::{install_embedded, EmbeddedOutcome, PackageError};
@@ -37,6 +43,20 @@ const GUIDE_KNOWLEDGE: [&str; 2] = [
     include_str!("../../../agents/system/apollia-guide/knowledge/tutorials.md"),
 ];
 
+/// Identifier of the onboarding package, and of its one agent.
+pub const ONBOARDING: &str = ONBOARDING_PACKAGE;
+
+/// The manifest of the onboarding, its tool described.
+const ONBOARDING_MANIFEST: &str =
+    include_str!("../../../agents/system/onboarding-agent/apollia.toml");
+
+/// The files of the onboarding package besides its manifest.
+const ONBOARDING_FILES: [(&str, &str); 1] = [(ONBOARDING_MODULE, ONBOARDING_SOURCE)];
+
+/// The agents earlier versions installed as code, now shipped as packages of
+/// the same name.
+const RETIRED_CODE_AGENTS: [&str; 2] = [GUIDE, ONBOARDING];
+
 /// Heading under which the knowledge base follows the mission.
 const KNOWLEDGE_HEADING: &str = "Knowledge base:";
 
@@ -50,6 +70,9 @@ pub enum BundledPackageError {
     /// The embedded manifest declares no agent to carry the knowledge.
     #[error("the embedded guide manifest declares no agent")]
     NoAgent,
+    /// The manifest names a file the binary does not carry.
+    #[error("the embedded package file {0} is not a relative path inside the package")]
+    File(String),
     /// The archive could not be built.
     #[error(transparent)]
     Archive(#[from] ApoError),
@@ -70,23 +93,26 @@ pub enum BundledPackageError {
     },
 }
 
-/// Turns a guide installed as Python code into the declarative agent of the
-/// guide package, keeping its overrides and whether it is enabled. Called at
-/// boot, before the agents that run code are loaded.
-pub fn retire_code_guide(repo: &AgentRepository) {
-    match repo.adopt_into_package(GUIDE, GUIDE) {
-        Ok(true) => tracing::event!(
-            tracing::Level::INFO,
-            agent = %GUIDE,
-            "bundled.guide.code_retired"
-        ),
-        Ok(false) => {}
-        Err(error) => tracing::event!(
-            tracing::Level::WARN,
-            agent = %GUIDE,
-            error = %error,
-            "bundled.guide.code_retire_failed"
-        ),
+/// Turns the guide and the onboarding installed as Python code into the
+/// declarative agents of their packages, keeping their overrides and whether
+/// each is enabled. Called at boot, before the agents that run code are
+/// loaded.
+pub fn retire_code_agents(repo: &AgentRepository) {
+    for name in RETIRED_CODE_AGENTS {
+        match repo.adopt_into_package(name, name) {
+            Ok(true) => tracing::event!(
+                tracing::Level::INFO,
+                agent = %name,
+                "bundled.agent.code_retired"
+            ),
+            Ok(false) => {}
+            Err(error) => tracing::event!(
+                tracing::Level::WARN,
+                agent = %name,
+                error = %error,
+                "bundled.agent.code_retire_failed"
+            ),
+        }
     }
 }
 
@@ -115,6 +141,16 @@ pub fn guide_manifest() -> Result<ApolliaManifest, BundledPackageError> {
     Ok(manifest)
 }
 
+/// The manifest of the onboarding as the binary ships it.
+///
+/// # Errors
+///
+/// [`BundledPackageError::Manifest`] for an embedded manifest the build should
+/// never have let through.
+pub fn onboarding_manifest() -> Result<ApolliaManifest, BundledPackageError> {
+    Ok(apollia_manifest::parse(ONBOARDING_MANIFEST)?)
+}
+
 /// Assembles the guide into `<data_dir>/agents/bundled/apollia-guide.apo` and
 /// returns its path.
 ///
@@ -123,9 +159,30 @@ pub fn guide_manifest() -> Result<ApolliaManifest, BundledPackageError> {
 /// [`BundledPackageError`] when the manifest is invalid or the archive cannot
 /// be written.
 pub fn assemble_guide(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
-    let manifest = guide_manifest()?;
+    assemble(data_dir, &guide_manifest()?, &[])
+}
+
+/// Assembles the onboarding, its tool included, into
+/// `<data_dir>/agents/bundled/onboarding-agent.apo` and returns its path.
+///
+/// # Errors
+///
+/// [`BundledPackageError`] when the manifest is invalid or the archive cannot
+/// be written.
+pub fn assemble_onboarding(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
+    assemble(data_dir, &onboarding_manifest()?, &ONBOARDING_FILES)
+}
+
+/// Assembles `manifest` and `files` (relative path, content) into
+/// `<data_dir>/agents/bundled/<package>.apo` and returns its path.
+fn assemble(
+    data_dir: &Path,
+    manifest: &ApolliaManifest,
+    files: &[(&str, &str)],
+) -> Result<PathBuf, BundledPackageError> {
+    let name = manifest.package.name.as_str();
     let bundled = data_dir.join("agents").join("bundled");
-    let staging = bundled.join(format!(".build-{GUIDE}-{}", uuid::Uuid::new_v4().simple()));
+    let staging = bundled.join(format!(".build-{name}-{}", uuid::Uuid::new_v4().simple()));
     let io = |path: &Path| {
         let path = path.to_path_buf();
         move |source| BundledPackageError::Io { path, source }
@@ -135,9 +192,14 @@ pub fn assemble_guide(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
     let written = manifest
         .to_toml()
         .map_err(BundledPackageError::from)
-        .and_then(|text| std::fs::write(&manifest_path, text).map_err(io(&manifest_path)));
+        .and_then(|text| std::fs::write(&manifest_path, text).map_err(io(&manifest_path)))
+        .and_then(|()| {
+            files
+                .iter()
+                .try_for_each(|(relative, content)| write_file(&staging, relative, content))
+        });
     let output = bundled.join(format!(
-        "{GUIDE}.{}",
+        "{name}.{}",
         apollia_tools::apo_archive::APO_EXTENSION
     ));
     let built = written.and_then(|()| {
@@ -150,50 +212,102 @@ pub fn assemble_guide(data_dir: &Path) -> Result<PathBuf, BundledPackageError> {
             tracing::Level::WARN,
             path = %staging.display(),
             error = %error,
-            "bundled.guide.staging_cleanup_failed"
+            "bundled.package.staging_cleanup_failed"
         );
     }
     built.map(|()| output)
 }
 
-/// Installs the guide the binary ships into the stores under `data_dir`,
-/// recording the installation through `journal`. Nothing is assembled when
-/// the installed guide is already this version.
-///
-/// # Errors
-///
-/// [`BundledPackageError`] when the guide cannot be assembled or installed.
-pub async fn install_guide(
+/// Writes `content` at `relative` under `staging`, creating its folders.
+fn write_file(staging: &Path, relative: &str, content: &str) -> Result<(), BundledPackageError> {
+    let relative_path = Path::new(relative);
+    if relative_path.is_absolute()
+        || relative_path
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(BundledPackageError::File(relative.to_owned()));
+    }
+    let path = staging.join(relative_path);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|source| BundledPackageError::Io {
+            path: parent.to_path_buf(),
+            source,
+        })?;
+    }
+    std::fs::write(&path, content).map_err(|source| BundledPackageError::Io { path, source })
+}
+
+/// A package the binary ships: its manifest and how to assemble it.
+struct Shipped {
+    manifest: fn() -> Result<ApolliaManifest, BundledPackageError>,
+    assemble: fn(&Path) -> Result<PathBuf, BundledPackageError>,
+}
+
+/// The packages the binary ships, in the order they are installed.
+const SHIPPED: [Shipped; 2] = [
+    Shipped {
+        manifest: guide_manifest,
+        assemble: assemble_guide,
+    },
+    Shipped {
+        manifest: onboarding_manifest,
+        assemble: assemble_onboarding,
+    },
+];
+
+/// Installs `shipped` into the stores under `data_dir`, recording the
+/// installation through `journal`. Nothing is assembled when the installed
+/// package is already this version.
+async fn install_shipped(
+    shipped: &Shipped,
     data_dir: &Path,
     journal: AuditJournalHandle,
 ) -> Result<EmbeddedOutcome, BundledPackageError> {
-    let version = guide_manifest()?.package.version;
+    let package = (shipped.manifest)()?.package;
     let db = apollia_core::paths::DataFile::Agents.path(data_dir);
     let installed = PackageRepository::open(&db)
-        .and_then(|packages| packages.get(GUIDE))
+        .and_then(|packages| packages.get(&package.name))
         .map_err(|e| BundledPackageError::Store(e.to_string()))?;
-    if installed.as_ref().is_some_and(|p| p.version == version) {
-        return Ok(EmbeddedOutcome::Current { version });
+    if installed
+        .as_ref()
+        .is_some_and(|p| p.version == package.version)
+    {
+        return Ok(EmbeddedOutcome::Current {
+            version: package.version,
+        });
     }
-    let archive = assemble_guide(data_dir)?;
+    let archive = (shipped.assemble)(data_dir)?;
     let governance = NoPolicyGovernance::new(journal);
     Ok(install_embedded(&archive, data_dir, &governance).await?)
 }
 
-/// Installs the packages the binary ships, logging the outcome. Without an
+/// Installs the packages the binary ships, logging each outcome. Without an
 /// audit journal nothing is installed: a package is never installed
 /// unrecorded.
 pub async fn install_bundled_packages(data_dir: &Path, journal: Option<AuditJournalHandle>) {
     let Some(journal) = journal else {
         tracing::event!(
             tracing::Level::WARN,
-            package = %GUIDE,
-            detail = "no audit journal, the guide is not installed",
+            detail = "no audit journal, the packages the binary ships are not installed",
             "bundled.package.skipped"
         );
         return;
     };
-    match install_guide(data_dir, journal).await {
+    for shipped in &SHIPPED {
+        let name = (shipped.manifest)()
+            .map(|m| m.package.name)
+            .unwrap_or_default();
+        log_outcome(
+            &name,
+            install_shipped(shipped, data_dir, journal.clone()).await,
+        );
+    }
+}
+
+/// Logs what became of the shipped package `name`.
+fn log_outcome(name: &str, outcome: Result<EmbeddedOutcome, BundledPackageError>) {
+    match outcome {
         Ok(EmbeddedOutcome::Installed(report)) => tracing::event!(
             tracing::Level::INFO,
             package = %report.name,
@@ -203,20 +317,20 @@ pub async fn install_bundled_packages(data_dir: &Path, journal: Option<AuditJour
         ),
         Ok(EmbeddedOutcome::Current { version }) => tracing::event!(
             tracing::Level::DEBUG,
-            package = %GUIDE,
+            package = %name,
             version = %version,
             "bundled.package.current"
         ),
         Ok(EmbeddedOutcome::Newer { installed, bundled }) => tracing::event!(
             tracing::Level::INFO,
-            package = %GUIDE,
+            package = %name,
             installed = %installed,
             bundled = %bundled,
             "bundled.package.newer_kept"
         ),
         Err(error) => tracing::event!(
             tracing::Level::WARN,
-            package = %GUIDE,
+            package = %name,
             error = %error,
             "bundled.package.install_failed"
         ),

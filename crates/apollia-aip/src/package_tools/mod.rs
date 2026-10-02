@@ -16,8 +16,12 @@
 //! engine: one registry, one dispatcher, one access check. [`PackageTools`]
 //! hands its executors to the engine through
 //! [`apollia_runtime::package_tools::PackageToolHost`].
+//!
+//! A tool runs with a bare `ctx`, unless the host grants it more: see
+//! [`grant`].
 
 mod executor;
+pub mod grant;
 pub mod workflows;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -40,6 +44,9 @@ use pyo3::prelude::*;
 use crate::apollia_manifest::{self, ApolliaManifest, ToolDecl, PACKAGE_TOOL_PREFIX};
 
 pub use executor::PackageToolExecutor;
+pub use grant::ProfileGrant;
+
+use grant::GrantedStores;
 
 /// One Python tool of an installed package.
 pub struct PackageTool {
@@ -172,6 +179,7 @@ fn action_family(action: apollia_manifest::ActionFamily) -> ActionFamily {
 pub struct PackageTools {
     tools: Vec<Arc<PackageTool>>,
     venvs: PathBuf,
+    grants: Vec<GrantedStores>,
 }
 
 impl PackageTools {
@@ -207,7 +215,21 @@ impl PackageTools {
                 }
             }
         }
-        Ok(Self { tools, venvs })
+        Ok(Self {
+            tools,
+            venvs,
+            grants: Vec::new(),
+        })
+    }
+
+    /// The same tools, with `grants` resolved against the stores under
+    /// `data_dir`. A tool a grant covers runs with what the grant gives.
+    pub fn with_grants(mut self, grants: &[ProfileGrant], data_dir: &Path) -> Self {
+        self.grants = grants
+            .iter()
+            .map(|grant| GrantedStores::new(*grant, data_dir))
+            .collect();
+        self
     }
 
     /// The names of the tools, `pkg:<package>/<tool>`.
@@ -301,12 +323,20 @@ impl PackageToolHost for PackageTools {
         self.tools
             .iter()
             .map(|tool| {
-                Box::new(PackageToolExecutor::new(
-                    Arc::clone(tool),
-                    self.site_packages(&tool.package),
-                    caller,
-                    cancel.clone(),
-                )) as Box<dyn ToolExecutor>
+                let granted = self
+                    .grants
+                    .iter()
+                    .find(|grant| grant.covers(&tool.package, &tool.root, &tool.decl.module))
+                    .cloned();
+                Box::new(
+                    PackageToolExecutor::new(
+                        Arc::clone(tool),
+                        self.site_packages(&tool.package),
+                        caller,
+                        cancel.clone(),
+                    )
+                    .with_grant(granted),
+                ) as Box<dyn ToolExecutor>
             })
             .collect()
     }
@@ -316,8 +346,9 @@ impl PackageToolHost for PackageTools {
 const IDLE_CHECK_PERIOD: Duration = Duration::from_secs(30);
 
 /// Read the package tools of the store under `data_dir`, enter them in
-/// `registry`, and hand them to the agent engine behind `chat`. A package
-/// none of whose tools has been called for `idle` is unloaded.
+/// `registry`, and hand them to the agent engine behind `chat`, with
+/// `grants`. A package none of whose tools has been called for `idle` is
+/// unloaded.
 ///
 /// Called once the runtime is up. Without a store there is nothing to read;
 /// a store that cannot be read is reported and the runtime goes on without
@@ -327,6 +358,7 @@ pub async fn attach(
     registry: &ToolRegistryHandle,
     chat: Option<&ChatSessionManagerHandle>,
     idle: Duration,
+    grants: &[ProfileGrant],
 ) -> usize {
     let agents_db = DataFile::Agents.path(data_dir);
     if !agents_db.exists() {
@@ -335,7 +367,7 @@ pub async fn attach(
     let tools = match PackageRepository::open(&agents_db)
         .and_then(|repo| PackageTools::read(&repo, data_dir.join("venvs")))
     {
-        Ok(tools) => tools,
+        Ok(tools) => tools.with_grants(grants, data_dir),
         Err(error) => {
             tracing::event!(
                 tracing::Level::WARN,

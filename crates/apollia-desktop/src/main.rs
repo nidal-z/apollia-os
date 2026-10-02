@@ -17,7 +17,6 @@
 mod attached;
 mod backend;
 mod bootstrap;
-mod bundled_agents;
 mod bundled_packages;
 mod commands;
 // REASON: this module is the content side of the in-app documentation reader.
@@ -242,14 +241,12 @@ fn main() {
         }
     };
 
-    // Extract bundled system agents (e.g. onboarding-agent) to disk and register
-    // them in the repository so the auto-load loop picks them up. A guide an
-    // earlier version installed as code is retired first, so its code is never
-    // loaded again; the guide itself is installed as a package once the
-    // runtime, and its audit journal, are up.
+    // The guide and the onboarding an earlier version installed as code are
+    // retired before the auto-load loop runs, so their code is never loaded
+    // again; both are installed as packages once the runtime, and its audit
+    // journal, are up.
     if let Some(ref repo) = boot_agent_repo {
-        bundled_packages::retire_code_guide(repo);
-        bundled_agents::ensure_bundled_agents(repo, &apollia_data_dir);
+        bundled_packages::retire_code_agents(repo);
     }
 
     // Build the ChatAgentRunner so Chat Agent mode works in the ChatSessionManager.
@@ -362,6 +359,7 @@ fn main() {
                 &registry,
                 chat.as_ref(),
                 agent_idle_unload,
+                &[apollia_aip::package_tools::ProfileGrant::onboarding()],
             )
             .await;
             apollia_aip::package_tools::workflows::attach(&data_dir, workflows.as_ref()).await;

@@ -412,12 +412,14 @@ pub async fn run(socket: Option<PathBuf>, port: Option<u16>) -> Result<bool, Sta
     }
 
     // The Python tools of the installed packages join the registry, read from
-    // their manifests; each module is imported on its first call only.
+    // their manifests; each module is imported on its first call only. The
+    // onboarding tool the desktop installed keeps the profile it records.
     apollia_aip::package_tools::attach(
         &data_dir_for_package_tools,
         &handles.tool_registry_handle,
         handles.chat_manager.as_ref(),
         agent_idle_unload,
+        &[apollia_aip::package_tools::ProfileGrant::onboarding()],
     )
     .await;
     // The workflows of the installed packages, read from the same manifests.
