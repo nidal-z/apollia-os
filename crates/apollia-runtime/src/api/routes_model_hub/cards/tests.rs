@@ -16,11 +16,9 @@ const SIGNATURE: &str =
 const TEST_KEY: &str =
     include_str!("../../../../../apollia-llm/src/model_cards/fixtures/test-dist.key.pub");
 
+/// An address on this machine where nothing can listen: port 0 is never bound.
 fn closed_address() -> String {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
-    let port = listener.local_addr().expect("addr").port();
-    drop(listener);
-    format!("http://127.0.0.1:{port}/models/stable/index.json")
+    "http://127.0.0.1:0/models/stable/index.json".to_owned()
 }
 
 #[tokio::test]

@@ -227,8 +227,6 @@ fn the_fixture_index_is_the_card_files_of_the_repository() {
 
 #[cfg(feature = "cloud")]
 mod network {
-    use std::net::TcpListener;
-
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -236,12 +234,11 @@ mod network {
     use crate::model_cards::fetch::{load_index, IndexOrigin, RegistryError, RegistrySource};
     use crate::model_cards::readme::{fetch_readme, ReadmeError, MAX_README_BYTES};
 
-    /// An address on this machine where nothing listens.
+    /// An address on this machine where nothing can listen: port 0 is never
+    /// bound, so the connection is refused without reserving a port that
+    /// another process could take before the request leaves.
     fn closed_address() -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
-        let port = listener.local_addr().expect("addr").port();
-        drop(listener);
-        format!("http://127.0.0.1:{port}/models/stable/index.json")
+        "http://127.0.0.1:0/models/stable/index.json".to_owned()
     }
 
     async fn registry() -> MockServer {
