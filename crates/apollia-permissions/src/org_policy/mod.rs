@@ -21,9 +21,12 @@
 //! then `org.pub`, then `SIGNATURE` and the signature, then the schema. The
 //! policy text is parsed only once its signature holds.
 
+mod authoring;
 mod ownership;
 pub mod schema;
 
+#[cfg(test)]
+mod authoring_tests;
 #[cfg(test)]
 mod tests;
 
@@ -32,6 +35,10 @@ use std::path::{Path, PathBuf};
 
 use apollia_signing::{sha256, DigestList, PublicKey, SignatureFile, Verdict};
 
+pub use authoring::{
+    is_system_policy_dir, policy_template, refuse_system_dir, sign_policy_dir,
+    write_policy_template, PolicyAuthoringError, SignedPolicy, ORG_PRIVATE_KEY_FILE,
+};
 pub use ownership::OwnerRequirement;
 pub use schema::{
     parse_policy, ConnectionsPolicy, DenyOnly, ExportDetail, FamiliesPolicy, InferencePolicy,
@@ -219,7 +226,31 @@ pub fn load_policy(dir: &Path, owner: OwnerRequirement) -> PolicyVerdict {
             }
         }
     }
+    verify_contents(dir)
+}
 
+/// Reads the policy folder `dir` without looking at its rights: the schema,
+/// the key and the signature only.
+///
+/// This is the check IT runs on a folder it prepares, before deploying it to
+/// the system folder; the runtime never trusts a policy read this way, it
+/// reads through [`load_policy`].
+pub fn verify_policy_dir(dir: &Path) -> PolicyVerdict {
+    match std::fs::metadata(dir) {
+        Ok(m) if m.is_dir() => verify_contents(dir),
+        Ok(_) => invalid(
+            PolicyInvalidReason::Schema,
+            format!("{} is not a folder", dir.display()),
+        ),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => PolicyVerdict::Absent,
+        Err(e) => invalid(
+            PolicyInvalidReason::Schema,
+            format!("cannot read {}: {e}", dir.display()),
+        ),
+    }
+}
+
+fn verify_contents(dir: &Path) -> PolicyVerdict {
     let policy_bytes = match read_policy_bytes(&dir.join(POLICY_FILE)) {
         Ok(bytes) => bytes,
         Err(detail) => return invalid(PolicyInvalidReason::Schema, detail),
@@ -285,7 +316,7 @@ pub fn load_policy(dir: &Path, owner: OwnerRequirement) -> PolicyVerdict {
     }))
 }
 
-fn read_policy_bytes(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_policy_bytes(path: &Path) -> Result<Vec<u8>, String> {
     let metadata =
         std::fs::metadata(path).map_err(|e| format!("cannot read {POLICY_FILE}: {e}"))?;
     if metadata.len() > MAX_POLICY_BYTES {
