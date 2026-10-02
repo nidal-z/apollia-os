@@ -40,7 +40,7 @@ itself, so an agent that needs structure never parses a string::
 #### `complete`
 
 ```python
-async def complete(self, messages: list[dict[str, Any]], *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None, schema: dict[str, Any] | None=None) -> LlmResponse | StructuredValue
+async def complete(self, messages: list[dict[str, Any]], *, backend: str | None=None, temperature: float | None=None, max_tokens: int | None=None, seed: int | None=None, top_p: float | None=None, top_k: int | None=None, min_p: float | None=None, presence_penalty: float | None=None, frequency_penalty: float | None=None, repeat_penalty: float | None=None, stop: list[str] | None=None, schema: dict[str, Any] | None=None) -> LlmResponse | StructuredValue
 ```
 
 Run a single-shot completion over a message list.
@@ -52,6 +52,23 @@ Args:
     max_tokens: Cap on generated tokens, or None for the backend default.
     seed: Sampling seed, for reproducible output where the backend
         supports it.
+    top_p: Nucleus sampling mass, or None for the engine default.
+    top_k: Number of most likely tokens kept before sampling, or None
+        for the engine default.
+    min_p: Minimum probability, relative to the most likely token, a
+        token needs to be kept, or None for the engine default.
+    presence_penalty: Penalty on tokens already present in the output,
+        or None for the engine default.
+    frequency_penalty: Penalty growing with how often a token already
+        appeared, or None for the engine default.
+    repeat_penalty: Multiplicative penalty on repeated tokens, or None
+        for the engine default.
+    stop: Strings that end generation when produced, or None for none.
+        Each setting left to None is not sent, so the call behaves the
+        same on the embedded engine and on a remote server. ``top_k``,
+        ``min_p`` and ``repeat_penalty`` are not part of the OpenAI
+        protocol: they are sent as given, and a server that does not
+        know them may refuse the call.
     schema: JSON Schema the answer must satisfy, or None for free-form
         generation. With it the call constrains generation, validates
         what comes back against the same schema, and returns the
