@@ -339,6 +339,18 @@ check_exit "package inspect (tampered after signing) → 1" 1 "$BIN" package ins
 printf "@workflow(name='report', steps=['a'])\nasync def report(ctx, inputs):\n    pass\n" > "$PKG/tools/report.py"
 check_exit "package build (undescribed module) → 1" 1 "$BIN" package build "$PKG" -o "$SCRATCH/e2e-bad.apo"
 check_exit "package inspect (not an archive) → 1"   1 "$BIN" package inspect "$PKG/apollia.toml"
+# The preview, the installation and the keyring go through the runtime: with no
+# runtime they answer 2. A package file that does not exist is refused before
+# the runtime is reached, 1.
+PKGOFF="$RUN_TMP/package-off.sock"
+E2E_KEY="ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c"
+check_exit "package preview (runtime absent) → 2"       2 "$BIN" --socket "$PKGOFF" package preview "$SCRATCH/e2e.apo"
+check_exit "package install (runtime absent) → 2"       2 "$BIN" --socket "$PKGOFF" package install "$SCRATCH/e2e.apo"
+check_exit "package preview (missing file) → 1"         1 "$BIN" --socket "$PKGOFF" package preview "$SCRATCH/no-such.apo"
+check_exit "package install --json (missing file) → 1"  1 "$BIN" --socket "$PKGOFF" package install "$SCRATCH/no-such.apo" --json
+check_exit "package trust import (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust import "$E2E_KEY" --label "E2E"
+check_exit "package trust list (runtime absent) → 2"    2 "$BIN" --socket "$PKGOFF" package trust list
+check_exit "package trust remove (runtime absent) → 2"  2 "$BIN" --socket "$PKGOFF" package trust remove "$E2E_KEY" --confirm
 
 # ── A.13b organisation policy (files only) ──────────────────────────────────
 # The key pair and the policy folder are prepared under the scratch folder;

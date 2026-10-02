@@ -29,7 +29,7 @@ the same commit as the command.
 | relationship | `add`, `remove`, `link` |
 | lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
-| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `hardware`, `recommend`, `schema`, `anchor`, `inspect`, `trace`, `version`, `digest` |
+| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `hardware`, `recommend`, `schema`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
 | action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
@@ -73,6 +73,13 @@ every item of a source, in the runtime. `run` returns once the items are
 recorded; each item is a task of its own, so `task list` shows them. The
 source is named by `--source-type` and `--source`; a type no reader serves is
 refused with exit 1, and no reader is registered yet.
+
+**`package`** builds and inspects `.apo` archives on files alone (`build`,
+`inspect`); `preview`, `install` and the `trust` keyring (`import`, `list`,
+`remove`) go through the runtime, which reads the installed packages, the
+keyring, the connections and the governance, adds the MCP servers a package
+brings and journals the installation. The archive is sent by its absolute
+path; a missing file is refused before the runtime is reached.
 
 **`policy`** prepares the organisation policy on files alone (`keygen`,
 `init`, `sign`, `verify`, `show`) and never reaches the runtime: the policy is

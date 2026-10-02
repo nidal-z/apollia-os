@@ -39,6 +39,7 @@ mod tests_build;
 
 use std::path::PathBuf;
 
+pub use apollia_signing::SigningKeyPair;
 pub use build::{build_from_dir, BuildOptions, BuildReport};
 pub use read::{ApoArchive, EntryInfo};
 

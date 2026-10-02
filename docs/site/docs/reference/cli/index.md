@@ -188,6 +188,12 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os package`↴](#apollia-os-package)
 * [`apollia-os package build`↴](#apollia-os-package-build)
 * [`apollia-os package inspect`↴](#apollia-os-package-inspect)
+* [`apollia-os package preview`↴](#apollia-os-package-preview)
+* [`apollia-os package install`↴](#apollia-os-package-install)
+* [`apollia-os package trust`↴](#apollia-os-package-trust)
+* [`apollia-os package trust import`↴](#apollia-os-package-trust-import)
+* [`apollia-os package trust list`↴](#apollia-os-package-trust-list)
+* [`apollia-os package trust remove`↴](#apollia-os-package-trust-remove)
 * [`apollia-os policy`↴](#apollia-os-policy)
 * [`apollia-os policy keygen`↴](#apollia-os-policy-keygen)
 * [`apollia-os policy init`↴](#apollia-os-policy-init)
@@ -310,7 +316,7 @@ Apollia OS CLI binary (apollia-os)
 * `chat` - Interactive chat REPL + persisted session hygiene (delete, rename, export)
 * `mcp` - MCP server management (list, add, remove, show, test, restart, update, raw-config, set-approval, list-pending, revoke-approval, server)
 * `update` - Check for and install updates from GitHub Releases
-* `package` - Agent package archives: build a `.apo` from a folder, inspect one
+* `package` - Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
 * `policy` - Organisation policy: create the key, write, sign, verify, show
 * `workspace` - Workspace inspection and initialization (status, init)
 * `review` - Automated code or plan review via the apollia-review agent
@@ -3042,7 +3048,7 @@ Check for and install updates from GitHub Releases
 
 ## `apollia-os package`
 
-Agent package archives: build a `.apo` from a folder, inspect one
+Agent package archives: build, inspect, preview and install a `.apo`, and trust publisher keys
 
 **Usage:** `apollia-os package <COMMAND>`
 
@@ -3050,6 +3056,9 @@ Agent package archives: build a `.apo` from a folder, inspect one
 
 * `build` - Build a `.apo` archive from a package folder
 * `inspect` - Show the manifest, the entries and the signature state of a `.apo` archive
+* `preview` - Show what a `.apo` package contains and asks for, before installing it
+* `install` - Install a `.apo` package, or update it
+* `trust` - Trusted publisher keys: a package signed by one is shown under its label
 
 
 
@@ -3086,6 +3095,94 @@ The signature state is `unsigned`, or `signed` with the declared publisher and t
 ###### **Arguments:**
 
 * `<FILE>` - The `.apo` archive
+
+
+
+## `apollia-os package preview`
+
+Show what a `.apo` package contains and asks for, before installing it.
+
+Reports the agents, workflows and tools, the accesses each agent asks for and what each permits, the publisher and the signature (trusted when its key is in the keyring), the connections the package requires (present or missing) and the MCP servers it brings, and, for an installed package, what the new version adds. Nothing is written. Needs the runtime.
+
+**Usage:** `apollia-os package preview <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The `.apo` archive
+
+
+
+## `apollia-os package install`
+
+Install a `.apo` package, or update it.
+
+A signature that does not hold is refused; an unsigned package installs with a notice. The local overrides of its agents are kept on update. Needs the runtime.
+
+**Usage:** `apollia-os package install [OPTIONS] <FILE>`
+
+###### **Arguments:**
+
+* `<FILE>` - The `.apo` archive
+
+###### **Options:**
+
+* `--confirm-deps` - Accept the Python dependencies the package installs
+* `--confirm-changes` - Accept what an update adds: accesses, required connections, MCP servers (read `package preview` first)
+* `--allow-downgrade` - Install a version older than the installed one
+
+
+
+## `apollia-os package trust`
+
+Trusted publisher keys: a package signed by one is shown under its label
+
+**Usage:** `apollia-os package trust <COMMAND>`
+
+###### **Subcommands:**
+
+* `import` - Trust a publisher's public key, given as 64 hexadecimal characters or as a file holding them
+* `list` - List the trusted publisher keys
+* `remove` - Stop trusting a publisher key
+
+
+
+## `apollia-os package trust import`
+
+Trust a publisher's public key, given as 64 hexadecimal characters or as a file holding them
+
+**Usage:** `apollia-os package trust import --label <LABEL> <KEY>`
+
+###### **Arguments:**
+
+* `<KEY>` - The key, or a file holding it
+
+###### **Options:**
+
+* `--label <LABEL>` - Name to show for the publisher
+
+
+
+## `apollia-os package trust list`
+
+List the trusted publisher keys
+
+**Usage:** `apollia-os package trust list`
+
+
+
+## `apollia-os package trust remove`
+
+Stop trusting a publisher key
+
+**Usage:** `apollia-os package trust remove [OPTIONS] <FINGERPRINT>`
+
+###### **Arguments:**
+
+* `<FINGERPRINT>` - SHA-256 fingerprint of the key, as `package trust list` shows it
+
+###### **Options:**
+
+* `--confirm` - Remove without asking
 
 
 

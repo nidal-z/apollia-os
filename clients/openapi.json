@@ -5307,6 +5307,297 @@
         }
       }
     },
+    "/api/v1/packages/install": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/packages/install`: install a package, or update it.",
+        "description": "The preview is computed again and its refusal applies: an invalid\nsignature, an unsigned package when governance requires a signature, an\nolder version without `allowDowngrade`, an agent another package owns.\nPython dependencies need `depsConfirmed`; an update that adds accesses,\nrequired connections or MCP servers needs `changesConfirmed`. The MCP\nservers the package brings are added like `POST /api/v1/mcp/servers`\nadds one. The installation is recorded in the audit journal.",
+        "operationId": "install_package",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstallReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The file cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A signed package is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Older version, or agent owned elsewhere",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid package or signature, or MCP server refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "A confirmation is missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store, environment or journal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal, or no MCP manager for the servers it brings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/preview": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/packages/preview`: what the package contains, who signed\nit, what it asks for, which connections it requires and brings, and what\nan update adds. Nothing is written.",
+        "operationId": "preview_package",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackagePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackagePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The file cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a valid package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/trusted-keys": {
+      "get": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`GET /api/v1/packages/trusted-keys`: the publisher keys the user trusts.",
+        "operationId": "list_trusted_keys",
+        "responses": {
+          "200": {
+            "description": "The trusted keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrustedKeyView"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The keyring cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/packages/trusted-keys`: trust a publisher key. A package\nsigned by it is then shown under the label given here.",
+        "operationId": "trust_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The key is trusted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustedKeyView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a public key, or an empty label",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The keyring cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/trusted-keys/{fingerprint}": {
+      "delete": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`DELETE /api/v1/packages/trusted-keys/{fingerprint}`: stop trusting a\npublisher key.",
+        "operationId": "remove_trusted_key",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "description": "SHA-256 fingerprint of the key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The key is removed"
+          },
+          "404": {
+            "description": "No such key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The keyring cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/plan-cache/clear": {
       "post": {
         "tags": [
@@ -8448,6 +8739,57 @@
           }
         }
       },
+      "AccessPreview": {
+        "type": "object",
+        "description": "One access an agent asks for.",
+        "required": [
+          "accessId",
+          "permits",
+          "sensitive"
+        ],
+        "properties": {
+          "accessId": {
+            "type": "string",
+            "description": "Identifier of the access: a tool name, `mcp:<server>/<tool>`, or\n`pkg:<package>/<tool>`."
+          },
+          "permits": {
+            "type": "string",
+            "description": "What the access lets the agent do."
+          },
+          "sensitive": {
+            "type": "boolean",
+            "description": "Using it is sensitive."
+          }
+        }
+      },
+      "AddedAccess": {
+        "type": "object",
+        "description": "An access the update grants that the installed version did not.",
+        "required": [
+          "agentId",
+          "accessId",
+          "permits",
+          "sensitive"
+        ],
+        "properties": {
+          "accessId": {
+            "type": "string",
+            "description": "Identifier of the access."
+          },
+          "agentId": {
+            "type": "string",
+            "description": "Agent that gains it."
+          },
+          "permits": {
+            "type": "string",
+            "description": "What it lets the agent do."
+          },
+          "sensitive": {
+            "type": "boolean",
+            "description": "Using it is sensitive."
+          }
+        }
+      },
       "AgentListResponse": {
         "type": "object",
         "description": "Response body for agent list.",
@@ -8574,6 +8916,45 @@
           "package",
           "interface"
         ]
+      },
+      "AgentPreview": {
+        "type": "object",
+        "description": "One agent of the package.",
+        "required": [
+          "id",
+          "name",
+          "mission",
+          "examples",
+          "access"
+        ],
+        "properties": {
+          "access": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessPreview"
+            },
+            "description": "Accesses the agent asks for, as governance resolves them."
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Example requests."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier."
+          },
+          "mission": {
+            "type": "string",
+            "description": "What the agent is for."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name."
+          }
+        }
       },
       "AgentResponse": {
         "type": "object",
@@ -9152,6 +9533,46 @@
           "signature_invalid",
           "unknown_signing_key"
         ]
+      },
+      "BroughtServerPreview": {
+        "type": "object",
+        "description": "An MCP server the package brings.",
+        "required": [
+          "name",
+          "transport",
+          "command",
+          "remote",
+          "alreadyPresent"
+        ],
+        "properties": {
+          "alreadyPresent": {
+            "type": "boolean",
+            "description": "A connection of that name already exists; it is left as it is."
+          },
+          "command": {
+            "type": "string",
+            "description": "Executable spawned, for `stdio`."
+          },
+          "name": {
+            "type": "string",
+            "description": "Server name."
+          },
+          "remote": {
+            "type": "boolean",
+            "description": "The server sends data off this machine."
+          },
+          "transport": {
+            "type": "string",
+            "description": "`stdio`, `streamable-http` or `sse`."
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Address, for a network transport."
+          }
+        }
       },
       "ChannelDeleteResponse": {
         "type": "object",
@@ -10418,6 +10839,168 @@
           }
         }
       },
+      "InstallRefusal": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The signature does not hold over the content.",
+            "required": [
+              "reason",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "invalid_signature"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "description": "Why."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Governance requires a signed package and this one is not signed.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "signature_required"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The incoming version is older than the installed one.",
+            "required": [
+              "installed",
+              "incoming",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "downgrade"
+                ]
+              },
+              "incoming": {
+                "type": "string",
+                "description": "Incoming version."
+              },
+              "installed": {
+                "type": "string",
+                "description": "Installed version."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An agent of the package has the identifier of an agent installed\notherwise.",
+            "required": [
+              "agent",
+              "code"
+            ],
+            "properties": {
+              "agent": {
+                "type": "string",
+                "description": "The identifier."
+              },
+              "code": {
+                "type": "string",
+                "enum": [
+                  "agent_taken"
+                ]
+              },
+              "owner": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The package that owns it, `None` for an agent created in the\ninterface."
+              }
+            }
+          }
+        ],
+        "description": "Why the package cannot be installed as it is."
+      },
+      "InstallReport": {
+        "type": "object",
+        "description": "What was installed.",
+        "required": [
+          "name",
+          "version",
+          "signature",
+          "agents",
+          "workflows",
+          "tools",
+          "mcpServersAdded",
+          "notices"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Agents installed."
+          },
+          "mcpServersAdded": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MCP servers added."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package identifier."
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageNotice"
+            },
+            "description": "What the user should know, as the preview said."
+          },
+          "previousVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Version it replaced, for an update."
+          },
+          "signature": {
+            "$ref": "#/components/schemas/SignaturePreview",
+            "description": "Publisher and signature, as recorded."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Python tools installed."
+          },
+          "version": {
+            "type": "string",
+            "description": "Installed version."
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Workflows installed."
+          }
+        }
+      },
       "InstalledAgentView": {
         "type": "object",
         "description": "One agent of the machine: installed, running, or both.",
@@ -10610,6 +11193,34 @@
             "format": "int64",
             "description": "Invocation timeout in seconds (default: 120).",
             "minimum": 0
+          }
+        }
+      },
+      "ItemPreview": {
+        "type": "object",
+        "description": "One Python tool of the package.",
+        "required": [
+          "name",
+          "description",
+          "family",
+          "sensitive"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What it does."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family: `read`, `read_personal`, `write_or_delete`,\n`send_external` or `execute_code`."
+          },
+          "name": {
+            "type": "string",
+            "description": "Identifier, unique in the package."
+          },
+          "sensitive": {
+            "type": "boolean",
+            "description": "Its family is sensitive."
           }
         }
       },
@@ -10996,6 +11607,273 @@
           "ok": {
             "type": "boolean",
             "description": "Confirmation flag."
+          }
+        }
+      },
+      "PackageErrorBody": {
+        "type": "object",
+        "description": "Error body of the package routes: the message, and a stable code a client\ncan act on.",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`downgrade`, `agent_taken`, `deps_confirmation_required`,\n`changes_confirmation_required`, `mcp_unavailable`, `mcp_server`,\n`environment`, `invalid_key`, `not_found`, `journal_unavailable`,\n`internal`."
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable description."
+          }
+        }
+      },
+      "PackageInstallRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/packages/install`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "allowDowngrade": {
+            "type": "boolean",
+            "description": "Install a version older than the installed one."
+          },
+          "changesConfirmed": {
+            "type": "boolean",
+            "description": "The user accepted what an update adds."
+          },
+          "depsConfirmed": {
+            "type": "boolean",
+            "description": "The user accepted the Python dependencies the package installs."
+          },
+          "path": {
+            "type": "string",
+            "description": "Path of the `.apo` file on this machine."
+          }
+        }
+      },
+      "PackageNotice": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The package is not signed: nothing says who made it or that it was\nnot altered.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "unsigned"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The signing key is not in the keyring: the publisher name is declared,\nnot verified.",
+            "required": [
+              "fingerprint",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "untrusted_publisher"
+                ]
+              },
+              "fingerprint": {
+                "type": "string",
+                "description": "Fingerprint of the signing key."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A connection the package requires is missing.",
+            "required": [
+              "type",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "missing_connection"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "description": "Connection type."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "An MCP server of that name already exists and is left as it is.",
+            "required": [
+              "name",
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "server_already_present"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "description": "Server name."
+              }
+            }
+          }
+        ],
+        "description": "Something the user should know before installing."
+      },
+      "PackagePreview": {
+        "type": "object",
+        "description": "Everything the user sees before installing a package.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "sdk",
+          "signature",
+          "signatureRequired",
+          "agents",
+          "workflows",
+          "tools",
+          "requires",
+          "mcpServers",
+          "pip",
+          "triggers",
+          "notices"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPreview"
+            },
+            "description": "Agents."
+          },
+          "description": {
+            "type": "string",
+            "description": "What the package delivers."
+          },
+          "installedVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Installed version, when the package is installed."
+          },
+          "mcpServers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BroughtServerPreview"
+            },
+            "description": "MCP servers the package brings."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package identifier."
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageNotice"
+            },
+            "description": "What the user should know."
+          },
+          "pip": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Python requirements installed in the package environment."
+          },
+          "refusal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InstallRefusal",
+                "description": "Why installing it as it is would be refused."
+              }
+            ]
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequiredConnectionPreview"
+            },
+            "description": "Connections the package requires."
+          },
+          "sdk": {
+            "type": "string",
+            "description": "SDK requirement the package was built against."
+          },
+          "signature": {
+            "$ref": "#/components/schemas/SignaturePreview",
+            "description": "Publisher and signature."
+          },
+          "signatureRequired": {
+            "type": "boolean",
+            "description": "Governance requires a signed package."
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemPreview"
+            },
+            "description": "Python tools."
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TriggerPreview"
+            },
+            "description": "Triggers the package proposes."
+          },
+          "update": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/UpdateDiff",
+                "description": "What the incoming version adds, when the package is installed."
+              }
+            ]
+          },
+          "version": {
+            "type": "string",
+            "description": "Incoming version."
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowPreview"
+            },
+            "description": "Workflows."
+          }
+        }
+      },
+      "PackagePreviewRequest": {
+        "type": "object",
+        "description": "Body of the preview and of the installation: the archive.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path of the `.apo` file on this machine."
           }
         }
       },
@@ -11415,6 +12293,34 @@
           "reaches_running_agents": {
             "type": "boolean",
             "description": "Whether the rebuilt router reaches agents that are already running.\n\n`true`: the router this one replaces is superseded by it, and an agent\nstarted before the reload reads the router in force at each call\n(`LlmRouter::latest`), so it picks the reload up without a restart.\nKept in the response so a client that warned about the opposite can\ntell the two runtimes apart."
+          }
+        }
+      },
+      "RequiredConnectionPreview": {
+        "type": "object",
+        "description": "A connection the package requires.",
+        "required": [
+          "type",
+          "reason",
+          "present",
+          "broughtByPackage"
+        ],
+        "properties": {
+          "broughtByPackage": {
+            "type": "boolean",
+            "description": "The package itself brings an MCP server of that name."
+          },
+          "present": {
+            "type": "boolean",
+            "description": "A connection of that type exists on this machine."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the package needs it."
+          },
+          "type": {
+            "type": "string",
+            "description": "Connection type, as the package names it."
           }
         }
       },
@@ -11980,6 +12886,57 @@
             "description": "Current status: `\"running\"`, `\"completed\"`, or `\"failed\"`."
           }
         }
+      },
+      "SignaturePreview": {
+        "type": "object",
+        "description": "The publisher and the signature, as the preview shows them.",
+        "required": [
+          "status",
+          "publisher",
+          "declaredPublisher",
+          "trusted"
+        ],
+        "properties": {
+          "declaredPublisher": {
+            "type": "string",
+            "description": "Publisher name the package declares. Not verified."
+          },
+          "keyFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SHA-256 fingerprint of the signing key, when the signature holds."
+          },
+          "publisher": {
+            "type": "string",
+            "description": "Name to show for the publisher: the label of the keyring when the key\nis trusted, otherwise the name the package declares."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the signature does not hold, when it does not."
+          },
+          "status": {
+            "$ref": "#/components/schemas/SignatureStatus",
+            "description": "State of the signature."
+          },
+          "trusted": {
+            "type": "boolean",
+            "description": "The signing key is in the keyring."
+          }
+        }
+      },
+      "SignatureStatus": {
+        "type": "string",
+        "description": "State of the signature of a package.",
+        "enum": [
+          "unsigned",
+          "signed",
+          "invalid"
+        ]
       },
       "SkillDto": {
         "type": "object",
@@ -13007,6 +13964,29 @@
           }
         }
       },
+      "TriggerPreview": {
+        "type": "object",
+        "description": "A trigger the package proposes. Installing does not arm it.",
+        "required": [
+          "id",
+          "target",
+          "source"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier."
+          },
+          "source": {
+            "type": "string",
+            "description": "`cron`, `interval`, `file_watch` or `webhook`."
+          },
+          "target": {
+            "type": "string",
+            "description": "Agent or workflow it starts."
+          }
+        }
+      },
       "TriggerSourceInput": {
         "allOf": [
           {
@@ -13027,6 +14007,57 @@
           }
         ],
         "description": "Trigger source description used in create/update requests."
+      },
+      "TrustKeyRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/packages/trusted-keys`.",
+        "required": [
+          "publicKey",
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Name to show for the publisher."
+          },
+          "publicKey": {
+            "type": "string",
+            "description": "The publisher's public key: 64 hexadecimal characters."
+          }
+        }
+      },
+      "TrustedKeyView": {
+        "type": "object",
+        "description": "A trusted publisher key.",
+        "required": [
+          "fingerprint",
+          "publicKey",
+          "label",
+          "origin",
+          "addedAt"
+        ],
+        "properties": {
+          "addedAt": {
+            "type": "string",
+            "description": "When it was added."
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "SHA-256 fingerprint of the key."
+          },
+          "label": {
+            "type": "string",
+            "description": "Name shown for the publisher."
+          },
+          "origin": {
+            "type": "string",
+            "description": "Who put the key there: `user` or `policy`."
+          },
+          "publicKey": {
+            "type": "string",
+            "description": "The public key, 64 hexadecimal characters."
+          }
+        }
       },
       "UnloadModelRequest": {
         "type": "object",
@@ -13110,6 +14141,53 @@
             "format": "int32",
             "description": "New minimum throttling interval (s). Absent keeps the existing one.",
             "minimum": 0
+          }
+        }
+      },
+      "UpdateDiff": {
+        "type": "object",
+        "description": "What an update changes, against the installed version.",
+        "required": [
+          "fromVersion",
+          "toVersion",
+          "downgrade",
+          "addedAccess",
+          "addedRequires",
+          "addedMcpServers"
+        ],
+        "properties": {
+          "addedAccess": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AddedAccess"
+            },
+            "description": "Accesses the incoming package defaults grant that the installed ones\ndid not."
+          },
+          "addedMcpServers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MCP servers brought by the incoming version only."
+          },
+          "addedRequires": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Connection types required by the incoming version only."
+          },
+          "downgrade": {
+            "type": "boolean",
+            "description": "The incoming version is older than the installed one."
+          },
+          "fromVersion": {
+            "type": "string",
+            "description": "Installed version."
+          },
+          "toVersion": {
+            "type": "string",
+            "description": "Incoming version."
           }
         }
       },
@@ -13327,6 +14405,42 @@
             "minimum": 0
           }
         }
+      },
+      "WorkflowPreview": {
+        "type": "object",
+        "description": "One workflow of the package.",
+        "required": [
+          "name",
+          "description",
+          "family",
+          "sensitive",
+          "steps"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What it does."
+          },
+          "family": {
+            "type": "string",
+            "description": "Action family of the most sensitive thing it does."
+          },
+          "name": {
+            "type": "string",
+            "description": "Identifier, unique in the package."
+          },
+          "sensitive": {
+            "type": "boolean",
+            "description": "Its family is sensitive."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of its steps, in order."
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -13366,6 +14480,10 @@
     {
       "name": "agents",
       "description": "Agent inventory and lifecycle"
+    },
+    {
+      "name": "packages",
+      "description": "Package preview, installation, and trusted publisher keys"
     },
     {
       "name": "a2a",

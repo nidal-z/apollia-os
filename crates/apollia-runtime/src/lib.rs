@@ -32,6 +32,7 @@ pub mod llm_timings;
 pub mod mailbox;
 pub mod observability;
 pub mod package_tools;
+pub mod packages;
 pub mod perf_trace;
 pub mod plan_approval;
 pub mod profile;

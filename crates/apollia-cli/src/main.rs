@@ -299,7 +299,8 @@ enum Commands {
     /// Check for and install updates from GitHub Releases.
     Update(commands::update::UpdateArgs),
 
-    /// Agent package archives: build a `.apo` from a folder, inspect one.
+    /// Agent package archives: build, inspect, preview and install a `.apo`,
+    /// and trust publisher keys.
     Package {
         /// Package subcommand.
         #[command(subcommand)]
@@ -719,7 +720,9 @@ fn main() {
             Commands::Mcp { command } => commands::mcp::run(&command, cli.socket, json).await,
             Commands::Update(args) => commands::update::run(&args, "Apollia-OS", json).await,
             Commands::Workspace { command } => commands::workspace::run(&command, json).await,
-            Commands::Package { command } => commands::package::run(&command, json),
+            Commands::Package { command } => {
+                commands::package::run(&command, cli.socket, json).await
+            }
             Commands::Policy { command } => commands::policy::run(&command, json),
             Commands::Review(args) => commands::review::run(&args, cli.socket, json).await,
             Commands::Batch { command } => commands::batch::run(&command, cli.socket, json).await,
