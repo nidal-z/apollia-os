@@ -11,7 +11,10 @@ T = TypeVar("T", bound="InvokeRequestInput")
 
 @_attrs_define
 class InvokeRequestInput:
-    """JSON payload passed to the Worker Agent as input."""
+    """JSON payload passed as input: the skill's payload, `{"message": ...}`
+    (or a bare string) for an agent, the typed inputs of a workflow.
+
+    """
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 

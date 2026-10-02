@@ -56,8 +56,9 @@ def sync_detailed(
 ) -> Response[A2ASkillsResponse | ApiErrorBody]:
     """Handler for `GET /api/v1/a2a/skills`.
 
-     Returns the flat list of all available A2A skills via the [`A2AInvoker`].
-    Returns 503 if the invoker is not initialized.
+     Returns the flat list of all available A2A skills via the [`A2AInvoker`],
+    then one entry per enabled agent that takes a message and one per
+    installed workflow. Returns 503 if the invoker is not initialized.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -82,8 +83,9 @@ def sync(
 ) -> A2ASkillsResponse | ApiErrorBody | None:
     """Handler for `GET /api/v1/a2a/skills`.
 
-     Returns the flat list of all available A2A skills via the [`A2AInvoker`].
-    Returns 503 if the invoker is not initialized.
+     Returns the flat list of all available A2A skills via the [`A2AInvoker`],
+    then one entry per enabled agent that takes a message and one per
+    installed workflow. Returns 503 if the invoker is not initialized.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -104,8 +106,9 @@ async def asyncio_detailed(
 ) -> Response[A2ASkillsResponse | ApiErrorBody]:
     """Handler for `GET /api/v1/a2a/skills`.
 
-     Returns the flat list of all available A2A skills via the [`A2AInvoker`].
-    Returns 503 if the invoker is not initialized.
+     Returns the flat list of all available A2A skills via the [`A2AInvoker`],
+    then one entry per enabled agent that takes a message and one per
+    installed workflow. Returns 503 if the invoker is not initialized.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -128,8 +131,9 @@ async def asyncio(
 ) -> A2ASkillsResponse | ApiErrorBody | None:
     """Handler for `GET /api/v1/a2a/skills`.
 
-     Returns the flat list of all available A2A skills via the [`A2AInvoker`].
-    Returns 503 if the invoker is not initialized.
+     Returns the flat list of all available A2A skills via the [`A2AInvoker`],
+    then one entry per enabled agent that takes a message and one per
+    installed workflow. Returns 503 if the invoker is not initialized.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
