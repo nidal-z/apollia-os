@@ -111,7 +111,6 @@ async fn run_two_call_exchange(tool: &'static str) -> ExchangeRun {
         tool_invoker: Arc::new(OkInvoker),
         event_bus,
         user_memory: None,
-        a2a_invoker: None,
         todo: None,
         plan: None,
     });

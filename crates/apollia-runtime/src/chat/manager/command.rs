@@ -263,6 +263,11 @@ pub enum ChatCommand {
         /// Used by every run that starts afterwards.
         host: Arc<dyn crate::package_tools::PackageToolHost>,
     },
+    /// Hand the composer of the granted agent and workflow calls to the actor.
+    SetComposer {
+        /// Used by every run that starts afterwards.
+        composer: Arc<dyn crate::composition::Composer>,
+    },
     /// Fork a session, creating a child with a copy of the history.
     ForkSession {
         /// Parent session to fork from.

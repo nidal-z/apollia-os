@@ -28,8 +28,6 @@ class SkillListing:
             skill_name (str): Human-readable skill name.
             input_schema (None | SkillListingInputSchemaType0 | Unset): Apollia schema for the payload fields (cf.
                 `AgentSkill::input_schema`).
-                Used by `generate_a2a_tool_specs` to expose the worker's real contract
-                to the LLM (instead of a generic schema).
     """
 
     agent_name: str

@@ -4601,11 +4601,7 @@ export interface components {
             agent_name: string;
             /** @description Skill description. */
             description: string;
-            /**
-             * @description Apollia schema for the payload fields (cf. `AgentSkill::input_schema`).
-             *     Used by `generate_a2a_tool_specs` to expose the worker's real contract
-             *     to the LLM (instead of a generic schema).
-             */
+            /** @description Apollia schema for the payload fields (cf. `AgentSkill::input_schema`). */
             input_schema?: Record<string, never> | null;
             /** @description Skill identifier. */
             skill_id: string;

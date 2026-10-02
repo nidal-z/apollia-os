@@ -206,11 +206,13 @@ pub(crate) struct RunEnd {
     pub row: WorkflowRunRow,
 }
 
-/// The run a nested call is made from.
+/// The run a nested call is made from: a workflow run, or an agent run that
+/// was granted the workflow, which has neither a run of `workflow_runs` nor a
+/// package to read a bare name in.
 #[derive(Clone)]
 pub(crate) struct ParentRun {
-    pub run_id: String,
-    pub workflow_id: String,
+    pub run_id: Option<String>,
+    pub workflow_id: Option<String>,
     pub depth: u32,
     pub cancel: CancellationToken,
     pub budget: Arc<apollia_oria::budget::StepBudget>,
@@ -237,6 +239,10 @@ pub(crate) enum WorkflowCommand {
     Ended {
         run_id: String,
         row: Option<WorkflowRunRow>,
+    },
+    Describe {
+        workflow: String,
+        reply: oneshot::Sender<Option<WorkflowDescriptor>>,
     },
 }
 
@@ -338,6 +344,46 @@ impl WorkflowHandle {
             .await
             .map_err(|_| WorkflowError::Stopped)?;
         rx.await.map_err(|_| WorkflowError::Stopped)?
+    }
+
+    /// The workflow `workflow`, `<package>/<workflow>`, when an installed
+    /// package declares it; `None` too while no host is attached.
+    pub async fn describe(&self, workflow: &str) -> Option<WorkflowDescriptor> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(WorkflowCommand::Describe {
+                workflow: workflow.to_string(),
+                reply,
+            })
+            .await
+            .ok()?;
+        rx.await.ok().flatten()
+    }
+
+    /// Runs `workflow` on `inputs` nested in `parent`, and returns what it
+    /// returned, or why it did not complete.
+    pub(crate) async fn run_nested(
+        &self,
+        workflow: &str,
+        inputs: Value,
+        parent: ParentRun,
+    ) -> Result<Value, String> {
+        let launched = self
+            .start(workflow, inputs, Some(parent))
+            .await
+            .map_err(|e| e.to_string())?;
+        let end = launched
+            .end
+            .await
+            .map_err(|_| format!("the run of {workflow} was dropped"))?;
+        match end.row.status.as_str() {
+            "completed" => Ok(end.row.output.unwrap_or(Value::Null)),
+            status => Err(format!(
+                "{} {status}: {}",
+                end.row.workflow_id,
+                end.row.error.unwrap_or_default()
+            )),
+        }
     }
 
     /// Stops a running run and returns it once it has ended.

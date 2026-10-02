@@ -12279,7 +12279,7 @@
               "object",
               "null"
             ],
-            "description": "Apollia schema for the payload fields (cf. `AgentSkill::input_schema`).\nUsed by `generate_a2a_tool_specs` to expose the worker's real contract\nto the LLM (instead of a generic schema)."
+            "description": "Apollia schema for the payload fields (cf. `AgentSkill::input_schema`)."
           },
           "skill_id": {
             "type": "string",

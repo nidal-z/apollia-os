@@ -18,6 +18,7 @@ pub mod backend_keys;
 pub mod batch;
 pub mod chat;
 pub mod commands;
+pub mod composition;
 pub mod connections;
 pub mod connectors_bridge;
 pub mod coordinator;
@@ -73,8 +74,8 @@ pub use mailbox::{AgentMailboxHandle, AgentMessage, MailboxError};
 // A2A routing
 pub use a2a::{
     make_delegate_fn, resolve_skill, A2AAgentCard, A2AError, A2AInvocationResult, A2AInvokeRequest,
-    A2AInvoker, A2ASkillInfo, A2AToolsProvider, A2aDelegateFn, A2aDelegateResult, A2aError,
-    A2aErrorResponse, SkillListing,
+    A2AInvoker, A2ASkillInfo, A2aDelegateFn, A2aDelegateResult, A2aError, A2aErrorResponse,
+    SkillListing,
 };
 
 // Chat subsystem

@@ -466,6 +466,7 @@ impl Supervisor {
         // store; the agent of a step runs through the agent executor, as a
         // task of its own. The Python host is attached once the runtime is
         // up, by whoever embeds the interpreter.
+        let mut step_agents: Option<Arc<dyn crate::workflows::AgentRunner>> = None;
         let workflows = task_repository.as_ref().map(|repo| {
             let agents = chat_manager.as_ref().map(|chat| {
                 Arc::new(crate::workflows::LaunchedAgentRunner::new(
@@ -479,6 +480,7 @@ impl Supervisor {
                     self.config.data_dir.clone(),
                 )) as Arc<dyn crate::workflows::AgentRunner>
             });
+            step_agents = agents.clone();
             crate::workflows::WorkflowHandle::spawn(
                 repo.clone(),
                 event_sender.clone(),
@@ -486,6 +488,16 @@ impl Supervisor {
                 agents,
             )
         });
+        // An agent calls the agents and workflows it was granted through the
+        // same executor and the same engine a workflow step uses.
+        if let (Some(chat), Some(agents), Some(engine)) = (&chat_manager, step_agents, &workflows) {
+            chat.set_composer(Arc::new(crate::composition::RuntimeComposer::new(
+                agents,
+                engine.clone(),
+                self.config.data_dir.clone(),
+            )))
+            .await;
+        }
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
         let state = AppState {
             router_handle: router_handle.clone(),

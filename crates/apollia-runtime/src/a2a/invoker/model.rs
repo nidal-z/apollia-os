@@ -242,8 +242,6 @@ pub struct SkillListing {
     /// Skill description.
     pub description: String,
     /// Apollia schema for the payload fields (cf. `AgentSkill::input_schema`).
-    /// Used by `generate_a2a_tool_specs` to expose the worker's real contract
-    /// to the LLM (instead of a generic schema).
     #[serde(default)]
     #[schema(value_type = Option<Object>)]
     pub input_schema: Option<serde_json::Value>,
