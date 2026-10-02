@@ -72,6 +72,7 @@ pub const OVERRIDE_FIELDS: [OverrideField; 5] = [
 
 /// A value that does not fit the field it is written to.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum OverrideValueError {
     /// The field name is not one of [`OVERRIDE_FIELDS`].
     #[error("unknown field '{0}', expected one of name, mission, examples, access, sources")]
