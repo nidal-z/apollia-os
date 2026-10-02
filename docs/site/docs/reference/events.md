@@ -148,6 +148,7 @@ the event carries announces a request that is already settled.
 | `LlmModelFailed` | named fields | Loading an LLM backend failed: backend skipped, runtime continues. |
 | `LlmModelLoading` | named fields | An LLM backend is loading (before `load()` or HTTP initialization). |
 | `LlmModelReady` | named fields | An LLM backend is ready: model loaded in memory or cloud connection verified. |
+| `LlmModelReloaded` | named fields | A resident local model was relaunched under its preset's new load settings. |
 | `LlmResponseCaptured` | named fields | A full LLM response captured for deterministic replay. |
 | `MetaLlmBudgetExceeded` | named fields | Emitted by `MetaLlmOrchestrator` when the tokens/session budget is exceeded. |
 | `TokenBudgetUpdated` | named fields | Session budget update, emitted after each LLM call. |
