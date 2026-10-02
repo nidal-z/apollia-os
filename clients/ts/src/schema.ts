@@ -1778,6 +1778,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/profile`: every entry of the profile. */
+        get: operations["get_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/entries/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/profile/entries/{key}`: creates or replaces one entry, as
+         *     written by the user.
+         */
+        put: operations["set_profile_entry"];
+        post?: never;
+        /** `DELETE /api/v1/profile/entries/{key}`: removes one entry. */
+        delete: operations["delete_profile_entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profile/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/profile/reset`: removes every entry the user sees, keeping
+         *     the onboarding markers.
+         */
+        post: operations["reset_user_profile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resilience/reset/{tool}": {
         parameters: {
             query?: never;
@@ -3402,6 +3460,11 @@ export interface components {
             /** @description Name of the deleted server. */
             deleted: string;
         };
+        /** @description Answer of `DELETE /api/v1/profile/entries/{key}`. */
+        DeletedProfileEntry: {
+            /** @description The key removed. */
+            deleted: string;
+        };
         /** @description The embeddings category of the registry, and the entry for this machine. */
         EmbeddingModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -3911,6 +3974,26 @@ export interface components {
             /** @description Presets, sorted by model then name. */
             presets: components["schemas"]["PresetResponse"][];
         };
+        /** @description One profile entry, as the profile page draws it. */
+        ProfileEntryView: {
+            /** @description ISO 8601 creation timestamp. */
+            created_at: string;
+            /** @description `true` when the key is a field of the canonical profile schema. */
+            in_schema: boolean;
+            /** @description Flat storage key. */
+            key: string;
+            /** @description ISO 8601 last-update timestamp. */
+            updated_at: string;
+            /** @description Plain-text value. */
+            value: string;
+            /** @description Provenance tag (`onboarding`, `user`, `agent:<name>`). */
+            written_by: string;
+        };
+        /** @description Answer of `POST /api/v1/profile/reset`. */
+        ProfileReset: {
+            /** @description How many entries were removed. */
+            removed: number;
+        };
         /** @description Body of `PUT /api/v1/mcp/servers/:name/secrets/:key`. */
         PutMcpSecretBody: {
             /** @description The secret. Stored, never answered back. */
@@ -4160,6 +4243,11 @@ export interface components {
              *     for `examples`, `access` and `sources`.
              */
             value: Record<string, never>;
+        };
+        /** @description Request body for `PUT /api/v1/profile/entries/{key}`. */
+        SetProfileEntryBody: {
+            /** @description Plain-text value. */
+            value: string;
         };
         /** @description Response body for the shutdown endpoint. */
         ShutdownResponse: {
@@ -4695,6 +4783,17 @@ export interface components {
             on_busy?: string | null;
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
+        };
+        /** @description The whole profile: the schema fields, then the free-form entries. */
+        UserProfileView: {
+            /** @description Every entry, in the order the repository lists them. */
+            entries: components["schemas"]["ProfileEntryView"][];
+            /** @description Entries outside the schema. */
+            extras: components["schemas"]["ProfileEntryView"][];
+            /** @description The most recent `updated_at` across the entries. */
+            last_updated_at?: string | null;
+            /** @description Entries whose key is a field of the schema. */
+            schema_entries: components["schemas"]["ProfileEntryView"][];
         };
         /** @description Outcome of verifying a run's chain. */
         VerifyChainReport: {
@@ -8784,6 +8883,150 @@ export interface operations {
                 };
             };
             /** @description Plan cache not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfileView"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_profile_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Flat storage key */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetProfileEntryBody"];
+            };
+        };
+        responses: {
+            /** @description The entry as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileEntryView"];
+                };
+            };
+            /** @description Empty or reserved key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_profile_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Flat storage key */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entry is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedProfileEntry"];
+                };
+            };
+            /** @description No entry has this key */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_user_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileReset"];
+                };
+            };
+            /** @description The profile store did not open */
             503: {
                 headers: {
                     [name: string]: unknown;

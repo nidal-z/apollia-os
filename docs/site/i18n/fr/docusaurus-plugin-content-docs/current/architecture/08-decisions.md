@@ -524,8 +524,12 @@ qu'une sonde sans réponse montre aussitôt le runtime déconnecté. Une command
 encore sans route répond une erreur typée qui la nomme, au lieu d'aller chercher
 un état que le processus n'a jamais construit ;
 `scripts/check_attached_coverage.py` compte les commandes routées face aux
-commandes enregistrées, sur un cliquet descendant. Quitter le bureau rattaché
-laisse le démon servir.
+commandes enregistrées, sur un cliquet descendant. Une commande qui relève de
+la fenêtre plutôt que du runtime (quitter, redémarrer, chercher une mise à jour,
+lister les micros) n'a pas besoin de route : elle figure dans une liste à côté
+des commandes routées, avec la raison pour laquelle elle ne lit aucun état du
+runtime, et le même script refuse une entrée sans raison. Quitter le bureau
+rattaché laisse le démon servir.
 
 La version 0.3.0 livre les deux modes.
 

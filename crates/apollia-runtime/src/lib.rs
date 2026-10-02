@@ -32,6 +32,7 @@ pub mod mailbox;
 pub mod observability;
 pub mod perf_trace;
 pub mod plan_approval;
+pub mod profile;
 pub mod projects;
 pub mod registry;
 pub mod replay;

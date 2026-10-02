@@ -6,11 +6,9 @@
 //! refuses an unload while the model is answering, and that refusal reaches
 //! the webview as the rejected promise's message.
 
-use apollia_runtime::embedded::RuntimeHandle;
+use crate::attached::RuntimeLink;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-
-use super::{http_get_json, http_post_json};
 
 const LOADED_MODELS_PATH: &str = "/api/v1/llm/loaded-models";
 const UNLOAD_PATH: &str = "/api/v1/llm/loaded-models/unload";
@@ -78,10 +76,8 @@ fn unload_body(model_path: &str) -> serde_json::Value {
 ///
 /// Delegates to `GET /api/v1/llm/loaded-models`.
 #[tauri::command]
-pub async fn list_loaded_models(
-    state: State<'_, RuntimeHandle>,
-) -> Result<LoadedModelsView, String> {
-    let json = http_get_json(state.api_port, LOADED_MODELS_PATH).await?;
+pub async fn list_loaded_models(state: State<'_, RuntimeLink>) -> Result<LoadedModelsView, String> {
+    let json = state.get_json(LOADED_MODELS_PATH).await?;
     parse_loaded_models(json)
 }
 
@@ -92,10 +88,12 @@ pub async fn list_loaded_models(
 /// when no local engine exists on this host.
 #[tauri::command]
 pub async fn unload_loaded_model(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     model_path: String,
 ) -> Result<UnloadedModelView, String> {
-    let json = http_post_json(state.api_port, UNLOAD_PATH, &unload_body(&model_path)).await?;
+    let json = state
+        .post_json(UNLOAD_PATH, &unload_body(&model_path))
+        .await?;
     parse_unloaded_model(json)
 }
 

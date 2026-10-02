@@ -14,6 +14,7 @@
 //! registered command.
 
 mod client;
+mod proxy;
 mod relay;
 
 use apollia_core::EventBusSender;
@@ -59,8 +60,131 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_pending_user_inputs",
     "respond_user_input",
     "respond_user_input_rejected",
+    // Commands whose whole body is a call to a runtime route, served through
+    // the methods of `proxy.rs` in both modes.
+    // Models: the inference servers, the loaded models, the costs.
+    "create_llm_backend",
+    "delete_llm_backend",
+    "get_llm_cost_stats",
+    "list_loaded_models",
+    "set_default_llm_backend",
+    "unload_loaded_model",
+    "update_llm_backend",
+    // MCP servers and the curated catalogue.
+    "add_mcp_server",
+    "fetch_mcp_curated",
+    "get_mcp_server_detail",
+    "get_mcp_server_raw_config",
+    "list_mcp_resources",
+    "list_mcp_servers",
+    "remove_mcp_server",
+    "restart_mcp_server",
+    "set_mcp_server_approval",
+    "test_mcp_connection",
+    "test_mcp_live_server",
+    "update_mcp_server_config",
+    // Connections.
+    "list_connections",
+    // Notifications and the activity feed.
+    "create_notification_channel",
+    "delete_notification_channel",
+    "get_notification_events",
+    "get_notification_logs",
+    "list_notification_channels",
+    "list_runtime_activity",
+    "set_notification_events",
+    "test_notification_channel",
+    "update_notification_channel",
+    // Triggers.
+    "create_trigger",
+    "delete_trigger",
+    "fire_trigger",
+    "get_trigger_definition",
+    "get_trigger_logs",
+    "list_triggers",
+    "set_trigger_enabled",
+    "update_trigger",
+    // Tools, observability, traces and messages between agents.
+    "clear_plan_cache",
+    "describe_tool",
+    "get_active_hooks",
+    "get_audit_stats",
+    "get_llm_daily_costs",
+    "get_plan_cache_stats",
+    "get_task_trace",
+    "list_agent_messages",
+    "list_tools",
+    "verify_audit_run",
+    // The user profile, over `/api/v1/profile`.
+    "delete_profile_entry",
+    "get_profile",
+    "reset_user_profile",
+    "set_profile_entry",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
+];
+
+/// The commands that belong to the window, not to the runtime: they read no
+/// state of the runtime and serve the attached mode as they are, each with the
+/// reason it needs no route. `scripts/check_attached_coverage.py` reads the
+/// reasons and refuses an entry without one.
+pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
+    (
+        "app_restart",
+        "relaunches this window, which attaches again at startup",
+    ),
+    (
+        "quit_app",
+        "closes this window and leaves the daemon serving",
+    ),
+    (
+        "check_for_update",
+        "asks the update endpoint about this application",
+    ),
+    (
+        "install_update",
+        "replaces this application, not the daemon",
+    ),
+    (
+        "get_cli_status",
+        "reads the command-line link this application installs",
+    ),
+    (
+        "install_cli",
+        "links the command line bundled with this application",
+    ),
+    (
+        "uninstall_cli",
+        "removes the command-line link this application installed",
+    ),
+    (
+        "link_preview",
+        "fetches the card of a link the window shows",
+    ),
+    (
+        "list_audio_input_devices",
+        "lists the microphones of this machine",
+    ),
+    (
+        "open_config_in_editor",
+        "opens the configuration file in the editor of this machine",
+    ),
+    (
+        "automation_script",
+        "drives this window in a development build",
+    ),
+    (
+        "automation_capture",
+        "captures this window in a development build",
+    ),
+    (
+        "automation_resize",
+        "resizes this window in a development build",
+    ),
+    (
+        "automation_finish",
+        "ends the run driving this window in a development build",
+    ),
 ];
 
 /// Encodes one path segment of a daemon route.
@@ -137,10 +261,13 @@ impl From<AttachedError> for String {
 ///
 /// # Errors
 ///
-/// [`AttachedError::NotRouted`] for a command outside [`ROUTED_COMMANDS`] while
-/// the runtime is a daemon.
+/// [`AttachedError::NotRouted`] for a command outside [`ROUTED_COMMANDS`] and
+/// [`WINDOW_COMMANDS`] while the runtime is a daemon.
 pub(crate) fn gate(mode: LinkMode, command: &str) -> Result<(), AttachedError> {
-    if mode == LinkMode::Embedded || ROUTED_COMMANDS.contains(&command) {
+    if mode == LinkMode::Embedded
+        || ROUTED_COMMANDS.contains(&command)
+        || WINDOW_COMMANDS.iter().any(|(name, _)| *name == command)
+    {
         return Ok(());
     }
     Err(AttachedError::NotRouted {
@@ -199,6 +326,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(RuntimeLink::Attached(client))
         .manage(
