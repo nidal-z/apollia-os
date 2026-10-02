@@ -299,7 +299,7 @@ fn measure(files: &[&Path]) -> (u64, Option<DateTime<Utc>>) {
     (size, latest)
 }
 
-fn has_ggml_magic(path: &Path) -> bool {
+pub(super) fn has_ggml_magic(path: &Path) -> bool {
     let mut head = [0u8; 4];
     std::fs::File::open(path)
         .and_then(|mut f| f.read_exact(&mut head))
