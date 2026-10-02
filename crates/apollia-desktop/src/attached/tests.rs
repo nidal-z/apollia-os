@@ -512,3 +512,53 @@ fn test_a_window_command_runs_attached_and_carries_its_reason() {
     }
     assert!(gate(LinkMode::Attached, "quit_app").is_ok());
 }
+
+// ── The profile ──────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_the_daemon_profile_reads_as_the_page_draws_it_and_an_entry_is_put_by_key() {
+    // GIVEN a daemon holding one profile entry, and accepting a write to a
+    // dotted key
+    let server = MockServer::start().await;
+    let entry = serde_json::json!({
+        "key": "tools.daily", "value": "tableur", "written_by": "user",
+        "created_at": "2026-10-02T00:00:00Z", "updated_at": "2026-10-02T00:00:00Z",
+        "in_schema": true,
+    });
+    Mock::given(method("GET"))
+        .and(path("/api/v1/profile"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "schema_entries": [entry.clone()], "extras": [], "entries": [entry.clone()],
+            "last_updated_at": "2026-10-02T00:00:00Z",
+        })))
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path("/api/v1/profile/entries/tools.daily"))
+        .and(body_json(serde_json::json!({ "value": "tableur" })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(entry))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the attached arm reads the profile and writes the entry
+    let profile: apollia_runtime::profile::UserProfileView =
+        client.get("/api/v1/profile").await.unwrap();
+    let body = apollia_runtime::api::routes_profile::SetProfileEntryBody {
+        value: "tableur".to_owned(),
+    };
+    let stored: apollia_runtime::profile::ProfileEntryView = client
+        .put(
+            &format!("/api/v1/profile/entries/{}", segment("tools.daily")),
+            &body,
+        )
+        .await
+        .unwrap();
+
+    // THEN both read as the view the profile page draws
+    assert_eq!(profile.schema_entries.len(), 1);
+    assert_eq!(profile.entries[0].key, "tools.daily");
+    assert_eq!(stored.value, "tableur");
+    assert!(gate(LinkMode::Attached, "set_profile_entry").is_ok());
+}

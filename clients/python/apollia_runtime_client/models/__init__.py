@@ -69,6 +69,7 @@ from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
+from .deleted_profile_entry import DeletedProfileEntry
 from .events_response import EventsResponse
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
@@ -113,6 +114,8 @@ from .preset_response import PresetResponse
 from .preset_response_load import PresetResponseLoad
 from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
+from .profile_entry_view import ProfileEntryView
+from .profile_reset import ProfileReset
 from .put_mcp_secret_body import PutMcpSecretBody
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
@@ -143,6 +146,7 @@ from .set_default_response import SetDefaultResponse
 from .set_events_request import SetEventsRequest
 from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
+from .set_profile_entry_body import SetProfileEntryBody
 from .shutdown_response import ShutdownResponse
 from .sidechain_row import SidechainRow
 from .skill_dto import SkillDto
@@ -212,6 +216,7 @@ from .update_preset_request_load import UpdatePresetRequestLoad
 from .update_preset_request_request import UpdatePresetRequestRequest
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
+from .user_profile_view import UserProfileView
 from .verify_chain_report import VerifyChainReport
 from .verify_journal_report import VerifyJournalReport
 
@@ -282,6 +287,7 @@ __all__ = (
     "DelegateRequest",
     "DelegateRequestInput",
     "DeleteBackendResponse",
+    "DeletedProfileEntry",
     "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
@@ -329,6 +335,8 @@ __all__ = (
     "PresetResponseLoad",
     "PresetResponseRequest",
     "PresetsListResponse",
+    "ProfileEntryView",
+    "ProfileReset",
     "PutMcpSecretBody",
     "RejectUserInputRequest",
     "ReloadResponse",
@@ -357,6 +365,7 @@ __all__ = (
     "SetEventsRequest",
     "SetOverrideRequest",
     "SetOverrideRequestValue",
+    "SetProfileEntryBody",
     "ShutdownResponse",
     "SidechainRow",
     "SkillDto",
@@ -424,6 +433,7 @@ __all__ = (
     "UpdatePresetRequestRequest",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",
+    "UserProfileView",
     "VerifyChainReport",
     "VerifyJournalReport",
 )

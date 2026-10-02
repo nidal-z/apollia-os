@@ -110,6 +110,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_messages",
     "list_tools",
     "verify_audit_run",
+    // The user profile, over `/api/v1/profile`.
+    "delete_profile_entry",
+    "get_profile",
+    "reset_user_profile",
+    "set_profile_entry",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
