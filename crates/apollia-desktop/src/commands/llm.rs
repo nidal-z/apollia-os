@@ -427,6 +427,10 @@ async fn rebuild_desktop_router(
     let db_path = apollia_core::paths::data_dir_under(home)
         .join(apollia_core::paths::DataFile::System.file_name());
 
+    // A row naming a server the organisation policy refuses is turned off.
+    let governance =
+        apollia_runtime::governance::InferenceGovernance::new(runtime.org_policy.clone());
+
     // LlmBackendRepository is !Send (uses RefCell<Connection>), so all DB work
     // must stay inside spawn_blocking. We extract the raw configs and return them.
     let (all_configs, default_name) = tokio::task::spawn_blocking(move || {
@@ -436,6 +440,7 @@ async fn rebuild_desktop_router(
         let (all, default_name) = apollia_runtime::backend_keys::routable_configs(
             &repo,
             apollia_runtime::inference_servers::default_store,
+            &governance,
         )
         .map_err(|e| format!("failed to list LLM backends: {e}"))?;
         let default_name = default_name

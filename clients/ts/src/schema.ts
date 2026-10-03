@@ -14038,6 +14038,15 @@ export interface operations {
                     "application/json": components["schemas"]["ServerResponse"];
                 };
             };
+            /** @description The organisation policy refuses this server; nothing was saved */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
             /** @description Invalid name or address */
             422: {
                 headers: {
@@ -14078,6 +14087,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TestServerResponse"];
+                };
+            };
+            /** @description The organisation policy refuses this server; nothing was sent to it, `kind` is `policy` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServerProbeErrorResponse"];
                 };
             };
             /** @description The address is not an HTTP URL */

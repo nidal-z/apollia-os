@@ -54,10 +54,11 @@ impl LlamaServerSupervisor {
         consent: LoadConsent,
     ) -> Result<(), GuardrailRefusal> {
         let config_file = self.config_file.clone();
+        let imposed = self.imposed.clone();
         let model_path = config.model_path.clone();
         let shape = ngl::runtime_shape(config);
         let judged = tokio::task::spawn_blocking(move || {
-            let policy = GuardrailPolicy::read(config_file.as_deref());
+            let policy = GuardrailPolicy::read_under(config_file.as_deref(), &imposed);
             if policy.level == guardrails::GuardrailLevel::Disabled {
                 return Ok(());
             }
