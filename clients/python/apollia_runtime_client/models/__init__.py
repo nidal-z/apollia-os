@@ -107,6 +107,7 @@ from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
+from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
 from .drive_folder_status import DriveFolderStatus
 from .embedding_models_response import EmbeddingModelsResponse
@@ -185,6 +186,7 @@ from .memory_entry_view import MemoryEntryView
 from .memory_imported import MemoryImported
 from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
+from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
@@ -199,8 +201,10 @@ from .oauth_client_written import OauthClientWritten
 from .ok_response import OkResponse
 from .onboarding_dismissed import OnboardingDismissed
 from .onboarding_finalized import OnboardingFinalized
+from .onboarding_marked import OnboardingMarked
 from .onboarding_phase import OnboardingPhase
 from .onboarding_profile_body import OnboardingProfileBody
+from .onboarding_reset import OnboardingReset
 from .onboarding_state import OnboardingState
 from .onboarding_stats import OnboardingStats
 from .package_error_body import PackageErrorBody
@@ -493,6 +497,7 @@ __all__ = (
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
+    "DirectoryRemoved",
     "DismissedProposal",
     "DriveFolderStatus",
     "EmbeddingModelsResponse",
@@ -571,6 +576,7 @@ __all__ = (
     "MemoryImported",
     "MemoryRemoved",
     "MemorySearchResultView",
+    "MemoryWiped",
     "MessageDto",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
@@ -585,8 +591,10 @@ __all__ = (
     "OkResponse",
     "OnboardingDismissed",
     "OnboardingFinalized",
+    "OnboardingMarked",
     "OnboardingPhase",
     "OnboardingProfileBody",
+    "OnboardingReset",
     "OnboardingState",
     "OnboardingStats",
     "PackageErrorBody",

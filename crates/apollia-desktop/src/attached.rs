@@ -181,6 +181,15 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "resume_onboarding",
     "set_onboarding_profile",
     "trigger_onboarding",
+    // Resets and erasures, over `/api/v1/onboarding/*`, `/api/v1/memory/wipe`,
+    // `/api/v1/logs/clear` and `/api/v1/factory-reset`. The flag, the memory,
+    // the logs and the data directory they erase are the daemon's: the
+    // window's process writes none of them.
+    "clear_all_memories",
+    "clear_logs",
+    "factory_reset",
+    "mark_onboarded",
+    "reset_onboarding",
     // Permissions: the rules the onboarding agent proposed, a rule written
     // from an approval card, and the answer to a request to touch a file.
     "add_permission_prefix_rule",
