@@ -12,15 +12,13 @@
 //! no runtime path ever read it.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use apollia_permissions::{
     PermissionAuditLog, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
 };
 use apollia_runtime::embedded::RuntimeHandle;
-use apollia_tools::{
-    GovernanceDb, NativeToolRegistry, ToolCredentialStore, GOVERNANCE_DB_FILENAME,
-};
+use apollia_tools::{GovernanceDb, NativeToolRegistry, ToolCredentialStore};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -148,13 +146,6 @@ fn keyfile_path_for(base_dir: &Path) -> PathBuf {
     base_dir.join(KEYFILE_NAME)
 }
 
-fn current_unix_secs() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
-
 fn iso8601(secs: i64) -> String {
     chrono::DateTime::<chrono::Utc>::from_timestamp(secs, 0)
         .map(|dt| dt.to_rfc3339())
@@ -194,39 +185,6 @@ fn rule_to_dto(rule: &PrefixRule) -> PermissionRuleDto {
         created_at: iso8601(rule.created_at),
         created_by: rule.created_by_agent.clone(),
     }
-}
-
-/// Persists a scope-aware rule in `governance.db`.
-// REASON: internal helper persisting one scoped rule; the arguments are that rule's columns.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn persist_scoped_rule(
-    base_dir: &Path,
-    tool_name: String,
-    arg_prefix: Option<String>,
-    action: RuleAction,
-    scope: PermissionScope,
-    agent_id: Option<String>,
-) -> Result<i64, String> {
-    let _migrate = GovernanceDb::open(base_dir)
-        .map_err(|e| format!("failed to open governance database: {e}"))?;
-    let db_path = base_dir.join(GOVERNANCE_DB_FILENAME);
-
-    let mut engine = PrefixRuleEngine::new(&db_path)
-        .map_err(|e| format!("failed to open prefix rule engine: {e}"))?;
-
-    let rule = PrefixRule {
-        tool_name,
-        arg_prefix,
-        action,
-        created_at: current_unix_secs(),
-        scope,
-        agent_id,
-        ..PrefixRule::default()
-    };
-
-    engine
-        .add_rule(&rule)
-        .map_err(|e| format!("failed to persist prefix rule: {e}"))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -696,8 +654,31 @@ pub async fn governance_list_audit(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use apollia_tools::GOVERNANCE_DB_FILENAME;
     use tempfile::TempDir;
+
+    use super::*;
+
+    // REASON: test fixture persisting one scoped rule; the arguments are that rule's columns.
+    #[allow(clippy::too_many_arguments)]
+    fn persist_scoped_rule(
+        base_dir: &Path,
+        tool_name: String,
+        arg_prefix: Option<String>,
+        action: RuleAction,
+        scope: PermissionScope,
+        agent_id: Option<String>,
+    ) -> Result<i64, String> {
+        let rule = PrefixRule {
+            tool_name,
+            arg_prefix,
+            action,
+            scope,
+            agent_id,
+            ..PrefixRule::default()
+        };
+        apollia_runtime::permission_rules::persist_rule(base_dir, &rule).map_err(|e| e.to_string())
+    }
 
     #[test]
     fn test_add_agent_rule_persisted_with_agent() {

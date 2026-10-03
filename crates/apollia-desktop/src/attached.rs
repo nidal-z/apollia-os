@@ -50,6 +50,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chats_by_project",
     "rename_chat_session",
     "update_chat_session",
+    // The chat: a turn played again, a decision on a tool call, the history
+    // of those decisions, and the skills of the worker agents.
+    "authorize_chat_tool",
+    "edit_and_resend_chat_message",
+    "list_a2a_skills",
+    "list_chat_approval_history",
+    "regenerate_chat_response",
     // Agents: the registry and the install.
     "agent_status_snapshot",
     "install_agent",
@@ -131,6 +138,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_profile",
     "reset_user_profile",
     "set_profile_entry",
+    // Memory, read side: the namespaces, their entries, the search, the
+    // entries recalled during a turn, the statistics of a conversation.
+    "get_conversation_stats",
+    "get_injected_memory_entries",
+    "list_memory_entries",
+    "list_memory_namespaces",
+    "search_memory",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
@@ -152,6 +166,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "factory_reset",
     "mark_onboarded",
     "reset_onboarding",
+    // Permissions: the rules the onboarding agent proposed, a rule written
+    // from an approval card, and the answer to a request to touch a file.
+    "add_permission_prefix_rule",
+    "apply_proposed_permission_rule",
+    "dismiss_proposed_permission_rule",
+    "list_proposed_permission_rules",
+    "respond_hitl_filesystem",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

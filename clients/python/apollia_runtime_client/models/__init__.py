@@ -10,7 +10,9 @@ from .a2a_skill_dto import A2ASkillDto
 from .a2a_skill_dto_input_schema_type_0 import A2ASkillDtoInputSchemaType0
 from .a2a_skills_response import A2ASkillsResponse
 from .access_preview import AccessPreview
+from .add_permission_rule_body import AddPermissionRuleBody
 from .added_access import AddedAccess
+from .added_permission_rule import AddedPermissionRule
 from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
 from .agent_message_dto_payload import AgentMessageDtoPayload
@@ -25,6 +27,7 @@ from .agent_skill_view import AgentSkillView
 from .answer_user_input_request import AnswerUserInputRequest
 from .answer_user_input_request_answers_item import AnswerUserInputRequestAnswersItem
 from .api_error_body import ApiErrorBody
+from .applied_proposal import AppliedProposal
 from .audit_event_response import AuditEventResponse
 from .audit_journal_page_response import AuditJournalPageResponse
 from .audit_journal_page_response_entries_item import AuditJournalPageResponseEntriesItem
@@ -51,6 +54,7 @@ from .brought_server_preview import BroughtServerPreview
 from .channel_delete_response import ChannelDeleteResponse
 from .channel_response import ChannelResponse
 from .channel_response_config import ChannelResponseConfig
+from .chat_approval_history_entry import ChatApprovalHistoryEntry
 from .chat_request import ChatRequest
 from .chat_request_schema_type_0 import ChatRequestSchemaType0
 from .chat_response import ChatResponse
@@ -67,6 +71,7 @@ from .connection_kind import ConnectionKind
 from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
+from .conversation_stats_view import ConversationStatsView
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
@@ -94,6 +99,7 @@ from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
 from .directory_removed import DirectoryRemoved
+from .dismissed_proposal import DismissedProposal
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
@@ -112,6 +118,14 @@ from .events_response import EventsResponse
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
+from .fs_hitl_decision_body_type_0 import FsHitlDecisionBodyType0
+from .fs_hitl_decision_body_type_0_decision import FsHitlDecisionBodyType0Decision
+from .fs_hitl_decision_body_type_1 import FsHitlDecisionBodyType1
+from .fs_hitl_decision_body_type_1_decision import FsHitlDecisionBodyType1Decision
+from .fs_hitl_decision_body_type_2 import FsHitlDecisionBodyType2
+from .fs_hitl_decision_body_type_2_decision import FsHitlDecisionBodyType2Decision
+from .fs_hitl_decision_body_type_3 import FsHitlDecisionBodyType3
+from .fs_hitl_decision_body_type_3_decision import FsHitlDecisionBodyType3Decision
 from .generate_title_body import GenerateTitleBody
 from .generated_title import GeneratedTitle
 from .get_model_card_response_200 import GetModelCardResponse200
@@ -126,6 +140,7 @@ from .import_memory_body_content import ImportMemoryBodyContent
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
+from .injected_memory_entry_view import InjectedMemoryEntryView
 from .install_agent_request import InstallAgentRequest
 from .install_agent_response import InstallAgentResponse
 from .install_refusal_type_0 import InstallRefusalType0
@@ -155,8 +170,10 @@ from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
 from .memory_entry_deleted import MemoryEntryDeleted
+from .memory_entry_view import MemoryEntryView
 from .memory_imported import MemoryImported
 from .memory_removed import MemoryRemoved
+from .memory_search_result_view import MemorySearchResultView
 from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
 from .model_cards_response import ModelCardsResponse
@@ -195,6 +212,7 @@ from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
 from .profile_entry_view import ProfileEntryView
 from .profile_reset import ProfileReset
+from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
@@ -204,6 +222,7 @@ from .reload_router_response import ReloadRouterResponse
 from .reload_router_response_backends_item import ReloadRouterResponseBackendsItem
 from .rename_session_body import RenameSessionBody
 from .required_connection_preview import RequiredConnectionPreview
+from .resend_message_request import ResendMessageRequest
 from .reset_response import ResetResponse
 from .resilience_status_response import ResilienceStatusResponse
 from .resilience_status_response_circuit_breakers_item import (
@@ -212,6 +231,7 @@ from .resilience_status_response_circuit_breakers_item import (
 from .resolved_agent_response import ResolvedAgentResponse
 from .resolved_agent_response_definition import ResolvedAgentResponseDefinition
 from .resolved_approval_response import ResolvedApprovalResponse
+from .resolved_filesystem_approval import ResolvedFilesystemApproval
 from .resume_error_body import ResumeErrorBody
 from .resume_request import ResumeRequest
 from .resume_response import ResumeResponse
@@ -338,6 +358,8 @@ __all__ = (
     "A2ASkillsResponse",
     "AccessPreview",
     "AddedAccess",
+    "AddedPermissionRule",
+    "AddPermissionRuleBody",
     "AgentListResponse",
     "AgentMessageDto",
     "AgentMessageDtoPayload",
@@ -352,6 +374,7 @@ __all__ = (
     "AnswerUserInputRequest",
     "AnswerUserInputRequestAnswersItem",
     "ApiErrorBody",
+    "AppliedProposal",
     "AuditEventResponse",
     "AuditJournalPageResponse",
     "AuditJournalPageResponseEntriesItem",
@@ -378,6 +401,7 @@ __all__ = (
     "ChannelDeleteResponse",
     "ChannelResponse",
     "ChannelResponseConfig",
+    "ChatApprovalHistoryEntry",
     "ChatRequest",
     "ChatRequestSchemaType0",
     "ChatResponse",
@@ -394,6 +418,7 @@ __all__ = (
     "ConnectionState",
     "ConnectionTool",
     "ConnectorAccountResponse",
+    "ConversationStatsView",
     "CostsResponse",
     "CostSummaryRow",
     "CountedLanguageModel",
@@ -421,6 +446,7 @@ __all__ = (
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
     "DirectoryRemoved",
+    "DismissedProposal",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
@@ -439,6 +465,14 @@ __all__ = (
     "ExportMemoryNamespaceResponse200",
     "FireResponse",
     "ForkSessionRequest",
+    "FsHitlDecisionBodyType0",
+    "FsHitlDecisionBodyType0Decision",
+    "FsHitlDecisionBodyType1",
+    "FsHitlDecisionBodyType1Decision",
+    "FsHitlDecisionBodyType2",
+    "FsHitlDecisionBodyType2Decision",
+    "FsHitlDecisionBodyType3",
+    "FsHitlDecisionBodyType3Decision",
     "GeneratedTitle",
     "GenerateTitleBody",
     "GetModelCardResponse200",
@@ -450,6 +484,7 @@ __all__ = (
     "ImapErrorBody",
     "ImportMemoryBody",
     "ImportMemoryBodyContent",
+    "InjectedMemoryEntryView",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",
@@ -482,8 +517,10 @@ __all__ = (
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MemoryEntryDeleted",
+    "MemoryEntryView",
     "MemoryImported",
     "MemoryRemoved",
+    "MemorySearchResultView",
     "MemoryWiped",
     "MessageDto",
     "ModelCardsResponse",
@@ -522,6 +559,7 @@ __all__ = (
     "PresetsListResponse",
     "ProfileEntryView",
     "ProfileReset",
+    "ProposedRuleView",
     "PurgeMemoryBody",
     "PutMcpSecretBody",
     "ReadmeResponse",
@@ -531,12 +569,14 @@ __all__ = (
     "ReloadRouterResponseBackendsItem",
     "RenameSessionBody",
     "RequiredConnectionPreview",
+    "ResendMessageRequest",
     "ResetResponse",
     "ResilienceStatusResponse",
     "ResilienceStatusResponseCircuitBreakersItem",
     "ResolvedAgentResponse",
     "ResolvedAgentResponseDefinition",
     "ResolvedApprovalResponse",
+    "ResolvedFilesystemApproval",
     "ResumeErrorBody",
     "ResumeRequest",
     "ResumeResponse",
