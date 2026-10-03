@@ -360,6 +360,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/artifacts`: stores a new artifact, or returns the one its
+         *     source message already has.
+         */
+        post: operations["save_artifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/artifacts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/artifacts/{id}`: removes an artifact; one already gone
+         *     answers the same.
+         */
+        delete: operations["delete_artifact"];
+        options?: never;
+        head?: never;
+        /** `PATCH /api/v1/artifacts/{id}`: replaces the title and/or the content. */
+        patch: operations["update_artifact"];
+        trace?: never;
+    };
+    "/api/v1/assists/automation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/assists/automation`: parses an automation described in
+         *     words into a schedule, an agent and a payload, with its ambiguities.
+         */
+        post: operations["parse_automation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assists/coaching": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/assists/coaching`: examples to try a connector just added. */
+        post: operations["coach_connector"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assists/next-steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/assists/next-steps`: up to three next steps cards, drawn by
+         *     the daemon's default model or by the heuristic.
+         */
+        post: operations["generate_next_steps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assists/rewrite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/assists/rewrite`: rewrites a terse prompt with the daemon's
+         *     default model, or returns it unchanged with the reason.
+         */
+        post: operations["rewrite_prompt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -1870,6 +1988,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/mailbox/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/mailbox/messages`: the most recent inter-agent messages. */
+        get: operations["list_mailbox_messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mailbox/stream": {
         parameters: {
             query?: never;
@@ -2645,6 +2780,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/observability/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/observability/timeline`: the global timeline of a window. */
+        get: operations["get_global_timeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/onboarding": {
         parameters: {
             query?: never;
@@ -3258,6 +3410,26 @@ export interface paths {
         head?: never;
         /** Handler for `PATCH /api/v1/sessions/{id}`, change the configuration. */
         patch: operations["update_session"];
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sessions/{id}/artifacts`: the artifacts of a session, most
+         *     recent first.
+         */
+        get: operations["list_artifacts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/sessions/{id}/authorize": {
@@ -4779,6 +4951,29 @@ export interface components {
              */
             rule_id: number;
         };
+        /** @description One artifact, as the chat draws it. */
+        Artifact: {
+            /** @description Full textual content. */
+            content: string;
+            /** @description ISO 8601 creation timestamp. */
+            created_at: string;
+            /** @description UUID v4 identifier. */
+            id: string;
+            /** @description Kind bucket: `"code"`, `"file"`, `"spec"`, `"bash_output"`, `"other"`. */
+            kind: string;
+            /** @description Detected or declared language (e.g. `"rust"`, `"markdown"`). */
+            language?: string | null;
+            /** @description Owning chat session identifier. */
+            session_id: string;
+            /** @description Source message identifier (absent for a manual creation). */
+            source_message_id?: string | null;
+            /** @description Source tool name (e.g. `"file_write"`, `"bash_executor"`). */
+            source_tool?: string | null;
+            /** @description Human-readable title (path, heading, short description). */
+            title: string;
+            /** @description ISO 8601 last-update timestamp. */
+            updated_at: string;
+        };
         /** @description Entry in the immutable audit log of permission decisions. */
         AuditEntryDto: {
             /** @description Name of the agent behind the invocation, if provided. */
@@ -5169,6 +5364,22 @@ export interface components {
              */
             memoryType?: string | null;
         };
+        /** @description One coaching example shown as a clickable card in the wizard's last step. */
+        CoachingExample: {
+            /** @description One-line description shown under the title. */
+            description: string;
+            /** @description Pre-filled chat message sent when the user clicks "Try". */
+            prompt: string;
+            /** @description Short actionable title (e.g. "Summarise my latest Notion page"). */
+            title: string;
+        };
+        /** @description The connector just added. */
+        CoachingRequest: {
+            /** @description The server name, matched against well-known connectors. */
+            serverName: string;
+            /** @description The title shown to the operator, the name when absent. */
+            serverTitle?: string | null;
+        };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
             /** @description The authorization `code` the provider returned. */
@@ -5520,6 +5731,11 @@ export interface components {
             /** @description Name of the deleted server. */
             deleted: string;
         };
+        /** @description Answer of `DELETE /api/v1/artifacts/{id}`. */
+        DeletedArtifact: {
+            /** @description The identifier removed. */
+            deleted: string;
+        };
         /** @description Answer of `DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`. */
         DeletedCredential: {
             /** @description Whether a value was there to remove. */
@@ -5732,6 +5948,17 @@ export interface components {
         GeneratedTitle: {
             /** @description The title stored on the session. */
             title: string;
+        };
+        /** @description Global timeline event for display. */
+        GlobalTimelineEvent: {
+            /** @description Expandable JSON details. */
+            detail: Record<string, never>;
+            /** @description Event type: task, tool, llm, trigger, hitl, memory, error. */
+            event_type: string;
+            /** @description Event summary. */
+            summary: string;
+            /** @description ISO 8601 timestamp. */
+            timestamp: string;
         };
         HardwareResponse: {
             accelerator: Record<string, never>;
@@ -6154,6 +6381,21 @@ export interface components {
             /** @description History entries. */
             entries: Record<string, never>[];
         };
+        /** @description One inter-agent mailbox message, projected for the observability view. */
+        MailboxMessageRow: {
+            /** @description Sending agent name (or `host:<id>` for a host injection). */
+            from_agent: string;
+            /** @description Stable message identifier (primary key). */
+            message_id: string;
+            /** @description Raw JSON payload as stored, rendered verbatim in the UI. */
+            payload: string;
+            /** @description Send timestamp (RFC 3339). */
+            sent_at: string;
+            /** @description Delivery state: `pending` or `in_flight`. */
+            state: string;
+            /** @description Receiving agent name. */
+            to_agent: string;
+        };
         /** @description Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`. */
         MemoryEntryDeleted: {
             /** @description Whether an entry had this identifier. */
@@ -6270,6 +6512,13 @@ export interface components {
         ModelsListResponse: {
             /** @description Available model files in `~/.apollia/models/`. */
             models: components["schemas"]["ModelInfo"][];
+        };
+        /** @description Up to three next steps cards, and whether a model wrote them. */
+        NextStepsReply: {
+            /** @description `false` when the heuristic wrote them. */
+            fromLlm: boolean;
+            /** @description The cards, in display order. */
+            steps: Record<string, never>[];
         };
         /**
          * @description One provider's OAuth client, as the settings draw it.
@@ -6505,6 +6754,13 @@ export interface components {
         PackagePreviewRequest: {
             /** @description Path of the `.apo` file on this machine. */
             path: string;
+        };
+        /** @description An automation described in words, and the agents the window knows. */
+        ParseAutomationRequest: {
+            /** @description Free-form text entered by the operator. */
+            input: string;
+            /** @description Identifiers or names of the agents known on the window side. */
+            known_agents?: string[];
         };
         /**
          * @description One pending HITL approval entry.
@@ -6927,6 +7183,37 @@ export interface components {
              * @description How many rules were removed.
              */
             removed: number;
+        };
+        /**
+         * @description Why no rewrite happened, as the composer receives it.
+         *
+         *     Mirrors [`RewriteFallback`] and adds the one situation this layer owns:
+         *     no router is mounted at all, which the crate below cannot observe.
+         * @enum {string}
+         */
+        RewriteFallbackReason: "noRouter" | "noBackend" | "callFailed" | "emptyAnswer";
+        /** @description The rewritten prompt, or the original one with the reason it came back. */
+        RewriteReply: {
+            fallback?: null | components["schemas"]["RewriteFallbackReason"];
+            /** @description The text to put back in the composer. */
+            rewrittenText: string;
+        };
+        /** @description A new artifact, as the chat captures it. */
+        SaveArtifactRequest: {
+            /** @description Full artifact content. */
+            content: string;
+            /** @description Classification bucket. */
+            kind: string;
+            /** @description Detected or declared language. */
+            language?: string | null;
+            /** @description Owning session. */
+            session_id: string;
+            /** @description Source message identifier, set when detected from a tool call. */
+            source_message_id?: string | null;
+            /** @description Source tool (if emitted by a tool call). */
+            source_tool?: string | null;
+            /** @description Human-readable title. */
+            title: string;
         };
         /** @description Request body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageRequest: {
@@ -7756,6 +8043,13 @@ export interface components {
              *     context windows.
              */
             stopped: number;
+        };
+        /** @description The fields of an artifact a change may replace; an absent one is kept. */
+        UpdateArtifactRequest: {
+            /** @description New content. */
+            content?: string | null;
+            /** @description New title. */
+            title?: string | null;
         };
         /**
          * @description Request body for `PUT /api/v1/notifications/channels/:id`.
@@ -8800,6 +9094,242 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
+            };
+        };
+    };
+    save_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveArtifactRequest"];
+            };
+        };
+        responses: {
+            /** @description The artifact as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"];
+                };
+            };
+            /** @description The artifacts store could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The artifact is gone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedArtifact"];
+                };
+            };
+            /** @description The artifacts store could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    update_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Artifact identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateArtifactRequest"];
+            };
+        };
+        responses: {
+            /** @description The artifact as changed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"];
+                };
+            };
+            /** @description No artifact has this identifier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The artifacts store could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    parse_automation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ParseAutomationRequest"];
+            };
+        };
+        responses: {
+            /** @description The parsed automation, ambiguities included */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The body is not an automation description */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    coach_connector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachingRequest"];
+            };
+        };
+        responses: {
+            /** @description One to three example cards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachingExample"][];
+                };
+            };
+            /** @description The body names no server */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    generate_next_steps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description `context`, `mode` and the `facts` the window computed, each optional */
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The cards, and whether a model wrote them */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextStepsReply"];
+                };
+            };
+            /** @description The body is not a next steps request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    rewrite_prompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description `originalText`, and the optional `workContext` of the user profile */
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The rewritten text, or the original one and why */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RewriteReply"];
+                };
+            };
+            /** @description The body is not a rewrite request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -12538,6 +13068,47 @@ export interface operations {
             };
         };
     };
+    list_mailbox_messages: {
+        parameters: {
+            query?: {
+                /** @description Maximum rows (default 100, capped at 1000; 0 is refused) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mailbox rows, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxMessageRow"][];
+                };
+            };
+            /** @description A limit of 0 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The store could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     stream_mailbox: {
         parameters: {
             query?: never;
@@ -14160,6 +14731,47 @@ export interface operations {
             };
         };
     };
+    get_global_timeline: {
+        parameters: {
+            query: {
+                /** @description Trailing window in minutes, from 1 to 10080 */
+                window_minutes: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Events of the window, most recent first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobalTimelineEvent"][];
+                };
+            };
+            /** @description Window missing or out of range */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The scan failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     get_onboarding_state: {
         parameters: {
             query?: never;
@@ -15560,6 +16172,38 @@ export interface operations {
             };
             /** @description Chat subsystem unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_artifacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chat session identifier */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The artifacts of the session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Artifact"][];
+                };
+            };
+            /** @description The artifacts store could not be read */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

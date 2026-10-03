@@ -1,12 +1,11 @@
 //! The audit tab: the tool invocations recorded in the journal, the daily LLM
 //! cost breakdown, the journal's own integrity check, and the hooks in force.
 
+use std::collections::HashMap;
+
 use crate::attached::RuntimeLink;
-use apollia_runtime::embedded::RuntimeHandle;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-
-use crate::commands::http_get_json;
 
 // ---------------------------------------------------------------------------
 // Audit Trail
@@ -44,71 +43,69 @@ pub struct AuditTrailEntry {
 /// display in the AuditTrail table.
 #[tauri::command]
 pub async fn get_tool_audit_trail(
-    state: State<'_, RuntimeHandle>,
+    state: State<'_, RuntimeLink>,
     limit: Option<u32>,
 ) -> Result<Vec<AuditTrailEntry>, String> {
-    let l = limit.unwrap_or(50);
-    let path = format!("/api/v1/audit?limit={l}");
-    let json = http_get_json(state.api_port, &path).await?;
+    audit_trail_on(&state, limit.unwrap_or(50)).await
+}
 
-    let events = json
-        .get("events")
+/// The audit trail read on the runtime `link` drives, each agent named from
+/// `GET /api/v1/agents` so the UI shows "standup-scribe" instead of a raw
+/// UUID. An agent no longer registered keeps its UUID.
+pub(super) async fn audit_trail_on(
+    link: &RuntimeLink,
+    limit: u32,
+) -> Result<Vec<AuditTrailEntry>, String> {
+    let json = link
+        .get_json(&format!("/api/v1/audit?limit={limit}"))
+        .await?;
+    let agents = link.get_json("/api/v1/agents").await?;
+    let names: HashMap<&str, &str> = agents
+        .get("agents")
         .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default();
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|a| Some((a.get("agent_id")?.as_str()?, a.get("name")?.as_str()?)))
+        .collect();
 
-    // Resolve agent names asynchronously from the registry so the UI shows
-    // "standup-scribe" instead of a raw UUID. Falls back to the UUID when the
-    // agent is no longer registered (e.g. stopped between runs).
-    let mut entries: Vec<AuditTrailEntry> = Vec::with_capacity(events.len());
-    for e in events {
-        let agent_id = e
-            .get("agent_id")
+    let text = |e: &serde_json::Value, key: &str| {
+        e.get(key)
             .and_then(|v| v.as_str())
             .unwrap_or("")
-            .to_string();
-
-        let agent_name = state
-            .registry_handle
-            .get_agent(&agent_id)
-            .await
-            .ok()
-            .flatten()
-            .map(|entry| entry.manifest.name.clone())
-            .unwrap_or_else(|| agent_id.clone()); // agent_id is already String here
-
-        entries.push(AuditTrailEntry {
-            id: e
-                .get("id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            tool_name: e
-                .get("tool_name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            agent_id,
-            agent_name,
-            timestamp: e
-                .get("started_at")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string(),
-            duration_ms: e.get("duration_ms").and_then(|v| v.as_u64()),
-            exit_code: e
-                .get("exit_code")
-                .and_then(|v| v.as_i64())
-                .map(|v| v as i32),
-            args_json: e
-                .get("args_json")
-                .and_then(|v| v.as_str())
-                .map(String::from),
-            stdout: e.get("stdout").and_then(|v| v.as_str()).map(String::from),
-            stderr: e.get("stderr").and_then(|v| v.as_str()).map(String::from),
-        });
-    }
-
+            .to_string()
+    };
+    let entries = json
+        .get("events")
+        .and_then(|v| v.as_array())
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+        .iter()
+        .map(|e| {
+            let agent_id = text(e, "agent_id");
+            let agent_name = names
+                .get(agent_id.as_str())
+                .map_or_else(|| agent_id.clone(), |name| (*name).to_owned());
+            AuditTrailEntry {
+                id: text(e, "id"),
+                tool_name: text(e, "tool_name"),
+                agent_id,
+                agent_name,
+                timestamp: text(e, "started_at"),
+                duration_ms: e.get("duration_ms").and_then(|v| v.as_u64()),
+                exit_code: e
+                    .get("exit_code")
+                    .and_then(|v| v.as_i64())
+                    .map(|v| v as i32),
+                args_json: e
+                    .get("args_json")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                stdout: e.get("stdout").and_then(|v| v.as_str()).map(String::from),
+                stderr: e.get("stderr").and_then(|v| v.as_str()).map(String::from),
+            }
+        })
+        .collect();
     Ok(entries)
 }
 
