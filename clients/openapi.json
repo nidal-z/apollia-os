@@ -782,7 +782,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,\nits agents, their virtualenvs and its folder, best effort at each step.",
+        "summary": "`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package\non the path the command line and `POST /api/v1/packages/{name}/uninstall`\ntake: its agents with their overrides, model and triggers, its\nenvironments and its folder, recorded in the audit journal. The memory\nand the history of its agents are kept.",
         "operationId": "uninstall_agent_package",
         "parameters": [
           {
@@ -816,8 +816,18 @@
               }
             }
           },
+          "403": {
+            "description": "The package carries Apollia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Nothing of the package was found",
+            "description": "No such package",
             "content": {
               "application/json": {
                 "schema": {
@@ -827,7 +837,17 @@
             }
           },
           "500": {
-            "description": "agents.db cannot be opened",
+            "description": "Store or journal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal",
             "content": {
               "application/json": {
                 "schema": {
@@ -1040,6 +1060,99 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/installed/{name}/uninstall": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/agents/installed/{name}/uninstall`: uninstall an agent\ninstalled on its own.",
+        "description": "Removes the agent, its overrides, its model, its triggers, its\nenvironment and its files. Its memory and history are erased only when\nthe body asks. Apollia cannot be uninstalled; an agent of an installed\npackage goes with its package.",
+        "operationId": "uninstall_agent",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UninstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Uninstalled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UninstallReport"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Apollia cannot be uninstalled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The agent belongs to an installed package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store or journal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
                 }
               }
             }
@@ -9917,6 +10030,89 @@
           },
           "500": {
             "description": "The keyring cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/{name}/uninstall": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/packages/{name}/uninstall`: uninstall a package.",
+        "description": "Always removed: its agents with their overrides, model and triggers, its\nworkflows and tools, its environments and files, and the MCP servers it\nbrought. The connections it required stay. The memory and the history of\nits agents and workflows are erased only when the body asks.",
+        "operationId": "uninstall_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UninstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Uninstalled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UninstallReport"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The package carries Apollia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store or journal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal",
             "content": {
               "application/json": {
                 "schema": {
@@ -20884,7 +21080,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `journal_unavailable`, `internal`."
+            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `built_in`, `owned_by_package`,\n`journal_unavailable`, `internal`."
           },
           "error": {
             "type": "string",
@@ -24439,6 +24635,125 @@
               "$ref": "#/components/schemas/TurnLlmCall"
             },
             "description": "The calls, in the order they were made. Empty for a turn that made\nnone or that is unknown."
+          }
+        }
+      },
+      "UninstallReport": {
+        "type": "object",
+        "description": "What an uninstallation removed, and what it kept.",
+        "required": [
+          "name",
+          "version",
+          "agents",
+          "workflows",
+          "tools",
+          "triggersRemoved",
+          "mcpServersRemoved",
+          "connectionsKept",
+          "memoryCleared",
+          "historyCleared",
+          "tasksRemoved",
+          "batchesRemoved",
+          "workflowRunsRemoved",
+          "leftovers"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Agents removed."
+          },
+          "batchesRemoved": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Batches erased with the history.",
+            "minimum": 0
+          },
+          "connectionsKept": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Connections the package required, kept."
+          },
+          "historyCleared": {
+            "type": "boolean",
+            "description": "The history was erased."
+          },
+          "leftovers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What could not be removed, and why. The uninstallation goes on past\nsuch a step, so that the package can be installed again."
+          },
+          "mcpServersRemoved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MCP servers the package brought, removed."
+          },
+          "memoryCleared": {
+            "type": "boolean",
+            "description": "The memory of the agents was erased."
+          },
+          "name": {
+            "type": "string",
+            "description": "The package, or the agent uninstalled on its own."
+          },
+          "tasksRemoved": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Tasks erased with the history.",
+            "minimum": 0
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Python tools removed."
+          },
+          "triggersRemoved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Triggers removed."
+          },
+          "version": {
+            "type": "string",
+            "description": "The version removed."
+          },
+          "workflowRunsRemoved": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Workflow runs erased with the history.",
+            "minimum": 0
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Workflows removed."
+          }
+        }
+      },
+      "UninstallRequest": {
+        "type": "object",
+        "description": "Body of both uninstall routes: what the user chose to erase.",
+        "properties": {
+          "clearHistory": {
+            "type": "boolean",
+            "description": "Erase the history (tasks, batches, workflow runs) instead of keeping\nit."
+          },
+          "clearMemory": {
+            "type": "boolean",
+            "description": "Erase the memory of the agents instead of keeping it."
           }
         }
       },

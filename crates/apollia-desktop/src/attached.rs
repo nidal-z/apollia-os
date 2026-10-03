@@ -61,10 +61,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_a2a_skills",
     "list_chat_approval_history",
     "regenerate_chat_response",
-    // Agents: the registry and the install.
+    // Agents: the registry, the install and the uninstall of an agent.
     "agent_status_snapshot",
     "install_agent",
     "list_agents",
+    "uninstall_agent",
     // Tasks: the list, the launch, the detail, the cancellation.
     "cancel_task",
     "get_task_timeline",

@@ -445,6 +445,8 @@ from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
 from .turn_llm_call import TurnLlmCall
 from .turn_llm_calls_response import TurnLlmCallsResponse
+from .uninstall_report import UninstallReport
+from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
 from .update_artifact_request import UpdateArtifactRequest
@@ -915,6 +917,8 @@ __all__ = (
     "TrustKeyRequest",
     "TurnLlmCall",
     "TurnLlmCallsResponse",
+    "UninstallReport",
+    "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
     "UpdateArtifactRequest",

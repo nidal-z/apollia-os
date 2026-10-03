@@ -19,7 +19,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::agents::agent_status_snapshot,
         commands::agents::messages::list_agent_messages,
         commands::agents::lifecycle::install_agent,
-        commands::agents::lifecycle::uninstall_agent,
+        commands::agent_packages::uninstall::uninstall_agent,
         commands::agents::lifecycle::update_agent,
         commands::tasks::list_tasks,
         commands::tasks::submit_task,

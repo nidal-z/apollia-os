@@ -230,8 +230,11 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * `DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,
-         *     its agents, their virtualenvs and its folder, best effort at each step.
+         * `DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package
+         *     on the path the command line and `POST /api/v1/packages/{name}/uninstall`
+         *     take: its agents with their overrides, model and triggers, its
+         *     environments and its folder, recorded in the audit journal. The memory
+         *     and the history of its agents are kept.
          */
         delete: operations["uninstall_agent_package"];
         options?: never;
@@ -312,6 +315,30 @@ export interface paths {
          * @description Emits `RuntimeEvent::AgentInstalled` once the agent is recorded.
          */
         post: operations["install_agent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/installed/{name}/uninstall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/agents/installed/{name}/uninstall`: uninstall an agent
+         *     installed on its own.
+         * @description Removes the agent, its overrides, its model, its triggers, its
+         *     environment and its files. Its memory and history are erased only when
+         *     the body asks. Apollia cannot be uninstalled; an agent of an installed
+         *     package goes with its package.
+         */
+        post: operations["uninstall_agent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3411,6 +3438,29 @@ export interface paths {
          *     publisher key.
          */
         delete: operations["remove_trusted_key"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/{name}/uninstall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/{name}/uninstall`: uninstall a package.
+         * @description Always removed: its agents with their overrides, model and triggers, its
+         *     workflows and tools, its environments and files, and the MCP servers it
+         *     brought. The connections it required stay. The memory and the history of
+         *     its agents and workflows are erased only when the body asks.
+         */
+        post: operations["uninstall_package"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -7636,7 +7686,8 @@ export interface components {
              *     `publisher_not_trusted`, `downgrade`, `agent_taken`,
              *     `deps_confirmation_required`, `changes_confirmation_required`,
              *     `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
-             *     `policy_key`, `not_found`, `journal_unavailable`, `internal`.
+             *     `policy_key`, `not_found`, `built_in`, `owned_by_package`,
+             *     `journal_unavailable`, `internal`.
              */
             code: string;
             /** @description Human-readable description. */
@@ -9188,6 +9239,59 @@ export interface components {
              */
             calls: components["schemas"]["TurnLlmCall"][];
         };
+        /** @description What an uninstallation removed, and what it kept. */
+        UninstallReport: {
+            /** @description Agents removed. */
+            agents: string[];
+            /**
+             * Format: int64
+             * @description Batches erased with the history.
+             */
+            batchesRemoved: number;
+            /** @description Connections the package required, kept. */
+            connectionsKept: string[];
+            /** @description The history was erased. */
+            historyCleared: boolean;
+            /**
+             * @description What could not be removed, and why. The uninstallation goes on past
+             *     such a step, so that the package can be installed again.
+             */
+            leftovers: string[];
+            /** @description MCP servers the package brought, removed. */
+            mcpServersRemoved: string[];
+            /** @description The memory of the agents was erased. */
+            memoryCleared: boolean;
+            /** @description The package, or the agent uninstalled on its own. */
+            name: string;
+            /**
+             * Format: int64
+             * @description Tasks erased with the history.
+             */
+            tasksRemoved: number;
+            /** @description Python tools removed. */
+            tools: string[];
+            /** @description Triggers removed. */
+            triggersRemoved: string[];
+            /** @description The version removed. */
+            version: string;
+            /**
+             * Format: int64
+             * @description Workflow runs erased with the history.
+             */
+            workflowRunsRemoved: number;
+            /** @description Workflows removed. */
+            workflows: string[];
+        };
+        /** @description Body of both uninstall routes: what the user chose to erase. */
+        UninstallRequest: {
+            /**
+             * @description Erase the history (tasks, batches, workflow runs) instead of keeping
+             *     it.
+             */
+            clearHistory?: boolean;
+            /** @description Erase the memory of the agents instead of keeping it. */
+            clearMemory?: boolean;
+        };
         /** @description Request body for `POST /api/v1/llm/loaded-models/unload`. */
         UnloadModelRequest: {
             /** @description Path of the model to unload, as the list reports it. */
@@ -10131,7 +10235,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description Nothing of the package was found */
+            /** @description The package carries Apollia */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such package */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -10140,8 +10253,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description agents.db cannot be opened */
+            /** @description Store or journal failure */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10316,6 +10438,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    uninstall_agent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UninstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Uninstalled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UninstallReport"];
+                };
+            };
+            /** @description Apollia cannot be uninstalled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No such agent */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description The agent belongs to an installed package */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Store or journal failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
                 };
             };
         };
@@ -17497,6 +17691,69 @@ export interface operations {
             };
             /** @description The keyring cannot be written */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
+    uninstall_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UninstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Uninstalled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UninstallReport"];
+                };
+            };
+            /** @description The package carries Apollia */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No such package */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Store or journal failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

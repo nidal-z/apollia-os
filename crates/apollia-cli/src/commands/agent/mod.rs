@@ -1,8 +1,7 @@
 //! `apollia-os agent` subcommands: manage agents via the runtime API and local persistence.
 //!
-//! Provides `list`, `start`, `stop`, `show`, `set`, `reset`
-//! (runtime-dependent) and `install`, `uninstall`, `enable`, `disable`,
-//! `update` (local).
+//! Provides `list`, `start`, `stop`, `show`, `set`, `reset`, `uninstall`
+//! (runtime-dependent) and `install`, `enable`, `disable`, `update` (local).
 
 use std::path::{Path, PathBuf};
 
@@ -28,6 +27,7 @@ mod install;
 mod lifecycle;
 mod package;
 mod scaffold;
+mod uninstall;
 mod validate;
 
 #[cfg(test)]
@@ -47,10 +47,10 @@ pub(in crate::commands::agent) use lifecycle::{
     run_info, run_list, run_logs, run_messages, run_start, run_status, run_stop,
 };
 pub(in crate::commands::agent) use package::{
-    run_disable, run_enable, run_package_info, run_package_list, run_package_uninstall, run_repair,
-    run_uninstall, run_update,
+    run_disable, run_enable, run_package_info, run_package_list, run_repair, run_update,
 };
 pub(in crate::commands::agent) use scaffold::run_new;
+pub(in crate::commands::agent) use uninstall::{run_package_uninstall, run_uninstall, Erase};
 pub(in crate::commands::agent) use validate::run_validate;
 
 /// Agent subcommands: `apollia-os agent <verb>`.
@@ -163,10 +163,23 @@ pub enum AgentCommand {
         #[arg(long)]
         skip_tests: bool,
     },
-    /// Uninstall a permanently installed agent.
+    /// Uninstall an agent installed on its own, through the runtime.
+    ///
+    /// Removes its definition, its overrides, its model, its triggers, its
+    /// environment and its files. Its memory and its history are kept unless
+    /// asked otherwise. An agent of an installed package goes with its
+    /// package.
     Uninstall {
         /// Agent name (as declared in manifest).
         name: String,
+
+        /// Erase the agent's memory instead of keeping it.
+        #[arg(long)]
+        clear_memory: bool,
+
+        /// Erase the agent's history (tasks, batches) instead of keeping it.
+        #[arg(long)]
+        clear_history: bool,
 
         /// Skip the interactive confirmation prompt.
         #[arg(long)]
@@ -243,10 +256,24 @@ pub enum PackageCommand {
         /// Package name.
         name: String,
     },
-    /// Uninstall a package and all its agents and triggers.
+    /// Uninstall a package and everything it installed, through the runtime.
+    ///
+    /// Removes its agents with their overrides, models and triggers, its
+    /// workflows and tools, its environments, its files and the MCP servers it
+    /// brought; the connections it required stay. The memory and the history
+    /// of its agents are kept unless asked otherwise.
     Uninstall {
         /// Package name.
         name: String,
+
+        /// Erase the memory of its agents instead of keeping it.
+        #[arg(long)]
+        clear_memory: bool,
+
+        /// Erase the history of its agents and workflows (tasks, batches,
+        /// workflow runs) instead of keeping it.
+        #[arg(long)]
+        clear_history: bool,
 
         /// Skip the interactive confirmation prompt.
         #[arg(long)]
@@ -299,7 +326,18 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         AgentCommand::Install { source, skip_tests } => {
             run_install(source, &client, json, *skip_tests).await
         }
-        AgentCommand::Uninstall { name, confirm } => run_uninstall(name, *confirm, json),
+        AgentCommand::Uninstall {
+            name,
+            clear_memory,
+            clear_history,
+            confirm,
+        } => {
+            let erase = Erase {
+                memory: *clear_memory,
+                history: *clear_history,
+            };
+            run_uninstall(&client, name, erase, *confirm, json).await
+        }
         AgentCommand::Enable { name } => run_enable(&client, name, json).await,
         AgentCommand::Disable { name } => run_disable(&client, name, json).await,
         AgentCommand::Update { name, path } => run_update(name, path, json),
@@ -307,8 +345,17 @@ pub async fn run(cmd: &AgentCommand, socket: Option<PathBuf>, json: bool) -> i32
         AgentCommand::Package { cmd } => match cmd {
             PackageCommand::List => run_package_list(json),
             PackageCommand::Show { name } => run_package_info(name, json),
-            PackageCommand::Uninstall { name, confirm } => {
-                run_package_uninstall(name, *confirm, json).await
+            PackageCommand::Uninstall {
+                name,
+                clear_memory,
+                clear_history,
+                confirm,
+            } => {
+                let erase = Erase {
+                    memory: *clear_memory,
+                    history: *clear_history,
+                };
+                run_package_uninstall(&client, name, erase, *confirm, json).await
             }
         },
         AgentCommand::Logs {
