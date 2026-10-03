@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{validate_bounds, ConfigError};
 use crate::budget::StepBudgetConfig;
@@ -20,7 +20,8 @@ use crate::budget::StepBudgetConfig;
 /// max_tool_calls = 400
 /// wall_clock_secs = 3600
 /// ```
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WorkflowsConfig {
     /// Steps a run may take, its own declared steps and the loop steps of the
     /// agents it runs together. Default: 200. Bounds: [1, 100000].

@@ -3,104 +3,45 @@
 //! A file written for an earlier version may still carry one. Refusing it
 //! would stop the daemon over a setting that no longer does anything, and
 //! dropping it in silence would leave the operator believing it still works.
-//! Each loader therefore accepts it and calls [`warn_retired_keys`], which
-//! emits one `config.key.retired` warning per key found.
+//! The list is the withdrawn entries of the key registry
+//! ([`keys`](super::keys)); [`validate`](super::validate) sets them aside and
+//! calls [`warn_retired_keys`], which emits one `config.key.retired` warning
+//! per key found.
 
-/// A key path that a loader accepts and ignores, with what replaces it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RetiredKey {
-    /// Dotted path of the key or table, from the root of the file
-    /// (`"llm.vertex"` stands for the `[llm.vertex]` table and every key under
-    /// it).
-    pub path: &'static str,
-    /// What the operator does instead, shown in the warning.
-    pub detail: &'static str,
-}
+use super::keys::{withdrawn_keys, ConfigKey};
+use super::scan::{covers, scan, LineKind};
 
-/// Every retired key, in the order a warning is emitted.
-pub const RETIRED_KEYS: &[RetiredKey] = &[RetiredKey {
-    path: "llm.vertex",
-    detail: "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead",
-}];
-
-/// Returns the retired keys present in `content`, in [`RETIRED_KEYS`] order.
+/// Returns the withdrawn keys present in `content`, in registry order.
 ///
 /// Reads table headers (`[llm.vertex]`, `[llm.vertex.extra]`), dotted keys
 /// (`vertex.enabled = true` under `[llm]`) and inline tables
 /// (`vertex = { ... }` under `[llm]`). The scan is line-based and never fails:
-/// a malformed file is reported by the loader that deserializes it.
-pub fn retired_keys_in(content: &str) -> Vec<&'static RetiredKey> {
-    let paths = key_paths(content);
-    RETIRED_KEYS
-        .iter()
+/// a malformed file is reported by the deserializer.
+pub(crate) fn retired_keys_in(content: &str) -> Vec<&'static ConfigKey> {
+    let paths: Vec<String> = scan(content)
+        .into_iter()
+        .filter(|line| line.kind != LineKind::Other)
+        .map(|line| line.path)
+        .collect();
+    withdrawn_keys()
         .filter(|retired| paths.iter().any(|p| covers(retired.path, p)))
         .collect()
 }
 
-/// Emits a `config.key.retired` warning for each retired key in `content`
+/// Emits a `config.key.retired` warning for each withdrawn key in `content`
 /// and returns their paths.
-pub fn warn_retired_keys(content: &str) -> Vec<&'static str> {
+pub(crate) fn warn_retired_keys(content: &str) -> Vec<&'static str> {
     retired_keys_in(content)
         .into_iter()
         .map(|retired| {
             tracing::warn!(
                 key = %retired.path,
-                detail = %retired.detail,
+                detail = %retired.withdrawn.unwrap_or_default(),
                 "config.key.retired"
             );
             retired.path
         })
         .collect()
-}
-
-/// `true` when `path` is `retired` itself or lies under it.
-fn covers(retired: &str, path: &str) -> bool {
-    path == retired
-        || path
-            .strip_prefix(retired)
-            .is_some_and(|rest| rest.starts_with('.'))
-}
-
-/// Every table header and every key of `content`, as dotted paths from the root.
-fn key_paths(content: &str) -> Vec<String> {
-    let mut paths = Vec::new();
-    let mut table = String::new();
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        if let Some(header) = line.strip_prefix('[') {
-            let header = header.trim_start_matches('[');
-            let Some(end) = header.find(']') else {
-                continue;
-            };
-            table = normalize(&header[..end]);
-            paths.push(table.clone());
-            continue;
-        }
-        let Some(eq) = line.find('=') else {
-            continue;
-        };
-        let key = normalize(&line[..eq]);
-        if key.is_empty() {
-            continue;
-        }
-        if table.is_empty() {
-            paths.push(key);
-        } else {
-            paths.push(format!("{table}.{key}"));
-        }
-    }
-    paths
-}
-
-/// Strips spaces and quotes around each segment of a dotted key.
-fn normalize(raw: &str) -> String {
-    raw.split('.')
-        .map(|segment| segment.trim().trim_matches('"').trim_matches('\''))
-        .collect::<Vec<_>>()
-        .join(".")
 }
 
 #[cfg(test)]

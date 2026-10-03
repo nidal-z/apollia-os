@@ -26,6 +26,7 @@ use super::ConfigError;
 /// A key a loader ignores is still parsed and validated, then dropped. Setting
 /// one is silent, not an error.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ApiConfig {
     /// IP address to bind the TCP listener to.
     ///

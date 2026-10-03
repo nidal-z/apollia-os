@@ -7,26 +7,42 @@ title: Configuration (apollia.toml)
 
 Reference for the `apollia.toml` configuration surface.
 
-The file has three locations, and the two runtimes do not search the same ones.
+The file has one location, `~/.apollia/apollia.toml`, and every surface reads
+and writes that one: the daemon started by `apollia-os start`, the desktop
+application, and every command that touches the configuration
+(`apollia-os config`, `apollia-os llm costs`, `apollia-os tools config`,
+`apollia-os doctor`).
+A key set by one of them is the key the others read.
 
-| Reader | Search order, first match wins |
+Only a path given explicitly replaces it:
+
+| Command | Option |
 | --- | --- |
-| The daemon, started by `apollia-os start` | `./apollia.toml`, then `$XDG_CONFIG_HOME/apollia/apollia.toml`, falling back to `~/.config/apollia/apollia.toml` |
-| The desktop application | `~/.apollia/apollia.toml`, then `./apollia.toml`. The `~/.config` location is never read, deliberately: a copy forgotten there would resurrect backends on a fresh profile |
+| `apollia-os start` | `--config <PATH>`. The file must exist, or the start fails |
+| `apollia-os config get`, `set`, `show`, `validate`, `edit` | `--file <PATH>` |
+| `apollia-os llm costs` | `--config <PATH>` |
 
-The command line writes to both, depending on the subcommand. `apollia-os config
-set` writes the daemon's file; `apollia-os llm costs --threshold 25` writes
-`~/.apollia/apollia.toml`, which only the desktop application reads. Check which
-file you edited before concluding that a key had no effect.
+The working directory is not searched: an agent package keeps its manifest under
+the same name, `apollia.toml`, and starting the daemon in a package folder does
+not read it. A file left at a former location (`./apollia.toml`,
+`$XDG_CONFIG_HOME/apollia/apollia.toml`, `~/.config/apollia/apollia.toml`) is
+never read nor imported. The daemon logs a `config.legacy_location.ignored`
+warning for it at startup, and `apollia-os doctor` names it with the command
+that moves it to `~/.apollia/apollia.toml`.
 
 Every section is optional: an absent section falls back to its defaults. Runtime
 data (databases, the API token, models) lives separately under `~/.apollia/`.
 
 ## Sections
 
-Ten sections are read. A section outside this list is ignored, and
-`apollia-os config set` rejects it rather than accepting a value nothing will
-ever consult.
+The file is read strictly, by the same validation everywhere. A key that no
+section declares, or a value of the wrong type, is a fault named at its line:
+`apollia-os config validate` lists every fault, `apollia-os config set` refuses
+to write one, and `apollia-os start` refuses to start, with exit code 1. The
+desktop application starts on the default values instead, and logs each fault
+and records the refusal in the audit journal rather than dropping the file in
+silence. A withdrawn section (see below) is
+still accepted, with a `config.key.retired` warning.
 
 | Section | Purpose |
 |---|---|
@@ -95,12 +111,13 @@ LLM backends and routing.
 
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
+| `format_version` | `u32` | `1` | Version of this on-disk format. A file written before versioning has no key and reads as format 1; a future format bumps the default and the reader branches on the value it finds. |
 | `default` | `String` | **required** | Default backend name (must exist in `backends`). |
-| `backends` | `Vec<BackendConfig>` | **required** | Backends to instantiate from `[[llm.backends]]`. |
-| `observability` | `ObservabilityConfig` | type default | Observability settings (tokens, latency, cost, prompt debug). |
-| `routing` | `Option<LlmRoutingConfig>` | `None` | LLM routing by precision level (`[llm.routing]` section). |
+| `backends` | `Vec<LlmBackendEntry>` | **required** | Backends declared with `[[llm.backends]]`. |
+| `observability` | `LlmObservabilityConfig` | type default | Observability settings of the router (tokens, latency, cost, prompt debug). |
+| `routing` | `Option<LlmRoutingConfig>` | `None` | LLM routing by precision level (`[llm.routing]` section). Optional. |
 | `pricing_overrides` | `HashMap<String, PricingTier>` | empty | Operator pricing overrides (`[llm.pricing_overrides]` section), not applied by a running daemon: only `LlmRouter::from_config` passes them to a client, and the daemon instead builds its backends from `system.db` through `instantiate_cloud_backend`, which hands over an empty table. |
-| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which `RuntimeEvent::TokenBudgetUpdated` is emitted with `threshold_exceeded = true`. |
+| `cost_alert_threshold_usd` | `Option<f64>` | `None` | Cost threshold in USD above which `RuntimeEvent::TokenBudgetUpdated` is emitted with `threshold_exceeded = true`. `None` disables the alert. |
 | `runner` | `LlmRunnerConfig` | type default | Speech-to-text sidecar runner configuration (`[llm.runner]` section). |
 
 ### `[runtime]`
@@ -117,6 +134,7 @@ EventBus and mailbox capacities.
 | `mailbox_max_payload_bytes` | `usize` | `65_536` | Maximum serialized payload size of a mailbox message, in bytes. |
 | `mailbox_audit_full_payload` | `bool` | `false` | Whether the audit journal records the full message payload. |
 | `startup_timeout_secs` | `u64` | `300` | Runtime startup timeout in seconds. |
+| `agent_idle_unload_secs` | `u64` | `600` | How long an installed agent stays loaded after its last call, in seconds. |
 
 ### `[api]`
 

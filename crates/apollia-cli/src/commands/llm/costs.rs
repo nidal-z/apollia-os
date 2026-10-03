@@ -43,10 +43,9 @@ pub(super) async fn run_costs(
 
 /// Locates the `apollia.toml` the cost alert threshold lives in.
 ///
-/// Delegates to the runtime's own search order (`./apollia.toml`, then
-/// `$XDG_CONFIG_HOME/apollia/apollia.toml`). `~/.apollia/` holds the data files,
-/// not the configuration: a threshold written there is a threshold the router
-/// never loads.
+/// Delegates to the location every surface shares, `~/.apollia/apollia.toml`
+/// unless `--config` names another file, so the threshold is written where
+/// the router loads it.
 pub(super) fn resolve_apollia_toml(override_path: Option<&std::path::Path>) -> PathBuf {
     crate::commands::config::resolve_path(override_path)
 }
@@ -410,6 +409,11 @@ mod tests {
         assert_eq!(
             costs_path, runtime_path,
             "llm costs writes to a file the runtime never loads"
+        );
+        assert_eq!(
+            Some(costs_path),
+            apollia_core::paths::config_file(),
+            "llm costs writes outside the shared configuration file"
         );
     }
 

@@ -85,7 +85,7 @@ pub(super) fn emit_error(msg: String, json: bool) -> i32 {
 pub(super) fn load_tools_config(json: bool) -> ToolsConfig {
     match find_config_path() {
         Some(p) => match parse_apollia_toml(&p) {
-            Ok(c) => c.tools.unwrap_or_default(),
+            Ok(c) => c.tools,
             Err(e) => {
                 if !json {
                     eprintln!("Warning: apollia.toml unreadable ({e}) - using defaults");
@@ -97,36 +97,21 @@ pub(super) fn load_tools_config(json: bool) -> ToolsConfig {
     }
 }
 
-/// Looks for `apollia.toml` in the current directory, then `~/.config/apollia/`.
+/// The shared `~/.apollia/apollia.toml` when it exists.
 pub(super) fn find_config_path() -> Option<PathBuf> {
-    let cwd = std::env::current_dir().ok()?;
-    let local = cwd.join("apollia.toml");
-    if local.exists() {
-        return Some(local);
-    }
-    let home = apollia_core::paths::home_string()?;
-    let user = PathBuf::from(home).join(".config/apollia/apollia.toml");
-    if user.exists() {
-        Some(user)
-    } else {
-        None
-    }
+    apollia_core::paths::config_file().filter(|p| p.is_file())
 }
 
-/// Returns a path to write the config to: prefers an existing file, otherwise
-/// `~/.config/apollia/apollia.toml` (created on the fly if needed).
+/// Returns a path to write the config to: `~/.apollia/apollia.toml`, its
+/// directory created on the fly if needed.
 pub(super) fn resolve_writable_config_path() -> Result<PathBuf, i32> {
-    if let Some(p) = find_config_path() {
-        return Ok(p);
-    }
-    let home = apollia_core::paths::home_string_or_err()
-        .map_err(|_| emit_error("variable d'environnement HOME absente".to_string(), false))?;
-    let dir = PathBuf::from(home).join(".config/apollia");
-    if !dir.exists() {
-        std::fs::create_dir_all(&dir)
+    let path = apollia_core::paths::config_file()
+        .ok_or_else(|| emit_error("variable d'environnement HOME absente".to_string(), false))?;
+    if let Some(dir) = path.parent().filter(|d| !d.exists()) {
+        std::fs::create_dir_all(dir)
             .map_err(|e| emit_error(format!("create {} failed: {e}", dir.display()), false))?;
     }
-    Ok(dir.join("apollia.toml"))
+    Ok(path)
 }
 
 pub(super) fn read_or_empty(path: &Path) -> std::io::Result<String> {

@@ -1,6 +1,6 @@
 //! Config loading, agent rewiring and the shutdown wait.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use apollia_core::{ResilientReceiver, RuntimeEvent};
@@ -12,45 +12,59 @@ use apollia_runtime::on_demand::{BackendLoader, OnDemandBackend};
 use super::factory::find_config_file;
 use super::StartError;
 
-/// Locates and parses `apollia.toml` if present, validating the `[tools]`,
-/// `[mcp]`, and `[hooks]` sections. Returns the parsed config and its path, or
+/// Locates and parses `apollia.toml` if present, through the shared
+/// validation of `apollia-core`. Returns the parsed config and its path, or
 /// `(None, None)` when no config file is found (defaults are then used by the
 /// caller).
+///
+/// `explicit` is the path given with `--config`; it must exist. Without it the
+/// file is `~/.apollia/apollia.toml`. A file left at a former location is
+/// never read: it is named by a `config.legacy_location.ignored` warning.
 pub(super) fn load_start_config(
-) -> Result<(Option<crate::config::ApolliaCConfig>, Option<PathBuf>), StartError> {
-    let Some(path) = find_config_file() else {
+    explicit: Option<&Path>,
+) -> Result<(Option<crate::config::ApolliaConfig>, Option<PathBuf>), StartError> {
+    let legacy = crate::config_location::legacy_files_here();
+    let canonical = crate::config_location::resolve(None);
+    load_start_config_from(explicit, find_config_file(), &canonical, &legacy)
+}
+
+/// [`load_start_config`] with every location decided by the caller, so a test
+/// can play it under a throwaway home and working directory.
+pub(super) fn load_start_config_from(
+    explicit: Option<&Path>,
+    canonical_if_present: Option<PathBuf>,
+    canonical: &Path,
+    legacy: &[PathBuf],
+) -> Result<(Option<crate::config::ApolliaConfig>, Option<PathBuf>), StartError> {
+    crate::config_location::warn_legacy_files(legacy, explicit, canonical);
+    let found = match explicit {
+        Some(p) if !p.is_file() => {
+            return Err(StartError::Config {
+                path: p.to_path_buf(),
+                reason: "the file given with --config does not exist".to_string(),
+            });
+        }
+        Some(p) => Some(p.to_path_buf()),
+        None => canonical_if_present,
+    };
+    let Some(path) = found else {
         tracing::info!(detail = "starting with the defaults", "config.file.absent");
         return Ok((None, None));
     };
     tracing::info!(config = %path.display(), "config.loading");
+    // One validation for every surface: unknown keys, wrong types and values
+    // out of their section's bounds are all refused here, each at its line
+    // (principle 4). Withdrawn keys only warn.
     let cfg = crate::config::parse_apollia_toml(&path).map_err(|e| StartError::Config {
         path: path.clone(),
-        reason: e.to_string(),
+        reason: match e {
+            crate::config::ConfigError::Invalid(diagnostics) => diagnostics
+                .iter()
+                .map(|d| format!("\n  {}:{d}", path.display()))
+                .collect(),
+            other => other.to_string(),
+        },
     })?;
-    if let Some(tools) = cfg.tools.as_ref() {
-        tools.validate().map_err(|e| StartError::Config {
-            path: path.clone(),
-            reason: e.to_string(),
-        })?;
-    }
-    if let Some(mcp) = cfg.mcp.as_ref() {
-        mcp.validate().map_err(|e| StartError::Config {
-            path: path.clone(),
-            reason: e.to_string(),
-        })?;
-    }
-    if let Some(hooks) = cfg.hooks.as_ref() {
-        hooks.validate().map_err(|e| StartError::Config {
-            path: path.clone(),
-            reason: e.to_string(),
-        })?;
-    }
-    if let Some(workflows) = cfg.workflows.as_ref() {
-        workflows.validate().map_err(|e| StartError::Config {
-            path: path.clone(),
-            reason: e.to_string(),
-        })?;
-    }
     Ok((Some(cfg), Some(path)))
 }
 
@@ -173,3 +187,6 @@ pub(super) async fn wait_for_shutdown_event(rx: &mut ResilientReceiver) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
