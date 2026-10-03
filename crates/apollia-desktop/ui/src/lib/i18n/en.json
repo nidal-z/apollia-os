@@ -4435,7 +4435,8 @@
     "technical_install_path": "Location",
     "technical_origin": "Origin",
     "technical_autonomy": "Autonomy",
-    "technical_overridden": "Overridden fields"
+    "technical_overridden": "Overridden fields",
+    "remote": "Remote"
   },
   "agent_adjust": {
     "modified": "Modified",
@@ -4471,6 +4472,20 @@
     "grant_confirm": "{count, plural, =0 {Grant} one {Grant 1 more access} other {Grant # more accesses}}",
     "grant_group_tools": "Tools",
     "grant_group_agents": "Agents",
-    "grant_group_workflows": "Workflows"
+    "grant_group_workflows": "Workflows",
+    "connection_open": "Grant a connection",
+    "connection_choose_title": "Grant a connection",
+    "connection_choose_legend": "Choose the connection whose tools the agent may use.",
+    "connection_none": "No connection brings tools yet. Add one in Connections.",
+    "connection_title": "Grant a connection to \"{agent}\"",
+    "connection_legend": "The reading tools of a connection you can trust are checked already. Check the rest here; each is used under the rule of its family.",
+    "connection_none_in_family": "No tool of this family in the connection.",
+    "connection_back": "Other connection",
+    "connection_confirm": "{count, plural, =0 {Grant} one {Grant 1 tool} other {Grant # tools}}",
+    "connection_from_selection": "Connection from Apollia's selection",
+    "connection_from_registry": "Connection from the public registry",
+    "connection_from_custom": "Custom connection",
+    "connection_from_package": "Connection brought by a package",
+    "connection_provenance_official": "{provenance}, official"
   }
 }
