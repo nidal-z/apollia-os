@@ -126,6 +126,7 @@ from .dictation_models_response_reason_type_0 import DictationModelsResponseReas
 from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
 from .drive_folder_status import DriveFolderStatus
+from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
@@ -214,6 +215,7 @@ from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
+from .model_kind import ModelKind
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .next_steps_reply import NextStepsReply
@@ -320,6 +322,7 @@ from .set_credential_body import SetCredentialBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
 from .set_drive_folder_body import SetDriveFolderBody
+from .set_embedding_default_body import SetEmbeddingDefaultBody
 from .set_events_request import SetEventsRequest
 from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
@@ -561,6 +564,7 @@ __all__ = (
     "DirectoryRemoved",
     "DismissedProposal",
     "DriveFolderStatus",
+    "EmbeddingDefaultResponse",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
@@ -649,6 +653,7 @@ __all__ = (
     "ModelCardsResponseCardsItem",
     "ModelCardsResponsePublishers",
     "ModelInfo",
+    "ModelKind",
     "ModelsListResponse",
     "ModelSourceDto",
     "NextStepsReply",
@@ -751,6 +756,7 @@ __all__ = (
     "SetDefaultModelRequest",
     "SetDefaultResponse",
     "SetDriveFolderBody",
+    "SetEmbeddingDefaultBody",
     "SetEventsRequest",
     "SetOverrideRequest",
     "SetOverrideRequestValue",

@@ -5,6 +5,7 @@ import { canUnload, showLoadedModels, unloadErrorKey } from "./loadedModels";
 function model(activeRequests: number): LoadedModel {
   return {
     engine: "llama-server",
+    kind: "chat",
     model: "a",
     modelPath: "/models/a.gguf",
     port: 41001,

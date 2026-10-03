@@ -106,6 +106,9 @@ This document contains the help content for the `apollia-os` command-line progra
 * [`apollia-os model show`↴](#apollia-os-model-show)
 * [`apollia-os model hardware`↴](#apollia-os-model-hardware)
 * [`apollia-os model recommend`↴](#apollia-os-model-recommend)
+* [`apollia-os model embeddings`↴](#apollia-os-model-embeddings)
+* [`apollia-os model embeddings show`↴](#apollia-os-model-embeddings-show)
+* [`apollia-os model embeddings set-default`↴](#apollia-os-model-embeddings-set-default)
 * [`apollia-os model delete`↴](#apollia-os-model-delete)
 * [`apollia-os trigger`↴](#apollia-os-trigger)
 * [`apollia-os trigger list`↴](#apollia-os-trigger-list)
@@ -1772,6 +1775,7 @@ Local model file management
 * `show` - Fetch metadata + file list for a HuggingFace model
 * `hardware` - Report the runtime's detected hardware profile (RAM, CPU, GPU)
 * `recommend` - Rank the models this machine should run
+* `embeddings` - The embeddings model search by meaning uses
 * `delete` - Remove a local model file from `~/.apollia/models/`
 
 
@@ -1836,6 +1840,39 @@ Rank the models this machine should run
 * `--n-ctx <N_CTX>` - Context window the memory estimate is sized against, in tokens.
 
    Defaults to what the runtime launches with. Lower it to see the larger models that then fit.
+
+
+
+## `apollia-os model embeddings`
+
+The embeddings model search by meaning uses
+
+**Usage:** `apollia-os model embeddings <COMMAND>`
+
+###### **Subcommands:**
+
+* `show` - Show the default embeddings model, and whether its file is installed
+* `set-default` - Set the default embeddings model, by its registry identifier
+
+
+
+## `apollia-os model embeddings show`
+
+Show the default embeddings model, and whether its file is installed
+
+**Usage:** `apollia-os model embeddings show`
+
+
+
+## `apollia-os model embeddings set-default`
+
+Set the default embeddings model, by its registry identifier
+
+**Usage:** `apollia-os model embeddings set-default <MODEL>`
+
+###### **Arguments:**
+
+* `<MODEL>` - Identifier of an embeddings entry of the registry, as `GET /api/v1/llm/embeddings` lists them (for example `multilingual-e5-small`)
 
 
 

@@ -17,6 +17,8 @@ pub mod backends;
 pub mod capabilities;
 pub mod context_window;
 pub mod downloader;
+#[cfg(feature = "cloud")]
+pub mod embeddings_client;
 pub mod gguf_probe;
 pub mod grammar;
 pub mod hardware;
