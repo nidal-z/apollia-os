@@ -27,7 +27,7 @@ fn session(id: &str) -> SessionInfo {
 fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error() {
     // GIVEN the application attached to a daemon, and a command whose body
     // reads state only the embedded runtime builds
-    let command = "list_memory_namespaces";
+    let command = "get_delegation_tree";
 
     // WHEN the gate is asked before the body runs
     let refusal = gate(LinkMode::Attached, command);
@@ -39,11 +39,11 @@ fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error()
     let fr = error.for_display(UiLocale::Fr);
     let en = error.for_display(UiLocale::En);
     assert!(
-        fr.contains("list_memory_namespaces") && fr.contains("en service"),
+        fr.contains("get_delegation_tree") && fr.contains("en service"),
         "{fr}"
     );
     assert!(
-        en.contains("list_memory_namespaces") && en.contains("as a service"),
+        en.contains("get_delegation_tree") && en.contains("as a service"),
         "{en}"
     );
 }
@@ -86,7 +86,7 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
 fn test_the_embedded_mode_lets_every_command_through() {
     // GIVEN the runtime running in this process
     // WHEN a command not routed is gated
-    let verdict = gate(LinkMode::Embedded, "list_memory_namespaces");
+    let verdict = gate(LinkMode::Embedded, "get_delegation_tree");
 
     // THEN it runs as it always did
     assert!(verdict.is_ok());

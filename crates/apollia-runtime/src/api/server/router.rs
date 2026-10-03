@@ -106,6 +106,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_mcp::mcp_router;
     use crate::api::routes_mcp_registry::mcp_registry_router;
     use crate::api::routes_mcp_secrets::mcp_secrets_router;
+    use crate::api::routes_memory::memory_router;
     use crate::api::routes_memory_maintenance::memory_maintenance_router;
     use crate::api::routes_messages::{inject_agent_message, list_agent_messages, stream_mailbox};
     use crate::api::routes_model_hub::model_hub_routes;
@@ -326,6 +327,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(profile_router::<B>())
         .merge(memory_maintenance_router::<B>())
         .merge(conversations_router::<B>())
+        .merge(memory_router::<B>())
         .merge(connectors_router::<B>())
         .merge(imap_router::<B>())
         .merge(crate::api::routes_batches::batch_routes::<B>())

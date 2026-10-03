@@ -1911,6 +1911,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/memory/injections/{turn_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/memory/injections/{turn_id}`: the entries an agent recalled
+         *     during one turn.
+         */
+        get: operations["get_injected_memory_entries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/memory/namespaces`: the memory namespaces, one per file. */
+        get: operations["list_memory_namespaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/memory/namespaces/{namespace}/clear": {
         parameters: {
             query?: never;
@@ -1925,6 +1962,26 @@ export interface paths {
          *     one kind, or of all kinds.
          */
         post: operations["clear_memory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/memory/namespaces/{namespace}/entries`: every entry of one
+         *     namespace, newest first.
+         */
+        get: operations["list_memory_entries"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2005,6 +2062,26 @@ export interface paths {
          *     older than a number of days.
          */
         post: operations["purge_memory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/memory/namespaces/{namespace}/search?q=`: full-text search in
+         *     one namespace, best score first.
+         */
+        get: operations["search_memory"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2620,6 +2697,26 @@ export interface paths {
          *     Processing status to Active, and returns the full session detail.
          */
         post: operations["resume_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/sessions/{id}/stats`: the statistics of one chat
+         *     conversation.
+         */
+        get: operations["get_conversation_stats"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4155,6 +4252,22 @@ export interface components {
             /** @description Provider identifier. */
             provider: string;
         };
+        /** @description Statistics of one chat conversation. */
+        ConversationStatsView: {
+            /**
+             * Format: double
+             * @description Approximate context window usage percentage.
+             */
+            context_usage_pct: number;
+            /** @description Number of past sessions referenced via cross-session recall. */
+            cross_sessions_referenced: number;
+            /** @description Total number of messages in the session. */
+            message_count: number;
+            /** @description Number of messages that have been summarized. */
+            summarized_count: number;
+            /** @description Whether the user profile was injected into the system prompt. */
+            user_memory_injected: boolean;
+        };
         /** @description A single backend/model cost summary row. */
         CostSummaryRow: {
             /** @description Backend name. */
@@ -4607,6 +4720,22 @@ export interface components {
             /** @description Identifier assigned to the injected message. */
             message_id: string;
         };
+        /** @description One memory entry an agent recalled during a turn. */
+        InjectedMemoryEntryView: {
+            /** @description Short preview of the entry content. */
+            content_preview: string;
+            /** @description Source memory entry id. */
+            id: string;
+            /** @description Why the agent recalled it. */
+            injection_reason: string;
+            /** @description Namespace of origin. */
+            namespace: string;
+            /**
+             * Format: float
+             * @description Relevance score in `[0.0, 1.0]` when available.
+             */
+            relevance_score: number;
+        };
         /** @description Request body for `POST /api/v1/agents/installed`. */
         InstallAgentRequest: {
             /** @description Path of the Python module on this machine. */
@@ -4909,6 +5038,26 @@ export interface components {
             /** @description Whether an entry had this identifier. */
             deleted: boolean;
         };
+        /** @description One memory entry, as the Memory screen lists it. */
+        MemoryEntryView: {
+            /** @description ISO 8601 creation date. */
+            created_at: string;
+            /** @description Type: `"episodic"` | `"semantic"` | `"procedural"`. */
+            entry_type: string;
+            /** @description ISO 8601 expiration date, `null` without a TTL. */
+            expires_at?: string | null;
+            /** @description Entry UUID. */
+            id: string;
+            /** @description Key for semantic, trigger for procedural, agent id for episodic. */
+            key: string;
+            /**
+             * Format: double
+             * @description BM25 score, `null` outside a search.
+             */
+            score?: number | null;
+            /** @description Value or text content. */
+            value: string;
+        };
         /** @description Answer of `POST /api/v1/memory/namespaces/{namespace}/import`. */
         MemoryImported: {
             /** @description How many entries went in. */
@@ -4921,6 +5070,27 @@ export interface components {
              * @description How many entries were removed.
              */
             removed: number;
+        };
+        /** @description One full-text search result, as the Memory screen lists it. */
+        MemorySearchResultView: {
+            /** @description Text content of the result. */
+            content: string;
+            /** @description ISO 8601 creation date. */
+            created_at: string;
+            /** @description Type: `"episodic"` | `"semantic"`. */
+            entry_type: string;
+            /** @description UUID of the source entry. */
+            id: string;
+            /**
+             * Format: double
+             * @description Importance (episodic) or confidence (semantic).
+             */
+            relevance?: number | null;
+            /**
+             * Format: double
+             * @description BM25 score, higher is more relevant.
+             */
+            score: number;
         };
         /**
          * @description A single message in a multi-turn conversation request.
@@ -10868,6 +11038,58 @@ export interface operations {
             };
         };
     };
+    get_injected_memory_entries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Turn identifier */
+                turn_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The recalled entries, none for an unknown turn */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InjectedMemoryEntryView"][];
+                };
+            };
+        };
+    };
+    list_memory_namespaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The namespaces, sorted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description The memory directory could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     clear_memory: {
         parameters: {
             query?: never;
@@ -10895,6 +11117,47 @@ export interface operations {
             };
             /** @description Invalid namespace */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_memory_entries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryEntryView"][];
+                };
+            };
+            /** @description The namespace names a path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The namespace did not open */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11042,6 +11305,50 @@ export interface operations {
             };
             /** @description Invalid namespace */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    search_memory: {
+        parameters: {
+            query: {
+                /** @description The words searched for. */
+                q: string;
+            };
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemorySearchResultView"][];
+                };
+            };
+            /** @description The namespace names a path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The namespace did not open or the search failed */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12577,6 +12884,47 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_conversation_stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chat session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The statistics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationStatsView"];
+                };
+            };
+            /** @description No session has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat subsystem did not start */
             503: {
                 headers: {
                     [name: string]: unknown;

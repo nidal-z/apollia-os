@@ -131,6 +131,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_profile",
     "reset_user_profile",
     "set_profile_entry",
+    // Memory, read side: the namespaces, their entries, the search, the
+    // entries recalled during a turn, the statistics of a conversation.
+    "get_conversation_stats",
+    "get_injected_memory_entries",
+    "list_memory_entries",
+    "list_memory_namespaces",
+    "search_memory",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
