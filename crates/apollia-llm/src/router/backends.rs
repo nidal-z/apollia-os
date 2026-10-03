@@ -35,7 +35,8 @@ pub(super) fn build_backend(
     cancellation_token: &CancellationToken,
 ) -> Result<Arc<dyn CompletionModel>, LlmError> {
     match &backend_cfg.kind {
-        BackendKind::Api(cfg) => {
+        BackendKind::Api(entry) => {
+            let cfg = ApiBackendConfig::from(entry);
             let key = cfg
                 .resolve_api_key()
                 .map_err(|e| LlmError::BackendUnavailable {
@@ -43,7 +44,7 @@ pub(super) fn build_backend(
                     reason: e.to_string(),
                 })?;
             Ok(Arc::new(OpenAICompatibleClient::new(
-                cfg,
+                &cfg,
                 key,
                 cancellation_token.clone(),
             )) as Arc<dyn CompletionModel>)
@@ -60,7 +61,7 @@ pub(super) fn load_backend_with_bus(
     bus: &Option<EventBusSender>,
 ) {
     let name = backend_cfg.name().to_owned();
-    let model_path = backend_cfg.model_path_hint();
+    let model_path = crate::router::config::model_path_hint(backend_cfg);
 
     // Emit LlmModelLoading before each load attempt.
     if let Some(b) = bus {

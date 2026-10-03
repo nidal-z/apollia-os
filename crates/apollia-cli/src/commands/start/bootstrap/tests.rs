@@ -32,7 +32,7 @@ fn write(path: &Path, body: &str) {
     std::fs::write(path, body).unwrap();
 }
 
-type Loaded = Result<(Option<crate::config::ApolliaCConfig>, Option<PathBuf>), StartError>;
+type Loaded = Result<(Option<crate::config::ApolliaConfig>, Option<PathBuf>), StartError>;
 
 /// Plays the daemon's config loading for a home and a working directory,
 /// returning its result and the log lines it emitted.
@@ -108,7 +108,7 @@ fn the_canonical_file_is_the_one_loaded() {
     // THEN the canonical file answers
     let (cfg, path) = result.unwrap();
     assert_eq!(path.as_deref(), Some(canonical.as_path()));
-    assert_eq!(cfg.unwrap().api.unwrap().port, 7003);
+    assert_eq!(cfg.unwrap().api.port, 7003);
 }
 
 #[test]
@@ -127,7 +127,7 @@ fn an_explicit_config_replaces_the_canonical_location() {
     // THEN the explicit file is the one in force
     let (cfg, path) = result.unwrap();
     assert_eq!(path.as_deref(), Some(explicit.as_path()));
-    assert_eq!(cfg.unwrap().api.unwrap().port, 7006);
+    assert_eq!(cfg.unwrap().api.port, 7006);
 }
 
 #[test]
@@ -140,4 +140,39 @@ fn an_explicit_config_that_does_not_exist_stops_the_start() {
     let (result, _) = start_in(home.path(), cwd.path(), Some(&missing));
     // THEN it fails at startup rather than running on the defaults
     assert!(matches!(result, Err(StartError::Config { .. })));
+}
+
+#[test]
+fn an_invalid_file_stops_the_start_with_its_faults_at_their_line() {
+    // GIVEN a canonical configuration with an unknown key on line 3 and a
+    // value out of bounds on line 6
+    let home = tempfile::tempdir().unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+    let canonical = apollia_core::paths::config_file_under(home.path());
+    write(&canonical, "[api]\nbind = \"127.0.0.1\"\ntypo = 1\n");
+    // WHEN the daemon loads its configuration
+    let (result, _) = start_in(home.path(), cwd.path(), None);
+    // THEN the start is refused, the message naming the file, line and key
+    let Err(StartError::Config { path, reason }) = result else {
+        panic!("an invalid file must stop the start");
+    };
+    assert_eq!(path, canonical);
+    let expected = format!("{}:3:1: api.typo", canonical.display());
+    assert!(reason.contains(&expected), "{reason}");
+}
+
+#[test]
+fn a_value_out_of_its_section_bounds_stops_the_start() {
+    // GIVEN a [hitl] section whose scan interval is below its bound
+    let home = tempfile::tempdir().unwrap();
+    let cwd = tempfile::tempdir().unwrap();
+    let canonical = apollia_core::paths::config_file_under(home.path());
+    write(&canonical, "[hitl]\nscan_interval_secs = 1\n");
+    // WHEN the daemon loads its configuration
+    let (result, _) = start_in(home.path(), cwd.path(), None);
+    // THEN HitlConfig::validate refuses it, at line 2
+    let Err(StartError::Config { reason, .. }) = result else {
+        panic!("a value out of bounds must stop the start");
+    };
+    assert!(reason.contains(":2:1: hitl.scan_interval_secs"), "{reason}");
 }

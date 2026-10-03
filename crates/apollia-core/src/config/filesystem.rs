@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{validate_bounds, ConfigError};
 
@@ -15,7 +15,8 @@ use super::{validate_bounds, ConfigError};
 /// agent performs unwanted operations.
 ///
 /// Every field has a sane default via [`Default`].
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct JournalConfig {
     /// Enables the reversible journal. Default: `true`.
     ///
@@ -79,7 +80,8 @@ fn default_journal_root() -> PathBuf {
 /// Groups every sub-configuration related to filesystem operations: the
 /// reversible journal, and the paths the operator trusts an agent to work in
 /// without being asked each time.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FilesystemConfig {
     /// Sub-section dedicated to the reversible journal.
     #[serde(default)]
