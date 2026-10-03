@@ -25,7 +25,7 @@ use futures::{Stream, StreamExt};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use super::LocalEngine;
+use super::{LoadConsent, LocalEngine};
 use crate::llama_server::ModelLease;
 
 /// `CompletionModel` backed by a local engine.
@@ -88,7 +88,12 @@ impl<E: LocalEngine> LocalModelBackend<E> {
     async fn ready_client(&self) -> Result<(Arc<OpenAICompatibleClient>, ModelLease), LlmError> {
         let lease = self
             .supervisor
-            .ensure_model(&self.backend_name, self.model_path.clone(), self.n_ctx)
+            .ensure_model(
+                &self.backend_name,
+                self.model_path.clone(),
+                self.n_ctx,
+                LoadConsent::Unconfirmed,
+            )
             .await
             .map_err(|e| LlmError::BackendUnavailable {
                 backend: self.backend_name.clone(),

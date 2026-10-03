@@ -44,6 +44,7 @@ impl LocalEngine for FakeEngine {
         _backend: &str,
         model_path: String,
         n_ctx: Option<u32>,
+        _consent: LoadConsent,
     ) -> Result<ModelLease, LocalEngineError> {
         if let Ok(mut asked) = self.asked.lock() {
             asked.push(model_path);

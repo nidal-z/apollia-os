@@ -86,11 +86,19 @@ async fn a_model_is_served_on_loopback_once_the_engine_answers_health() {
 
     // WHEN a model folder is asked for, twice
     let first = sup
-        .ensure_model("/models/qwen-mlx".to_owned(), None)
+        .ensure_model(
+            "/models/qwen-mlx".to_owned(),
+            None,
+            LoadConsent::Unconfirmed,
+        )
         .await
         .expect("the stand-in becomes healthy");
     let second = sup
-        .ensure_model("/models/qwen-mlx".to_owned(), None)
+        .ensure_model(
+            "/models/qwen-mlx".to_owned(),
+            None,
+            LoadConsent::Unconfirmed,
+        )
         .await
         .expect("still served");
 
@@ -117,7 +125,11 @@ async fn an_engine_that_exits_during_startup_is_reported_with_its_reason() {
 
     // WHEN a model is asked for
     let err = sup
-        .ensure_model("/models/broken-mlx".to_owned(), None)
+        .ensure_model(
+            "/models/broken-mlx".to_owned(),
+            None,
+            LoadConsent::Unconfirmed,
+        )
         .await
         .expect_err("an engine that exits cannot serve");
 
@@ -133,9 +145,13 @@ async fn an_engine_that_exits_during_startup_is_reported_with_its_reason() {
 async fn a_crashed_engine_is_respawned_by_the_supervision() {
     // GIVEN a served model and the supervision running
     let sup = fake_supervisor(&[]);
-    sup.ensure_model("/models/qwen-mlx".to_owned(), None)
-        .await
-        .expect("served");
+    sup.ensure_model(
+        "/models/qwen-mlx".to_owned(),
+        None,
+        LoadConsent::Unconfirmed,
+    )
+    .await
+    .expect("served");
     Arc::clone(&sup).spawn_supervision();
     let first_pid = pid_of(&sup, "/models/qwen-mlx").await.expect("a pid");
 
@@ -165,9 +181,13 @@ async fn a_crashed_engine_is_respawned_by_the_supervision() {
 async fn shutdown_stops_the_engine_and_no_respawn_follows() {
     // GIVEN a served model under supervision
     let sup = fake_supervisor(&[]);
-    sup.ensure_model("/models/qwen-mlx".to_owned(), None)
-        .await
-        .expect("served");
+    sup.ensure_model(
+        "/models/qwen-mlx".to_owned(),
+        None,
+        LoadConsent::Unconfirmed,
+    )
+    .await
+    .expect("served");
     Arc::clone(&sup).spawn_supervision();
     let pid = pid_of(&sup, "/models/qwen-mlx").await.expect("a pid");
 
@@ -325,4 +345,66 @@ impl MlxEngineSupervisor {
         }
         Arc::new(sup)
     }
+}
+
+/// An MLX folder whose `config.json` carries what the cache formula needs.
+fn mlx_folder(root: &std::path::Path) -> String {
+    let dir = root.join("qwen-mlx");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("config.json"),
+        r#"{"hidden_size": 2048, "num_attention_heads": 16,
+            "num_hidden_layers": 28, "num_key_value_heads": 8,
+            "max_position_embeddings": 32768}"#,
+    )
+    .unwrap();
+    std::fs::write(dir.join("model.safetensors"), vec![0u8; 1 << 20]).unwrap();
+    dir.display().to_string()
+}
+
+#[tokio::test]
+async fn an_mlx_model_over_the_guardrail_is_refused_until_the_key_allows_it() {
+    // GIVEN a resident MLX model, an MLX folder, and an apollia.toml holding
+    // launches to a ceiling of 0.001 GB
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().join("apollia.toml");
+    std::fs::write(
+        &config,
+        "[llm.guardrails]\nlevel = \"ceiling\"\nceiling_gb = 0.001\n",
+    )
+    .unwrap();
+    let args = dir.path().join("args.log");
+    let launch = MlxLaunch {
+        program: PathBuf::from("python3"),
+        prefix_args: vec!["-c".to_owned(), FAKE_ENGINE.to_owned()],
+        env: vec![("FAKE_MLX_ARGS".to_owned(), args.display().to_string())],
+    };
+    let mut engine = MlxEngineSupervisor::with_timing(launch, fast_timing());
+    engine.config_file = Some(config.clone());
+    let sup = Arc::new(engine);
+    let resident = MlxEngineSupervisor::with_stand_in_models(&["/models/other-mlx"]).await;
+    let stand_in = resident.instances.lock().await.pop().unwrap();
+    sup.instances.lock().await.push(stand_in);
+    let model = mlx_folder(dir.path());
+
+    // WHEN it is asked for, then asked again once the key says `disabled`
+    let refused = sup
+        .ensure_model(model.clone(), None, LoadConsent::Unconfirmed)
+        .await;
+    let still_resident = pid_of(&sup, "/models/other-mlx").await.is_some();
+    std::fs::write(&config, "[llm.guardrails]\nlevel = \"disabled\"\n").unwrap();
+    let admitted = sup
+        .ensure_model(model.clone(), None, LoadConsent::Unconfirmed)
+        .await;
+
+    // THEN the first is refused before the resident model is stopped, and the
+    // second is launched without a restart
+    assert!(
+        matches!(refused, Err(LocalEngineError::GuardrailRefused(ref r)) if r.budget_gb == 0.001),
+        "{refused:?}"
+    );
+    assert!(still_resident);
+    drop(admitted.unwrap());
+    assert!(pid_of(&sup, &model).await.is_some());
+    sup.shutdown_in_place().await;
 }

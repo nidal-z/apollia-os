@@ -19,6 +19,7 @@
 
 mod config;
 mod engine_facts;
+mod guard;
 mod load_settings;
 mod loaded;
 mod ngl;
@@ -65,6 +66,10 @@ pub enum LlamaServerError {
     /// The process exited before it became healthy.
     #[error("llama-server exited during startup (status: {0})")]
     ExitedDuringStartup(String),
+
+    /// The load guardrail refused the model, and the user did not confirm.
+    #[error(transparent)]
+    GuardrailRefused(#[from] crate::local_engine::GuardrailRefusal),
 }
 
 /// One running `llama-server`, serving exactly one model.
@@ -218,6 +223,9 @@ pub struct LlamaServerSupervisor {
     system_db: Option<PathBuf>,
     /// Where a relaunch under new load settings is announced.
     events: Option<EventBusSender>,
+    /// `apollia.toml`, whose `[llm.guardrails]` is read at every launch.
+    /// `None` holds every launch to the default level.
+    config_file: Option<PathBuf>,
 }
 
 impl LlamaServerSupervisor {
@@ -233,6 +241,7 @@ impl LlamaServerSupervisor {
         config: LlamaServerConfig,
         system_db: Option<PathBuf>,
         events: Option<EventBusSender>,
+        config_file: Option<PathBuf>,
     ) -> Result<Arc<Self>, LlamaServerError> {
         let bin_path = locate_llama_server_binary()?;
         // The reported window must be the one the server will actually launch
@@ -255,6 +264,7 @@ impl LlamaServerSupervisor {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db,
             events,
+            config_file,
         }))
     }
 
@@ -441,6 +451,7 @@ impl LlamaServerSupervisor {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db: None,
             events: None,
+            config_file: None,
         }
     }
 
@@ -468,6 +479,7 @@ impl LlamaServerSupervisor {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db: None,
             events: None,
+            config_file: None,
         })
     }
 
@@ -521,30 +533,17 @@ impl LlamaServerSupervisor {
         n_ctx: u32,
         load: LoadSettings,
     ) -> Result<ModelLease, LlamaServerError> {
-        let template_file = self.template_file(&load).await;
-        let mut base = self.config.lock().await.clone();
-        // The index is a file beside the models, and a model it does not know
-        // sends the lookup to the disk: off the async workers either way.
-        let lookup = model_path.clone();
-        base.mmproj_path = tokio::task::spawn_blocking(move || projector::for_model(&lookup))
-            .await
-            .unwrap_or(None);
-        base.model_path = model_path;
-        base.chat_template_file = template_file.map(|path| path.display().to_string());
-        base.n_ctx = n_ctx;
-        // The preset, then the environment, then the plans: the slot count
-        // first, since the offload plan sizes the cache those slots hold (see
-        // `parallel` and `ngl` for why the literals were wrong). The window is
-        // already resolved by `effective_n_ctx`: the environment, then the
-        // preset, then the backend's own window, then the default.
-        let config = load_settings::compose(
-            &base,
-            &load,
-            env_getter,
-            parallel::apply_parallel_plan,
-            ngl::apply_offload_plan,
-        );
+        let config = self.launch_config(model_path, n_ctx, &load).await;
+        self.spawn_configured(config, load).await
+    }
 
+    /// Launch `llama-server` with `config`, already composed by
+    /// [`Self::launch_config`], and wait until it is healthy.
+    async fn spawn_configured(
+        &self,
+        config: LlamaServerConfig,
+        load: LoadSettings,
+    ) -> Result<ModelLease, LlamaServerError> {
         let port = pick_free_port()?;
         let args = build_args(&config, port);
 
@@ -853,6 +852,7 @@ mod test_support {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db: None,
             events: None,
+            config_file: None,
         }
     }
 

@@ -16650,6 +16650,57 @@
           }
         }
       },
+      "GuardrailLevel": {
+        "type": "string",
+        "description": "How strictly a launch is held to the machine's memory.",
+        "enum": [
+          "disabled",
+          "lenient",
+          "balanced",
+          "strict",
+          "ceiling"
+        ]
+      },
+      "GuardrailRefusedBody": {
+        "type": "object",
+        "description": "Body of an API answer to a launch the guardrail refused.\n\n`error` is the English sentence; `code` and the figures let an interface\nwrite its own, in its own language.",
+        "required": [
+          "error",
+          "code",
+          "model",
+          "level",
+          "estimatedGb",
+          "budgetGb"
+        ],
+        "properties": {
+          "budgetGb": {
+            "type": "number",
+            "format": "double",
+            "description": "The limit the level holds to, in gigabytes."
+          },
+          "code": {
+            "type": "string",
+            "description": "Always `guardrail_refused`."
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable description, in English."
+          },
+          "estimatedGb": {
+            "type": "number",
+            "format": "double",
+            "description": "The estimated footprint, in gigabytes."
+          },
+          "level": {
+            "$ref": "#/components/schemas/GuardrailLevel",
+            "description": "The level that refused it."
+          },
+          "model": {
+            "type": "string",
+            "description": "The model whose launch was refused."
+          }
+        }
+      },
       "HardwareResponse": {
         "type": "object",
         "required": [
