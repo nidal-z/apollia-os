@@ -46,7 +46,7 @@ async fn test_the_machine_the_daemon_runs_on_is_described_over_http() {
 async fn test_a_gguf_file_in_the_daemon_models_folder_is_listed_over_http() {
     // GIVEN a daemon whose models folder holds one GGUF file
     let dir = TempDir::new().unwrap();
-    let models = dir.path().join("models");
+    let models = apollia_core::config::default_models_dir(dir.path());
     std::fs::create_dir_all(&models).unwrap();
     let file = models.join("tiny-Q4_K_M.gguf");
     std::fs::write(&file, vec![0u8; 2048]).unwrap();
@@ -74,7 +74,7 @@ async fn test_a_whisper_file_in_the_daemon_models_folder_is_listed_over_http() {
     // GIVEN a daemon whose models folder holds one Whisper file and one file
     // that is not
     let dir = TempDir::new().unwrap();
-    let models = dir.path().join("models");
+    let models = apollia_core::config::default_models_dir(dir.path());
     std::fs::create_dir_all(&models).unwrap();
     let file = models.join("ggml-small.bin");
     std::fs::write(&file, vec![0u8; 1024]).unwrap();
@@ -120,7 +120,7 @@ async fn test_a_gguf_file_chosen_over_http_becomes_the_daemon_local_backend() {
 
     // THEN the daemon's models folder holds it, and its quantisation is named
     assert_eq!(status, StatusCode::OK, "{done}");
-    let copied = dir.path().join("models").join("Qwen3-0.6B-Q8_0.gguf");
+    let copied = apollia_core::config::default_models_dir(dir.path()).join("Qwen3-0.6B-Q8_0.gguf");
     assert_eq!(done["model_path"], copied.display().to_string());
     assert_eq!(done["quantization"], "q8_0");
     assert!(copied.exists());

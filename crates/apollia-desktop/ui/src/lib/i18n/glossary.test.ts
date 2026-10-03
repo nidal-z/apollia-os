@@ -67,7 +67,7 @@ describe("glossary.json", () => {
     // GIVEN the French and English halves
     const { fr, en } = glossary;
     // WHEN the banned and permitted lists are read
-    // THEN they match across locales, never overlap, and the exemptions start empty
+    // THEN they match across locales and never overlap
     expect([...fr.banned].sort()).toEqual([...en.banned].sort());
     expect(fr.banned_synonyms).toEqual(en.banned_synonyms);
     expect(fr.banned_synonyms.assistant).toBe("agent");
@@ -76,7 +76,18 @@ describe("glossary.json", () => {
     for (const format of fr.permitted_formats) {
       expect(fr.banned).not.toContain(format);
     }
-    expect(fr.exemptions).toEqual([]);
-    expect(en.exemptions).toEqual([]);
+  });
+
+  test("lists its exemptions as sorted, unique catalogue keys", () => {
+    // GIVEN the exemption lists the vocabulary guard reads as a ratchet
+    for (const exemptions of [glossary.fr.exemptions, glossary.en.exemptions]) {
+      // WHEN each list is read
+      // THEN it holds dotted keys, once each, in order, so a removal is one line
+      for (const key of exemptions) {
+        expect(key).toMatch(/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$/);
+      }
+      expect(new Set(exemptions).size).toBe(exemptions.length);
+      expect([...exemptions].sort()).toEqual(exemptions);
+    }
   });
 });

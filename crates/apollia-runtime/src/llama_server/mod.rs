@@ -24,6 +24,7 @@ mod guard;
 mod load_settings;
 mod loaded;
 mod locate;
+mod log_level;
 mod ngl;
 mod parallel;
 mod projector;

@@ -7,6 +7,7 @@
 //! task).
 
 pub mod agent_packages;
+pub mod agent_sheet;
 pub mod agents;
 pub mod artifacts;
 #[cfg(debug_assertions)]
@@ -16,6 +17,7 @@ pub mod chat_libre;
 pub mod cli;
 pub mod config;
 pub mod connections;
+pub mod hf_token;
 pub mod hitl;
 pub mod integrations;
 pub mod link_preview;
