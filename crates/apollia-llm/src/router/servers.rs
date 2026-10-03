@@ -10,8 +10,12 @@ use std::sync::{Arc, Mutex};
 
 use apollia_core::inference_server::split_route_name;
 
+use std::pin::Pin;
+
+use futures::Stream;
+
 use crate::router::LlmRouter;
-use crate::types::CompletionModel;
+use crate::types::{CompletionModel, CompletionRequest, CompletionResponse, LlmError, StreamChunk};
 
 /// What the router needs to reach a declared server.
 #[derive(Clone)]
@@ -22,6 +26,10 @@ pub struct ServerEndpoint {
     pub base_url: String,
     /// Resolved key, `None` for a server that asks for none.
     pub api_key: Option<String>,
+    /// Why the organisation policy refuses this server, `None` when it is
+    /// allowed. A refused server stays known, so a request to one of its
+    /// models fails with this reason before anything is sent to it.
+    pub refusal: Option<String>,
 }
 
 /// Hand-written so a logged endpoint never prints its key.
@@ -31,6 +39,7 @@ impl std::fmt::Debug for ServerEndpoint {
             .field("name", &self.name)
             .field("base_url", &self.base_url)
             .field("api_key", &self.api_key.as_ref().map(|_| "<redacted>"))
+            .field("refusal", &self.refusal)
             .finish()
     }
 }
@@ -69,7 +78,14 @@ impl LlmRouter {
         if let Some(client) = clients.get(name) {
             return Some(client.clone());
         }
-        let client = self.server_client(endpoint, name, model)?;
+        let client = match &endpoint.refusal {
+            Some(reason) => Arc::new(RefusedServerModel {
+                name: name.to_string(),
+                model: model.to_string(),
+                reason: reason.clone(),
+            }) as Arc<dyn CompletionModel>,
+            None => self.server_client(endpoint, name, model)?,
+        };
         clients.insert(name.to_string(), client.clone());
         Some(client)
     }
@@ -122,8 +138,89 @@ impl LlmRouter {
     }
 }
 
+/// A model of a server the organisation policy refuses: every call fails with
+/// the policy's reason, and nothing leaves this machine.
+struct RefusedServerModel {
+    name: String,
+    model: String,
+    reason: String,
+}
+
+impl RefusedServerModel {
+    fn refused(&self) -> LlmError {
+        tracing::event!(
+            tracing::Level::WARN,
+            backend = %self.name,
+            reason = %self.reason,
+            "llm.server.request.refused_by_policy"
+        );
+        LlmError::BackendUnavailable {
+            backend: self.name.clone(),
+            reason: self.reason.clone(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl CompletionModel for RefusedServerModel {
+    async fn complete(&self, _req: CompletionRequest) -> Result<CompletionResponse, LlmError> {
+        Err(self.refused())
+    }
+
+    async fn stream(
+        &self,
+        _req: CompletionRequest,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<StreamChunk, LlmError>> + Send>>, LlmError> {
+        Err(self.refused())
+    }
+
+    fn is_available(&self) -> bool {
+        false
+    }
+
+    fn backend_name(&self) -> &str {
+        &self.name
+    }
+
+    fn model_id(&self) -> &str {
+        &self.model
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::types::ChatMessage;
+
+    // A model of a server the policy refuses fails with the policy's reason.
+    #[tokio::test]
+    async fn test_a_refused_server_answers_with_the_policy_reason() {
+        // GIVEN a router whose one server is refused by the policy
+        let router = LlmRouter::empty().with_servers(vec![ServerEndpoint {
+            name: "cloud".into(),
+            base_url: "https://api.example.com".into(),
+            api_key: Some("sk".into()),
+            refusal: Some("refused by the organisation policy".into()),
+        }]);
+
+        // WHEN a completion is sent to one of its models
+        let backend = router.get(Some("cloud/gpt")).expect("the route is known");
+        let outcome = backend
+            .complete(CompletionRequest {
+                messages: vec![ChatMessage::user("bonjour")],
+                ..Default::default()
+            })
+            .await;
+
+        // THEN it is refused with the reason, and the backend reads unavailable
+        assert!(!backend.is_available());
+        assert!(matches!(
+            outcome,
+            Err(LlmError::BackendUnavailable { ref reason, .. })
+                if reason == "refused by the organisation policy"
+        ));
+    }
+
     #[cfg(feature = "cloud")]
     mod cloud {
         use super::super::*;
@@ -165,6 +262,7 @@ mod tests {
                 name: "corp".into(),
                 base_url: server.uri(),
                 api_key: Some("sk-corp".into()),
+                refusal: None,
             }]);
             let request = || CompletionRequest {
                 messages: vec![ChatMessage::user("bonjour")],

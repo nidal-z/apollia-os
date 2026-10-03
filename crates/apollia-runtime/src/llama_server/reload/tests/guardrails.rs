@@ -90,3 +90,38 @@ async fn test_a_confirmed_load_goes_past_a_refusal() {
     assert_eq!(launches(dir.path()).len(), 1);
     sup.shutdown_in_place().await;
 }
+
+#[tokio::test]
+async fn test_a_level_the_policy_fixes_holds_the_launch_whatever_the_file_says() {
+    // GIVEN a stand-in engine, an apollia.toml turning the guardrail off, and
+    // an organisation policy fixing a ceiling of 0.001 GB
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().join("apollia.toml");
+    write_policy(&config, "level = \"disabled\"");
+    let mut sup = supervisor_with_ceiling(1);
+    sup.bin_path = fake_engine(dir.path());
+    sup.config_file = Some(config);
+    sup.imposed = apollia_core::config::PolicySettings::none()
+        .impose(
+            crate::local_engine::guardrails::LEVEL_SETTING,
+            serde_json::json!("ceiling"),
+        )
+        .impose(
+            crate::local_engine::guardrails::CEILING_SETTING,
+            serde_json::json!(0.001),
+        );
+    let model = model_file(dir.path());
+
+    // WHEN the model is asked for
+    let refused = sup
+        .ensure_model("qwen", model, None, LoadConsent::Unconfirmed)
+        .await;
+
+    // THEN the policy's ceiling refuses it and nothing was launched
+    assert!(
+        matches!(refused, Err(LlamaServerError::GuardrailRefused(ref r)) if r.budget_gb == 0.001),
+        "the launch is refused at the policy's ceiling"
+    );
+    assert!(launches(dir.path()).is_empty());
+    sup.shutdown_in_place().await;
+}
