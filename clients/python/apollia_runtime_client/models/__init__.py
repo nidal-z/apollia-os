@@ -63,6 +63,7 @@ from .connection_kind import ConnectionKind
 from .connection_state import ConnectionState
 from .connection_tool import ConnectionTool
 from .connector_account_response import ConnectorAccountResponse
+from .conversation_stats_view import ConversationStatsView
 from .cost_summary_row import CostSummaryRow
 from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
@@ -105,6 +106,7 @@ from .imap_error_body import ImapErrorBody
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
+from .injected_memory_entry_view import InjectedMemoryEntryView
 from .install_agent_request import InstallAgentRequest
 from .install_agent_response import InstallAgentResponse
 from .install_refusal_type_0 import InstallRefusalType0
@@ -132,6 +134,8 @@ from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
+from .memory_entry_view import MemoryEntryView
+from .memory_search_result_view import MemorySearchResultView
 from .message_dto import MessageDto
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
@@ -355,6 +359,7 @@ __all__ = (
     "ConnectionState",
     "ConnectionTool",
     "ConnectorAccountResponse",
+    "ConversationStatsView",
     "CostsResponse",
     "CostSummaryRow",
     "CountedLanguageModel",
@@ -394,6 +399,7 @@ __all__ = (
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",
+    "InjectedMemoryEntryView",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",
@@ -424,6 +430,8 @@ __all__ = (
     "LoadedModelsResponse",
     "LogsResponse",
     "LogsResponseEntriesItem",
+    "MemoryEntryView",
+    "MemorySearchResultView",
     "MessageDto",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
