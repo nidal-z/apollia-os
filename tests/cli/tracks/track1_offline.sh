@@ -77,6 +77,17 @@ RH="$SCRATCH/reset-home"; /bin/mkdir -p "$RH/nested"; /usr/bin/touch "$RH/dummy"
 check        "config reset --dry-run"                   "$BIN" config reset --dry-run --home "$RH"
 [[ -f "$RH/dummy" ]] && _pass "config reset --dry-run preserved files" || _fail "config reset --dry-run preserved files" "deleted"
 check        "config reset --confirm"                   "$BIN" config reset --confirm --home "$RH"
+# A first `config` command under an empty home writes the documented default
+# file at ~/.apollia/apollia.toml; a present file is never written over.
+FH="$SCRATCH/first-home"; /bin/mkdir -p "$FH"
+check        "config show (empty home)"                 env HOME="$FH" "$BIN" config show
+if [[ -f "$FH/.apollia/apollia.toml" ]] && /usr/bin/head -1 "$FH/.apollia/apollia.toml" | /usr/bin/grep -q "^# apollia.toml, the configuration of Apollia OS"; then
+    _pass "config show wrote the default file with its header"
+else
+    _fail "config show wrote the default file with its header" "absent or without its header"
+fi
+check_json   "config keys --json"                       "$BIN" config keys --json
+check_grep   "config keys lists api.port" "api.port"    "$BIN" config keys
 check        "hooks list --dry-run"                     "$BIN" hooks list --dry-run
 check_json   "hooks list --dry-run --json"              "$BIN" --json hooks list --dry-run
 

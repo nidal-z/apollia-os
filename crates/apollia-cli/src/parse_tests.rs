@@ -1105,6 +1105,21 @@ fn test_cli_parses_config_show() {
     assert!(file.is_none());
 }
 
+#[test]
+fn test_cli_parses_config_keys() {
+    // GIVEN "apollia-os config keys --json"
+    // WHEN the top-level parser reads it
+    let cli = parse(&["apollia-os", "config", "keys", "--json"]);
+    // THEN ConfigCommand::Keys, with the global JSON switch on
+    assert!(cli.json);
+    assert!(matches!(
+        cli.command,
+        Commands::Config {
+            command: ConfigCommand::Keys
+        }
+    ));
+}
+
 // ─── profile ─────────────────────────────────────────────────────────────────
 
 #[test]
