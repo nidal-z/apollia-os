@@ -1,207 +1,35 @@
 //! The router's declarative configuration.
 //!
-//! Split out of `router.rs`: the router stays in the parent, the TOML shapes
-//! it is built from and the provider inference that reads them live here.
+//! The TOML shapes of the `[llm]` section live in `apollia-core`, next to the
+//! single root of `apollia.toml` that names them; this module re-exports them
+//! under the names the router has always used.
 
-use std::collections::HashMap;
-
-use apollia_core::{LlmBackendConfig, LlmProvider, LlmRoutingConfig, LlmRunnerConfig};
-
-use crate::pricing::PricingTier;
+pub use apollia_core::config::{
+    LlmApiBackendEntry, LlmBackendEntry as BackendConfig, LlmBackendKind as BackendKind, LlmConfig,
+    LlmObservabilityConfig as ObservabilityConfig,
+};
 
 #[cfg(feature = "cloud")]
 use crate::backends::openai::ApiBackendConfig;
 
-/// LLM configuration deserialized from the `[llm]` section of `apollia.toml`.
-///
-/// Read by [`LlmRouter::from_config`], which no production path calls: the
-/// daemon builds its router from the backends stored in `system.db`
-/// (`from_repository_with_override`). Of this struct, only `routing` (grafted
-/// after construction by the supervisor) and `runner` (read by the runner
-/// supervisor) reach a running daemon; the other fields are read on the
-/// `from_config` path alone.
-///
-/// The `default` field names the backend used when `get(None)` is called.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct LlmConfig {
-    /// Default backend name (must exist in `backends`).
-    pub default: String,
-    /// Backends to instantiate from `[[llm.backends]]`.
-    pub backends: Vec<BackendConfig>,
-    /// Observability settings (tokens, latency, cost, prompt debug).
-    #[serde(default)]
-    pub observability: ObservabilityConfig,
-    /// LLM routing by precision level (`[llm.routing]` section).
-    ///
-    /// Optional. The daemon boots without it; the supervisor grafts the section
-    /// onto the router after construction with
-    /// [`LlmRouter::with_routing`](crate::LlmRouter::with_routing), which applies
-    /// it as given. A missing section surfaces later, as
-    /// [`LlmError::RoutingConfigMissing`] from `route_precise` / `route_fast`
-    /// when no default backend can stand in, and a section naming an absent
-    /// backend surfaces there as `BackendNotFound`. Only the
-    /// [`LlmRouter::from_config`] path checks the names up front.
-    ///
-    /// See [`LlmRoutingConfig`] for the `precise` and `fast` fields.
-    pub routing: Option<LlmRoutingConfig>,
-    /// Operator pricing overrides (`[llm.pricing_overrides]` section), not
-    /// applied by a running daemon: only [`LlmRouter::from_config`] passes them
-    /// to a client, and the daemon instead builds its backends from `system.db`
-    /// through `instantiate_cloud_backend`, which hands over an empty table.
-    ///
-    /// No client consults them, nor the internal table in
-    /// [`crate::pricing::default_pricing`] they would take priority over.
-    ///
-    /// `apollia.toml` example:
-    /// ```toml
-    /// [llm.pricing_overrides]
-    /// "custom-local-model" = { input_per_mtok = 0.0, output_per_mtok = 0.0 }
-    /// "claude-sonnet-4-5"  = { input_per_mtok = 2.5, output_per_mtok = 12.0 }
-    /// ```
-    #[serde(default)]
-    pub pricing_overrides: HashMap<String, PricingTier>,
-    /// Cost threshold in USD above which [`RuntimeEvent::TokenBudgetUpdated`]
-    /// is emitted with `threshold_exceeded = true`.
-    ///
-    /// `None` (default) disables threshold alerts.
-    ///
-    /// `apollia.toml` example:
-    /// ```toml
-    /// [llm]
-    /// cost_alert_threshold_usd = 0.50
-    /// ```
-    #[serde(default)]
-    pub cost_alert_threshold_usd: Option<f64>,
-    /// Speech-to-text sidecar runner configuration (`[llm.runner]` section).
-    ///
-    /// Determines which runner binary (`apollia-runner-cuda`,
-    /// `apollia-runner-metal`, etc.) the daemon spawns at boot to serve
-    /// transcription. Local text inference does not go through it: it runs on
-    /// the bundled llama-server. The default `"auto"` lets
-    /// `apollia_runtime::runner_supervisor::gpu_detection` choose based on the
-    /// hardware.
-    #[serde(default)]
-    pub runner: LlmRunnerConfig,
-}
-impl LlmConfig {
-    /// Converts TOML-parsed backends to [`LlmBackendConfig`] entries for `system.db`.
-    ///
-    /// Used by the Supervisor at startup to migrate from `apollia.toml` to `system.db`
-    /// when no backends are found in the database (first boot, or manual TOML edits).
-    pub fn to_db_configs(&self) -> Vec<LlmBackendConfig> {
-        self.backends
-            .iter()
-            .map(|b| backend_config_to_db(b, b.name() == self.default))
-            .collect()
-    }
-}
-/// Converts a TOML [`BackendConfig`] to a [`LlmBackendConfig`] for `system.db`.
-pub(crate) fn backend_config_to_db(cfg: &BackendConfig, is_default: bool) -> LlmBackendConfig {
+/// A path or URL hint for the `LlmModelLoading` event: the API URL of a cloud
+/// backend.
+pub(crate) fn model_path_hint(cfg: &BackendConfig) -> String {
     match &cfg.kind {
-        #[cfg(feature = "cloud")]
-        BackendKind::Api(api) => LlmBackendConfig {
-            name: api.name.clone(),
-            provider: infer_api_provider_from_url(&api.api_url),
-            model: api.model.clone(),
-            config_json: serde_json::json!({
-                "api_url": api.api_url,
-                "api_key": format!("${{{}}}", api.api_key_env),
-            }),
-            enabled: true,
-            is_default,
-        },
+        BackendKind::Api(api) => api.api_url.clone(),
     }
 }
-/// Default port Ollama listens on. Used only to recognise an Ollama backend
-/// declared in a legacy TOML file, never to build a URL: the host and port
-/// always come from the configured `api_url`.
-#[cfg(feature = "cloud")]
-const OLLAMA_DEFAULT_PORT: &str = ":11434";
-/// Infers a [`LlmProvider`] from the API base URL.
-///
-/// Only used when migrating a legacy TOML backend into the database, where no
-/// explicit provider is recorded. Matching on the port alone (rather than on
-/// `localhost:11434`) keeps an Ollama server running on another machine
-/// recognisable, which is the normal case as soon as inference is offloaded to
-/// a second host.
-#[cfg(feature = "cloud")]
-pub(crate) fn infer_api_provider_from_url(api_url: &str) -> LlmProvider {
-    if api_url.contains(OLLAMA_DEFAULT_PORT) || api_url.contains("ollama") {
-        LlmProvider::Ollama
-    } else {
-        LlmProvider::OpenAi
-    }
-}
-/// Observability settings for the LLM router.
-///
-/// `log_token_usage` and `log_latency` are enabled by default.
-/// `log_cost` and `debug_log_prompt` are disabled by default.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ObservabilityConfig {
-    /// Log the number of tokens consumed after each call.
-    #[serde(default = "default_true")]
-    pub log_token_usage: bool,
-    /// Log the total latency of each call.
-    #[serde(default = "default_true")]
-    pub log_latency: bool,
-    /// Log the estimated cost in USD (cloud backends only).
-    #[serde(default)]
-    pub log_cost: bool,
-    /// Log the full prompt at `TRACE` level (debug only).
-    #[serde(default)]
-    pub debug_log_prompt: bool,
-}
-impl Default for ObservabilityConfig {
-    fn default() -> Self {
-        Self {
-            log_token_usage: true,
-            log_latency: true,
-            log_cost: false,
-            debug_log_prompt: false,
-        }
-    }
-}
-pub(crate) fn default_true() -> bool {
-    true
-}
-/// Configuration entry for an individual backend in `[[llm.backends]]`.
-///
-/// The backend's logical name is defined in the inner config
-/// (`ApiBackendConfig.name`).
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct BackendConfig {
-    /// Backend type and parameters, discriminated by the TOML `type` field.
-    #[serde(flatten)]
-    pub kind: BackendKind,
-}
-impl BackendConfig {
-    /// Return the backend's logical name from the inner config.
-    pub fn name(&self) -> &str {
-        match &self.kind {
-            #[cfg(feature = "cloud")]
-            BackendKind::Api(cfg) => &cfg.name,
-        }
-    }
 
-    /// Return a path/URL hint for the `LlmModelLoading` event.
-    ///
-    /// For a cloud backend this is the API URL.
-    pub(crate) fn model_path_hint(&self) -> String {
-        match &self.kind {
-            #[cfg(feature = "cloud")]
-            BackendKind::Api(cfg) => cfg.api_url.clone(),
+#[cfg(feature = "cloud")]
+impl From<&LlmApiBackendEntry> for ApiBackendConfig {
+    fn from(entry: &LlmApiBackendEntry) -> Self {
+        Self {
+            name: entry.name.clone(),
+            api_url: entry.api_url.clone(),
+            api_key_env: entry.api_key_env.clone(),
+            model: entry.model.clone(),
+            context_window: entry.context_window,
+            llama_cpp_extensions: entry.llama_cpp_extensions,
         }
     }
-}
-/// Backend type discriminant in `[[llm.backends]]`.
-///
-/// `type = "api"`: [`ApiBackendConfig`] (feature `"cloud"`).
-/// Local backends (llama-cpp) are now hosted by the `apollia-runner` crate
-/// (sidecar) and injected separately via `RunnerLlmBackend`.
-#[derive(Debug, Clone, serde::Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum BackendKind {
-    /// OpenAI-compatible HTTP backend (feature `"cloud"`).
-    #[cfg(feature = "cloud")]
-    Api(ApiBackendConfig),
 }

@@ -27,6 +27,7 @@ pub const DEFAULT_MODEL_REGISTRY_MIRROR_URL: &str =
 /// replacing the address by an internal mirror never widens what is trusted.
 /// Every field has a sane default via [`Default`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ModelsConfig {
     /// Address of the index. Its signature is read at the same address with
     /// `.minisig` appended.
@@ -49,6 +50,20 @@ pub struct ModelsConfig {
     /// directory. Changing it moves no file. Resolved by [`models_dir`].
     #[serde(default)]
     pub dir: String,
+
+    /// Rules applied to a model imported from a disk (`[models.import]`).
+    #[serde(default)]
+    pub import: ModelsImportConfig,
+}
+
+/// Rules applied to a model imported from a disk (`[models.import]` section
+/// in `apollia.toml`), read by the desktop import command.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModelsImportConfig {
+    /// `true` refuses a file whose digest matches no signed model card.
+    #[serde(default)]
+    pub require_verified: bool,
 }
 
 impl Default for ModelsConfig {
@@ -58,6 +73,7 @@ impl Default for ModelsConfig {
             registry_mirror_url: default_registry_mirror_url(),
             registry_enabled: default_registry_enabled(),
             dir: String::new(),
+            import: ModelsImportConfig::default(),
         }
     }
 }

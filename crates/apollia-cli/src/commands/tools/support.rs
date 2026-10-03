@@ -81,7 +81,7 @@ pub(super) fn emit_error(msg: String, json: bool) -> i32 {
 pub(super) fn load_tools_config(json: bool) -> ToolsConfig {
     match find_config_path() {
         Some(p) => match parse_apollia_toml(&p) {
-            Ok(c) => c.tools.unwrap_or_default(),
+            Ok(c) => c.tools,
             Err(e) => {
                 if !json {
                     eprintln!("Warning: apollia.toml unreadable ({e}) - using defaults");
