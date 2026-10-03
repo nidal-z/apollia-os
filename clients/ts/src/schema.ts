@@ -2490,6 +2490,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/approval-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/approval-history`. */
+        get: operations["list_approval_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/recent": {
         parameters: {
             query?: never;
@@ -2619,6 +2636,48 @@ export interface paths {
         put?: never;
         /** Handler for `POST /api/v1/sessions/:id/messages`, send message. */
         post: operations["send_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/messages/{message_id}/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/messages/{message_id}/regenerate`.
+         * @description `message_id` is the assistant message to regenerate: it and every later
+         *     message are dropped, then the user turn it answered runs again.
+         */
+        post: operations["regenerate_response"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/messages/{message_id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/messages/{message_id}/resend`.
+         * @description `message_id` is the user message to edit: it and every later message are
+         *     dropped, then `content` is sent as a fresh user turn.
+         */
+        post: operations["resend_message"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4085,6 +4144,21 @@ export interface components {
             /** @description Last modification timestamp (ISO 8601). */
             updated_at: string;
         };
+        /** @description One decision on a tool call inside a chat. */
+        ChatApprovalHistoryEntry: {
+            /** @description Decision taken (`accept`, `refuse`, `always_accept`). */
+            decision: string;
+            /** @description Message the approval was attached to. */
+            message_id: string;
+            /** @description The user's refusal reason, only set for `refuse`. */
+            reason?: string | null;
+            /** @description ISO-8601 timestamp of the resolution. */
+            resolved_at: string;
+            /** @description Session identifier. */
+            session_id: string;
+            /** @description Tool that required approval. */
+            tool_name: string;
+        };
         /** @description Request body for `POST /api/v1/llm/chat`. */
         ChatRequest: {
             /** @description Backend to use; falls back to the router default if omitted. */
@@ -5457,6 +5531,11 @@ export interface components {
             reason: string;
             /** @description Connection type, as the package names it. */
             type: string;
+        };
+        /** @description Request body for `POST /api/v1/sessions/{id}/messages/{message_id}/resend`. */
+        ResendMessageRequest: {
+            /** @description The new text of the user message. */
+            content: string;
         };
         /** @description Response body for the reset route. */
         ResetResponse: {
@@ -12363,6 +12442,49 @@ export interface operations {
             };
         };
     };
+    list_approval_history: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of entries (default 20) */
+                limit?: number;
+                /** @description Look-back window in days (default 7) */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent decisions on chat tool calls */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatApprovalHistoryEntry"][];
+                };
+            };
+            /** @description The ledger cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_recent_sessions: {
         parameters: {
             query?: {
@@ -12723,6 +12845,130 @@ export interface operations {
             };
             /** @description Session closed or busy */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    regenerate_response: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description Assistant message to regenerate */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Turn running again */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed or busy */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Message not found or no user turn before it */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    resend_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+                /** @description User message to replace */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResendMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description New user message accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendMessageResponse"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session closed or busy */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Message not found or not a user message */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

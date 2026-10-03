@@ -50,6 +50,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chats_by_project",
     "rename_chat_session",
     "update_chat_session",
+    // The chat: a turn played again, a decision on a tool call, the history
+    // of those decisions, and the skills of the worker agents.
+    "authorize_chat_tool",
+    "edit_and_resend_chat_message",
+    "list_a2a_skills",
+    "list_chat_approval_history",
+    "regenerate_chat_response",
     // Agents: the registry and the install.
     "agent_status_snapshot",
     "install_agent",

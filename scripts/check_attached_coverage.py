@@ -69,8 +69,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # the conversations of the chat could be configured, renamed, named, erased and
 # linked to a project, then at 146 once the metrics of a conversation were read
 # from the daemon and its export and reveal named as window commands, then at
-# 141 once the memory was read through its routes.
-EMBEDDED_ONLY_CEILING = 141
+# 141 once the memory was read through its routes, then at 136 once the chat
+# could play a turn again, decide on a tool call and read those decisions.
+EMBEDDED_ONLY_CEILING = 136
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

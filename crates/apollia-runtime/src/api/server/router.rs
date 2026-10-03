@@ -90,6 +90,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     use crate::api::routes_chat::user_inputs::{
         answer_user_input, list_pending_user_inputs, reject_user_input,
     };
+    use crate::api::routes_chat::{approval_history, turns};
     use crate::api::routes_chat::{
         authorize_tool as chat_authorize_tool, close_session, create_session,
         fork_session as chat_fork_session, get_session as chat_get_session,
@@ -264,12 +265,24 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // /recent must be registered before /:id to avoid the path param capturing "recent"
         .route("/api/v1/sessions/recent", get(list_recent_sessions::<B>))
         .route(
+            "/api/v1/sessions/approval-history",
+            get(approval_history::list_approval_history::<B>),
+        )
+        .route(
             "/api/v1/sessions/:id",
             get(chat_get_session::<B>)
                 .patch(update_session::<B>)
                 .delete(close_session::<B>),
         )
         .route("/api/v1/sessions/:id/messages", post(send_message::<B>))
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id/regenerate",
+            post(turns::regenerate_response::<B>),
+        )
+        .route(
+            "/api/v1/sessions/:id/messages/:message_id/resend",
+            post(turns::resend_message::<B>),
+        )
         .route(
             "/api/v1/sessions/:id/authorize",
             post(chat_authorize_tool::<B>),
