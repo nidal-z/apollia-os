@@ -103,8 +103,7 @@ fn open_secret_store(data_dir: &Path) -> Option<Arc<std::sync::Mutex<ToolCredent
     if !db_path.exists() {
         return None;
     }
-    let keyfile_path = data_dir.join(".keyfile");
-    match ToolCredentialStore::new(&db_path, &keyfile_path) {
+    match ToolCredentialStore::open(&db_path) {
         Ok(store) => Some(Arc::new(std::sync::Mutex::new(store))),
         Err(e) => {
             tracing::warn!(

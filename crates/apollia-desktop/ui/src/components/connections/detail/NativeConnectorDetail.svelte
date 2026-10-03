@@ -3,8 +3,11 @@
    * NativeConnectorDetail - detail pane for a native Apollia connector.
    *
    * DetailHeader (identity, status badge, add-account CTA) over a TabBar with
-   * Accounts / Capabilities / Settings. Tab is orchestrator-bound so a context
-   * action can deep-link to a tab. The OAuth flow itself lives in the parent.
+   * Accounts / Capabilities / Settings. The Accounts tab also carries the
+   * connection's OAuth client (NativeClientSection), so the client is entered
+   * where the accounts it serves are connected. Tab is orchestrator-bound so a
+   * context action can deep-link to a tab. The OAuth flow itself lives in the
+   * parent.
    */
   import { t } from "svelte-i18n";
   import { Plus, Settings2, Link as LinkIcon } from "lucide-svelte";
@@ -16,10 +19,12 @@
   import ConnectorTile from "../shared/ConnectorTile.svelte";
   import StatusBadge from "../shared/StatusBadge.svelte";
   import NativeAccountsTab from "./NativeAccountsTab.svelte";
+  import NativeClientSection from "./NativeClientSection.svelte";
   import CapabilityMatrix from "./CapabilityMatrix.svelte";
   import { scopeLabelKeys, providerEndpoint } from "$lib/connections/capabilities";
   import type { NativeConnectorCard, NativeTab } from "../shared/types";
   import type { OauthAccountInfo } from "$lib/ipc/connections";
+  import type { OauthClientIdStatus } from "$lib/ipc/oauthClients";
 
   interface Props {
     connector: NativeConnectorCard;
@@ -29,6 +34,12 @@
     /** The provider has no usable OAuth client yet, so connecting cannot work. */
     needsSetup?: boolean;
     tab: NativeTab;
+    /** The connection's OAuth client; `undefined` while it could not be read. */
+    clientStatus: OauthClientIdStatus | undefined;
+    /** Why the client could not be read, if it could not. */
+    clientError: string | null;
+    /** Read the client again. */
+    onclientretry: () => void;
     onconnect: () => void;
     onconfigure?: () => void;
     ondisconnect: (account: OauthAccountInfo) => void;
@@ -42,6 +53,9 @@
     error,
     needsSetup = false,
     tab,
+    clientStatus,
+    clientError,
+    onclientretry,
     onconnect,
     onconfigure,
     ondisconnect,
@@ -125,6 +139,16 @@
       {onconfigure}
       {ondisconnect}
     />
+    <div class="mt-4">
+      <NativeClientSection
+        provider={connector.id}
+        status={clientStatus}
+        loadError={clientError}
+        {loading}
+        onretry={onclientretry}
+        onchanged={onclientretry}
+      />
+    </div>
   {:else if tab === "capabilities"}
     <CapabilityMatrix providerId={connector.id} />
   {:else}

@@ -4,7 +4,9 @@
 //! `permission_audit`, `family_consents` and `governance_upgrades` (owned by
 //! this crate), plus `tools` and
 //! `tool_credentials` (owned by `apollia-tools`, whose `GovernanceDb` reuses
-//! this list). The legacy `chat_libre_config` table that v1 creates is read
+//! this list). Since v3 `tool_credentials` is an index of the credentials,
+//! their values living in the secret store; the encrypted values of an older
+//! file wait in `tool_credentials_legacy` until `apollia-tools` moves them. The legacy `chat_libre_config` table that v1 creates is read
 //! once by [`crate::chat_config_upgrade`], then dropped by the runtime once
 //! carried over to the Apollia agent. `PRAGMA user_version` belongs to
 //! the database file, not to a table, so the three openers
@@ -18,13 +20,19 @@ use rusqlite::Connection;
 use apollia_core::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `governance.db`.
-pub const GOVERNANCE_SCHEMA_VERSION: u32 = 2;
+pub const GOVERNANCE_SCHEMA_VERSION: u32 = 3;
 
 /// Numbered migration steps of `governance.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`GOVERNANCE_SCHEMA_VERSION`].
-pub const GOVERNANCE_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2];
+pub const GOVERNANCE_MIGRATIONS: &[Migration] = &[migrate_v1, migrate_v2, migrate_v3];
+
+/// Name, in `governance_upgrades`, of the data upgrade that moves the
+/// encrypted tool credentials of `tool_credentials_legacy` into the secret
+/// store. Consumed by `apollia-tools`, which holds both the old key and the
+/// store.
+pub const TOOL_CREDENTIALS_UPGRADE: &str = "tool_credentials_secret_store";
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -163,6 +171,58 @@ fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
     )
 }
 
+/// v3: `tool_credentials` keeps no value any more, only the index of what is
+/// stored (tool, key, dates), because the values move to the secret store.
+///
+/// The encrypted table is renamed `tool_credentials_legacy` and kept for the
+/// data upgrade named [`TOOL_CREDENTIALS_UPGRADE`], which needs the key file
+/// and the secret store and therefore runs outside this step. Each statement
+/// is guarded, so a step interrupted half way is replayed to the same state.
+fn migrate_v3(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let has_value_column: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM pragma_table_info('tool_credentials')
+         WHERE name = 'value_encrypted'",
+        [],
+        |row| row.get(0),
+    )?;
+    let has_legacy: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM sqlite_master
+         WHERE type = 'table' AND name = 'tool_credentials_legacy'",
+        [],
+        |row| row.get(0),
+    )?;
+    if has_value_column && !has_legacy {
+        conn.execute_batch("ALTER TABLE tool_credentials RENAME TO tool_credentials_legacy;")?;
+    }
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS tool_credentials (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            tool_name       TEXT NOT NULL,
+            key_name        TEXT NOT NULL,
+            created_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+            last_used_at    INTEGER,
+            UNIQUE(tool_name, key_name)
+        );",
+    )?;
+    let has_legacy: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM sqlite_master
+         WHERE type = 'table' AND name = 'tool_credentials_legacy'",
+        [],
+        |row| row.get(0),
+    )?;
+    if has_legacy {
+        conn.execute_batch(
+            "INSERT OR IGNORE INTO tool_credentials (tool_name, key_name, created_at, last_used_at)
+             SELECT tool_name, key_name, created_at, last_used_at FROM tool_credentials_legacy;",
+        )?;
+    }
+    conn.execute(
+        "INSERT OR IGNORE INTO governance_upgrades (name, done_at) VALUES (?1, NULL)",
+        [TOOL_CREDENTIALS_UPGRADE],
+    )?;
+    Ok(())
+}
+
 /// Opens the file's schema at the current version, or refuses it.
 ///
 /// Shared entry point for the three `governance.db` openers.
@@ -218,6 +278,75 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, i64::from(GOVERNANCE_SCHEMA_VERSION));
+    }
+
+    // GIVEN a v2 file holding an encrypted tool credential
+    // WHEN it is opened through the versioned layer
+    // THEN the index keeps the credential without its value, the encrypted
+    // row waits in the legacy table, and the data upgrade is pending
+    #[test]
+    fn test_governance_v3_turns_tool_credentials_into_an_index() {
+        let conn = Connection::open_in_memory().unwrap();
+        (GOVERNANCE_MIGRATIONS[0])(&conn).unwrap();
+        (GOVERNANCE_MIGRATIONS[1])(&conn).unwrap();
+        conn.pragma_update(None, "user_version", 2).unwrap();
+        conn.execute(
+            "INSERT INTO tool_credentials (tool_name, key_name, value_encrypted, created_at)
+             VALUES ('web_search', 'brave.api_key', X'00112233', 1700000000)",
+            [],
+        )
+        .unwrap();
+
+        open_governance_schema(&conn).unwrap();
+
+        let columns: Vec<String> = conn
+            .prepare("SELECT name FROM pragma_table_info('tool_credentials')")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert!(!columns.contains(&"value_encrypted".to_string()));
+        let indexed: (String, i64) = conn
+            .query_row(
+                "SELECT key_name, created_at FROM tool_credentials",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(indexed, ("brave.api_key".to_string(), 1_700_000_000));
+        let legacy: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_credentials_legacy", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(legacy, 1);
+        let pending: Option<i64> = conn
+            .query_row(
+                "SELECT done_at FROM governance_upgrades WHERE name = ?1",
+                [TOOL_CREDENTIALS_UPGRADE],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(pending, None);
+    }
+
+    // GIVEN the v3 step already applied once
+    // WHEN it is replayed on the same file
+    // THEN it changes nothing and fails on nothing
+    #[test]
+    fn test_governance_v3_replayed_is_a_no_op() {
+        let conn = Connection::open_in_memory().unwrap();
+        open_governance_schema(&conn).unwrap();
+
+        migrate_v3(&conn).unwrap();
+
+        let index: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tool_credentials", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(index, 0);
     }
 
     // GIVEN a database stamped by a newer binary

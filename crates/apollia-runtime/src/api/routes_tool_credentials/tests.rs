@@ -4,10 +4,12 @@ use axum::http::StatusCode;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MemorySecrets, MockBackend, StemLoader};
 
 fn state_in(dir: &std::path::Path) -> AppState<MockBackend> {
-    app_state(Arc::new(StemLoader { refusal: None }), dir.to_path_buf())
+    let mut state = app_state(Arc::new(StemLoader { refusal: None }), dir.to_path_buf());
+    state.secret_store = MemorySecrets::default().opener();
+    state
 }
 
 /// A daemon whose data directory is a plain file, so no store opens.
