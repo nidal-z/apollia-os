@@ -124,6 +124,7 @@ impl From<ResolvedAgent> for ResolvedAgentResponse {
 pub struct SetOverrideRequest {
     /// The user's value: a string for `name` and `mission`, a tier name for
     /// `autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.
+    /// A `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`.
     #[schema(value_type = Object)]
     pub value: serde_json::Value,
 }
@@ -222,6 +223,30 @@ async fn shown<B: ExecutionBackend + Clone>(
     }
 }
 
+/// Refuses a `sources` list naming an entry that is neither a source of the
+/// registry nor `profile` nor `memory`. A value that is not a list of strings
+/// is left to the shape check of the write.
+async fn check_sources<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    value: &serde_json::Value,
+) -> Result<(), ApiError> {
+    let Some(entries) = value.as_array().and_then(|items| {
+        items
+            .iter()
+            .map(|v| v.as_str().map(str::to_owned))
+            .collect::<Option<Vec<_>>>()
+    }) else {
+        return Ok(());
+    };
+    if crate::agents::sources::only_token_kinds(&entries) {
+        return Ok(());
+    }
+    crate::api::routes_sources::registry(state)?
+        .check_entries(entries)
+        .await
+        .map_err(crate::api::routes_sources::sources_error)
+}
+
 /// `GET /api/v1/agent-definitions`: every stored agent, resolved.
 #[utoipa::path(
     get,
@@ -284,8 +309,8 @@ pub async fn get_agent_definition<B: ExecutionBackend + Clone>(
     responses(
         (status = 200, description = "Override set; the agent in force", body = ResolvedAgentResponse),
         (status = 404, description = "Agent not found", body = crate::api::openapi::ApiErrorBody),
-        (status = 422, description = "Unknown field, or a value of the wrong shape", body = crate::api::openapi::ApiErrorBody),
-        (status = 503, description = "Audit journal not available", body = crate::api::openapi::ApiErrorBody),
+        (status = 422, description = "Unknown field, a value of the wrong shape, or a source the registry does not hold", body = crate::api::openapi::ApiErrorBody),
+        (status = 503, description = "Audit journal, or the source registry a sources list needs, not available", body = crate::api::openapi::ApiErrorBody),
     )
 )]
 pub async fn set_agent_override<B: ExecutionBackend + Clone>(
@@ -294,6 +319,9 @@ pub async fn set_agent_override<B: ExecutionBackend + Clone>(
     Json(req): Json<SetOverrideRequest>,
 ) -> Result<Json<ResolvedAgentResponse>, ApiError> {
     let field = parse_field(&field)?;
+    if field == OverrideField::Sources {
+        check_sources(&state, &req.value).await?;
+    }
     let governance = governance(&state)?;
     let repo = open_agents(&state)?;
     writer(&repo, &governance)
