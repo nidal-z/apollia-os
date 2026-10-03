@@ -33,7 +33,7 @@ impl LlamaServerSupervisor {
     /// [`Self::default_load`] for a synchronous caller, such as a backend
     /// being built.
     #[must_use]
-    pub fn default_load_blocking(&self, backend: &str) -> LoadSettings {
+    pub(crate) fn default_load_blocking(&self, backend: &str) -> LoadSettings {
         match &self.system_db {
             Some(path) => load_settings::read_default(path, backend),
             None => LoadSettings::default(),

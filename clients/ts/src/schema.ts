@@ -6775,6 +6775,11 @@ export interface components {
         LoadedModelDto: {
             /** @description Requests being answered right now. An unload is refused above zero. */
             activeRequests: number;
+            /**
+             * @description The engine serving the model, chosen by its format: `llama-server` for
+             *     GGUF, `vllm-mlx` for MLX.
+             */
+            engine: components["schemas"]["EngineName"];
             /** @description When a request last used the model, RFC 3339. */
             lastUsedAt: string;
             /** @description When the model finished loading, RFC 3339. */
@@ -7863,8 +7868,10 @@ export interface components {
         /** @description Body of `PUT /api/v1/llm/default-model`. */
         SetDefaultModelRequest: {
             /**
-             * @description `local`: the name of a local engine backend. `server`: `<server>/<model>`
-             *     of a declared server, or the name of a server backend.
+             * @description `local`: the name of a local engine backend, or the identifier of a
+             *     language model of the model index, which gets its backend row.
+             *     `server`: `<server>/<model>` of a declared server, or the name of a
+             *     server backend.
              */
             model_id: string;
             /** @description Where the model runs. */

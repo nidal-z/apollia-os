@@ -1205,6 +1205,7 @@
       "empty": "No model is loaded in memory.",
       "since": "Loaded at {time}",
       "in_use": "Answering",
+      "engine_mlx": "MLX",
       "unload": "Unload",
       "unloaded_toast": "{name} unloaded, its memory is free.",
       "in_use_error": "{name} is in use: a response is in progress. Try again once it finishes."
