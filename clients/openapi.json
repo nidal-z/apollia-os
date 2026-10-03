@@ -314,6 +314,103 @@
         }
       }
     },
+    "/api/v1/agent-definitions/{name}/export": {
+      "post": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`POST /api/v1/agent-definitions/{name}/export`: the agent as a `.apo`\npackage, signed on request.",
+        "operationId": "export_agent_definition",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The `.apo` archive. The `X-Apollia-Export-Report` header carries an `ExportReport` as ASCII JSON",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<id>-<version>.apo\""
+              },
+              "X-Apollia-Export-Report": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The ExportReport of this export, ASCII JSON"
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Agent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The agent came with a package, or is the built-in agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No publisher name, an invalid one, or an identifier that cannot name a package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Secret store unavailable for a signed export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agent-definitions/{name}/overrides": {
       "delete": {
         "tags": [
@@ -685,7 +782,7 @@
         "tags": [
           "packages"
         ],
-        "summary": "`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,\nits agents, their virtualenvs and its folder, best effort at each step.",
+        "summary": "`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package\non the path the command line and `POST /api/v1/packages/{name}/uninstall`\ntake: its agents with their overrides, model and triggers, its\nenvironments and its folder, recorded in the audit journal. The memory\nand the history of its agents are kept.",
         "operationId": "uninstall_agent_package",
         "parameters": [
           {
@@ -719,8 +816,18 @@
               }
             }
           },
+          "403": {
+            "description": "The package carries Apollia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Nothing of the package was found",
+            "description": "No such package",
             "content": {
               "application/json": {
                 "schema": {
@@ -730,7 +837,17 @@
             }
           },
           "500": {
-            "description": "agents.db cannot be opened",
+            "description": "Store or journal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal",
             "content": {
               "application/json": {
                 "schema": {
@@ -943,6 +1060,99 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/installed/{name}/uninstall": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/agents/installed/{name}/uninstall`: uninstall an agent\ninstalled on its own.",
+        "description": "Removes the agent, its overrides, its model, its triggers, its\nenvironment and its files. Its memory and history are erased only when\nthe body asks. Apollia cannot be uninstalled; an agent of an installed\npackage goes with its package.",
+        "operationId": "uninstall_agent",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Agent name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UninstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Uninstalled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UninstallReport"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Apollia cannot be uninstalled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The agent belongs to an installed package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store or journal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
                 }
               }
             }
@@ -6404,6 +6614,16 @@
               }
             }
           },
+          "403": {
+            "description": "The organisation policy refuses this server; nothing was saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Invalid name or address",
             "content": {
@@ -6451,6 +6671,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TestServerResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The organisation policy refuses this server; nothing was sent to it, `kind` is `policy`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProbeErrorResponse"
                 }
               }
             }
@@ -9789,6 +10019,89 @@
         }
       }
     },
+    "/api/v1/packages/{name}/uninstall": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/packages/{name}/uninstall`: uninstall a package.",
+        "description": "Always removed: its agents with their overrides, model and triggers, its\nworkflows and tools, its environments and files, and the MCP servers it\nbrought. The connections it required stay. The memory and the history of\nits agents and workflows are erased only when the body asks.",
+        "operationId": "uninstall_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UninstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Uninstalled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UninstallReport"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The package carries Apollia",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store or journal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No audit journal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/permissions/proposals": {
       "get": {
         "tags": [
@@ -10406,7 +10719,7 @@
         "tags": [
           "server"
         ],
-        "summary": "`GET /api/v1/server`: whether the compatible server listens, its port, and\nwhy its last start failed.",
+        "summary": "`GET /api/v1/server`: whether the compatible server listens, its port, why\nits last start failed, and how many of its tokens are in use.",
         "operationId": "server_status",
         "responses": {
           "200": {
@@ -10415,6 +10728,81 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CompatServerStatus"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/logs": {
+      "get": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`GET /api/v1/server/logs`: the logs of the compatible server as SSE.",
+        "description": "Each `log` frame carries one line. The ring comes first, oldest line\nfirst, then each line as it is recorded; the stream stays open until the\nclient disconnects or the runtime stops.",
+        "operationId": "stream_server_logs",
+        "parameters": [
+          {
+            "name": "level",
+            "in": "query",
+            "description": "The lowest level sent: `debug` (every line, the default), `info`,\n`warn` or `error`.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ServerLogLevel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of the server's logs: each `log` frame carries one ServerLogLine, the lines held first, then the live ones",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerLogLine"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown level"
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`DELETE /api/v1/server/logs`: empties the logs of the compatible server.\nThe audit journal is not touched.",
+        "operationId": "clear_server_logs",
+        "responses": {
+          "200": {
+            "description": "The logs are empty; how many lines they held",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearedServerLogs"
                 }
               }
             }
@@ -10503,6 +10891,181 @@
           },
           "500": {
             "description": "The setting could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/tokens": {
+      "get": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`GET /api/v1/server/tokens`: every token, in use and revoked, oldest first.",
+        "operationId": "list_server_tokens",
+        "responses": {
+          "200": {
+            "description": "The tokens, without their values",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServerTokenView"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The token store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`POST /api/v1/server/tokens`: creates a named token and answers its value,\nthe only time it is given.",
+        "operationId": "create_server_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServerTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The token and its value, shown once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedServerTokenView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The name is empty, too long or digits only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A token in use already carries the name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The token store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/server/tokens/{token}": {
+      "delete": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`DELETE /api/v1/server/tokens/{token}`: revokes a token by identifier or\nby name. The row stays listed, marked revoked.",
+        "operationId": "revoke_server_token",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Identifier (digits) or name of the token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The token, revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerTokenView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No token matches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The token store failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -16755,6 +17318,20 @@
           }
         }
       },
+      "ClearedServerLogs": {
+        "type": "object",
+        "description": "What `DELETE /api/v1/server/logs` answers.",
+        "required": [
+          "cleared"
+        ],
+        "properties": {
+          "cleared": {
+            "type": "integer",
+            "description": "How many lines the ring held.",
+            "minimum": 0
+          }
+        }
+      },
       "CoachingExample": {
         "type": "object",
         "description": "One coaching example shown as a clickable card in the wizard's last step.",
@@ -16829,9 +17406,16 @@
         "description": "What the compatible server is doing.",
         "required": [
           "running",
-          "port"
+          "port",
+          "activeTokens"
         ],
         "properties": {
+          "activeTokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many tokens of the server are in use (not revoked).",
+            "minimum": 0
+          },
           "lastError": {
             "type": [
               "string",
@@ -17365,6 +17949,19 @@
           }
         }
       },
+      "CreateServerTokenRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/server/tokens`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Who holds the token, usually the application it is for. At most 64\ncharacters, not digits only, unique among the tokens in use."
+          }
+        }
+      },
       "CreateSessionRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions`.",
@@ -17419,7 +18016,7 @@
               "string",
               "null"
             ],
-            "description": "Target agent."
+            "description": "Target agent; exclusive with `workflow`."
           },
           "enabled": {
             "type": [
@@ -17437,7 +18034,7 @@
               "string",
               "null"
             ],
-            "description": "Input message template."
+            "description": "The message of an agent target."
           },
           "on_busy": {
             "type": [
@@ -17449,8 +18046,43 @@
           "source": {
             "$ref": "#/components/schemas/TriggerSourceInput",
             "description": "Trigger source configuration."
+          },
+          "workflow": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Target workflow, `<package>/<workflow>`; exclusive with `agent`."
+          },
+          "workflow_inputs": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "For a workflow target, one text template per input field."
           }
         }
+      },
+      "CreatedServerTokenView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ServerTokenView",
+            "description": "The token as the list will show it."
+          },
+          {
+            "type": "object",
+            "required": [
+              "value"
+            ],
+            "properties": {
+              "value": {
+                "type": "string",
+                "description": "The value (`apo_` and 64 hexadecimal characters). Shown this once."
+              }
+            }
+          }
+        ],
+        "description": "Answer of `POST /api/v1/server/tokens`: the token and, this once, its value."
       },
       "CredentialEntryView": {
         "type": "object",
@@ -18130,6 +18762,23 @@
               "type": "string"
             },
             "description": "List of global events."
+          }
+        }
+      },
+      "ExportAgentRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/agent-definitions/{name}/export`.",
+        "properties": {
+          "publisher": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Publisher name for this export only; the `author.name` setting when\nabsent or blank."
+          },
+          "sign": {
+            "type": "boolean",
+            "description": "Sign the package with the author key, generated on the first signature."
           }
         }
       },
@@ -20395,7 +21044,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `journal_unavailable`, `internal`."
+            "description": "Stable code: `archive`, `invalid_signature`, `signature_required`,\n`publisher_not_trusted`, `downgrade`, `agent_taken`,\n`deps_confirmation_required`, `changes_confirmation_required`,\n`mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,\n`policy_key`, `not_found`, `built_in`, `owned_by_package`,\n`journal_unavailable`, `internal`."
           },
           "error": {
             "type": "string",
@@ -21739,6 +22388,100 @@
           }
         }
       },
+      "ServerLogLevel": {
+        "type": "string",
+        "description": "How serious a line is, in increasing order.",
+        "enum": [
+          "debug",
+          "info",
+          "warn",
+          "error"
+        ]
+      },
+      "ServerLogLine": {
+        "type": "object",
+        "description": "One line of the server's logs.",
+        "required": [
+          "seq",
+          "timestamp",
+          "level",
+          "source"
+        ],
+        "properties": {
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long the server took to answer, in milliseconds. For a streamed\nanswer, the time until the stream opened.",
+            "minimum": 0
+          },
+          "endpoint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The path a request line asked for."
+          },
+          "level": {
+            "$ref": "#/components/schemas/ServerLogLevel",
+            "description": "How serious it is."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The text an engine printed."
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The HTTP method of a request line."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model a request line named, when it named one."
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Position of the line since the runtime started; it keeps growing\nacross a clear.",
+            "minimum": 0
+          },
+          "source": {
+            "$ref": "#/components/schemas/ServerLogSource",
+            "description": "Where it comes from."
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The status a request line was answered with.",
+            "minimum": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "When the line was recorded, RFC 3339 in UTC."
+          }
+        }
+      },
+      "ServerLogSource": {
+        "type": "string",
+        "description": "Where a line comes from.",
+        "enum": [
+          "request",
+          "engine"
+        ]
+      },
       "ServerModel": {
         "type": "object",
         "description": "One model of a declared server.",
@@ -21842,6 +22585,54 @@
           "name": {
             "type": "string",
             "description": "Unique name, the first segment of `<server>/<model>`."
+          }
+        }
+      },
+      "ServerTokenView": {
+        "type": "object",
+        "description": "A token as the list shows it: never its value.",
+        "required": [
+          "id",
+          "name",
+          "lastFour",
+          "createdAt",
+          "revoked"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "description": "When it was created, RFC 3339."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier, usable to revoke it."
+          },
+          "lastFour": {
+            "type": "string",
+            "description": "The last four characters of the value."
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it last opened the server, RFC 3339; absent if never."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name given at creation."
+          },
+          "revoked": {
+            "type": "boolean",
+            "description": "Whether it was revoked."
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When it was revoked, RFC 3339."
           }
         }
       },
@@ -23514,6 +24305,7 @@
         "description": "Response for CRUD operations returning a full definition.",
         "required": [
           "id",
+          "target_kind",
           "enabled",
           "on_busy",
           "source_type",
@@ -23527,7 +24319,7 @@
               "string",
               "null"
             ],
-            "description": "Target agent."
+            "description": "Target agent, for an agent target."
           },
           "created_at": {
             "type": "string",
@@ -23546,7 +24338,7 @@
               "string",
               "null"
             ],
-            "description": "Input message template."
+            "description": "The message of an agent target."
           },
           "on_busy": {
             "type": "string",
@@ -23560,9 +24352,27 @@
             "type": "string",
             "description": "Source type."
           },
+          "target_kind": {
+            "type": "string",
+            "description": "`\"agent\"` or `\"workflow\"`."
+          },
           "updated_at": {
             "type": "string",
             "description": "Last-modified timestamp (ISO 8601)."
+          },
+          "workflow": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Target workflow, for a workflow target."
+          },
+          "workflow_inputs": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "For a workflow target, one text template per input field."
           }
         }
       },
@@ -23789,6 +24599,125 @@
               "$ref": "#/components/schemas/TurnLlmCall"
             },
             "description": "The calls, in the order they were made. Empty for a turn that made\nnone or that is unknown."
+          }
+        }
+      },
+      "UninstallReport": {
+        "type": "object",
+        "description": "What an uninstallation removed, and what it kept.",
+        "required": [
+          "name",
+          "version",
+          "agents",
+          "workflows",
+          "tools",
+          "triggersRemoved",
+          "mcpServersRemoved",
+          "connectionsKept",
+          "memoryCleared",
+          "historyCleared",
+          "tasksRemoved",
+          "batchesRemoved",
+          "workflowRunsRemoved",
+          "leftovers"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Agents removed."
+          },
+          "batchesRemoved": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Batches erased with the history.",
+            "minimum": 0
+          },
+          "connectionsKept": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Connections the package required, kept."
+          },
+          "historyCleared": {
+            "type": "boolean",
+            "description": "The history was erased."
+          },
+          "leftovers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What could not be removed, and why. The uninstallation goes on past\nsuch a step, so that the package can be installed again."
+          },
+          "mcpServersRemoved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MCP servers the package brought, removed."
+          },
+          "memoryCleared": {
+            "type": "boolean",
+            "description": "The memory of the agents was erased."
+          },
+          "name": {
+            "type": "string",
+            "description": "The package, or the agent uninstalled on its own."
+          },
+          "tasksRemoved": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Tasks erased with the history.",
+            "minimum": 0
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Python tools removed."
+          },
+          "triggersRemoved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Triggers removed."
+          },
+          "version": {
+            "type": "string",
+            "description": "The version removed."
+          },
+          "workflowRunsRemoved": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Workflow runs erased with the history.",
+            "minimum": 0
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Workflows removed."
+          }
+        }
+      },
+      "UninstallRequest": {
+        "type": "object",
+        "description": "Body of both uninstall routes: what the user chose to erase.",
+        "properties": {
+          "clearHistory": {
+            "type": "boolean",
+            "description": "Erase the history (tasks, batches, workflow runs) instead of keeping\nit."
+          },
+          "clearMemory": {
+            "type": "boolean",
+            "description": "Erase the memory of the agents instead of keeping it."
           }
         }
       },
@@ -24042,7 +24971,7 @@
               "string",
               "null"
             ],
-            "description": "Target agent."
+            "description": "Target agent; exclusive with `workflow`."
           },
           "enabled": {
             "type": [
@@ -24056,7 +24985,7 @@
               "string",
               "null"
             ],
-            "description": "Input message template."
+            "description": "The message of an agent target."
           },
           "on_busy": {
             "type": [
@@ -24068,6 +24997,20 @@
           "source": {
             "$ref": "#/components/schemas/TriggerSourceInput",
             "description": "Trigger source configuration."
+          },
+          "workflow": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Target workflow, `<package>/<workflow>`; exclusive with `agent`."
+          },
+          "workflow_inputs": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "For a workflow target, one text template per input field."
           }
         }
       },

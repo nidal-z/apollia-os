@@ -82,7 +82,8 @@ pub enum LlmCommand {
         /// Override the system database path (default: `~/.apollia/system.db`).
         #[arg(long, value_name = "PATH")]
         system_db: Option<PathBuf>,
-        /// Override the models directory (default: `~/.apollia/models/`).
+        /// Override the models directory. Without it, `[models] dir` of
+        /// `apollia.toml`, else `~/.apollia/models/`.
         #[arg(long, value_name = "DIR")]
         models_dir: Option<PathBuf>,
     },

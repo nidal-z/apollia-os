@@ -24,6 +24,11 @@
 //! - [`ServerConfig`]: `[server]`, the compatible server, a second listener
 //!   of the runtime on its own port, switched off by default; its two keys
 //!   are named settings too.
+//! - [`EnginesConfig`]: `[engines]`, the settings of the local inference
+//!   engines, the engine log level first; named settings, read when a model
+//!   loads.
+//! - [`AuthorConfig`]: `[author]`, the publisher name of the agents exported
+//!   from this machine.
 //! - [`LlmConfig`]: `[llm]`, the backends declared in the file, routing and
 //!   the prompt debug log; `apollia-llm` re-exports its shapes.
 //!
@@ -38,9 +43,11 @@
 
 mod a2a;
 mod api;
+mod author;
 mod autonomy;
 mod chat;
 mod desktop;
+mod engines;
 mod filesystem;
 mod filesystem_risk;
 mod hitl;
@@ -78,11 +85,13 @@ mod validate_tests;
 
 pub use a2a::A2AConfig;
 pub use api::ApiConfig;
+pub use author::{AuthorConfig, AUTHOR_NAME_KEY};
 pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };
 pub use chat::ChatConfig;
-pub use desktop::DesktopConfig;
+pub use desktop::{DesktopConfig, UpdateChannel};
+pub use engines::{EngineLogLevel, EnginesConfig, ENGINE_LOG_LEVELS};
 pub use filesystem::FilesystemConfig;
 pub use filesystem_risk::FilesystemRiskConfig;
 pub use hitl::HitlConfig;
@@ -90,11 +99,12 @@ pub use hooks::{HookEventKind, HookHandlerConfig, HookHandlerKind, HooksConfig};
 pub use llm::{CeilingAction, HybridRoutingConfig, LlmRoutingConfig};
 pub use llm_section::{
     infer_api_provider_from_url, LlmApiBackendEntry, LlmBackendEntry, LlmBackendKind, LlmConfig,
-    LlmObservabilityConfig,
+    LlmGuardrailsConfig, LlmObservabilityConfig,
 };
 pub use mcp::{McpConfig, McpToolLoading};
 pub use models::{
-    ModelsConfig, ModelsImportConfig, DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL,
+    default_models_dir, models_dir, resolve_models_dir, ModelsConfig, ModelsImportConfig,
+    DEFAULT_MODEL_REGISTRY_MIRROR_URL, DEFAULT_MODEL_REGISTRY_URL, MODELS_DIR_KEY, MODELS_DIR_NAME,
 };
 pub use oria::ORIAConfig;
 pub use permissions::BashValidatorConfig;
@@ -105,7 +115,7 @@ pub use runtime::RuntimeConfig;
 pub use server::{ServerConfig, DEFAULT_COMPAT_SERVER_PORT};
 pub use settings::{
     check_imposed_setting, resolve_setting, resolve_setting_in, write_setting, PolicySettings,
-    ResolvedSetting, SettingError, SettingSource,
+    ResolvedSetting, SettingError, SettingSource, GUARDRAIL_LEVELS,
 };
 pub use tools::ToolsConfig;
 pub use triggers::TriggersConfig;

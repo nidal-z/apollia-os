@@ -19,7 +19,7 @@ fn state(dir: &TempDir) -> AppState<MockBackend> {
 
 /// A models folder under `dir` holding `name`, indexed.
 fn installed(dir: &TempDir, name: &str) -> std::path::PathBuf {
-    let models = dir.path().join("models");
+    let models = apollia_core::config::default_models_dir(dir.path());
     std::fs::create_dir_all(&models).unwrap();
     let file = models.join(name);
     std::fs::write(&file, b"GGUF").unwrap();
@@ -30,7 +30,7 @@ fn installed(dir: &TempDir, name: &str) -> std::path::PathBuf {
 }
 
 fn indexed(dir: &TempDir) -> usize {
-    ModelIndex::load(&dir.path().join("models").join(INDEX_FILE_NAME))
+    ModelIndex::load(&apollia_core::config::default_models_dir(dir.path()).join(INDEX_FILE_NAME))
         .unwrap()
         .models
         .len()
@@ -124,7 +124,7 @@ async fn test_a_path_that_names_no_file_is_not_found() {
     // GIVEN a models folder without the file asked for
     let dir = TempDir::new().unwrap();
     installed(&dir, "qwen3-8b.gguf");
-    let ghost = dir.path().join("models").join("ghost.gguf");
+    let ghost = apollia_core::config::default_models_dir(dir.path()).join("ghost.gguf");
 
     // WHEN a client asks for its removal
     let (status, body) = call(state(&dir), "DELETE", &route(&ghost), None).await;

@@ -597,4 +597,27 @@ plan_mode_default = true
             "{diagnostics:?}"
         );
     }
+
+    #[test]
+    fn test_engines_section_parses_and_refuses_an_unknown_level() {
+        // GIVEN an [engines] section naming a level, and one naming a level
+        // the engine does not have
+        let file = write_toml("[engines]\nlog_level = \"warning\"\n");
+        let unknown = write_toml("[engines]\nlog_level = \"trace\"\n");
+
+        // WHEN both are parsed
+        let config = parse_apollia_toml(file.path()).expect("parse should succeed");
+        let refused = parse_apollia_toml(unknown.path());
+
+        // THEN the level is read and the unknown level refused at its line
+        assert_eq!(
+            config.engines.log_level,
+            apollia_core::config::EngineLogLevel::Warning
+        );
+        let diagnostics = match refused.err() {
+            Some(ConfigError::Invalid(diagnostics)) => diagnostics,
+            _ => Vec::new(),
+        };
+        assert!(diagnostics.iter().any(|d| d.line == 2), "{diagnostics:?}");
+    }
 }

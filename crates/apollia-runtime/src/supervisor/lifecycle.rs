@@ -207,6 +207,7 @@ impl Supervisor {
         system_db_path: &std::path::Path,
         llama_server_supervisor: &Option<Arc<crate::llama_server::LlamaServerSupervisor>>,
         mlx_engine: &Option<Arc<crate::mlx_engine::MlxEngineSupervisor>>,
+        governance: &crate::governance::InferenceGovernance,
     ) -> (
         Option<Arc<LlmRouter>>,
         Option<Arc<std::sync::Mutex<LlmBackendRepository>>>,
@@ -241,6 +242,7 @@ impl Supervisor {
         let server_endpoints = crate::inference_servers::server_endpoints(
             &repo,
             crate::inference_servers::default_store,
+            governance,
         );
 
         // Override instantiation of `LlamaCpp` backends so they route through
@@ -256,6 +258,7 @@ impl Supervisor {
             match crate::backend_keys::routable_configs(
                 &repo,
                 crate::inference_servers::default_store,
+                governance,
             ) {
                 Ok((configs, Some(default))) => {
                     LlmRouter::from_backend_configs_with_override(configs, default, factory).await

@@ -22,6 +22,13 @@ execution: the one the user designated for this agent if it still exists,
 otherwise the default profile. The resolution happens at each call, so a
 designation changed while the agent runs applies to its next read.
 
+The profile is a source of the agent, and the agent reads it only when
+that source is checked: the package declares it in ``[agents.defaults]
+sources = ["profile"]``, and the user's own ``sources`` list, when set,
+replaces the package's. Unchecked, ``ctx.profile`` is ``None``. Each read
+(`get`, `has`, `all`) is recorded in the trace of the
+execution, with the agent, the profile served and the time.
+
 A profile carries five fields and a free text, all optional:
 
 * ``name``: the name of the person;

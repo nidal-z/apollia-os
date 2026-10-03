@@ -78,6 +78,7 @@ from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
 from .clear_memory_body import ClearMemoryBody
+from .cleared_server_logs import ClearedServerLogs
 from .coaching_example import CoachingExample
 from .coaching_request import CoachingRequest
 from .companion_enabled import CompanionEnabled
@@ -105,8 +106,11 @@ from .create_preset_request import CreatePresetRequest
 from .create_preset_request_load import CreatePresetRequestLoad
 from .create_preset_request_request import CreatePresetRequestRequest
 from .create_server_request import CreateServerRequest
+from .create_server_token_request import CreateServerTokenRequest
 from .create_session_request import CreateSessionRequest
 from .create_trigger_request import CreateTriggerRequest
+from .create_trigger_request_workflow_inputs_type_0 import CreateTriggerRequestWorkflowInputsType0
+from .created_server_token_view import CreatedServerTokenView
 from .credential_entry_view import CredentialEntryView
 from .credential_test_view import CredentialTestView
 from .daily_cost_entry import DailyCostEntry
@@ -145,6 +149,7 @@ from .engine_source import EngineSource
 from .engine_variant import EngineVariant
 from .engines_response import EnginesResponse
 from .events_response import EventsResponse
+from .export_agent_request import ExportAgentRequest
 from .export_format import ExportFormat
 from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
@@ -331,10 +336,14 @@ from .rewrite_reply import RewriteReply
 from .save_artifact_request import SaveArtifactRequest
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
+from .server_log_level import ServerLogLevel
+from .server_log_line import ServerLogLine
+from .server_log_source import ServerLogSource
 from .server_model import ServerModel
 from .server_models_response import ServerModelsResponse
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
+from .server_token_view import ServerTokenView
 from .servers_list_response import ServersListResponse
 from .session_metrics import SessionMetrics
 from .session_model_capabilities import SessionModelCapabilities
@@ -424,6 +433,9 @@ from .transcriptions_list_response_transcriptions_item import (
 )
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
+from .trigger_definition_response_workflow_inputs_type_0 import (
+    TriggerDefinitionResponseWorkflowInputsType0,
+)
 from .trigger_onboarding_body import TriggerOnboardingBody
 from .trigger_preview import TriggerPreview
 from .trigger_result import TriggerResult
@@ -432,6 +444,8 @@ from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
 from .turn_llm_call import TurnLlmCall
 from .turn_llm_calls_response import TurnLlmCallsResponse
+from .uninstall_report import UninstallReport
+from .uninstall_request import UninstallRequest
 from .unload_model_request import UnloadModelRequest
 from .unload_model_response import UnloadModelResponse
 from .update_artifact_request import UpdateArtifactRequest
@@ -446,6 +460,7 @@ from .update_preset_request_request import UpdatePresetRequestRequest
 from .update_session_body import UpdateSessionBody
 from .update_stt_config_body import UpdateSttConfigBody
 from .update_trigger_request import UpdateTriggerRequest
+from .update_trigger_request_workflow_inputs_type_0 import UpdateTriggerRequestWorkflowInputsType0
 from .user_profile_view import UserProfileView
 from .variant_update import VariantUpdate
 from .verify_chain_report import VerifyChainReport
@@ -541,6 +556,7 @@ __all__ = (
     "ChatResponseValueType0",
     "ClearAgentModelResponse",
     "ClearCacheResponse",
+    "ClearedServerLogs",
     "ClearMemoryBody",
     "CoachingExample",
     "CoachingRequest",
@@ -563,14 +579,17 @@ __all__ = (
     "CreateChannelRequest",
     "CreateChannelRequestConfig",
     "CreateCompanionSessionBody",
+    "CreatedServerTokenView",
     "CreateLlmBackendRequest",
     "CreateLlmBackendRequestConfigJson",
     "CreatePresetRequest",
     "CreatePresetRequestLoad",
     "CreatePresetRequestRequest",
     "CreateServerRequest",
+    "CreateServerTokenRequest",
     "CreateSessionRequest",
     "CreateTriggerRequest",
+    "CreateTriggerRequestWorkflowInputsType0",
     "CredentialEntryView",
     "CredentialTestView",
     "DailyCostEntry",
@@ -609,6 +628,7 @@ __all__ = (
     "EnginesResponse",
     "EngineVariant",
     "EventsResponse",
+    "ExportAgentRequest",
     "ExportFormat",
     "ExportMemoryNamespaceResponse200",
     "FireResponse",
@@ -791,11 +811,15 @@ __all__ = (
     "SaveArtifactRequest",
     "SendMessageRequest",
     "SendMessageResponse",
+    "ServerLogLevel",
+    "ServerLogLine",
+    "ServerLogSource",
     "ServerModel",
     "ServerModelsResponse",
     "ServerProbeErrorResponse",
     "ServerResponse",
     "ServersListResponse",
+    "ServerTokenView",
     "SessionMetrics",
     "SessionModelCapabilities",
     "SessionWorkspace",
@@ -882,6 +906,7 @@ __all__ = (
     "TranscriptionsListResponseTranscriptionsItem",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
+    "TriggerDefinitionResponseWorkflowInputsType0",
     "TriggerOnboardingBody",
     "TriggerPreview",
     "TriggerResult",
@@ -890,6 +915,8 @@ __all__ = (
     "TrustKeyRequest",
     "TurnLlmCall",
     "TurnLlmCallsResponse",
+    "UninstallReport",
+    "UninstallRequest",
     "UnloadModelRequest",
     "UnloadModelResponse",
     "UpdateArtifactRequest",
@@ -904,6 +931,7 @@ __all__ = (
     "UpdateSessionBody",
     "UpdateSttConfigBody",
     "UpdateTriggerRequest",
+    "UpdateTriggerRequestWorkflowInputsType0",
     "UserProfileView",
     "VariantUpdate",
     "VerifyChainReport",

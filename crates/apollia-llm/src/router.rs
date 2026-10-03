@@ -731,6 +731,7 @@ mod tests {
             backends: vec![],
             observability: ObservabilityConfig::default(),
             routing: None,
+            guardrails: Default::default(),
         };
 
         // WHEN
@@ -970,6 +971,7 @@ mod tests {
             backends: vec![],
             observability: ObservabilityConfig::default(),
             routing: None,
+            guardrails: Default::default(),
         };
 
         // WHEN

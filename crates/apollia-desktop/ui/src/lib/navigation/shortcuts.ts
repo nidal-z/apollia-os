@@ -148,6 +148,20 @@ export const SHORTCUTS: ShortcutEntry[] = [
     scopeHintKey: "settings.shortcuts.scope.settings",
   },
   {
+    id: "settings.engines",
+    combo: { mac: "⌘+⇧+R", win: "Ctrl+Shift+R" },
+    descriptionKey: "settings.shortcuts.items.settings_engines",
+    scope: "global",
+    category: "settings",
+  },
+  {
+    id: "settings.hardware",
+    combo: { mac: "⌘+⇧+H", win: "Ctrl+Shift+H" },
+    descriptionKey: "settings.shortcuts.items.settings_hardware",
+    scope: "global",
+    category: "settings",
+  },
+  {
     id: "settings.close",
     combo: { mac: "Escape", win: "Escape" },
     descriptionKey: "settings.shortcuts.items.settings_close",

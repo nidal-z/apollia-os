@@ -359,7 +359,6 @@ impl AgentRunner for BridgeRunner {
                     memory_interface,
                     None, // mailbox: not wired in task mode
                     agent_id,
-                    None, // user_context: task mode, not chat
                     a2a_invoker,
                     user_memory_write, // user_memory_writable: manifest-controlled
                 )
@@ -433,7 +432,6 @@ impl apollia_oria::engine::AIPAgent for BridgeRunner {
                     None,
                     None,
                     agent_id.clone(),
-                    None,
                     None,
                     false,
                 );

@@ -118,6 +118,8 @@ pub const KEYS: &[ConfigKey] = &[
     withdrawn("llm.pricing_overrides", "nothing reads it; remove the section"),
     withdrawn("llm.cost_alert_threshold_usd", "nothing reads it; remove the key"),
     withdrawn("llm.runner", "the engine is chosen from the detected hardware; remove the section"),
+    locked(key("llm.guardrails.level", Enum(&["disabled", "lenient", "balanced", "strict", "ceiling"]), Some("\"balanced\""), Reloadable, "How strictly a local model launch is held to the machine's memory; an unknown level holds to balanced.")),
+    locked(key("llm.guardrails.ceiling_gb", Float, None, Reloadable, "Largest estimate, in gigabytes, the ceiling level launches.")),
     withdrawn("llm.vertex", "the Google Vertex AI client was removed; declare an OpenAI-compatible server instead"),
     // [api]
     key("api.bind", KeyType::String, Some("\"127.0.0.1\""), Restart, "Address the daemon's TCP listener binds to."),
@@ -167,10 +169,11 @@ pub const KEYS: &[ConfigKey] = &[
     // [filesystem]
     key("filesystem.trusted_paths", StringArray, Some("[\"~\"]"), Reloadable, "Folders an agent may work in without asking."),
     // [models]
-    key("models.registry_url", KeyType::String, Some("\"https://registry.apollia.fr/models/stable/index.json\""), Reloadable, "Address of the signed index of model cards."),
-    key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it."),
-    key("models.registry_enabled", Boolean, Some("true"), Reloadable, "Read the online index of model cards."),
-    key("models.import.require_verified", Boolean, Some("false"), Reloadable, "Refuse an imported model file that matches no signed card."),
+    locked(key("models.registry_url", KeyType::String, Some("\"https://registry.apollia.fr/models/stable/index.json\""), Reloadable, "Address of the signed index of model cards.")),
+    locked(key("models.registry_mirror_url", KeyType::String, Some("\"https://github.com/Apollia-OS/apollia-os/releases/latest/download/models-stable-index.json\""), Reloadable, "Address tried when the index does not answer; empty disables it.")),
+    locked(key("models.registry_enabled", Boolean, Some("true"), Reloadable, "Read the online index of model cards.")),
+    locked(key("models.dir", Path, Some("\"\""), Reloadable, "Folder the language models, their projectors and the embedding models are kept in; empty means <data dir>/models. Changing it moves no file.")),
+    locked(key("models.import.require_verified", Boolean, Some("false"), Reloadable, "Refuse an imported model file that matches no signed card.")),
     // [workflows]
     key("workflows.max_steps", Integer, Some("200"), Restart, "Steps a workflow run may take."),
     key("workflows.max_tool_calls", Integer, Some("400"), Restart, "Tool calls a workflow run may make."),
@@ -178,9 +181,16 @@ pub const KEYS: &[ConfigKey] = &[
     // [desktop]
     locked(key("desktop.developer_mode", Boolean, Some("false"), Reloadable, "Show the advanced surfaces of the application.")),
     locked(key("desktop.link_preview_enabled", Boolean, Some("false"), Reloadable, "Fetch the preview of a link shown in a conversation.")),
+    locked(key("desktop.update_channel", Enum(&["stable", "preview"]), Some("\"stable\""), Reloadable, "Update channel the application reads its update manifest from.")),
+    locked(key("desktop.background_service_allowed", Boolean, Some("true"), Reloadable, "Allow the application to install the engine as a service of the user's session.")),
     // [server]
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
     locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server, on the loopback interface.")),
+    locked(key("server.require_auth", Boolean, Some("false"), Restart, "Require a token of the compatible server on every request; read when the listener opens.")),
+    // [engines]
+    locked(key("engines.log_level", Enum(&["error", "warning", "info", "debug"]), Some("\"debug\""), Reloadable, "Log level of the local engine, applied when a model is next loaded.")),
+    // [author]
+    locked(key("author.name", KeyType::String, Some("\"\""), Reloadable, "Publisher name of the agents exported from this machine; empty asks at export.")),
     // [observability]
     key("observability.max_input_bytes", Integer, Some("32768"), Reloadable, "Largest run input kept, in bytes."),
     key("observability.max_output_bytes", Integer, Some("32768"), Reloadable, "Largest run output kept, in bytes."),

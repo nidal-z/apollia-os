@@ -29,6 +29,7 @@
   import { FormField } from "$lib/components/ui/form-field";
   import CronBuilder from "../triggers/CronBuilder.svelte";
   import IntervalPicker from "../triggers/IntervalPicker.svelte";
+  import TargetChip from "../triggers/TargetChip.svelte";
   import {
     generateWebhookSecret,
     type AutomationFormErrors,
@@ -75,9 +76,12 @@
 </script>
 
 <div class="space-y-5">
-  <!-- Target: agent -->
+  <!-- Target: a workflow keeps its own; an agent is picked from the list -->
   <div>
     <p class="mb-1.5 block text-caption font-medium text-muted-foreground">{$t("triggers.field_target")}</p>
+    {#if model.targetKind === "workflow"}
+      <TargetChip kind="workflow" name={model.workflow} testid="{testidPrefix}-target" />
+    {:else}
     <Select
       bind:value={model.agent}
       aria-label={$t("triggers.field_target_agent")}
@@ -88,10 +92,28 @@
         <option value={agent.name}>{agent.name}</option>
       {/each}
     </Select>
+    {/if}
     {#if targetErrorText}
       <p class="mt-0.5 text-xs text-destructive" data-testid="{testidPrefix}-target-error">{targetErrorText}</p>
     {/if}
   </div>
+
+  {#if model.targetKind === "workflow"}
+    <div class="space-y-2" data-testid="{testidPrefix}-workflow-inputs">
+      <p class="block text-caption font-medium text-muted-foreground">{$t("triggers.field_workflow_inputs")}</p>
+      {#each Object.keys(model.workflowInputs) as name (name)}
+        <FormField id="{testidPrefix}-workflow-input-{name}" label={name} labelClass="text-caption font-normal mb-0">
+          <Input
+            id="{testidPrefix}-workflow-input-{name}"
+            bind:value={model.workflowInputs[name]}
+            data-testid="{testidPrefix}-workflow-input-{name}"
+          />
+        </FormField>
+      {:else}
+        <p class="text-caption text-muted-foreground/80">{$t("triggers.workflow_no_inputs")}</p>
+      {/each}
+    </div>
+  {/if}
 
   <!-- Source type -->
   <div>
@@ -344,7 +366,8 @@
           </Select>
         </FormField>
 
-        <!-- Input template -->
+        <!-- The message of an agent target -->
+        {#if model.targetKind !== "workflow"}
         <FormField
           id="{testidPrefix}-input-template"
           label={$t("triggers.field_input_template")}
@@ -359,6 +382,7 @@
             data-testid="{testidPrefix}-input-template"
           />
         </FormField>
+        {/if}
       </div>
     {/if}
   </div>

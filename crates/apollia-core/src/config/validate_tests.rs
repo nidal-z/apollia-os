@@ -365,6 +365,108 @@ fn an_unknown_key_in_llm_routing_hybrid_is_refused() {
 }
 
 #[test]
+fn an_unknown_key_in_llm_guardrails_is_refused() {
+    // GIVEN a typo in [llm.guardrails]
+    let text = format!("{BACKEND}\n[llm.guardrails]\nlevl = \"strict\"\n");
+    // WHEN the document is validated
+    // THEN it is refused, at its line
+    let fault = unknown(&text);
+    assert_eq!(
+        (fault.path.as_str(), fault.line),
+        ("llm.guardrails.levl", 12),
+        "{fault}"
+    );
+}
+
+#[test]
+fn the_guardrails_section_is_read_and_its_level_left_to_the_runtime() {
+    // GIVEN [llm.guardrails] with a ceiling, and one with a level nobody knows
+    let ceiling = format!("{BACKEND}\n[llm.guardrails]\nlevel = \"ceiling\"\nceiling_gb = 12.0\n");
+    let unknown_level = format!("{BACKEND}\n[llm.guardrails]\nlevel = \"strcit\"\n");
+    // WHEN both are validated
+    let read = validate(&ceiling).expect("a guardrails section is accepted");
+    let lenient = validate(&unknown_level);
+    // THEN the first is carried by the root, and the second is accepted: the
+    // runtime holds an unknown level to balanced
+    let guardrails = read.llm.expect("[llm] present").guardrails;
+    assert_eq!(guardrails.level, "ceiling");
+    assert_eq!(guardrails.ceiling_gb, Some(12.0));
+    assert!(lenient.is_ok(), "{lenient:?}");
+}
+
+#[test]
+fn an_unknown_key_in_server_is_refused() {
+    // GIVEN a typo in [server]
+    let text = "[server]\nenabled = true\nrequire_auht = true\n";
+    // WHEN the document is validated
+    // THEN it is refused, at line 3
+    let fault = unknown(text);
+    assert_eq!(
+        (fault.path.as_str(), fault.line),
+        ("server.require_auht", 3),
+        "{fault}"
+    );
+}
+
+#[test]
+fn the_server_section_and_the_mcp_bridge_switch_are_read() {
+    // GIVEN the compatible server and the MCP bridge turned on
+    let text = "[server]\nenabled = true\nport = 8123\nrequire_auth = true\n\n[mcp]\nserver_enabled = true\n";
+    // WHEN the document is validated
+    let config = validate(text).expect("both sections are accepted");
+    // THEN the root carries every value
+    assert!(config.server.enabled);
+    assert_eq!(config.server.port, 8123);
+    assert!(config.server.require_auth);
+    assert!(config.mcp.server_enabled);
+}
+
+#[test]
+fn an_unknown_key_in_engines_is_refused() {
+    // GIVEN a typo in [engines]
+    let text = "[engines]\nlog_levle = \"info\"\n";
+    // WHEN the document is validated
+    // THEN it is refused, at line 2
+    let fault = unknown(text);
+    assert_eq!(
+        (fault.path.as_str(), fault.line),
+        ("engines.log_levle", 2),
+        "{fault}"
+    );
+}
+
+#[test]
+fn an_unknown_key_in_author_is_refused() {
+    // GIVEN a typo in [author]
+    let text = "[author]\nname = \"Ada\"\nmail = \"ada@example.org\"\n";
+    // WHEN the document is validated
+    // THEN it is refused, at line 3
+    let fault = unknown(text);
+    assert_eq!(
+        (fault.path.as_str(), fault.line),
+        ("author.mail", 3),
+        "{fault}"
+    );
+}
+
+#[test]
+fn the_sections_added_by_the_release_are_read_by_the_root() {
+    // GIVEN the engine log level, the author, the models folder, the update
+    // channel and the background service switch
+    let text = "[engines]\nlog_level = \"warning\"\n\n[author]\nname = \"Ada\"\n\n\
+[models]\ndir = \"~/models\"\n\n[desktop]\nupdate_channel = \"preview\"\n\
+background_service_allowed = false\n";
+    // WHEN the document is validated
+    let config = validate(text).expect("every section is accepted");
+    // THEN the root carries every value
+    assert_eq!(config.engines.log_level, super::EngineLogLevel::Warning);
+    assert_eq!(config.author.name, "Ada");
+    assert_eq!(config.models.dir, "~/models");
+    assert_eq!(config.desktop.update_channel, super::UpdateChannel::Preview);
+    assert!(!config.desktop.background_service_allowed);
+}
+
+#[test]
 fn a_wrong_type_on_line_12_is_reported_on_line_12() {
     // GIVEN a document whose twelfth line gives a string where a number goes
     let text = "# Apollia\n\n[api]\nbind = \"127.0.0.1\"\n\n[chat]\nplan_mode_default = true\n\n# runtime\n\n[runtime]\neventbus_capacity = \"large\"\n";

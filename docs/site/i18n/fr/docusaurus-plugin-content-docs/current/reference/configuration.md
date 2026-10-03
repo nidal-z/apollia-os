@@ -54,8 +54,12 @@ avertissement `config.key.retired`.
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
 | `[filesystem]` | Les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
+| `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
 | `[observability]` | Capture et rétention des traces, documentées plus bas. |
-| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
+| `[desktop]` | Réglages de l'application de bureau : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`, et `link_preview_enabled`, qui récupère l'aperçu d'un lien affiché dans une conversation. Désactivé par défaut, puisque la récupération sort de la machine. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`. |
+| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
+| `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
 
 Les tableaux ci-dessous sont générés à partir des types Rust, si bien qu'aucun
 champ ne peut s'en écarter. Ils couvrent le **niveau racine de chaque section**.
@@ -110,6 +114,7 @@ Backends LLM et routage.
 | `backends` | `Vec<BackendConfig>` | **requis** | Backends à instancier depuis `[[llm.backends]]`. |
 | `observability` | `LlmObservabilityConfig` | défaut du type | Réglages d'observabilité du routeur : le journal de debug des prompts. |
 | `routing` | `Option<LlmRoutingConfig>` | `None` | Routage LLM par niveau de précision (section `[llm.routing]`). |
+| `guardrails` | `LlmGuardrailsConfig` | défaut du type | Garde-fous de chargement d'un modèle local (section `[llm.guardrails]`). |
 
 ### `[runtime]`
 

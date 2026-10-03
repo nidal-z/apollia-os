@@ -13,14 +13,15 @@ use rusqlite::Connection;
 use apollia_core::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `hitl.db`.
-pub const HITL_SCHEMA_VERSION: u32 = 5;
+pub const HITL_SCHEMA_VERSION: u32 = 6;
 
 /// Numbered migration steps of `hitl.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`HITL_SCHEMA_VERSION`].
-pub const HITL_MIGRATIONS: &[Migration] =
-    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5];
+pub const HITL_MIGRATIONS: &[Migration] = &[
+    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6,
+];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -203,6 +204,18 @@ fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
     )
 }
 
+/// v6: the history of an agent, read by agent.
+///
+/// The tasks and the batches of an agent are filtered by its name, to show
+/// its history and to remove it when the agent is uninstalled; neither column
+/// had an index.
+fn migrate_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_tasks_agent_name ON tasks(agent_name);
+         CREATE INDEX IF NOT EXISTS idx_batches_agent_name ON batches(agent_name);",
+    )
+}
+
 /// Opens the file's schema at the current version, or refuses it.
 ///
 /// Shared entry point for every `hitl.db` opener.
@@ -349,7 +362,54 @@ mod tests {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(version, i64::from(HITL_SCHEMA_VERSION));
+    }
+
+    // GIVEN a database at version 5, with a task row
+    // WHEN opening it through the versioned layer
+    // THEN the tasks and the batches are indexed by agent, and the row survives
+    #[test]
+    fn test_hitl_db_v5_gains_the_agent_indexes() {
+        let conn = Connection::open_in_memory().unwrap();
+        apollia_core::schema::open_versioned(&conn, "hitl.db", 5, &HITL_MIGRATIONS[..5]).unwrap();
+        conn.execute(
+            "INSERT INTO tasks (task_id, agent_name, status) VALUES ('t-1', 'clerk', 'completed')",
+            [],
+        )
+        .unwrap();
+
+        open_hitl_schema(&conn).unwrap();
+
+        let indexes: Vec<String> = conn
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type = 'index' \
+                 AND name IN ('idx_tasks_agent_name', 'idx_batches_agent_name') ORDER BY name",
+            )
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            indexes,
+            vec!["idx_batches_agent_name", "idx_tasks_agent_name"]
+        );
+        let plan: String = conn
+            .query_row(
+                "EXPLAIN QUERY PLAN SELECT task_id FROM tasks WHERE agent_name = 'clerk'",
+                [],
+                |row| row.get(3),
+            )
+            .unwrap();
+        assert!(plan.contains("idx_tasks_agent_name"), "{plan}");
+        let tasks: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tasks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(tasks, 1);
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 6);
     }
 
     // GIVEN a database stamped by a newer binary

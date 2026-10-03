@@ -133,7 +133,8 @@ function comboMatchesEvent(combo: string, event: KeyboardEvent): boolean {
     .some((alt) => altMatches(alt, event));
 }
 
-function onKeydown(event: KeyboardEvent): void {
+/** Match one keydown against the registered handlers and run the first that fits. */
+export function dispatchShortcutEvent(event: KeyboardEvent): void {
   const editable = isEditableTarget(event);
   for (const registered of handlers.values()) {
     const entry = CATALOG.get(registered.id);
@@ -153,6 +154,6 @@ function onKeydown(event: KeyboardEvent): void {
  */
 export function mountShortcutDispatcher(): () => void {
   if (typeof window === "undefined") return () => {};
-  window.addEventListener("keydown", onKeydown);
-  return () => window.removeEventListener("keydown", onKeydown);
+  window.addEventListener("keydown", dispatchShortcutEvent);
+  return () => window.removeEventListener("keydown", dispatchShortcutEvent);
 }

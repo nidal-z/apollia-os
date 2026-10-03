@@ -38,7 +38,7 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// `get_companion_context` needs none: it answers from a table of help texts
 /// compiled into this binary. `get_resolved_setting` and `set_setting` need
 /// none: they read and write the `apollia.toml` of the data directory, never
-/// the runtime.
+/// the runtime, and neither does `get_models_dir`, which reads the same file.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "chat_session_metrics",
     "create_chat_session",
@@ -61,10 +61,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_a2a_skills",
     "list_chat_approval_history",
     "regenerate_chat_response",
-    // Agents: the registry and the install.
+    // Agents: the registry, the install and the uninstall of an agent.
     "agent_status_snapshot",
     "install_agent",
     "list_agents",
+    "uninstall_agent",
     // Tasks: the list, the launch, the detail, the cancellation.
     "cancel_task",
     "get_task_timeline",
@@ -145,9 +146,22 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_messages",
     "list_tools",
     "verify_audit_run",
-    // The settings of the chat, which are those of the Apollia agent.
-    "get_chat_libre_config",
-    "update_chat_libre_config",
+    // The sheet of an agent: the agent resolved, its model fallback, its
+    // governance history.
+    "get_agent_definition",
+    "get_agent_model_fallback",
+    "list_agent_changes",
+    // The adjustment of an agent on its sheet: its overrides, the return to
+    // defaults, its model and the presets to choose from.
+    "clear_agent_model",
+    "list_model_presets",
+    "remove_agent_override",
+    "reset_agent_overrides",
+    "set_agent_model",
+    "set_agent_override",
+    // The export of an agent from its sheet: the runtime builds and signs the
+    // archive, this process writes the file the user chose.
+    "export_agent",
     // The user profile, over `/api/v1/profile`.
     "delete_profile_entry",
     "get_profile",
@@ -173,6 +187,8 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     // key by key: the developer mode.
     "get_resolved_setting",
     "set_setting",
+    // The models folder in force, read from the same `apollia.toml`.
+    "get_models_dir",
     // Plan mode: the default, the switch, the plan and its history, the soft
     // gate of a chat session and the gate of an orchestrated run.
     "approve_plan",
@@ -344,6 +360,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "reads the command-line link this application installs",
     ),
     (
+        "get_background_service",
+        "reads the service the OS manager holds for this user, which the window attaches to at startup",
+    ),
+    (
+        "set_background_service",
+        "installs or removes the service of this user's session, then relaunches this window",
+    ),
+    (
         "install_cli",
         "links the command line bundled with this application",
     ),
@@ -368,6 +392,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
         "stops the capture of this machine and sends its audio to the daemon",
     ),
     (
+        "open_logs_dir",
+        "opens the folder of this window's own log file in the file manager of this machine",
+    ),
+    (
         "open_config_in_editor",
         "opens the configuration file in the editor of this machine",
     ),
@@ -382,6 +410,18 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "start_model_download",
         "downloads into the models folder of this machine with the download manager of this window, which also holds the variant downloads",
+    ),
+    (
+        "get_hf_token",
+        "reads the Hugging Face token from the secret store of this machine",
+    ),
+    (
+        "set_hf_token",
+        "writes the Hugging Face token to the secret store of this machine",
+    ),
+    (
+        "clear_hf_token",
+        "removes the Hugging Face token from the secret store of this machine",
     ),
     (
         "cancel_model_download",

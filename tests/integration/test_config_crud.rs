@@ -131,6 +131,7 @@ async fn build_app_state_with_repos(
         plan_gates: None,
         audit_journal: None,
         connection_governance: Default::default(),
+        inference_governance: Default::default(),
         backend: MockBackend,
         llm_router: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
         trigger_engine: Some(engine_handle),
@@ -637,6 +638,8 @@ async fn test_boot_with_prepopulated_db() {
         let row = TriggerDefinitionRow {
             id: "pre-existing-trigger".into(),
             agent: Some("hello-agent".into()),
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: OnBusy::Queue,
             source_type: "interval".into(),

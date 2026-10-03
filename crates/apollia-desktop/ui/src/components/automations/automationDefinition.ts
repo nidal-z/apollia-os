@@ -9,7 +9,7 @@
  * Everything here is pure: no i18n, no IPC. Validation returns translation
  * keys and the caller resolves them.
  */
-import type { TriggerSourceInput, UpdateTriggerRequest } from "$lib/types";
+import type { TriggerSourceInput, TriggerTargetKind, UpdateTriggerRequest } from "$lib/types";
 import type { RedactedTriggerDefinition } from "$lib/ipc/triggers";
 
 /** Source kinds the definition form can build. */
@@ -24,8 +24,14 @@ export type AutomationSourceType =
 export interface AutomationFormModel {
   /** Trigger identifier. Immutable once the trigger exists. */
   id: string;
-  /** Target agent name. */
+  /** What the automation starts. */
+  targetKind: TriggerTargetKind;
+  /** Target agent name, for an agent target. */
   agent: string;
+  /** Target workflow `<package>/<workflow>`, for a workflow target. */
+  workflow: string;
+  /** One text template per input of a workflow target. */
+  workflowInputs: Record<string, string>;
   sourceType: AutomationSourceType;
   enabled: boolean;
   onBusy: "queue" | "drop";
@@ -64,7 +70,10 @@ export const TRIGGER_ID_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
 export function emptyAutomationModel(): AutomationFormModel {
   return {
     id: "",
+    targetKind: "agent",
     agent: "",
+    workflow: "",
+    workflowInputs: {},
     sourceType: "cron",
     enabled: true,
     onBusy: "queue",
@@ -153,7 +162,10 @@ export function modelFromDefinition(
   const config = definition.source_config ?? {};
 
   model.id = definition.id;
+  model.targetKind = definition.target_kind === "workflow" ? "workflow" : "agent";
   model.agent = definition.agent ?? "";
+  model.workflow = definition.workflow ?? "";
+  model.workflowInputs = { ...(definition.workflow_inputs ?? {}) };
   model.enabled = definition.enabled;
   model.onBusy = definition.on_busy === "drop" ? "drop" : "queue";
   model.inputTemplate = definition.input_template ?? "";
@@ -270,7 +282,7 @@ export function validateModel(
     errors.id = "triggers.field_id_invalid";
   }
 
-  if (!model.agent) {
+  if (model.targetKind === "workflow" ? !model.workflow : !model.agent) {
     errors.target = "triggers.field_target_required";
   }
 
@@ -324,11 +336,16 @@ export function toUpdateRequest(model: AutomationFormModel): UpdateTriggerReques
   const source = buildSource(model);
   if (!source) return null;
   const request: UpdateTriggerRequest = {
-    agent: model.agent,
     enabled: model.enabled,
     on_busy: model.onBusy,
     source,
   };
+  if (model.targetKind === "workflow") {
+    request.workflow = model.workflow;
+    request.workflow_inputs = { ...model.workflowInputs };
+    return request;
+  }
+  request.agent = model.agent;
   const template = model.inputTemplate.trim();
   if (template) {
     request.input_template = template;

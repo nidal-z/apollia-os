@@ -18,10 +18,10 @@ fn default_port() -> u16 {
 ///
 /// A second listener of the runtime, separate from the native API: it serves
 /// the endpoints that follow the OpenAI and Anthropic formats, on its own port,
-/// and is switched off until someone turns it on. Both fields are named
-/// settings, resolved through [`resolve_setting`](super::resolve_setting) under
-/// `server.enabled` and `server.port`; starting and stopping the server writes
-/// `server.enabled`, so its state survives a restart of the runtime.
+/// and is switched off until someone turns it on. Every field is a named
+/// setting, resolved through [`resolve_setting`](super::resolve_setting) under
+/// `server.<field>`; starting and stopping the server writes `server.enabled`,
+/// so its state survives a restart of the runtime.
 ///
 /// Unknown keys are refused, so a typo fails instead of writing a value nothing
 /// reads.
@@ -34,6 +34,11 @@ pub struct ServerConfig {
     /// TCP port of the compatible server, on the loopback interface.
     #[serde(default = "default_port")]
     pub port: u16,
+    /// Whether a request must carry a token of the server. Off by default.
+    /// Read when the listener opens, so stopping and starting the server
+    /// applies a change.
+    #[serde(default)]
+    pub require_auth: bool,
 }
 
 impl Default for ServerConfig {
@@ -41,6 +46,7 @@ impl Default for ServerConfig {
         Self {
             enabled: false,
             port: DEFAULT_COMPAT_SERVER_PORT,
+            require_auth: false,
         }
     }
 }
@@ -80,6 +86,7 @@ mod tests {
         // THEN the server is off, on port 7772
         assert!(!server.enabled);
         assert_eq!(server.port, 7772);
+        assert!(!server.require_auth);
     }
 
     #[test]
@@ -93,6 +100,18 @@ mod tests {
         // THEN both values are the file's
         assert!(server.enabled);
         assert_eq!(server.port, 8123);
+    }
+
+    #[test]
+    fn test_server_config_reads_require_auth() {
+        // GIVEN a [server] section asking for a token
+        let content = "[server]\nrequire_auth = true\n";
+
+        // WHEN it is read
+        let server = ServerConfig::from_toml_str(content).unwrap();
+
+        // THEN a token is required
+        assert!(server.require_auth);
     }
 
     #[test]
