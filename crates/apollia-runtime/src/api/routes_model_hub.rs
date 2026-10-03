@@ -9,10 +9,11 @@
 //! - `GET /api/v1/llm/registry/cards`            , the signed model cards, when the catalogue opens
 //! - `GET /api/v1/llm/registry/card`             , one model card, from the kept copy
 //! - `GET /api/v1/llm/registry/readme`           , the README of a repository, as text
+//! - `DELETE /api/v1/llm/installed-models`       , removes an installed model, unless in use
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{delete, get};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
@@ -26,6 +27,7 @@ use crate::coordinator::ExecutionBackend;
 pub mod cards;
 pub mod dictation;
 pub mod embeddings;
+pub mod installed;
 
 // ─────────────────────────────────────────────
 // Response types
@@ -371,6 +373,10 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route(
             "/api/v1/llm/dictation",
             get(dictation::list_dictation_models::<B>),
+        )
+        .route(
+            "/api/v1/llm/installed-models",
+            delete(installed::delete_installed_model::<B>),
         );
 
     #[cfg(feature = "cloud")]

@@ -81,6 +81,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
     };
     use crate::api::routes_agents::installed::{install_agent, list_installed_agents};
     use crate::api::routes_agents::{get_agent, list_agents, start_agent, stop_agent};
+    use crate::api::routes_app_lifecycle::app_lifecycle_router;
     use crate::api::routes_approvals::{list_pending_approvals, list_resolved_approvals};
     use crate::api::routes_audit::{
         get_audit_anchor, get_audit_stats, list_audit, list_audit_journal, post_replay_run,
@@ -119,6 +120,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         create_channel, delete_channel, get_events, list_channels, set_events, update_channel,
     };
     use crate::api::routes_oauth_clients::oauth_clients_router;
+    use crate::api::routes_onboarding::onboarding_router;
     use crate::api::routes_permissions::permissions_router;
     use crate::api::routes_plan_cache::{clear_plan_cache, get_plan_cache_stats};
     use crate::api::routes_profile::profile_router;
@@ -134,6 +136,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         cancel_task, get_task, list_tasks, resume_task, submit_plan_decision, submit_task,
     };
     use crate::api::routes_timeline::get_task_timeline;
+    use crate::api::routes_tool_credentials::tool_credentials_router;
     use crate::api::routes_tool_governance::tool_governance_router;
     use crate::api::routes_tools::{describe_tool, list_tools};
     use crate::api::routes_trace::get_task_trace;
@@ -365,7 +368,10 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(connections_router::<B>())
         .merge(profile_router::<B>())
         .merge(local_ai_router::<B>())
+        .merge(tool_credentials_router::<B>())
+        .merge(onboarding_router::<B>())
         .merge(memory_maintenance_router::<B>())
+        .merge(app_lifecycle_router::<B>())
         .merge(conversations_router::<B>())
         .merge(memory_router::<B>())
         .merge(permissions_router::<B>())

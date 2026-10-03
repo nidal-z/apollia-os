@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use apollia_permissions::{PermissionScope, PrefixRuleEngine, RuleAction};
 use apollia_tools::GOVERNANCE_DB_FILENAME;
 use tempfile::TempDir;
