@@ -250,3 +250,42 @@ fn reads_tools_and_reasoning_past_the_excerpt_of_the_template() {
     assert!(facts.chat_template_tools);
     assert!(facts.chat_template_reasoning);
 }
+
+#[test]
+fn reads_the_reasoning_profile_from_the_template_of_the_header() {
+    // GIVEN two headers: a qwen3 template reading `enable_thinking` past the
+    // excerpt, and a gpt-oss header whose template reads `reasoning_effort`
+    let toggle = format!(
+        "{}{{% if enable_thinking is defined %}}<think>{{% endif %}}",
+        "{% for message in messages %}".repeat(20)
+    );
+    let qwen3 = HeaderBuilder::new()
+        .string("general.architecture", "qwen3")
+        .string("tokenizer.chat_template", &toggle)
+        .build();
+    let gpt_oss = HeaderBuilder::new()
+        .string("general.architecture", "gpt-oss")
+        .string(
+            "tokenizer.chat_template",
+            "Reasoning: {{ reasoning_effort }}",
+        )
+        .build();
+
+    // WHEN each header is read and turned into capabilities
+    let caps = |bytes: &[u8]| {
+        crate::capabilities::Capabilities::from_gguf_header(
+            &parse_header(bytes).expect("a well-formed header reads"),
+        )
+    };
+
+    // THEN the first is a switch and the second a level
+    use crate::capabilities::ReasoningProfile;
+    assert_eq!(
+        caps(&qwen3).reasoning_profile,
+        Some(ReasoningProfile::Toggle)
+    );
+    assert_eq!(
+        caps(&gpt_oss).reasoning_profile,
+        Some(ReasoningProfile::Levels)
+    );
+}

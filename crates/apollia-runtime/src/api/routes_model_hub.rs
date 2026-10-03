@@ -6,6 +6,7 @@
 //! - `GET /api/v1/llm/recommend`                 , models ranked for this machine
 //! - `GET /api/v1/llm/recommendations`           , the recommendation outcome the desktop shows
 //! - `GET /api/v1/llm/embeddings`                , embeddings models, and the one for this machine
+//! - `GET|PUT /api/v1/llm/embeddings/default`    , the embeddings model search uses
 //! - `GET /api/v1/llm/dictation`                 , dictation models, whether each fits, and the one for this machine
 //! - `GET /api/v1/llm/registry/cards`            , the signed model cards, when the catalogue opens
 //! - `GET /api/v1/llm/registry/card`             , one model card, from the kept copy
@@ -28,6 +29,7 @@ use crate::coordinator::ExecutionBackend;
 #[cfg(feature = "cloud")]
 pub mod cards;
 pub mod dictation;
+pub mod embedding_default;
 pub mod embeddings;
 pub mod installed;
 
@@ -423,6 +425,11 @@ pub fn model_hub_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
         .route(
             "/api/v1/llm/embeddings",
             get(embeddings::list_embedding_models::<B>),
+        )
+        .route(
+            "/api/v1/llm/embeddings/default",
+            get(embedding_default::get_embedding_default::<B>)
+                .put(embedding_default::set_embedding_default::<B>),
         )
         .route(
             "/api/v1/llm/dictation",

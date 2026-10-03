@@ -209,39 +209,6 @@ fn test_the_source_serializes_as_the_interface_reads_it() {
     assert_eq!(names, ["\"default\"", "\"user\"", "\"policy\""]);
 }
 
-// ── What a policy may impose ─────────────────────────────────────────────
-
-#[test]
-fn test_a_policy_may_impose_a_known_setting_with_its_type() {
-    // GIVEN a setting of the socle and a value of its type
-    let value = json!(true);
-
-    // WHEN a policy imposing it is checked
-    let checked = check_imposed_setting(KEY, &value);
-
-    // THEN it is accepted
-    assert!(checked.is_ok(), "{checked:?}");
-}
-
-#[test]
-fn test_a_policy_may_not_impose_an_unknown_key_nor_a_wrong_type() {
-    // GIVEN a key the socle does not declare, a whole section, and a known
-    // key given a value of another type
-    let cases = [
-        ("desktop.inconnu", json!(true)),
-        ("desktop", json!(true)),
-        (KEY, json!("yes")),
-    ];
-
-    // WHEN a policy imposing each is checked
-    let [unknown, section, mistyped] = cases.map(|(key, value)| check_imposed_setting(key, &value));
-
-    // THEN each is refused, naming the key
-    assert!(matches!(unknown, Err(SettingError::UnknownKey { key }) if key == "desktop.inconnu"));
-    assert!(matches!(section, Err(SettingError::UnknownKey { key }) if key == "desktop"));
-    assert!(matches!(mistyped, Err(SettingError::InvalidValue { key, .. }) if key == KEY));
-}
-
 // ── The compatible server's keys ─────────────────────────────────────────
 
 #[test]
@@ -300,4 +267,37 @@ fn test_a_server_port_out_of_range_is_refused_and_the_file_unchanged() {
         std::fs::read_to_string(&path).unwrap(),
         "[server]\nport = 8000\n"
     );
+}
+
+// ── What a policy may impose ─────────────────────────────────────────────
+
+#[test]
+fn test_a_policy_may_impose_a_known_setting_with_its_type() {
+    // GIVEN a setting of the socle and a value of its type
+    let value = json!(true);
+
+    // WHEN a policy imposing it is checked
+    let checked = check_imposed_setting(KEY, &value);
+
+    // THEN it is accepted
+    assert!(checked.is_ok(), "{checked:?}");
+}
+
+#[test]
+fn test_a_policy_may_not_impose_an_unknown_key_nor_a_wrong_type() {
+    // GIVEN a key the socle does not declare, a whole section, and a known
+    // key given a value of another type
+    let cases = [
+        ("desktop.inconnu", json!(true)),
+        ("desktop", json!(true)),
+        (KEY, json!("yes")),
+    ];
+
+    // WHEN a policy imposing each is checked
+    let [unknown, section, mistyped] = cases.map(|(key, value)| check_imposed_setting(key, &value));
+
+    // THEN each is refused, naming the key
+    assert!(matches!(unknown, Err(SettingError::UnknownKey { key }) if key == "desktop.inconnu"));
+    assert!(matches!(section, Err(SettingError::UnknownKey { key }) if key == "desktop"));
+    assert!(matches!(mistyped, Err(SettingError::InvalidValue { key, .. }) if key == KEY));
 }

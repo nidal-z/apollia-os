@@ -2,7 +2,7 @@ use rusqlite::Connection;
 
 use super::*;
 use crate::paths::DataFile;
-use crate::system_db::{migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5};
+use crate::system_db::{migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6};
 
 const HASH_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const HASH_B: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -18,16 +18,16 @@ fn columns(conn: &Connection) -> Vec<String> {
 }
 
 #[test]
-fn test_a_v4_system_db_gains_the_token_table_and_keeps_its_rows() {
-    // GIVEN a system.db at version 4, holding a backend
+fn test_a_v5_system_db_gains_the_token_table_and_keeps_its_rows() {
+    // GIVEN a system.db at version 5, holding a backend
     let dir = tempfile::TempDir::new().unwrap();
     let path = dir.path().join(DataFile::System.file_name());
     {
         let conn = Connection::open(&path).unwrap();
-        for migrate in [migrate_v1, migrate_v2, migrate_v3, migrate_v4] {
+        for migrate in [migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5] {
             migrate(&conn).unwrap();
         }
-        conn.pragma_update(None, "user_version", 4).unwrap();
+        conn.pragma_update(None, "user_version", 5).unwrap();
         conn.execute(
             "INSERT INTO llm_backends (name, provider, model) VALUES ('local', 'llama-cpp', '/m.gguf')",
             [],
@@ -39,7 +39,7 @@ fn test_a_v4_system_db_gains_the_token_table_and_keeps_its_rows() {
     drop(open_repo(&dir));
 
     // THEN the table holds the six columns, the backend survives, and the
-    // file is at version 5
+    // file is at version 6
     let conn = Connection::open(&path).unwrap();
     assert_eq!(
         columns(&conn),
@@ -60,7 +60,7 @@ fn test_a_v4_system_db_gains_the_token_table_and_keeps_its_rows() {
     let version: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 5);
+    assert_eq!(version, 6);
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn test_replaying_the_token_migration_changes_nothing() {
 
     // WHEN the step runs again
     let conn = Connection::open(dir.path().join(DataFile::System.file_name())).unwrap();
-    migrate_v5(&conn).unwrap();
+    migrate_v6(&conn).unwrap();
 
     // THEN the token is still there, alone
     assert_eq!(repo.list().unwrap().len(), 1);

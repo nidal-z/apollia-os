@@ -132,6 +132,7 @@ from .dictation_models_response_reason_type_0 import DictationModelsResponseReas
 from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
 from .drive_folder_status import DriveFolderStatus
+from .embedding_default_response import EmbeddingDefaultResponse
 from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
@@ -166,6 +167,8 @@ from .get_model_card_response_200 import GetModelCardResponse200
 from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
+from .guardrail_level import GuardrailLevel
+from .guardrail_refused_body import GuardrailRefusedBody
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
@@ -225,6 +228,7 @@ from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
 from .model_cards_response_publishers import ModelCardsResponsePublishers
 from .model_info import ModelInfo
+from .model_kind import ModelKind
 from .model_source_dto import ModelSourceDto
 from .models_list_response import ModelsListResponse
 from .next_steps_reply import NextStepsReply
@@ -289,6 +293,7 @@ from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
+from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_response import ReloadResponse
@@ -325,6 +330,7 @@ from .server_response import ServerResponse
 from .server_token_view import ServerTokenView
 from .servers_list_response import ServersListResponse
 from .session_metrics import SessionMetrics
+from .session_model_capabilities import SessionModelCapabilities
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
@@ -332,6 +338,7 @@ from .set_credential_body import SetCredentialBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
 from .set_drive_folder_body import SetDriveFolderBody
+from .set_embedding_default_body import SetEmbeddingDefaultBody
 from .set_events_request import SetEventsRequest
 from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
@@ -582,6 +589,7 @@ __all__ = (
     "DirectoryRemoved",
     "DismissedProposal",
     "DriveFolderStatus",
+    "EmbeddingDefaultResponse",
     "EmbeddingModelsResponse",
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
@@ -616,6 +624,8 @@ __all__ = (
     "GgufModelInfo",
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
+    "GuardrailLevel",
+    "GuardrailRefusedBody",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
@@ -675,6 +685,7 @@ __all__ = (
     "ModelCardsResponseCardsItem",
     "ModelCardsResponsePublishers",
     "ModelInfo",
+    "ModelKind",
     "ModelsListResponse",
     "ModelSourceDto",
     "NextStepsReply",
@@ -737,6 +748,7 @@ __all__ = (
     "PurgeMemoryBody",
     "PutMcpSecretBody",
     "ReadmeResponse",
+    "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
     "ReloadResponse",
@@ -771,6 +783,7 @@ __all__ = (
     "ServersListResponse",
     "ServerTokenView",
     "SessionMetrics",
+    "SessionModelCapabilities",
     "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",
@@ -778,6 +791,7 @@ __all__ = (
     "SetDefaultModelRequest",
     "SetDefaultResponse",
     "SetDriveFolderBody",
+    "SetEmbeddingDefaultBody",
     "SetEventsRequest",
     "SetOverrideRequest",
     "SetOverrideRequestValue",

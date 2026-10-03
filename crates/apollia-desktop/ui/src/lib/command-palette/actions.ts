@@ -47,7 +47,8 @@ import type { ComponentType } from "svelte"; // NOSONAR typescript:S1874
 type SvelteComponentType = ComponentType; // NOSONAR typescript:S1874
 import { navigateTo, type Route } from "$lib/stores/navigation";
 import { navigateToSettings } from "$lib/router";
-import { uiMode, type UIMode } from "$lib/stores/mode";
+import type { UIMode } from "$lib/stores/mode";
+import { toggleDeveloperMode } from "$lib/stores/developerMode";
 import { themeMode } from "$lib/stores/theme";
 import { companionStore } from "$lib/stores/companion";
 import { onboardingModalOpen } from "$lib/stores/onboarding";
@@ -185,11 +186,11 @@ export function buildPaletteActions(): PaletteAction[] {
     },
     {
       id: "mode.toggle",
-      label: tr("commandPalette.actions.toggleMode"),
-      keywords: ["operator", "builder", "toggle", "mode", "persona"],
+      label: tr("commandPalette.actions.toggleDeveloperMode"),
+      keywords: ["developer", "toggle", "mode", "builder", "operator"],
       icon: ToggleRight,
       kind: "actions",
-      execute: () => uiMode.update((m) => (m === "operator" ? "builder" : "operator")),
+      execute: () => void toggleDeveloperMode(),
     },
     {
       id: "companion.toggle",

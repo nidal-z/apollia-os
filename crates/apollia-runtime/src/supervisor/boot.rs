@@ -98,19 +98,35 @@ impl Supervisor {
             .config
             .data_dir
             .join(apollia_core::paths::DataFile::System.file_name());
+        // `apollia.toml`, whose `[llm.guardrails]` both engines read at every
+        // launch: the file the runtime was started with, else the one in its
+        // data directory.
+        let guardrails_file = self
+            .config
+            .config_path
+            .clone()
+            .unwrap_or_else(|| self.config.data_dir.join("apollia.toml"));
         let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
             crate::llama_server::LlamaServerConfig::default(),
             Some(system_db_path.clone()),
             Some(event_sender.clone()),
+            Some(guardrails_file.clone()),
         )
         .ok();
         if let Some(supervisor) = &llama_server_supervisor {
             Arc::clone(supervisor).spawn_supervision();
         }
+        // The MLX engine, on a Mac with Apple Silicon whose build carries it.
+        // An MLX model elsewhere is refused with its reason by the router.
+        let mlx_engine =
+            crate::mlx_engine::MlxEngineSupervisor::for_this_machine(Some(guardrails_file));
+        if let Some(engine) = &mlx_engine {
+            Arc::clone(engine).spawn_supervision();
+        }
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self
-            .start_llm_router(&system_db_path, &llama_server_supervisor)
+            .start_llm_router(&system_db_path, &llama_server_supervisor, &mlx_engine)
             .await;
 
         // Phase 4b: LlmCallRepository, an EventBus subscriber that persists LLM calls.
@@ -561,6 +577,7 @@ impl Supervisor {
             resilience_layer: Some(shared_resilience_layer.clone()),
             runner_proxy: runner_supervisor.as_ref().map(|s| s.proxy()),
             llama_server_supervisor: llama_server_supervisor.clone(),
+            mlx_engine: mlx_engine.clone(),
             secret_store: crate::inference_servers::default_store_opener(),
             batches,
             workflows: workflows.clone(),
@@ -688,6 +705,7 @@ impl Supervisor {
             project_repository,
             runner_supervisor,
             llama_server_supervisor,
+            mlx_engine,
             org_policy,
         })
     }

@@ -177,10 +177,6 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
     builtBy: "components/settings/tools/toolCatalog.ts",
   },
   {
-    pattern: new RegExp(`^sidebar\\.mode\\.${SEG}\\.(description|label)$`),
-    builtBy: "lib/components/app/ModeChip.svelte",
-  },
-  {
     pattern: new RegExp(`^stt_failure\\.${SEG}$`),
     builtBy: "lib/stt/dictationFailure.ts",
   },
