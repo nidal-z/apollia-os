@@ -270,6 +270,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "meta_generate_next_steps",
     "meta_parse_automation",
     "meta_rewrite_input",
+    // The installation of the local AI at onboarding, over
+    // `/api/v1/local-ai/...`: the daemon describes its machine, scans its own
+    // folders, and copies and registers the models it will load.
+    "get_ai_setup_info",
+    "scan_for_gguf_models",
+    "scan_for_whisper_models",
+    "setup_local_llm",
+    "setup_whisper_model",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

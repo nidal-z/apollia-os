@@ -108,6 +108,7 @@ from .deleted_artifact import DeletedArtifact
 from .deleted_credential import DeletedCredential
 from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile_entry import DeletedProfileEntry
+from .dictation_configured import DictationConfigured
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
@@ -144,6 +145,7 @@ from .generate_next_steps_body import GenerateNextStepsBody
 from .generate_title_body import GenerateTitleBody
 from .generated_title import GeneratedTitle
 from .get_model_card_response_200 import GetModelCardResponse200
+from .gguf_model_info import GgufModelInfo
 from .global_timeline_event import GlobalTimelineEvent
 from .global_timeline_event_detail import GlobalTimelineEventDetail
 from .hardware_response import HardwareResponse
@@ -303,6 +305,9 @@ from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
 from .set_plan_mode_request import SetPlanModeRequest
 from .set_profile_entry_body import SetProfileEntryBody
+from .setup_dictation_body import SetupDictationBody
+from .setup_llm_body import SetupLlmBody
+from .setup_llm_result import SetupLlmResult
 from .shutdown_response import ShutdownResponse
 from .sidechain_row import SidechainRow
 from .signature_preview import SignaturePreview
@@ -323,6 +328,7 @@ from .stt_status_response import SttStatusResponse
 from .submit_task_request import SubmitTaskRequest
 from .submit_task_request_input import SubmitTaskRequestInput
 from .submit_task_request_run_options import SubmitTaskRequestRunOptions
+from .system_info import SystemInfo
 from .task_list_item import TaskListItem
 from .task_list_item_payload_type_0 import TaskListItemPayloadType0
 from .task_list_response import TaskListResponse
@@ -395,6 +401,7 @@ from .user_profile_view import UserProfileView
 from .variant_update import VariantUpdate
 from .verify_chain_report import VerifyChainReport
 from .verify_journal_report import VerifyJournalReport
+from .whisper_model_info import WhisperModelInfo
 from .workflow_error_response import WorkflowErrorResponse
 from .workflow_launch import WorkflowLaunch
 from .workflow_launch_inputs import WorkflowLaunchInputs
@@ -515,6 +522,7 @@ __all__ = (
     "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
+    "DictationConfigured",
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
@@ -551,6 +559,7 @@ __all__ = (
     "GenerateNextStepsBody",
     "GenerateTitleBody",
     "GetModelCardResponse200",
+    "GgufModelInfo",
     "GlobalTimelineEvent",
     "GlobalTimelineEventDetail",
     "HardwareResponse",
@@ -706,6 +715,9 @@ __all__ = (
     "SetOverrideRequestValue",
     "SetPlanModeRequest",
     "SetProfileEntryBody",
+    "SetupDictationBody",
+    "SetupLlmBody",
+    "SetupLlmResult",
     "ShutdownResponse",
     "SidechainRow",
     "SignaturePreview",
@@ -726,6 +738,7 @@ __all__ = (
     "SubmitTaskRequest",
     "SubmitTaskRequestInput",
     "SubmitTaskRequestRunOptions",
+    "SystemInfo",
     "TaskListItem",
     "TaskListItemPayloadType0",
     "TaskListResponse",
@@ -796,6 +809,7 @@ __all__ = (
     "VariantUpdate",
     "VerifyChainReport",
     "VerifyJournalReport",
+    "WhisperModelInfo",
     "WorkflowErrorResponse",
     "WorkflowLaunch",
     "WorkflowLaunchInputs",

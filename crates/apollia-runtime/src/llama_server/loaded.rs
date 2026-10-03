@@ -32,7 +32,7 @@ pub struct ModelLease {
 }
 
 impl ModelLease {
-    pub(super) fn new(base_url: String, n_ctx: u32, in_flight: Arc<AtomicUsize>) -> Self {
+    pub(crate) fn new(base_url: String, n_ctx: u32, in_flight: Arc<AtomicUsize>) -> Self {
         in_flight.fetch_add(1, Ordering::AcqRel);
         Self {
             base_url,
@@ -64,6 +64,8 @@ impl Drop for ModelLease {
 /// One resident model, as the supervisor launched it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoadedModel {
+    /// The engine serving it, chosen by the model's format.
+    pub engine: crate::engine_store::Engine,
     /// Display name, the file name of the model without its extension.
     pub model: String,
     /// Path the process was launched with (`-m`), the key an unload takes.
@@ -132,6 +134,7 @@ impl LlamaServerSupervisor {
                 Some((
                     i.last_used,
                     LoadedModel {
+                        engine: crate::engine_store::Engine::LlamaServer,
                         model: display_name(&i.model_path),
                         model_path: i.model_path.clone(),
                         port: i.port,
