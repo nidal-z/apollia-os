@@ -6285,18 +6285,22 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/triggers`, trigger creation. */
         CreateTriggerRequest: {
-            /** @description Target agent. */
+            /** @description Target agent; exclusive with `workflow`. */
             agent?: string | null;
             /** @description Whether the trigger is active (default: `true`). */
             enabled?: boolean | null;
             /** @description Unique trigger identifier. */
             id: string;
-            /** @description Input message template. */
+            /** @description The message of an agent target. */
             input_template?: string | null;
             /** @description Policy when the agent is busy (default: `"queue"`). */
             on_busy?: string | null;
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
+            /** @description Target workflow, `<package>/<workflow>`; exclusive with `agent`. */
+            workflow?: string | null;
+            /** @description For a workflow target, one text template per input field. */
+            workflow_inputs?: Record<string, never> | null;
         };
         /** @description Answer of `POST /api/v1/server/tokens`: the token and, this once, its value. */
         CreatedServerTokenView: components["schemas"]["ServerTokenView"] & {
@@ -8956,7 +8960,7 @@ export interface components {
         };
         /** @description Response for CRUD operations returning a full definition. */
         TriggerDefinitionResponse: {
-            /** @description Target agent. */
+            /** @description Target agent, for an agent target. */
             agent?: string | null;
             /** @description Creation timestamp (ISO 8601). */
             created_at: string;
@@ -8964,7 +8968,7 @@ export interface components {
             enabled: boolean;
             /** @description Unique trigger identifier. */
             id: string;
-            /** @description Input message template. */
+            /** @description The message of an agent target. */
             input_template?: string | null;
             /** @description Policy when the agent is busy. */
             on_busy: string;
@@ -8972,8 +8976,14 @@ export interface components {
             source_config: Record<string, never>;
             /** @description Source type. */
             source_type: string;
+            /** @description `"agent"` or `"workflow"`. */
+            target_kind: string;
             /** @description Last-modified timestamp (ISO 8601). */
             updated_at: string;
+            /** @description Target workflow, for a workflow target. */
+            workflow?: string | null;
+            /** @description For a workflow target, one text template per input field. */
+            workflow_inputs?: Record<string, never> | null;
         };
         /** @description Request body for `POST /api/v1/onboarding/sessions`. */
         TriggerOnboardingBody: {
@@ -9176,16 +9186,20 @@ export interface components {
         };
         /** @description Request body for `PUT /api/v1/triggers/:id`, trigger update. */
         UpdateTriggerRequest: {
-            /** @description Target agent. */
+            /** @description Target agent; exclusive with `workflow`. */
             agent?: string | null;
             /** @description Whether the trigger is active. */
             enabled?: boolean | null;
-            /** @description Input message template. */
+            /** @description The message of an agent target. */
             input_template?: string | null;
             /** @description Policy when the agent is busy. */
             on_busy?: string | null;
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
+            /** @description Target workflow, `<package>/<workflow>`; exclusive with `agent`. */
+            workflow?: string | null;
+            /** @description For a workflow target, one text template per input field. */
+            workflow_inputs?: Record<string, never> | null;
         };
         /** @description The whole profile: the schema fields, then the free-form entries. */
         UserProfileView: {

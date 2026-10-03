@@ -109,7 +109,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "agents.tab_agents", // Agents
   "agents.tab_triggers", // Triggers
   "agents.triggers_word", // triggers
-  "automations.col_assistant", // Assistant
   "automations.status.active", // Active
   "automations.target_prefix", // Assistant
   "automations.wizard.step_agent", // Assistant
@@ -255,6 +254,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "triggers.field_secret", // Secret
   "triggers.field_target_agent", // Agent
   "triggers.interval_unit_minutes", // minutes
+  "triggers.workflow_label", // Workflow
 ];
 
 /** The two lists together, as the guard reads them. */

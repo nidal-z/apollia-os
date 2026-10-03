@@ -826,7 +826,8 @@
     "update_restart_stop_failed": "Le nouveau fichier est installé, mais {name} n'a pas pu être arrêté : il exécute toujours la version précédente.",
     "update_restart_stop_failed_action": "Arrêtez l'agent, puis redémarrez-le pour charger la nouvelle version.",
     "update_restart_start_failed": "{name} a été arrêté pour charger la nouvelle version et n'a pas redémarré : il n'exécute plus rien.",
-    "update_restart_start_failed_action": "Redémarrez l'agent depuis sa ligne. La cause ci-dessous indique ce que le runtime a refusé."
+    "update_restart_start_failed_action": "Redémarrez l'agent depuis sa ligne. La cause ci-dessous indique ce que le runtime a refusé.",
+    "automate": "Automatiser"
   },
   "tasks": {
     "subtitle": "Suivez les requêtes envoyées à vos assistants et leurs résultats",
@@ -1176,7 +1177,7 @@
     "title": "Automatisations",
     "delete": "Supprimer",
     "col_automation": "Automatisation",
-    "col_assistant": "Assistant",
+    "col_assistant": "Cible",
     "col_next_run": "Prochain déclenchement",
     "col_status": "Statut",
     "col_last_run": "Dernière exéc",
@@ -1400,7 +1401,15 @@
       "fri": "ven",
       "sat": "sam",
       "sun": "dim"
-    }
+    },
+    "workflow_label": "Workflow",
+    "prefilled_hint": "Préremplie depuis la fiche : la cible est fixée.",
+    "field_workflow_inputs": "Entrées du workflow",
+    "workflow_no_inputs": "Ce workflow ne demande aucune entrée.",
+    "field_workflow_input_required": "Cette entrée est obligatoire.",
+    "field_message": "Message à l'agent",
+    "field_message_hint": "Peut reprendre la date du lancement, le fichier ou le contenu reçu.",
+    "automate_title": "Automatiser « {name} »"
   },
   "memory": {
     "empty_title": "Aucune donnée mémoire",

@@ -5,7 +5,7 @@
 //! template substitution.
 
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -17,16 +17,82 @@ pub type TriggerId = String;
 pub struct TriggerDefinition {
     /// Unique trigger identifier (non-empty).
     pub id: TriggerId,
-    /// Target agent name.
-    pub agent: String,
+    /// What the trigger starts, and with what.
+    pub target: TriggerTarget,
     /// Whether the trigger is active.
     pub enabled: bool,
-    /// Behavior when the target agent is busy.
+    /// Behavior when the target is busy.
     pub on_busy: OnBusyPolicy,
     /// Trigger source configuration.
     pub source: TriggerSourceConfig,
-    /// Template for the input message sent to the agent.
-    pub input_template: InputTemplate,
+}
+
+/// What a trigger starts when it fires: an agent, given a message, or a
+/// workflow, given its inputs. Each text is a template rendered on the payload
+/// of the fire.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TriggerTarget {
+    /// An agent, run on one message outside any conversation.
+    Agent {
+        /// The agent name.
+        agent: String,
+        /// The message the agent receives.
+        message: InputTemplate,
+    },
+    /// A workflow of an installed package.
+    Workflow {
+        /// `<package>/<workflow>`.
+        workflow: String,
+        /// One template per input field; the rendered values are checked
+        /// against the schema the workflow declares when it is launched.
+        inputs: BTreeMap<String, InputTemplate>,
+    },
+}
+
+impl TriggerTarget {
+    /// An agent target with the message `message`.
+    pub fn agent(agent: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::Agent {
+            agent: agent.into(),
+            message: InputTemplate(message.into()),
+        }
+    }
+
+    /// The agent name or the workflow identifier.
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Agent { agent, .. } => agent,
+            Self::Workflow { workflow, .. } => workflow,
+        }
+    }
+
+    /// `"agent"` or `"workflow"`.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Agent { .. } => "agent",
+            Self::Workflow { .. } => "workflow",
+        }
+    }
+}
+
+/// Renders every input template of a workflow target on `payload`, as the
+/// JSON object the workflow is launched with.
+pub fn render_inputs(
+    inputs: &BTreeMap<String, InputTemplate>,
+    payload: &TriggerPayload,
+) -> serde_json::Value {
+    serde_json::Value::Object(
+        inputs
+            .iter()
+            .map(|(field, template)| {
+                (
+                    field.clone(),
+                    serde_json::Value::String(template.render(payload)),
+                )
+            })
+            .collect(),
+    )
 }
 
 impl TriggerDefinition {
@@ -186,8 +252,8 @@ pub enum TriggerPayload {
 pub struct TriggerEvent {
     /// Identifier of the trigger that produced this event.
     pub trigger_id: TriggerId,
-    /// Target agent name.
-    pub agent: String,
+    /// The agent name or the workflow identifier the trigger starts.
+    pub target: String,
     /// Raw event payload.
     pub payload: TriggerPayload,
     /// Actual fire time.
@@ -202,7 +268,7 @@ pub struct TriggerEvent {
 /// - `Webhook` : `{{body}}`, `{{header.<name>}}`
 ///
 /// Variables absent from the payload are replaced by an empty string (never panics).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct InputTemplate(pub String);
 
 impl InputTemplate {
@@ -417,20 +483,20 @@ mod tests {
         // GIVEN
         let def = TriggerDefinition {
             id: "rapport-hebdo".into(),
-            agent: "rapport-agent".into(),
+            target: TriggerTarget::agent("rapport-agent", "Report of {{scheduled_at}}"),
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::Cron {
                 schedule: "0 8 * * MON".into(),
             },
-            input_template: InputTemplate("Report of {{scheduled_at}}".into()),
         };
         // WHEN
         let json = serde_json::to_string(&def).expect("JSON serialisation");
         let back: TriggerDefinition = serde_json::from_str(&json).expect("JSON deserialisation");
         // THEN
         assert_eq!(back.id, "rapport-hebdo");
-        assert_eq!(back.agent, "rapport-agent");
+        assert_eq!(back.target.name(), "rapport-agent");
+        assert_eq!(back.target.kind(), "agent");
         assert!(back.enabled);
         assert_eq!(back.on_busy, OnBusyPolicy::Queue { max_depth: 10 });
     }
@@ -491,5 +557,49 @@ mod tests {
         let result = TriggerDefinition::validate_agent("");
         // THEN
         assert!(matches!(result, Err(TriggerDefinitionError::EmptyAgent)));
+    }
+
+    #[test]
+    fn test_workflow_target_renders_each_input_on_the_payload() {
+        // GIVEN a workflow target with two templated inputs and a file payload
+        let mut inputs = BTreeMap::new();
+        inputs.insert("file".to_string(), InputTemplate("{{path}}".into()));
+        inputs.insert("note".to_string(), InputTemplate("new {{filename}}".into()));
+        let target = TriggerTarget::Workflow {
+            workflow: "invoices/ingest".into(),
+            inputs: inputs.clone(),
+        };
+        let payload = TriggerPayload::File {
+            path: "/inbox/a.pdf".into(),
+            filename: "a.pdf".into(),
+            size_bytes: 1,
+            event_kind: FileEventKind::Create,
+        };
+
+        // WHEN its inputs are rendered
+        let rendered = render_inputs(&inputs, &payload);
+
+        // THEN each field holds its rendered text, and the target says what it is
+        assert_eq!(
+            rendered,
+            serde_json::json!({ "file": "/inbox/a.pdf", "note": "new a.pdf" })
+        );
+        assert_eq!(target.kind(), "workflow");
+        assert_eq!(target.name(), "invoices/ingest");
+    }
+
+    #[test]
+    fn test_target_serializes_with_its_kind() {
+        // GIVEN an agent target
+        let target = TriggerTarget::agent("veille", "go");
+
+        // WHEN it is serialized
+        let json = serde_json::to_value(&target).unwrap();
+
+        // THEN the kind is spelled out next to its fields
+        assert_eq!(
+            json,
+            serde_json::json!({ "kind": "agent", "agent": "veille", "message": "go" })
+        );
     }
 }
