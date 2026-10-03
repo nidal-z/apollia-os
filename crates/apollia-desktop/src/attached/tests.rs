@@ -27,7 +27,7 @@ fn session(id: &str) -> SessionInfo {
 fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error() {
     // GIVEN the application attached to a daemon, and a command whose body
     // reads state only the embedded runtime builds
-    let command = "list_memory_namespaces";
+    let command = "get_delegation_tree";
 
     // WHEN the gate is asked before the body runs
     let refusal = gate(LinkMode::Attached, command);
@@ -39,11 +39,11 @@ fn test_a_command_not_routed_is_refused_in_attached_mode_with_a_readable_error()
     let fr = error.for_display(UiLocale::Fr);
     let en = error.for_display(UiLocale::En);
     assert!(
-        fr.contains("list_memory_namespaces") && fr.contains("en service"),
+        fr.contains("get_delegation_tree") && fr.contains("en service"),
         "{fr}"
     );
     assert!(
-        en.contains("list_memory_namespaces") && en.contains("as a service"),
+        en.contains("get_delegation_tree") && en.contains("as a service"),
         "{en}"
     );
 }
@@ -86,7 +86,7 @@ fn test_every_routed_command_passes_the_gate_in_attached_mode() {
 fn test_the_embedded_mode_lets_every_command_through() {
     // GIVEN the runtime running in this process
     // WHEN a command not routed is gated
-    let verdict = gate(LinkMode::Embedded, "list_memory_namespaces");
+    let verdict = gate(LinkMode::Embedded, "get_delegation_tree");
 
     // THEN it runs as it always did
     assert!(verdict.is_ok());
@@ -510,6 +510,32 @@ fn test_a_window_command_runs_attached_and_carries_its_reason() {
         assert!(!ROUTED_COMMANDS.contains(name), "{name} is listed twice");
     }
     assert!(gate(LinkMode::Attached, "quit_app").is_ok());
+}
+
+// ── Permissions ──────────────────────────────────────────────────────────
+
+#[test]
+fn test_the_proposed_rules_and_the_file_answers_pass_the_gate_attached() {
+    // GIVEN the commands of the proposed rules and of the file requests
+    let commands = [
+        "list_proposed_permission_rules",
+        "apply_proposed_permission_rule",
+        "dismiss_proposed_permission_rule",
+        "add_permission_prefix_rule",
+        "respond_hitl_filesystem",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none is refused, and none is a window exception
+    assert!(refused.is_empty(), "refused: {refused:?}");
+    assert!(WINDOW_COMMANDS
+        .iter()
+        .all(|(name, _)| !commands.contains(name)));
 }
 
 // ── The profile ──────────────────────────────────────────────────────────

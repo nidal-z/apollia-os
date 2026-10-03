@@ -244,6 +244,12 @@ impl AttachedClient {
         if !response.status().is_success() {
             return Err(refusal(response).await);
         }
+        // A route that answers 204 has no body: it reads as JSON `null`, which
+        // is what a caller expecting `()` asks for.
+        if response.status() == reqwest::StatusCode::NO_CONTENT {
+            return serde_json::from_value(serde_json::Value::Null)
+                .map_err(|e| AttachedError::Body(apollia_core::net::ReadCappedError::Json(e)));
+        }
         apollia_core::net::read_capped_json(response, MAX_BODY_BYTES)
             .await
             .map_err(AttachedError::Body)
