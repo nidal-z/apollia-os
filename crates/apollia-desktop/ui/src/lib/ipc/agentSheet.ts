@@ -41,6 +41,8 @@ export interface ResolvedAgent {
   profile: string | null;
   /** Fields whose value is the user's rather than the package's. */
   overridden: string[];
+  /** The definition as the package declares it, before any override. */
+  definition?: Record<string, unknown>;
 }
 
 /** The last time an agent's model was not available. */

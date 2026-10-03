@@ -90,6 +90,10 @@ export const IDENTICAL_BY_NATURE: string[] = [
  */
 export const IDENTICAL_BY_DECISION: string[] = [
   "a11y.actions_menu", // Actions
+  "agent_adjust.grant_group_agents", // Agents
+  "agent_adjust.grant_group_workflows", // Workflows
+  "agent_adjust.mission_label", // Mission
+  "agent_adjust.preset_label", // Preset
   "agent_detail.execution_mode_direct", // Direct
   "agent_detail.messages_title", // Messages
   "agent_detail.tags_title", // Tags

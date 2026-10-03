@@ -4011,54 +4011,66 @@
     },
     {
       "kind": "click",
-      "testid": "apollia-sheet-adjust",
+      "testid": "agent-adjust-open",
       "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "apollia-chat-config-panel",
+      "testid": "agent-adjust-mission",
       "timeoutMs": 6000
     },
     {
       "kind": "screenshot",
-      "label": "03-apollia-chat-config"
+      "label": "03-apollia-adjust"
     },
     {
       "kind": "expect",
-      "testid": "apollia-chat-config-save"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "apollia-chat-system-prompt",
-      "timeoutMs": 4000
+      "testid": "agent-adjust-save"
     },
     {
       "kind": "expect",
-      "testid": "apollia-chat-llm-backend"
-    },
-    {
-      "kind": "waitFor",
-      "testidPrefix": "apollia-chat-tool-row",
-      "timeoutMs": 6000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "apollia-chat-tools-list",
-      "timeoutMs": 4000
+      "testid": "agent-adjust-model"
     },
     {
       "kind": "fill",
-      "testid": "apollia-chat-system-prompt",
+      "testid": "agent-adjust-mission",
       "text": "Automation system prompt"
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-tool-row",
+      "testid": "agent-adjust-example-add",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "selectOption",
+      "testid": "agent-adjust-model",
+      "index": 0,
       "timeoutMs": 2500
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-config-save",
+      "testidPrefix": "agent-adjust-source-check",
+      "timeoutMs": 2500,
+      "nth": 0
+    },
+    {
+      "kind": "click",
+      "testid": "agent-adjust-grant",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "agent-adjust-grant-dialog",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "agent-adjust-grant-cancel",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "agent-adjust-save",
       "timeoutMs": 4000
     },
     {
@@ -4067,37 +4079,30 @@
     },
     {
       "kind": "screenshot",
-      "label": "03b-apollia-chat-config-saved"
+      "label": "03b-apollia-adjust-saved"
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-tools-filter",
-      "timeoutMs": 2500
+      "testid": "agent-adjust-open",
+      "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-tools-all",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "click",
-      "testid": "apollia-chat-tools-none",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "selectOption",
-      "testid": "apollia-chat-llm-backend",
-      "index": 0,
+      "testid": "agent-adjust-reset",
       "timeoutMs": 2500
     },
     {
       "kind": "click",
-      "testid": "apollia-chat-config-reload",
+      "testid": "agent-adjust-reset-dialog-confirm",
       "timeoutMs": 2500
+    },
+    {
+      "kind": "sleep",
+      "ms": 600
     },
     {
       "kind": "screenshot",
-      "label": "04-apollia-chat-config-after"
+      "label": "04-apollia-adjust-after-reset"
     },
     {
       "kind": "click",

@@ -15,6 +15,7 @@
   import PackageDetail from "./PackageDetail.svelte";
   import AgentDetailHeader from "./AgentDetailHeader.svelte";
   import AgentSheet from "./sheet/AgentSheet.svelte";
+  import { createAgentAdjust } from "./sheet/useAgentAdjust.svelte";
   import type { AgentActions } from "./useAgentActions.svelte";
   import type {
     AgentListItem,
@@ -55,6 +56,9 @@
     onDisarmUninstall,
     onUninstallPackage,
   }: Props = $props();
+
+  // The adjustment of the selected agent; a change of selection ends it.
+  const adjust = createAgentAdjust(() => selected?.name ?? "");
 </script>
 
 {#if apolliaChatSelected}
@@ -74,6 +78,7 @@
     {onArmUninstall}
     {onDisarmUninstall}
     {onStartChat}
+    {adjust}
   />
   <div class="px-8 pb-8 pt-5" data-testid="agent-detail-content">
     {#key selected.name}
@@ -82,6 +87,7 @@
         agent={selected}
         memoryNamespace={selected.memory_namespace}
         {onOpenLogs}
+        {adjust}
       />
     {/key}
   </div>
