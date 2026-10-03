@@ -5,13 +5,19 @@ use serde_json::json;
 use tempfile::TempDir;
 
 use crate::api::server::AppState;
-use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::api::test_support::{app_state, call, MemorySecrets, MockBackend, StemLoader};
 
-fn state_in(dir: &TempDir) -> AppState<MockBackend> {
-    app_state(
+fn state_with(dir: &TempDir, secrets: &MemorySecrets) -> AppState<MockBackend> {
+    let mut state = app_state(
         Arc::new(StemLoader { refusal: None }),
         dir.path().to_path_buf(),
-    )
+    );
+    state.secret_store = secrets.opener();
+    state
+}
+
+fn state_in(dir: &TempDir) -> AppState<MockBackend> {
+    state_with(dir, &MemorySecrets::default())
 }
 
 async fn google_row(state: AppState<MockBackend>) -> serde_json::Value {
@@ -73,7 +79,8 @@ async fn test_a_client_id_put_over_http_is_read_back_from_the_file() {
 async fn test_a_secret_and_a_key_put_over_http_show_as_present_never_as_values() {
     // GIVEN a daemon with an empty data directory
     let dir = TempDir::new().unwrap();
-    let state = state_in(&dir);
+    let secrets = MemorySecrets::default();
+    let state = state_with(&dir, &secrets);
 
     // WHEN a client puts a Google client secret and API key
     let (secret, _) = call(
@@ -91,16 +98,30 @@ async fn test_a_secret_and_a_key_put_over_http_show_as_present_never_as_values()
     )
     .await;
 
-    // THEN both are accepted, listed as present, and neither value comes back
+    // THEN both are accepted, listed as present from the secret store, kept
+    // there and nowhere in oauth-clients.toml, and neither value comes back
     assert_eq!(secret, StatusCode::OK);
     assert_eq!(key, StatusCode::OK);
     let row = google_row(state).await;
     assert_eq!(row["has_client_secret"], true);
+    assert_eq!(row["client_secret_source"], "store");
     assert_eq!(row["has_api_key"], true);
     let text = row.to_string();
     assert!(
         !text.contains("GOCSPX-hidden") && !text.contains("AIza-hidden"),
         "{text}"
+    );
+    assert_eq!(
+        secrets
+            .value("apollia-oauth-clients", "google:client_secret")
+            .as_deref(),
+        Some("GOCSPX-hidden")
+    );
+    let file = crate::oauth_clients::file_in(dir.path());
+    let on_disk = std::fs::read_to_string(&file).unwrap_or_default();
+    assert!(
+        !on_disk.contains("GOCSPX-hidden") && !on_disk.contains("AIza-hidden"),
+        "{on_disk}"
     );
 }
 
