@@ -26,6 +26,7 @@
   import { nextDisclaimerChecks } from "./disclaimerChecks";
   import WizardStepTest from "./WizardStepTest.svelte";
   import WizardStepCoaching from "./WizardStepCoaching.svelte";
+  import { formatTauriError } from "$lib/connections/errors";
   import {
     buildConnectorConfig,
     deriveServerName,
@@ -530,7 +531,7 @@
       installed = true;
       return true;
     } catch (err: unknown) {
-      finalizeError = err instanceof Error ? err.message : String(err);
+      finalizeError = formatTauriError(err, $t);
       return false;
     } finally {
       finalizing = false;

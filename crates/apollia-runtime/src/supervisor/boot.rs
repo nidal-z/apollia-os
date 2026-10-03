@@ -12,6 +12,7 @@ use super::bundled::{
 use super::persistence::{
     open_audit_journal, open_audit_trail, open_plan_cache, open_project_repository,
     open_sidechain_logger, open_task_repository, open_trigger_persistence, open_user_memory,
+    read_org_policy,
 };
 
 impl Supervisor {
@@ -52,9 +53,23 @@ impl Supervisor {
         // Phase 3: ToolRegistry + native tool registration
         info!("supervisor.tool_registry.starting");
         let tool_registry_handle = ToolRegistryHandle::start();
+
+        // Phase 3a: the existing connections the policy now refuses (see
+        // `ForbiddenConnections`): not started, their tools never registered.
+        let connection_admission = Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
+            &org_policy,
+        )));
+        let mcp_store = self.open_mcp_store();
+        let native_accounts = crate::connectors_bridge::connected_accounts().await;
+        let forbidden_connections = Arc::new(self.forbidden_connections(
+            connection_admission.as_ref(),
+            mcp_store.as_ref(),
+            &native_accounts,
+        ));
         register_builtin_tools(
             &tool_registry_handle,
-            &crate::connectors_bridge::connected_accounts().await,
+            &forbidden_connections.allowed_accounts(&native_accounts),
+            forbidden_connections.offers_mailbox_tools(),
         )
         .await;
 
@@ -64,8 +79,14 @@ impl Supervisor {
         // one-shot migration and logs the count. After migration, `mcp.toml` is no
         // longer consulted. Errors are never fatal: the runtime continues and MCP
         // tools are simply unavailable.
-        let (mcp_handle, mcp_server_repo) =
-            self.start_mcp(&tool_registry_handle, &event_sender).await;
+        let (mcp_handle, mcp_server_repo) = self
+            .start_mcp(
+                &tool_registry_handle,
+                &event_sender,
+                mcp_store,
+                &forbidden_connections,
+            )
+            .await;
 
         // Spawn the sidecar runner for the local LLM and STT backends. Cloud
         // backends are still served directly by the daemon via `LlmRouter`.
@@ -228,6 +249,7 @@ impl Supervisor {
                 ),
                 policy: Arc::clone(&org_policy),
                 journal: audit_journal_handle.clone(),
+                forbidden_connections: forbidden_connections.tool_connections(),
             });
         crate::governance::access_upgrade::run_at_startup(&self.config.data_dir, &governance);
 
@@ -248,11 +270,10 @@ impl Supervisor {
         // Connections answer to governance: admitted by the organisation
         // policy read above before they are added, journaled when they change.
         let connection_governance = crate::governance::ConnectionGovernance::new(
-            Arc::new(crate::governance::PolicyAdmission::new(Arc::clone(
-                &org_policy,
-            ))),
+            connection_admission,
             audit_journal_handle.clone(),
-        );
+        )
+        .with_forbidden(forbidden_connections);
 
         // Phase 9 (pos 10): APIServer
         info!("supervisor.api.starting");
@@ -729,42 +750,6 @@ impl Supervisor {
             org_policy,
         })
     }
-}
-
-/// Reads the organisation policy and reports the verdict.
-fn read_org_policy() -> apollia_permissions::PolicyVerdict {
-    use apollia_permissions::PolicyVerdict;
-
-    let location = apollia_permissions::policy_location();
-    let verdict = apollia_permissions::load_policy(&location.dir, location.owner);
-    let dir = location.dir.display();
-    match &verdict {
-        PolicyVerdict::Absent => {
-            tracing::event!(tracing::Level::INFO, verdict = verdict.kind(), dir = %dir, "policy.read");
-        }
-        PolicyVerdict::Valid(valid) => {
-            tracing::event!(
-                tracing::Level::INFO,
-                verdict = verdict.kind(),
-                dir = %dir,
-                key_fingerprint = %valid.key_fingerprint,
-                publisher = %valid.publisher,
-                signed_at = %valid.signed_at,
-                "policy.read"
-            );
-        }
-        PolicyVerdict::Invalid(invalid) => {
-            tracing::event!(
-                tracing::Level::WARN,
-                verdict = verdict.kind(),
-                dir = %dir,
-                reason = invalid.reason.as_str(),
-                detail = %invalid.detail,
-                "policy.read"
-            );
-        }
-    }
-    verdict
 }
 
 /// The item runner of the batch engine, asking governance which accesses

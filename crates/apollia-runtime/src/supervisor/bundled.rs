@@ -94,12 +94,14 @@ pub(in crate::supervisor) fn auto_load_bundled_agents(
 
 /// Phase 3: register the native tool descriptors, the tools of every native
 /// connector account in `accounts` (one set per account, see
-/// [`crate::connectors_bridge::connection_tools`]) and the mailbox tools over
-/// IMAP. A provider with no connected account publishes no tool; an account
-/// connected later registers its own when it connects.
+/// [`crate::connectors_bridge::connection_tools`]) and, when `mailbox_tools`
+/// says so, the mailbox tools over IMAP. A provider with no connected account
+/// publishes no tool; an account connected later registers its own when it
+/// connects.
 pub(crate) async fn register_builtin_tools(
     tool_registry_handle: &ToolRegistryHandle,
     accounts: &[crate::connections::NativeAccounts],
+    mailbox_tools: bool,
 ) {
     for descriptor in native_tool_descriptors() {
         if let Err(e) = tool_registry_handle.register(descriptor).await {
@@ -107,7 +109,9 @@ pub(crate) async fn register_builtin_tools(
         }
     }
     let mut connector_descriptors = crate::connectors_bridge::connector_descriptors_for(accounts);
-    connector_descriptors.extend(crate::connectors_bridge::imap_tool_descriptors());
+    if mailbox_tools {
+        connector_descriptors.extend(crate::connectors_bridge::imap_tool_descriptors());
+    }
     let connector_descriptor_count = connector_descriptors.len();
     for descriptor in connector_descriptors {
         let tool_name = descriptor.name.clone();
@@ -223,7 +227,7 @@ mod tests {
     #[tokio::test]
     async fn a_fresh_install_gives_apollia_the_reading_family_only() {
         let registry = ToolRegistryHandle::start();
-        register_builtin_tools(&registry, &[]).await;
+        register_builtin_tools(&registry, &[], true).await;
         let dir = tempfile::tempdir().unwrap();
         let repo = AgentRepository::open(&dir.path().join("agents.db")).unwrap();
         let apollia = repo

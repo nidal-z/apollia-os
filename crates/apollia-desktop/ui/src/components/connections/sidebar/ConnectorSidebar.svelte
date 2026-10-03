@@ -14,7 +14,7 @@
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { listNavigation } from "$lib/components/operator/listNavigation";
   import { statusOf, sortServers } from "$lib/connections/status";
-  import type { McpServerStatusView, ConnectorEnrichmentView } from "$lib/types";
+  import type { Connection, McpServerStatusView, ConnectorEnrichmentView } from "$lib/types";
   import type {
     NativeConnectorCard,
     Selection,
@@ -24,6 +24,7 @@
   import type { ProviderId } from "$lib/connections/capabilities";
   import NativeConnectorRow from "./NativeConnectorRow.svelte";
   import McpServerRow from "./McpServerRow.svelte";
+  import ForbiddenConnectionRows from "./ForbiddenConnectionRows.svelte";
 
   interface Props {
     nativeConnectors: NativeConnectorCard[];
@@ -31,6 +32,8 @@
     /** Whether a native provider still lacks usable OAuth credentials. */
     needsSetupFor?: (id: ProviderId) => boolean;
     servers: McpServerStatusView[];
+    /** Connections the organisation policy forbade at the last start. */
+    forbidden?: Connection[];
     enrichmentMap: Map<string, ConnectorEnrichmentView>;
     selection: Selection;
     loading: boolean;
@@ -45,6 +48,7 @@
     accountCountFor,
     needsSetupFor,
     servers,
+    forbidden = [],
     enrichmentMap,
     selection,
     loading,
@@ -169,6 +173,8 @@
       />
     {/each}
   {/if}
+
+  <ForbiddenConnectionRows connections={forbidden} />
 </div>
 
 <div class="border-t border-border px-3 py-2">

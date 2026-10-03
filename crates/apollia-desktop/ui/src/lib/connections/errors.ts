@@ -39,15 +39,33 @@ export function isRefusedByPolicy(e: unknown): boolean {
 }
 
 /**
+ * What every refusal of the organisation policy starts with, as the runtime
+ * words it. A command that relays the runtime's refusal as text (adding an
+ * MCP server) is recognised by it.
+ */
+const POLICY_REFUSAL_PREFIX = "refused by the organisation policy";
+
+/** True when a raw error, structured or plain text, is a policy refusal. */
+export function isPolicyRefusal(e: unknown): boolean {
+  if (isRefusedByPolicy(e)) return true;
+  const text =
+    typeof e === "string"
+      ? e
+      : e instanceof Error
+        ? e.message
+        : ((e as TauriErrorShape | null)?.message ?? (e as TauriErrorShape | null)?.detail);
+  return typeof text === "string" && text.toLowerCase().includes(POLICY_REFUSAL_PREFIX);
+}
+
+/**
  * Format a raw Tauri error into a display string. Known kinds map to localized
  * copy; everything else falls back to the raw detail / message / string form.
  */
 export function formatTauriError(e: unknown, translate: ErrorTranslate): string {
+  if (isPolicyRefusal(e)) return translate("connections.error_refused_by_policy");
   if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
   const err = (e ?? {}) as TauriErrorShape;
-  if (err.kind === "refused_by_policy") {
-    return translate("connections.error_refused_by_policy");
-  }
   if (err.kind === "oauth_client_not_configured") {
     return translate("connections.error_oauth_client_missing");
   }

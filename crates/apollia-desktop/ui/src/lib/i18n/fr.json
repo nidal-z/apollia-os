@@ -334,6 +334,8 @@
     },
     "native_google_description": "Gmail (envoi + brouillons), Calendar, Drive Workspace",
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
+    "forbidden_by_policy": "Interdite par la politique",
+    "sidebar_forbidden_section": "Interdites par la politique ({count})",
     "error_refused_by_policy": "Refusé par la politique de l'organisation.",
     "error_oauth_client_missing": "Identifiant OAuth manquant - ouvrez Réglages → Intégrations pour le coller.",
     "error_oauth_client_secret_missing": "Secret client OAuth manquant - ouvrez Réglages → Intégrations pour l'ajouter.",

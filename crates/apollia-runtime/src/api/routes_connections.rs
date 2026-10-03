@@ -109,6 +109,7 @@ pub(crate) async fn collect_connections<B: ExecutionBackend + Clone>(
         package_servers,
         native_accounts,
         imap_accounts,
+        forbidden: state.connection_governance.forbidden().ids().clone(),
     }))
 }
 

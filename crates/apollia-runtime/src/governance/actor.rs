@@ -53,6 +53,9 @@ pub struct GovernanceSources {
     pub policy: Arc<PolicyVerdict>,
     /// The audit journal the records go to; `None` refuses every record.
     pub journal: Option<AuditJournalHandle>,
+    /// The connections the policy forbade at boot, as tool identifiers name
+    /// them (see [`crate::governance::ForbiddenConnections::tool_connections`]).
+    pub forbidden_connections: std::collections::HashSet<String>,
 }
 
 /// Errors of a write through the governance actor.
@@ -312,6 +315,7 @@ impl GovernanceActor {
             config_path: self.sources.config_path.clone(),
             policy: Arc::clone(&self.sources.policy),
             journal: None,
+            forbidden_connections: self.sources.forbidden_connections.clone(),
         };
         let loaded = tokio::task::spawn_blocking(move || {
             let fingerprint = fingerprint(&sources);
@@ -361,7 +365,7 @@ pub(crate) fn load_state(sources: &GovernanceSources) -> GovernanceState {
             PolicyRefusals {
                 families: valid.policy.families.deny.iter().copied().collect(),
                 denied: valid.policy.connections.deny.iter().cloned().collect(),
-                allowed: valid.policy.connections.allow.iter().cloned().collect(),
+                forbidden_connections: sources.forbidden_connections.clone(),
             },
             valid.policy.packages.require_signature,
         ),

@@ -60,6 +60,7 @@ async fn router(dir: &TempDir) -> Router {
     time.origin = Some(ConnectionOrigin {
         provenance: Provenance::Selection,
         official: false,
+        entry: None,
     });
     repo.save(&time).unwrap();
 

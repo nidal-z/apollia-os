@@ -28,6 +28,41 @@ pub struct AdmissionRequest {
     /// Action families of the tools the connection brings, as far as they are
     /// known before it is added.
     pub families: Vec<ActionFamily>,
+    /// The identifiers an organisation policy names the connection by in
+    /// `connections.allow` and `connections.deny`: `selection:<entry>` for an
+    /// MCP server made from a curated selection entry, `package:npm:<name>`
+    /// for one that runs an npm package, `native:<kind>` for a connection
+    /// Apollia brings itself (`native:google`, `native:microsoft`,
+    /// `native:imap`, `native:folder`). An MCP server of the user's own
+    /// running no npm package has none.
+    pub identifiers: Vec<String>,
+}
+
+/// Prefix of the identifier of a curated selection entry.
+pub const SELECTION_PREFIX: &str = "selection:";
+/// Prefix of the identifier of an npm package.
+pub const NPM_PACKAGE_PREFIX: &str = "package:npm:";
+/// Prefix of the identifier of a kind of connection Apollia brings itself.
+pub const NATIVE_PREFIX: &str = "native:";
+
+/// The identifiers a policy names the MCP server `config` by: its selection
+/// entry when it comes from the selection, the npm package its command runs.
+#[must_use]
+pub fn mcp_identifiers(config: &McpServerConfig) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(origin) = &config.origin {
+        if let (Provenance::Selection, Some(entry)) = (origin.provenance, &origin.entry) {
+            out.push(format!("{SELECTION_PREFIX}{entry}"));
+        }
+    }
+    if let Some(package) = apollia_mcp::npm_package::npm_package(config) {
+        out.push(format!("{NPM_PACKAGE_PREFIX}{package}"));
+    }
+    out
+}
+
+fn native_identifier(kind: &str) -> Vec<String> {
+    vec![format!("{NATIVE_PREFIX}{kind}")]
 }
 
 impl AdmissionRequest {
@@ -43,8 +78,10 @@ impl AdmissionRequest {
             remote: crate::connections::is_remote(&config.transport, config.url.as_deref()),
             provenance: config
                 .origin
+                .as_ref()
                 .map_or(Provenance::Custom, |origin| origin.provenance),
             families,
+            identifiers: mcp_identifiers(config),
         }
     }
 }
@@ -69,6 +106,7 @@ impl AdmissionRequest {
             remote: true,
             provenance: Provenance::Selection,
             families: distinct(descriptors.iter().map(|d| d.family)),
+            identifiers: native_identifier(provider.id()),
         }
     }
 
@@ -84,6 +122,7 @@ impl AdmissionRequest {
             remote: crate::connections::is_remote_host(&account.host),
             provenance: Provenance::Selection,
             families: distinct(descriptors.iter().map(|d| d.family)),
+            identifiers: native_identifier("imap"),
         }
     }
 
@@ -100,6 +139,7 @@ impl AdmissionRequest {
             remote: false,
             provenance: Provenance::Custom,
             families: distinct(families),
+            identifiers: native_identifier("folder"),
         }
     }
 }
@@ -214,6 +254,7 @@ mod tests {
             remote,
             provenance: Provenance::Registry,
             families: vec![ActionFamily::SendExternal, ActionFamily::Unclassified],
+            identifiers: vec![],
         }
     }
 
@@ -267,6 +308,7 @@ mod tests {
         config.origin = Some(apollia_mcp::ConnectionOrigin {
             provenance: Provenance::Registry,
             official: true,
+            entry: None,
         });
 
         // WHEN the admission request is built
@@ -280,6 +322,59 @@ mod tests {
         assert_eq!(req.families.len(), 2);
         assert!(req.families.contains(&ActionFamily::Read));
         assert!(req.families.contains(&ActionFamily::WriteOrDelete));
+        // AND a registry server running no npm package has no identifier
+        assert!(req.identifiers.is_empty());
+    }
+
+    // An MCP server is named by its selection entry and the npm package it runs.
+    #[test]
+    fn test_identifiers_of_mcp_servers() {
+        // GIVEN a selection server running an npm package, a registry server
+        // claiming an entry, and a server installed on node
+        let mut selection: McpServerConfig = serde_json::from_value(serde_json::json!({
+            "name": "memory",
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-memory@1.0.0"],
+        }))
+        .expect("config");
+        selection.origin = Some(apollia_mcp::ConnectionOrigin {
+            provenance: Provenance::Selection,
+            official: false,
+            entry: Some("@modelcontextprotocol/server-memory".into()),
+        });
+        let mut claimed = selection.clone();
+        claimed.command = "uvx".into();
+        claimed.origin = Some(apollia_mcp::ConnectionOrigin {
+            provenance: Provenance::Registry,
+            official: false,
+            entry: Some("@modelcontextprotocol/server-memory".into()),
+        });
+        let installed: McpServerConfig = serde_json::from_value(serde_json::json!({
+            "name": "kg",
+            "command": "node",
+            "args": ["/data/connections/kg/node_modules/server-kg/index.js"],
+        }))
+        .expect("config");
+
+        // WHEN their requests are built
+        let selection = AdmissionRequest::for_mcp_server(&selection);
+        let claimed = AdmissionRequest::for_mcp_server(&claimed);
+        let installed = AdmissionRequest::for_mcp_server(&installed);
+
+        // THEN the selection server carries both, the claim is ignored, and the
+        // installed server is named by its package
+        assert_eq!(
+            selection.identifiers,
+            vec![
+                "selection:@modelcontextprotocol/server-memory".to_owned(),
+                "package:npm:@modelcontextprotocol/server-memory".to_owned(),
+            ]
+        );
+        assert!(claimed.identifiers.is_empty());
+        assert_eq!(
+            installed.identifiers,
+            vec!["package:npm:server-kg".to_owned()]
+        );
     }
 
     // A native account is remote, from the selection, with its connector's families.
@@ -295,6 +390,8 @@ mod tests {
         assert!(req.remote);
         assert_eq!(req.provenance, Provenance::Selection);
         assert!(req.families.contains(&ActionFamily::SendExternal));
+        // AND it is named by its kind
+        assert_eq!(req.identifiers, vec!["native:google".to_owned()]);
     }
 
     // A folder is local, chosen by the user, each family once.
@@ -316,6 +413,7 @@ mod tests {
             req.families,
             vec![ActionFamily::Read, ActionFamily::WriteOrDelete]
         );
+        assert_eq!(req.identifiers, vec!["native:folder".to_owned()]);
     }
 
     // The decision travels as a tagged object.

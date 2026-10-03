@@ -25,6 +25,7 @@ fn sources(dir: &tempfile::TempDir, policy: Arc<PolicyVerdict>) -> GovernanceSou
         config_path: Some(dir.path().join("apollia.toml")),
         policy,
         journal: None,
+        forbidden_connections: Default::default(),
     }
 }
 

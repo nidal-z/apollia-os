@@ -251,7 +251,10 @@ export type ConnectionState =
   | "degraded"
   | "needs_reauth"
   | "unavailable"
-  | "stopped";
+  | "stopped"
+  /** Forbidden by the organisation policy since the last start: not started,
+   *  its tools neither offered nor run, never deleted. */
+  | "forbidden_by_policy";
 
 /** One tool a connection brings. */
 export interface ConnectionTool {

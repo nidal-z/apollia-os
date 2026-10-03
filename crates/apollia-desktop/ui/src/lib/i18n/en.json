@@ -334,6 +334,8 @@
     },
     "native_google_description": "Gmail (send + drafts), Calendar, Drive Workspace",
     "native_microsoft_description": "Outlook Mail, Outlook Calendar, OneDrive",
+    "forbidden_by_policy": "Forbidden by the policy",
+    "sidebar_forbidden_section": "Forbidden by the policy ({count})",
     "error_refused_by_policy": "Refused by your organisation's policy.",
     "error_oauth_client_missing": "Missing OAuth client ID - open Settings → Integrations to paste it.",
     "error_oauth_client_secret_missing": "Missing OAuth client secret - open Settings → Integrations to add it.",

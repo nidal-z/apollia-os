@@ -315,3 +315,39 @@ pub(crate) fn resolve_home(path: &std::path::Path) -> std::path::PathBuf {
     }
     path.to_owned()
 }
+
+/// Reads the organisation policy and reports the verdict.
+pub(in crate::supervisor) fn read_org_policy() -> apollia_permissions::PolicyVerdict {
+    use apollia_permissions::PolicyVerdict;
+
+    let location = apollia_permissions::policy_location();
+    let verdict = apollia_permissions::load_policy(&location.dir, location.owner);
+    let dir = location.dir.display();
+    match &verdict {
+        PolicyVerdict::Absent => {
+            tracing::event!(tracing::Level::INFO, verdict = verdict.kind(), dir = %dir, "policy.read");
+        }
+        PolicyVerdict::Valid(valid) => {
+            tracing::event!(
+                tracing::Level::INFO,
+                verdict = verdict.kind(),
+                dir = %dir,
+                key_fingerprint = %valid.key_fingerprint,
+                publisher = %valid.publisher,
+                signed_at = %valid.signed_at,
+                "policy.read"
+            );
+        }
+        PolicyVerdict::Invalid(invalid) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                verdict = verdict.kind(),
+                dir = %dir,
+                reason = invalid.reason.as_str(),
+                detail = %invalid.detail,
+                "policy.read"
+            );
+        }
+    }
+    verdict
+}

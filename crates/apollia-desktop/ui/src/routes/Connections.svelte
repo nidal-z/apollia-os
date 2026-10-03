@@ -34,6 +34,7 @@
     type ProviderId,
   } from "$lib/ipc/connections";
   import { messageOf, formatTauriError } from "$lib/connections/errors";
+  import { loadConnections, forbiddenConnections } from "$lib/connections/connectionList";
   import { sortServers, needsOauthSetup } from "$lib/connections/status";
   import { oauthListClientIds, type OauthClientIdStatus } from "$lib/ipc/oauthClients";
   import { navigateToSettings } from "$lib/router";
@@ -47,6 +48,7 @@
   import { tryConnectorPrompt } from "$lib/connections/tryConnectorPrompt";
   import type {
     AgentListItem,
+    Connection,
     ConnectorEnrichmentView,
     McpHealth,
     McpServerStatusView,
@@ -70,6 +72,7 @@
   let enrichmentMap = $state(new Map<string, ConnectorEnrichmentView>());
   let registry = $state<RegistryServerView[]>([]);
   let agents = $state<AgentListItem[]>([]);
+  let forbidden = $state<Connection[]>([]);
   let loading = $state(false);
   let loadError = $state<string | null>(null);
 
@@ -161,6 +164,10 @@
     } finally {
       loading = false;
     }
+    // The connections the policy forbade are not running, so the server list
+    // above never holds them; the single connection list does.
+    const all = await loadConnections();
+    forbidden = all.status === "ready" ? forbiddenConnections(all.connections) : [];
   }
 
   async function loadCuratedCatalogue(): Promise<void> {
@@ -341,6 +348,7 @@
         accountCountFor={(id) => accountsForProvider(id).length}
         needsSetupFor={needsSetup}
         {servers}
+        {forbidden}
         {enrichmentMap}
         {selection}
         {loading}

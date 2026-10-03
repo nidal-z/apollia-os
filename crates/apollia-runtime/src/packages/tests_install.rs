@@ -253,7 +253,7 @@ async fn test_install_adds_the_servers_it_brings_and_links_them() {
     assert_eq!(added.len(), 1);
     assert_eq!(added[0].name, "ledger");
     assert_eq!(
-        added[0].origin.map(|o| o.provenance),
+        added[0].origin.as_ref().map(|o| o.provenance),
         Some(Provenance::Package)
     );
     assert_eq!(report.mcp_servers_added, vec!["ledger".to_owned()]);
