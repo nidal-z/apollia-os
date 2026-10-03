@@ -172,8 +172,10 @@
     "settings-nav-chat",
     "settings-nav-developer",
     "settings-nav-engines",
+    "settings-nav-engines-shortcut",
     "settings-nav-general",
     "settings-nav-hardware",
+    "settings-nav-hardware-shortcut",
     "settings-nav-integrations",
     "settings-nav-llm",
     "settings-nav-model-defaults",
@@ -13948,6 +13950,77 @@
     {
       "kind": "screenshot",
       "label": "01-settings-shell"
+    },
+    {
+      "kind": "expect",
+      "testid": "settings-window"
+    },
+    {
+      "kind": "click",
+      "testid": "settings-window-close",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "press",
+      "testid": "settings-nav-general",
+      "key": "Escape",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "settings-window",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "press",
+      "key": "R",
+      "mod": true,
+      "shift": true,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "engines-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "settings-nav-engines-shortcut"
+    },
+    {
+      "kind": "press",
+      "testid": "settings-nav-engines",
+      "key": "H",
+      "mod": true,
+      "shift": true,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "advanced-section",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "expect",
+      "testid": "settings-nav-hardware-shortcut"
+    },
+    {
+      "kind": "screenshot",
+      "label": "01b-settings-window-system"
     },
     {
       "kind": "click",

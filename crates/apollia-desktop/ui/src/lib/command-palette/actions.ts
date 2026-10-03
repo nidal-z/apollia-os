@@ -227,7 +227,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Keyboard,
       kind: "settings",
       execute: () => {
-        navigateToSettings("shortcuts");
+        navigateToSettings("chat");
       },
     },
     {
@@ -247,7 +247,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Brain,
       kind: "settings",
       execute: () => {
-        navigateToSettings("danger");
+        navigateToSettings("general", "clear-memories");
       },
     },
     {
@@ -257,7 +257,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Terminal,
       kind: "settings",
       execute: () => {
-        navigateToSettings("danger");
+        navigateToSettings("general", "clear-logs");
       },
     },
     {
@@ -267,7 +267,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: RefreshCcw,
       kind: "settings",
       execute: () => {
-        navigateToSettings("danger");
+        navigateToSettings("general", "factory-reset");
       },
     },
     {
@@ -277,7 +277,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Info,
       kind: "help",
       execute: () => {
-        navigateToSettings("help");
+        navigateToSettings("general");
       },
     },
     {
@@ -287,7 +287,7 @@ export function buildPaletteActions(): PaletteAction[] {
       icon: Info,
       kind: "help",
       execute: () => {
-        navigateToSettings("about");
+        navigateToSettings("general");
       },
     },
     // Removed: help.docs action (was navigating to obsolete onboarding route)

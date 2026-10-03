@@ -1,10 +1,31 @@
-import { writable, derived, get } from "svelte/store";
+import { writable, derived, get, type Writable } from "svelte/store";
+import { openSettingsWindow, requestCloseSettingsWindow } from "$lib/stores/settingsWindow";
 
 /** Routes available in the desktop application. */
 export type Route = "dashboard" | "agents" | "tasks" | "chat" | "inbox" | "integrations" | "llm" | "automations" | "projects" | "memory" | "transcriptions" | "notifications" | "observability" | "settings" | "design" | "design-motion" | "design-empty-states" | "design-dark-mode";
 
-/** Reactive store of the active route. Default = 'dashboard'. */
-export const currentRoute = writable<Route>("dashboard");
+const screen = writable<Route>("dashboard");
+
+/**
+ * Reactive store of the active route. Default = 'dashboard'.
+ *
+ * `settings` is an entry point, not a screen: the settings open in a window
+ * above the current screen, which stays mounted underneath. Setting the route
+ * to `settings`, by any path, opens that window and leaves the screen as it is.
+ */
+export const currentRoute: Writable<Route> = {
+  subscribe: screen.subscribe,
+  set(route: Route) {
+    if (route === "settings") {
+      openSettingsWindow();
+      return;
+    }
+    screen.set(route);
+  },
+  update(updater: (route: Route) => Route) {
+    currentRoute.set(updater(get(screen)));
+  },
+};
 
 /** Navigation history for back/forward. */
 const pastRoutes = writable<Route[]>([]);
@@ -24,13 +45,25 @@ export const nextRoute = derived(futureRoutes, ($future) =>
 /** Size of the back history (for long-press tooltip "Back (N in history)"). */
 export const backHistorySize = derived(pastRoutes, ($past) => $past.length);
 
-/** Navigate to a route, pushing current to history. */
+/**
+ * Navigate to a route, pushing current to history. `settings` opens the
+ * settings window above the current screen; any other route closes that window
+ * first, through its unsaved-changes guard, and goes on once it is closed.
+ */
 export function navigateTo(route: Route) {
-  const current = get(currentRoute);
+  if (route === "settings") {
+    openSettingsWindow();
+    return;
+  }
+  requestCloseSettingsWindow(() => showScreen(route));
+}
+
+function showScreen(route: Route) {
+  const current = get(screen);
   if (route === current) return;
   pastRoutes.update((p) => [...p, current].slice(-10));
   futureRoutes.set([]);
-  currentRoute.set(route);
+  screen.set(route);
 }
 
 /** Go back in history. */
@@ -39,7 +72,7 @@ export function goBack() {
   if (past.length === 0) return;
   const prev = past.at(-1);
   if (prev === undefined) return;
-  const current = get(currentRoute);
+  const current = get(screen);
   pastRoutes.set(past.slice(0, -1));
   futureRoutes.update((f) => [...f, current]);
   currentRoute.set(prev);
@@ -51,7 +84,7 @@ export function goForward() {
   if (future.length === 0) return;
   const next = future.at(-1);
   if (next === undefined) return;
-  const current = get(currentRoute);
+  const current = get(screen);
   futureRoutes.set(future.slice(0, -1));
   pastRoutes.update((p) => [...p, current]);
   currentRoute.set(next);

@@ -2237,7 +2237,9 @@
         "companion_focus": "Focus the Companion input",
         "approvals_accept": "Accept the current approval",
         "approvals_refuse": "Refuse the current approval",
-        "approvals_next": "Jump to next / previous approval"
+        "approvals_next": "Jump to next / previous approval",
+        "settings_engines": "Open System > Engines",
+        "settings_hardware": "Open System > Hardware"
       },
       "reserved": "OS reserved",
       "reserved_hint": "Reserved by the operating system and cannot be reassigned.",
@@ -3153,6 +3155,10 @@
     },
     "engines": {
       "subtitle": "The engines that run the models and dictation on this machine."
+    },
+    "window": {
+      "label": "Settings",
+      "close": "Close settings"
     }
   },
   "onboarding": {
