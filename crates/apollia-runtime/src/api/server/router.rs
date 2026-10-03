@@ -98,6 +98,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         list_sessions, pause::pause_session, plan, resume_session as chat_resume_session,
         send_message, stream_session,
     };
+    use crate::api::routes_chat_assists::chat_assists_router;
     use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
     use crate::api::routes_drive_folders::drive_folders_router;
@@ -369,6 +370,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         .merge(permissions_router::<B>())
         .merge(tool_governance_router::<B>())
         .merge(oauth_clients_router::<B>())
+        .merge(chat_assists_router::<B>())
         .merge(connectors_router::<B>())
         .merge(drive_folders_router::<B>())
         .merge(imap_router::<B>())

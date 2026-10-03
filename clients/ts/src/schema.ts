@@ -360,6 +360,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assists/automation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/assists/automation`: parses an automation described in
+         *     words into a schedule, an agent and a payload, with its ambiguities.
+         */
+        post: operations["parse_automation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assists/coaching": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/assists/coaching`: examples to try a connector just added. */
+        post: operations["coach_connector"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assists/next-steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/assists/next-steps`: up to three next steps cards, drawn by
+         *     the daemon's default model or by the heuristic.
+         */
+        post: operations["generate_next_steps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assists/rewrite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/assists/rewrite`: rewrites a terse prompt with the daemon's
+         *     default model, or returns it unchanged with the reason.
+         */
+        post: operations["rewrite_prompt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit": {
         parameters: {
             query?: never;
@@ -4790,6 +4867,22 @@ export interface components {
              */
             memoryType?: string | null;
         };
+        /** @description One coaching example shown as a clickable card in the wizard's last step. */
+        CoachingExample: {
+            /** @description One-line description shown under the title. */
+            description: string;
+            /** @description Pre-filled chat message sent when the user clicks "Try". */
+            prompt: string;
+            /** @description Short actionable title (e.g. "Summarise my latest Notion page"). */
+            title: string;
+        };
+        /** @description The connector just added. */
+        CoachingRequest: {
+            /** @description The server name, matched against well-known connectors. */
+            serverName: string;
+            /** @description The title shown to the operator, the name when absent. */
+            serverTitle?: string | null;
+        };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
             /** @description The authorization `code` the provider returned. */
@@ -5837,6 +5930,13 @@ export interface components {
             /** @description Available model files in `~/.apollia/models/`. */
             models: components["schemas"]["ModelInfo"][];
         };
+        /** @description Up to three next steps cards, and whether a model wrote them. */
+        NextStepsReply: {
+            /** @description `false` when the heuristic wrote them. */
+            fromLlm: boolean;
+            /** @description The cards, in display order. */
+            steps: Record<string, never>[];
+        };
         /**
          * @description One provider's OAuth client, as the settings draw it.
          *
@@ -5991,6 +6091,13 @@ export interface components {
         PackagePreviewRequest: {
             /** @description Path of the `.apo` file on this machine. */
             path: string;
+        };
+        /** @description An automation described in words, and the agents the window knows. */
+        ParseAutomationRequest: {
+            /** @description Free-form text entered by the operator. */
+            input: string;
+            /** @description Identifiers or names of the agents known on the window side. */
+            known_agents?: string[];
         };
         /**
          * @description One pending HITL approval entry.
@@ -6413,6 +6520,20 @@ export interface components {
              * @description How many rules were removed.
              */
             removed: number;
+        };
+        /**
+         * @description Why no rewrite happened, as the composer receives it.
+         *
+         *     Mirrors [`RewriteFallback`] and adds the one situation this layer owns:
+         *     no router is mounted at all, which the crate below cannot observe.
+         * @enum {string}
+         */
+        RewriteFallbackReason: "noRouter" | "noBackend" | "callFailed" | "emptyAnswer";
+        /** @description The rewritten prompt, or the original one with the reason it came back. */
+        RewriteReply: {
+            fallback?: null | components["schemas"]["RewriteFallbackReason"];
+            /** @description The text to put back in the composer. */
+            rewrittenText: string;
         };
         /** @description Request body for `POST /api/v1/sessions/:id/messages`. */
         SendMessageRequest: {
@@ -8258,6 +8379,132 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
+            };
+        };
+    };
+    parse_automation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ParseAutomationRequest"];
+            };
+        };
+        responses: {
+            /** @description The parsed automation, ambiguities included */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The body is not an automation description */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    coach_connector: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CoachingRequest"];
+            };
+        };
+        responses: {
+            /** @description One to three example cards */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachingExample"][];
+                };
+            };
+            /** @description The body names no server */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    generate_next_steps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description `context`, `mode` and the `facts` the window computed, each optional */
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The cards, and whether a model wrote them */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NextStepsReply"];
+                };
+            };
+            /** @description The body is not a next steps request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    rewrite_prompt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description `originalText`, and the optional `workContext` of the user profile */
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The rewritten text, or the original one and why */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RewriteReply"];
+                };
+            };
+            /** @description The body is not a rewrite request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -78,8 +78,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # their Drive folder were served by the daemon, then at 110 once the OAuth
 # clients of the connectors were served by the daemon, then at 103 once the plan
 # mode had its routes, then at 96 once the MCP secrets and registry had their
-# routes and the MCP sign-in was named a window command.
-EMBEDDED_ONLY_CEILING = 96
+# routes and the MCP sign-in was named a window command, then at 92 once the
+# assists around the chat (rewrite, next steps, automation, coaching) were.
+EMBEDDED_ONLY_CEILING = 92
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",
