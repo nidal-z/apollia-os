@@ -1691,6 +1691,152 @@
         }
       }
     },
+    "/api/v1/connectors/drive-folders": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/drive-folders`: the Drive folder of every\nconnected Google account.",
+        "operationId": "list_drive_folders",
+        "responses": {
+          "200": {
+            "description": "The folder of each Google account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriveFolderStatus"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The accounts or the preferences could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/drive-folders/{account_id}": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/connectors/drive-folders/{account_id}`: record the Drive\nfolder of one Google account.",
+        "operationId": "set_drive_folder",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Google account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDriveFolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The folder as recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveFolderStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized account or folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The preferences could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`DELETE /api/v1/connectors/drive-folders/{account_id}`: forget the Drive\nfolder of one Google account, so the default applies again.",
+        "operationId": "reset_drive_folder",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Google account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The folder as recorded, the default again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveFolderStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The preferences could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/imap/accounts": {
       "post": {
         "tags": [
@@ -10824,6 +10970,31 @@
           }
         }
       },
+      "DriveFolderStatus": {
+        "type": "object",
+        "description": "The Drive folder of one connected Google account.",
+        "required": [
+          "account_id",
+          "effective_folder_path"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Account identifier, the Google email."
+          },
+          "effective_folder_path": {
+            "type": "string",
+            "description": "The path the executors walk: the user's choice, or the default."
+          },
+          "folder_path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The path the user chose, absent when the default applies. An empty\npath means the root of My Drive."
+          }
+        }
+      },
       "EmbeddingModelsResponse": {
         "type": "object",
         "description": "The embeddings category of the registry, and the entry for this machine.",
@@ -13082,6 +13253,19 @@
           }
         }
       },
+      "SetDriveFolderBody": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/connectors/drive-folders/{account_id}`.",
+        "required": [
+          "folder_path"
+        ],
+        "properties": {
+          "folder_path": {
+            "type": "string",
+            "description": "Folder path under My Drive, `Documents/Apollia` for instance. Empty\nmeans the root of My Drive."
+          }
+        }
+      },
       "SetEventsRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/notifications/events`.",
@@ -15030,10 +15214,6 @@
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
-    },
-    {
-      "name": "packages",
-      "description": "Package preview, installation, and trusted publisher keys"
     }
   ]
 }

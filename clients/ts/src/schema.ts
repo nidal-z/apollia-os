@@ -613,6 +613,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/connectors/drive-folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/connectors/drive-folders`: the Drive folder of every
+         *     connected Google account.
+         */
+        get: operations["list_drive_folders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/connectors/drive-folders/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/connectors/drive-folders/{account_id}`: record the Drive
+         *     folder of one Google account.
+         */
+        put: operations["set_drive_folder"];
+        post?: never;
+        /**
+         * `DELETE /api/v1/connectors/drive-folders/{account_id}`: forget the Drive
+         *     folder of one Google account, so the default applies again.
+         */
+        delete: operations["reset_drive_folder"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors/imap/accounts": {
         parameters: {
             query?: never;
@@ -3909,6 +3953,18 @@ export interface components {
             /** @description Identifier of the entry recommended for this machine. */
             recommended?: string | null;
         };
+        /** @description The Drive folder of one connected Google account. */
+        DriveFolderStatus: {
+            /** @description Account identifier, the Google email. */
+            account_id: string;
+            /** @description The path the executors walk: the user's choice, or the default. */
+            effective_folder_path: string;
+            /**
+             * @description The path the user chose, absent when the default applies. An empty
+             *     path means the root of My Drive.
+             */
+            folder_path?: string | null;
+        };
         /** @description The embeddings category of the registry, and the entry for this machine. */
         EmbeddingModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -4879,6 +4935,14 @@ export interface components {
         SetDefaultResponse: {
             /** @description The backend that is now the default. */
             default: string;
+        };
+        /** @description Request body for `PUT /api/v1/connectors/drive-folders/{account_id}`. */
+        SetDriveFolderBody: {
+            /**
+             * @description Folder path under My Drive, `Documents/Apollia` for instance. Empty
+             *     means the root of My Drive.
+             */
+            folder_path: string;
         };
         /** @description Request body for `PUT /api/v1/notifications/events`. */
         SetEventsRequest: {
@@ -6957,6 +7021,121 @@ export interface operations {
                 };
             };
             /** @description The token store could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_drive_folders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The folder of each Google account */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveFolderStatus"][];
+                };
+            };
+            /** @description The accounts or the preferences could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_drive_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Google account identifier */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetDriveFolderBody"];
+            };
+        };
+        responses: {
+            /** @description The folder as recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveFolderStatus"];
+                };
+            };
+            /** @description Empty or oversized account or folder */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The preferences could not be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_drive_folder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Google account identifier */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The folder as recorded, the default again */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriveFolderStatus"];
+                };
+            };
+            /** @description Empty or oversized account */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The preferences could not be written */
             500: {
                 headers: {
                     [name: string]: unknown;

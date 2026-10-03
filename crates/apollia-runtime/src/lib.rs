@@ -22,6 +22,7 @@ pub mod composition;
 pub mod connections;
 pub mod connectors_bridge;
 pub mod coordinator;
+pub mod drive_folders;
 pub mod embedded;
 pub mod eventbus;
 pub mod governance;
