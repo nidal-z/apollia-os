@@ -543,6 +543,7 @@ impl Supervisor {
                 .config_path
                 .clone()
                 .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
+            system_db_path.clone(),
             &event_sender,
         );
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
