@@ -57,6 +57,7 @@ pub mod temporal_context;
 pub mod todo;
 pub mod token_budget;
 pub mod utils;
+pub mod vector_search;
 pub mod workspace;
 
 pub use budget::StepBudgetConfig;
