@@ -6,7 +6,6 @@
 //! replaced, body relayed, answer passed back.
 
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use axum::body::{Body, Bytes};
 use axum::extract::State;
@@ -44,10 +43,8 @@ async fn fake_answer(State(received): State<Received>, uri: Uri, body: Bytes) ->
         .unwrap()
         .push((uri.path().to_owned(), body.clone()));
     if body.get("stream") == Some(&Value::Bool(true)) {
-        let chunks = futures::stream::iter(CHUNKS).then(|chunk| async move {
-            tokio::time::sleep(Duration::from_millis(20)).await;
-            Ok::<_, std::io::Error>(Bytes::from_static(chunk.as_bytes()))
-        });
+        let chunks = futures::stream::iter(CHUNKS)
+            .map(|chunk| Ok::<_, std::io::Error>(Bytes::from_static(chunk.as_bytes())));
         return (
             [("content-type", "text/event-stream")],
             Body::from_stream(chunks),
