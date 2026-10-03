@@ -217,6 +217,7 @@ async fn test_ctx_llm_is_none_when_no_backend() {
 async fn test_runtime_continues_after_llm_init_failure() {
     // GIVEN an LLM config whose default backend does not exist
     let config = LlmConfig {
+        format_version: 1,
         default: "backend-inexistant".to_owned(),
         backends: vec![],
         observability: ObservabilityConfig::default(),
@@ -224,6 +225,7 @@ async fn test_runtime_continues_after_llm_init_failure() {
         pricing_overrides: HashMap::new(),
         cost_alert_threshold_usd: None,
         runner: apollia_core::config::LlmRunnerConfig::default(),
+        guardrails: Default::default(),
     };
 
     // WHEN LlmRouter::from_config() fails (the backend is absent)

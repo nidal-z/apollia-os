@@ -35,9 +35,14 @@ séparément sous `~/.apollia/`.
 
 ## Sections
 
-Dix sections sont lues. Une section en dehors de cette liste est ignorée, et
-`apollia-os config set` la rejette plutôt que d'accepter une valeur que rien ne
-consultera jamais.
+Le fichier est lu strictement, par la même validation partout. Une clé
+qu'aucune section ne déclare, ou une valeur du mauvais type, est une faute
+nommée à sa ligne : `apollia-os config validate` liste chaque faute,
+`apollia-os config set` refuse de l'écrire, et `apollia-os start` refuse de
+démarrer, avec le code de sortie 1. L'application de bureau démarre alors sur
+les valeurs par défaut, journalise chaque faute et inscrit le refus au journal
+d'audit, au lieu d'écarter le fichier en silence. Une section retirée (voir plus bas) reste acceptée, avec un
+avertissement `config.key.retired`.
 
 | Section | Objet |
 |---|---|
@@ -51,6 +56,12 @@ consultera jamais.
 | `[chat]` | Valeurs par défaut au niveau session du sous-système de chat (par exemple `plan_mode_default`). |
 | `[filesystem]` | Le journal réversible, et les chemins où un agent travaille sans demander (`trusted_paths`, voir plus bas). |
 | `[workflows]` | Le budget avec lequel démarre l'exécution d'un workflow, partagé par chaque agent et chaque workflow qu'elle lance. |
+| `[models]` | L'index signé des fiches de modèles, le dossier des modèles (`dir`), et la règle appliquée à un fichier importé (`[models.import]`). |
+| `[desktop]` | Réglages de l'application de bureau que le moteur lit : `developer_mode`, `update_channel` (`stable` ou `preview`), `background_service_allowed`. |
+| `[server]` | Le serveur compatible : `enabled`, `port`, `require_auth`. |
+| `[engines]` | Réglages des moteurs d'inférence locaux (`log_level`). |
+| `[author]` | Le nom d'éditeur des agents exportés depuis cette machine (`name`). |
+| `[ui]` | L'aperçu des liens de l'application de bureau, désactivé par défaut (`link_preview_enabled`). |
 
 L'application desktop lit une section supplémentaire, `[observability]`,
 documentée plus bas. Elle n'est pas modifiable depuis la CLI.
@@ -117,6 +128,7 @@ Backends LLM et routage.
 | `pricing_overrides` | `HashMap<String, PricingTier>` | vide | Surcharges de tarification par l'opérateur (section `[llm.pricing_overrides]`). |
 | `cost_alert_threshold_usd` | `Option<f64>` | `None` | Seuil de coût en USD au-delà duquel `RuntimeEvent::TokenBudgetUpdated` est émis avec `threshold_exceeded = true`. |
 | `runner` | `LlmRunnerConfig` | défaut du type | Configuration du sidecar LLM local (section `[llm.runner]`). |
+| `guardrails` | `LlmGuardrailsConfig` | défaut du type | Garde-fous de chargement d'un modèle local (section `[llm.guardrails]`). |
 
 ### `[runtime]`
 
