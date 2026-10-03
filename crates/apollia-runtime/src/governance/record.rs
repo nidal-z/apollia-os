@@ -94,7 +94,7 @@ pub enum GovernanceEvent {
         /// Agent whose override changed.
         agent_id: String,
         /// Overridden field (`name`, `mission`, `examples`, `access`,
-        /// `sources`).
+        /// `sources`, ...), or `model` for the model assigned to the agent.
         field: String,
         /// Whether the value was written or removed.
         change: OverrideChange,

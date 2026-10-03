@@ -32,6 +32,8 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { developerMode } from "$lib/stores/developerMode";
   import type { AgentActions } from "./useAgentActions.svelte";
+  import AdjustActions from "./sheet/AdjustActions.svelte";
+  import type { AgentAdjust } from "./sheet/useAgentAdjust.svelte";
   import type { AgentListItem } from "$lib/types";
   import {
     agentClassLabel,
@@ -53,6 +55,8 @@
     onArmUninstall: () => void;
     onDisarmUninstall: () => void;
     onStartChat: (name: string) => void;
+    /** The adjustment session of the sheet below the header. */
+    adjust: AgentAdjust;
   }
 
   let {
@@ -62,6 +66,7 @@
     onArmUninstall,
     onDisarmUninstall,
     onStartChat,
+    adjust,
   }: Props = $props();
 
   const toolCount = $derived(
@@ -165,7 +170,9 @@
     </span>
   {/snippet}
   {#snippet actions()}
-    {#if confirmingUninstall}
+    {#if adjust.active}
+      <AdjustActions {adjust} />
+    {:else if confirmingUninstall}
       <div class="flex flex-col items-end gap-1.5">
         <span class="text-body-xs font-medium text-destructive">
           {$t("agents.uninstall_confirm_warning", { values: { name: agent.name } })}
@@ -243,6 +250,7 @@
           {$t("agents.uninstall")}
         </Button>
       {/if}
+      <AdjustActions {adjust} />
       <Button
         variant="primary-solid"
         size="sm"
