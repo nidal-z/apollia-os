@@ -326,15 +326,28 @@ Rules :
 
 ---
 
-## 10. Operator vs Builder modes
+## 10. The developer mode
 
-Apollia has two distinct UX modes : **Operator** (autonomy, ease of use,
-guided flows) and **Builder** (exhaustive observability, every event, every
-field exposed). When fusing duplicated screens or features :
+Apollia has one switch, **developer mode**, off by default, in Settings >
+Developer (`crates/apollia-desktop/ui/src/routes/settings/Developer.svelte`).
+Its value lives in `[desktop] developer_mode` of `apollia.toml`, read and
+written through the shell by
+`crates/apollia-desktop/ui/src/lib/stores/developerMode.ts`, so the
+organization policy can impose it and Rust readers see the same value.
 
-- Preserve the wording and structure of each mode. Do not collapse Operator
-  flows into Builder views or vice versa.
-- The mode selector is a top-level switch, never per-screen.
+- **One switch, never per screen.** No screen, panel or tab carries its own
+  mode selector; a screen reads `developerMode` and renders its branch.
+- **The default branch comes from Operator** (autonomy, ease of use, guided
+  flows): it is what every user sees with the switch off.
+- **The developer branch comes from Builder** (exhaustive observability, every
+  event, every field exposed): it is shown only with the switch on.
+- **Both vocabularies stay.** The Operator wording is the default wording, the
+  Builder wording the developer wording. Do not collapse one branch into the
+  other when fusing duplicated screens; the paired components stay two
+  components, chosen by the switch.
+- `crates/apollia-desktop/ui/src/lib/stores/mode.ts` (`uiMode`) is an
+  adapter kept while its readers move to `developerMode`: it reads
+  `"builder"` when the switch is on. Do not add a reader to it.
 
 ---
 

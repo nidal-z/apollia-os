@@ -208,20 +208,7 @@
       "settings": "Paramètres"
     }
   },
-  "sidebar": {
-    "mode": {
-      "chip_aria": "Mode courant : {mode}. Ouvrir le sélecteur de mode.",
-      "chip_tooltip": "Mode : {current} - clic pour passer en {other}",
-      "operator": {
-        "label": "Opérateur",
-        "description": "Vue simplifiée : lancer et surveiller les assistants."
-      },
-      "builder": {
-        "label": "Builder",
-        "description": "Vue technique : LLMs, triggers, mémoire, observabilité."
-      }
-    }
-  },
+  "sidebar": {},
   "topbar": {
     "search": {
       "placeholder": "Rechercher…"
@@ -2059,7 +2046,8 @@
       "about": "À propos",
       "danger": "Zone de danger",
       "mobile_open": "Sections",
-      "mobile_title": "Sections des paramètres"
+      "mobile_title": "Sections des paramètres",
+      "developer": "Développeur"
     },
     "help": {
       "subtitle": "Prenez en main Apollia et repérez l'essentiel.",
@@ -2313,11 +2301,6 @@
     "theme_light": "Clair",
     "theme_dark": "Sombre",
     "theme_system": "Système",
-    "mode_title": "Mode d'interface",
-    "mode_operator": "Opérateur",
-    "mode_builder": "Builder",
-    "mode_operator_desc": "Vue simplifiée pour l'usage quotidien",
-    "mode_builder_desc": "Vue technique avec tous les détails",
     "system_info": "Informations système",
     "system_version": "Version",
     "system_os": "Système d'exploitation",
@@ -3096,7 +3079,6 @@
     "language_label": "Langue de l'interface",
     "language_field_help": "Appliquée immédiatement, aucun redémarrage requis.",
     "theme_help": "Apparence claire, sombre ou synchronisée au système.",
-    "mode_help": "Niveau de détail affiché dans le chat et les vues d'outils.",
     "credential": {
       "configured": "Configuré",
       "absent": "Absent",
@@ -3140,6 +3122,15 @@
       "none_for_tool": "Aucun identifiant configuré pour cet outil.",
       "created": "ajouté {date}",
       "values_hidden": "Les valeurs restent chiffrées sur cette machine et ne sont jamais affichées."
+    },
+    "developer": {
+      "subtitle": "Le mode développeur et les réglages avancés.",
+      "mode_title": "Mode développeur",
+      "mode_label": "Mode développeur",
+      "mode_hint": "Affiche les vues techniques (Transcriptions, Observabilité, Mémoire) et les réglages avancés ci-dessous.",
+      "mode_off": "Éteint",
+      "mode_on": "Allumé",
+      "write_failed": "Le mode développeur n'a pas pu être enregistré."
     }
   },
   "onboarding": {
@@ -3419,8 +3410,6 @@
     "no_results": "Aucun résultat",
     "search_placeholder": "Rechercher…",
     "select_or_start": "Sélectionnez une conversation à gauche ou démarrez-en une nouvelle.",
-    "journal_mode_operator": "Opérateur",
-    "journal_mode_builder": "Builder",
     "journal_empty": "Activité de l'agent en direct.",
     "conversations_aria": "Conversations",
     "past_session": "Session passée",
@@ -4238,7 +4227,7 @@
     "actions": {
       "createAgent": "Créer un agent",
       "createTrigger": "Créer un trigger",
-      "toggleMode": "Basculer mode Opérateur / Builder",
+      "toggleDeveloperMode": "Activer / désactiver le mode développeur",
       "toggleCompanion": "Basculer le Companion"
     },
     "help": {
