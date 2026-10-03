@@ -126,6 +126,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // MCP: the secret of a server, and the public registry joined with the
+    // servers installed.
+    "delete_mcp_secret",
+    "fetch_mcp_registry",
+    "store_mcp_secret",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -188,6 +193,22 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "automation_finish",
         "ends the run driving this window in a development build",
+    ),
+    (
+        "list_mcp_enrichments",
+        "reads the connector labels compiled into this application",
+    ),
+    (
+        "mcp_oauth_discover",
+        "reads the sign-in metadata an MCP server publishes, for the wizard this window shows",
+    ),
+    (
+        "mcp_oauth_resolve_client_id",
+        "resolves the client id of the sign-in this window runs, from its own environment and build",
+    ),
+    (
+        "mcp_oauth_login",
+        "opens the browser of this machine and awaits the sign-in on its loopback; the token goes to the secret store the daemon reads",
     ),
 ];
 
