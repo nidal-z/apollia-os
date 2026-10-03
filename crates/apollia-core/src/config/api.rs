@@ -8,23 +8,30 @@ use super::ConfigError;
 // ApiConfig
 // ─────────────────────────────────────────────
 
+/// Port of the native API when neither `apollia-os start --port` nor
+/// `[api].port` names one.
+///
+/// Distinct from the compatible server port (7772): a file that gives both the
+/// same port is refused by [`validate`](super::validate).
+pub const DEFAULT_API_PORT: u16 = 7771;
+
 /// Local REST API configuration (`[api]` section in `apollia.toml`).
 ///
 /// Controls TCP binding, static token authentication, and the local Unix
 /// socket path. The Unix socket stays unauthenticated: only the owner of the
 /// socket file can access it.
 ///
-/// **Two loaders read this section, and they read different halves of it.** The
+/// **Two loaders read this section, and they read different parts of it.** The
 /// daemon started by `apollia-os start` builds its listener from `bind`,
-/// `require_token`, `tls_cert` and `tls_key`. The runtime embedded in the
-/// desktop application reads `unix_socket` and nothing else: it binds
-/// `127.0.0.1:7771` with a token, always, whatever the file says. No key is read
-/// by both, and `port` is read by neither. Every field below names its own
-/// readers, because a type that states what a key means says nothing about
-/// whether anything consults it.
+/// `port`, `require_token`, `tls_cert` and `tls_key`. The runtime embedded in
+/// the desktop application reads `port` and `unix_socket`: it binds
+/// `127.0.0.1` on that port with a token, always, whatever the other keys say.
+/// Every field below names its own readers, because a type that states what a
+/// key means says nothing about whether anything consults it.
 ///
 /// A key a loader ignores is still parsed and validated, then dropped. Setting
-/// one is silent, not an error.
+/// one is silent, not an error. Every key of the section takes effect at the
+/// next start of the runtime.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ApiConfig {
@@ -38,19 +45,16 @@ pub struct ApiConfig {
     #[serde(default = "default_api_bind")]
     pub bind: String,
 
-    /// TCP port of the REST server.
+    /// TCP port of the native API.
     ///
-    /// Default: `7771`.
+    /// Default: [`DEFAULT_API_PORT`] (`7771`).
     ///
-    /// Read by neither loader. Measured across the tree, the only readers of
-    /// an [`ApiConfig`] are the daemon start path and the embedded loader, and
-    /// neither touches this field. The daemon takes its port from
-    /// `apollia-os start --port` and falls back to `7771` when the flag is
-    /// absent, so a file that sets `port = 8080` still gets `7771`; the desktop
-    /// application passes `7771` in code. The field is kept because an existing
-    /// `apollia.toml` carrying the key must parse; wiring it would change the
-    /// port a deployed file already resolves to, and removing it is a change to
-    /// the public surface of `apollia-core`.
+    /// Read by both loaders, at startup. The daemon takes
+    /// `apollia-os start --port` first, then this key, then the default. The
+    /// desktop application takes this key, then the default; when a daemon
+    /// already serves, the application attaches to the port the daemon
+    /// recorded in the data folder, so a daemon started with `--port` is
+    /// still found. Must differ from `[server].port`.
     #[serde(default = "default_api_port")]
     pub port: u16,
 
@@ -144,7 +148,7 @@ fn default_api_bind() -> String {
 }
 
 fn default_api_port() -> u16 {
-    7771
+    DEFAULT_API_PORT
 }
 
 fn default_require_token() -> bool {

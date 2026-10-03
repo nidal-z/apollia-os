@@ -388,7 +388,7 @@ Start the runtime in foreground
 
 ###### **Options:**
 
-* `--port <PORT>` - TCP port to listen on (default: 7771)
+* `--port <PORT>` - TCP port to listen on; overrides `[api].port` (default: 7771)
 * `--config <PATH>` - Configuration file to load instead of `~/.apollia/apollia.toml`
 
 

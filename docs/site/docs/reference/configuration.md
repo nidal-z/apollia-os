@@ -73,13 +73,14 @@ carry.
 
 **`[api]` is split between two loaders, and neither reads all of it.** The
 daemon started by `apollia-os start` and the runtime embedded in the desktop
-application build their listener from different fields of the same section. No
-key is read by both, and one key is read by neither.
+application build their listener from different fields of the same section.
+Only `port` is read by both. Every key of the section takes effect at the next
+start.
 
 | Key | `apollia-os start` | The desktop application |
 | --- | --- | --- |
 | `bind` | read | ignored, the embedded listener is always `127.0.0.1` |
-| `port` | ignored, see below | ignored, the embedded listener is always 7771 |
+| `port` | read, after the `--port` flag | read, see below |
 | `require_token` | read | ignored, the embedded TCP listener always requires the token |
 | `unix_socket` | ignored, the daemon takes its socket from the `--socket` flag of `apollia-os start` and falls back to the same default | read |
 | `tls_cert` | read | ignored, the embedded listener never terminates TLS |
@@ -89,9 +90,12 @@ A key a loader ignores is still parsed and validated, then dropped: setting it
 is silent, not an error. So `require_token = false` does not disarm the desktop
 application, and `tls_cert` there is inert.
 
-`[api] port` is read by neither. The daemon takes its TCP port from the
-`--port` flag of `apollia-os start` and falls back to 7771; a file that sets `port = 8080`
-still gets 7771.
+`[api] port` sets the port of the native API, 7771 by default. The daemon takes
+the `--port` flag of `apollia-os start` first, then this key, then 7771. Once it
+serves, the daemon records its port in the data folder; the desktop application
+attaches to that port when a daemon serves, and otherwise listens on this key.
+The port must differ from `[server] port`, the port of the compatible server: a
+file that gives both the same port is refused, at the line of `[api] port`.
 
 `[llm] pricing_overrides` is not applied. A running daemon builds its backends
 from the backends stored in its database, and that path hands the client an
@@ -143,7 +147,7 @@ TCP listener, authentication, TLS, Unix socket.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `bind` | `String` | `"127.0.0.1".to_owned()` | IP address to bind the TCP listener to. |
-| `port` | `u16` | `7771` | TCP port of the REST server. |
+| `port` | `u16` | `7771` | TCP port of the native API. |
 | `require_token` | `bool` | `true` | Require a Bearer token on every inbound TCP connection. |
 | `unix_socket` | `PathBuf` | `crate::paths::socket_path_or_temp()` | Local Unix socket path. |
 | `tls_cert` | `Option<PathBuf>` | `None` | PEM certificate chain for native TLS on the TCP listener. |

@@ -100,6 +100,9 @@ FIELD_RE = re.compile(
     re.MULTILINE,
 )
 DEFAULT_FN_RE = re.compile(r"fn (\w+)\(\)\s*->[^{]*\{\s*([^\n}]+?)\s*\}", re.MULTILINE)
+# A default function that returns a named constant of the same file shows the
+# constant's value, not its name: `DEFAULT_API_PORT` tells a reader nothing.
+CONST_RE = re.compile(r"^\s*pub(?:\([^)]*\))? const (\w+):[^=]+=\s*([^;\n]+);", re.MULTILINE)
 
 
 def struct_body(source: str, name: str) -> str | None:
@@ -174,7 +177,8 @@ def render_section(toml_name: str, struct: str, rel_path: str, purpose: str) -> 
         print(f"error: the body of struct {struct} in {rel_path} does not close",
               file=sys.stderr)
         return None
-    defaults = {n: v for n, v in DEFAULT_FN_RE.findall(source)}
+    constants = dict(CONST_RE.findall(source))
+    defaults = {n: constants.get(v, v) for n, v in DEFAULT_FN_RE.findall(source)}
 
     rows = []
     for doc, attrs, name, rust_type in FIELD_RE.findall(body):

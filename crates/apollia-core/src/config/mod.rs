@@ -79,7 +79,7 @@ mod tests;
 mod validate_tests;
 
 pub use a2a::A2AConfig;
-pub use api::ApiConfig;
+pub use api::{ApiConfig, DEFAULT_API_PORT};
 pub use autonomy::{
     AutonomyConfig, AutonomyLevel, AutonomyLevelConfig, AutonomyLevelParseError, GatePolicy,
 };

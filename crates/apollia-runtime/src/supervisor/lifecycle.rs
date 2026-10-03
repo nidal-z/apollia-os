@@ -87,13 +87,16 @@ impl Supervisor {
         } else {
             self.config.api_config.bind_addr.clone()
         };
-        // When TCP is disabled (Unix-socket-only host), fall back to the nominal
+        // When TCP is disabled (Unix-socket-only host), fall back to the default
         // port for the callback URL string; webhook callbacks are only reachable
         // when a TCP listener is actually bound.
         let api_base_url = format!(
             "http://{}:{}",
             connect_addr,
-            self.config.api_config.tcp_port.unwrap_or(7771)
+            self.config
+                .api_config
+                .tcp_port
+                .unwrap_or(apollia_core::config::DEFAULT_API_PORT)
         );
         let engine = NotificationEngine::new(
             notif_config.clone(),

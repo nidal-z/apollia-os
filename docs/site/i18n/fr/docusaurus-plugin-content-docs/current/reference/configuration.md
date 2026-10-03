@@ -76,12 +76,13 @@ dérivation ne peut pas porter.
 **`[api]` est partagée entre deux chargeurs, et aucun ne la lit en entier.** Le
 démon lancé par `apollia-os start` et le runtime embarqué dans l'application de
 bureau construisent leur écouteur à partir de champs différents de la même
-section. Aucune clé n'est lue par les deux, et une clé n'est lue par aucun.
+section. Seule `port` est lue par les deux. Toute clé de la section prend effet
+au démarrage suivant.
 
 | Clé | `apollia-os start` | L'application de bureau |
 | --- | --- | --- |
 | `bind` | lue | ignorée, l'écouteur embarqué est toujours sur `127.0.0.1` |
-| `port` | ignorée, voir plus bas | ignorée, l'écouteur embarqué est toujours sur 7771 |
+| `port` | lue, après l'option `--port` | lue, voir plus bas |
 | `require_token` | lue | ignorée, l'écouteur TCP embarqué exige toujours le jeton |
 | `unix_socket` | ignorée, le démon prend sa socket de l'option `--socket` d'`apollia-os start` et retombe sur la même valeur par défaut | lue |
 | `tls_cert` | lue | ignorée, l'écouteur embarqué ne termine jamais TLS |
@@ -92,9 +93,13 @@ abandonnée : la poser est silencieux, ce n'est pas une erreur. Donc
 `require_token = false` ne désarme pas l'application de bureau, et `tls_cert` y
 est inerte.
 
-`[api] port` n'est lu par aucun des deux. Le démon prend son port TCP de
-l'option `--port` d'`apollia-os start` et retombe sur 7771 ; un fichier qui pose `port =
-8080` obtient quand même 7771.
+`[api] port` règle le port de l'API native, 7771 par défaut. Le démon prend
+d'abord l'option `--port` d'`apollia-os start`, puis cette clé, puis 7771. Une
+fois à l'écoute, le démon inscrit son port dans le dossier de données ;
+l'application de bureau se rattache à ce port quand un démon tourne, et écoute
+sinon sur cette clé. Le port doit différer de `[server] port`, celui du serveur
+compatible : un fichier qui leur donne le même port est refusé, à la ligne de
+`[api] port`.
 
 `[llm] pricing_overrides` n'est pas appliqué. Un démon en marche construit ses
 backends depuis ceux stockés dans sa base, et ce chemin passe au client une
@@ -145,7 +150,7 @@ Capacités de l'EventBus et des mailbox.
 | Clé | Type | Valeur par défaut | Signification |
 | --- | --- | --- | --- |
 | `bind` | `String` | `"127.0.0.1".to_owned()` | Adresse IP sur laquelle lier l'écouteur TCP. |
-| `port` | `u16` | `7771` | Port TCP du serveur REST. |
+| `port` | `u16` | `7771` | Port TCP de l'API native. |
 | `require_token` | `bool` | `true` | Exige un jeton Bearer sur chaque connexion TCP entrante. |
 | `unix_socket` | `PathBuf` | `crate::paths::socket_path_or_temp()` | Chemin du socket Unix local. |
 | `tls_cert` | `Option<PathBuf>` | `None` | Chaîne de certificats PEM pour le TLS natif sur l'écouteur TCP. |
