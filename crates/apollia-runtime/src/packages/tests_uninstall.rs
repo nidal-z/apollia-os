@@ -34,14 +34,22 @@ impl Stores {
     }
 
     fn trigger(&self, id: &str, agent: &str) {
+        self.insert(id, Some(agent), None);
+    }
+
+    fn workflow_trigger(&self, id: &str, workflow: &str) {
+        self.insert(id, None, Some(workflow));
+    }
+
+    fn insert(&self, id: &str, agent: Option<&str>, workflow: Option<&str>) {
         self.triggers
             .lock()
             .unwrap()
             .insert(&TriggerDefinitionRow {
                 id: id.into(),
-                agent: Some(agent.into()),
-                workflow: None,
-                workflow_inputs: None,
+                agent: agent.map(Into::into),
+                workflow: workflow.map(Into::into),
+                workflow_inputs: workflow.map(|_| serde_json::json!({})),
                 enabled: true,
                 on_busy: OnBusy::Queue,
                 source_type: "interval".into(),
@@ -222,6 +230,36 @@ async fn test_uninstall_removes_definitions_overrides_model_triggers_files_and_b
     assert_eq!(report.agents, vec!["crm-agent".to_owned()]);
     assert_eq!(report.tools, vec!["lookup".to_owned()]);
     assert!(report.leftovers.is_empty(), "{:?}", report.leftovers);
+}
+
+#[tokio::test]
+async fn test_uninstall_removes_the_triggers_that_start_a_workflow_of_the_package() {
+    // GIVEN the crm package with a workflow `weekly`, a trigger starting it,
+    // and a trigger starting a workflow of another package
+    let env = Env::new();
+    let mcp = FakeMcp::default();
+    install_crm(&env, &mcp).await;
+    env.packages
+        .link_item("crm", PackageItemKind::Workflow, "weekly")
+        .unwrap();
+    let stores = Stores::new(&env);
+    stores.workflow_trigger("crm-weekly", "crm/weekly");
+    stores.workflow_trigger("other-weekly", "other/weekly");
+
+    // WHEN the package is uninstalled
+    let report = uninstall_package(
+        "crm",
+        UninstallOptions::default(),
+        &targets(&env, &stores, Some(&mcp)),
+        "test",
+    )
+    .await
+    .unwrap();
+
+    // THEN the trigger of its workflow is gone, the other package's stays
+    assert_eq!(stores.trigger_ids(), vec!["other-weekly".to_owned()]);
+    assert_eq!(report.triggers_removed, vec!["crm-weekly".to_owned()]);
+    assert_eq!(report.workflows, vec!["weekly".to_owned()]);
 }
 
 #[tokio::test]

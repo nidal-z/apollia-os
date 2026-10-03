@@ -2,7 +2,7 @@
 //!
 //! One path for every caller. Always removed: the definitions of the agents
 //! and their overrides, the model assigned to each, the triggers that start
-//! them, the package environment and the agent environments, the files, and
+//! them or a workflow of the package, the package environment and the agent environments, the files, and
 //! the MCP servers the package brought (read from what it installed). The
 //! connections the package required stay: other packages and the user may
 //! use them. At the user's choice, the memory of the agents and their history
@@ -266,7 +266,7 @@ async fn remove<M: McpServerAdder>(
 ) -> Result<(), UninstallError> {
     let report = &mut scope.report;
     if let Some(triggers) = targets.triggers {
-        remove_triggers(report, triggers);
+        remove_triggers(report, scope.package.as_deref(), triggers);
     }
     if let Some(models) = targets.models {
         let models = models.lock().unwrap_or_else(PoisonError::into_inner);
@@ -296,8 +296,22 @@ async fn remove<M: McpServerAdder>(
     Ok(())
 }
 
-/// Removes the triggers that start one of the agents of `report`.
-fn remove_triggers(report: &mut UninstallReport, triggers: &Mutex<TriggerDefinitionRepository>) {
+/// Removes the triggers that start one of the agents of `report`, or one of
+/// the workflows of `package`, named `<package>/<workflow>`.
+fn remove_triggers(
+    report: &mut UninstallReport,
+    package: Option<&str>,
+    triggers: &Mutex<TriggerDefinitionRepository>,
+) {
+    let workflows: Vec<String> = package
+        .map(|package| {
+            report
+                .workflows
+                .iter()
+                .map(|w| format!("{package}/{w}"))
+                .collect()
+        })
+        .unwrap_or_default();
     let triggers = triggers.lock().unwrap_or_else(PoisonError::into_inner);
     let rows = match triggers.list() {
         Ok(rows) => rows,
@@ -310,7 +324,11 @@ fn remove_triggers(report: &mut UninstallReport, triggers: &Mutex<TriggerDefinit
         let targeted = row
             .agent
             .as_deref()
-            .is_some_and(|agent| report.agents.iter().any(|a| a == agent));
+            .is_some_and(|agent| report.agents.iter().any(|a| a == agent))
+            || row
+                .workflow
+                .as_deref()
+                .is_some_and(|workflow| workflows.iter().any(|w| w == workflow));
         if !targeted {
             continue;
         }
