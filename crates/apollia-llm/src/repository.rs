@@ -43,17 +43,61 @@ CREATE INDEX IF NOT EXISTS idx_llm_calls_created ON llm_calls(created_at);
 "#;
 
 /// Current schema version of `llm_calls.db`.
-const LLM_CALLS_SCHEMA_VERSION: u32 = 1;
+const LLM_CALLS_SCHEMA_VERSION: u32 = 2;
 
 /// Numbered migration steps of `llm_calls.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`LLM_CALLS_SCHEMA_VERSION`].
-const LLM_CALLS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1];
+const LLM_CALLS_MIGRATIONS: &[apollia_core::schema::Migration] = &[migrate_v1, migrate_v2];
 
 /// v1: the pre-versioning schema of the file, replayed idempotently.
 fn migrate_v1(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(SCHEMA)
+}
+
+/// v2: the conversation turn of a call and its generation measures, and the
+/// index that reads a turn's calls back.
+fn migrate_v2(conn: &Connection) -> Result<(), rusqlite::Error> {
+    for column in [
+        "ALTER TABLE llm_calls ADD COLUMN session_id TEXT",
+        "ALTER TABLE llm_calls ADD COLUMN turn_id TEXT",
+        "ALTER TABLE llm_calls ADD COLUMN ttft_ms INTEGER",
+        "ALTER TABLE llm_calls ADD COLUMN finish_reason TEXT",
+        "ALTER TABLE llm_calls ADD COLUMN generation_ms INTEGER",
+    ] {
+        apollia_core::schema::add_column_if_missing(conn, column)?;
+    }
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_llm_calls_turn ON llm_calls(session_id, turn_id);",
+    )
+}
+
+/// The columns every read selects, in the order [`record_from_row`] reads.
+const RECORD_COLUMNS: &str = "id, task_id, step_id, backend, model,
+    prompt_tokens, completion_tokens, cost_usd,
+    latency_ms, prompt_text, completion_text,
+    session_id, turn_id, ttft_ms, finish_reason, generation_ms";
+
+fn record_from_row(row: &rusqlite::Row<'_>) -> Result<LlmCallRecord, rusqlite::Error> {
+    Ok(LlmCallRecord {
+        id: row.get(0)?,
+        task_id: row.get(1)?,
+        step_id: row.get(2)?,
+        backend: row.get(3)?,
+        model: row.get(4)?,
+        prompt_tokens: row.get(5)?,
+        completion_tokens: row.get(6)?,
+        cost_usd: row.get(7)?,
+        latency_ms: row.get::<_, Option<i64>>(8)?.map(|v| v as u64),
+        prompt_text: row.get(9)?,
+        completion_text: row.get(10)?,
+        session_id: row.get(11)?,
+        turn_id: row.get(12)?,
+        ttft_ms: row.get::<_, Option<i64>>(13)?.map(|v| v as u64),
+        finish_reason: row.get(14)?,
+        generation_ms: row.get::<_, Option<i64>>(15)?.map(|v| v as u64),
+    })
 }
 
 /// A persisted LLM call record in SQLite.
@@ -83,6 +127,17 @@ pub struct LlmCallRecord {
     pub prompt_text: Option<String>,
     /// Text of the completion returned by the LLM.
     pub completion_text: Option<String>,
+    /// Conversation the call was made in.
+    pub session_id: Option<String>,
+    /// Turn of that conversation, the identifier of its answer.
+    pub turn_id: Option<String>,
+    /// Time to first token in milliseconds; `None` when not measured.
+    pub ttft_ms: Option<u64>,
+    /// Why the call ended (`stop`, `tool_calls`, `length`, `error`,
+    /// `cancelled`).
+    pub finish_reason: Option<String>,
+    /// Time spent generating in milliseconds; `None` when not measured.
+    pub generation_ms: Option<u64>,
 }
 
 /// Cost/token summary aggregated by backend+model (LLM Costs dashboard).
@@ -171,8 +226,9 @@ impl LlmCallRepository {
             "INSERT INTO llm_calls (
                 id, task_id, step_id, backend, model,
                 prompt_tokens, completion_tokens, cost_usd,
-                latency_ms, prompt_text, completion_text
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                latency_ms, prompt_text, completion_text,
+                session_id, turn_id, ttft_ms, finish_reason, generation_ms
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
                 record.id,
                 record.task_id,
@@ -185,6 +241,11 @@ impl LlmCallRepository {
                 record.latency_ms.map(|v| v as i64),
                 record.prompt_text,
                 record.completion_text,
+                record.session_id,
+                record.turn_id,
+                record.ttft_ms.map(|v| v as i64),
+                record.finish_reason,
+                record.generation_ms.map(|v| v as i64),
             ],
         )?;
         Ok(())
@@ -192,34 +253,26 @@ impl LlmCallRepository {
 
     /// Return all LLM calls for a task, sorted by date.
     pub fn query_by_task(&self, task_id: &str) -> Result<Vec<LlmCallRecord>, LlmRepositoryError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, task_id, step_id, backend, model,
-                    prompt_tokens, completion_tokens, cost_usd,
-                    latency_ms, prompt_text, completion_text
-             FROM llm_calls
-             WHERE task_id = ?1
-             ORDER BY created_at",
-        )?;
-        let rows = stmt.query_map(params![task_id], |row| {
-            Ok(LlmCallRecord {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                step_id: row.get(2)?,
-                backend: row.get(3)?,
-                model: row.get(4)?,
-                prompt_tokens: row.get(5)?,
-                completion_tokens: row.get(6)?,
-                cost_usd: row.get(7)?,
-                latency_ms: row.get::<_, Option<i64>>(8)?.map(|v| v as u64),
-                prompt_text: row.get(9)?,
-                completion_text: row.get(10)?,
-            })
-        })?;
-        let mut result = Vec::new();
-        for row in rows {
-            result.push(row?);
-        }
-        Ok(result)
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {RECORD_COLUMNS} FROM llm_calls WHERE task_id = ?1 ORDER BY created_at"
+        ))?;
+        let rows = stmt.query_map(params![task_id], record_from_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Return the calls of one conversation turn, in the order they were made.
+    pub fn query_by_turn(
+        &self,
+        session_id: &str,
+        turn_id: &str,
+    ) -> Result<Vec<LlmCallRecord>, LlmRepositoryError> {
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT {RECORD_COLUMNS} FROM llm_calls
+             WHERE session_id = ?1 AND turn_id = ?2
+             ORDER BY created_at, rowid"
+        ))?;
+        let rows = stmt.query_map(params![session_id, turn_id], record_from_row)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
     /// Cost/token aggregation by backend+model since `since` (ISO 8601 format).
@@ -310,48 +363,62 @@ pub fn spawn_subscriber(
     let mut rx = subscribe_resilient(event_bus, "llm.call_repository");
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
-            match event {
-                RuntimeEvent::LlmCallCompleted {
-                    backend,
-                    model,
-                    task_id,
-                    step_id,
-                    prompt_tokens,
-                    completion_tokens,
-                    latency_ms,
-                    cost_usd,
-                    ..
-                } => {
-                    let record = LlmCallRecord {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        task_id,
-                        step_id,
-                        backend,
-                        model,
-                        prompt_tokens: Some(prompt_tokens),
-                        completion_tokens: Some(completion_tokens),
-                        cost_usd,
-                        latency_ms: Some(latency_ms),
-                        // The event carries no text, so these stay NULL. See the
-                        // module header: there is no conditional persistence.
-                        prompt_text: None,
-                        completion_text: None,
-                    };
-                    let repo = Arc::clone(&repo);
-                    tokio::task::spawn_blocking(move || {
-                        if let Ok(guard) = repo.lock() {
-                            if let Err(e) = guard.save(&record) {
-                                error!(error = %e, "llm.call.persist.failed");
-                            }
-                        }
-                    });
+            let Some(record) = record_of_event(event) else {
+                continue;
+            };
+            let repo = Arc::clone(&repo);
+            tokio::task::spawn_blocking(move || {
+                if let Ok(guard) = repo.lock() {
+                    if let Err(e) = guard.save(&record) {
+                        error!(error = %e, "llm.call.persist.failed");
+                    }
                 }
-                _ => {
-                    // Ignore other events.
-                }
-            }
+            });
         }
     })
+}
+
+/// The row an event is persisted as; `None` for every event but
+/// `LlmCallCompleted`.
+fn record_of_event(event: RuntimeEvent) -> Option<LlmCallRecord> {
+    match event {
+        RuntimeEvent::LlmCallCompleted {
+            backend,
+            model,
+            task_id,
+            step_id,
+            prompt_tokens,
+            completion_tokens,
+            latency_ms,
+            cost_usd,
+            session_id,
+            turn_id,
+            ttft_ms,
+            finish_reason,
+            generation_ms,
+            ..
+        } => Some(LlmCallRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            task_id,
+            step_id,
+            backend,
+            model,
+            prompt_tokens: Some(prompt_tokens),
+            completion_tokens: Some(completion_tokens),
+            cost_usd,
+            latency_ms: Some(latency_ms),
+            // The event carries no text, so these stay NULL. See the module
+            // header: there is no conditional persistence.
+            prompt_text: None,
+            completion_text: None,
+            session_id,
+            turn_id,
+            ttft_ms,
+            finish_reason,
+            generation_ms,
+        }),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -376,6 +443,11 @@ mod tests {
             latency_ms: Some(800),
             prompt_text: None,
             completion_text: Some("Hello!".into()),
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         };
         repo.save(&record).expect("save should succeed");
 
@@ -408,6 +480,11 @@ mod tests {
             latency_ms: Some(200),
             prompt_text: None,
             completion_text: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         };
         repo.save(&record).expect("save should succeed");
 
@@ -434,6 +511,11 @@ mod tests {
             latency_ms: Some(1500),
             prompt_text: None,
             completion_text: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         };
         // WHEN it is saved, then queried back by task id
         repo.save(&record).expect("save should succeed");
@@ -465,6 +547,11 @@ mod tests {
                 latency_ms: Some(100),
                 prompt_text: None,
                 completion_text: None,
+                session_id: None,
+                turn_id: None,
+                ttft_ms: None,
+                finish_reason: None,
+                generation_ms: None,
             };
             repo.save(&record).expect("save should succeed");
         }
@@ -480,6 +567,11 @@ mod tests {
             latency_ms: Some(50),
             prompt_text: None,
             completion_text: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         };
         repo.save(&record).expect("save should succeed");
 
@@ -585,6 +677,11 @@ mod tests {
             latency_ms: Some(100),
             prompt_text: None,
             completion_text: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         };
         // WHEN it is saved
         repo.save(&record).expect("save should succeed");
@@ -621,6 +718,11 @@ mod tests {
             latency_ms: 800,
             cost_usd: Some(0.003),
             run_id: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         });
 
         // Wait for the spawn_blocking to have time to run
@@ -634,5 +736,95 @@ mod tests {
         assert_eq!(rows[0].model, "sonnet");
         assert_eq!(rows[0].prompt_tokens, Some(150));
         assert_eq!(rows[0].completion_tokens, Some(50));
+    }
+
+    #[test]
+    fn test_a_v1_database_gains_the_turn_columns_and_keeps_its_rows() {
+        // GIVEN a llm_calls.db written by the previous binary: schema v1, one row
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("llm_calls.db");
+        {
+            let conn = Connection::open(&path).expect("open");
+            conn.execute_batch(SCHEMA).expect("v1 schema");
+            conn.pragma_update(None, "user_version", 1)
+                .expect("stamp v1");
+            conn.execute(
+                "INSERT INTO llm_calls (id, task_id, backend, model) VALUES ('old', 't', 'b', 'm')",
+                [],
+            )
+            .expect("v1 row");
+        }
+
+        // WHEN the current binary opens it
+        let repo = LlmCallRepository::open(&path).expect("migrates");
+
+        // THEN the version is 2, the old row reads with empty turn fields, and
+        // the (session_id, turn_id) index exists
+        let version: i64 = repo
+            .conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .expect("version");
+        assert_eq!(version, 2);
+        let rows = repo.query_by_task("t").expect("query");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].turn_id, None);
+        assert_eq!(rows[0].ttft_ms, None);
+        let index: String = repo
+            .conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE name = 'idx_llm_calls_turn'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("index");
+        assert!(index.contains("session_id, turn_id"), "{index}");
+
+        // AND a second open is a no-op
+        drop(repo);
+        LlmCallRepository::open(&path).expect("reopens");
+    }
+
+    #[test]
+    fn test_the_calls_of_a_turn_are_stored_with_their_measures_and_read_back() {
+        // GIVEN a repository and three published calls: two of one turn, one
+        // of another
+        let repo = LlmCallRepository::open_in_memory().expect("open in-memory");
+        let call = |turn: &str, ttft: Option<u64>, reason: &str| RuntimeEvent::LlmCallCompleted {
+            backend: "local".into(),
+            model: "qwen3".into(),
+            task_id: None,
+            step_id: None,
+            prompt_tokens: 400,
+            completion_tokens: 25,
+            latency_ms: 900,
+            cost_usd: None,
+            run_id: None,
+            session_id: Some("s-1".into()),
+            turn_id: Some(turn.into()),
+            ttft_ms: ttft,
+            finish_reason: Some(reason.into()),
+            generation_ms: Some(512),
+        };
+
+        // WHEN the subscriber's rows for them are saved
+        for event in [
+            call("a-1", Some(180), "tool_calls"),
+            call("a-1", None, "stop"),
+            call("a-2", Some(90), "stop"),
+        ] {
+            let record = record_of_event(event).expect("a call is persisted");
+            repo.save(&record).expect("save");
+        }
+
+        // THEN the turn reads back its two calls in order, an unknown TTFT
+        // kept null
+        let rows = repo.query_by_turn("s-1", "a-1").expect("query");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].finish_reason.as_deref(), Some("tool_calls"));
+        assert_eq!(rows[0].ttft_ms, Some(180));
+        assert_eq!(rows[1].finish_reason.as_deref(), Some("stop"));
+        assert_eq!(rows[1].ttft_ms, None);
+        assert_eq!(rows[1].generation_ms, Some(512));
+        assert_eq!(rows[1].session_id.as_deref(), Some("s-1"));
     }
 }

@@ -23,6 +23,10 @@ use tokio::sync::broadcast::error::RecvError;
 use crate::events::{EventBusSender, RuntimeEvent};
 
 /// What one reception produced, for a subscriber that reacts to lag itself.
+// REASON: `Received` lives for one reception, on the stack of the loop that
+// matches it. Boxing the event would allocate once per event on every
+// subscriber to spare a few bytes on a value that is moved, never stored.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum Received {
     /// An event, in bus order.

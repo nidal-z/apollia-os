@@ -16,6 +16,8 @@ pub(in crate::chat::builtin_agent) struct StreamConsumeParams<'a> {
     /// begins. Threading the origin in is what keeps the measured interval the
     /// one the contract defines.
     pub dispatched_at: std::time::Instant,
+    /// Measures the call as its chunks pass, for the aggregate of the turn.
+    pub meter: &'a mut apollia_llm::CallMeter,
 }
 
 impl BuiltInChatAgent {
@@ -41,6 +43,7 @@ impl BuiltInChatAgent {
             message_id,
             cancel,
             dispatched_at,
+            meter,
         } = params;
         let mut tool_calls = Vec::new();
         // Turn instrumentation only, inert outside an instrumented turn where
@@ -66,7 +69,7 @@ impl BuiltInChatAgent {
                     // at the checkpoint. An aborted generation may legitimately
                     // produce no usage at all, in which case the caller falls
                     // back to the previous iteration's prompt size.
-                    Self::drain_accounting_chunks(&mut stream, usage).await;
+                    Self::drain_accounting_chunks(&mut stream, usage, meter).await;
                     break;
                 }
                 next = stream.next() => match next {
@@ -74,6 +77,10 @@ impl BuiltInChatAgent {
                     None => break,
                 },
             };
+            match &chunk_result {
+                Ok(chunk) => meter.read_chunk(chunk),
+                Err(_) => meter.observe_error(),
+            }
             match chunk_result {
                 Ok(StreamChunk::Text(token)) => {
                     // Time to first token, client-observed: from the dispatch of
@@ -107,6 +114,7 @@ impl BuiltInChatAgent {
                     // engine time to this iteration.
                     crate::perf_trace::iteration_engine_timings(&timings);
                 }
+                Ok(StreamChunk::Finish(_)) => {}
                 Err(e) => {
                     // Stream interrupted
                     warn!(
@@ -137,15 +145,18 @@ impl BuiltInChatAgent {
             Box<dyn futures::Stream<Item = Result<StreamChunk, apollia_llm::LlmError>> + Send>,
         >,
         usage: &mut TokenUsage,
+        meter: &mut apollia_llm::CallMeter,
     ) {
         const DRAIN_ITEM_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(200);
         loop {
             match tokio::time::timeout(DRAIN_ITEM_TIMEOUT, stream.next()).await {
                 Ok(Some(Ok(StreamChunk::Usage(chunk_usage)))) => {
+                    meter.read_chunk(&StreamChunk::Usage(chunk_usage.clone()));
                     usage.merge(&chunk_usage);
                 }
                 Ok(Some(Ok(StreamChunk::Timings(timings)))) => {
                     crate::perf_trace::iteration_engine_timings(&timings);
+                    meter.read_chunk(&StreamChunk::Timings(timings));
                 }
                 Ok(Some(Ok(_))) => {}
                 Ok(Some(Err(_)) | None) | Err(_) => break,

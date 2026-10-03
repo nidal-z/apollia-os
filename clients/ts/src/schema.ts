@@ -4043,6 +4043,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/turns/{turn_id}/llm-calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/{id}/turns/{turn_id}/llm-calls`. */
+        get: operations["get_turn_llm_calls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/workspace": {
         parameters: {
             query?: never;
@@ -8483,6 +8500,51 @@ export interface components {
             origin: string;
             /** @description The public key, 64 hexadecimal characters. */
             publicKey: string;
+        };
+        /** @description One model call of a turn. */
+        TurnLlmCall: {
+            /** @description Logical backend name. */
+            backend: string;
+            /**
+             * Format: int32
+             * @description Tokens generated.
+             */
+            completion_tokens?: number | null;
+            /**
+             * @description Why the call ended: `stop`, `tool_calls`, `length`, `error` or
+             *     `cancelled`.
+             */
+            finish_reason?: string | null;
+            /**
+             * Format: int64
+             * @description Time spent generating in milliseconds; `null` when not measured.
+             */
+            generation_ms?: number | null;
+            /**
+             * Format: int64
+             * @description Duration of the call in milliseconds, from dispatch to its last chunk.
+             */
+            latency_ms?: number | null;
+            /** @description Model identifier. */
+            model: string;
+            /**
+             * Format: int32
+             * @description Tokens read.
+             */
+            prompt_tokens?: number | null;
+            /**
+             * Format: int64
+             * @description Time to first token in milliseconds; `null` when not measured.
+             */
+            ttft_ms?: number | null;
+        };
+        /** @description Response body for `GET /api/v1/sessions/{id}/turns/{turn_id}/llm-calls`. */
+        TurnLlmCallsResponse: {
+            /**
+             * @description The calls, in the order they were made. Empty for a turn that made
+             *     none or that is unknown.
+             */
+            calls: components["schemas"]["TurnLlmCall"][];
         };
         /** @description Request body for `POST /api/v1/llm/loaded-models/unload`. */
         UnloadModelRequest: {
@@ -18108,6 +18170,49 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_turn_llm_calls: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Conversation identifier */
+                id: string;
+                /** @description Identifier of the answer message of the turn */
+                turn_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The model calls of the turn, in order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnLlmCallsResponse"];
+                };
+            };
+            /** @description Query failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No LLM call repository configured */
             503: {
                 headers: {
                     [name: string]: unknown;
