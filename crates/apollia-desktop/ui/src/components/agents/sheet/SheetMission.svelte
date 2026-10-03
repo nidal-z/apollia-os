@@ -8,15 +8,18 @@
 
   interface Props {
     view: MissionView;
+    /** Whether the value shown is the user's rather than the package's. */
+    modified?: boolean;
   }
 
-  let { view }: Props = $props();
+  let { view, modified = false }: Props = $props();
 </script>
 
 <SheetSection
   title={$t("agent_sheet.mission_title")}
   legend={$t("agent_sheet.mission_legend")}
   testid="agent-sheet-mission"
+  {modified}
 >
   {#if view.mission}
     <p class="m-0 whitespace-pre-wrap text-body-sm leading-relaxed text-foreground/85" data-testid="agent-sheet-mission-text">

@@ -17866,7 +17866,7 @@
               "string",
               "null"
             ],
-            "description": "Target agent."
+            "description": "Target agent; exclusive with `workflow`."
           },
           "enabled": {
             "type": [
@@ -17884,7 +17884,7 @@
               "string",
               "null"
             ],
-            "description": "Input message template."
+            "description": "The message of an agent target."
           },
           "on_busy": {
             "type": [
@@ -17896,6 +17896,20 @@
           "source": {
             "$ref": "#/components/schemas/TriggerSourceInput",
             "description": "Trigger source configuration."
+          },
+          "workflow": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Target workflow, `<package>/<workflow>`; exclusive with `agent`."
+          },
+          "workflow_inputs": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "For a workflow target, one text template per input field."
           }
         }
       },
@@ -24030,6 +24044,7 @@
         "description": "Response for CRUD operations returning a full definition.",
         "required": [
           "id",
+          "target_kind",
           "enabled",
           "on_busy",
           "source_type",
@@ -24043,7 +24058,7 @@
               "string",
               "null"
             ],
-            "description": "Target agent."
+            "description": "Target agent, for an agent target."
           },
           "created_at": {
             "type": "string",
@@ -24062,7 +24077,7 @@
               "string",
               "null"
             ],
-            "description": "Input message template."
+            "description": "The message of an agent target."
           },
           "on_busy": {
             "type": "string",
@@ -24076,9 +24091,27 @@
             "type": "string",
             "description": "Source type."
           },
+          "target_kind": {
+            "type": "string",
+            "description": "`\"agent\"` or `\"workflow\"`."
+          },
           "updated_at": {
             "type": "string",
             "description": "Last-modified timestamp (ISO 8601)."
+          },
+          "workflow": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Target workflow, for a workflow target."
+          },
+          "workflow_inputs": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "For a workflow target, one text template per input field."
           }
         }
       },
@@ -24677,7 +24710,7 @@
               "string",
               "null"
             ],
-            "description": "Target agent."
+            "description": "Target agent; exclusive with `workflow`."
           },
           "enabled": {
             "type": [
@@ -24691,7 +24724,7 @@
               "string",
               "null"
             ],
-            "description": "Input message template."
+            "description": "The message of an agent target."
           },
           "on_busy": {
             "type": [
@@ -24703,6 +24736,20 @@
           "source": {
             "$ref": "#/components/schemas/TriggerSourceInput",
             "description": "Trigger source configuration."
+          },
+          "workflow": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Target workflow, `<package>/<workflow>`; exclusive with `agent`."
+          },
+          "workflow_inputs": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "For a workflow target, one text template per input field."
           }
         }
       },

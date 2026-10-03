@@ -19,15 +19,18 @@
   interface Props {
     groups: AccessGroup[];
     loading: boolean;
+    /** Whether the value shown is the user's rather than the package's. */
+    modified?: boolean;
   }
 
-  let { groups, loading }: Props = $props();
+  let { groups, loading, modified = false }: Props = $props();
 </script>
 
 <SheetSection
   title={$t("agent_sheet.access_title")}
   legend={$t("agent_sheet.access_legend")}
   testid="agent-sheet-access"
+  {modified}
 >
   {#if loading}
     <p class="m-0 text-body-xs text-muted-foreground">{$t("common.loading")}</p>

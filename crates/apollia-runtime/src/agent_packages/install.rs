@@ -299,6 +299,8 @@ fn trigger_row(t: &RawTrigger, secret: Option<String>) -> TriggerDefinitionRow {
     TriggerDefinitionRow {
         id: t.id.clone(),
         agent: (!t.agent.is_empty()).then(|| t.agent.clone()),
+        workflow: None,
+        workflow_inputs: None,
         enabled: t.enabled,
         on_busy: OnBusy::Queue,
         source_type: source_type.to_owned(),

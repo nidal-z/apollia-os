@@ -16,9 +16,11 @@
   interface Props {
     view: ModelView;
     fallback: { requested: string; used: string; at: string } | null;
+    /** Whether the value shown is the user's rather than the package's. */
+    modified?: boolean;
   }
 
-  let { view, fallback }: Props = $props();
+  let { view, fallback, modified = false }: Props = $props();
 
   const placeLabel = $derived(
     view.place === "server"
@@ -33,6 +35,7 @@
   title={$t("agent_sheet.model_title")}
   legend={$t("agent_sheet.model_legend")}
   testid="agent-sheet-model"
+  {modified}
 >
   <div class="flex items-start gap-3">
     {#if view.place === "server"}

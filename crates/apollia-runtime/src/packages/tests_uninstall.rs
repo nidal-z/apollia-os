@@ -40,6 +40,8 @@ impl Stores {
             .insert(&TriggerDefinitionRow {
                 id: id.into(),
                 agent: Some(agent.into()),
+                workflow: None,
+                workflow_inputs: None,
                 enabled: true,
                 on_busy: OnBusy::Queue,
                 source_type: "interval".into(),

@@ -1,9 +1,14 @@
 // ─── Triggers ───
 
+/** What a trigger starts: an agent, given a message, or a workflow, given its inputs. */
+export type TriggerTargetKind = "agent" | "workflow";
+
 /** Status of one configured trigger. */
 export interface TriggerStatus {
   id: string;
+  /** Name of the target: the agent, or the workflow `<package>/<workflow>`. */
   agent: string;
+  target_kind: TriggerTargetKind;
   source_kind: "cron" | "interval" | "file_watch" | "webhook" | "oneshot";
   source_config: string;
   enabled: boolean;
@@ -36,7 +41,11 @@ export interface TriggerReloadResult {
 /** Full view of one trigger returned by the CRUD operations. */
 export interface TriggerDefinitionView {
   id: string;
+  target_kind: TriggerTargetKind;
   agent: string | null;
+  workflow: string | null;
+  /** For a workflow target, one text template per input field. */
+  workflow_inputs: Record<string, string> | null;
   enabled: boolean;
   on_busy: "queue" | "drop";
   source_type: "cron" | "interval" | "oneshot" | "file_watch" | "webhook";
@@ -58,6 +67,8 @@ export type TriggerSourceInput =
 export interface CreateTriggerRequest {
   id: string;
   agent?: string;
+  workflow?: string;
+  workflow_inputs?: Record<string, string>;
   enabled: boolean;
   on_busy: "queue" | "drop";
   source: TriggerSourceInput;
@@ -67,6 +78,8 @@ export interface CreateTriggerRequest {
 /** Request body updating a trigger. */
 export interface UpdateTriggerRequest {
   agent?: string;
+  workflow?: string;
+  workflow_inputs?: Record<string, string>;
   enabled?: boolean;
   on_busy?: "queue" | "drop";
   source: TriggerSourceInput;
