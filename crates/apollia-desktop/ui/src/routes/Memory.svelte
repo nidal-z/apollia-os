@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t } from "svelte-i18n";
-  import { searchMemory, deleteMemoryEntry } from "$lib/ipc/memory";
+  import { searchMemory, deleteMemoryEntry, getMemoryEmbeddingsModel } from "$lib/ipc/memory";
   import { listMemoryNamespaces, listMemoryEntries } from "$lib/ipc/projects";
   import { listAgents } from "$lib/ipc/connections";
   import { memoryChanged } from "$lib/stores/sse";
-  import type { MemoryEntry, MemorySearchResult } from "$lib/types";
+  import type { MemoryEntry, MemorySearchResult, MemoryEmbeddings } from "$lib/types";
   import MemorySearch from "../components/memory/MemorySearch.svelte";
   import NamespaceSidebar, { type NamespaceCategory } from "../components/memory/NamespaceSidebar.svelte";
   import MemoryEntryRow from "../components/memory/MemoryEntryRow.svelte";
@@ -241,7 +241,13 @@
     filterChips.map((c) => ({ key: c.key, label: $t(c.labelKey), count: entryCounts[c.key] })),
   );
 
+  /** The embeddings model the memory searches with; `null` reads as keywords. */
+  let embeddings = $state<MemoryEmbeddings | null>(null);
+
   onMount(async () => {
+    getMemoryEmbeddingsModel()
+      .then((model) => (embeddings = model))
+      .catch(() => (embeddings = null));
     await loadNamespaces();
     if (selectedNamespace !== "") {
       await loadEntries();
@@ -407,6 +413,7 @@
                       {entry}
                       searching={searching}
                       relevance={searching ? searchRelevance.get(entry.id) : undefined}
+                      {embeddings}
                       selected={selectedEntry?.id === entry.id}
                       onclick={() => (selectedEntry = entry)}
                       oncopy={() => handleCopyEntry(entry)}
@@ -427,6 +434,7 @@
 <!-- Memory entry detail Sheet -->
 <MemoryEntrySheet
   entry={selectedEntry}
+  {embeddings}
   namespace={selectedNamespace}
   open={selectedEntry !== null}
   onclose={() => (selectedEntry = null)}

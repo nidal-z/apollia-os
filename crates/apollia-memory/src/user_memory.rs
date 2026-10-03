@@ -416,6 +416,7 @@ impl UserMemoryRepository {
                 limit: limit as u32,
                 sources: Some(&[SearchSource::Semantic]),
                 min_importance: None,
+                meaning: None,
             })
             .map_err(|e| UserMemoryError::StorageError(e.to_string()))?;
         let all = sem

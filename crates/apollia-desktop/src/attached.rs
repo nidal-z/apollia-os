@@ -164,9 +164,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "governance_set_credential",
     "governance_test_credential",
     // Memory, read side: the namespaces, their entries, the search, the
-    // entries recalled during a turn, the statistics of a conversation.
+    // entries recalled during a turn, the statistics of a conversation, the
+    // embeddings model it searches with.
     "get_conversation_stats",
     "get_injected_memory_entries",
+    "get_memory_embeddings_model",
     "list_memory_entries",
     "list_memory_namespaces",
     "search_memory",

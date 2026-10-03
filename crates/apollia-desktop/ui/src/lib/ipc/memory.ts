@@ -12,7 +12,7 @@
  * key is not a compile error, it is a runtime rejection.
  */
 import { invoke } from "@tauri-apps/api/core";
-import type { MemorySearchResult, InjectedEntry } from "$lib/types";
+import type { MemorySearchResult, InjectedEntry, MemoryEmbeddings } from "$lib/types";
 
 /** Full-text search within a namespace. */
 export function searchMemory(
@@ -20,6 +20,14 @@ export function searchMemory(
   query: string,
 ): Promise<MemorySearchResult[]> {
   return invoke<MemorySearchResult[]>("search_memory", { namespace, query });
+}
+
+/**
+ * The embeddings model the memory searches with; both fields are null when
+ * the memory is searched by its words alone.
+ */
+export function getMemoryEmbeddingsModel(): Promise<MemoryEmbeddings> {
+  return invoke<MemoryEmbeddings>("get_memory_embeddings_model");
 }
 
 /** Delete a single memory entry. Resolves `true` when a row was removed. */

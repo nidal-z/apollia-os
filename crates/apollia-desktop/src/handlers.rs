@@ -86,6 +86,7 @@ pub(crate) fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Se
         commands::memory::list_memory_namespaces,
         commands::memory::list_memory_entries,
         commands::memory::search_memory,
+        commands::memory::get_memory_embeddings_model,
         commands::memory::maintenance::delete_memory_entry,
         commands::memory::get_injected_memory_entries,
         commands::notifications::list_notification_channels,
