@@ -717,6 +717,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         }
     }
 

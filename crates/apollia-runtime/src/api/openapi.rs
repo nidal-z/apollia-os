@@ -176,6 +176,7 @@ impl ToSchema for RawWebhookBody {}
         (name = "memory", description = "The memory of the agents, read and upkept per namespace"),
         (name = "lifecycle", description = "Resets and erasures of the installation"),
         (name = "server", description = "Starting and stopping the compatible server, the second listener"),
+        (name = "sources", description = "The registry of sources an agent may consult once checked"),
         (name = "connectors", description = "Native connector accounts and their consent"),
         (name = "webhooks", description = "Inbound webhooks")
     ),
@@ -421,6 +422,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_server::server_status,
         crate::api::routes_server::start_server,
         crate::api::routes_server::stop_server,
+        crate::api::routes_sources::list_sources,
+        crate::api::routes_sources::create_source,
+        crate::api::routes_sources::delete_source,
         crate::api::routes_memory::list_memory_namespaces,
         crate::api::routes_memory::list_memory_entries,
         crate::api::routes_memory::search_memory,

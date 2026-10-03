@@ -189,6 +189,7 @@ async fn build_webhook_state(
         batches: None,
         workflows: None,
         compat_server: None,
+        source_registry: None,
     };
     (state, submit_count)
 }

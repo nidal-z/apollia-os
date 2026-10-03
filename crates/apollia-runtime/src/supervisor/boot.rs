@@ -443,6 +443,8 @@ impl Supervisor {
             }
         };
 
+        let source_registry = crate::agents::sources::open_registry(&system_db_path);
+
         let stt_cfg: Option<SttConfigRow> = stt_config_repo.as_ref().and_then(|repo| {
             repo.lock()
                 .ok()
@@ -581,6 +583,7 @@ impl Supervisor {
             batches,
             workflows: workflows.clone(),
             compat_server: Some(compat_server),
+            source_registry,
         };
         let api_server = APIServer::new(self.config.api_config, state);
 

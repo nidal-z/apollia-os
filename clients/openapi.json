@@ -425,7 +425,7 @@
             }
           },
           "422": {
-            "description": "Unknown field, or a value of the wrong shape",
+            "description": "Unknown field, a value of the wrong shape, or a source the registry does not hold",
             "content": {
               "application/json": {
                 "schema": {
@@ -435,7 +435,7 @@
             }
           },
           "503": {
-            "description": "Audit journal not available",
+            "description": "Audit journal, or the source registry a sources list needs, not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -12379,6 +12379,141 @@
         }
       }
     },
+    "/api/v1/sources": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`GET /api/v1/sources`: every source, oldest first.",
+        "operationId": "list_sources",
+        "responses": {
+          "200": {
+            "description": "The sources of the registry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceResponse"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Source registry not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`POST /api/v1/sources`: add a source.",
+        "operationId": "create_source",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSourceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Source added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unknown kind, blank label, or a folder, file or mailbox without a reference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Source registry not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources/{id}": {
+      "delete": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "`DELETE /api/v1/sources/{id}`: remove a source.",
+        "operationId": "delete_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Source identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source removed; the source as it was",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Source registry not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/stt/config": {
       "get": {
         "tags": [
@@ -17442,6 +17577,38 @@
           }
         }
       },
+      "CreateSourceBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/sources`.",
+        "required": [
+          "kind",
+          "label"
+        ],
+        "properties": {
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A group the source belongs to."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`folder`, `file`, `mail`, `profile`, `memory` or `code_folder`."
+          },
+          "label": {
+            "type": "string",
+            "description": "The name the user sees."
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the source points at; required for `folder`, `file` and `mail`."
+          }
+        }
+      },
       "CreateTriggerRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/triggers`, trigger creation.",
@@ -18632,6 +18799,17 @@
             "description": "The text of the JSON file the provider's console exported, read by the\nwindow that picked it."
           }
         }
+      },
+      "IndexStateDto": {
+        "type": "string",
+        "description": "Where the index of a source stands.",
+        "enum": [
+          "absent",
+          "indexing",
+          "ready",
+          "error",
+          "keywords_only"
+        ]
       },
       "InjectMessageBody": {
         "type": "object",
@@ -22206,7 +22384,7 @@
         "properties": {
           "value": {
             "type": "object",
-            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`."
+            "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a profile identifier for `profile`, a list of strings for `examples`, `access` and `sources`.\nA `sources` entry is a source identifier of `GET /api/v1/sources`, `profile` or `memory`."
           }
         }
       },
@@ -22493,6 +22671,65 @@
             "propertyNames": {
               "type": "string"
             }
+          }
+        }
+      },
+      "SourceKindDto": {
+        "type": "string",
+        "description": "What a source is.",
+        "enum": [
+          "folder",
+          "file",
+          "mail",
+          "profile",
+          "memory",
+          "code_folder"
+        ]
+      },
+      "SourceResponse": {
+        "type": "object",
+        "description": "A source of the registry.",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "indexState",
+          "addedAt"
+        ],
+        "properties": {
+          "addedAt": {
+            "type": "string",
+            "description": "When it was added, RFC 3339 in UTC."
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The group the source belongs to, if any."
+          },
+          "id": {
+            "type": "string",
+            "description": "Identifier, the form an agent's `sources` list names it by."
+          },
+          "indexState": {
+            "$ref": "#/components/schemas/IndexStateDto",
+            "description": "Where its index stands."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SourceKindDto",
+            "description": "What the source is."
+          },
+          "label": {
+            "type": "string",
+            "description": "The name the user sees."
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the source points at: a folder connection, a file path, a mail\nconnection, a memory space."
           }
         }
       },
@@ -24691,6 +24928,10 @@
     {
       "name": "server",
       "description": "Starting and stopping the compatible server, the second listener"
+    },
+    {
+      "name": "sources",
+      "description": "The registry of sources an agent may consult once checked"
     },
     {
       "name": "connectors",

@@ -46,6 +46,7 @@ pub mod sandbox;
 pub mod schema;
 pub mod security_posture;
 pub mod session_metrics;
+pub mod source_registry;
 pub mod stt_config;
 pub mod subprocess_env;
 pub mod subprocess_window;
@@ -106,6 +107,9 @@ pub use sandbox::SandboxProfile;
 pub use security_posture::{AgentExecution, SecurityPosture, ToolSandbox};
 pub use session_metrics::{
     BudgetAlertLevel, SessionMetrics, SessionThresholds, SummarizationEvent, ToolTiming,
+};
+pub use source_registry::{
+    IndexState, NewSource, Source, SourceKind, SourceRegistryError, SourceRegistryStore,
 };
 pub use stt_config::{SttConfigError, SttConfigRepository, SttConfigRow};
 pub use task::{AIPInput, AIPMessage, AIPPart, AIPTask, DataPart, FilePart, RunOptions, TextPart};

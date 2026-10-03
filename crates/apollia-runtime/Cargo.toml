@@ -37,6 +37,7 @@ apollia-triggers      = { workspace = true }
 apollia-auth          = { workspace = true }
 apollia-connectors    = { workspace = true }
 apollia-signing       = { workspace = true }
+apollia-sources       = { workspace = true }
 async-trait           = { workspace = true }
 futures            = { workspace = true }
 chrono             = { workspace = true }

@@ -107,6 +107,7 @@ from .create_preset_request_load import CreatePresetRequestLoad
 from .create_preset_request_request import CreatePresetRequestRequest
 from .create_server_request import CreateServerRequest
 from .create_session_request import CreateSessionRequest
+from .create_source_body import CreateSourceBody
 from .create_trigger_request import CreateTriggerRequest
 from .credential_entry_view import CredentialEntryView
 from .credential_test_view import CredentialTestView
@@ -176,6 +177,7 @@ from .imap_error_body import ImapErrorBody
 from .import_memory_body import ImportMemoryBody
 from .import_memory_body_content import ImportMemoryBodyContent
 from .import_oauth_client_body import ImportOauthClientBody
+from .index_state_dto import IndexStateDto
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
@@ -364,6 +366,8 @@ from .skill_listing import SkillListing
 from .skill_listing_input_schema_type_0 import SkillListingInputSchemaType0
 from .source_descriptor import SourceDescriptor
 from .source_descriptor_options import SourceDescriptorOptions
+from .source_kind_dto import SourceKindDto
+from .source_response import SourceResponse
 from .sse_mailbox_event import SseMailboxEvent
 from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
@@ -572,6 +576,7 @@ __all__ = (
     "CreatePresetRequestRequest",
     "CreateServerRequest",
     "CreateSessionRequest",
+    "CreateSourceBody",
     "CreateTriggerRequest",
     "CredentialEntryView",
     "CredentialTestView",
@@ -641,6 +646,7 @@ __all__ = (
     "ImportMemoryBody",
     "ImportMemoryBodyContent",
     "ImportOauthClientBody",
+    "IndexStateDto",
     "InjectedMemoryEntryView",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
@@ -825,6 +831,8 @@ __all__ = (
     "SkillListingInputSchemaType0",
     "SourceDescriptor",
     "SourceDescriptorOptions",
+    "SourceKindDto",
+    "SourceResponse",
     "SseMailboxEvent",
     "SseTaskEvent",
     "StartAgentRequest",

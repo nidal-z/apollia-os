@@ -247,6 +247,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         };
 
         Router::new()
@@ -305,6 +306,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         };
 
         Router::new()

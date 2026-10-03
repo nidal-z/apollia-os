@@ -5,6 +5,7 @@ use apollia_core::{AutonomyConfig, AutonomyLevel};
 pub mod apollia;
 pub mod overrides;
 pub mod registry_remote;
+pub mod sources;
 pub mod task;
 
 /// The autonomy tier an agent runs at when neither its definition nor the

@@ -337,6 +337,10 @@ pub struct AppState<B: ExecutionBackend + Clone> {
     /// `/api/v1/server` routes start and stop. `None` in unit tests; those
     /// routes return 503.
     pub compat_server: Option<crate::compat_server::CompatServerHandle>,
+    /// Handle to the actor that owns the registry of sources in `system.db`.
+    /// `None` in unit tests; the `/api/v1/sources` routes return 503, and so
+    /// does a write of an agent's `sources` override, which is checked against it.
+    pub source_registry: Option<apollia_sources::SourceRegistryHandle>,
 }
 
 impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
@@ -384,6 +388,7 @@ impl<B: ExecutionBackend + Clone> Clone for AppState<B> {
             batches: self.batches.clone(),
             workflows: self.workflows.clone(),
             compat_server: self.compat_server.clone(),
+            source_registry: self.source_registry.clone(),
         }
     }
 }
@@ -830,6 +835,7 @@ mod tests {
             batches: None,
             workflows: None,
             compat_server: None,
+            source_registry: None,
         }
     }
 
