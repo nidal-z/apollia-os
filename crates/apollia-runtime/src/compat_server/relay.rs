@@ -1,0 +1,298 @@
+//! The endpoints that relay a request to the engine of a local model.
+//!
+//! The request names a model; the relay finds the process serving it, puts in
+//! `model` the value that engine expects, and forwards the body unchanged. The
+//! engine's answer comes back as it gave it: a JSON body read under a cap, or
+//! an event stream passed on chunk by chunk, in order, as the engine sends it.
+//! Nothing is translated from one format into another: an endpoint the engine
+//! of the model does not serve answers 404, never an approximation.
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use apollia_core::net::{read_capped_bytes, ReadCappedError};
+use axum::body::{Body, Bytes};
+use axum::extract::State;
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use futures::StreamExt;
+use serde::Serialize;
+use serde_json::Value;
+
+use super::errors::{error_response, ErrorKind, Family};
+use super::models::{HeldModel, LocalModels, ServedModel};
+use crate::engine_store::Engine;
+use crate::llama_server::ModelKind;
+
+/// Largest answer read whole from an engine: a batch of embeddings is the
+/// largest body an engine gives outside a stream.
+const MAX_ENGINE_ANSWER: u64 = 64 * 1024 * 1024;
+
+/// How long the relay waits for the engine to accept the connection. The
+/// answer itself has no deadline: a long generation is a legitimate one.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// An endpoint the compatible server relays.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Endpoint {
+    ChatCompletions,
+    Responses,
+    Embeddings,
+    Messages,
+    CountTokens,
+}
+
+impl Endpoint {
+    /// Its path on the compatible server, the same on the engine.
+    pub(crate) const fn path(self) -> &'static str {
+        match self {
+            Self::ChatCompletions => "/v1/chat/completions",
+            Self::Responses => "/v1/responses",
+            Self::Embeddings => "/v1/embeddings",
+            Self::Messages => "/v1/messages",
+            Self::CountTokens => "/v1/messages/count_tokens",
+        }
+    }
+
+    /// Whether the engine serving a model of `kind` serves this endpoint.
+    ///
+    /// `llama-server` at the pinned release answers the four chat endpoints
+    /// for a chat model, and only `/v1/embeddings` for the instance launched
+    /// with `--embeddings`. `vllm-mlx` serves chat completions, responses and
+    /// messages for a chat model; it is not asked to count tokens.
+    pub(crate) const fn served_by(self, engine: Engine, kind: ModelKind) -> bool {
+        match (engine, kind) {
+            (Engine::LlamaServer, ModelKind::Chat) => !matches!(self, Self::Embeddings),
+            (Engine::LlamaServer, ModelKind::Embeddings) => matches!(self, Self::Embeddings),
+            (Engine::VllmMlx, ModelKind::Chat) => matches!(
+                self,
+                Self::ChatCompletions | Self::Responses | Self::Messages
+            ),
+            _ => false,
+        }
+    }
+
+    fn family(self) -> Family {
+        Family::of_path(self.path())
+    }
+}
+
+/// What the relaying routes share: the local models and the client that
+/// reaches their engines.
+#[derive(Debug, Clone)]
+pub(crate) struct RelayState {
+    models: LocalModels,
+    client: reqwest::Client,
+}
+
+impl RelayState {
+    /// The client reaches only the engines' processes on `127.0.0.1`, which
+    /// the runtime spawned: an endpoint it configured, never through a proxy.
+    pub(crate) fn new(models: LocalModels) -> Result<Arc<Self>, reqwest::Error> {
+        let client = apollia_core::net::loopback_client_builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .build()?;
+        Ok(Arc::new(Self { models, client }))
+    }
+}
+
+/// One entry of `GET /v1/models`, in the OpenAI list format.
+#[derive(Debug, Serialize)]
+struct ModelEntry {
+    id: String,
+    object: &'static str,
+    created: i64,
+    owned_by: &'static str,
+    /// `llm` for a chat model, `embeddings` for the instance serving vectors.
+    #[serde(rename = "type")]
+    kind: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct ModelList {
+    object: &'static str,
+    data: Vec<ModelEntry>,
+}
+
+fn entry(model: ServedModel) -> ModelEntry {
+    ModelEntry {
+        id: model.id,
+        object: "model",
+        created: model.created,
+        owned_by: "apollia",
+        kind: match model.kind {
+            ModelKind::Chat => "llm",
+            ModelKind::Embeddings => "embeddings",
+        },
+    }
+}
+
+/// `GET /v1/models`: the resident models, by their registry identifier.
+pub(crate) async fn list_models(State(state): State<Arc<RelayState>>) -> Response {
+    let data = state.models.served().await.into_iter().map(entry).collect();
+    Json(ModelList {
+        object: "list",
+        data,
+    })
+    .into_response()
+}
+
+/// Relays `body` to the engine serving the model it names, on `endpoint`.
+pub(crate) async fn relay(state: &RelayState, endpoint: Endpoint, body: Bytes) -> Response {
+    let family = endpoint.family();
+    let mut request: Value = match serde_json::from_slice(&body) {
+        Ok(Value::Object(object)) => Value::Object(object),
+        _ => {
+            return error_response(
+                family,
+                ErrorKind::InvalidRequest,
+                "The body must be a JSON object.".to_owned(),
+            )
+        }
+    };
+    let Some(id) = request
+        .get("model")
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+    else {
+        return error_response(
+            family,
+            ErrorKind::InvalidRequest,
+            "The body must name a model in its `model` field. GET /v1/models lists them."
+                .to_owned(),
+        );
+    };
+    let Some(held) = state.models.hold(&id).await else {
+        return error_response(
+            family,
+            ErrorKind::ModelNotLoaded,
+            format!(
+                "The model '{id}' is not loaded. Load it in Apollia first; \
+                 GET /v1/models lists the loaded models."
+            ),
+        );
+    };
+    if !endpoint.served_by(held.served.engine, held.served.kind) {
+        return error_response(
+            family,
+            ErrorKind::EndpointNotServed,
+            format!(
+                "The model '{id}' is served by {}, which does not serve {} for this model.",
+                held.served.engine.as_str(),
+                endpoint.path()
+            ),
+        );
+    }
+    request["model"] = Value::String(held.request_model.clone());
+    forward(state, endpoint, &request, held).await
+}
+
+/// Sends `request` to the engine of `held` and answers what the engine
+/// answered.
+async fn forward(
+    state: &RelayState,
+    endpoint: Endpoint,
+    request: &Value,
+    held: HeldModel,
+) -> Response {
+    let family = endpoint.family();
+    let suffix = endpoint.path().trim_start_matches("/v1");
+    let url = format!("{}{suffix}", held.lease.base_url());
+    let sent = state.client.post(&url).json(request).send().await;
+    let answer = match sent {
+        Ok(answer) => answer,
+        Err(error) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                model = %held.served.id,
+                endpoint = endpoint.path(),
+                error = %error,
+                "compat_server.relay.engine_unreachable"
+            );
+            return error_response(
+                family,
+                ErrorKind::EngineUnavailable,
+                format!("The engine serving '{}' did not answer.", held.served.id),
+            );
+        }
+    };
+    let status = StatusCode::from_u16(answer.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+    let content_type = answer
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| HeaderValue::from_bytes(v.as_bytes()).ok())
+        .unwrap_or_else(|| HeaderValue::from_static("application/json"));
+    tracing::event!(
+        tracing::Level::DEBUG,
+        model = %held.served.id,
+        endpoint = endpoint.path(),
+        status = status.as_u16(),
+        "compat_server.relay.answered"
+    );
+    if content_type.as_bytes().starts_with(b"text/event-stream") {
+        let lease = held.lease;
+        // SAFETY: an event stream is open-ended by design; it is relayed chunk
+        // by chunk as the engine sends it, never buffered, so no cap applies.
+        let chunks = answer.bytes_stream().map(move |chunk| {
+            let _held_for_the_stream = &lease;
+            chunk
+        });
+        return (
+            status,
+            [(header::CONTENT_TYPE, content_type)],
+            Body::from_stream(chunks),
+        )
+            .into_response();
+    }
+    match read_capped_bytes(answer, MAX_ENGINE_ANSWER).await {
+        Ok(bytes) => (status, [(header::CONTENT_TYPE, content_type)], bytes).into_response(),
+        Err(error) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                model = %held.served.id,
+                endpoint = endpoint.path(),
+                error = %error,
+                "compat_server.relay.answer_unreadable"
+            );
+            let message = match error {
+                ReadCappedError::TooLarge { limit, .. } => {
+                    format!("The engine's answer exceeds {limit} bytes.")
+                }
+                _ => format!(
+                    "The engine serving '{}' broke off its answer.",
+                    held.served.id
+                ),
+            };
+            error_response(family, ErrorKind::EngineUnavailable, message)
+        }
+    }
+}
+
+/// `POST /v1/chat/completions`.
+pub(crate) async fn chat_completions(
+    State(state): State<Arc<RelayState>>,
+    body: Bytes,
+) -> Response {
+    relay(&state, Endpoint::ChatCompletions, body).await
+}
+
+/// `POST /v1/responses`.
+pub(crate) async fn responses(State(state): State<Arc<RelayState>>, body: Bytes) -> Response {
+    relay(&state, Endpoint::Responses, body).await
+}
+
+/// `POST /v1/embeddings`.
+pub(crate) async fn embeddings(State(state): State<Arc<RelayState>>, body: Bytes) -> Response {
+    relay(&state, Endpoint::Embeddings, body).await
+}
+
+/// `POST /v1/messages`.
+pub(crate) async fn messages(State(state): State<Arc<RelayState>>, body: Bytes) -> Response {
+    relay(&state, Endpoint::Messages, body).await
+}
+
+/// `POST /v1/messages/count_tokens`.
+pub(crate) async fn count_tokens(State(state): State<Arc<RelayState>>, body: Bytes) -> Response {
+    relay(&state, Endpoint::CountTokens, body).await
+}

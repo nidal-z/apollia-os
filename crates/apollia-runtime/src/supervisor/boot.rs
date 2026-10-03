@@ -542,6 +542,11 @@ impl Supervisor {
                 .clone()
                 .unwrap_or_else(|| self.config.data_dir.join("apollia.toml")),
             system_db_path.clone(),
+            crate::compat_server::LocalModels::new(
+                llama_server_supervisor.clone(),
+                mlx_engine.clone(),
+                Some(crate::installed_models::models_dir(&self.config.data_dir)),
+            ),
             &event_sender,
         );
         let shared_llm_router = crate::api::server::shared_llm_router_from(llm_router.clone());
