@@ -10474,6 +10474,81 @@
         }
       }
     },
+    "/api/v1/server/logs": {
+      "get": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`GET /api/v1/server/logs`: the logs of the compatible server as SSE.",
+        "description": "Each `log` frame carries one line. The ring comes first, oldest line\nfirst, then each line as it is recorded; the stream stays open until the\nclient disconnects or the runtime stops.",
+        "operationId": "stream_server_logs",
+        "parameters": [
+          {
+            "name": "level",
+            "in": "query",
+            "description": "The lowest level sent: `debug` (every line, the default), `info`,\n`warn` or `error`.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/ServerLogLevel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of the server's logs: each `log` frame carries one ServerLogLine, the lines held first, then the live ones",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerLogLine"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown level"
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "server"
+        ],
+        "summary": "`DELETE /api/v1/server/logs`: empties the logs of the compatible server.\nThe audit journal is not touched.",
+        "operationId": "clear_server_logs",
+        "responses": {
+          "200": {
+            "description": "The logs are empty; how many lines they held",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearedServerLogs"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No compatible server in this runtime",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/server/start": {
       "post": {
         "tags": [
@@ -16972,6 +17047,20 @@
           }
         }
       },
+      "ClearedServerLogs": {
+        "type": "object",
+        "description": "What `DELETE /api/v1/server/logs` answers.",
+        "required": [
+          "cleared"
+        ],
+        "properties": {
+          "cleared": {
+            "type": "integer",
+            "description": "How many lines the ring held.",
+            "minimum": 0
+          }
+        }
+      },
       "CoachingExample": {
         "type": "object",
         "description": "One coaching example shown as a clickable card in the wizard's last step.",
@@ -22024,6 +22113,100 @@
             "description": "Processing status."
           }
         }
+      },
+      "ServerLogLevel": {
+        "type": "string",
+        "description": "How serious a line is, in increasing order.",
+        "enum": [
+          "debug",
+          "info",
+          "warn",
+          "error"
+        ]
+      },
+      "ServerLogLine": {
+        "type": "object",
+        "description": "One line of the server's logs.",
+        "required": [
+          "seq",
+          "timestamp",
+          "level",
+          "source"
+        ],
+        "properties": {
+          "durationMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long the server took to answer, in milliseconds. For a streamed\nanswer, the time until the stream opened.",
+            "minimum": 0
+          },
+          "endpoint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The path a request line asked for."
+          },
+          "level": {
+            "$ref": "#/components/schemas/ServerLogLevel",
+            "description": "How serious it is."
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The text an engine printed."
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The HTTP method of a request line."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model a request line named, when it named one."
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Position of the line since the runtime started; it keeps growing\nacross a clear.",
+            "minimum": 0
+          },
+          "source": {
+            "$ref": "#/components/schemas/ServerLogSource",
+            "description": "Where it comes from."
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The status a request line was answered with.",
+            "minimum": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "When the line was recorded, RFC 3339 in UTC."
+          }
+        }
+      },
+      "ServerLogSource": {
+        "type": "string",
+        "description": "Where a line comes from.",
+        "enum": [
+          "request",
+          "engine"
+        ]
       },
       "ServerModel": {
         "type": "object",

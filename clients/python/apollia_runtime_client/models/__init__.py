@@ -78,6 +78,7 @@ from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
 from .clear_memory_body import ClearMemoryBody
+from .cleared_server_logs import ClearedServerLogs
 from .coaching_example import CoachingExample
 from .coaching_request import CoachingRequest
 from .companion_enabled import CompanionEnabled
@@ -335,6 +336,9 @@ from .rewrite_reply import RewriteReply
 from .save_artifact_request import SaveArtifactRequest
 from .send_message_request import SendMessageRequest
 from .send_message_response import SendMessageResponse
+from .server_log_level import ServerLogLevel
+from .server_log_line import ServerLogLine
+from .server_log_source import ServerLogSource
 from .server_model import ServerModel
 from .server_models_response import ServerModelsResponse
 from .server_probe_error_response import ServerProbeErrorResponse
@@ -550,6 +554,7 @@ __all__ = (
     "ChatResponseValueType0",
     "ClearAgentModelResponse",
     "ClearCacheResponse",
+    "ClearedServerLogs",
     "ClearMemoryBody",
     "CoachingExample",
     "CoachingRequest",
@@ -804,6 +809,9 @@ __all__ = (
     "SaveArtifactRequest",
     "SendMessageRequest",
     "SendMessageResponse",
+    "ServerLogLevel",
+    "ServerLogLine",
+    "ServerLogSource",
     "ServerModel",
     "ServerModelsResponse",
     "ServerProbeErrorResponse",

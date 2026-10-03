@@ -77,6 +77,22 @@ du point d'accès appelé. Chaque succès date le dernier usage du jeton. Le
 réglage est lu à l'ouverture du serveur : l'arrêter puis le démarrer applique un
 changement.
 
+## Journaux du serveur
+
+Le runtime garde en mémoire les lignes les plus récentes du serveur, 2000 au
+plus, la plus ancienne retirée d'abord : une par requête à laquelle il a
+répondu (heure, niveau, méthode, chemin, modèle, statut, durée) et chaque ligne
+qu'écrit le `llama-server` local. Une requête refusée (4xx) est au niveau
+`warn`, une requête en échec (5xx) au niveau `error`.
+
+| Route | Effet |
+|---|---|
+| `GET /api/v1/server/logs?level=warn` | Un flux d'événements : une trame `log` par ligne, celles gardées d'abord, puis chaque nouvelle. `level` est le niveau le plus bas envoyé, `debug` (par défaut), `info`, `warn` ou `error` |
+| `DELETE /api/v1/server/logs` | Vide les lignes gardées et répond combien il y en avait. Le journal d'audit n'est pas touché |
+
+Ces lignes sont une vue pour qui développe contre le serveur, pas un
+enregistrement : elles sont perdues à l'arrêt du runtime.
+
 ## Erreurs
 
 Chaque point d'accès répond ses erreurs au format de sa propre API. Les points
