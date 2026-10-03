@@ -1730,6 +1730,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/memory/namespaces/{namespace}/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/memory/namespaces/{namespace}/clear`: removes every entry of
+         *     one kind, or of all kinds.
+         */
+        post: operations["clear_memory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/entries/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`: removes
+         *     one entry, whatever its kind.
+         */
+        delete: operations["delete_memory_entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/memory/namespaces/{namespace}/export`: every entry of the
+         *     namespace, in the export format.
+         */
+        get: operations["export_memory_namespace"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/memory/namespaces/{namespace}/import`: writes an export into
+         *     the namespace.
+         */
+        post: operations["import_memory_namespace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/memory/namespaces/{namespace}/purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/memory/namespaces/{namespace}/purge`: removes the entries
+         *     older than a number of days.
+         */
+        post: operations["purge_memory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -3589,6 +3689,14 @@ export interface components {
              */
             cleared_count: number;
         };
+        /** @description Request body for `POST /api/v1/memory/namespaces/{namespace}/clear`. */
+        ClearMemoryBody: {
+            /**
+             * @description `episodic`, `semantic`, `procedural`; absent or any other value
+             *     reaches every kind.
+             */
+            memoryType?: string | null;
+        };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
             /** @description The authorization `code` the provider returned. */
@@ -4020,6 +4128,13 @@ export interface components {
             /** @description What went wrong, for a person. */
             error: string;
         };
+        /** @description Request body for `POST /api/v1/memory/namespaces/{namespace}/import`. */
+        ImportMemoryBody: {
+            /** @description The export, as `GET .../export` answers it. */
+            content: Record<string, never>;
+            /** @description `replace` empties the namespace first; any other value merges. */
+            mode: string;
+        };
         /** @description Request body for `POST /api/v1/agents/:name/messages`. */
         InjectMessageBody: {
             /**
@@ -4327,6 +4442,24 @@ export interface components {
             /** @description History entries. */
             entries: Record<string, never>[];
         };
+        /** @description Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`. */
+        MemoryEntryDeleted: {
+            /** @description Whether an entry had this identifier. */
+            deleted: boolean;
+        };
+        /** @description Answer of `POST /api/v1/memory/namespaces/{namespace}/import`. */
+        MemoryImported: {
+            /** @description How many entries went in. */
+            imported: number;
+        };
+        /** @description Answer of the clear and purge routes. */
+        MemoryRemoved: {
+            /**
+             * Format: int64
+             * @description How many entries were removed.
+             */
+            removed: number;
+        };
         /**
          * @description A single message in a multi-turn conversation request.
          *
@@ -4612,6 +4745,19 @@ export interface components {
         ProfileReset: {
             /** @description How many entries were removed. */
             removed: number;
+        };
+        /** @description Request body for `POST /api/v1/memory/namespaces/{namespace}/purge`. */
+        PurgeMemoryBody: {
+            /**
+             * @description `episodic`, `semantic`, `procedural`; absent or any other value
+             *     reaches every kind.
+             */
+            memoryType?: string | null;
+            /**
+             * Format: int32
+             * @description Entries older than this many days are removed.
+             */
+            olderThanDays: number;
         };
         /** @description Body of `PUT /api/v1/mcp/servers/:name/secrets/:key`. */
         PutMcpSecretBody: {
@@ -9612,6 +9758,189 @@ export interface operations {
             };
             /** @description MCP not configured */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    clear_memory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClearMemoryBody"];
+            };
+        };
+        responses: {
+            /** @description How many entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryRemoved"];
+                };
+            };
+            /** @description Invalid namespace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_memory_entry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+                /** @description Entry identifier */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether an entry had this identifier */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryEntryDeleted"];
+                };
+            };
+            /** @description Invalid namespace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No file holds the namespace */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    export_memory_namespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export, format version 1 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Invalid namespace */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    import_memory_namespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportMemoryBody"];
+            };
+        };
+        responses: {
+            /** @description How many entries went in */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryImported"];
+                };
+            };
+            /** @description Invalid namespace or unknown format version */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    purge_memory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Memory namespace */
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurgeMemoryBody"];
+            };
+        };
+        responses: {
+            /** @description How many entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryRemoved"];
+                };
+            };
+            /** @description Invalid namespace */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

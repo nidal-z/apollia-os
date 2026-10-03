@@ -54,6 +54,7 @@ from .chat_response import ChatResponse
 from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
+from .clear_memory_body import ClearMemoryBody
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
@@ -93,6 +94,7 @@ from .embedding_models_response import EmbeddingModelsResponse
 from .embedding_models_response_models_item import EmbeddingModelsResponseModelsItem
 from .embedding_models_response_reason_type_0 import EmbeddingModelsResponseReasonType0
 from .events_response import EventsResponse
+from .export_memory_namespace_response_200 import ExportMemoryNamespaceResponse200
 from .fire_response import FireResponse
 from .fork_session_request import ForkSessionRequest
 from .get_model_card_response_200 import GetModelCardResponse200
@@ -102,6 +104,8 @@ from .health_response import HealthResponse
 from .imap_account_body import ImapAccountBody
 from .imap_account_response import ImapAccountResponse
 from .imap_error_body import ImapErrorBody
+from .import_memory_body import ImportMemoryBody
+from .import_memory_body_content import ImportMemoryBodyContent
 from .inject_message_body import InjectMessageBody
 from .inject_message_body_payload import InjectMessageBodyPayload
 from .inject_message_response import InjectMessageResponse
@@ -132,6 +136,9 @@ from .loaded_model_dto import LoadedModelDto
 from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
+from .memory_entry_deleted import MemoryEntryDeleted
+from .memory_imported import MemoryImported
+from .memory_removed import MemoryRemoved
 from .message_dto import MessageDto
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
@@ -167,6 +174,7 @@ from .preset_response_request import PresetResponseRequest
 from .presets_list_response import PresetsListResponse
 from .profile_entry_view import ProfileEntryView
 from .profile_reset import ProfileReset
+from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
 from .reject_user_input_request import RejectUserInputRequest
@@ -346,6 +354,7 @@ __all__ = (
     "ChatResponseValueType0",
     "ClearAgentModelResponse",
     "ClearCacheResponse",
+    "ClearMemoryBody",
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
@@ -385,6 +394,7 @@ __all__ = (
     "EmbeddingModelsResponseModelsItem",
     "EmbeddingModelsResponseReasonType0",
     "EventsResponse",
+    "ExportMemoryNamespaceResponse200",
     "FireResponse",
     "ForkSessionRequest",
     "GetModelCardResponse200",
@@ -394,6 +404,8 @@ __all__ = (
     "ImapAccountBody",
     "ImapAccountResponse",
     "ImapErrorBody",
+    "ImportMemoryBody",
+    "ImportMemoryBodyContent",
     "InjectMessageBody",
     "InjectMessageBodyPayload",
     "InjectMessageResponse",
@@ -424,6 +436,9 @@ __all__ = (
     "LoadedModelsResponse",
     "LogsResponse",
     "LogsResponseEntriesItem",
+    "MemoryEntryDeleted",
+    "MemoryImported",
+    "MemoryRemoved",
     "MessageDto",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
@@ -459,6 +474,7 @@ __all__ = (
     "PresetsListResponse",
     "ProfileEntryView",
     "ProfileReset",
+    "PurgeMemoryBody",
     "PutMcpSecretBody",
     "ReadmeResponse",
     "RejectUserInputRequest",

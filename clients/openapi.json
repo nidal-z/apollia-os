@@ -4935,6 +4935,265 @@
         }
       }
     },
+    "/api/v1/memory/namespaces/{namespace}/clear": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`POST /api/v1/memory/namespaces/{namespace}/clear`: removes every entry of\none kind, or of all kinds.",
+        "operationId": "clear_memory",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearMemoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many entries were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryRemoved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/entries/{entry_id}": {
+      "delete": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`: removes\none entry, whatever its kind.",
+        "operationId": "delete_memory_entry",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Entry identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether an entry had this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryEntryDeleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No file holds the namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/export": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`GET /api/v1/memory/namespaces/{namespace}/export`: every entry of the\nnamespace, in the export format.",
+        "operationId": "export_memory_namespace",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export, format version 1",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/import": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`POST /api/v1/memory/namespaces/{namespace}/import`: writes an export into\nthe namespace.",
+        "operationId": "import_memory_namespace",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportMemoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many entries went in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryImported"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace or unknown format version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/purge": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`POST /api/v1/memory/namespaces/{namespace}/purge`: removes the entries\nolder than a number of days.",
+        "operationId": "purge_memory",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurgeMemoryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many entries were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryRemoved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications/channels": {
       "get": {
         "tags": [
@@ -10064,6 +10323,19 @@
           }
         }
       },
+      "ClearMemoryBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/memory/namespaces/{namespace}/clear`.",
+        "properties": {
+          "memoryType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`episodic`, `semantic`, `procedural`; absent or any other value\nreaches every kind."
+          }
+        }
+      },
       "CompleteConsentBody": {
         "type": "object",
         "description": "Body of `POST /api/v1/connectors/oauth/complete`.",
@@ -11071,6 +11343,24 @@
           }
         }
       },
+      "ImportMemoryBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/memory/namespaces/{namespace}/import`.",
+        "required": [
+          "mode",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "object",
+            "description": "The export, as `GET .../export` answers it."
+          },
+          "mode": {
+            "type": "string",
+            "description": "`replace` empties the namespace first; any other value merges."
+          }
+        }
+      },
       "InjectMessageBody": {
         "type": "object",
         "description": "Request body for `POST /api/v1/agents/:name/messages`.",
@@ -11791,6 +12081,48 @@
           }
         }
       },
+      "MemoryEntryDeleted": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "Whether an entry had this identifier."
+          }
+        }
+      },
+      "MemoryImported": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/memory/namespaces/{namespace}/import`.",
+        "required": [
+          "imported"
+        ],
+        "properties": {
+          "imported": {
+            "type": "integer",
+            "description": "How many entries went in.",
+            "minimum": 0
+          }
+        }
+      },
+      "MemoryRemoved": {
+        "type": "object",
+        "description": "Answer of the clear and purge routes.",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many entries were removed.",
+            "minimum": 0
+          }
+        }
+      },
       "MessageDto": {
         "type": "object",
         "description": "A single message in a multi-turn conversation request.\n\n`role` accepts `\"system\"`, `\"user\"`, `\"assistant\"`, or `\"tool\"`.",
@@ -12492,6 +12824,28 @@
           "removed": {
             "type": "integer",
             "description": "How many entries were removed.",
+            "minimum": 0
+          }
+        }
+      },
+      "PurgeMemoryBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/memory/namespaces/{namespace}/purge`.",
+        "required": [
+          "olderThanDays"
+        ],
+        "properties": {
+          "memoryType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`episodic`, `semantic`, `procedural`; absent or any other value\nreaches every kind."
+          },
+          "olderThanDays": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Entries older than this many days are removed.",
             "minimum": 0
           }
         }
@@ -15022,6 +15376,10 @@
     {
       "name": "profile",
       "description": "The user profile"
+    },
+    {
+      "name": "memory",
+      "description": "Upkeep of the agents' memory, per namespace"
     },
     {
       "name": "connectors",
