@@ -402,7 +402,6 @@ dependencies = [
  "open",
  "pyo3",
  "reqwest 0.12.28",
- "rusqlite",
  "scraper",
  "serde",
  "serde_json",
