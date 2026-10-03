@@ -288,7 +288,11 @@ async fn refresh_router_servers<B: ExecutionBackend + Clone>(state: &AppState<B>
         return;
     };
     let endpoints = match repo.lock() {
-        Ok(guard) => server_endpoints(&guard, || (state.secret_store)()),
+        Ok(guard) => server_endpoints(
+            &guard,
+            || (state.secret_store)(),
+            &state.inference_governance,
+        ),
         Err(_) => return,
     };
     let refreshed = {
@@ -314,16 +318,30 @@ async fn refresh_router_servers<B: ExecutionBackend + Clone>(state: &AppState<B>
     request_body = TestServerRequest,
     responses(
         (status = 200, description = "The server answered with its models", body = TestServerResponse),
+        (status = 403, description = "The organisation policy refuses this server; nothing was sent to it, `kind` is `policy`", body = ServerProbeErrorResponse),
         (status = 422, description = "The address is not an HTTP URL", body = ServerProbeErrorResponse),
         (status = 502, description = "Unreachable, key refused, or not an OpenAI-compatible server; `kind` says which", body = ServerProbeErrorResponse),
     )
 )]
-pub async fn test_llm_server(
+pub async fn test_llm_server<B: ExecutionBackend + Clone>(
+    State(state): State<AppState<B>>,
     Json(req): Json<TestServerRequest>,
 ) -> Result<Json<TestServerResponse>, (StatusCode, Json<ServerProbeErrorResponse>)> {
     validate_address(&req.base_url)
         .map_err(map_backend_error)
         .map_err(as_probe)?;
+    state
+        .inference_governance
+        .server_decision(&req.base_url)
+        .map_err(|reason| {
+            (
+                StatusCode::FORBIDDEN,
+                Json(ServerProbeErrorResponse {
+                    error: reason,
+                    kind: "policy".into(),
+                }),
+            )
+        })?;
     let models = list_server_models(&req.base_url, req.api_key.as_deref())
         .await
         .map_err(probe_error)?;
@@ -360,6 +378,7 @@ pub async fn list_llm_servers<B: ExecutionBackend + Clone>(
     request_body = CreateServerRequest,
     responses(
         (status = 201, description = "Server saved", body = ServerResponse),
+        (status = 403, description = "The organisation policy refuses this server; nothing was saved", body = crate::api::openapi::ApiErrorBody),
         (status = 422, description = "Invalid name or address", body = crate::api::openapi::ApiErrorBody),
         (status = 503, description = "Repository or secret store not available", body = crate::api::openapi::ApiErrorBody),
     )
@@ -368,6 +387,15 @@ pub async fn create_llm_server<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Json(req): Json<CreateServerRequest>,
 ) -> Result<(StatusCode, Json<ServerResponse>), ApiError> {
+    if let Err(reason) = state.inference_governance.server_decision(&req.base_url) {
+        tracing::event!(
+            tracing::Level::WARN,
+            server = %req.name,
+            reason = %reason,
+            "llm.server.refused_by_policy"
+        );
+        return Err(api_err(StatusCode::FORBIDDEN, reason));
+    }
     let server = with_repo(&state, |repo| {
         save_server(repo, &req, || (state.secret_store)())
     })?;
@@ -458,7 +486,7 @@ pub fn server_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             "/api/v1/llm/servers",
             get(list_llm_servers::<B>).post(create_llm_server::<B>),
         )
-        .route("/api/v1/llm/servers/test", post(test_llm_server))
+        .route("/api/v1/llm/servers/test", post(test_llm_server::<B>))
         .route("/api/v1/llm/servers/:name", delete(delete_llm_server::<B>))
         .route(
             "/api/v1/llm/servers/:name/models",
@@ -936,6 +964,7 @@ mod tests {
                 name: "corp".into(),
                 base_url: server.url.clone(),
                 api_key: None,
+                refusal: None,
             }]),
         ));
         let app_router = llm_routes::<MockBackend>().with_state(state);
@@ -957,5 +986,152 @@ mod tests {
             .find(|r| r.0 == "/v1/chat/completions")
             .expect("the ping reached the server");
         assert_eq!(ping.2["max_tokens"], serde_json::json!(1), "{}", ping.2);
+    }
+
+    fn governed(inference: &str) -> crate::governance::InferenceGovernance {
+        crate::governance::InferenceGovernance::new(
+            crate::governance::inference_policy::valid_verdict_with_inference(inference),
+        )
+    }
+
+    // GIVEN a policy that allows one server of the organisation
+    // WHEN a server at another address is added
+    // THEN 403 naming the policy, and nothing is saved
+    #[tokio::test]
+    async fn test_adding_a_server_the_policy_does_not_list_is_refused() {
+        // GIVEN
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_repo(&dir);
+        state.inference_governance =
+            governed("allowed_servers = [\"http://gpu.corp.example:8000\"]");
+
+        // WHEN
+        let (status, body) = call(
+            state.clone(),
+            "POST",
+            "/api/v1/llm/servers",
+            Some(serde_json::json!({ "name": "other", "base_url": "http://10.0.0.9:8000" })),
+        )
+        .await;
+
+        // THEN
+        assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+        assert!(
+            body["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("organisation policy")),
+            "{body}"
+        );
+        let (_, listed) = call(state, "GET", "/api/v1/llm/servers", None).await;
+        assert_eq!(listed["servers"], serde_json::json!([]));
+    }
+
+    // GIVEN a policy refusing remote endpoints, listing no server
+    // WHEN a server off this machine is added, then one on this machine
+    // THEN the first is refused by the policy, the second is saved
+    #[tokio::test]
+    async fn test_remote_deny_refuses_a_server_off_this_machine() {
+        // GIVEN
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = state_with_repo(&dir);
+        state.inference_governance = governed("remote_endpoints = \"deny\"");
+
+        // WHEN
+        let (remote, body) = call(
+            state.clone(),
+            "POST",
+            "/api/v1/llm/servers",
+            Some(serde_json::json!({ "name": "cloud", "base_url": "https://api.example.com/v1" })),
+        )
+        .await;
+        let (local, _) = call(
+            state,
+            "POST",
+            "/api/v1/llm/servers",
+            Some(serde_json::json!({ "name": "ollama", "base_url": "http://127.0.0.1:11434" })),
+        )
+        .await;
+
+        // THEN
+        assert_eq!(remote, StatusCode::FORBIDDEN, "{body}");
+        assert_eq!(
+            body["error"],
+            crate::governance::REMOTE_SERVER_DENIED_REASON,
+            "{body}"
+        );
+        assert_eq!(local, StatusCode::CREATED);
+    }
+
+    // GIVEN a local server that counts what it receives, and a policy that
+    //       does not list it
+    // WHEN it is tested before being saved
+    // THEN 403 with kind `policy`, and the server received nothing
+    #[tokio::test]
+    async fn test_testing_a_server_the_policy_refuses_sends_nothing() {
+        // GIVEN
+        let server = fake_server(200, two_models()).await;
+        let mut state = test_app_state_no_llm();
+        state.inference_governance =
+            governed("allowed_servers = [\"http://gpu.corp.example:8000\"]");
+
+        // WHEN
+        let (status, body) = call(
+            state,
+            "POST",
+            "/api/v1/llm/servers/test",
+            Some(serde_json::json!({ "base_url": server.url })),
+        )
+        .await;
+
+        // THEN
+        assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+        assert_eq!(body["kind"], "policy");
+        assert!(server.received.lock().unwrap().is_empty());
+    }
+
+    // GIVEN a server saved while no policy applied, that counts the requests
+    //       it receives, then a policy that does not list it
+    // WHEN the router is built under that policy and a request is sent to one
+    //      of its models
+    // THEN the request fails with the policy's reason and the server received
+    //      zero requests
+    #[tokio::test]
+    async fn test_a_request_to_a_saved_server_now_forbidden_never_leaves() {
+        // GIVEN
+        let server = fake_server(200, two_models()).await;
+        let dir = tempfile::tempdir().unwrap();
+        let repo = LlmBackendRepository::open(&dir.path().join("system.db")).unwrap();
+        let req = CreateServerRequest {
+            name: "corp".into(),
+            base_url: server.url.clone(),
+            api_key: None,
+            enabled: true,
+        };
+        save_server(&repo, &req, || Ok(file_store(&dir))).unwrap();
+        let governance = governed("allowed_servers = [\"http://gpu.corp.example:8000\"]");
+
+        // WHEN
+        let endpoints = server_endpoints(&repo, || Ok(file_store(&dir)), &governance);
+        let router = apollia_llm::LlmRouter::empty().with_servers(endpoints);
+        let backend = router
+            .get(Some("corp/qwen3-32b"))
+            .expect("the route is known");
+        let outcome = backend
+            .complete(apollia_llm::CompletionRequest {
+                messages: vec![apollia_llm::ChatMessage::user("bonjour")],
+                ..Default::default()
+            })
+            .await;
+
+        // THEN
+        assert!(
+            matches!(
+                outcome,
+                Err(apollia_llm::LlmError::BackendUnavailable { ref reason, .. })
+                    if reason == crate::governance::SERVER_NOT_ALLOWED_REASON
+            ),
+            "{outcome:?}"
+        );
+        assert_eq!(server.received.lock().unwrap().len(), 0);
     }
 }

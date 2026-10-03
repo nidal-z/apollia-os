@@ -208,6 +208,7 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.developer.mcp.kind_agent", // Agent
   "settings.developer.mcp.kind_workflow", // Workflow
   "settings.general.application_title", // Application
+  "settings.general.channel_stable", // Stable
   "settings.general.interface_title", // Interface
   "settings.llm_backend.provider_local", // local
   "settings.llm_dialog.field_endpoint", // Endpoint

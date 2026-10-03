@@ -2237,7 +2237,9 @@
         "companion_focus": "Focus the Companion input",
         "approvals_accept": "Accept the current approval",
         "approvals_refuse": "Refuse the current approval",
-        "approvals_next": "Jump to next / previous approval"
+        "approvals_next": "Jump to next / previous approval",
+        "settings_engines": "Open System > Engines",
+        "settings_hardware": "Open System > Hardware"
       },
       "reserved": "OS reserved",
       "reserved_hint": "Reserved by the operating system and cannot be reassigned.",
@@ -3151,6 +3153,10 @@
       "subtitle": "Updates, language, application folder, help and danger zone.",
       "updates_title": "App update",
       "version_label": "Installed version",
+      "channel_label": "Update channel",
+      "channel_hint": "Stable receives the published versions; Preview also receives the trial versions.",
+      "channel_stable": "Stable",
+      "channel_preview": "Preview",
       "interface_title": "Interface",
       "language_hint": "Also changes the application menus.",
       "application_title": "Application",
@@ -3170,6 +3176,10 @@
     },
     "engines": {
       "subtitle": "The engines that run the models and dictation on this machine."
+    },
+    "window": {
+      "label": "Settings",
+      "close": "Close settings"
     }
   },
   "onboarding": {

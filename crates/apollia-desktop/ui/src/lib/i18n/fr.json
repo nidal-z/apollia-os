@@ -2129,7 +2129,7 @@
       "license_body": "Apollia OS est libre et open source, sous double licence MIT ou Apache 2.0, au choix.",
       "contact_title": "Contact",
       "channel_stable": "Canal stable",
-      "channel_prerelease": "Canal préliminaire",
+      "channel_prerelease": "Canal préversion",
       "version_unknown": "Version inconnue",
       "copy_success": "Copié dans le presse-papiers",
       "copied": "Copié",
@@ -2237,7 +2237,9 @@
         "companion_focus": "Focaliser la saisie du Companion",
         "approvals_accept": "Accepter l'approbation courante",
         "approvals_refuse": "Refuser l'approbation courante",
-        "approvals_next": "Approbation suivante / précédente"
+        "approvals_next": "Approbation suivante / précédente",
+        "settings_engines": "Ouvrir Système > Moteurs",
+        "settings_hardware": "Ouvrir Système > Matériel"
       },
       "reserved": "Réservé OS",
       "reserved_hint": "Réservé par le système d'exploitation, non réassignable.",
@@ -3151,6 +3153,10 @@
       "subtitle": "Mise à jour, langue, dossier de l'application, aide et zone de danger.",
       "updates_title": "Mise à jour de l'application",
       "version_label": "Version installée",
+      "channel_label": "Canal de mise à jour",
+      "channel_hint": "Stable reçoit les versions publiées ; Préversion reçoit aussi les versions d'essai.",
+      "channel_stable": "Stable",
+      "channel_preview": "Préversion",
       "interface_title": "Interface",
       "language_hint": "Change aussi les menus de l'application.",
       "application_title": "Application",
@@ -3170,6 +3176,10 @@
     },
     "engines": {
       "subtitle": "Les moteurs qui font tourner les modèles et la dictée sur ce poste."
+    },
+    "window": {
+      "label": "Réglages",
+      "close": "Fermer les réglages"
     }
   },
   "onboarding": {

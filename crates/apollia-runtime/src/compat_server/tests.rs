@@ -33,6 +33,12 @@ pub(crate) fn settings_file(content: &str) -> (TempDir, PathBuf) {
     (dir, path)
 }
 
+/// Spawns the compatible server over the `apollia.toml` at `path`, its tokens
+/// in a `system.db` beside it.
+pub(crate) fn spawn_server(path: &std::path::Path, bus: &EventBusSender) -> CompatServerHandle {
+    CompatServerHandle::spawn(path.to_path_buf(), path.with_file_name("system.db"), bus)
+}
+
 pub(crate) fn file_enabled(path: &PathBuf) -> bool {
     ServerConfig::from_toml_str(&std::fs::read_to_string(path).unwrap())
         .unwrap()
@@ -77,7 +83,7 @@ async fn test_a_runtime_whose_server_is_off_listens_on_nothing() {
 
     // WHEN the runtime starts its compatible server actor
     let bus = bus();
-    let handle = CompatServerHandle::spawn(path, &bus);
+    let handle = spawn_server(&path, &bus);
     let status = handle.status().await.unwrap();
 
     // THEN nothing listens on the port, and the status says so
@@ -92,7 +98,7 @@ async fn test_an_unknown_path_answers_404_in_the_openai_error_format() {
     let port = free_port();
     let (_dir, path) = settings_file(&format!("[server]\nenabled = true\nport = {port}\n"));
     let bus = bus();
-    let handle = CompatServerHandle::spawn(path, &bus);
+    let handle = spawn_server(&path, &bus);
     assert!(handle.status().await.unwrap().running);
 
     // WHEN a client asks for a path the server does not serve
@@ -115,7 +121,7 @@ async fn test_a_taken_port_is_refused_with_a_typed_error_and_the_runtime_goes_on
     let (_holder, port) = held_port();
     let (_dir, path) = settings_file(&format!("[server]\nport = {port}\n"));
     let bus = bus();
-    let handle = CompatServerHandle::spawn(path.clone(), &bus);
+    let handle = spawn_server(&path, &bus);
 
     // WHEN the server is started
     let result = handle.start().await;
@@ -140,7 +146,7 @@ async fn test_a_server_started_before_a_restart_listens_again_after_it() {
     let port = free_port();
     let (_dir, path) = settings_file(&format!("[server]\nport = {port}\n"));
     let first_bus = bus();
-    let first = CompatServerHandle::spawn(path.clone(), &first_bus);
+    let first = spawn_server(&path, &first_bus);
     assert!(first.start().await.unwrap().running);
     first_bus.send(RuntimeEvent::ShutdownRequested).unwrap();
     wait_gone(&first).await;
@@ -152,7 +158,7 @@ async fn test_a_server_started_before_a_restart_listens_again_after_it() {
 
     // WHEN the runtime starts again on the same file
     let bus = bus();
-    let second = CompatServerHandle::spawn(path, &bus);
+    let second = spawn_server(&path, &bus);
     let status = second.status().await.unwrap();
 
     // THEN the listener is open
@@ -166,7 +172,7 @@ async fn test_stopping_closes_the_port_and_writes_the_switch_off() {
     let port = free_port();
     let (_dir, path) = settings_file(&format!("[server]\nport = {port}\n"));
     let bus = bus();
-    let handle = CompatServerHandle::spawn(path.clone(), &bus);
+    let handle = spawn_server(&path, &bus);
     handle.start().await.unwrap();
     assert!(file_enabled(&path));
 

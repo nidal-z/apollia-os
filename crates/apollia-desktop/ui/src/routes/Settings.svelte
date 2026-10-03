@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick, type Component } from "svelte";
   import { t } from "svelte-i18n";
-  import { Check, Menu } from "lucide-svelte";
+  import { Check, Menu, X } from "lucide-svelte";
   import {
     settingsSubRoute,
     goToSettingsSubRoute,
@@ -14,6 +14,7 @@
   import {
     settingsDirtyStore,
     hasExplicitDirty,
+    holdsExplicitChanges,
     getRouteState,
     setScroll,
     getScroll,
@@ -34,6 +35,8 @@
   import UnsavedChangesDialog from "../components/settings/UnsavedChangesDialog.svelte";
   import { Button } from "$lib/components/ui/button";
   import { SETTINGS_NAV } from "$lib/settings/settingsNav";
+  import { installSettingsCloseGuard, closeSettingsWindow } from "$lib/stores/settingsWindow";
+  import { SHORTCUTS, comboFor } from "$lib/navigation/shortcuts";
 
   // ─── Lazy-loaded tab content (existing sub-routes own invoke()/stores) ──
   const LOADERS: Record<SettingsSubRoute, () => Promise<{ default: Component }>> = {
@@ -57,9 +60,11 @@
 
   interface Props {
     sub?: string | null;
+    /** Close the settings window (the cross of the header). */
+    onclose?: () => void;
   }
 
-  let { sub = null }: Props = $props();
+  let { sub = null, onclose }: Props = $props();
 
   let activeComponent = $state<Component | null>(null);
   let loadError = $state<string | null>(null);
@@ -71,6 +76,8 @@
 
   // ─── Nav-guard / unsaved-changes dialog ──────────────────────────
   let pendingRoute = $state<SettingsSubRoute | null>(null);
+  // Set while the dialog was opened by closing the window: what to run once closed.
+  let pendingClose = $state<{ then: (() => void) | null } | null>(null);
   let dialogOpen = $state(false);
   let dialogSaving = $state(false);
 
@@ -123,9 +130,16 @@
   });
 
   const uninstallGuard = installSettingsNavigationGuard((from, to) => {
-    const state = getRouteState(from);
-    if (!state.dirty || state.autoSave !== "explicit") return true;
+    if (!holdsExplicitChanges(from)) return true;
     pendingRoute = to;
+    dialogOpen = true;
+    return false;
+  });
+
+  const uninstallCloseGuard = installSettingsCloseGuard((then) => {
+    if (!holdsExplicitChanges($settingsSubRoute)) return true;
+    pendingRoute = null;
+    pendingClose = { then };
     dialogOpen = true;
     return false;
   });
@@ -172,6 +186,7 @@
 
   onDestroy(() => {
     uninstallGuard();
+    uninstallCloseGuard();
     unregisterSaveShortcut();
     if (typeof window !== "undefined") {
       window.removeEventListener("beforeunload", handleBeforeUnload);
@@ -184,6 +199,15 @@
   }
 
   // Dialog handlers ───────────────────────────────────────────────
+  /** Close the window the dialog was holding open, then run its continuation. */
+  function finishPendingClose(): void {
+    const close = pendingClose;
+    pendingClose = null;
+    if (!close) return;
+    closeSettingsWindow();
+    close.then?.();
+  }
+
   async function onDiscard() {
     const target = pendingRoute;
     pendingRoute = null;
@@ -196,6 +220,7 @@
     });
     registeredResetters.get(current)?.();
     if (target) requestSettingsSubRoute(target);
+    finishPendingClose();
   }
 
   async function onSaveAndContinue() {
@@ -208,10 +233,12 @@
     dialogOpen = false;
     pendingRoute = null;
     if (target) requestSettingsSubRoute(target);
+    finishPendingClose();
   }
 
   function onStay() {
     pendingRoute = null;
+    pendingClose = null;
     dialogOpen = false;
   }
 
@@ -280,6 +307,12 @@
   function entryIconClass(active: boolean): string {
     return active ? "text-primary" : "text-muted-foreground";
   }
+
+  /** Platform chord of a column entry's shortcut, from the shortcut catalogue. */
+  function entryCombo(shortcutId: string | undefined): string | null {
+    const entry = shortcutId ? SHORTCUTS.find((s) => s.id === shortcutId) : undefined;
+    return entry ? comboFor(entry).replaceAll("+", "") : null;
+  }
 </script>
 
 <!--
@@ -316,6 +349,12 @@
               <span class="min-w-0 flex-1 truncate text-body-sm" title={$t(entry.labelKey)}>
                 {$t(entry.labelKey)}
               </span>
+              {#if entryCombo(entry.shortcutId)}
+                <kbd
+                  class="flex-none font-mono text-caption text-muted-foreground"
+                  data-testid="settings-nav-{entry.key}-shortcut"
+                >{entryCombo(entry.shortcutId)}</kbd>
+              {/if}
               {#if isDirty}
                 <span
                   class="h-1.5 w-1.5 flex-none rounded-full bg-warning"
@@ -393,6 +432,18 @@
               <Check size={12} strokeWidth={2} />
               {$t("settings.all_saved")}
             </span>
+          {/if}
+          {#if onclose}
+            <button
+              type="button"
+              class="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onclick={onclose}
+              aria-label={$t("settings.window.close")}
+              title={$t("settings.window.close")}
+              data-testid="settings-window-close"
+            >
+              <X size={16} strokeWidth={1.75} aria-hidden="true" />
+            </button>
           {/if}
         {/snippet}
       </PageHeader>
