@@ -28,6 +28,7 @@ import {
   goToSettingsSubRoute,
   type SettingsSubRoute,
 } from "$lib/stores/settings";
+import { settingsSubRouteLabelKey } from "$lib/navigation/breadcrumbSegments";
 import type { PaletteAction } from "./actions";
 
 const _actions = writable<PaletteAction[]>([]);
@@ -46,7 +47,7 @@ function tr(key: string): string {
 }
 
 function settingsSubRouteLabel(route: SettingsSubRoute): string {
-  return tr(`settings.nav.${route}`);
+  return tr(settingsSubRouteLabelKey(route));
 }
 
 function actionToCommandItem(action: PaletteAction, group: string): CommandItem {
