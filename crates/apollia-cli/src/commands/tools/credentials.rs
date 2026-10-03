@@ -12,8 +12,8 @@ use crate::note;
 
 use super::support::{
     db_path, emit_error, emit_unknown_tool, format_unix_date, handle_client_error,
-    handle_server_error, is_valid_credential_target, keyfile_path, load_tools_config,
-    open_credential_store, resolve_data_dir,
+    handle_server_error, is_valid_credential_target, load_tools_config, open_credential_store,
+    resolve_data_dir,
 };
 use super::ToolsCredentialsCmd;
 
@@ -129,7 +129,7 @@ pub(super) fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
     if value.is_empty() {
         return emit_error("empty value - credential not stored".to_string(), json);
     }
-    let mut store = match ToolCredentialStore::new(&db_path(&data_dir), &keyfile_path(&data_dir)) {
+    let mut store = match ToolCredentialStore::open(&db_path(&data_dir)) {
         Ok(s) => s,
         Err(e) => return emit_error(format!("credential store unavailable: {e}"), json),
     };
@@ -147,7 +147,7 @@ pub(super) fn run_credentials_set(tool: &str, key: &str, json: bool) -> i32 {
             .unwrap_or_default()
         );
     } else {
-        note!("✔ credential {tool}/{key} stored (encrypted)");
+        note!("✔ credential {tool}/{key} stored in the secret store");
     }
     exit_codes::SUCCESS
 }
@@ -164,7 +164,7 @@ pub(super) fn run_credentials_delete(tool: &str, key: &str, confirm: bool, json:
         Ok(d) => d,
         Err(code) => return code,
     };
-    let mut store = match ToolCredentialStore::new(&db_path(&data_dir), &keyfile_path(&data_dir)) {
+    let mut store = match ToolCredentialStore::open(&db_path(&data_dir)) {
         Ok(s) => s,
         Err(e) => return emit_error(format!("credential store unavailable: {e}"), json),
     };
@@ -201,7 +201,7 @@ pub(super) async fn run_credentials_test(tool: &str, json: bool) -> i32 {
         Ok(d) => d,
         Err(code) => return code,
     };
-    let store = match ToolCredentialStore::new(&db_path(&data_dir), &keyfile_path(&data_dir)) {
+    let store = match ToolCredentialStore::open(&db_path(&data_dir)) {
         Ok(s) => s,
         Err(e) => return emit_error(format!("credential store unavailable: {e}"), json),
     };
