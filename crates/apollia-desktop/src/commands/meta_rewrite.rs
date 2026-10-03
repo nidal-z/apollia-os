@@ -4,99 +4,135 @@
 //! prompts before sending to an agent. Explicitly triggered by the operator
 //! clicking the "Improve prompt" button in a chat composer.
 //!
-//! Reuses the user's default LLM via [`SharedLlmRouter`]. Never allocates a
-//! second backend and always returns a non-empty payload; on any LLM
-//! failure, timeout, or empty response, the original text is returned
-//! unchanged, carrying the [`RewriteFallbackIpc`] that says which of the four
-//! situations produced it. The composer renders one message per situation, so a
-//! reachable engine that timed out is never reported as a missing one.
+//! The logic lives in `apollia_runtime::chat_assists`. Embedded, it runs with
+//! the live desktop router; attached, the daemon runs it with its own router
+//! at `POST /api/v1/assists/rewrite`. It always returns a payload: on any LLM
+//! failure, timeout, or empty response, the original text comes back with the
+//! [`RewriteFallbackReason`] that says which of the four situations produced
+//! it, so a reachable engine that timed out is never reported as a missing one.
 
-use apollia_llm::meta::rewrite_input::{
-    rewrite_input, RewriteFallback, RewriteInputRequest, RewriteInputResponse,
-};
-use serde::Serialize;
-use tauri::State;
+use std::sync::Arc;
 
+use apollia_llm::meta::rewrite_input::RewriteInputRequest;
+use apollia_llm::LlmRouter;
+use apollia_runtime::chat_assists::{self, RewriteReply};
+use tauri::{Manager, State};
+
+use crate::attached::RuntimeLink;
 use crate::SharedLlmRouter;
 
-/// Why no rewrite happened, as the composer receives it.
-///
-/// Mirrors [`RewriteFallback`] and adds the one situation this layer owns:
-/// no router is mounted at all, which the crate below cannot observe.
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum RewriteFallbackIpc {
-    /// No LLM router is mounted in the application state.
-    NoRouter,
-    /// A router is mounted and holds no backend under its default name.
-    NoBackend,
-    /// The backend answered with an error, or the call timed out.
-    CallFailed,
-    /// The backend answered, and nothing survived the reasoning strip.
-    EmptyAnswer,
-}
+/// The route of the rewrite on the runtime.
+pub(crate) const REWRITE: &str = "/api/v1/assists/rewrite";
 
-impl From<RewriteFallback> for RewriteFallbackIpc {
-    fn from(value: RewriteFallback) -> Self {
-        match value {
-            RewriteFallback::NoBackend => Self::NoBackend,
-            RewriteFallback::CallFailed => Self::CallFailed,
-            RewriteFallback::EmptyAnswer => Self::EmptyAnswer,
-        }
+/// The live desktop router, read from the application rather than taken as a
+/// state argument, because the attached application never builds one.
+pub(crate) fn desktop_router(app: &tauri::AppHandle) -> Result<Option<Arc<LlmRouter>>, String> {
+    match app.try_state::<SharedLlmRouter>() {
+        Some(shared) => Ok(shared
+            .read()
+            .map_err(|e| format!("llm router lock poisoned: {e}"))?
+            .clone()),
+        None => Ok(None),
     }
 }
 
-/// Response body, mirrors [`RewriteInputResponse`] so the IPC contract stays
-/// decoupled from the underlying crate type.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RewriteInputIpcResponse {
-    pub rewritten_text: String,
-    pub fallback: Option<RewriteFallbackIpc>,
-}
-
-impl From<RewriteInputResponse> for RewriteInputIpcResponse {
-    fn from(value: RewriteInputResponse) -> Self {
-        Self {
-            rewritten_text: value.rewritten_text,
-            fallback: value.fallback.map(RewriteFallbackIpc::from),
-        }
+async fn rewrite_on(
+    link: &RuntimeLink,
+    router: Option<Arc<LlmRouter>>,
+    request: RewriteInputRequest,
+) -> Result<RewriteReply, String> {
+    match link {
+        RuntimeLink::Embedded(_) => Ok(chat_assists::rewrite(router.as_ref(), request).await),
+        RuntimeLink::Attached(remote) => Ok(remote.post(REWRITE, &request).await?),
     }
 }
 
 /// Rewrite user input to make it clearer and more actionable.
 ///
-/// Never fails from the caller's perspective: if no LLM backend is configured
-/// or the call errors out, the original text is returned unchanged with the
-/// fallback that names the cause.
+/// Never fails while the runtime answers: if no LLM backend is configured or
+/// the call errors out, the original text is returned unchanged with the
+/// fallback that names the cause. Attached, a refusal of the daemon comes back
+/// in its own words.
 #[tauri::command]
 pub async fn meta_rewrite_input(
-    shared: State<'_, SharedLlmRouter>,
+    link: State<'_, RuntimeLink>,
+    app: tauri::AppHandle,
     request: RewriteInputRequest,
-) -> Result<RewriteInputIpcResponse, String> {
-    // GIVEN: SharedLlmRouter state
-    let router_opt = {
-        let guard = shared
-            .read()
-            .map_err(|e| format!("llm router lock poisoned: {e}"))?;
-        guard.as_ref().cloned()
+) -> Result<RewriteReply, String> {
+    let router = match link.inner() {
+        RuntimeLink::Embedded(_) => desktop_router(&app)?,
+        RuntimeLink::Attached(_) => None,
     };
+    rewrite_on(link.inner(), router, request).await
+}
 
-    // WHEN: router exists or None
-    let response = match router_opt {
-        Some(router) => {
-            // THEN: call rewrite_input
-            rewrite_input(&router, request).await
-        }
-        None => {
-            // THEN: no router at all, a situation the crate below never sees
-            return Ok(RewriteInputIpcResponse {
-                rewritten_text: request.original_text,
-                fallback: Some(RewriteFallbackIpc::NoRouter),
-            });
-        }
-    };
+#[cfg(test)]
+mod tests {
+    use wiremock::matchers::{body_json, header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    // THEN: convert to IPC response
-    Ok(response.into())
+    use super::*;
+    use crate::attached::AttachedClient;
+
+    const TOKEN: &str = "token-of-this-installation";
+
+    fn attached(server: &MockServer) -> RuntimeLink {
+        RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap())
+    }
+
+    fn request(text: &str) -> RewriteInputRequest {
+        RewriteInputRequest {
+            original_text: text.into(),
+            work_context: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_a_rewrite_reaches_the_daemon_with_the_token() {
+        // GIVEN a daemon that rewrites "fix it"
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(REWRITE))
+            .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+            .and(body_json(serde_json::json!({
+                "originalText": "fix it",
+                "workContext": null,
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "rewrittenText": "Fix the failing test in the parser.",
+                "fallback": null,
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        // WHEN the attached window asks for a rewrite
+        let reply = rewrite_on(&attached(&server), None, request("fix it"))
+            .await
+            .unwrap();
+
+        // THEN the daemon's rewrite comes back
+        assert_eq!(reply.rewritten_text, "Fix the failing test in the parser.");
+        assert_eq!(reply.fallback, None);
+    }
+
+    #[tokio::test]
+    async fn test_a_rewrite_refused_by_the_daemon_shows_its_words() {
+        // GIVEN a daemon refusing the request
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(REWRITE))
+            .respond_with(
+                ResponseTemplate::new(503)
+                    .set_body_json(serde_json::json!({ "error": "runtime is shutting down" })),
+            )
+            .mount(&server)
+            .await;
+
+        // WHEN the attached window asks for a rewrite
+        let refused = rewrite_on(&attached(&server), None, request("fix it")).await;
+
+        // THEN the refusal reads in the daemon's own words
+        assert_eq!(refused.unwrap_err(), "runtime is shutting down");
+    }
 }

@@ -68,7 +68,7 @@ pub struct WorkContext {
 }
 
 /// Request passed to [`rewrite_input`].
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RewriteInputRequest {
     /// The original user input to rewrite (always the first input, never a

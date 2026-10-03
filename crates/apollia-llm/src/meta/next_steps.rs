@@ -167,7 +167,7 @@ pub struct NextStep {
 }
 
 /// Request passed to [`generate_next_steps`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NextStepsRequest {
     /// Panel this payload targets.
