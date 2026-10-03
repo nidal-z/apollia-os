@@ -3131,6 +3131,16 @@
       "mode_off": "Off",
       "mode_on": "On",
       "write_failed": "The developer mode could not be saved.",
+      "engines": {
+        "title": "Engines",
+        "log_level_label": "llama.cpp engine log level",
+        "log_level_hint": "Applies the next time a model is loaded or reloaded. Below Debug, the engine no longer writes its load summary (device, offloaded layers).",
+        "level_error": "Error",
+        "level_warning": "Warning",
+        "level_info": "Info",
+        "level_debug": "Debug (default)",
+        "write_failed": "The engine log level could not be saved."
+      },
       "mcp": {
         "title": "Apollia as an MCP server",
         "switch_label": "Expose Apollia as an MCP server",
@@ -3160,6 +3170,10 @@
       "interface_title": "Interface",
       "language_hint": "Also changes the application menus.",
       "application_title": "Application",
+      "logs_label": "Log files",
+      "logs_hint": "The log files of the application, to attach to a report.",
+      "logs_button": "Open logs folder",
+      "logs_failed": "The logs folder could not be opened.",
       "report_button": "Open in browser",
       "help_title": "Help",
       "about_title": "About",

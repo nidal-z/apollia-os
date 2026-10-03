@@ -3131,6 +3131,16 @@
       "mode_off": "Éteint",
       "mode_on": "Allumé",
       "write_failed": "Le mode développeur n'a pas pu être enregistré.",
+      "engines": {
+        "title": "Moteurs",
+        "log_level_label": "Niveau de journal du moteur llama.cpp",
+        "log_level_hint": "S'applique au prochain chargement ou rechargement d'un modèle. En dessous de Débogage, le moteur n'écrit plus le résumé de son chargement (appareil, couches déchargées).",
+        "level_error": "Erreur",
+        "level_warning": "Avertissement",
+        "level_info": "Information",
+        "level_debug": "Débogage (défaut)",
+        "write_failed": "Le niveau de journal du moteur n'a pas pu être enregistré."
+      },
       "mcp": {
         "title": "Apollia comme serveur MCP",
         "switch_label": "Exposer Apollia comme serveur MCP",
@@ -3160,6 +3170,10 @@
       "interface_title": "Interface",
       "language_hint": "Change aussi les menus de l'application.",
       "application_title": "Application",
+      "logs_label": "Journaux",
+      "logs_hint": "Les journaux de l'application, à joindre à un signalement.",
+      "logs_button": "Ouvrir le dossier des journaux",
+      "logs_failed": "Le dossier des journaux n'a pas pu être ouvert.",
       "report_button": "Ouvrir dans le navigateur",
       "help_title": "Aide",
       "about_title": "À propos",
