@@ -233,8 +233,7 @@ fn check_governance_db(data_dir: &Path) -> CheckResult {
             "Will be initialized on first tool governance command or runtime start",
         );
     }
-    let keyfile = data_dir.join(".keyfile");
-    match apollia_tools::ToolCredentialStore::new(&db_path, &keyfile) {
+    match apollia_tools::ToolCredentialStore::open(&db_path) {
         Ok(_) => CheckResult::ok(
             "governance_db",
             "Governance DB",

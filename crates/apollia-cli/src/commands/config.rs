@@ -316,21 +316,45 @@ fn run_set_under(
         return exit_codes::GENERAL_ERROR;
     }
 
-    // Validate the candidate document BEFORE persisting, so a typo'd key path or
-    // an invalid value is rejected (nonzero, no write) instead of silently
-    // bricking the next boot. A single `config set` legitimately leaves a section
-    // incomplete (e.g. `llm.default` before `llm.backends`); enforcing section
-    // completeness is `config validate`'s job, so "missing field" errors are
-    // tolerated here while invalid values / enum variants are rejected.
-    let top_level = key.split('.').next().unwrap_or(key);
-    if !crate::config::is_known_top_level_section(top_level) {
+    // Validate the candidate document BEFORE persisting, with the one
+    // validation every surface shares, so a typo'd key path or an invalid value
+    // is rejected (nonzero, no write) instead of silently bricking the next
+    // boot. A single `config set` legitimately leaves a section incomplete
+    // (e.g. `llm.default` before `llm.backends`); enforcing section
+    // completeness is `config validate`'s job, so "missing field" faults are
+    // tolerated here while unknown keys and invalid values are rejected.
+    if let Some(withdrawn) = apollia_core::config::keys::withdrawn_covering(key) {
+        emit_error(
+            format!(
+                "'{key}' is a withdrawn setting: {}",
+                withdrawn.withdrawn.unwrap_or_default()
+            ),
+            json,
+        );
+        return exit_codes::GENERAL_ERROR;
+    }
+    // The deserializer stops at its first fault, so a section left incomplete
+    // on purpose could hide a typo behind its "missing field": the key itself
+    // is checked against the registry first.
+    if !apollia_core::config::keys::is_live_path(key) {
         emit_error(format!("unknown config key: '{key}'"), json);
         return exit_codes::GENERAL_ERROR;
     }
-    if let Err(e) = crate::config::validate_apollia_toml_str(&doc.to_string()) {
-        let msg = e.to_string();
-        if !msg.contains("missing field") {
-            emit_error(format!("invalid config value for '{key}': {e}"), json);
+    if let Err(crate::config::ConfigError::Invalid(diagnostics)) =
+        crate::config::validate_apollia_toml_str(&doc.to_string())
+    {
+        let blocking: Vec<_> = diagnostics
+            .into_iter()
+            .filter(|d| !d.message.contains("missing field"))
+            .collect();
+        if !blocking.is_empty() {
+            emit_error(
+                format!(
+                    "invalid config value for '{key}': {}",
+                    crate::config::render_diagnostics(&blocking)
+                ),
+                json,
+            );
             return exit_codes::GENERAL_ERROR;
         }
     }
@@ -452,16 +476,26 @@ fn run_validate(file: Option<&Path>, json: bool) -> i32 {
             exit_codes::SUCCESS
         }
         Err(e) => {
+            let diagnostics = match &e {
+                crate::config::ConfigError::Invalid(d) => d.clone(),
+                _ => Vec::new(),
+            };
             if json {
                 let out = serde_json::json!({
                     "path": path.display().to_string(),
                     "exists": true,
                     "valid": false,
                     "error": e.to_string(),
+                    "diagnostics": diagnostics,
                 });
                 println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
-            } else {
+            } else if diagnostics.is_empty() {
                 eprintln!("x {} invalid: {e}", path.display());
+            } else {
+                eprintln!("x {} invalid:", path.display());
+                for d in &diagnostics {
+                    eprintln!("  {}:{d}", path.display());
+                }
             }
             exit_codes::GENERAL_ERROR
         }
@@ -927,7 +961,7 @@ mod tests {
         assert!(written.contains("[desktop]"), "{written}");
         assert!(written.contains("developer_mode = true"), "{written}");
         let typed = crate::config::validate_apollia_toml_str(&written).unwrap();
-        assert!(typed.desktop.unwrap().developer_mode);
+        assert!(typed.desktop.developer_mode);
     }
 
     #[test]
@@ -953,6 +987,64 @@ mod tests {
             std::fs::read_to_string(&path).unwrap(),
             "[desktop]\ndeveloper_mode = true\n"
         );
+    }
+
+    #[test]
+    fn run_set_refuses_a_typo_inside_a_known_section() {
+        // GIVEN a throwaway home whose apollia.toml already holds an [api] section
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join(".apollia").join("apollia.toml");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "[api]\nbind = \"127.0.0.1\"\n").unwrap();
+        // WHEN `config set api.typo 1` runs, the section being a known one
+        let code = run_set("api.typo", "1", Some(&path), true);
+        // THEN it exits non-zero and nothing is written
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[api]\nbind = \"127.0.0.1\"\n"
+        );
+    }
+
+    #[test]
+    fn run_set_refuses_a_typo_behind_an_incomplete_section() {
+        // GIVEN a file whose [llm] is incomplete on purpose (no backends yet)
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "[llm]\ndefault = \"local\"\n").unwrap();
+        // WHEN a typo is set, which the deserializer would never reach
+        let code = run_set("api.typo", "1", Some(&path), true);
+        // THEN it is refused all the same, nothing written
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[llm]\ndefault = \"local\"\n"
+        );
+    }
+
+    #[test]
+    fn run_set_refuses_a_withdrawn_key() {
+        // GIVEN an empty config file
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "").unwrap();
+        // WHEN a key of a withdrawn section is set
+        let code = run_set("oria.max_replans", "3", Some(&path), true);
+        // THEN it fails and leaves the file unchanged
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "");
+    }
+
+    #[test]
+    fn run_validate_refuses_a_file_with_a_fault() {
+        // GIVEN a file with an unknown key on its third line
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        std::fs::write(&path, "[api]\nbind = \"127.0.0.1\"\ntypo = 1\n").unwrap();
+        // WHEN `config validate` runs on it
+        let code = run_validate(Some(&path), true);
+        // THEN it exits non-zero
+        assert_eq!(code, exit_codes::GENERAL_ERROR);
     }
 
     #[test]

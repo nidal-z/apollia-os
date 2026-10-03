@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{validate_bounds, ConfigError};
 
@@ -11,7 +11,8 @@ use super::{validate_bounds, ConfigError};
 /// Controls the capacity of the internal communication infrastructure: the
 /// EventBus broadcast channel and the actor mailboxes. Every field has a sane
 /// default via [`Default`].
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RuntimeConfig {
     /// EventBus broadcast channel capacity.
     ///

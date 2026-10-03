@@ -149,7 +149,7 @@ pub async fn run(cmd: &ToolsCommand, socket: Option<PathBuf>, json: bool) -> i32
 mod tests {
     use super::config::{parse_value_for, set_nested_value};
     use super::listing::backend_label;
-    use super::support::{db_path, is_known_tool, is_valid_credential_target, keyfile_path};
+    use super::support::{db_path, is_known_tool, is_valid_credential_target};
     use super::*;
     use apollia_core::ToolsConfig;
     use apollia_tools::{
@@ -158,6 +158,14 @@ mod tests {
     };
     use tempfile::TempDir;
     use toml_edit::DocumentMut;
+
+    /// The encrypted-file secret store under `dir`, never the OS keychain.
+    fn file_secrets(dir: &TempDir) -> Box<dyn apollia_auth::SecretStore> {
+        Box::new(
+            apollia_auth::AgeFileSecretStore::new(dir.path().join("secrets"), "test".into())
+                .expect("secret store"),
+        )
+    }
 
     fn write_toml(dir: &TempDir, content: &str) -> PathBuf {
         let p = dir.path().join("apollia.toml");
@@ -237,8 +245,8 @@ mod tests {
         // GIVEN a fresh credential store (same path the CLI resolves).
         let dir = TempDir::new().expect("tempdir");
         apollia_tools::GovernanceDb::open(dir.path()).expect("init governance");
-        let mut store = ToolCredentialStore::new(&db_path(dir.path()), &keyfile_path(dir.path()))
-            .expect("open store");
+        let mut store =
+            ToolCredentialStore::new(&db_path(dir.path()), file_secrets(&dir)).expect("open store");
         // WHEN a secret is stored under the agent namespace and read back.
         store
             .set(AGENT_CREDENTIALS_NAMESPACE, "hubspot_api_token", "sk-demo")
@@ -288,11 +296,9 @@ mod tests {
         // GIVEN a fresh store with one credential.
         let dir = TempDir::new().expect("tempdir");
         apollia_tools::GovernanceDb::open(dir.path()).expect("init governance");
-        let mut store = ToolCredentialStore::new(
-            &dir.path().join(GOVERNANCE_DB_FILENAME),
-            &dir.path().join(".keyfile"),
-        )
-        .expect("store");
+        let mut store =
+            ToolCredentialStore::new(&dir.path().join(GOVERNANCE_DB_FILENAME), file_secrets(&dir))
+                .expect("store");
         store
             .set("web_search", "brave.api_key", "BSA-test")
             .expect("set");
