@@ -1048,6 +1048,290 @@
         }
       }
     },
+    "/api/v1/artifacts": {
+      "post": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "`POST /api/v1/artifacts`: stores a new artifact, or returns the one its\nsource message already has.",
+        "operationId": "save_artifact",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveArtifactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The artifact as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artifact"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The artifacts store could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/artifacts/{id}": {
+      "delete": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "`DELETE /api/v1/artifacts/{id}`: removes an artifact; one already gone\nanswers the same.",
+        "operationId": "delete_artifact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Artifact identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The artifact is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedArtifact"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The artifacts store could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "`PATCH /api/v1/artifacts/{id}`: replaces the title and/or the content.",
+        "operationId": "update_artifact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Artifact identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateArtifactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The artifact as changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artifact"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No artifact has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The artifacts store could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assists/automation": {
+      "post": {
+        "tags": [
+          "assists"
+        ],
+        "summary": "`POST /api/v1/assists/automation`: parses an automation described in\nwords into a schedule, an agent and a payload, with its ambiguities.",
+        "operationId": "parse_automation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseAutomationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The parsed automation, ambiguities included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body is not an automation description"
+          }
+        }
+      }
+    },
+    "/api/v1/assists/coaching": {
+      "post": {
+        "tags": [
+          "assists"
+        ],
+        "summary": "`POST /api/v1/assists/coaching`: examples to try a connector just added.",
+        "operationId": "coach_connector",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "One to three example cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CoachingExample"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body names no server"
+          }
+        }
+      }
+    },
+    "/api/v1/assists/next-steps": {
+      "post": {
+        "tags": [
+          "assists"
+        ],
+        "summary": "`POST /api/v1/assists/next-steps`: up to three next steps cards, drawn by\nthe daemon's default model or by the heuristic.",
+        "operationId": "generate_next_steps",
+        "requestBody": {
+          "description": "`context`, `mode` and the `facts` the window computed, each optional",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The cards, and whether a model wrote them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextStepsReply"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body is not a next steps request"
+          }
+        }
+      }
+    },
+    "/api/v1/assists/rewrite": {
+      "post": {
+        "tags": [
+          "assists"
+        ],
+        "summary": "`POST /api/v1/assists/rewrite`: rewrites a terse prompt with the daemon's\ndefault model, or returns it unchanged with the reason.",
+        "operationId": "rewrite_prompt",
+        "requestBody": {
+          "description": "`originalText`, and the optional `workContext` of the user profile",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The rewritten text, or the original one and why",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RewriteReply"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body is not a rewrite request"
+          }
+        }
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "tags": [
@@ -5783,6 +6067,63 @@
         }
       }
     },
+    "/api/v1/mailbox/messages": {
+      "get": {
+        "tags": [
+          "agents"
+        ],
+        "summary": "`GET /api/v1/mailbox/messages`: the most recent inter-agent messages.",
+        "operationId": "list_mailbox_messages",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum rows (default 100, capped at 1000; 0 is refused)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mailbox rows, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxMessageRow"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A limit of 0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The store could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/mailbox/stream": {
       "get": {
         "tags": [
@@ -7767,6 +8108,63 @@
         }
       }
     },
+    "/api/v1/observability/timeline": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "`GET /api/v1/observability/timeline`: the global timeline of a window.",
+        "operationId": "get_global_timeline",
+        "parameters": [
+          {
+            "name": "window_minutes",
+            "in": "query",
+            "description": "Trailing window in minutes, from 1 to 10080",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events of the window, most recent first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GlobalTimelineEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Window missing or out of range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The scan failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/onboarding": {
       "get": {
         "tags": [
@@ -9411,6 +9809,51 @@
           },
           "503": {
             "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/artifacts": {
+      "get": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "`GET /api/v1/sessions/{id}/artifacts`: the artifacts of a session, most\nrecent first.",
+        "operationId": "list_artifacts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Chat session identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The artifacts of the session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Artifact"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The artifacts store could not be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -13729,6 +14172,70 @@
           }
         }
       },
+      "Artifact": {
+        "type": "object",
+        "description": "One artifact, as the chat draws it.",
+        "required": [
+          "id",
+          "session_id",
+          "kind",
+          "title",
+          "content",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Full textual content."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation timestamp."
+          },
+          "id": {
+            "type": "string",
+            "description": "UUID v4 identifier."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Kind bucket: `\"code\"`, `\"file\"`, `\"spec\"`, `\"bash_output\"`, `\"other\"`."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Detected or declared language (e.g. `\"rust\"`, `\"markdown\"`)."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Owning chat session identifier."
+          },
+          "source_message_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source message identifier (absent for a manual creation)."
+          },
+          "source_tool": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source tool name (e.g. `\"file_write\"`, `\"bash_executor\"`)."
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable title (path, heading, short description)."
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "ISO 8601 last-update timestamp."
+          }
+        }
+      },
       "AuditEntryDto": {
         "type": "object",
         "description": "Entry in the immutable audit log of permission decisions.",
@@ -14630,6 +15137,49 @@
           }
         }
       },
+      "CoachingExample": {
+        "type": "object",
+        "description": "One coaching example shown as a clickable card in the wizard's last step.",
+        "required": [
+          "title",
+          "description",
+          "prompt"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "One-line description shown under the title."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Pre-filled chat message sent when the user clicks \"Try\"."
+          },
+          "title": {
+            "type": "string",
+            "description": "Short actionable title (e.g. \"Summarise my latest Notion page\")."
+          }
+        }
+      },
+      "CoachingRequest": {
+        "type": "object",
+        "description": "The connector just added.",
+        "required": [
+          "serverName"
+        ],
+        "properties": {
+          "serverName": {
+            "type": "string",
+            "description": "The server name, matched against well-known connectors."
+          },
+          "serverTitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The title shown to the operator, the name when absent."
+          }
+        }
+      },
       "CompleteConsentBody": {
         "type": "object",
         "description": "Body of `POST /api/v1/connectors/oauth/complete`.",
@@ -15441,6 +15991,19 @@
           }
         }
       },
+      "DeletedArtifact": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/artifacts/{id}`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "string",
+            "description": "The identifier removed."
+          }
+        }
+      },
       "DeletedCredential": {
         "type": "object",
         "description": "Answer of `DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`.",
@@ -16056,6 +16619,34 @@
           "size_human": {
             "type": "string",
             "description": "Human-readable file size (e.g. `\"4.2 GB\"`)."
+          }
+        }
+      },
+      "GlobalTimelineEvent": {
+        "type": "object",
+        "description": "Global timeline event for display.",
+        "required": [
+          "event_type",
+          "timestamp",
+          "summary",
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "type": "object",
+            "description": "Expandable JSON details."
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Event type: task, tool, llm, trigger, hitl, memory, error."
+          },
+          "summary": {
+            "type": "string",
+            "description": "Event summary."
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp."
           }
         }
       },
@@ -17015,6 +17606,44 @@
           }
         }
       },
+      "MailboxMessageRow": {
+        "type": "object",
+        "description": "One inter-agent mailbox message, projected for the observability view.",
+        "required": [
+          "message_id",
+          "from_agent",
+          "to_agent",
+          "payload",
+          "sent_at",
+          "state"
+        ],
+        "properties": {
+          "from_agent": {
+            "type": "string",
+            "description": "Sending agent name (or `host:<id>` for a host injection)."
+          },
+          "message_id": {
+            "type": "string",
+            "description": "Stable message identifier (primary key)."
+          },
+          "payload": {
+            "type": "string",
+            "description": "Raw JSON payload as stored, rendered verbatim in the UI."
+          },
+          "sent_at": {
+            "type": "string",
+            "description": "Send timestamp (RFC 3339)."
+          },
+          "state": {
+            "type": "string",
+            "description": "Delivery state: `pending` or `in_flight`."
+          },
+          "to_agent": {
+            "type": "string",
+            "description": "Receiving agent name."
+          }
+        }
+      },
       "MemoryEntryDeleted": {
         "type": "object",
         "description": "Answer of `DELETE /api/v1/memory/namespaces/{namespace}/entries/{entry_id}`.",
@@ -17265,6 +17894,27 @@
               "$ref": "#/components/schemas/ModelInfo"
             },
             "description": "Available model files in `~/.apollia/models/`."
+          }
+        }
+      },
+      "NextStepsReply": {
+        "type": "object",
+        "description": "Up to three next steps cards, and whether a model wrote them.",
+        "required": [
+          "steps",
+          "fromLlm"
+        ],
+        "properties": {
+          "fromLlm": {
+            "type": "boolean",
+            "description": "`false` when the heuristic wrote them."
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "The cards, in display order."
           }
         }
       },
@@ -17841,6 +18491,26 @@
           "path": {
             "type": "string",
             "description": "Path of the `.apo` file on this machine."
+          }
+        }
+      },
+      "ParseAutomationRequest": {
+        "type": "object",
+        "description": "An automation described in words, and the agents the window knows.",
+        "required": [
+          "input"
+        ],
+        "properties": {
+          "input": {
+            "type": "string",
+            "description": "Free-form text entered by the operator."
+          },
+          "known_agents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Identifiers or names of the agents known on the window side."
           }
         }
       },
@@ -18778,6 +19448,89 @@
             "format": "int32",
             "description": "How many rules were removed.",
             "minimum": 0
+          }
+        }
+      },
+      "RewriteFallbackReason": {
+        "type": "string",
+        "description": "Why no rewrite happened, as the composer receives it.\n\nMirrors [`RewriteFallback`] and adds the one situation this layer owns:\nno router is mounted at all, which the crate below cannot observe.",
+        "enum": [
+          "noRouter",
+          "noBackend",
+          "callFailed",
+          "emptyAnswer"
+        ]
+      },
+      "RewriteReply": {
+        "type": "object",
+        "description": "The rewritten prompt, or the original one with the reason it came back.",
+        "required": [
+          "rewrittenText"
+        ],
+        "properties": {
+          "fallback": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RewriteFallbackReason",
+                "description": "`None` when the model rewrote the text, the cause otherwise."
+              }
+            ]
+          },
+          "rewrittenText": {
+            "type": "string",
+            "description": "The text to put back in the composer."
+          }
+        }
+      },
+      "SaveArtifactRequest": {
+        "type": "object",
+        "description": "A new artifact, as the chat captures it.",
+        "required": [
+          "session_id",
+          "kind",
+          "title",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Full artifact content."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Classification bucket."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Detected or declared language."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Owning session."
+          },
+          "source_message_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source message identifier, set when detected from a tool call."
+          },
+          "source_tool": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source tool (if emitted by a tool call)."
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable title."
           }
         }
       },
@@ -20754,6 +21507,26 @@
           }
         }
       },
+      "UpdateArtifactRequest": {
+        "type": "object",
+        "description": "The fields of an artifact a change may replace; an absent one is kept.",
+        "properties": {
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New content."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New title."
+          }
+        }
+      },
       "UpdateChannelRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/notifications/channels/:id`.\n\nThe `label` field uses a double `Option`:\n- absent from JSON: `None`, keep the existing label;\n- `null`: `Some(None)`, clear the label;\n- `\"text\"`: `Some(Some(\"text\"))`, replace it.",
@@ -21422,6 +22195,10 @@
       "description": "Conversational chat sessions"
     },
     {
+      "name": "assists",
+      "description": "Assists around the chat: prompt rewrite, next steps, automations in words, connector examples"
+    },
+    {
       "name": "agents",
       "description": "Agent inventory and lifecycle"
     },
@@ -21492,6 +22269,10 @@
     {
       "name": "onboarding",
       "description": "The onboarding: its phases, its profile and its conversation"
+    },
+    {
+      "name": "artifacts",
+      "description": "The artifacts captured in a conversation"
     },
     {
       "name": "memory",
