@@ -1,5 +1,7 @@
-//! Request bodies whose schema is written by hand, because no Rust type
-//! carries them on the wire.
+//! Request bodies whose schema is written by hand.
+//!
+//! Each handler here reads its body off a stream or as raw bytes, so no Rust
+//! type carries the shape and `utoipa` cannot derive one.
 
 use utoipa::openapi::schema::{KnownFormat, ObjectBuilder, Schema, SchemaFormat, Type};
 use utoipa::openapi::RefOr;

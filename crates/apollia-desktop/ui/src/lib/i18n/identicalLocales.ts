@@ -91,7 +91,6 @@ export const IDENTICAL_BY_NATURE: string[] = [
 export const IDENTICAL_BY_DECISION: string[] = [
   "a11y.actions_menu", // Actions
   "agent_detail.execution_mode_direct", // Direct
-  "agent_detail.llm_backend", // Backend
   "agent_detail.messages_title", // Messages
   "agent_detail.tags_title", // Tags
   "agents.agents_word", // agents

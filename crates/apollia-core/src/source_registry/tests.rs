@@ -158,16 +158,16 @@ fn test_a_source_list_names_registry_sources_profile_or_memory() {
 }
 
 #[test]
-fn test_a_v5_file_gains_the_sources_table_and_keeps_its_rows() {
-    // GIVEN a system.db written at version five, with a default embeddings model
+fn test_a_v6_file_gains_the_sources_table_and_keeps_its_rows() {
+    // GIVEN a system.db written at version six, with a default embeddings model
     let dir = tempfile::TempDir::new().unwrap();
     let path = dir.path().join("system.db");
     {
         let conn = Connection::open(&path).unwrap();
-        for step in &crate::system_db::SYSTEM_DB_MIGRATIONS[..5] {
+        for step in &crate::system_db::SYSTEM_DB_MIGRATIONS[..6] {
             step(&conn).unwrap();
         }
-        conn.pragma_update(None, "user_version", 5).unwrap();
+        conn.pragma_update(None, "user_version", 6).unwrap();
         conn.execute(
             "INSERT INTO embedding_default (id, model_id) VALUES (1, 'multilingual-e5-small')",
             [],

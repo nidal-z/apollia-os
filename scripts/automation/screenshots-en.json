@@ -9,9 +9,6 @@
   ],
   "stopOnError": false,
   "dynamicTestids": [
-    "agent-detail-tab-overview",
-    "agent-detail-tab-settings",
-    "agent-detail-tab-tools",
     "automation-history-seed-trigger-daily-digest",
     "automation-menu-seed-trigger-daily-digest",
     "automation-row-seed-trigger-daily-digest",
@@ -236,16 +233,17 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tabbar",
+      "testid": "agent-sheet",
       "timeoutMs": 5000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-tools"
+      "kind": "waitFor",
+      "testid": "agent-sheet-access",
+      "timeoutMs": 2500
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tab-content",
+      "testid": "agent-detail-content",
       "timeoutMs": 5000
     },
     {
@@ -1333,12 +1331,12 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tabbar",
+      "testid": "agent-sheet",
       "timeoutMs": 8000
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tab-content",
+      "testid": "agent-detail-content",
       "timeoutMs": 8000
     },
     {
@@ -1446,18 +1444,13 @@
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tabbar",
+      "testid": "agent-sheet",
       "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
-      "testid": "agent-detail-tab-settings",
-      "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-settings",
-      "timeoutMs": 8000
+      "testid": "agent-sheet-activity",
+      "timeoutMs": 6000
     },
     {
       "kind": "click",
@@ -1492,13 +1485,13 @@
       "timeoutMs": 6000
     },
     {
-      "kind": "click",
-      "testid": "agent-detail-tab-overview",
+      "kind": "waitFor",
+      "testid": "agent-sheet-mission",
       "timeoutMs": 6000
     },
     {
       "kind": "waitFor",
-      "testid": "agent-detail-tab-content",
+      "testid": "agent-detail-content",
       "timeoutMs": 8000
     },
     {

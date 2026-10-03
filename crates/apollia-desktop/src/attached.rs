@@ -145,6 +145,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_agent_messages",
     "list_tools",
     "verify_audit_run",
+    // The sheet of an agent: the agent resolved, its model fallback, its
+    // governance history.
+    "get_agent_definition",
+    "get_agent_model_fallback",
+    "list_agent_changes",
     // The settings of the chat, which are those of the Apollia agent.
     "get_chat_libre_config",
     "update_chat_libre_config",
@@ -367,6 +372,10 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "stop_tour_recording",
         "stops the capture of this machine and sends its audio to the daemon",
+    ),
+    (
+        "open_logs_dir",
+        "opens the folder of this window's own log file in the file manager of this machine",
     ),
     (
         "open_config_in_editor",
