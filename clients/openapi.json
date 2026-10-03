@@ -902,6 +902,68 @@
         }
       }
     },
+    "/api/v1/approvals/filesystem/{request_id}": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/approvals/filesystem/{request_id}`: answers a request to\ntouch a file, which resumes the turn waiting on it.",
+        "operationId": "respond_filesystem_approval",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Id of the pending request",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FsHitlDecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The request is answered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedFilesystemApproval"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No pending request has this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/approvals/pending": {
       "get": {
         "tags": [
@@ -2012,6 +2074,152 @@
         }
       }
     },
+    "/api/v1/connectors/drive-folders": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/connectors/drive-folders`: the Drive folder of every\nconnected Google account.",
+        "operationId": "list_drive_folders",
+        "responses": {
+          "200": {
+            "description": "The folder of each Google account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriveFolderStatus"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The accounts or the preferences could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/drive-folders/{account_id}": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/connectors/drive-folders/{account_id}`: record the Drive\nfolder of one Google account.",
+        "operationId": "set_drive_folder",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Google account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetDriveFolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The folder as recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveFolderStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized account or folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The preferences could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`DELETE /api/v1/connectors/drive-folders/{account_id}`: forget the Drive\nfolder of one Google account, so the default applies again.",
+        "operationId": "reset_drive_folder",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Google account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The folder as recorded, the default again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriveFolderStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty or oversized account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The preferences could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors/imap/accounts": {
       "post": {
         "tags": [
@@ -2577,6 +2785,529 @@
             "description": "SSE stream of every runtime event: `runtime` frames carry one event each, `lagged` frames the count of events dropped for this subscriber",
             "content": {
               "text/event-stream": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/audit": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/audit`: the permission decisions, most recent first.",
+        "operationId": "list_governance_audit",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "query",
+            "description": "Tool name to filter on.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 100 when absent.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Entries to skip.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The audit entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntryDto"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/rules": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/rules`: the `agent` and `global` permission rules.",
+        "operationId": "list_governance_rules",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "Scope to filter on: `\"agent\"` or `\"global\"`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool_name",
+            "in": "query",
+            "description": "Tool name to filter on.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The matching rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionRuleDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/rules/revoke-all": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/governance/rules/revoke-all`: revokes every rule of one\nscope, `global` when none is named.",
+        "operationId": "revoke_all_governance_rules",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeAllBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many rules were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedRules"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/rules/{id}": {
+      "delete": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`DELETE /api/v1/governance/rules/{id}`: revokes one rule.",
+        "operationId": "revoke_governance_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Rule identifier",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rule is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedRule"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No rule has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/tools": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/tools`: every native tool with its flag,\nconfiguration, credential names and active backend.",
+        "operationId": "list_governance_tools",
+        "responses": {
+          "200": {
+            "description": "The native tools",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ToolStatusDto"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/tools/{name}/config": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/tools/{name}/config`: the configuration of one tool.",
+        "operationId": "get_governance_tool_config",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Tool name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The configuration, null when none is stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolConfigBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tool name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`PUT /api/v1/governance/tools/{name}/config`: stores the configuration of\none tool.",
+        "operationId": "set_governance_tool_config",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Tool name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolConfigBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The configuration as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolConfigBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tool name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/tools/{name}/enabled": {
+      "put": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`PUT /api/v1/governance/tools/{name}/enabled`: enables or disables one tool.",
+        "operationId": "set_governance_tool_enabled",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Tool name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolEnabledBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The flag as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolEnabledBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tool name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
             }
           }
         }
@@ -5534,6 +6265,75 @@
         }
       }
     },
+    "/api/v1/memory/injections/{turn_id}": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`GET /api/v1/memory/injections/{turn_id}`: the entries an agent recalled\nduring one turn.",
+        "operationId": "get_injected_memory_entries",
+        "parameters": [
+          {
+            "name": "turn_id",
+            "in": "path",
+            "description": "Turn identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The recalled entries, none for an unknown turn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InjectedMemoryEntryView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`GET /api/v1/memory/namespaces`: the memory namespaces, one per file.",
+        "operationId": "list_memory_namespaces",
+        "responses": {
+          "200": {
+            "description": "The namespaces, sorted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The memory directory could not be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/memory/namespaces/{namespace}/clear": {
       "post": {
         "tags": [
@@ -5575,6 +6375,61 @@
           },
           "400": {
             "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/entries": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`GET /api/v1/memory/namespaces/{namespace}/entries`: every entry of one\nnamespace, newest first.",
+        "operationId": "list_memory_entries",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemoryEntryView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The namespace names a path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The namespace did not open",
             "content": {
               "application/json": {
                 "schema": {
@@ -5782,6 +6637,70 @@
           },
           "400": {
             "description": "Invalid namespace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/memory/namespaces/{namespace}/search": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`GET /api/v1/memory/namespaces/{namespace}/search?q=`: full-text search in\none namespace, best score first.",
+        "operationId": "search_memory",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "description": "Memory namespace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "The words searched for.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemorySearchResultView"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The namespace names a path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The namespace did not open or the search failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -6185,6 +7104,330 @@
         }
       }
     },
+    "/api/v1/oauth/clients": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`GET /api/v1/oauth/clients`: the OAuth client of every provider and where\neach value came from, never a secret.",
+        "operationId": "list_oauth_clients",
+        "responses": {
+          "200": {
+            "description": "One row per provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OauthClientIdStatus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/api-key": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/oauth/clients/{provider}/api-key`: writes the public API key\nGoogle Picker uses, empty to clear it.",
+        "operationId": "set_oauth_api_key",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google or microsoft",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OauthClientValueBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The override is written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientWritten"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/client-id": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/oauth/clients/{provider}/client-id`: writes the client id\noverride, empty to clear it.",
+        "operationId": "set_oauth_client_id",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google or microsoft",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OauthClientValueBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The override is written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientWritten"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/client-secret": {
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`PUT /api/v1/oauth/clients/{provider}/client-secret`: writes the client\nsecret override, empty to clear it. The secret is never answered back.",
+        "operationId": "set_oauth_client_secret",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google or microsoft",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OauthClientValueBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The override is written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientWritten"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/import": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/oauth/clients/{provider}/import`: writes the client id and\nsecret of a Google console export.",
+        "operationId": "import_oauth_client",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportOauthClientBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Both halves are written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientWritten"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a Google client export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/oauth/clients/{provider}/test": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "`POST /api/v1/oauth/clients/{provider}/test`: checks the client without a\nconsent: present, well-formed, and its authorization server reachable.",
+        "operationId": "test_oauth_client",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "Provider id: google or microsoft",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The verdict, passed or the first failing check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OauthClientTestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/packages/install": {
       "post": {
         "tags": [
@@ -6469,6 +7712,207 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PackageErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/proposals": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/permissions/proposals`: the rules the onboarding agent\nproposed and the user has not answered yet.",
+        "operationId": "list_proposed_permission_rules",
+        "responses": {
+          "200": {
+            "description": "The proposals, empty when none is stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProposedRuleView"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A namespace database did not read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/proposals/{index}": {
+      "delete": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`DELETE /api/v1/permissions/proposals/{index}`: removes the proposal\nwithout storing a rule.",
+        "operationId": "dismiss_proposed_permission_rule",
+        "parameters": [
+          {
+            "name": "index",
+            "in": "path",
+            "description": "Cursor of the proposal",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The proposal is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DismissedProposal"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No proposal at this cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The namespace database refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/proposals/{index}/apply": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/permissions/proposals/{index}/apply`: stores the proposal as\na rule and removes it from the list.",
+        "operationId": "apply_proposed_permission_rule",
+        "parameters": [
+          {
+            "name": "index",
+            "in": "path",
+            "description": "Cursor of the proposal",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rule stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppliedProposal"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No proposal at this cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The proposal cannot be a rule",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "A database refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/rules": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/permissions/rules`: adds a prefix rule for every agent.",
+        "operationId": "add_permission_rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPermissionRuleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The rule stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddedPermissionRule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tool, unknown action, or a scope other than global",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -6964,6 +8408,103 @@
         }
       }
     },
+    "/api/v1/sessions/approval-history": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/approval-history`.",
+        "operationId": "list_approval_history",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of entries (default 20)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Look-back window in days (default 7)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent decisions on chat tool calls",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChatApprovalHistoryEntry"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The ledger cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/plan-mode-default": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/plan-mode-default`.",
+        "operationId": "get_plan_mode_default",
+        "responses": {
+          "200": {
+            "description": "The plan-mode state a new session starts in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanModeDefault"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/recent": {
       "get": {
         "tags": [
@@ -7426,6 +8967,173 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/messages/{message_id}/regenerate": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/messages/{message_id}/regenerate`.",
+        "description": "`message_id` is the assistant message to regenerate: it and every later\nmessage are dropped, then the user turn it answered runs again.",
+        "operationId": "regenerate_response",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Assistant message to regenerate",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Turn running again"
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Message not found or no user turn before it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/messages/{message_id}/resend": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/messages/{message_id}/resend`.",
+        "description": "`message_id` is the user message to edit: it and every later message are\ndropped, then `content` is sent as a fresh user turn.",
+        "operationId": "resend_message",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "User message to replace",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "New user message accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendMessageResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Session closed or busy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Message not found or not a user message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/metrics": {
       "get": {
         "tags": [
@@ -7493,6 +9201,309 @@
           },
           "404": {
             "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/:id/plan`.",
+        "operationId": "get_session_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan, absent before the first one, and the session's plan phase",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatPlanSnapshot"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan-mode": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/:id/plan-mode`.",
+        "operationId": "set_plan_mode",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPlanModeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plan mode set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan/approve": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/:id/plan/approve`.",
+        "operationId": "approve_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan approved, execution resumes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The session is not awaiting approval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan/mutations": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/sessions/:id/plan/mutations`, oldest first.",
+        "operationId": "list_plan_mutations",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan mutations in the order they were recorded, removals included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/plan/reject": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/:id/plan/reject`.",
+        "operationId": "reject_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plan rejected, the agent revises it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The session is not awaiting approval",
             "content": {
               "application/json": {
                 "schema": {
@@ -7604,6 +9615,58 @@
           },
           "503": {
             "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/stats": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "`GET /api/v1/sessions/{id}/stats`: the statistics of one chat\nconversation.",
+        "operationId": "get_conversation_stats",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Chat session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationStatsView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No session has this id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The chat subsystem did not start",
             "content": {
               "application/json": {
                 "schema": {
@@ -8556,7 +10619,7 @@
           "tasks"
         ],
         "summary": "Handler for `POST /api/v1/tasks/{id}/plan-decision`.",
-        "description": "Resolves the plan gate registered for the run, unblocking the engine that\npaused after plan generation. The path id is the run identifier (the task\nid on the orchestrated path).\n\n## HTTP codes\n- `200 OK`, decision recorded and the gate resolved\n- `400 Bad Request`, unknown `decision` value\n- `404 Not Found`, no gate pending for this run (unknown, resolved, expired)\n- `503 Service Unavailable`, the plan gate is not configured",
+        "description": "Resolves the plan gate registered for the run, unblocking the engine that\npaused after plan generation. The path id is the run identifier (the task\nid on the orchestrated path).\n\n## HTTP codes\n- `200 OK`, decision recorded and the gate resolved\n- `400 Bad Request`, unknown `decision` value, or `edited` without steps\n- `404 Not Found`, no gate pending for this run (unknown, resolved, expired)\n- `503 Service Unavailable`, the plan gate is not configured",
         "operationId": "submit_plan_decision",
         "parameters": [
           {
@@ -8591,7 +10654,7 @@
             }
           },
           "400": {
-            "description": "Unknown decision value",
+            "description": "Unknown decision value, or an edit without steps",
             "content": {
               "application/json": {
                 "schema": {
@@ -10558,6 +12621,36 @@
           }
         }
       },
+      "AddPermissionRuleBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/permissions/rules`.",
+        "required": [
+          "tool_name",
+          "action",
+          "scope"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`allow` or `deny`."
+          },
+          "arg_prefix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Argument prefix the rule matches; absent matches every call."
+          },
+          "scope": {
+            "type": "string",
+            "description": "`global`, the only scope this route writes."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Tool the rule targets."
+          }
+        }
+      },
       "AddedAccess": {
         "type": "object",
         "description": "An access the update grants that the installed version did not.",
@@ -10583,6 +12676,20 @@
           "sensitive": {
             "type": "boolean",
             "description": "Using it is sensitive."
+          }
+        }
+      },
+      "AddedPermissionRule": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/permissions/rules`.",
+        "required": [
+          "rule_id"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Id of the rule stored in `governance.db`."
           }
         }
       },
@@ -10853,6 +12960,78 @@
           "error": {
             "type": "string",
             "description": "Human-readable error description."
+          }
+        }
+      },
+      "AppliedProposal": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/permissions/proposals/{index}/apply`.",
+        "required": [
+          "rule_id"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Id of the rule stored in `governance.db`."
+          }
+        }
+      },
+      "AuditEntryDto": {
+        "type": "object",
+        "description": "Entry in the immutable audit log of permission decisions.",
+        "required": [
+          "id",
+          "tool_name",
+          "decision",
+          "decided_at"
+        ],
+        "properties": {
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the agent behind the invocation, if provided."
+          },
+          "decided_at": {
+            "type": "string",
+            "description": "Decision date in ISO 8601 format."
+          },
+          "decision": {
+            "type": "string",
+            "description": "Serialized decision (e.g. `\"AutoAllowedSafeList\"`)."
+          },
+          "first_arg": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "First argument extracted from the invocation, when available."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Auto-incremented identifier."
+          },
+          "rule_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Identifier of the rule that triggered the decision, when applicable."
+          },
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Scope of the rule that decided, when relevant."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Name of the invoked tool."
           }
         }
       },
@@ -11512,6 +13691,66 @@
           }
         }
       },
+      "ChatApprovalHistoryEntry": {
+        "type": "object",
+        "description": "One decision on a tool call inside a chat.",
+        "required": [
+          "session_id",
+          "message_id",
+          "tool_name",
+          "decision",
+          "resolved_at"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "description": "Decision taken (`accept`, `refuse`, `always_accept`)."
+          },
+          "message_id": {
+            "type": "string",
+            "description": "Message the approval was attached to."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The user's refusal reason, only set for `refuse`."
+          },
+          "resolved_at": {
+            "type": "string",
+            "description": "ISO-8601 timestamp of the resolution."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Session identifier."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Tool that required approval."
+          }
+        }
+      },
+      "ChatPlanSnapshot": {
+        "type": "object",
+        "description": "Snapshot of a session's plan plus its current plan-mode phase.\n\nThe phase is the authoritative gate state: a persisted plan keeps its\n`awaiting_approval` status forever, but once approved the session moves to\n`executing` then `done`. The desktop hydrates the plan tab from `plan` and\ndecides whether to show the approval card from `phase`, never from the\nplan's own status.",
+        "required": [
+          "phase"
+        ],
+        "properties": {
+          "phase": {
+            "type": "string",
+            "description": "Session plan-mode phase: `discovery`, `drafting`, `awaiting_approval`,\n`executing`, or `done`."
+          },
+          "plan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Current plan, or `None` when the session has produced none."
+          }
+        }
+      },
       "ChatRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/llm/chat`.",
@@ -11859,6 +14098,43 @@
           "provider": {
             "type": "string",
             "description": "Provider identifier."
+          }
+        }
+      },
+      "ConversationStatsView": {
+        "type": "object",
+        "description": "Statistics of one chat conversation.",
+        "required": [
+          "message_count",
+          "summarized_count",
+          "context_usage_pct",
+          "user_memory_injected",
+          "cross_sessions_referenced"
+        ],
+        "properties": {
+          "context_usage_pct": {
+            "type": "number",
+            "format": "double",
+            "description": "Approximate context window usage percentage."
+          },
+          "cross_sessions_referenced": {
+            "type": "integer",
+            "description": "Number of past sessions referenced via cross-session recall.",
+            "minimum": 0
+          },
+          "message_count": {
+            "type": "integer",
+            "description": "Total number of messages in the session.",
+            "minimum": 0
+          },
+          "summarized_count": {
+            "type": "integer",
+            "description": "Number of messages that have been summarized.",
+            "minimum": 0
+          },
+          "user_memory_injected": {
+            "type": "boolean",
+            "description": "Whether the user profile was injected into the system prompt."
           }
         }
       },
@@ -12471,6 +14747,45 @@
           }
         }
       },
+      "DismissedProposal": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/permissions/proposals/{index}`.",
+        "required": [
+          "dismissed"
+        ],
+        "properties": {
+          "dismissed": {
+            "type": "integer",
+            "description": "The cursor of the proposal removed.",
+            "minimum": 0
+          }
+        }
+      },
+      "DriveFolderStatus": {
+        "type": "object",
+        "description": "The Drive folder of one connected Google account.",
+        "required": [
+          "account_id",
+          "effective_folder_path"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Account identifier, the Google email."
+          },
+          "effective_folder_path": {
+            "type": "string",
+            "description": "The path the executors walk: the user's choice, or the default."
+          },
+          "folder_path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The path the user chose, absent when the default applies. An empty\npath means the root of My Drive."
+          }
+        }
+      },
       "EmbeddingModelsResponse": {
         "type": "object",
         "description": "The embeddings category of the registry, and the entry for this machine.",
@@ -12772,6 +15087,105 @@
           }
         }
       },
+      "FsHitlDecisionBody": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The user approves this operation.",
+            "required": [
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "approve"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The user denies; the operation is cancelled and `reason`, when given,\nreaches the agent.",
+            "required": [
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "deny"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Free-text reason entered by the user."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The user approves and installs an \"always allow\" rule.",
+            "required": [
+              "op",
+              "level",
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "always_allow"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "description": "Risk level (`medium`, `high`...)."
+              },
+              "op": {
+                "type": "string",
+                "description": "Filesystem operation (`write`, `delete`...)."
+              },
+              "scope": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Breadth of the rule; absent means this session only."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Legacy form of `always_allow` with the session scope.",
+            "required": [
+              "op",
+              "level",
+              "decision"
+            ],
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "always_allow_session"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "description": "Risk level."
+              },
+              "op": {
+                "type": "string",
+                "description": "Filesystem operation."
+              }
+            }
+          }
+        ],
+        "description": "The user's answer to a request to touch a file, as the approval card sends\nit. The `decision` discriminant is snake_case; the breadth of an \"always\nallow\" is a separate `scope`, so earlier builds that sent only `op` and\n`level` keep working."
+      },
       "GenerateTitleBody": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions/{id}/title/generate`.",
@@ -12974,6 +15388,19 @@
           }
         }
       },
+      "ImportOauthClientBody": {
+        "type": "object",
+        "description": "Request body of `POST /api/v1/oauth/clients/{provider}/import`.",
+        "required": [
+          "client_json"
+        ],
+        "properties": {
+          "client_json": {
+            "type": "string",
+            "description": "The text of the JSON file the provider's console exported, read by the\nwindow that picked it."
+          }
+        }
+      },
       "InjectMessageBody": {
         "type": "object",
         "description": "Request body for `POST /api/v1/agents/:name/messages`.",
@@ -13004,6 +15431,40 @@
           "message_id": {
             "type": "string",
             "description": "Identifier assigned to the injected message."
+          }
+        }
+      },
+      "InjectedMemoryEntryView": {
+        "type": "object",
+        "description": "One memory entry an agent recalled during a turn.",
+        "required": [
+          "id",
+          "content_preview",
+          "namespace",
+          "injection_reason",
+          "relevance_score"
+        ],
+        "properties": {
+          "content_preview": {
+            "type": "string",
+            "description": "Short preview of the entry content."
+          },
+          "id": {
+            "type": "string",
+            "description": "Source memory entry id."
+          },
+          "injection_reason": {
+            "type": "string",
+            "description": "Why the agent recalled it."
+          },
+          "namespace": {
+            "type": "string",
+            "description": "Namespace of origin."
+          },
+          "relevance_score": {
+            "type": "number",
+            "format": "float",
+            "description": "Relevance score in `[0.0, 1.0]` when available."
           }
         }
       },
@@ -13720,6 +16181,54 @@
           }
         }
       },
+      "MemoryEntryView": {
+        "type": "object",
+        "description": "One memory entry, as the Memory screen lists it.",
+        "required": [
+          "id",
+          "entry_type",
+          "key",
+          "value",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation date."
+          },
+          "entry_type": {
+            "type": "string",
+            "description": "Type: `\"episodic\"` | `\"semantic\"` | `\"procedural\"`."
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 expiration date, `null` without a TTL."
+          },
+          "id": {
+            "type": "string",
+            "description": "Entry UUID."
+          },
+          "key": {
+            "type": "string",
+            "description": "Key for semantic, trigger for procedural, agent id for episodic."
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "BM25 score, `null` outside a search."
+          },
+          "value": {
+            "type": "string",
+            "description": "Value or text content."
+          }
+        }
+      },
       "MemoryImported": {
         "type": "object",
         "description": "Answer of `POST /api/v1/memory/namespaces/{namespace}/import`.",
@@ -13746,6 +16255,48 @@
             "format": "int64",
             "description": "How many entries were removed.",
             "minimum": 0
+          }
+        }
+      },
+      "MemorySearchResultView": {
+        "type": "object",
+        "description": "One full-text search result, as the Memory screen lists it.",
+        "required": [
+          "id",
+          "entry_type",
+          "content",
+          "score",
+          "created_at"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Text content of the result."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation date."
+          },
+          "entry_type": {
+            "type": "string",
+            "description": "Type: `\"episodic\"` | `\"semantic\"`."
+          },
+          "id": {
+            "type": "string",
+            "description": "UUID of the source entry."
+          },
+          "relevance": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Importance (episodic) or confidence (semantic)."
+          },
+          "score": {
+            "type": "number",
+            "format": "double",
+            "description": "BM25 score, higher is more relevant."
           }
         }
       },
@@ -13853,6 +16404,110 @@
               "$ref": "#/components/schemas/ModelInfo"
             },
             "description": "Available model files in `~/.apollia/models/`."
+          }
+        }
+      },
+      "OauthClientIdStatus": {
+        "type": "object",
+        "description": "One provider's OAuth client, as the settings draw it.\n\nReports the **effective** client id of the resolution chain\n(`env var → override file → compiled default`), where it came from, and\nwhether a client secret and an API key resolve. Never carries a secret or\na key, only their presence.",
+        "required": [
+          "provider",
+          "effective_client_id",
+          "source",
+          "has_client_secret",
+          "client_secret_source",
+          "requires_client_secret",
+          "has_api_key",
+          "api_key_source",
+          "requires_api_key"
+        ],
+        "properties": {
+          "api_key_source": {
+            "type": "string",
+            "description": "Source for the resolved API key. Same semantics as `source`."
+          },
+          "client_secret_source": {
+            "type": "string",
+            "description": "Same source semantics as `source` but for the secret."
+          },
+          "effective_client_id": {
+            "type": "string",
+            "description": "Effective client id used at runtime. Empty string when no source is configured."
+          },
+          "has_api_key": {
+            "type": "boolean",
+            "description": "True when an API key resolves through any source. Google Picker needs\none; Microsoft entries leave this false."
+          },
+          "has_client_secret": {
+            "type": "boolean",
+            "description": "True when a client secret resolves through any source."
+          },
+          "override_client_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Override stored in `oauth-clients.toml`, if any."
+          },
+          "provider": {
+            "type": "string",
+            "description": "Provider id (`\"google\"` / `\"microsoft\"`)."
+          },
+          "requires_api_key": {
+            "type": "boolean",
+            "description": "True when this provider needs an API key (Google, for Picker only)."
+          },
+          "requires_client_secret": {
+            "type": "boolean",
+            "description": "True when this provider needs a client secret (Google), false for a\npublic client (Microsoft)."
+          },
+          "source": {
+            "type": "string",
+            "description": "Source that produced the effective value: `\"env\"`, `\"file\"`, `\"builtin\"`, or `\"none\"`."
+          }
+        }
+      },
+      "OauthClientTestResult": {
+        "type": "object",
+        "description": "The verdict of a non-interactive check of a provider's OAuth client.\n\nA full validation (that the authorization server accepts the client) needs\nan interactive consent and a token exchange, which cannot run headless.\nThis is the strongest safe check: credentials present, well-formed, and the\nprovider's authorization server reachable.",
+        "required": [
+          "ok",
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "type": "string",
+            "description": "Human-readable summary: what passed, or the first failing check."
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "True when every check passed."
+          }
+        }
+      },
+      "OauthClientValueBody": {
+        "type": "object",
+        "description": "Request body of the `PUT` routes: the new value, empty to clear the\noverride.",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "The value, trimmed before it is written. Empty clears the override."
+          }
+        }
+      },
+      "OauthClientWritten": {
+        "type": "object",
+        "description": "Answer of a write: the provider whose entry changed.",
+        "required": [
+          "provider"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Provider id (`\"google\"` / `\"microsoft\"`)."
           }
         }
       },
@@ -14215,6 +16870,68 @@
           }
         }
       },
+      "PermissionRuleDto": {
+        "type": "object",
+        "description": "One permission rule, as the permissions page draws it.",
+        "required": [
+          "id",
+          "tool_name",
+          "action",
+          "scope",
+          "created_at"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Applied action (`\"allow\"` or `\"deny\"`)."
+          },
+          "agent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent identifier, for `agent` rules."
+          },
+          "arg_prefix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional argument prefix."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation date."
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Author of the rule (`None` means a human operator)."
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 expiration date, if any."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier of the persisted rule."
+          },
+          "scope": {
+            "type": "string",
+            "description": "Rule scope (`\"agent\"`, `\"global\"`)."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Name of the targeted tool."
+          }
+        }
+      },
       "PingRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/llm/ping`.",
@@ -14262,6 +16979,24 @@
           }
         }
       },
+      "PlanActionResponse": {
+        "type": "object",
+        "description": "Response body of the plan-mode writes.",
+        "required": [
+          "session_id",
+          "status"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Session the action applied to."
+          },
+          "status": {
+            "type": "string",
+            "description": "What was done: `plan_mode_on`, `plan_mode_off`, `approved` or `rejected`."
+          }
+        }
+      },
       "PlanCacheStatsResponse": {
         "type": "object",
         "description": "Response body for `GET /api/v1/plan-cache/stats`.",
@@ -14306,14 +17041,14 @@
       },
       "PlanDecisionRequest": {
         "type": "object",
-        "description": "Request body for `POST /api/v1/tasks/{id}/plan-decision`.\n\nThe operator approves the generated plan or rejects it with optional\nfeedback used to guide replanning.",
+        "description": "Request body for `POST /api/v1/tasks/{id}/plan-decision`.\n\nThe operator approves the generated plan, rejects it with optional\nfeedback used to guide replanning, or submits an edited plan.",
         "required": [
           "decision"
         ],
         "properties": {
           "decision": {
             "type": "string",
-            "description": "`\"approved\"` to execute the plan, `\"rejected\"` to replan."
+            "description": "`\"approved\"` to execute the plan, `\"rejected\"` to replan, `\"edited\"` to\nexecute `revised_steps` instead."
           },
           "feedback": {
             "type": [
@@ -14321,6 +17056,16 @@
               "null"
             ],
             "description": "Optional feedback injected into the next planning attempt on rejection."
+          },
+          "revised_steps": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            },
+            "description": "The edited plan, required with `\"edited\"`, validated by the engine\nbefore it runs."
           }
         }
       },
@@ -14334,11 +17079,24 @@
         "properties": {
           "decision": {
             "type": "string",
-            "description": "Decision applied (`\"approved\"` or `\"rejected\"`)."
+            "description": "Decision applied (`\"approved\"`, `\"rejected\"` or `\"edited\"`)."
           },
           "run_id": {
             "type": "string",
             "description": "Run identifier whose gate was resolved."
+          }
+        }
+      },
+      "PlanModeDefault": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/sessions/plan-mode-default`.",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether a new session starts in plan mode (`[chat] plan_mode_default`)."
           }
         }
       },
@@ -14454,6 +17212,42 @@
           }
         }
       },
+      "ProposedRuleView": {
+        "type": "object",
+        "description": "One proposed permission rule, as the approval card draws it.",
+        "required": [
+          "index",
+          "tool_name",
+          "action",
+          "scope"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`allow` or `deny`."
+          },
+          "arg_prefix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Argument prefix the rule matches, when it has one."
+          },
+          "index": {
+            "type": "integer",
+            "description": "Position in the persisted list, the cursor for apply and dismiss.",
+            "minimum": 0
+          },
+          "scope": {
+            "type": "string",
+            "description": "`global` or `agent`."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Tool the rule targets."
+          }
+        }
+      },
       "PurgeMemoryBody": {
         "type": "object",
         "description": "Request body for `POST /api/v1/memory/namespaces/{namespace}/purge`.",
@@ -14521,6 +17315,19 @@
           "text": {
             "type": "string",
             "description": "The text."
+          }
+        }
+      },
+      "RejectPlanRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/sessions/:id/plan/reject`.",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Guidance the agent reads when it revises the plan."
           }
         }
       },
@@ -14615,6 +17422,19 @@
           "type": {
             "type": "string",
             "description": "Connection type, as the package names it."
+          }
+        }
+      },
+      "ResendMessageRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/sessions/{id}/messages/{message_id}/resend`.",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The new text of the user message."
           }
         }
       },
@@ -14787,6 +17607,19 @@
           }
         }
       },
+      "ResolvedFilesystemApproval": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/approvals/filesystem/{request_id}`.",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "description": "The request answered."
+          }
+        }
+      },
       "ResumeErrorBody": {
         "type": "object",
         "description": "Error body of `POST /api/v1/tasks/{id}/resume`.\n\nThe historical `{error}` shape, plus a machine `code` on the refusals a\ncaller branches on. `code` is absent on the older errors, so a client that\nread `error` alone keeps working.",
@@ -14850,6 +17683,48 @@
           "task_id": {
             "type": "string",
             "description": "Identifier of the resumed task."
+          }
+        }
+      },
+      "RevokeAllBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/governance/rules/revoke-all`.",
+        "properties": {
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Scope to clear, `\"agent\"` or `\"global\"`; `global` when absent."
+          }
+        }
+      },
+      "RevokedRule": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/governance/rules/{id}`.",
+        "required": [
+          "revoked"
+        ],
+        "properties": {
+          "revoked": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The identifier of the rule removed."
+          }
+        }
+      },
+      "RevokedRules": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/governance/rules/revoke-all`.",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many rules were removed.",
+            "minimum": 0
           }
         }
       },
@@ -15220,6 +18095,19 @@
           }
         }
       },
+      "SetDriveFolderBody": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/connectors/drive-folders/{account_id}`.",
+        "required": [
+          "folder_path"
+        ],
+        "properties": {
+          "folder_path": {
+            "type": "string",
+            "description": "Folder path under My Drive, `Documents/Apollia` for instance. Empty\nmeans the root of My Drive."
+          }
+        }
+      },
       "SetEventsRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/notifications/events`.",
@@ -15246,6 +18134,19 @@
           "value": {
             "type": "object",
             "description": "The user's value: a string for `name` and `mission`, a tier name for\n`autonomy`, a list of strings for `examples`, `access` and `sources`."
+          }
+        }
+      },
+      "SetPlanModeRequest": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/sessions/:id/plan-mode`.",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "`true` turns plan mode on (phase `discovery`), `false` turns it off."
           }
         }
       },
@@ -16308,6 +19209,32 @@
           }
         }
       },
+      "ToolConfigBody": {
+        "type": "object",
+        "description": "Request and answer body of `/api/v1/governance/tools/{name}/config`.",
+        "properties": {
+          "config": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Tool-specific JSON configuration, `null` when none is stored."
+          }
+        }
+      },
+      "ToolEnabledBody": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/governance/tools/{name}/enabled`.",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "`true` to enable the tool, `false` to disable it."
+          }
+        }
+      },
       "ToolListResponse": {
         "type": "object",
         "description": "Response body for `GET /api/v1/tools`.",
@@ -16355,6 +19282,46 @@
           "tool_name": {
             "type": "string",
             "description": "Tool name (scoped, e.g. `\"bash\"` or `\"native:read_file\"`)."
+          }
+        }
+      },
+      "ToolStatusDto": {
+        "type": "object",
+        "description": "State of a native tool as displayed by the tools page.",
+        "required": [
+          "name",
+          "enabled",
+          "credential_keys"
+        ],
+        "properties": {
+          "active_backend": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Backend actually used by the tool when applicable\n(e.g. `\"duckduckgo\"` or `\"brave\"` for `web_search`)."
+          },
+          "config": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Tool-specific JSON configuration, or `null`."
+          },
+          "credential_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of the credentials configured for this tool (values are never\nreturned)."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "`true` when the tool is active."
+          },
+          "name": {
+            "type": "string",
+            "description": "Canonical tool name (e.g. `bash_executor`)."
           }
         }
       },
@@ -17236,7 +20203,7 @@
     },
     {
       "name": "governance",
-      "description": "Approvals, hooks, plan cache"
+      "description": "Approvals, hooks, plan cache, native tools and their permission rules"
     },
     {
       "name": "tools",
@@ -17284,7 +20251,7 @@
     },
     {
       "name": "memory",
-      "description": "Upkeep of the agents' memory, per namespace"
+      "description": "The memory of the agents, read and upkept per namespace"
     },
     {
       "name": "connectors",

@@ -88,7 +88,7 @@ def sync_detailed(
 
     ## HTTP codes
     - `200 OK`, decision recorded and the gate resolved
-    - `400 Bad Request`, unknown `decision` value
+    - `400 Bad Request`, unknown `decision` value, or `edited` without steps
     - `404 Not Found`, no gate pending for this run (unknown, resolved, expired)
     - `503 Service Unavailable`, the plan gate is not configured
 
@@ -96,8 +96,8 @@ def sync_detailed(
         id (str):
         body (PlanDecisionRequest): Request body for `POST /api/v1/tasks/{id}/plan-decision`.
 
-            The operator approves the generated plan or rejects it with optional
-            feedback used to guide replanning.
+            The operator approves the generated plan, rejects it with optional
+            feedback used to guide replanning, or submits an edited plan.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -133,7 +133,7 @@ def sync(
 
     ## HTTP codes
     - `200 OK`, decision recorded and the gate resolved
-    - `400 Bad Request`, unknown `decision` value
+    - `400 Bad Request`, unknown `decision` value, or `edited` without steps
     - `404 Not Found`, no gate pending for this run (unknown, resolved, expired)
     - `503 Service Unavailable`, the plan gate is not configured
 
@@ -141,8 +141,8 @@ def sync(
         id (str):
         body (PlanDecisionRequest): Request body for `POST /api/v1/tasks/{id}/plan-decision`.
 
-            The operator approves the generated plan or rejects it with optional
-            feedback used to guide replanning.
+            The operator approves the generated plan, rejects it with optional
+            feedback used to guide replanning, or submits an edited plan.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -173,7 +173,7 @@ async def asyncio_detailed(
 
     ## HTTP codes
     - `200 OK`, decision recorded and the gate resolved
-    - `400 Bad Request`, unknown `decision` value
+    - `400 Bad Request`, unknown `decision` value, or `edited` without steps
     - `404 Not Found`, no gate pending for this run (unknown, resolved, expired)
     - `503 Service Unavailable`, the plan gate is not configured
 
@@ -181,8 +181,8 @@ async def asyncio_detailed(
         id (str):
         body (PlanDecisionRequest): Request body for `POST /api/v1/tasks/{id}/plan-decision`.
 
-            The operator approves the generated plan or rejects it with optional
-            feedback used to guide replanning.
+            The operator approves the generated plan, rejects it with optional
+            feedback used to guide replanning, or submits an edited plan.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -216,7 +216,7 @@ async def asyncio(
 
     ## HTTP codes
     - `200 OK`, decision recorded and the gate resolved
-    - `400 Bad Request`, unknown `decision` value
+    - `400 Bad Request`, unknown `decision` value, or `edited` without steps
     - `404 Not Found`, no gate pending for this run (unknown, resolved, expired)
     - `503 Service Unavailable`, the plan gate is not configured
 
@@ -224,8 +224,8 @@ async def asyncio(
         id (str):
         body (PlanDecisionRequest): Request body for `POST /api/v1/tasks/{id}/plan-decision`.
 
-            The operator approves the generated plan or rejects it with optional
-            feedback used to guide replanning.
+            The operator approves the generated plan, rejects it with optional
+            feedback used to guide replanning, or submits an edited plan.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
