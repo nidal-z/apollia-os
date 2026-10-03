@@ -50,6 +50,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_chats_by_project",
     "rename_chat_session",
     "update_chat_session",
+    // The chat: a turn played again, a decision on a tool call, the history
+    // of those decisions, and the skills of the worker agents.
+    "authorize_chat_tool",
+    "edit_and_resend_chat_message",
+    "list_a2a_skills",
+    "list_chat_approval_history",
+    "regenerate_chat_response",
     // Agents: the registry and the install.
     "agent_status_snapshot",
     "install_agent",
@@ -131,10 +138,26 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_profile",
     "reset_user_profile",
     "set_profile_entry",
+    // Memory, read side: the namespaces, their entries, the search, the
+    // entries recalled during a turn, the statistics of a conversation.
+    "get_conversation_stats",
+    "get_injected_memory_entries",
+    "list_memory_entries",
+    "list_memory_namespaces",
+    "search_memory",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Plan mode: the default, the switch, the plan and its history, the soft
+    // gate of a chat session and the gate of an orchestrated run.
+    "approve_plan",
+    "get_chat_plan",
+    "get_plan_mode_default",
+    "list_plan_mutations",
+    "reject_plan",
+    "set_plan_mode",
+    "submit_plan_decision",
     // Memory upkeep, over `/api/v1/memory/namespaces/{namespace}/...`. The
     // export and import files stay on the machine of the window; the daemon,
     // which owns the memory, sends and receives their content.
@@ -153,6 +176,48 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "resume_onboarding",
     "set_onboarding_profile",
     "trigger_onboarding",
+    // Permissions: the rules the onboarding agent proposed, a rule written
+    // from an approval card, and the answer to a request to touch a file.
+    "add_permission_prefix_rule",
+    "apply_proposed_permission_rule",
+    "dismiss_proposed_permission_rule",
+    "list_proposed_permission_rules",
+    "respond_hitl_filesystem",
+    // Tool governance: the tools, their configuration, the permission rules
+    // and the audit, over `/api/v1/governance`.
+    "governance_get_tool_config",
+    "governance_list_audit",
+    "governance_list_permission_rules",
+    "governance_list_tools",
+    "governance_revoke_all_rules",
+    "governance_revoke_permission_rule",
+    "governance_set_tool_config",
+    "governance_set_tool_enabled",
+    // Accounts of the native connectors and their Drive folder, under
+    // `/api/v1/connectors/`. The window keeps the loopback listener and the
+    // browser of the consent; the daemon starts it, completes it and stores
+    // the token.
+    "oauth_complete_flow",
+    "oauth_disconnect",
+    "oauth_get_status",
+    "oauth_list_drive_folders",
+    "oauth_reset_drive_folder",
+    "oauth_set_drive_folder",
+    "oauth_start_flow",
+    // The OAuth clients of the connectors, over `/api/v1/oauth/clients`. The
+    // import reads the file the operator picked in this window and sends its
+    // text, so the daemon never needs a path of this machine.
+    "oauth_import_client_json",
+    "oauth_list_client_ids",
+    "oauth_set_api_key",
+    "oauth_set_client_id",
+    "oauth_set_client_secret",
+    "oauth_test_client",
+    // MCP: the secret of a server, and the public registry joined with the
+    // servers installed.
+    "delete_mcp_secret",
+    "fetch_mcp_registry",
+    "store_mcp_secret",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no
@@ -223,6 +288,22 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "automation_finish",
         "ends the run driving this window in a development build",
+    ),
+    (
+        "list_mcp_enrichments",
+        "reads the connector labels compiled into this application",
+    ),
+    (
+        "mcp_oauth_discover",
+        "reads the sign-in metadata an MCP server publishes, for the wizard this window shows",
+    ),
+    (
+        "mcp_oauth_resolve_client_id",
+        "resolves the client id of the sign-in this window runs, from its own environment and build",
+    ),
+    (
+        "mcp_oauth_login",
+        "opens the browser of this machine and awaits the sign-in on its loopback; the token goes to the secret store the daemon reads",
     ),
 ];
 
