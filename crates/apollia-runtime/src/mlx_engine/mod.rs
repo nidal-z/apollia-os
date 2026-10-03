@@ -201,7 +201,7 @@ impl MlxEngineSupervisor {
 
     /// The window a model is served with: the request's, else the default,
     /// capped at what the folder declares it was trained for.
-    fn window(model_path: &str, requested: Option<u32>) -> u32 {
+    pub(crate) fn window(model_path: &str, requested: Option<u32>) -> u32 {
         let wanted = requested.filter(|n| *n > 0).unwrap_or(DEFAULT_N_CTX);
         match trained_context(Path::new(model_path)) {
             Some(trained) => u32::try_from(trained).map_or(wanted, |t| wanted.min(t.max(1))),

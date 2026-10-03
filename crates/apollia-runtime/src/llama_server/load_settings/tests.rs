@@ -327,3 +327,32 @@ fn test_the_default_preset_of_the_model_is_the_one_read() {
     assert_eq!(qwen.n_threads, Some(6));
     assert_eq!(absent, LoadSettings::default());
 }
+
+#[test]
+fn test_every_load_key_is_read_and_every_field_has_its_key() {
+    // GIVEN a load object naming every key of LOAD_KEYS with a valid value
+    let value = |key: &str| match key {
+        "kv_unified" | "kv_offload" | "mlock" | "mmap" => json!(true),
+        "reasoning_budget_message"
+        | "draft_model"
+        | "chat_template"
+        | "cache_type_k"
+        | "cache_type_v" => json!("q8_0"),
+        "rope_freq_base" | "rope_freq_scale" => json!(1.5),
+        "spec_type" => json!("draft-mtp"),
+        "flash_attn" => json!("on"),
+        _ => json!(7),
+    };
+    let map: Map<String, Value> = LOAD_KEYS
+        .iter()
+        .map(|k| ((*k).to_owned(), value(k)))
+        .collect();
+
+    // WHEN it is read
+    let read = format!("{:?}", LoadSettings::from_map(&map));
+
+    // THEN no field is left unset: a key the reader ignores, or a field no key
+    // reaches, would leave a `None`
+    assert_eq!(map.len(), LOAD_KEYS.len());
+    assert!(!read.contains("None"), "{read}");
+}

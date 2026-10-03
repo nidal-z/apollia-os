@@ -5473,6 +5473,240 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `POST /api/v1/llm/loaded-models`.",
+        "description": "Loads the model under the settings given, for this instance alone, over\nits default preset; the instance then serves every request for the model.\nA load the guardrail refuses is 409 with the estimate and the budget.",
+        "operationId": "load_model",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model loaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadModelResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a model of the model index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The load guardrail refused the model; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a language model, an unknown setting, or a setting for an MLX model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine runs this model, or the engine did not start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/loaded-models/estimate": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `POST /api/v1/llm/loaded-models/estimate`.",
+        "operationId": "estimate_model_load",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "What the load would take",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadEstimateResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not a model of the model index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a language model, an unknown setting, or a setting for an MLX model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine runs this model, or no backend repository",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/loaded-models/last": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `GET /api/v1/llm/loaded-models/last`.",
+        "operationId": "get_last_loaded_model",
+        "responses": {
+          "200": {
+            "description": "The last model loaded by hand",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LastLoadedModelResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No model was loaded by hand yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Backend repository not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/loaded-models/last/reload": {
+      "post": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `POST /api/v1/llm/loaded-models/last/reload`.",
+        "description": "Loads the last model loaded by hand again, under the settings it was\nloaded with.",
+        "operationId": "reload_last_loaded_model",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReloadLastRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model loaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoadModelResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No model was loaded by hand yet, or it left the model index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The load guardrail refused the model; confirm the load to go ahead",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuardrailRefusedBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No local engine runs this model, or the engine did not start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/llm/loaded-models/unload": {
@@ -18041,6 +18275,15 @@
           }
         }
       },
+      "FitDto": {
+        "type": "string",
+        "description": "How a model fits the machine.",
+        "enum": [
+          "fits",
+          "might_fit",
+          "too_large"
+        ]
+      },
       "ForkSessionRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/sessions/:id/fork`.",
@@ -18243,6 +18486,32 @@
           }
         }
       },
+      "GuardrailCheckDto": {
+        "type": "object",
+        "description": "The load guardrail's view of a load.",
+        "required": [
+          "level",
+          "verdict"
+        ],
+        "properties": {
+          "budgetGb": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The limit it holds the load to, in gigabytes; absent without an\nestimate."
+          },
+          "level": {
+            "$ref": "#/components/schemas/GuardrailLevel",
+            "description": "The level in force, read from `apollia.toml` now."
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/GuardrailVerdictDto",
+            "description": "What it makes of the estimate. `allowed` when there is no estimate."
+          }
+        }
+      },
       "GuardrailLevel": {
         "type": "string",
         "description": "How strictly a launch is held to the machine's memory.",
@@ -18293,6 +18562,15 @@
             "description": "The model whose launch was refused."
           }
         }
+      },
+      "GuardrailVerdictDto": {
+        "type": "string",
+        "description": "What the load guardrail makes of a load.",
+        "enum": [
+          "allowed",
+          "warned",
+          "refused"
+        ]
       },
       "HardwareResponse": {
         "type": "object",
@@ -19143,6 +19421,29 @@
           "per_run_broken"
         ]
       },
+      "LastLoadedModelResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/v1/llm/loaded-models/last`.",
+        "required": [
+          "modelId",
+          "load",
+          "loadedAt"
+        ],
+        "properties": {
+          "load": {
+            "type": "object",
+            "description": "The settings it was loaded with, in the keys a preset's load settings\nuse."
+          },
+          "loadedAt": {
+            "type": "string",
+            "description": "When it was loaded, RFC 3339."
+          },
+          "modelId": {
+            "type": "string",
+            "description": "The model, by the identifier the model index gives it."
+          }
+        }
+      },
       "LinkProjectBody": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/sessions/{id}/project`.",
@@ -19244,6 +19545,142 @@
             ],
             "format": "double",
             "description": "Accumulated session cost in USD. `None` when no router is configured."
+          }
+        }
+      },
+      "LoadEstimateResponse": {
+        "type": "object",
+        "description": "Response of `POST /api/v1/llm/loaded-models/estimate`.",
+        "required": [
+          "modelId",
+          "engine",
+          "modelPath",
+          "configurable",
+          "nCtx",
+          "guardrail"
+        ],
+        "properties": {
+          "configurable": {
+            "type": "boolean",
+            "description": "Whether the load takes settings. `false` for an MLX model."
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "The engine that would serve it."
+          },
+          "guardrail": {
+            "$ref": "#/components/schemas/GuardrailCheckDto",
+            "description": "What the load guardrail makes of it."
+          },
+          "memory": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemoryEstimateDto",
+                "description": "The memory it would take; absent when the model cannot be sized."
+              }
+            ]
+          },
+          "modelId": {
+            "type": "string",
+            "description": "The model, as asked."
+          },
+          "modelPath": {
+            "type": "string",
+            "description": "The file or folder that would be loaded."
+          },
+          "nCtx": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Context window the process would be launched with.",
+            "minimum": 0
+          },
+          "nGpuLayers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Layers it would place on the accelerator; absent for an MLX model."
+          },
+          "totalLayers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Layers the model has; absent when unknown.",
+            "minimum": 0
+          }
+        }
+      },
+      "LoadModelRequest": {
+        "type": "object",
+        "description": "Body of the estimate and of the load.",
+        "required": [
+          "modelId"
+        ],
+        "properties": {
+          "advanced": {
+            "type": "object",
+            "description": "Advanced load settings, in the keys a preset's load settings use\n(`n_threads`, `flash_attn`, `cache_type_k`...). Never a system prompt."
+          },
+          "confirmed": {
+            "type": "boolean",
+            "description": "Load even when the load guardrail would refuse (load only)."
+          },
+          "modelId": {
+            "type": "string",
+            "description": "The model, by the identifier the model index gives it."
+          },
+          "nCtx": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Context window in tokens; absent leaves the preset's, else the default.",
+            "minimum": 0
+          },
+          "nGpuLayers": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Layers placed on the accelerator; absent leaves the preset's, else the\nplanned count."
+          },
+          "remember": {
+            "type": "boolean",
+            "description": "Write these settings into the model's default preset (load only)."
+          }
+        }
+      },
+      "LoadModelResponse": {
+        "type": "object",
+        "description": "Response of a load by hand.",
+        "required": [
+          "modelId",
+          "loaded"
+        ],
+        "properties": {
+          "loaded": {
+            "$ref": "#/components/schemas/LoadedModelDto",
+            "description": "The instance now serving it."
+          },
+          "modelId": {
+            "type": "string",
+            "description": "The model, as asked."
+          },
+          "rememberedPresetId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The default preset the settings were written into, when `remember`\nwas asked."
           }
         }
       },
@@ -19644,6 +20081,42 @@
           "value": {
             "type": "string",
             "description": "Value or text content."
+          }
+        }
+      },
+      "MemoryEstimateDto": {
+        "type": "object",
+        "description": "The memory a load would take.",
+        "required": [
+          "gpuGb",
+          "totalGb",
+          "capacityGb",
+          "fit",
+          "kvCacheMeasured"
+        ],
+        "properties": {
+          "capacityGb": {
+            "type": "number",
+            "format": "double",
+            "description": "What the machine can hold, in gigabytes."
+          },
+          "fit": {
+            "$ref": "#/components/schemas/FitDto",
+            "description": "How the model fits the machine."
+          },
+          "gpuGb": {
+            "type": "number",
+            "format": "double",
+            "description": "On the accelerator, in gigabytes."
+          },
+          "kvCacheMeasured": {
+            "type": "boolean",
+            "description": "Whether the cache was sized from the model's header rather than by a\nproportional fallback."
+          },
+          "totalGb": {
+            "type": "number",
+            "format": "double",
+            "description": "Weights, cache and engine overhead, in gigabytes."
           }
         }
       },
@@ -21117,6 +21590,16 @@
           "reason": {
             "type": "string",
             "description": "Why the user declined to answer."
+          }
+        }
+      },
+      "ReloadLastRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/llm/loaded-models/last/reload`.",
+        "properties": {
+          "confirmed": {
+            "type": "boolean",
+            "description": "Load even when the load guardrail would refuse."
           }
         }
       },

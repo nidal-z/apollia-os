@@ -14,6 +14,7 @@
 //! - `POST   /api/v1/llm/backends/:name/set-default`, mark as default
 //! - `GET    /api/v1/llm/loaded-models`           , list resident local models
 //! - `POST   /api/v1/llm/loaded-models/unload`    , unload one resident model
+//! - loading a model by hand, its estimate and the last model loaded: see [`load`]
 //! - presets, the model of each agent and the default model: see [`presets`]
 
 use std::time::Instant;
@@ -33,6 +34,7 @@ use crate::local_engine::guardrails::{GuardrailRefusedBody, GUARDRAIL_REFUSED_CO
 
 pub mod backends;
 pub mod costs;
+pub mod load;
 pub mod loaded;
 pub mod presets;
 pub mod servers;
@@ -542,6 +544,10 @@ pub async fn llm_complete<B: ExecutionBackend + Clone>(
 /// - `POST   /api/v1/llm/backends/:name/set-default`   , mark as default
 /// - `GET    /api/v1/llm/loaded-models`                , list resident local models
 /// - `POST   /api/v1/llm/loaded-models/unload`         , unload one resident model
+/// - `POST   /api/v1/llm/loaded-models`                , load a model by hand
+/// - `POST   /api/v1/llm/loaded-models/estimate`       , what a load would take
+/// - `GET    /api/v1/llm/loaded-models/last`           , the last model loaded by hand
+/// - `POST   /api/v1/llm/loaded-models/last/reload`    , load it again
 /// - `GET    /api/v1/sessions/:id/turns/:turn_id/llm-calls`, the model calls of one turn
 pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
@@ -575,6 +581,7 @@ pub fn llm_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
             get(turn_calls::get_turn_llm_calls::<B>),
         )
         .merge(loaded::loaded_model_routes::<B>())
+        .merge(load::load_routes::<B>())
         .merge(servers::server_routes::<B>())
         .merge(presets::preset_routes::<B>())
 }

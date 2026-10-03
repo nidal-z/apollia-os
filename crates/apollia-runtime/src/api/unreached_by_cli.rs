@@ -235,7 +235,7 @@ fn unreached_ops() -> Vec<UnreachedOp> {
             id: "list_loaded_models",
             method: Method::GET,
             path: "/api/v1/llm/loaded-models",
-            absent_method: Method::POST,
+            absent_method: Method::DELETE,
             live_probed: true,
         },
         UnreachedOp {
