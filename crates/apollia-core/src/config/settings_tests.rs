@@ -209,6 +209,66 @@ fn test_the_source_serializes_as_the_interface_reads_it() {
     assert_eq!(names, ["\"default\"", "\"user\"", "\"policy\""]);
 }
 
+// ── The compatible server's keys ─────────────────────────────────────────
+
+#[test]
+fn test_the_server_keys_resolve_to_their_defaults() {
+    // GIVEN no apollia.toml at all
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("apollia.toml");
+
+    // WHEN both server keys are resolved
+    let enabled = resolve_setting(&path, "server.enabled", &PolicySettings::none()).unwrap();
+    let port = resolve_setting(&path, "server.port", &PolicySettings::none()).unwrap();
+
+    // THEN the server is off, on port 7772, both from the defaults
+    assert_eq!(enabled.value, json!(false));
+    assert_eq!(port.value, json!(7772));
+    assert_eq!(port.source, SettingSource::Default);
+}
+
+#[test]
+fn test_writing_server_enabled_keeps_the_rest_of_the_file() {
+    // GIVEN a file carrying a comment and the desktop section
+    let (_dir, path) = config_with("# mine\n[desktop]\ndeveloper_mode = true\n");
+
+    // WHEN the server is switched on
+    write_setting(
+        &path,
+        "server.enabled",
+        json!(true),
+        &PolicySettings::none(),
+    )
+    .unwrap();
+
+    // THEN the key is written under [server] and the rest is untouched
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        written.starts_with("# mine\n[desktop]\ndeveloper_mode = true\n"),
+        "{written}"
+    );
+    assert!(ServerConfig::from_toml_str(&written).unwrap().enabled);
+}
+
+#[test]
+fn test_a_server_port_out_of_range_is_refused_and_the_file_unchanged() {
+    // GIVEN a file with a valid server port
+    let (_dir, path) = config_with("[server]\nport = 8000\n");
+
+    // WHEN a port no TCP listener can take is written
+    let result = write_setting(&path, "server.port", json!(70000), &PolicySettings::none());
+
+    // THEN it is refused and the file keeps its port
+    assert!(
+        matches!(result, Err(SettingError::InvalidValue { .. })),
+        "{result:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        "[server]\nport = 8000\n"
+    );
+}
+
 // ── What a policy may impose ─────────────────────────────────────────────
 
 #[test]
@@ -240,4 +300,41 @@ fn test_a_policy_may_not_impose_an_unknown_key_nor_a_wrong_type() {
     assert!(matches!(unknown, Err(SettingError::UnknownKey { key }) if key == "desktop.inconnu"));
     assert!(matches!(section, Err(SettingError::UnknownKey { key }) if key == "desktop"));
     assert!(matches!(mistyped, Err(SettingError::InvalidValue { key, .. }) if key == KEY));
+}
+
+// ── The MCP bridge switch ────────────────────────────────────────────────
+
+#[test]
+fn test_the_mcp_bridge_switch_is_a_named_setting_off_by_default() {
+    // GIVEN a file without an [mcp] section
+    let (_dir, path) = config_with("[desktop]\ndeveloper_mode = true\n");
+
+    // WHEN the bridge switch is resolved
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN it is known, off, and comes from the default
+    assert_eq!(resolved.value, json!(false));
+    assert_eq!(resolved.source, SettingSource::Default);
+}
+
+#[test]
+fn test_the_mcp_bridge_switch_written_on_resolves_on_from_the_user() {
+    // GIVEN an empty file
+    let (_dir, path) = config_with("");
+
+    // WHEN the bridge switch is written on, then resolved
+    write_setting(
+        &path,
+        "mcp.server_enabled",
+        json!(true),
+        &PolicySettings::none(),
+    )
+    .unwrap();
+    let resolved = resolve_setting(&path, "mcp.server_enabled", &PolicySettings::none()).unwrap();
+
+    // THEN the file carries it under [mcp], and it resolves on from the user
+    let written = std::fs::read_to_string(&path).unwrap();
+    assert!(written.contains("[mcp]"), "{written}");
+    assert_eq!(resolved.value, json!(true));
+    assert_eq!(resolved.source, SettingSource::User);
 }

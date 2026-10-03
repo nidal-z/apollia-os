@@ -188,6 +188,7 @@ async fn build_webhook_state(
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     (state, submit_count)
 }

@@ -193,18 +193,18 @@ async fn test_user_memory_store_recall_injection() {
     let repo = create_user_memory(
         dir.path(),
         &[
-            ("preferences.language", "francais", WrittenBy::User),
+            ("preferences", "francais", WrittenBy::User),
             ("role", "senior developer", WrittenBy::Onboarding),
-            ("domain.sector", "apollia-os", WrittenBy::Onboarding),
+            ("tools", "apollia-os", WrittenBy::Onboarding),
         ],
     );
 
     // Verify recall works per key
     let language = repo
-        .get("preferences.language")
-        .expect("get preferences.language")
-        .expect("preferences.language present");
-    assert_eq!(language.key, "preferences.language");
+        .get("preferences")
+        .expect("get preferences")
+        .expect("preferences present");
+    assert_eq!(language.key, "preferences");
     assert_eq!(language.value, "francais");
 
     let role = repo.get("role").expect("get role").expect("role present");
@@ -212,10 +212,10 @@ async fn test_user_memory_store_recall_injection() {
     assert_eq!(role.value, "senior developer");
 
     let sector = repo
-        .get("domain.sector")
-        .expect("get domain.sector")
-        .expect("domain.sector present");
-    assert_eq!(sector.key, "domain.sector");
+        .get("tools")
+        .expect("get tools")
+        .expect("tools present");
+    assert_eq!(sector.key, "tools");
     assert_eq!(sector.value, "apollia-os");
 
     // Verify the injection text is formatted correctly
@@ -225,9 +225,9 @@ async fn test_user_memory_store_recall_injection() {
     assert!(injection_text.contains("Section: identity"));
     assert!(injection_text.contains("- role: senior developer"));
     assert!(injection_text.contains("Section: work"));
-    assert!(injection_text.contains("- domain.sector: apollia-os"));
+    assert!(injection_text.contains("- tools: apollia-os"));
     assert!(injection_text.contains("Section: preferences"));
-    assert!(injection_text.contains("- preferences.language: francais"));
+    assert!(injection_text.contains("- preferences: francais"));
 
     // Verify injection into BuiltInChatAgent system prompt
     let repo_arc = Arc::new(Mutex::new(repo));
@@ -455,11 +455,11 @@ async fn test_agent_mode_user_context() {
     let repo = create_user_memory(
         dir.path(),
         &[
-            ("preferences.language", "francais", WrittenBy::User),
+            ("preferences", "francais", WrittenBy::User),
             ("preferences.llm", "markdown", WrittenBy::User),
             ("role", "senior developer", WrittenBy::Onboarding),
             ("goals", "daily", WrittenBy::Agent("observer".to_owned())),
-            ("domain.sector", "platform", WrittenBy::Onboarding),
+            ("tools", "platform", WrittenBy::Onboarding),
             (
                 "domain.team_size",
                 "9h-18h",
@@ -487,12 +487,12 @@ async fn test_agent_mode_user_context() {
     );
 
     // Entries within each section
-    assert!(context_block.contains("- preferences.language: francais"));
+    assert!(context_block.contains("- preferences: francais"));
     assert!(context_block.contains("- preferences.llm: markdown"));
     assert!(context_block.contains("- goals: daily"));
     assert!(context_block.contains("- domain.team_size: 9h-18h"));
     assert!(context_block.contains("- role: senior developer"));
-    assert!(context_block.contains("- domain.sector: platform"));
+    assert!(context_block.contains("- tools: platform"));
 
     // Verify sections appear in schema order: identity < work < preferences
     let identity_pos = context_block

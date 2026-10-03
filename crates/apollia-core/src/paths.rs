@@ -219,6 +219,29 @@ pub fn data_dir_under(home: impl Into<PathBuf>) -> PathBuf {
     home.into().join(DATA_DIR_NAME)
 }
 
+/// Name of the configuration file inside the data directory.
+pub const CONFIG_FILE_NAME: &str = "apollia.toml";
+
+/// The configuration file every surface reads and writes:
+/// `<home>/.apollia/apollia.toml`.
+///
+/// The CLI, the daemon and the desktop used to resolve the file in five
+/// different ways (the working directory, `$XDG_CONFIG_HOME/apollia/`,
+/// `~/.config/apollia/`, the data directory), so a key written by one tool
+/// could be read by no engine. The working directory was also ambiguous: an
+/// agent package keeps its manifest under the same name. Only an explicit path
+/// given on the command line replaces this location.
+///
+/// Returns `None` when the home directory cannot be resolved.
+pub fn config_file() -> Option<PathBuf> {
+    home_dir().map(config_file_under)
+}
+
+/// The configuration file under an explicit home.
+pub fn config_file_under(home: impl Into<PathBuf>) -> PathBuf {
+    data_dir_under(home).join(CONFIG_FILE_NAME)
+}
+
 /// Name of the API's Unix socket inside the data directory.
 pub const SOCKET_FILE_NAME: &str = "runtime.sock";
 
@@ -416,6 +439,46 @@ mod tests {
             data_dir_under(home),
             PathBuf::from("/somewhere/home").join(DATA_DIR_NAME)
         );
+    }
+
+    // GIVEN an explicit home
+    // WHEN the configuration file is resolved under it
+    // THEN it is `apollia.toml` inside the data directory of that home
+    #[test]
+    fn test_config_file_under_is_in_the_data_dir() {
+        let home = tempfile::tempdir().expect("a temporary home");
+        assert_eq!(
+            config_file_under(home.path()),
+            home.path().join(".apollia").join("apollia.toml")
+        );
+    }
+
+    // GIVEN a process whose HOME is a temporary directory (a child of this
+    //       test binary, so no other test sees the swapped variable)
+    // WHEN the configuration file is resolved without an explicit home
+    // THEN it is `<temporary home>/.apollia/apollia.toml`
+    #[test]
+    fn test_config_file_follows_a_temporary_home() {
+        const EXPECT: &str = "APOLLIA_TEST_EXPECTED_CONFIG_FILE";
+        if let Some(expected) = std::env::var_os(EXPECT) {
+            assert_eq!(config_file(), Some(PathBuf::from(expected)));
+            return;
+        }
+        let home = tempfile::tempdir().expect("a temporary home");
+        let expected = home.path().join(".apollia").join("apollia.toml");
+        let out = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "paths::tests::test_config_file_follows_a_temporary_home",
+            ])
+            .env("HOME", home.path())
+            .env("USERPROFILE", home.path())
+            .env(EXPECT, &expected)
+            .output()
+            .expect("the test binary runs");
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(out.status.success(), "child failed: {stdout}");
+        assert!(stdout.contains("1 passed"), "child ran no test: {stdout}");
     }
 
     // GIVEN an ordinary account name

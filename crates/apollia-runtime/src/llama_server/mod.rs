@@ -244,12 +244,12 @@ pub struct LlamaServerSupervisor {
     system_db: Option<PathBuf>,
     /// Where a relaunch under new load settings is announced.
     events: Option<EventBusSender>,
-    /// `apollia.toml`, whose `[llm.guardrails]` is read at every launch.
-    /// `None` holds every launch to the default level.
-    config_file: Option<PathBuf>,
     /// The instance serving embeddings, outside the residency ceiling. See
     /// [`embeddings`].
     embedding: Mutex<Option<embeddings::EmbeddingInstance>>,
+    /// `apollia.toml`, whose `[llm.guardrails]` is read at every launch.
+    /// `None` holds every launch to the default level.
+    config_file: Option<PathBuf>,
 }
 
 impl LlamaServerSupervisor {
@@ -288,8 +288,8 @@ impl LlamaServerSupervisor {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db,
             events,
-            config_file,
             embedding: Mutex::new(None),
+            config_file,
         }))
     }
 
@@ -476,8 +476,8 @@ impl LlamaServerSupervisor {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db: None,
             events: None,
-            config_file: None,
             embedding: Mutex::new(None),
+            config_file: None,
         }
     }
 
@@ -505,8 +505,8 @@ impl LlamaServerSupervisor {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db: None,
             events: None,
-            config_file: None,
             embedding: Mutex::new(None),
+            config_file: None,
         })
     }
 
@@ -771,8 +771,8 @@ mod test_support {
             shutting_down: Arc::new(Mutex::new(false)),
             system_db: None,
             events: None,
-            config_file: None,
             embedding: Mutex::new(None),
+            config_file: None,
         }
     }
 

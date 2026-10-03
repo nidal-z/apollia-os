@@ -11,6 +11,10 @@ use std::sync::{Arc, Mutex};
 use apollia_memory::user_memory::{ProfileEntry, UserMemoryError, UserMemoryRepository, WrittenBy};
 use serde::{Deserialize, Serialize};
 
+mod resolve;
+
+pub use resolve::profile_for_agent;
+
 /// The profile repository as the runtime already shares it, borrowed for one
 /// operation. The lock is the one `user_memory.db` was opened behind at
 /// startup; this type adds no shared state of its own.

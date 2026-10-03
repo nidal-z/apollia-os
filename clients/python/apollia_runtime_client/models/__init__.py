@@ -82,6 +82,7 @@ from .coaching_example import CoachingExample
 from .coaching_request import CoachingRequest
 from .companion_enabled import CompanionEnabled
 from .companion_session import CompanionSession
+from .compat_server_status import CompatServerStatus
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
@@ -223,6 +224,17 @@ from .loaded_models_response import LoadedModelsResponse
 from .logs_response import LogsResponse
 from .logs_response_entries_item import LogsResponseEntriesItem
 from .mailbox_message_row import MailboxMessageRow
+from .mcp_bridge_call import McpBridgeCall
+from .mcp_bridge_call_arguments import McpBridgeCallArguments
+from .mcp_bridge_call_result import McpBridgeCallResult
+from .mcp_bridge_error_body import McpBridgeErrorBody
+from .mcp_bridge_tool import McpBridgeTool
+from .mcp_bridge_tool_input_schema import McpBridgeToolInputSchema
+from .mcp_bridge_tool_list import McpBridgeToolList
+from .mcp_exposed_item import McpExposedItem
+from .mcp_exposed_item_list import McpExposedItemList
+from .mcp_exposed_item_state import McpExposedItemState
+from .mcp_exposure import McpExposure
 from .memory_entry_deleted import MemoryEntryDeleted
 from .memory_entry_view import MemoryEntryView
 from .memory_estimate_dto import MemoryEstimateDto
@@ -300,6 +312,7 @@ from .proposed_rule_view import ProposedRuleView
 from .purge_memory_body import PurgeMemoryBody
 from .put_mcp_secret_body import PutMcpSecretBody
 from .readme_response import ReadmeResponse
+from .reasoning_profile_dto import ReasoningProfileDto
 from .reject_plan_request import RejectPlanRequest
 from .reject_user_input_request import RejectUserInputRequest
 from .reload_last_request import ReloadLastRequest
@@ -336,6 +349,7 @@ from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .servers_list_response import ServersListResponse
 from .session_metrics import SessionMetrics
+from .session_model_capabilities import SessionModelCapabilities
 from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
@@ -544,6 +558,7 @@ __all__ = (
     "CoachingRequest",
     "CompanionEnabled",
     "CompanionSession",
+    "CompatServerStatus",
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
@@ -685,6 +700,17 @@ __all__ = (
     "LogsResponse",
     "LogsResponseEntriesItem",
     "MailboxMessageRow",
+    "McpBridgeCall",
+    "McpBridgeCallArguments",
+    "McpBridgeCallResult",
+    "McpBridgeErrorBody",
+    "McpBridgeTool",
+    "McpBridgeToolInputSchema",
+    "McpBridgeToolList",
+    "McpExposedItem",
+    "McpExposedItemList",
+    "McpExposedItemState",
+    "McpExposure",
     "MemoryEntryDeleted",
     "MemoryEntryView",
     "MemoryEstimateDto",
@@ -760,6 +786,7 @@ __all__ = (
     "PurgeMemoryBody",
     "PutMcpSecretBody",
     "ReadmeResponse",
+    "ReasoningProfileDto",
     "RejectPlanRequest",
     "RejectUserInputRequest",
     "ReloadLastRequest",
@@ -794,6 +821,7 @@ __all__ = (
     "ServerResponse",
     "ServersListResponse",
     "SessionMetrics",
+    "SessionModelCapabilities",
     "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",

@@ -19,118 +19,14 @@
 //! reference took a stability guarantee nobody had given. The path prefix, not
 //! this field, is what carries the contract's compatibility promise.
 
+mod bodies;
+mod security;
+
 use axum::Json;
-use serde::Serialize;
-use utoipa::openapi::schema::{KnownFormat, ObjectBuilder, Schema, SchemaFormat, Type};
-use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
-use utoipa::openapi::RefOr;
-use utoipa::{Modify, OpenApi, ToSchema};
+use utoipa::OpenApi;
 
-/// Name of the single security scheme the contract declares.
-///
-/// Generated clients derive an identifier from this string, so it is part of
-/// the published surface and is not renamed without regenerating them.
-const BEARER_SCHEME: &str = "bearerAuth";
-
-/// Declares the Bearer token the TCP listener enforces.
-///
-/// `utoipa` builds the document from the handler annotations, which say nothing
-/// about authentication; this modifier is where the transport-level rule of
-/// `crates/apollia-runtime/src/api/middleware.rs` enters the spec. Without it
-/// the document describes an API that needs no credential, which is what every
-/// generated client and the published reference then say.
-struct BearerToken;
-
-impl Modify for BearerToken {
-    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
-        let components = openapi.components.get_or_insert_with(Default::default);
-        components.add_security_scheme(
-            BEARER_SCHEME,
-            SecurityScheme::Http(
-                HttpBuilder::new()
-                    .scheme(HttpAuthScheme::Bearer)
-                    .description(Some(
-                        "Token read from `<data_dir>/api-token`, generated on first start \
-                         and sent as `Authorization: Bearer <token>`. Enforced on the TCP \
-                         listener by `TokenAuthLayer`, on every route except two: \
-                         `GET /api/v1/health`, which reveals the product marker and the \
-                         version only, and `POST /webhooks/{id}`, which authenticates its \
-                         caller with an HMAC-SHA256 signature instead. Requests arriving on the Unix \
-                         socket bypass the check: the socket file is mode 0600, so its \
-                         permissions carry the same rule. Setting `[api] require_token = \
-                         false` in `apollia.toml` removes the layer from the TCP listener \
-                         altogether.",
-                    ))
-                    .build(),
-            ),
-        );
-    }
-}
-
-/// Canonical error body for every non-2xx response in the spec.
-///
-/// Matches the wire shape of the per-module `ErrorResponse { error }` used
-/// across the route handlers.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ApiErrorBody {
-    /// Human-readable error description.
-    pub error: String,
-}
-
-/// Request body of `POST /api/v1/stt/transcribe`: a multipart form.
-///
-/// The handler reads the parts off axum's `Multipart` stream, so no Rust type
-/// carries the form and the schema is written by hand. Without one, the Python
-/// generator skips the operation and the client offers no way to call it.
-pub enum TranscribeForm {}
-
-impl utoipa::PartialSchema for TranscribeForm {
-    fn schema() -> RefOr<Schema> {
-        ObjectBuilder::new()
-            .property(
-                "audio",
-                ObjectBuilder::new()
-                    .schema_type(Type::String)
-                    .format(Some(SchemaFormat::KnownFormat(KnownFormat::Binary)))
-                    .description(Some("WAV audio file")),
-            )
-            .required("audio")
-            .property(
-                "language",
-                ObjectBuilder::new()
-                    .schema_type(Type::String)
-                    .description(Some("Language hint, an ISO 639-1 code")),
-            )
-            .property(
-                "source",
-                ObjectBuilder::new()
-                    .schema_type(Type::String)
-                    .enum_values(Some(["api", "file", "hotkey"]))
-                    .description(Some(
-                        "What the audio is, the tag the history shows: api (default), file or hotkey",
-                    )),
-            )
-            .into()
-    }
-}
-
-impl ToSchema for TranscribeForm {}
-
-/// Request body of `POST /webhooks/{id}`: the raw bytes the HMAC is computed on.
-///
-/// The handler takes `Bytes`, which carries no schema of its own.
-pub enum RawWebhookBody {}
-
-impl utoipa::PartialSchema for RawWebhookBody {
-    fn schema() -> RefOr<Schema> {
-        ObjectBuilder::new()
-            .schema_type(Type::String)
-            .format(Some(SchemaFormat::KnownFormat(KnownFormat::Binary)))
-            .into()
-    }
-}
-
-impl ToSchema for RawWebhookBody {}
+pub use bodies::{ApiErrorBody, RawWebhookBody, TranscribeForm};
+use security::BearerToken;
 
 /// The generated OpenAPI document for the `/api/v1` driving contract.
 ///
@@ -166,7 +62,7 @@ impl ToSchema for RawWebhookBody {}
         (name = "model_hub", description = "Hardware profiling and model registry"),
         (name = "engines", description = "Inference engines: channel, verified download and import"),
         (name = "resilience", description = "Circuit breakers"),
-        (name = "mcp", description = "MCP servers and resources"),
+        (name = "mcp", description = "MCP servers and resources, and the bridge that serves exposed agents and workflows to an MCP client"),
         (name = "connections", description = "Everything plugged into this machine, in one list"),
         (name = "profile", description = "The user profile"),
         (name = "companion", description = "The in-app companion and its guide session"),
@@ -175,6 +71,7 @@ impl ToSchema for RawWebhookBody {}
         (name = "artifacts", description = "The artifacts captured in a conversation"),
         (name = "memory", description = "The memory of the agents, read and upkept per namespace"),
         (name = "lifecycle", description = "Resets and erasures of the installation"),
+        (name = "server", description = "Starting and stopping the compatible server, the second listener"),
         (name = "connectors", description = "Native connector accounts and their consent"),
         (name = "webhooks", description = "Inbound webhooks")
     ),
@@ -203,6 +100,10 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_workflows::list_workflow_runs,
         crate::api::routes_workflows::get_workflow_run,
         crate::api::routes_workflows::cancel_workflow_run,
+        crate::api::routes_mcp_bridge::list_bridge_tools,
+        crate::api::routes_mcp_bridge::call_bridge_tool,
+        crate::api::routes_mcp_bridge::list_exposed,
+        crate::api::routes_mcp_bridge::set_exposed,
         crate::api::routes_agents::list_agents,
         crate::api::routes_agents::start_agent,
         crate::api::routes_agents::get_agent,
@@ -240,6 +141,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_chat::conversations::list_project_sessions,
         crate::api::routes_chat::session_reads::get_session_metrics,
         crate::api::routes_chat::session_reads::get_session_workspace,
+        crate::api::routes_chat::session_reads::get_session_model_capabilities,
         crate::api::routes_chat::turns::regenerate_response,
         crate::api::routes_chat::turns::resend_message,
         crate::api::routes_chat::approval_history::list_approval_history,
@@ -416,6 +318,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_app_lifecycle::clear_all_memories,
         crate::api::routes_app_lifecycle::clear_logs,
         crate::api::routes_app_lifecycle::factory_reset,
+        crate::api::routes_server::server_status,
+        crate::api::routes_server::start_server,
+        crate::api::routes_server::stop_server,
         crate::api::routes_memory::list_memory_namespaces,
         crate::api::routes_memory::list_memory_entries,
         crate::api::routes_memory::search_memory,
@@ -471,6 +376,8 @@ impl ToSchema for RawWebhookBody {}
         crate::chat::SessionMetrics,
         crate::chat::ToolStatEntry,
         crate::api::routes_chat::session_reads::SessionWorkspace,
+        crate::api::routes_chat::session_reads::SessionModelCapabilities,
+        crate::api::routes_chat::session_reads::ReasoningProfileDto,
         crate::api::routes_packages::PackageErrorBody,
         crate::api::routes_packages::PackagePreviewRequest,
         crate::api::routes_packages::PackageInstallRequest,
@@ -507,6 +414,15 @@ impl ToSchema for RawWebhookBody {}
         crate::workflows::InputKind,
         crate::workflows::InputErrorCode,
         crate::api::routes_workflows::WorkflowLaunch,
+        crate::api::routes_mcp_bridge::McpBridgeErrorBody,
+        crate::api::routes_mcp_bridge::McpBridgeTool,
+        crate::api::routes_mcp_bridge::McpBridgeToolList,
+        crate::api::routes_mcp_bridge::McpBridgeCall,
+        crate::api::routes_mcp_bridge::McpBridgeCallResult,
+        crate::api::routes_mcp_bridge::McpExposedItem,
+        crate::api::routes_mcp_bridge::McpExposedItemList,
+        crate::api::routes_mcp_bridge::McpExposure,
+        crate::api::routes_mcp_bridge::McpExposedItemState,
         crate::api::routes_workflows::WorkflowErrorResponse,
         crate::api::routes_workflows::WorkflowRunView,
         crate::api::routes_workflows::WorkflowStepView,
@@ -628,9 +544,9 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_llm::backends::SetDefaultResponse,
         crate::api::routes_llm::backends::ReloadRouterResponse,
         crate::api::routes_llm::loaded::LoadedModelDto,
+        crate::llama_server::ModelKind,
         crate::local_engine::guardrails::GuardrailRefusedBody,
         crate::local_engine::guardrails::GuardrailLevel,
-        crate::llama_server::ModelKind,
         crate::api::routes_llm::loaded::LoadedModelsResponse,
         crate::api::routes_llm::loaded::UnloadModelRequest,
         crate::api::routes_llm::loaded::UnloadModelResponse,
@@ -724,6 +640,7 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_app_lifecycle::OnboardingReset,
         crate::api::routes_app_lifecycle::MemoryWiped,
         crate::api::routes_app_lifecycle::DirectoryRemoved,
+        crate::compat_server::CompatServerStatus,
         crate::memory_view::MemoryEntryView,
         crate::memory_view::MemorySearchResultView,
         crate::memory_view::InjectedMemoryEntryView,
@@ -783,6 +700,7 @@ pub(crate) async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
 
 #[cfg(test)]
 mod tests {
+    use super::security::BEARER_SCHEME;
     use super::*;
 
     #[test]

@@ -121,7 +121,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "chat.export.meta_session", // Session
   "chat.export.role_assistant", // Assistant
   "chat.journal.agent", // Agent
-  "chat.journal_mode_builder", // Builder
   "chat.legend_messages", // Messages
   "chat.mode_auto", // Auto
   "chat.planMode.phaseLabel", // Phase
@@ -161,7 +160,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent", // Agents
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
-  "nav.builder_cluster", // Inspection
   "nav.chat", // Chat
   "nav.notifications", // Notifications
   "nav.sidebar.chat", // Chat
@@ -205,15 +203,19 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.about.docs_title", // Documentation
   "settings.about.kv_stt", // Transcription
   "settings.about.kv_version", // Version
-  "settings.appearance.options_title", // Options
+  "settings.chat.conversations_title", // Conversations
   "settings.credential.absent", // Absent
+  "settings.developer.mcp.kind_agent", // Agent
+  "settings.developer.mcp.kind_workflow", // Workflow
+  "settings.general.application_title", // Application
+  "settings.general.interface_title", // Interface
   "settings.llm_backend.provider_local", // local
   "settings.llm_dialog.field_endpoint", // Endpoint
-  "settings.mode_builder", // Builder
   "settings.model_hub.detail.param_max_tokens", // max tokens
   "settings.model_hub.detail.param_temperature", // temperature
   "settings.model_hub.filters.type_base", // Base
   "settings.model_hub.filters.type_instruct", // Instruct / Chat
+  "settings.nav.chat", // Chat
   "settings.nav.configuration", // Configuration
   "settings.nav.mobile_open", // Sections
   "settings.permissions.add.action_label", // Action
@@ -234,7 +236,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.stt_microphone", // Microphone
   "settings.system_version", // Version
   "settings.tool_config.field.timeout_secs", // Timeout (s)
-  "sidebar.mode.builder.label", // Builder
   "tasks.col_agent", // Agent
   "tasks.tab_trace", // Trace
   "tools.body.content_type_label", // Type

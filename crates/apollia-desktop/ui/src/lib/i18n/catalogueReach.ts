@@ -131,17 +131,17 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   },
   {
     pattern: new RegExp(`^settings\\.about\\.local_${SEG}$`),
-    builtBy: "routes/settings/About.svelte",
+    builtBy: "components/settings/about/AboutBlock.svelte",
   },
   {
     pattern: new RegExp(
       `^settings\\.danger\\.${SEG}\\.(button|description|dialog_desc|dialog_title|title)$`,
     ),
-    builtBy: "routes/settings/Danger.svelte",
+    builtBy: "components/settings/DangerZone.svelte",
   },
   {
     pattern: new RegExp(`^settings\\.help\\.faq_(a|q)_${SEG}$`),
-    builtBy: "routes/settings/Help.svelte",
+    builtBy: "components/settings/help/HelpBlock.svelte",
   },
   {
     pattern: new RegExp(
@@ -170,15 +170,11 @@ export const DECLARED_INTERPOLATIONS: { pattern: RegExp; builtBy: string }[] = [
   },
   {
     pattern: new RegExp(`^settings\\.observability\\.${SEG}$`),
-    builtBy: "routes/settings/Observability.svelte",
+    builtBy: "components/observability/CapturePolicyPanel.svelte",
   },
   {
     pattern: new RegExp(`^settings\\.tools_page\\.${SEG}$`),
     builtBy: "components/settings/tools/toolCatalog.ts",
-  },
-  {
-    pattern: new RegExp(`^sidebar\\.mode\\.${SEG}\\.(description|label)$`),
-    builtBy: "lib/components/app/ModeChip.svelte",
   },
   {
     pattern: new RegExp(`^stt_failure\\.${SEG}$`),

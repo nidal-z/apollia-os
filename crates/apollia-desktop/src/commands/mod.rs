@@ -22,6 +22,7 @@ pub mod link_preview;
 pub mod llm;
 pub mod llm_loaded;
 pub mod mcp;
+pub mod mcp_bridge;
 pub mod mcp_coaching;
 pub mod memory;
 pub mod meta_automation;

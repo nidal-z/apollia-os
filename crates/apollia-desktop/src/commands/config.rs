@@ -1,17 +1,20 @@
 //! Tauri IPC commands for the Settings view.
 //!
-//! The Settings view is **read-only**: a TOML parse -> modify -> serialize
-//! round-trip would destroy the user's comments. Editing is delegated to the
-//! system's native editor.
+//! The configuration view is **read-only**: a TOML parse -> modify ->
+//! serialize round-trip would destroy the user's comments. Editing the file is
+//! delegated to the system's native editor; a named setting is written key by
+//! key through `settings`, which keeps the comments and layout.
 //!
 //! The `apollia.toml` file is read from `~/.apollia/apollia.toml` (standard
 //! location). If the file does not exist, default values are returned.
 //!
-//! Two neighbouring families live in their own modules: `lifecycle` for the
-//! commands that reset or end a session, `system` for the Advanced and
-//! Security sections and the local-model setup helper.
+//! Three neighbouring families live in their own modules: `lifecycle` for the
+//! commands that reset or end a session, `settings` for the named settings
+//! read with their source and written key by key, `system` for the Advanced
+//! and Security sections and the local-model setup helper.
 
 pub mod lifecycle;
+pub mod settings;
 pub mod system;
 
 use std::path::PathBuf;
@@ -55,8 +58,7 @@ pub struct ApollaConfigView {
 
 /// Resolves the standard path `~/.apollia/apollia.toml`.
 fn default_config_path() -> PathBuf {
-    let home = apollia_core::paths::home_dir_or_temp();
-    apollia_core::paths::data_dir_under(home).join("apollia.toml")
+    apollia_core::paths::config_file_under(apollia_core::paths::home_dir_or_temp())
 }
 
 /// Extracts a string value from a TOML table, or returns a default.

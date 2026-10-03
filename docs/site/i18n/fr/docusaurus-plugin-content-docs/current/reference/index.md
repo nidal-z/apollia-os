@@ -34,3 +34,6 @@ qu'une page ne peut pas s'en écarter. On modifie la source, jamais la page.
   écrit mais non appliqué.
 - **[Schéma des suites d'évaluation](/reference/eval-suites)** le TOML qu'accepte
   une suite `apollia-os eval run`, champ par champ et assertion par assertion.
+- **[Points d'accès compatibles](/reference/compatible-endpoints)** le second
+  écouteur que les autres applications appellent aux formats d'OpenAI et
+  d'Anthropic, son port, son interrupteur, et les chemins qu'il sert.

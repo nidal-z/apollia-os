@@ -1,21 +1,22 @@
-//! MCP stdio server: exposes native Apollia tools to external MCP clients.
+//! MCP stdio server: a bridge from an external MCP client to the daemon.
 //!
 //! [`McpStdioServer`] reads newline-delimited JSON-RPC 2.0 messages from stdin,
-//! dispatches them to the appropriate handler, and writes responses to stdout.
+//! answers them, and writes the responses to stdout. It holds no tool of its
+//! own: what it lists and what it calls is asked of the daemon through an
+//! [`McpBridge`], which serves the agents and workflows the user exposed, and
+//! nothing else. The daemon decides; this loop relays.
 //!
 //! Supported methods:
 //! - `initialize`: handshake, returns server capabilities
-//! - `tools/list`: enumerate the 9 native tools (+ `submit_task` when runtime present)
-//! - `tools/call`: invoke a tool via [`ToolDispatcher`]
+//! - `tools/list`: the exposed items, as the daemon lists them
+//! - `tools/call`: runs one exposed item through the daemon and returns its
+//!   final result
 //!
 //! The server handles malformed JSON gracefully: a parse error produces a
 //! JSON-RPC error response with code `-32700` instead of crashing.
 //!
-//! # Runtime integration
-//!
-//! To expose `submit_task`, callers inject a [`SubmitTaskHandler`] implementation.
-//! This keeps `apollia-mcp` independent of `apollia-runtime` (which already
-//! depends on this crate).
+//! The bridge is a trait so that this crate stays independent of the HTTP
+//! client of the CLI and of `apollia-runtime` (which depends on this crate).
 
 use std::future::Future;
 use std::pin::Pin;
@@ -23,34 +24,66 @@ use std::sync::Arc;
 
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-use apollia_tools::executor::{ToolDispatcher, ToolExecutionError};
-
-use crate::server_tools::{native_tool_definitions, submit_task_definition};
 use crate::server_types::{parse_request, CallToolParams, McpRequest};
 
-// ─── SubmitTaskHandler trait ─────────────────────────────────────────────────
+/// A boxed future, the return of the object-safe [`McpBridge`] methods.
+pub type BridgeFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// Abstraction over the runtime task-submission path.
-///
-/// Implement this trait to inject `submit_task` capability into [`McpStdioServer`]
-/// without creating a dependency on `apollia-runtime`.
-///
-/// The `apollia-cli` crate provides a concrete implementation backed by
-/// `RuntimeHandle::router_handle`.
-pub trait SubmitTaskHandler: Send + Sync {
-    /// Submit a task to the named agent and return the assigned task ID.
-    ///
-    /// # Errors
-    ///
-    /// Returns a human-readable error string when the task cannot be submitted.
-    fn submit(
-        &self,
-        task: String,
-        agent_id: String,
-    ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>>;
+/// Why the daemon did not list or run what the client asked.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
+pub enum BridgeError {
+    /// The daemon refuses the bridge: the user has not turned it on.
+    #[error("{0}")]
+    Refused(String),
+    /// No exposed item carries this tool name.
+    #[error("{0}")]
+    UnknownTool(String),
+    /// The arguments do not fit the tool.
+    #[error("{0}")]
+    InvalidArguments(String),
+    /// The daemon could not be reached, or failed.
+    #[error("{0}")]
+    Unavailable(String),
 }
 
-// ─── Error type ──────────────────────────────────────────────────────────────
+impl BridgeError {
+    /// The JSON-RPC error code the client receives.
+    fn code(&self) -> i64 {
+        match self {
+            BridgeError::UnknownTool(_) | BridgeError::InvalidArguments(_) => -32602,
+            BridgeError::Refused(_) | BridgeError::Unavailable(_) => -32000,
+        }
+    }
+}
+
+/// The end of a call: the final text of the run, and whether the run failed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BridgeCallOutcome {
+    /// The answer of the agent, or what the workflow returned; the failure
+    /// when the run did not complete.
+    pub text: String,
+    /// `true` when the run failed or was stopped. The client receives it as
+    /// a tool result with `isError`, as MCP asks for an execution failure.
+    pub is_error: bool,
+}
+
+/// What the stdio loop asks the daemon.
+///
+/// The `apollia-cli` crate implements it over the runtime HTTP API.
+pub trait McpBridge: Send + Sync {
+    /// The exposed items, each an MCP tool descriptor
+    /// (`{name, description, inputSchema}`).
+    fn list_tools(&self) -> BridgeFuture<'_, Result<Vec<serde_json::Value>, BridgeError>>;
+
+    /// Runs the exposed item behind the tool `name` on `arguments`, to its
+    /// end.
+    fn call_tool(
+        &self,
+        name: String,
+        arguments: serde_json::Value,
+    ) -> BridgeFuture<'_, Result<BridgeCallOutcome, BridgeError>>;
+}
 
 /// Errors that can terminate the MCP stdio server loop.
 #[derive(Debug, thiserror::Error)]
@@ -61,40 +94,18 @@ pub enum McpServerError {
     Io(#[from] std::io::Error),
 }
 
-// ─── Server ──────────────────────────────────────────────────────────────────
-
-/// MCP stdio server that exposes native Apollia tools to external clients.
+/// MCP stdio server that relays an external client to the daemon.
 ///
-/// External MCP clients (Claude Desktop, VS Code Copilot Chat, Cursor) connect
-/// by spawning this process and communicating over stdin/stdout using JSON-RPC 2.0.
-///
-/// Construct via [`McpStdioServer::new`]. Inject a [`SubmitTaskHandler`] via
-/// [`with_submit_task`](Self::with_submit_task) to expose the optional
-/// `submit_task` tool. Call [`run`](Self::run) to enter the read-dispatch-write
-/// loop.
+/// External MCP clients (editors, other assistants) connect by spawning this
+/// process and communicating over stdin/stdout using JSON-RPC 2.0.
 pub struct McpStdioServer {
-    dispatcher: ToolDispatcher,
-    /// When `Some`, `submit_task` is advertised in `tools/list` and routable.
-    submit_task: Option<Arc<dyn SubmitTaskHandler>>,
+    bridge: Arc<dyn McpBridge>,
 }
 
 impl McpStdioServer {
-    /// Create a new server with the given tool dispatcher.
-    ///
-    /// Without a `SubmitTaskHandler`, `submit_task` is not advertised.
-    pub fn new(dispatcher: ToolDispatcher) -> Self {
-        Self {
-            dispatcher,
-            submit_task: None,
-        }
-    }
-
-    /// Attach a `submit_task` handler, enabling the 10th MCP tool.
-    ///
-    /// Call this when starting the server with `--with-runtime`.
-    pub fn with_submit_task(mut self, handler: Arc<dyn SubmitTaskHandler>) -> Self {
-        self.submit_task = Some(handler);
-        self
+    /// Create a server that asks `bridge` for every list and call.
+    pub fn new(bridge: Arc<dyn McpBridge>) -> Self {
+        Self { bridge }
     }
 
     /// Enter the stdin → dispatch → stdout loop.
@@ -114,23 +125,9 @@ impl McpStdioServer {
         let mut stdout = tokio::io::stdout();
 
         while let Some(line) = lines.next_line().await? {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
+            let Some(response) = self.handle_line(&line).await else {
                 continue;
-            }
-
-            let response = match serde_json::from_str::<serde_json::Value>(trimmed) {
-                Err(_) => jsonrpc_error(serde_json::Value::Null, -32700, "Parse error"),
-                Ok(raw) => match parse_request(raw) {
-                    Err(id) => jsonrpc_error(id, -32601, "Method not found"),
-                    Ok(McpRequest::Notification { .. }) => {
-                        // Notifications require no response.
-                        continue;
-                    }
-                    Ok(req) => self.handle_request(req).await,
-                },
             };
-
             let mut payload = serde_json::to_string(&response).unwrap_or_else(|_| {
                 r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Internal error"}}"#
                     .to_string()
@@ -143,137 +140,80 @@ impl McpStdioServer {
         Ok(())
     }
 
+    /// The response to one line read from the client, `None` for a blank
+    /// line or a notification.
+    async fn handle_line(&self, line: &str) -> Option<serde_json::Value> {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        match serde_json::from_str::<serde_json::Value>(trimmed) {
+            Err(_) => Some(jsonrpc_error(
+                serde_json::Value::Null,
+                -32700,
+                "Parse error",
+            )),
+            Ok(raw) => match parse_request(raw) {
+                Err(id) => Some(jsonrpc_error(id, -32601, "Method not found")),
+                Ok(McpRequest::Notification { .. }) => None,
+                Ok(req) => Some(self.handle_request(req).await),
+            },
+        }
+    }
+
     /// Dispatch a parsed request to the correct handler.
     async fn handle_request(&self, request: McpRequest) -> serde_json::Value {
         match request {
-            McpRequest::Initialize { id, .. } => self.handle_initialize(id),
+            McpRequest::Initialize { id, .. } => handle_initialize(id),
             McpRequest::ListTools { id } => self.handle_list_tools(id).await,
             McpRequest::CallTool { id, params } => self.handle_call_tool(id, params).await,
             McpRequest::Notification { .. } => serde_json::Value::Null,
         }
     }
 
-    /// Respond to the `initialize` handshake.
-    fn handle_initialize(&self, id: serde_json::Value) -> serde_json::Value {
-        jsonrpc_ok(
-            id,
-            serde_json::json!({
-                "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {}
-                },
-                "serverInfo": {
-                    "name": "apollia-os",
-                    "version": env!("CARGO_PKG_VERSION")
-                }
-            }),
-        )
-    }
-
-    /// Respond to `tools/list` with all available tool schemas.
-    ///
-    /// The base list contains the 9 native tools. When a [`SubmitTaskHandler`]
-    /// is configured, `submit_task` is appended as the 10th tool.
+    /// Respond to `tools/list` with the exposed items the daemon serves.
     async fn handle_list_tools(&self, id: serde_json::Value) -> serde_json::Value {
-        let mut tools = native_tool_definitions();
-
-        if self.submit_task.is_some() {
-            tools.push(submit_task_definition());
+        match self.bridge.list_tools().await {
+            Ok(tools) => jsonrpc_ok(id, serde_json::json!({ "tools": tools })),
+            Err(e) => jsonrpc_error(id, e.code(), &e.to_string()),
         }
-
-        jsonrpc_ok(id, serde_json::json!({ "tools": tools }))
     }
 
-    /// Respond to `tools/call` by routing to the appropriate handler.
+    /// Respond to `tools/call` with the final result of the run.
     async fn handle_call_tool(
         &self,
         id: serde_json::Value,
         params: CallToolParams,
     ) -> serde_json::Value {
-        match params.name.as_str() {
-            "submit_task" => self.handle_submit_task(id, params.arguments).await,
-            "mcp_client" => jsonrpc_error(
-                id,
-                -32000,
-                "mcp_client requires a running Apollia runtime with mcp.toml configuration",
-            ),
-            "agent_install" => jsonrpc_error(
-                id,
-                -32000,
-                "agent_install requires a running Apollia runtime",
-            ),
-            tool_name => self.dispatch_to_tool(id, tool_name, params.arguments).await,
-        }
-    }
-
-    /// Route a call to the native tool dispatcher.
-    async fn dispatch_to_tool(
-        &self,
-        id: serde_json::Value,
-        tool_name: &str,
-        arguments: serde_json::Value,
-    ) -> serde_json::Value {
-        let arguments = enrich_arguments(tool_name, arguments);
-        match self.dispatcher.dispatch(tool_name, arguments).await {
-            Ok(output) => {
-                let text = value_to_text(&output);
-                jsonrpc_ok(
-                    id,
-                    serde_json::json!({
-                        "content": [{ "type": "text", "text": text }]
-                    }),
-                )
-            }
-            Err(ToolExecutionError::UnknownTool { name }) => {
-                jsonrpc_error(id, -32000, &format!("unknown tool: '{}'", name))
-            }
-            Err(ToolExecutionError::InvalidInput { message }) => {
-                jsonrpc_error(id, -32602, &format!("invalid input: {}", message))
-            }
-            Err(e) => jsonrpc_error(id, -32000, &format!("execution error: {}", e)),
-        }
-    }
-
-    /// Handle a `submit_task` call by delegating to the injected handler.
-    async fn handle_submit_task(
-        &self,
-        id: serde_json::Value,
-        args: serde_json::Value,
-    ) -> serde_json::Value {
-        let Some(handler) = &self.submit_task else {
-            return jsonrpc_error(
-                id,
-                -32000,
-                "submit_task requires a runtime - start with --with-runtime",
-            );
-        };
-
-        let task = match args.get("task").and_then(|v| v.as_str()) {
-            Some(t) => t.to_string(),
-            None => return jsonrpc_error(id, -32602, "missing required parameter: task"),
-        };
-        let agent_id = args
-            .get("agent_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("default")
-            .to_string();
-
-        match handler.submit(task, agent_id).await {
-            Ok(task_id) => jsonrpc_ok(
+        match self.bridge.call_tool(params.name, params.arguments).await {
+            Ok(outcome) => jsonrpc_ok(
                 id,
                 serde_json::json!({
-                    "content": [{
-                        "type": "text",
-                        "text": format!("Task submitted. task_id={}", task_id)
-                    }]
+                    "content": [{ "type": "text", "text": outcome.text }],
+                    "isError": outcome.is_error,
                 }),
             ),
-            Err(e) => jsonrpc_error(id, -32000, &format!("submit_task failed: {}", e)),
+            Err(e) => jsonrpc_error(id, e.code(), &e.to_string()),
         }
     }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+/// Respond to the `initialize` handshake.
+fn handle_initialize(id: serde_json::Value) -> serde_json::Value {
+    jsonrpc_ok(
+        id,
+        serde_json::json!({
+            "protocolVersion": "2024-11-05",
+            "capabilities": {
+                "tools": {}
+            },
+            "serverInfo": {
+                "name": "apollia-os",
+                "version": env!("CARGO_PKG_VERSION")
+            }
+        }),
+    )
+}
 
 /// Build a successful JSON-RPC 2.0 response.
 fn jsonrpc_ok(id: serde_json::Value, result: serde_json::Value) -> serde_json::Value {
@@ -296,194 +236,5 @@ fn jsonrpc_error(id: serde_json::Value, code: i64, message: &str) -> serde_json:
     })
 }
 
-/// Inject MCP-layer defaults into tool arguments before dispatching.
-///
-/// `bash_executor` requires `timeout_secs`; the MCP schema marks it as optional
-/// with a default of 30. This function fills in the field when absent so MCP
-/// clients that follow the schema do not receive a spurious `InvalidInput` error.
-fn enrich_arguments(tool_name: &str, mut args: serde_json::Value) -> serde_json::Value {
-    if tool_name == "bash_executor" {
-        if let Some(obj) = args.as_object_mut() {
-            obj.entry("timeout_secs").or_insert(serde_json::json!(30));
-        }
-    }
-    args
-}
-
-/// Convert a tool output value to a compact text representation.
-///
-/// When the value is already a string, it is returned verbatim.
-/// Otherwise it is serialized to compact JSON.
-fn value_to_text(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::String(s) => s.clone(),
-        other => other.to_string(),
-    }
-}
-
-// ─── Tests ───────────────────────────────────────────────────────────────────
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use apollia_tools::executor::ToolDispatcher;
-    use apollia_tools::tools::bash_executor::BashExecutor;
-
-    fn make_dispatcher() -> ToolDispatcher {
-        ToolDispatcher::new(vec![Box::new(BashExecutor::new())])
-    }
-
-    fn make_server() -> McpStdioServer {
-        McpStdioServer::new(make_dispatcher())
-    }
-
-    /// Returns `true` if the platform can actually execute shell commands
-    /// through the bash executor's sandbox. On Linux without `CAP_SYS_ADMIN`
-    /// (e.g. GitHub Actions runners), `unshare --pid --mount` fails with EPERM
-    /// inside the spawned child, so the tool call reports the sandbox failure
-    /// as the command's own output: tests asserting on that output must be
-    /// skipped gracefully. Mirrors `can_run_shell` in `bash_executor`.
-    fn can_run_sandbox() -> bool {
-        #[cfg(target_os = "linux")]
-        {
-            apollia_core::SecurityPosture::detect().unshare_available
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            true
-        }
-    }
-
-    // initialize
-
-    #[tokio::test]
-    async fn mcp_server_handles_initialize() {
-        // GIVEN
-        let server = make_server();
-        let req = McpRequest::Initialize {
-            id: serde_json::json!(1),
-            params: crate::server_types::InitializeParams {
-                protocol_version: "2024-11-05".to_string(),
-                client_info: serde_json::json!({ "name": "test" }),
-            },
-        };
-        // WHEN
-        let response = server.handle_request(req).await;
-        // THEN
-        assert_eq!(response["result"]["protocolVersion"], "2024-11-05");
-        assert_eq!(response["result"]["serverInfo"]["name"], "apollia-os");
-    }
-
-    // 9 tools without runtime
-
-    #[tokio::test]
-    async fn mcp_server_lists_9_native_tools() {
-        // GIVEN
-        let server = make_server();
-        let req = McpRequest::ListTools {
-            id: serde_json::json!(2),
-        };
-        // WHEN
-        let response = server.handle_request(req).await;
-        // THEN
-        let tools = response["result"]["tools"]
-            .as_array()
-            .expect("tools must be an array");
-        assert_eq!(tools.len(), 9, "expected 9 tools without runtime");
-        let has_submit = tools.iter().any(|t| t["name"] == "submit_task");
-        assert!(!has_submit, "submit_task must not appear without runtime");
-    }
-
-    // 10 tools with runtime
-
-    #[tokio::test]
-    async fn mcp_server_lists_submit_task_with_runtime() {
-        // GIVEN: inject a stub SubmitTaskHandler to simulate the runtime path
-        struct StubSubmit;
-
-        impl SubmitTaskHandler for StubSubmit {
-            fn submit(
-                &self,
-                _task: String,
-                _agent_id: String,
-            ) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + '_>> {
-                Box::pin(async move { Ok("stub-task-id".to_string()) })
-            }
-        }
-
-        let server = McpStdioServer::new(make_dispatcher()).with_submit_task(Arc::new(StubSubmit));
-
-        let req = McpRequest::ListTools {
-            id: serde_json::json!(3),
-        };
-        // WHEN
-        let response = server.handle_request(req).await;
-        // THEN
-        let tools = response["result"]["tools"]
-            .as_array()
-            .expect("tools must be an array");
-        assert_eq!(tools.len(), 10, "expected 10 tools with runtime");
-        let has_submit = tools.iter().any(|t| t["name"] == "submit_task");
-        assert!(has_submit, "submit_task must appear with runtime");
-    }
-
-    // bash_executor call
-
-    #[tokio::test]
-    async fn mcp_server_calls_bash_executor() {
-        if !can_run_sandbox() {
-            tracing::warn!("skipped: unshare requires CAP_SYS_ADMIN (not available on CI)");
-            return;
-        }
-        // GIVEN
-        let server = make_server();
-        let req = McpRequest::CallTool {
-            id: serde_json::json!(4),
-            params: crate::server_types::CallToolParams {
-                name: "bash_executor".to_string(),
-                arguments: serde_json::json!({ "command": "echo hello" }),
-            },
-        };
-        // WHEN
-        let response = server.handle_request(req).await;
-        // THEN: result contains content[0].text with "hello"
-        let text = response["result"]["content"][0]["text"]
-            .as_str()
-            .expect("content[0].text must be a string");
-        assert!(
-            text.contains("hello"),
-            "expected 'hello' in output, got: {text}"
-        );
-    }
-
-    // unknown tool yields -32000
-
-    #[tokio::test]
-    async fn mcp_server_returns_error_on_unknown_tool() {
-        // GIVEN
-        let server = make_server();
-        let req = McpRequest::CallTool {
-            id: serde_json::json!(5),
-            params: crate::server_types::CallToolParams {
-                name: "inexistant_tool".to_string(),
-                arguments: serde_json::json!({}),
-            },
-        };
-        // WHEN
-        let response = server.handle_request(req).await;
-        // THEN
-        assert!(response.get("error").is_some(), "expected error field");
-        assert_eq!(response["error"]["code"], -32000);
-    }
-
-    // parse error yields -32700
-
-    #[test]
-    fn mcp_server_handles_parse_error() {
-        // GIVEN the parse error response as produced by the run() loop
-        let response = jsonrpc_error(serde_json::Value::Null, -32700, "Parse error");
-        // WHEN / THEN
-        assert_eq!(response["error"]["code"], -32700);
-        assert_eq!(response["error"]["message"], "Parse error");
-    }
-}
+mod tests;

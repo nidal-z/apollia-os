@@ -184,7 +184,6 @@
     "inbox": "Boîte de réception",
     "llm": "Modèles LLM",
     "automations": "Automatisations",
-    "builder_cluster": "Inspection",
     "memory": "Mémoire",
     "notifications": "Notifications",
     "observability": "Observabilité",
@@ -195,6 +194,7 @@
     "open_sidebar": "Ouvrir la navigation",
     "close_sidebar": "Fermer la navigation",
     "sidebar_label": "Navigation principale",
+    "developer_group": "Mode développeur",
     "projects": "Projets",
     "sidebar": {
       "dashboard": "Accueil",
@@ -213,20 +213,7 @@
       "settings": "Paramètres"
     }
   },
-  "sidebar": {
-    "mode": {
-      "chip_aria": "Mode courant : {mode}. Ouvrir le sélecteur de mode.",
-      "chip_tooltip": "Mode : {current} - clic pour passer en {other}",
-      "operator": {
-        "label": "Opérateur",
-        "description": "Vue simplifiée : lancer et surveiller les assistants."
-      },
-      "builder": {
-        "label": "Builder",
-        "description": "Vue technique : LLMs, triggers, mémoire, observabilité."
-      }
-    }
-  },
+  "sidebar": {},
   "topbar": {
     "search": {
       "placeholder": "Rechercher…"
@@ -1984,6 +1971,7 @@
     "audit_json_copied": "JSON copié dans le presse-papiers",
     "audit_copy_failed": "Échec de la copie",
     "tab_hooks": "Hooks",
+    "tab_capture": "Politique de capture",
     "hooks_subtitle": "Hooks de cycle de vie enregistrés au démarrage du runtime. Lecture seule : le registre est construit une fois depuis la configuration, sans enregistrement dynamique ni rechargement à chaud.",
     "hooks_registry_empty": "Aucun hook de cycle de vie déclaré.",
     "hooks_count": "{n} hooks",
@@ -2050,7 +2038,7 @@
       "cluster_danger": "Zone de danger",
       "appearance": "Apparence",
       "profile": "Profil",
-      "stt": "Reconnaissance vocale",
+      "stt": "Dictée",
       "llm": "Backends LLM",
       "model_hub": "Hub de modèles",
       "configuration": "Configuration",
@@ -2064,10 +2052,16 @@
       "about": "À propos",
       "danger": "Zone de danger",
       "mobile_open": "Sections",
-      "mobile_title": "Sections des paramètres"
+      "mobile_title": "Sections des paramètres",
+      "developer": "Développeur",
+      "cluster_settings": "Réglages",
+      "general": "Général",
+      "chat": "Chat",
+      "model_defaults": "Défauts des modèles",
+      "engines": "Moteurs",
+      "hardware": "Matériel"
     },
     "help": {
-      "subtitle": "Prenez en main Apollia et repérez l'essentiel.",
       "intro": "Apollia OS exécute vos agents IA en local, sur votre propre machine, avec vos propres modèles. Les rubriques ci-dessous couvrent l'essentiel pour démarrer.",
       "getting_started": "Premiers pas",
       "topic_model_title": "Configurer un modèle",
@@ -2117,15 +2111,11 @@
       "faq_a_shortcuts": "Ouvrez la page Raccourcis clavier depuis les ressources ci-dessus pour la liste complète, hors ligne, regroupée par contexte."
     },
     "about": {
-      "subtitle": "Version, liens et licence de cette installation.",
-      "tagline": "Un runtime souverain pour agents IA autonomes, exécuté en local sans dépendance au cloud.",
       "docs_title": "Documentation",
       "docs_desc": "Guides, références et centre d'aide opérateur.",
       "github_title": "Code source",
       "github_desc": "Parcourez le dépôt sur GitHub.",
       "report_title": "Signaler un problème",
-      "report_desc": "Ouvrez un ticket. Collez-y le rapport de diagnostic ci-dessus.",
-      "data_title": "Où vivent vos données",
       "data_desc": "Tout ce qu'Apollia conserve tient dans un seul répertoire sur cette machine : conversations, mémoire, modèles, configuration et journal d'audit. Sauvegardez-le ou supprimez-le comme n'importe quel dossier.",
       "kv_data_dir": "Répertoire de données",
       "data_dir_unknown": "Votre répertoire personnel n'a pas pu être résolu, ce chemin est donc inconnu.",
@@ -2155,8 +2145,6 @@
       "kv_license": "Identifiant SPDX",
       "copy_diagnostics": "Copier le rapport de diagnostic",
       "copy_hint": "Un clic copie la valeur au format brut.",
-      "updates_title": "Mises à jour",
-      "updates_desc": "Vérification manuelle uniquement. Aucune télémétrie ni vérification automatique en arrière-plan.",
       "links_title": "Ressources",
       "credits_title": "Bâti sur",
       "credits_desc": "Les briques open-source embarquées dans Apollia. Merci à leurs auteurs.",
@@ -2203,9 +2191,6 @@
       "state_off": "Désactivé",
       "unit_bytes": "octets",
       "unit_days": "jours",
-      "view_data_label": "Consulter les traces capturées",
-      "view_data_desc": "Chronologie, coûts LLM et journal d'audit sur la page Observabilité dédiée.",
-      "view_data_link": "Ouvrir Observabilité",
       "editable_note": "Modifiez la politique d'observabilité collectée sur l'exécution des agents. Tout reste local, rien n'est envoyé.",
       "restart_note": "Les modifications s'appliquent au prochain redémarrage de l'application. Le moteur ne recharge pas cette politique à chaud.",
       "kib_display": "{kib} Kio",
@@ -2214,7 +2199,6 @@
       "sensitive_confirm_enable": "Activer la capture"
     },
     "shortcuts": {
-      "subtitle": "Raccourcis clavier disponibles dans Apollia.",
       "search_placeholder": "Rechercher un raccourci…",
       "search_aria": "Rechercher un raccourci clavier",
       "no_results": "Aucun raccourci ne correspond à « {query} ».",
@@ -2262,7 +2246,6 @@
       "count": "{count} raccourcis"
     },
     "danger": {
-      "subtitle": "Opérations irréversibles ou perturbatrices. À utiliser avec précaution.",
       "banner": "Ces actions sont irréversibles. Assurez-vous d'avoir ce dont vous avez besoin avant de continuer.",
       "last_resort": "Dernier recours",
       "continue": "Continuer",
@@ -2311,18 +2294,12 @@
     "readonly_banner": "Configuration en lecture seule. Pour modifier, éditez {file} et redémarrez le runtime.",
     "see_details": "Voir les détails",
     "operational_redirect_banner": "Les triggers et notifications se configurent depuis leurs vues dédiées dans la sidebar.",
-    "language_title": "Langue",
     "language_en": "English",
     "language_fr": "Français",
     "theme_title": "Thème",
     "theme_light": "Clair",
     "theme_dark": "Sombre",
     "theme_system": "Système",
-    "mode_title": "Mode d'interface",
-    "mode_operator": "Opérateur",
-    "mode_builder": "Builder",
-    "mode_operator_desc": "Vue simplifiée pour l'usage quotidien",
-    "mode_builder_desc": "Vue technique avec tous les détails",
     "system_info": "Informations système",
     "system_version": "Version",
     "system_os": "Système d'exploitation",
@@ -3020,14 +2997,15 @@
     "save_hint": "pour enregistrer",
     "save_shortcut_hint": "⌘S",
     "appearance": {
-      "subtitle": "Langue, thème et mode d'interface.",
-      "options_title": "Options",
+      "subtitle": "Thème et rappels d'onboarding.",
       "preview_message": "Bonjour Apollia",
-      "preview_active_now": "Actif maintenant"
+      "preview_active_now": "Actif maintenant",
+      "reminders_title": "Rappels d'onboarding",
+      "reminders_reset_label": "Réinitialiser les rappels d'onboarding",
+      "reminders_reset_hint": "Le parcours de bienvenue et les rappels de découverte s'affichent de nouveau. Aucune donnée n'est supprimée.",
+      "reminders_reset_button": "Réinitialiser"
     },
-    "configuration": {
-      "subtitle": "Préférences générales du système."
-    },
+    "configuration": {},
     "integrations": {
       "subtitle": "Identifiants clients OAuth des connecteurs Google et Microsoft. Microsoft est prêt à connecter ; Google demande un client que vous inscrivez vous-même.",
       "required": "Requis",
@@ -3097,11 +3075,8 @@
       "test_invalid": "Problème de configuration.",
       "import_json": "Importer le JSON"
     },
-    "language_help": "Langue de l'interface et des réponses par défaut.",
     "language_label": "Langue de l'interface",
-    "language_field_help": "Appliquée immédiatement, aucun redémarrage requis.",
     "theme_help": "Apparence claire, sombre ou synchronisée au système.",
-    "mode_help": "Niveau de détail affiché dans le chat et les vues d'outils.",
     "credential": {
       "configured": "Configuré",
       "absent": "Absent",
@@ -3145,6 +3120,56 @@
       "none_for_tool": "Aucun identifiant configuré pour cet outil.",
       "created": "ajouté {date}",
       "values_hidden": "Les valeurs restent chiffrées sur cette machine et ne sont jamais affichées."
+    },
+    "developer": {
+      "subtitle": "Le mode développeur et les réglages avancés.",
+      "mode_title": "Mode développeur",
+      "mode_label": "Mode développeur",
+      "mode_hint": "Affiche les vues techniques (Transcriptions, Observabilité, Mémoire) et les réglages avancés ci-dessous.",
+      "mode_off": "Éteint",
+      "mode_on": "Allumé",
+      "write_failed": "Le mode développeur n'a pas pu être enregistré.",
+      "mcp": {
+        "title": "Apollia comme serveur MCP",
+        "switch_label": "Exposer Apollia comme serveur MCP",
+        "switch_hint": "Un client MCP (Claude Desktop, un éditeur de code) appelle les agents et workflows cochés comme des outils.",
+        "write_failed": "Le réglage du serveur MCP n'a pas pu être enregistré.",
+        "items_label": "Agents et workflows exposés",
+        "items_hint": "Cochez ce qu'un client MCP peut appeler.",
+        "items_empty": "Aucun agent ni workflow installé pour l'instant. Ceux que vous installez depuis la Bibliothèque apparaîtront ici, à cocher.",
+        "items_failed": "Les agents et workflows n'ont pas pu être lus : {error}",
+        "expose_failed": "{name} n'a pas pu être mis à jour.",
+        "kind_agent": "Agent",
+        "kind_workflow": "Workflow",
+        "config_label": "À coller dans la configuration du client MCP",
+        "copy": "Copier",
+        "copied": "Copié",
+        "copy_failed": "La configuration n'a pas pu être copiée."
+      }
+    },
+    "general": {
+      "subtitle": "Mise à jour, langue, dossier de l'application, aide et zone de danger.",
+      "updates_title": "Mise à jour de l'application",
+      "version_label": "Version installée",
+      "interface_title": "Interface",
+      "language_hint": "Change aussi les menus de l'application.",
+      "application_title": "Application",
+      "report_button": "Ouvrir dans le navigateur",
+      "help_title": "Aide",
+      "about_title": "À propos",
+      "report_hint": "Ouvre la page de signalement dans le navigateur. Vos diagnostics restent sur ce poste tant que vous ne les joignez pas."
+    },
+    "chat": {
+      "subtitle": "Comportement des conversations et raccourcis clavier.",
+      "conversations_title": "Conversations",
+      "shortcuts_title": "Raccourcis clavier"
+    },
+    "model_defaults": {
+      "subtitle": "Les valeurs que reçoit un modèle quand rien d'autre ne les fixe.",
+      "empty": "Aucun défaut n'est encore réglable ici : chaque modèle garde les valeurs de l'écran IA."
+    },
+    "engines": {
+      "subtitle": "Les moteurs qui font tourner les modèles et la dictée sur ce poste."
     }
   },
   "onboarding": {
@@ -3424,8 +3449,6 @@
     "no_results": "Aucun résultat",
     "search_placeholder": "Rechercher…",
     "select_or_start": "Sélectionnez une conversation à gauche ou démarrez-en une nouvelle.",
-    "journal_mode_operator": "Opérateur",
-    "journal_mode_builder": "Builder",
     "journal_empty": "Activité de l'agent en direct.",
     "conversations_aria": "Conversations",
     "past_session": "Session passée",
@@ -4243,7 +4266,7 @@
     "actions": {
       "createAgent": "Créer un agent",
       "createTrigger": "Créer un trigger",
-      "toggleMode": "Basculer mode Opérateur / Builder",
+      "toggleDeveloperMode": "Activer / désactiver le mode développeur",
       "toggleCompanion": "Basculer le Companion"
     },
     "help": {

@@ -20,7 +20,7 @@ export function parseSettingsPath(path: string): SettingsSubRoute | null {
 
 /**
  * Navigate to `/settings` or `/settings/:sub`. Handles the redirect
- * `/settings` → `/settings/appearance` so callers don't have to.
+ * `/settings` → `/settings/general` so callers don't have to.
  */
 export function navigateToSettings(sub?: string | SettingsSubRoute | null): SettingsSubRoute { // NOSONAR typescript:S6571
   const resolved = goToSettingsSubRoute(sub ?? DEFAULT_SETTINGS_SUB_ROUTE);

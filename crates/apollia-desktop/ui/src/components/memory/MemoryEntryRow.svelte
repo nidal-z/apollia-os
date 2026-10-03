@@ -2,7 +2,7 @@
   import { Clock, Database, Cog, MoreHorizontal, Trash2, Eye, Copy, Check, X, Sparkles } from "lucide-svelte";
   import { t, locale } from "svelte-i18n";
   import type { MemoryEntry } from "$lib/types";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { Button } from "$lib/components/ui/button";
   import { ActionMenu } from "$lib/components/ui/action-menu";
   import { ContextMenu, type ActionMenuItem } from "$lib/components/ui/context-menu";
@@ -140,7 +140,7 @@
         {/if}
       </div>
 
-      {#if $uiMode === "operator"}
+      {#if !$developerMode}
         <!-- Human preview plus relative time -->
         <div class="mt-1.5 flex w-full min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
           {#if valuePreview}
