@@ -18,7 +18,8 @@
 //! remote, local program); [`admit`] is the admission call that precedes the
 //! addition of a connection, failing closed; [`ConnectionGovernance`] carries
 //! that call and the journal of connection events to the places that add,
-//! change or remove a connection.
+//! change or remove a connection. [`PolicyAdmission`] answers that call from
+//! the organisation policy read at boot.
 //!
 //! [`access_upgrade`] runs, once at startup, the conversion of the rules
 //! persisted before standing consents, and journals every change it makes.
@@ -28,6 +29,7 @@ mod admission;
 mod connection;
 mod contract;
 mod no_policy;
+pub(crate) mod policy_admission;
 mod record;
 mod tool_attributes;
 
@@ -42,6 +44,7 @@ pub use contract::{
     GovernanceError, InstallSubject,
 };
 pub use no_policy::NoPolicyGovernance;
+pub use policy_admission::{PolicyAdmission, REMOTE_DENIED_REASON};
 pub use record::{
     governance_run_id, package_run_id, AccessChange, GovernanceEvent, GovernanceRecord,
     OverrideChange,

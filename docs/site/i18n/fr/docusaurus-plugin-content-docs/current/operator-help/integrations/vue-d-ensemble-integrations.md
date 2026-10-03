@@ -67,7 +67,7 @@ Vous pouvez aussi ajouter votre propre serveur, sur l'onglet **MCP personnalisé
 
 - **Approbation HITL** : toutes les écritures (envoi mail, création événement, écriture fichier) demandent votre confirmation avant exécution. Voir [Comprendre les permissions MCP](understand-mcp-permissions.md).
 - **Tokens locaux** : aucun secret ne quitte votre machine. Voir [Gérer les tokens OAuth](manage-oauth-tokens.md).
-- **Profil de souveraineté** : le réglage est dans **Réglages, Profil**, sous **Souveraineté des données**, avec trois valeurs, *Local strict*, *Local préféré* et *Cloud autorisé*. Sur *Local strict*, et aussi tant que la question n'a jamais reçu de réponse, Apollia refuse d'ouvrir un flux OAuth cloud et l'annonce sur la page du connecteur. C'est tout ce que le profil verrouille en `v0.1.0-preview` : il ne filtre pas les serveurs MCP, donc un serveur HTTP ou SSE distant déjà installé continue de répondre sous ce profil.
+- **Politique de l'organisation** : interdire le cloud pour les connexions est une règle de la politique signée que votre organisation peut déployer, `connections.remote = "deny"`, vérifiée par le runtime. Sous cette règle, Apollia refuse d'ajouter une connexion à un service en ligne, un compte Google ou Microsoft compris, et l'annonce dans la fenêtre de connexion. Sans politique, vous êtes libre : aucune connexion n'est refusée parce qu'elle est en ligne. La politique vérifie une connexion à son ajout ; une connexion déjà en place continue de répondre.
 
 ## Vérification
 
@@ -77,6 +77,6 @@ Vous pouvez aussi ajouter votre propre serveur, sur l'onglet **MCP personnalisé
 ## Si ça ne marche pas
 
 - **La page Connexions est vide ou ne charge pas** : redémarrez Apollia, le runtime n'a peut-être pas fini d'initialiser le client MCP.
-- **Connecter un connecteur natif s'arrête sur le profil de souveraineté** : la fenêtre dit que les connecteurs cloud sont désactivés par votre profil, ce qui arrive aussi quand l'onboarding n'a jamais posé la question. Elle propose de garder le local strict ou d'autoriser le cloud et continuer ; le second écrit **Souveraineté des données** sur *Cloud autorisé* dans **Réglages, Profil**, où les trois valeurs restent disponibles.
+- **Connecter un connecteur natif s'arrête sur « Refusé par la politique de l'organisation »** : la politique de votre organisation interdit les connexions à des services en ligne sur ce poste. Rien n'a été envoyé ; demandez une exception à la personne qui gère la politique.
 
 > **Référence technique :** [Référence Apollia](/reference) , architecture du Tool Registry, scoping, gouvernance des outils.
