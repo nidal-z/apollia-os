@@ -21,6 +21,17 @@ from .agent_messages_response import AgentMessagesResponse
 from .agent_model_fallback_response import AgentModelFallbackResponse
 from .agent_model_response import AgentModelResponse
 from .agent_origin_dto import AgentOriginDto
+from .agent_package_agent import AgentPackageAgent
+from .agent_package_detail import AgentPackageDetail
+from .agent_package_detail_manifest import AgentPackageDetailManifest
+from .agent_package_install_body import AgentPackageInstallBody
+from .agent_package_install_report import AgentPackageInstallReport
+from .agent_package_list_item import AgentPackageListItem
+from .agent_package_preview import AgentPackagePreview
+from .agent_package_preview_body import AgentPackagePreviewBody
+from .agent_package_trigger import AgentPackageTrigger
+from .agent_package_trigger_config import AgentPackageTriggerConfig
+from .agent_package_uninstalled import AgentPackageUninstalled
 from .agent_preview import AgentPreview
 from .agent_response import AgentResponse
 from .agent_response_manifest_type_0 import AgentResponseManifestType0
@@ -445,6 +456,17 @@ __all__ = (
     "AgentModelFallbackResponse",
     "AgentModelResponse",
     "AgentOriginDto",
+    "AgentPackageAgent",
+    "AgentPackageDetail",
+    "AgentPackageDetailManifest",
+    "AgentPackageInstallBody",
+    "AgentPackageInstallReport",
+    "AgentPackageListItem",
+    "AgentPackagePreview",
+    "AgentPackagePreviewBody",
+    "AgentPackageTrigger",
+    "AgentPackageTriggerConfig",
+    "AgentPackageUninstalled",
     "AgentPreview",
     "AgentResponse",
     "AgentResponseManifestType0",

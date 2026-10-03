@@ -172,6 +172,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-packages/installed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/agent-packages/installed`: the installed packages. */
+        get: operations["list_agent_packages"];
+        put?: never;
+        /**
+         * `POST /api/v1/agent-packages/installed`: install a package folder.
+         * @description Python dependencies need `deps_confirmed`; without it the answer is a
+         *     `428` whose message is `DEPS_CONFIRMATION_REQUIRED:<count>:<list>`. The
+         *     agents installed take tasks at once, and the triggers written are loaded.
+         */
+        post: operations["install_agent_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-packages/installed/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/agent-packages/installed/{name}`: one installed package, its
+         *     manifest as recorded.
+         */
+        get: operations["get_agent_package"];
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,
+         *     its agents, their virtualenvs and its folder, best effort at each step.
+         */
+        delete: operations["uninstall_agent_package"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-packages/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/agent-packages/preview`: what the package folder contains,
+         *     its agents, its triggers and its Python dependencies. Nothing is written;
+         *     a manifest that breaks an invariant answers a preview marked invalid.
+         */
+        post: operations["preview_agent_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents": {
         parameters: {
             query?: never;
@@ -5035,6 +5103,138 @@ export interface components {
          * @enum {string}
          */
         AgentOriginDto: "package" | "interface";
+        /** @description An agent of a package. */
+        AgentPackageAgent: {
+            /** @description Entry point, relative to the package folder. */
+            entry: string;
+            /** @description Agent name. */
+            name: string;
+            /** @description `director`, `worker` or `assistant`. */
+            role: string;
+        };
+        /** @description An installed package, in full. */
+        AgentPackageDetail: {
+            /** @description Its agents. */
+            agents: components["schemas"]["AgentPackageAgent"][];
+            /** @description Author from its manifest. */
+            author: string;
+            /** @description Description from its manifest. */
+            description: string;
+            /** @description When it was installed. */
+            installed_at: string;
+            /** @description The manifest as recorded. */
+            manifest: Record<string, never>;
+            /** @description Package name. */
+            name: string;
+            /** @description The folder is gone from the disk. */
+            root_missing: boolean;
+            /** @description Its folder. */
+            root_path: string;
+            /** @description When it was last written. */
+            updated_at: string;
+            /** @description Installed version. */
+            version: string;
+        };
+        /** @description Body of `POST /api/v1/agent-packages/installed`. */
+        AgentPackageInstallBody: {
+            /** @description The user accepted the Python dependencies the package installs. */
+            deps_confirmed?: boolean;
+            /** @description The package folder on this machine, the one holding `agent.toml`. */
+            path: string;
+            /** @description What the user gave each trigger, a webhook secret for now. */
+            trigger_configs?: components["schemas"]["AgentPackageTriggerConfig"][];
+        };
+        /** @description What an installation did. */
+        AgentPackageInstallReport: {
+            /** @description Agents recorded. */
+            agent_count: number;
+            /** @description Package name. */
+            name: string;
+            /** @description Triggers written. */
+            trigger_count: number;
+            /** @description Triggers refused, one line each. */
+            trigger_errors: string[];
+            /** @description Installed version. */
+            version: string;
+        };
+        /** @description An installed package in the listing. */
+        AgentPackageListItem: {
+            /** @description Number of agents. */
+            agent_count: number;
+            /** @description Its agents. */
+            agents: components["schemas"]["AgentPackageAgent"][];
+            /** @description Description from its manifest. */
+            description: string;
+            /** @description When it was installed. */
+            installed_at: string;
+            /** @description Package name. */
+            name: string;
+            /** @description The folder is gone from the disk. */
+            root_missing: boolean;
+            /** @description Its folder. */
+            root_path: string;
+            /** @description Installed version. */
+            version: string;
+        };
+        /** @description What a package folder contains, read without writing anything. */
+        AgentPackagePreview: {
+            /** @description Its agents; empty when the manifest is invalid. */
+            agents: components["schemas"]["AgentPackageAgent"][];
+            /** @description Author. */
+            author: string;
+            /** @description Description. */
+            description: string;
+            /** @description Why it does not, when it does not. */
+            error?: string | null;
+            /** @description Package name. */
+            name: string;
+            /** @description The Python dependencies it installs, every agent together. */
+            pip_packages: string[];
+            /** @description Number of triggers. */
+            trigger_count: number;
+            /** @description Its triggers; empty when the manifest is invalid. */
+            triggers: components["schemas"]["AgentPackageTrigger"][];
+            /** @description The manifest holds its invariants. */
+            valid: boolean;
+            /** @description Version. */
+            version: string;
+        };
+        /** @description Body of `POST /api/v1/agent-packages/preview`. */
+        AgentPackagePreviewBody: {
+            /** @description The package folder on this machine, the one holding `agent.toml`. */
+            path: string;
+        };
+        /** @description A trigger a package declares, as the preview shows it. */
+        AgentPackageTrigger: {
+            /** @description The agent it starts. */
+            agent: string;
+            /** @description Whether it starts enabled. */
+            enabled: boolean;
+            /** @description Interval (interval triggers). */
+            every?: string | null;
+            /** @description Trigger identifier. */
+            id: string;
+            /** @description A webhook without its secret: the user gives one at install. */
+            needs_config: boolean;
+            /** @description Watched path (file_watch triggers). */
+            path?: string | null;
+            /** @description Cron expression (cron triggers). */
+            schedule?: string | null;
+            /** @description `cron`, `interval`, `oneshot`, `file_watch` or `webhook`. */
+            source_type: string;
+        };
+        /** @description What the user gives a trigger at install, a webhook secret for now. */
+        AgentPackageTriggerConfig: {
+            /** @description Trigger identifier. */
+            id: string;
+            /** @description HMAC secret of a webhook. */
+            secret?: string | null;
+        };
+        /** @description Answer of `DELETE /api/v1/agent-packages/installed/{name}`. */
+        AgentPackageUninstalled: {
+            /** @description The package removed. */
+            uninstalled: string;
+        };
         /** @description One agent of the package. */
         AgentPreview: {
             /** @description Accesses the agent asks for, as governance resolves them. */
@@ -8962,6 +9162,228 @@ export interface operations {
             };
             /** @description Audit journal not available */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_agent_packages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The installed packages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackageListItem"][];
+                };
+            };
+            /** @description agents.db cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    install_agent_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentPackageInstallBody"];
+            };
+        };
+        responses: {
+            /** @description Installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackageInstallReport"];
+                };
+            };
+            /** @description Invalid manifest, or a name that is a path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The copy, a virtualenv or an agent import failed; nothing is left */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The Python dependencies are not confirmed */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description agents.db refused a row */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_agent_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The package */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackageDetail"];
+                };
+            };
+            /** @description A name that is a path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such package */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description agents.db cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    uninstall_agent_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Uninstalled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackageUninstalled"];
+                };
+            };
+            /** @description A name that is a path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Nothing of the package was found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description agents.db cannot be opened */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    preview_agent_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentPackagePreviewBody"];
+            };
+        };
+        responses: {
+            /** @description The preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackagePreview"];
+                };
+            };
+            /** @description agent.toml cannot be read or parsed */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

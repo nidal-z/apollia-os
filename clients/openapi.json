@@ -516,6 +516,273 @@
         }
       }
     },
+    "/api/v1/agent-packages/installed": {
+      "get": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`GET /api/v1/agent-packages/installed`: the installed packages.",
+        "operationId": "list_agent_packages",
+        "responses": {
+          "200": {
+            "description": "The installed packages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentPackageListItem"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/agent-packages/installed`: install a package folder.",
+        "description": "Python dependencies need `deps_confirmed`; without it the answer is a\n`428` whose message is `DEPS_CONFIRMATION_REQUIRED:<count>:<list>`. The\nagents installed take tasks at once, and the triggers written are loaded.",
+        "operationId": "install_agent_package",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPackageInstallBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPackageInstallReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid manifest, or a name that is a path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The copy, a virtualenv or an agent import failed; nothing is left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "The Python dependencies are not confirmed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db refused a row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-packages/installed/{name}": {
+      "get": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`GET /api/v1/agent-packages/installed/{name}`: one installed package, its\nmanifest as recorded.",
+        "operationId": "get_agent_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPackageDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A name that is a path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db cannot be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,\nits agents, their virtualenvs and its folder, best effort at each step.",
+        "operationId": "uninstall_agent_package",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Package name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Uninstalled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPackageUninstalled"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A name that is a path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing of the package was found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "agents.db cannot be opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent-packages/preview": {
+      "post": {
+        "tags": [
+          "packages"
+        ],
+        "summary": "`POST /api/v1/agent-packages/preview`: what the package folder contains,\nits agents, its triggers and its Python dependencies. Nothing is written;\na manifest that breaks an invariant answers a preview marked invalid.",
+        "operationId": "preview_agent_package",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPackagePreviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentPackagePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "agent.toml cannot be read or parsed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/agents": {
       "get": {
         "tags": [
@@ -14267,6 +14534,374 @@
           "package",
           "interface"
         ]
+      },
+      "AgentPackageAgent": {
+        "type": "object",
+        "description": "An agent of a package.",
+        "required": [
+          "name",
+          "role",
+          "entry"
+        ],
+        "properties": {
+          "entry": {
+            "type": "string",
+            "description": "Entry point, relative to the package folder."
+          },
+          "name": {
+            "type": "string",
+            "description": "Agent name."
+          },
+          "role": {
+            "type": "string",
+            "description": "`director`, `worker` or `assistant`."
+          }
+        }
+      },
+      "AgentPackageDetail": {
+        "type": "object",
+        "description": "An installed package, in full.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "author",
+          "agents",
+          "installed_at",
+          "updated_at",
+          "root_path",
+          "root_missing",
+          "manifest"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageAgent"
+            },
+            "description": "Its agents."
+          },
+          "author": {
+            "type": "string",
+            "description": "Author from its manifest."
+          },
+          "description": {
+            "type": "string",
+            "description": "Description from its manifest."
+          },
+          "installed_at": {
+            "type": "string",
+            "description": "When it was installed."
+          },
+          "manifest": {
+            "type": "object",
+            "description": "The manifest as recorded."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package name."
+          },
+          "root_missing": {
+            "type": "boolean",
+            "description": "The folder is gone from the disk."
+          },
+          "root_path": {
+            "type": "string",
+            "description": "Its folder."
+          },
+          "updated_at": {
+            "type": "string",
+            "description": "When it was last written."
+          },
+          "version": {
+            "type": "string",
+            "description": "Installed version."
+          }
+        }
+      },
+      "AgentPackageInstallBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/agent-packages/installed`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "deps_confirmed": {
+            "type": "boolean",
+            "description": "The user accepted the Python dependencies the package installs."
+          },
+          "path": {
+            "type": "string",
+            "description": "The package folder on this machine, the one holding `agent.toml`."
+          },
+          "trigger_configs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageTriggerConfig"
+            },
+            "description": "What the user gave each trigger, a webhook secret for now."
+          }
+        }
+      },
+      "AgentPackageInstallReport": {
+        "type": "object",
+        "description": "What an installation did.",
+        "required": [
+          "name",
+          "version",
+          "agent_count",
+          "trigger_count",
+          "trigger_errors"
+        ],
+        "properties": {
+          "agent_count": {
+            "type": "integer",
+            "description": "Agents recorded.",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string",
+            "description": "Package name."
+          },
+          "trigger_count": {
+            "type": "integer",
+            "description": "Triggers written.",
+            "minimum": 0
+          },
+          "trigger_errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Triggers refused, one line each."
+          },
+          "version": {
+            "type": "string",
+            "description": "Installed version."
+          }
+        }
+      },
+      "AgentPackageListItem": {
+        "type": "object",
+        "description": "An installed package in the listing.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "agent_count",
+          "agents",
+          "installed_at",
+          "root_path",
+          "root_missing"
+        ],
+        "properties": {
+          "agent_count": {
+            "type": "integer",
+            "description": "Number of agents.",
+            "minimum": 0
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageAgent"
+            },
+            "description": "Its agents."
+          },
+          "description": {
+            "type": "string",
+            "description": "Description from its manifest."
+          },
+          "installed_at": {
+            "type": "string",
+            "description": "When it was installed."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package name."
+          },
+          "root_missing": {
+            "type": "boolean",
+            "description": "The folder is gone from the disk."
+          },
+          "root_path": {
+            "type": "string",
+            "description": "Its folder."
+          },
+          "version": {
+            "type": "string",
+            "description": "Installed version."
+          }
+        }
+      },
+      "AgentPackagePreview": {
+        "type": "object",
+        "description": "What a package folder contains, read without writing anything.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "author",
+          "agents",
+          "triggers",
+          "trigger_count",
+          "pip_packages",
+          "valid"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageAgent"
+            },
+            "description": "Its agents; empty when the manifest is invalid."
+          },
+          "author": {
+            "type": "string",
+            "description": "Author."
+          },
+          "description": {
+            "type": "string",
+            "description": "Description."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it does not, when it does not."
+          },
+          "name": {
+            "type": "string",
+            "description": "Package name."
+          },
+          "pip_packages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The Python dependencies it installs, every agent together."
+          },
+          "trigger_count": {
+            "type": "integer",
+            "description": "Number of triggers.",
+            "minimum": 0
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPackageTrigger"
+            },
+            "description": "Its triggers; empty when the manifest is invalid."
+          },
+          "valid": {
+            "type": "boolean",
+            "description": "The manifest holds its invariants."
+          },
+          "version": {
+            "type": "string",
+            "description": "Version."
+          }
+        }
+      },
+      "AgentPackagePreviewBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/agent-packages/preview`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The package folder on this machine, the one holding `agent.toml`."
+          }
+        }
+      },
+      "AgentPackageTrigger": {
+        "type": "object",
+        "description": "A trigger a package declares, as the preview shows it.",
+        "required": [
+          "id",
+          "source_type",
+          "agent",
+          "needs_config",
+          "enabled"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "The agent it starts."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether it starts enabled."
+          },
+          "every": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Interval (interval triggers)."
+          },
+          "id": {
+            "type": "string",
+            "description": "Trigger identifier."
+          },
+          "needs_config": {
+            "type": "boolean",
+            "description": "A webhook without its secret: the user gives one at install."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Watched path (file_watch triggers)."
+          },
+          "schedule": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cron expression (cron triggers)."
+          },
+          "source_type": {
+            "type": "string",
+            "description": "`cron`, `interval`, `oneshot`, `file_watch` or `webhook`."
+          }
+        }
+      },
+      "AgentPackageTriggerConfig": {
+        "type": "object",
+        "description": "What the user gives a trigger at install, a webhook secret for now.",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Trigger identifier."
+          },
+          "secret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "HMAC secret of a webhook."
+          }
+        }
+      },
+      "AgentPackageUninstalled": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/agent-packages/installed/{name}`.",
+        "required": [
+          "uninstalled"
+        ],
+        "properties": {
+          "uninstalled": {
+            "type": "string",
+            "description": "The package removed."
+          }
+        }
       },
       "AgentPreview": {
         "type": "object",
