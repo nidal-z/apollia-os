@@ -86,8 +86,11 @@ check_exit    "project link empty session → 1"  1      "$BIN" project link see
 check         "project delete --confirm"               "$BIN" project delete "$PID" --confirm
 
 # ── A.4 profile (3 seeded __user__ keys) ────────────────────────────────────
+# The seed is a profile written before profiles existed: the first open migrates
+# `preferences.language` into the `preferences` field of the default profile.
 section "A.4 profile"
-check_content "profile show has seeded language=fr" "preferences.language" "$BIN" profile show
+check_json_field "profile show: language migrated into preferences" \
+  "[e['value'] for e in d if e['key']=='preferences'][0]" "en" "$BIN" profile show --json
 check_content "profile show has monthly_budget"     "monthly_budget"       "$BIN" profile show
 check_json    "profile show --json"                  "$BIN" profile show --json
 check         "profile schema"                       "$BIN" profile schema
