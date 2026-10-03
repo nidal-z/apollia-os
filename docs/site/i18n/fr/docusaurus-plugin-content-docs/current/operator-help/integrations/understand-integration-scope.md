@@ -19,8 +19,8 @@ Quand un agent tente d'utiliser un outil, Apollia applique trois filtres dans l'
 
 1. **Le manifest de l'agent** déclare la liste d'outils requis et optionnels. Un outil absent du manifest n'est pas accessible à cet agent.
 2. **Les règles de permission** (voir [Comprendre les permissions MCP](understand-mcp-permissions.md)) décident si l'outil peut s'exécuter automatiquement ou demande une approbation.
-<!-- claim:sovereignty-profile-gates-connecting-not-calling -->
-3. **Le profil de souveraineté**, qui n'est pas un troisième filtre sur l'appel d'outil. Sur `local_only`, il refuse d'ouvrir une nouvelle connexion cloud : le flux OAuth ne démarre pas. Il n'inspecte pas les appels passant par une connexion déjà établie, donc traitez-le comme un verrou sur la connexion, pas sur l'usage.
+<!-- claim:organisation-policy-gates-connecting-not-calling -->
+3. **La politique de l'organisation**, qui n'est pas un troisième filtre sur l'appel d'outil. Quand votre organisation a déployé une politique signée qui interdit les connexions distantes, Apollia refuse d'ajouter une connexion à un service en ligne : le flux OAuth d'un compte Google ou Microsoft ne démarre pas, et le refus est vérifié par le runtime, pas par la fenêtre. Sans politique, rien n'est refusé à cette étape. Elle n'inspecte pas les appels passant par une connexion déjà établie, donc traitez-la comme un verrou sur la connexion, pas sur l'usage.
 
 Si l'un des deux premiers refuse, l'outil ne s'exécute pas.
 
@@ -46,7 +46,7 @@ Tous les MCPs installés et tous les connecteurs natifs sont visibles par tous l
 
 - Onglet **Outils** de l'agent, liste complète.
 - Dans le chat, demander à l'agent *"Liste les outils que tu peux utiliser"*. Il répond avec sa toolbelt si son prompt système l'autorise.
-- Tester un appel concret. Si l'outil est refusé, l'agent retourne un message clair, `outil non autorisé` par exemple. Aucune erreur de souveraineté ne peut apparaître ici : le profil est vérifié à l'ouverture d'une connexion cloud, jamais à l'appel d'un outil.
+- Tester un appel concret. Si l'outil est refusé, l'agent retourne un message clair, `outil non autorisé` par exemple. Aucun refus de ce type par la politique ne peut apparaître ici : la politique est vérifiée à l'ajout d'une connexion, jamais à l'appel d'un outil.
 
 ## Si ça ne marche pas
 

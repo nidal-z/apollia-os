@@ -3240,6 +3240,16 @@
               }
             }
           },
+          "403": {
+            "description": "Refused by the connection admission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many consents pending",
             "content": {

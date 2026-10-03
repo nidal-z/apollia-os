@@ -6,7 +6,7 @@ sidebar_position: 7
 
 # Understand MCP permissions
 
-> For any operator who wants to know why a tool asks for an approval, how to change a rule, and what local-only mode does.
+> For any operator who wants to know why a tool asks for an approval, how to change a rule, and what your organisation's policy forbids.
 
 ## Prerequisites
 
@@ -46,16 +46,16 @@ The per-server approval level is not on this page: it lives in **Connections**, 
 
 Rules are created two ways. Most of the time they appear on their own, when you answer an approval popup with "Always allow". You can also create one by hand from this page, through the **Add rule** form, which is the way to authorize something before an agent ever asks for it.
 
-## What the sovereignty profile does
+## What the organisation policy forbids
 
-The **sovereignty profile** is a global decision, independent of the per-tool rules.
+Forbidding the cloud is a decision of your organisation, not a per-tool rule. It
+is written in the signed policy IT may deploy on the computer, as
+`connections.remote = "deny"`, and the runtime checks it.
 
-It is set in **Settings, Profile**, under **Data sovereignty**, and takes one of three values.
+- **No policy**: you are free. No connection is refused for being online.
+- **A policy with `connections.remote = "deny"`**: adding a connection to an online service is refused, a Google or Microsoft account or a remote MCP server alike. The dialog says "Refused by your organisation's policy" and nothing is sent.
 
-- **Cloud allowed** and **Local preferred**: starting a cloud OAuth connection is permitted.
-- **Strictly local**: starting a cloud OAuth connection is refused, and so it is when the setting has never been answered, since an unanswered sensitive setting must not read as consent.
-
-That is the whole of what the profile enforces in `v0.1.0-preview`. It is checked at one place, when you click **Connect** on a native connector, and nowhere else. It does **not** filter MCP servers: a remote HTTP or SSE server already installed keeps being reachable under *Strictly local*, and no agent ever receives a sovereignty error, because none is raised on the tool path. Treat the profile as a gate on connecting a cloud account, not as a network boundary.
+The policy is checked when a connection is added, not on each tool call: no agent receives a policy error on the tool path. Treat it as a gate on connecting, not as a network boundary.
 
 ## What an MCP server can and cannot ask of you
 
