@@ -197,10 +197,6 @@ pub enum OnboardingError {
     #[error("chat subsystem not available")]
     ChatNotAvailable,
 
-    /// The apollia-guide companion agent is not registered in the runtime.
-    #[error("apollia-guide agent not found - it powers the companion panel and is provisioned at startup, bundle it and restart the application")]
-    GuideAgentNotInstalled,
-
     /// The requested phase transition is not legal.
     #[error("cannot advance from {from:?} to {to:?}")]
     InvalidTransition {

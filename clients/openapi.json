@@ -1890,6 +1890,137 @@
         }
       }
     },
+    "/api/v1/companion/enabled": {
+      "get": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "`GET /api/v1/companion/enabled`: whether the companion is on.",
+        "operationId": "get_companion_enabled",
+        "responses": {
+          "200": {
+            "description": "The preference, off when never written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionEnabled"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The user memory did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "`PUT /api/v1/companion/enabled`: turns the companion on or off.",
+        "operationId": "set_companion_enabled",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanionEnabled"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The preference as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionEnabled"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The user memory did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/companion/sessions": {
+      "post": {
+        "tags": [
+          "companion"
+        ],
+        "summary": "`POST /api/v1/companion/sessions`: opens a session on the guide.",
+        "operationId": "create_companion_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCompanionSessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The guide session opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanionSession"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The guide is not installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The chat subsystem refused the session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The chat subsystem did not start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connections": {
       "get": {
         "tags": [
@@ -11422,6 +11553,32 @@
           }
         }
       },
+      "CompanionEnabled": {
+        "type": "object",
+        "description": "Body of `PUT /api/v1/companion/enabled`, and answer of both verbs.",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the companion panel is on."
+          }
+        }
+      },
+      "CompanionSession": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/companion/sessions`.",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "Identifier of the guide session just opened."
+          }
+        }
+      },
       "CompleteConsentBody": {
         "type": "object",
         "description": "Body of `POST /api/v1/connectors/oauth/complete`.",
@@ -11783,6 +11940,19 @@
             "format": "int32",
             "description": "Minimum throttling interval, in seconds. Default: `0` (none).",
             "minimum": 0
+          }
+        }
+      },
+      "CreateCompanionSessionBody": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/companion/sessions`.",
+        "properties": {
+          "context": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The route the panel opened on, logged with the session."
           }
         }
       },
@@ -16961,6 +17131,10 @@
     {
       "name": "profile",
       "description": "The user profile"
+    },
+    {
+      "name": "companion",
+      "description": "The in-app companion and its guide session"
     },
     {
       "name": "memory",

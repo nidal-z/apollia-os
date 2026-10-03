@@ -657,6 +657,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/companion/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/companion/enabled`: whether the companion is on. */
+        get: operations["get_companion_enabled"];
+        /** `PUT /api/v1/companion/enabled`: turns the companion on or off. */
+        put: operations["set_companion_enabled"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companion/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/companion/sessions`: opens a session on the guide. */
+        post: operations["create_companion_session"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connections": {
         parameters: {
             query?: never;
@@ -4057,6 +4092,16 @@ export interface components {
              */
             memoryType?: string | null;
         };
+        /** @description Body of `PUT /api/v1/companion/enabled`, and answer of both verbs. */
+        CompanionEnabled: {
+            /** @description Whether the companion panel is on. */
+            enabled: boolean;
+        };
+        /** @description Answer of `POST /api/v1/companion/sessions`. */
+        CompanionSession: {
+            /** @description Identifier of the guide session just opened. */
+            session_id: string;
+        };
         /** @description Body of `POST /api/v1/connectors/oauth/complete`. */
         CompleteConsentBody: {
             /** @description The authorization `code` the provider returned. */
@@ -4221,6 +4266,11 @@ export interface components {
              * @description Minimum throttling interval, in seconds. Default: `0` (none).
              */
             min_interval_seconds?: number;
+        };
+        /** @description Body of `POST /api/v1/companion/sessions`. */
+        CreateCompanionSessionBody: {
+            /** @description The route the panel opened on, logged with the session. */
+            context?: string | null;
         };
         /** @description Request body for `POST /api/v1/llm/backends`. */
         CreateLlmBackendRequest: {
@@ -7862,6 +7912,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BatchErrorResponse"];
+                };
+            };
+        };
+    };
+    get_companion_enabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The preference, off when never written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionEnabled"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_companion_enabled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanionEnabled"];
+            };
+        };
+        responses: {
+            /** @description The preference as stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionEnabled"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    create_companion_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCompanionSessionBody"];
+            };
+        };
+        responses: {
+            /** @description The guide session opened */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanionSession"];
+                };
+            };
+            /** @description The guide is not installed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat subsystem refused the session */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat subsystem did not start */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };

@@ -35,6 +35,8 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// shares since it listens on this machine. [`run`] manages the download
 /// manager it holds. `list_model_cards` needs none either: it reads the model
 /// registry, the data directory and its `apollia.toml`, never the runtime.
+/// `get_companion_context` needs none: it answers from a table of help texts
+/// compiled into this binary.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "chat_session_metrics",
     "create_chat_session",
@@ -143,6 +145,13 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "memory_export_namespace",
     "memory_import_namespace",
     "purge_memory",
+    // The companion: its preference and its guide session, over
+    // `/api/v1/companion/...`. Its per-route help text is a table compiled
+    // into the window and needs no route.
+    "create_companion_session",
+    "get_companion_context",
+    "get_companion_enabled",
+    "set_companion_enabled",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

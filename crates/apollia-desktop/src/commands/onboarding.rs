@@ -38,9 +38,6 @@ const ONBOARDING_TOPICS: [&str; 5] = ["identity", "preferences", "tools", "domai
 /// Name of the agent used for onboarding conversations.
 const ONBOARDING_AGENT_NAME: &str = "onboarding-agent";
 
-/// Name of the agent that powers the in-app companion panel.
-const GUIDE_AGENT_NAME: &str = "apollia-guide";
-
 /// Valid user profiles for the onboarding flow.
 const VALID_PROFILES: [&str; 2] = ["operator", "builder"];
 

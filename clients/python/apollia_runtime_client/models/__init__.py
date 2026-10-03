@@ -58,6 +58,8 @@ from .chat_response_value_type_0 import ChatResponseValueType0
 from .clear_agent_model_response import ClearAgentModelResponse
 from .clear_cache_response import ClearCacheResponse
 from .clear_memory_body import ClearMemoryBody
+from .companion_enabled import CompanionEnabled
+from .companion_session import CompanionSession
 from .complete_consent_body import CompleteConsentBody
 from .complete_request import CompleteRequest
 from .complete_request_schema_type_0 import CompleteRequestSchemaType0
@@ -72,6 +74,7 @@ from .costs_response import CostsResponse
 from .counted_language_model import CountedLanguageModel
 from .create_channel_request import CreateChannelRequest
 from .create_channel_request_config import CreateChannelRequestConfig
+from .create_companion_session_body import CreateCompanionSessionBody
 from .create_llm_backend_request import CreateLlmBackendRequest
 from .create_llm_backend_request_config_json import CreateLlmBackendRequestConfigJson
 from .create_preset_request import CreatePresetRequest
@@ -381,6 +384,8 @@ __all__ = (
     "ClearAgentModelResponse",
     "ClearCacheResponse",
     "ClearMemoryBody",
+    "CompanionEnabled",
+    "CompanionSession",
     "CompleteConsentBody",
     "CompleteRequest",
     "CompleteRequestSchemaType0",
@@ -395,6 +400,7 @@ __all__ = (
     "CountedLanguageModel",
     "CreateChannelRequest",
     "CreateChannelRequestConfig",
+    "CreateCompanionSessionBody",
     "CreateLlmBackendRequest",
     "CreateLlmBackendRequestConfigJson",
     "CreatePresetRequest",

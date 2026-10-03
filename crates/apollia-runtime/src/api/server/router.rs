@@ -97,6 +97,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         list_sessions, pause::pause_session, resume_session as chat_resume_session, send_message,
         stream_session,
     };
+    use crate::api::routes_companion::companion_router;
     use crate::api::routes_connections::connections_router;
     use crate::api::routes_connectors::connectors_router;
     use crate::api::routes_engines::engines_router;
@@ -324,6 +325,7 @@ pub(crate) fn build_router<B: ExecutionBackend + Clone + From<DynBackend>>(
         // Native connector consent routes
         .merge(connections_router::<B>())
         .merge(profile_router::<B>())
+        .merge(companion_router::<B>())
         .merge(memory_maintenance_router::<B>())
         .merge(conversations_router::<B>())
         .merge(connectors_router::<B>())

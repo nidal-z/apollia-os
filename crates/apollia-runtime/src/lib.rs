@@ -18,6 +18,7 @@ pub mod backend_keys;
 pub mod batch;
 pub mod chat;
 pub mod commands;
+pub mod companion;
 pub mod composition;
 pub mod connections;
 pub mod connectors_bridge;
