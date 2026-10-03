@@ -122,6 +122,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_profile",
     "reset_user_profile",
     "set_profile_entry",
+    // The credentials of the native tools, over `/api/v1/tool-credentials`.
+    "governance_delete_credential",
+    "governance_list_credentials",
+    "governance_set_credential",
+    "governance_test_credential",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.

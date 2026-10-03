@@ -7708,6 +7708,223 @@
         }
       }
     },
+    "/api/v1/tool-credential-tests/{tool_name}": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "`POST /api/v1/tool-credential-tests/{tool_name}`: validates the tool's\ncredential with a live call. A missing or rejected key is an answer with\n`ok: false`, not an error.",
+        "operationId": "test_tool_credential",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "path",
+            "description": "Tool whose credential is tested",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The outcome of the live call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialTestView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The tool has no live test",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The credential store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tool-credentials": {
+      "get": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "`GET /api/v1/tool-credentials`: the stored credentials, values left out.",
+        "operationId": "list_tool_credentials",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "query",
+            "description": "Only the credentials of this tool.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The credentials, without their values",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CredentialEntryView"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The credential store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tool-credentials/{tool_name}/{key_name}": {
+      "put": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "`PUT /api/v1/tool-credentials/{tool_name}/{key_name}`: stores or replaces\none credential, encrypted.",
+        "operationId": "set_tool_credential",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "path",
+            "description": "Owning tool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key_name",
+            "in": "path",
+            "description": "Key name, e.g. brave.api_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCredentialBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The credential is stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredCredential"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Blank name or empty value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The credential store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "`DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`: removes one\ncredential. Removing one that is not there is not an error.",
+        "operationId": "delete_tool_credential",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "path",
+            "description": "Owning tool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key_name",
+            "in": "path",
+            "description": "Key name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether a value was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedCredential"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The credential store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tools": {
       "get": {
         "tags": [
@@ -10615,6 +10832,65 @@
           }
         }
       },
+      "CredentialEntryView": {
+        "type": "object",
+        "description": "A credential as listed: its owner, its key name and its dates, never its\nvalue.",
+        "required": [
+          "tool_name",
+          "key_name",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "description": "Creation date, RFC 3339."
+          },
+          "key_name": {
+            "type": "string",
+            "description": "Logical key name (e.g. `brave.api_key`)."
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Date of the last actual use, if any."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Name of the owning tool."
+          }
+        }
+      },
+      "CredentialTestView": {
+        "type": "object",
+        "description": "Result of a live credential validation.",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Diagnostic message when `ok` is `false`."
+          },
+          "latency_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Measured round-trip latency in milliseconds.",
+            "minimum": 0
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "`true` if the call succeeded."
+          }
+        }
+      },
       "DailyCostEntry": {
         "type": "object",
         "description": "A single day+backend cost entry for the daily chart.",
@@ -10762,6 +11038,19 @@
           "deleted": {
             "type": "string",
             "description": "Name of the deleted server."
+          }
+        }
+      },
+      "DeletedCredential": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`.",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "boolean",
+            "description": "Whether a value was there to remove."
           }
         }
       },
@@ -13051,6 +13340,19 @@
           }
         }
       },
+      "SetCredentialBody": {
+        "type": "object",
+        "description": "Request body of `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`.",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "Cleartext value, encrypted before it is written."
+          }
+        }
+      },
       "SetDefaultModelRequest": {
         "type": "object",
         "description": "Body of `PUT /api/v1/llm/default-model`.",
@@ -13419,6 +13721,24 @@
           "state": {
             "type": "string",
             "description": "Opaque value the provider returns with the code, to hand back to\n`complete`. Valid ten minutes, once."
+          }
+        }
+      },
+      "StoredCredential": {
+        "type": "object",
+        "description": "Answer of `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`.",
+        "required": [
+          "tool_name",
+          "key_name"
+        ],
+        "properties": {
+          "key_name": {
+            "type": "string",
+            "description": "Key name stored."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Owning tool."
           }
         }
       },

@@ -76,6 +76,8 @@ from .create_preset_request_request import CreatePresetRequestRequest
 from .create_server_request import CreateServerRequest
 from .create_session_request import CreateSessionRequest
 from .create_trigger_request import CreateTriggerRequest
+from .credential_entry_view import CredentialEntryView
+from .credential_test_view import CredentialTestView
 from .daily_cost_entry import DailyCostEntry
 from .daily_costs_response import DailyCostsResponse
 from .default_model_response import DefaultModelResponse
@@ -85,6 +87,7 @@ from .delete_backend_response import DeleteBackendResponse
 from .delete_preset_response import DeletePresetResponse
 from .delete_response import DeleteResponse
 from .delete_server_response import DeleteServerResponse
+from .deleted_credential import DeletedCredential
 from .deleted_profile_entry import DeletedProfileEntry
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
@@ -194,6 +197,7 @@ from .server_response import ServerResponse
 from .servers_list_response import ServersListResponse
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
+from .set_credential_body import SetCredentialBody
 from .set_default_model_request import SetDefaultModelRequest
 from .set_default_response import SetDefaultResponse
 from .set_events_request import SetEventsRequest
@@ -214,6 +218,7 @@ from .sse_task_event import SseTaskEvent
 from .start_agent_request import StartAgentRequest
 from .start_consent_body import StartConsentBody
 from .start_consent_response import StartConsentResponse
+from .stored_credential import StoredCredential
 from .stt_reload_response import SttReloadResponse
 from .stt_status_response import SttStatusResponse
 from .submit_task_request import SubmitTaskRequest
@@ -368,12 +373,15 @@ __all__ = (
     "CreateServerRequest",
     "CreateSessionRequest",
     "CreateTriggerRequest",
+    "CredentialEntryView",
+    "CredentialTestView",
     "DailyCostEntry",
     "DailyCostsResponse",
     "DefaultModelResponse",
     "DelegateRequest",
     "DelegateRequestInput",
     "DeleteBackendResponse",
+    "DeletedCredential",
     "DeletedProfileEntry",
     "DeletePresetResponse",
     "DeleteResponse",
@@ -484,6 +492,7 @@ __all__ = (
     "ServersListResponse",
     "SetAgentModelRequest",
     "SetApprovalBody",
+    "SetCredentialBody",
     "SetDefaultModelRequest",
     "SetDefaultResponse",
     "SetEventsRequest",
@@ -504,6 +513,7 @@ __all__ = (
     "StartAgentRequest",
     "StartConsentBody",
     "StartConsentResponse",
+    "StoredCredential",
     "SttReloadResponse",
     "SttStatusResponse",
     "SubmitTaskRequest",

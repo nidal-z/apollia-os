@@ -12,21 +12,26 @@
 //! no runtime path ever read it.
 
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use apollia_permissions::{
     PermissionAuditLog, PermissionScope, PrefixRule, PrefixRuleEngine, RuleAction,
 };
 use apollia_runtime::embedded::RuntimeHandle;
+pub use apollia_runtime::tool_credentials::{
+    CredentialEntryView as CredentialEntryDto, CredentialTestView as CredentialTestResultDto,
+};
 use apollia_tools::{
     GovernanceDb, NativeToolRegistry, ToolCredentialStore, GOVERNANCE_DB_FILENAME,
 };
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::attached::RuntimeLink;
+
+mod credentials;
+
 const KEYFILE_NAME: &str = ".keyfile";
-const BRAVE_TEST_URL: &str = "https://api.search.brave.com/res/v1/web/search";
-const BRAVE_TEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DTOs
@@ -47,30 +52,6 @@ pub struct ToolStatusDto {
     /// Backend actually used by the tool when applicable
     /// (e.g. `"duckduckgo"` or `"brave"` for `web_search`).
     pub active_backend: Option<String>,
-}
-
-/// Metadata for a credential stored for a tool.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CredentialEntryDto {
-    /// Name of the owning tool.
-    pub tool_name: String,
-    /// Logical key name (e.g. `brave.api_key`).
-    pub key_name: String,
-    /// Creation date in ISO 8601 / RFC 3339 format.
-    pub created_at: String,
-    /// Date of the last actual use, if any.
-    pub last_used_at: Option<String>,
-}
-
-/// Result of a live credential validation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CredentialTestResultDto {
-    /// `true` if the call succeeded.
-    pub ok: bool,
-    /// Measured latency in milliseconds (round-trip).
-    pub latency_ms: Option<u64>,
-    /// Diagnostic error message when `ok` is `false`.
-    pub error: Option<String>,
 }
 
 /// Filter passed to [`list_permission_rules`].
@@ -365,7 +346,8 @@ pub async fn governance_set_tool_config(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Lists the configured credentials, optionally filtered by tool.
-/// Cleartext values are never returned.
+/// Cleartext values are never returned. Attached to a daemon,
+/// `GET /api/v1/tool-credentials` answers the same list.
 ///
 /// # Errors
 ///
@@ -373,24 +355,9 @@ pub async fn governance_set_tool_config(
 #[tauri::command]
 pub async fn governance_list_credentials(
     tool_name: Option<String>,
-    _state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
 ) -> Result<Vec<CredentialEntryDto>, String> {
-    let base = home_base_dir()?;
-    let db_path = ensure_governance_db()?;
-    let store = ToolCredentialStore::new(&db_path, &keyfile_path_for(&base))
-        .map_err(|e| format!("failed to open credential store: {e}"))?;
-    let entries = store
-        .list(tool_name.as_deref())
-        .map_err(|e| format!("failed to list credentials: {e}"))?;
-    Ok(entries
-        .into_iter()
-        .map(|e| CredentialEntryDto {
-            tool_name: e.tool_name,
-            key_name: e.key_name,
-            created_at: iso8601(e.created_at),
-            last_used_at: iso8601_opt(e.last_used_at),
-        })
-        .collect())
+    credentials::list(link.inner(), tool_name).await
 }
 
 /// Stores (or updates) a credential for a tool.
@@ -406,23 +373,9 @@ pub async fn governance_set_credential(
     tool_name: String,
     key_name: String,
     value: String,
-    _state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
 ) -> Result<(), String> {
-    if tool_name.trim().is_empty() || key_name.trim().is_empty() {
-        return Err("tool_name and key_name must not be empty".to_string());
-    }
-    if value.is_empty() {
-        return Err("credential value must not be empty".to_string());
-    }
-    let base = home_base_dir()?;
-    let db_path = ensure_governance_db()?;
-    let mut store = ToolCredentialStore::new(&db_path, &keyfile_path_for(&base))
-        .map_err(|e| format!("failed to open credential store: {e}"))?;
-    store
-        .set(&tool_name, &key_name, &value)
-        .map_err(|e| format!("failed to store credential: {e}"))?;
-    tracing::info!(tool = %tool_name, key = %key_name, "tool.credential.stored");
-    Ok(())
+    credentials::set(link.inner(), tool_name, key_name, value).await
 }
 
 /// Deletes a credential identified by `(tool_name, key_name)`.
@@ -434,25 +387,15 @@ pub async fn governance_set_credential(
 pub async fn governance_delete_credential(
     tool_name: String,
     key_name: String,
-    _state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
 ) -> Result<(), String> {
-    let base = home_base_dir()?;
-    let db_path = ensure_governance_db()?;
-    let mut store = ToolCredentialStore::new(&db_path, &keyfile_path_for(&base))
-        .map_err(|e| format!("failed to open credential store: {e}"))?;
-    store
-        .delete(&tool_name, &key_name)
-        .map_err(|e| format!("failed to delete credential: {e}"))?;
-    tracing::info!(tool = %tool_name, key = %key_name, "tool.credential.deleted");
-    Ok(())
+    credentials::delete(link.inner(), tool_name, key_name).await
 }
 
 /// Makes a live call to validate a credential.
 ///
-/// Today only `web_search` (Brave key) is tested: a GET to
-/// `https://api.search.brave.com/res/v1/web/search` is issued with the key in
-/// the `X-Subscription-Token` header. Any other `tool_name` combination returns
-/// an explicit error.
+/// Today only `web_search` (Brave key) is tested; any other `tool_name`
+/// returns an explicit error. Attached to a daemon, the daemon makes the call.
 ///
 /// # Errors
 ///
@@ -461,86 +404,9 @@ pub async fn governance_delete_credential(
 #[tauri::command]
 pub async fn governance_test_credential(
     tool_name: String,
-    _state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
 ) -> Result<CredentialTestResultDto, String> {
-    if tool_name != "web_search" {
-        return Err(format!(
-            "no credential test implemented for tool '{tool_name}'"
-        ));
-    }
-
-    let base = home_base_dir()?;
-    let db_path = ensure_governance_db()?;
-    let store = ToolCredentialStore::new(&db_path, &keyfile_path_for(&base))
-        .map_err(|e| format!("failed to open credential store: {e}"))?;
-    let key = match store
-        .get("web_search", "brave.api_key")
-        .map_err(|e| format!("failed to read credential: {e}"))?
-    {
-        Some(k) => k,
-        None => {
-            return Ok(CredentialTestResultDto {
-                ok: false,
-                latency_ms: None,
-                error: Some("brave.api_key is not configured".to_string()),
-            });
-        }
-    };
-
-    let outcome = test_brave_key(&key).await;
-
-    if outcome.ok {
-        let mut store_mut = ToolCredentialStore::new(&db_path, &keyfile_path_for(&base))
-            .map_err(|e| format!("failed to reopen credential store: {e}"))?;
-        if let Err(err) = store_mut.touch_last_used("web_search", "brave.api_key") {
-            tracing::warn!(error = %err, "tool.credential.last_used.update.failed");
-        }
-    }
-
-    Ok(outcome)
-}
-
-async fn test_brave_key(key: &str) -> CredentialTestResultDto {
-    let client = match apollia_core::net::safe_client_builder()
-        .timeout(BRAVE_TEST_TIMEOUT)
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => {
-            return CredentialTestResultDto {
-                ok: false,
-                latency_ms: None,
-                error: Some(format!("failed to build HTTP client: {e}")),
-            };
-        }
-    };
-    let started = Instant::now();
-    let response = client
-        .get(BRAVE_TEST_URL)
-        .header("X-Subscription-Token", key)
-        .header("Accept", "application/json")
-        .query(&[("q", "apollia"), ("count", "1")])
-        .send()
-        .await;
-    let latency_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
-
-    match response {
-        Ok(r) if r.status().is_success() => CredentialTestResultDto {
-            ok: true,
-            latency_ms: Some(latency_ms),
-            error: None,
-        },
-        Ok(r) => CredentialTestResultDto {
-            ok: false,
-            latency_ms: Some(latency_ms),
-            error: Some(format!("brave returned HTTP {}", r.status().as_u16())),
-        },
-        Err(e) => CredentialTestResultDto {
-            ok: false,
-            latency_ms: Some(latency_ms),
-            error: Some(e.to_string()),
-        },
-    }
+    credentials::test(link.inner(), tool_name).await
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

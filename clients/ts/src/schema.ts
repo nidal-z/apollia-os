@@ -2746,6 +2746,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tool-credential-tests/{tool_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/tool-credential-tests/{tool_name}`: validates the tool's
+         *     credential with a live call. A missing or rejected key is an answer with
+         *     `ok: false`, not an error.
+         */
+        post: operations["test_tool_credential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tool-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/tool-credentials`: the stored credentials, values left out. */
+        get: operations["list_tool_credentials"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tool-credentials/{tool_name}/{key_name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`: stores or replaces
+         *     one credential, encrypted.
+         */
+        put: operations["set_tool_credential"];
+        post?: never;
+        /**
+         * `DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`: removes one
+         *     credential. Removing one that is not there is not an error.
+         */
+        delete: operations["delete_tool_credential"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tools": {
         parameters: {
             query?: never;
@@ -3823,6 +3885,32 @@ export interface components {
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
         };
+        /**
+         * @description A credential as listed: its owner, its key name and its dates, never its
+         *     value.
+         */
+        CredentialEntryView: {
+            /** @description Creation date, RFC 3339. */
+            created_at: string;
+            /** @description Logical key name (e.g. `brave.api_key`). */
+            key_name: string;
+            /** @description Date of the last actual use, if any. */
+            last_used_at?: string | null;
+            /** @description Name of the owning tool. */
+            tool_name: string;
+        };
+        /** @description Result of a live credential validation. */
+        CredentialTestView: {
+            /** @description Diagnostic message when `ok` is `false`. */
+            error?: string | null;
+            /**
+             * Format: int64
+             * @description Measured round-trip latency in milliseconds.
+             */
+            latency_ms?: number | null;
+            /** @description `true` if the call succeeded. */
+            ok: boolean;
+        };
         /** @description A single day+backend cost entry for the daily chart. */
         DailyCostEntry: {
             /** @description Backend name. */
@@ -3888,6 +3976,11 @@ export interface components {
         DeleteServerResponse: {
             /** @description Name of the deleted server. */
             deleted: string;
+        };
+        /** @description Answer of `DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`. */
+        DeletedCredential: {
+            /** @description Whether a value was there to remove. */
+            removed: boolean;
         };
         /** @description Answer of `DELETE /api/v1/profile/entries/{key}`. */
         DeletedProfileEntry: {
@@ -4865,6 +4958,11 @@ export interface components {
         SetApprovalBody: {
             requires_approval: boolean;
         };
+        /** @description Request body of `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`. */
+        SetCredentialBody: {
+            /** @description Cleartext value, encrypted before it is written. */
+            value: string;
+        };
         /** @description Body of `PUT /api/v1/llm/default-model`. */
         SetDefaultModelRequest: {
             /**
@@ -5038,6 +5136,13 @@ export interface components {
              *     `complete`. Valid ten minutes, once.
              */
             state: string;
+        };
+        /** @description Answer of `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`. */
+        StoredCredential: {
+            /** @description Key name stored. */
+            key_name: string;
+            /** @description Owning tool. */
+            tool_name: string;
         };
         /** @description Response body for `POST /api/v1/stt/reload`. */
         SttReloadResponse: {
@@ -11890,6 +11995,160 @@ export interface operations {
                 };
             };
             /** @description Database or query error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    test_tool_credential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Tool whose credential is tested */
+                tool_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome of the live call */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialTestView"];
+                };
+            };
+            /** @description The tool has no live test */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The credential store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_tool_credentials: {
+        parameters: {
+            query?: {
+                /** @description Only the credentials of this tool. */
+                tool_name?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The credentials, without their values */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialEntryView"][];
+                };
+            };
+            /** @description The credential store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_tool_credential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Owning tool */
+                tool_name: string;
+                /** @description Key name, e.g. brave.api_key */
+                key_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetCredentialBody"];
+            };
+        };
+        responses: {
+            /** @description The credential is stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoredCredential"];
+                };
+            };
+            /** @description Blank name or empty value */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The credential store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    delete_tool_credential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Owning tool */
+                tool_name: string;
+                /** @description Key name */
+                key_name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether a value was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedCredential"];
+                };
+            };
+            /** @description The credential store failed */
             500: {
                 headers: {
                     [name: string]: unknown;
