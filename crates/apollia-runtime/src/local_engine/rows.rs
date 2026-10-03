@@ -119,7 +119,7 @@ mod tests {
         // GIVEN an index holding an MLX language model and an embeddings model,
         // and an empty backend table
         let tmp = tempfile::tempdir().expect("tempdir");
-        let models = tmp.path().join("models");
+        let models = apollia_core::config::default_models_dir(tmp.path());
         std::fs::create_dir_all(&models).expect("mkdir");
         let folder = models.join("Qwen3-4B-MLX-4bit");
         ModelIndex {

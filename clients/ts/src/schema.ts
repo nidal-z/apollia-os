@@ -128,6 +128,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-definitions/{name}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/agent-definitions/{name}/export`: the agent as a `.apo`
+         *     package, signed on request.
+         */
+        post: operations["export_agent_definition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent-definitions/{name}/overrides": {
         parameters: {
             query?: never;
@@ -210,8 +230,11 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * `DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,
-         *     its agents, their virtualenvs and its folder, best effort at each step.
+         * `DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package
+         *     on the path the command line and `POST /api/v1/packages/{name}/uninstall`
+         *     take: its agents with their overrides, model and triggers, its
+         *     environments and its folder, recorded in the audit journal. The memory
+         *     and the history of its agents are kept.
          */
         delete: operations["uninstall_agent_package"];
         options?: never;
@@ -292,6 +315,30 @@ export interface paths {
          * @description Emits `RuntimeEvent::AgentInstalled` once the agent is recorded.
          */
         post: operations["install_agent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agents/installed/{name}/uninstall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/agents/installed/{name}/uninstall`: uninstall an agent
+         *     installed on its own.
+         * @description Removes the agent, its overrides, its model, its triggers, its
+         *     environment and its files. Its memory and history are erased only when
+         *     the body asks. Apollia cannot be uninstalled; an agent of an installed
+         *     package goes with its package.
+         */
+        post: operations["uninstall_agent"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3396,6 +3443,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/packages/{name}/uninstall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/packages/{name}/uninstall`: uninstall a package.
+         * @description Always removed: its agents with their overrides, model and triggers, its
+         *     workflows and tools, its environments and files, and the MCP servers it
+         *     brought. The connections it required stay. The memory and the history of
+         *     its agents and workflows are erased only when the body asks.
+         */
+        post: operations["uninstall_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions/proposals": {
         parameters: {
             query?: never;
@@ -3659,6 +3729,32 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/server/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/server/logs`: the logs of the compatible server as SSE.
+         * @description Each `log` frame carries one line. The ring comes first, oldest line
+         *     first, then each line as it is recorded; the stream stays open until the
+         *     client disconnects or the runtime stops.
+         */
+        get: operations["stream_server_logs"];
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/server/logs`: empties the logs of the compatible server.
+         *     The audit journal is not touched.
+         */
+        delete: operations["clear_server_logs"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5983,6 +6079,11 @@ export interface components {
              */
             memoryType?: string | null;
         };
+        /** @description What `DELETE /api/v1/server/logs` answers. */
+        ClearedServerLogs: {
+            /** @description How many lines the ring held. */
+            cleared: number;
+        };
         /** @description One coaching example shown as a clickable card in the wizard's last step. */
         CoachingExample: {
             /** @description One-line description shown under the title. */
@@ -6285,18 +6386,22 @@ export interface components {
         };
         /** @description Request body for `POST /api/v1/triggers`, trigger creation. */
         CreateTriggerRequest: {
-            /** @description Target agent. */
+            /** @description Target agent; exclusive with `workflow`. */
             agent?: string | null;
             /** @description Whether the trigger is active (default: `true`). */
             enabled?: boolean | null;
             /** @description Unique trigger identifier. */
             id: string;
-            /** @description Input message template. */
+            /** @description The message of an agent target. */
             input_template?: string | null;
             /** @description Policy when the agent is busy (default: `"queue"`). */
             on_busy?: string | null;
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
+            /** @description Target workflow, `<package>/<workflow>`; exclusive with `agent`. */
+            workflow?: string | null;
+            /** @description For a workflow target, one text template per input field. */
+            workflow_inputs?: Record<string, never> | null;
         };
         /** @description Answer of `POST /api/v1/server/tokens`: the token and, this once, its value. */
         CreatedServerTokenView: components["schemas"]["ServerTokenView"] & {
@@ -6580,6 +6685,16 @@ export interface components {
         EventsResponse: {
             /** @description List of global events. */
             events: string[];
+        };
+        /** @description Body of `POST /api/v1/agent-definitions/{name}/export`. */
+        ExportAgentRequest: {
+            /**
+             * @description Publisher name for this export only; the `author.name` setting when
+             *     absent or blank.
+             */
+            publisher?: string | null;
+            /** @description Sign the package with the author key, generated on the first signature. */
+            sign?: boolean;
         };
         /**
          * @description The format a batch is exported in.
@@ -7571,7 +7686,8 @@ export interface components {
              *     `publisher_not_trusted`, `downgrade`, `agent_taken`,
              *     `deps_confirmation_required`, `changes_confirmation_required`,
              *     `mcp_unavailable`, `mcp_server`, `environment`, `invalid_key`,
-             *     `policy_key`, `not_found`, `journal_unavailable`, `internal`.
+             *     `policy_key`, `not_found`, `built_in`, `owned_by_package`,
+             *     `journal_unavailable`, `internal`.
              */
             code: string;
             /** @description Human-readable description. */
@@ -8131,6 +8247,50 @@ export interface components {
             /** @description Processing status. */
             status: string;
         };
+        /**
+         * @description How serious a line is, in increasing order.
+         * @enum {string}
+         */
+        ServerLogLevel: "debug" | "info" | "warn" | "error";
+        /** @description One line of the server's logs. */
+        ServerLogLine: {
+            /**
+             * Format: int64
+             * @description How long the server took to answer, in milliseconds. For a streamed
+             *     answer, the time until the stream opened.
+             */
+            durationMs?: number | null;
+            /** @description The path a request line asked for. */
+            endpoint?: string | null;
+            /** @description How serious it is. */
+            level: components["schemas"]["ServerLogLevel"];
+            /** @description The text an engine printed. */
+            message?: string | null;
+            /** @description The HTTP method of a request line. */
+            method?: string | null;
+            /** @description The model a request line named, when it named one. */
+            model?: string | null;
+            /**
+             * Format: int64
+             * @description Position of the line since the runtime started; it keeps growing
+             *     across a clear.
+             */
+            seq: number;
+            /** @description Where it comes from. */
+            source: components["schemas"]["ServerLogSource"];
+            /**
+             * Format: int32
+             * @description The status a request line was answered with.
+             */
+            status?: number | null;
+            /** @description When the line was recorded, RFC 3339 in UTC. */
+            timestamp: string;
+        };
+        /**
+         * @description Where a line comes from.
+         * @enum {string}
+         */
+        ServerLogSource: "request" | "engine";
         /** @description One model of a declared server. */
         ServerModel: {
             /**
@@ -8956,7 +9116,7 @@ export interface components {
         };
         /** @description Response for CRUD operations returning a full definition. */
         TriggerDefinitionResponse: {
-            /** @description Target agent. */
+            /** @description Target agent, for an agent target. */
             agent?: string | null;
             /** @description Creation timestamp (ISO 8601). */
             created_at: string;
@@ -8964,7 +9124,7 @@ export interface components {
             enabled: boolean;
             /** @description Unique trigger identifier. */
             id: string;
-            /** @description Input message template. */
+            /** @description The message of an agent target. */
             input_template?: string | null;
             /** @description Policy when the agent is busy. */
             on_busy: string;
@@ -8972,8 +9132,14 @@ export interface components {
             source_config: Record<string, never>;
             /** @description Source type. */
             source_type: string;
+            /** @description `"agent"` or `"workflow"`. */
+            target_kind: string;
             /** @description Last-modified timestamp (ISO 8601). */
             updated_at: string;
+            /** @description Target workflow, for a workflow target. */
+            workflow?: string | null;
+            /** @description For a workflow target, one text template per input field. */
+            workflow_inputs?: Record<string, never> | null;
         };
         /** @description Request body for `POST /api/v1/onboarding/sessions`. */
         TriggerOnboardingBody: {
@@ -9072,6 +9238,59 @@ export interface components {
              *     none or that is unknown.
              */
             calls: components["schemas"]["TurnLlmCall"][];
+        };
+        /** @description What an uninstallation removed, and what it kept. */
+        UninstallReport: {
+            /** @description Agents removed. */
+            agents: string[];
+            /**
+             * Format: int64
+             * @description Batches erased with the history.
+             */
+            batchesRemoved: number;
+            /** @description Connections the package required, kept. */
+            connectionsKept: string[];
+            /** @description The history was erased. */
+            historyCleared: boolean;
+            /**
+             * @description What could not be removed, and why. The uninstallation goes on past
+             *     such a step, so that the package can be installed again.
+             */
+            leftovers: string[];
+            /** @description MCP servers the package brought, removed. */
+            mcpServersRemoved: string[];
+            /** @description The memory of the agents was erased. */
+            memoryCleared: boolean;
+            /** @description The package, or the agent uninstalled on its own. */
+            name: string;
+            /**
+             * Format: int64
+             * @description Tasks erased with the history.
+             */
+            tasksRemoved: number;
+            /** @description Python tools removed. */
+            tools: string[];
+            /** @description Triggers removed. */
+            triggersRemoved: string[];
+            /** @description The version removed. */
+            version: string;
+            /**
+             * Format: int64
+             * @description Workflow runs erased with the history.
+             */
+            workflowRunsRemoved: number;
+            /** @description Workflows removed. */
+            workflows: string[];
+        };
+        /** @description Body of both uninstall routes: what the user chose to erase. */
+        UninstallRequest: {
+            /**
+             * @description Erase the history (tasks, batches, workflow runs) instead of keeping
+             *     it.
+             */
+            clearHistory?: boolean;
+            /** @description Erase the memory of the agents instead of keeping it. */
+            clearMemory?: boolean;
         };
         /** @description Request body for `POST /api/v1/llm/loaded-models/unload`. */
         UnloadModelRequest: {
@@ -9176,16 +9395,20 @@ export interface components {
         };
         /** @description Request body for `PUT /api/v1/triggers/:id`, trigger update. */
         UpdateTriggerRequest: {
-            /** @description Target agent. */
+            /** @description Target agent; exclusive with `workflow`. */
             agent?: string | null;
             /** @description Whether the trigger is active. */
             enabled?: boolean | null;
-            /** @description Input message template. */
+            /** @description The message of an agent target. */
             input_template?: string | null;
             /** @description Policy when the agent is busy. */
             on_busy?: string | null;
             /** @description Trigger source configuration. */
             source: components["schemas"]["TriggerSourceInput"];
+            /** @description Target workflow, `<package>/<workflow>`; exclusive with `agent`. */
+            workflow?: string | null;
+            /** @description For a workflow target, one text template per input field. */
+            workflow_inputs?: Record<string, never> | null;
         };
         /** @description The whole profile: the schema fields, then the free-form entries. */
         UserProfileView: {
@@ -9627,6 +9850,73 @@ export interface operations {
             };
         };
     };
+    export_agent_definition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent identifier */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description The `.apo` archive. The `X-Apollia-Export-Report` header carries an `ExportReport` as ASCII JSON */
+            200: {
+                headers: {
+                    /** @description attachment; filename="<id>-<version>.apo" */
+                    "Content-Disposition"?: string;
+                    /** @description The ExportReport of this export, ASCII JSON */
+                    "X-Apollia-Export-Report"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Agent not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The agent came with a package, or is the built-in agent */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No publisher name, an invalid one, or an identifier that cannot name a package */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Secret store unavailable for a signed export */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     reset_agent_overrides: {
         parameters: {
             query?: never;
@@ -9945,7 +10235,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description Nothing of the package was found */
+            /** @description The package carries Apollia */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such package */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9954,8 +10253,17 @@ export interface operations {
                     "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
-            /** @description agents.db cannot be opened */
+            /** @description Store or journal failure */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10130,6 +10438,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    uninstall_agent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Agent name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UninstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Uninstalled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UninstallReport"];
+                };
+            };
+            /** @description Apollia cannot be uninstalled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No such agent */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description The agent belongs to an installed package */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Store or journal failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
                 };
             };
         };
@@ -17320,6 +17700,69 @@ export interface operations {
             };
         };
     };
+    uninstall_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UninstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Uninstalled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UninstallReport"];
+                };
+            };
+            /** @description The package carries Apollia */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No such package */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description Store or journal failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+            /** @description No audit journal */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageErrorBody"];
+                };
+            };
+        };
+    };
     list_proposed_permission_rules: {
         parameters: {
             query?: never;
@@ -17848,6 +18291,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompatServerStatus"];
+                };
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    stream_server_logs: {
+        parameters: {
+            query?: {
+                /**
+                 * @description The lowest level sent: `debug` (every line, the default), `info`,
+                 *     `warn` or `error`.
+                 */
+                level?: components["schemas"]["ServerLogLevel"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SSE stream of the server's logs: each `log` frame carries one ServerLogLine, the lines held first, then the live ones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["ServerLogLine"];
+                };
+            };
+            /** @description Unknown level */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No compatible server in this runtime */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    clear_server_logs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The logs are empty; how many lines they held */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearedServerLogs"];
                 };
             };
             /** @description No compatible server in this runtime */

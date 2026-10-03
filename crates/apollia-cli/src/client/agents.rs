@@ -294,6 +294,53 @@ impl RuntimeClient {
 }
 
 /// The JSON body of an agent-definition route, or its error.
+/// An exported agent: the archive and the report the runtime gave with it.
+#[derive(Debug, Clone)]
+pub struct ExportedAgent {
+    /// The bytes of the `.apo` archive.
+    pub bytes: Vec<u8>,
+    /// The report of the export (`file_name`, `publisher`, `signed`,
+    /// `key_fingerprint`, `removed_access`, `required_connections`).
+    pub report: serde_json::Value,
+}
+
+/// Header that carries the report of an export.
+const EXPORT_REPORT_HEADER: &str = "x-apollia-export-report";
+
+impl RuntimeClient {
+    /// Export the agent `name` as a `.apo` archive via
+    /// `POST /api/v1/agent-definitions/{name}/export`, signed when `sign`,
+    /// under `publisher` when given (else the `author.name` setting).
+    pub async fn export_agent(
+        &self,
+        name: &str,
+        sign: bool,
+        publisher: Option<&str>,
+    ) -> Result<ExportedAgent, ClientError> {
+        let body = serde_json::json!({ "sign": sign, "publisher": publisher });
+        let (status, headers, bytes) = self
+            .post_for_file(&format!("/api/v1/agent-definitions/{name}/export"), &body)
+            .await?;
+        if status >= 400 {
+            let text = String::from_utf8_lossy(&bytes);
+            return Err(ClientError::ServerError {
+                status,
+                body: extract_error(&text, status),
+            });
+        }
+        let report = headers
+            .get(EXPORT_REPORT_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(serde_json::from_str)
+            .transpose()?
+            .unwrap_or(serde_json::Value::Null);
+        Ok(ExportedAgent {
+            bytes: bytes.to_vec(),
+            report,
+        })
+    }
+}
+
 fn definition_body(resp: crate::client::RawResponse) -> Result<serde_json::Value, ClientError> {
     if resp.status >= 400 {
         return Err(ClientError::ServerError {

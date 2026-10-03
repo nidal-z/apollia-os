@@ -666,11 +666,35 @@ fn test_override_value_follows_the_field_shape() {
     assert!(unknown.unwrap_err().contains("unknown field"));
 }
 
-#[test]
-fn test_uninstall_refuses_the_apollia_agent() {
-    // GIVEN the identifier of the Apollia agent, the built-in chat
+#[tokio::test]
+async fn test_uninstall_refuses_the_apollia_agent() {
+    // GIVEN the identifier of the Apollia agent, the built-in chat, and no
+    // runtime behind the socket
+    let dir = tempfile::tempdir().unwrap();
+    let client = RuntimeClient::new(dir.path().join("absent.sock"));
+    let erase = Erase {
+        memory: false,
+        history: false,
+    };
     // WHEN it is uninstalled, confirmed
-    let code = run_uninstall(apollia_tools::APOLLIA_AGENT_ID, true, true);
-    // THEN the command refuses it with a usage error, before touching any file
+    let code = run_uninstall(&client, apollia_tools::APOLLIA_AGENT_ID, erase, true, true).await;
+    // THEN the command refuses it with a usage error, before reaching the runtime
     assert_eq!(code, exit_codes::GENERAL_ERROR);
+}
+
+#[tokio::test]
+async fn test_uninstall_without_a_runtime_is_a_runtime_error() {
+    // GIVEN no runtime behind the socket
+    let dir = tempfile::tempdir().unwrap();
+    let client = RuntimeClient::new(dir.path().join("absent.sock"));
+    let erase = Erase {
+        memory: true,
+        history: true,
+    };
+    // WHEN an agent and a package are uninstalled, confirmed
+    let agent = run_uninstall(&client, "notes", erase, true, true).await;
+    let package = run_package_uninstall(&client, "crm", erase, true, true).await;
+    // THEN nothing is removed offline: both answer the runtime error
+    assert_eq!(agent, exit_codes::RUNTIME_ERROR);
+    assert_eq!(package, exit_codes::RUNTIME_ERROR);
 }

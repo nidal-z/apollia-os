@@ -18,14 +18,18 @@
   } from "lucide-svelte";
   import { Card } from "$lib/components/ui/card";
   import { Select } from "$lib/components/ui/select";
+  import type { TriggerTargetKind } from "$lib/types";
+  import TargetChip from "./TargetChip.svelte";
 
   interface Props {
     triggerId: string;
     open: boolean;
     onclose: () => void;
+    /** What the trigger starts; each entry names its target with it. */
+    targetKind?: TriggerTargetKind;
   }
 
-  let { triggerId, open, onclose }: Props = $props();
+  let { triggerId, open, onclose, targetKind = "agent" }: Props = $props();
 
   const FETCH_LIMIT = 200;
 
@@ -246,12 +250,9 @@
                 </span>
               </div>
 
-              <!-- Row 2: agent + task id -->
+              <!-- Row 2: typed target + task or run id -->
               <div class="flex items-center justify-between gap-2 text-caption text-muted-foreground/75">
-                <span class="truncate" title={entry.agent_name}>
-                  <span class="text-muted-foreground/50">{$t('triggers.agent_label')}:</span>
-                  {entry.agent_name}
-                </span>
+                <TargetChip kind={targetKind} name={entry.agent_name} testid="trigger-log-target" />
                 <code class="text-caption text-muted-foreground/50 font-mono shrink-0">
                   {shortId(entry.task_id)}
                 </code>

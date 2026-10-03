@@ -234,29 +234,36 @@ async fn test_unconfirmed_dependencies_come_back_as_the_text_the_dialog_parses()
 }
 
 #[tokio::test]
-async fn test_an_uninstall_deletes_on_the_daemon_and_a_refusal_is_shown_as_written() {
-    // GIVEN a daemon removing `veille` and knowing nothing of `ghost`
+async fn test_an_uninstall_takes_the_route_of_the_command_line_and_a_refusal_is_shown_as_written() {
+    // GIVEN a daemon removing `veille` on the uninstall route the command line
+    // takes, and knowing nothing of `ghost`
     let server = MockServer::start().await;
-    Mock::given(method("DELETE"))
-        .and(path("/api/v1/agent-packages/installed/veille"))
+    Mock::given(method("POST"))
+        .and(path("/api/v1/packages/veille/uninstall"))
         .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
-        .respond_with(ok(json!({ "uninstalled": "veille" })))
+        .and(body_json(
+            json!({ "clearMemory": false, "clearHistory": true }),
+        ))
+        .respond_with(ok(json!({ "name": "veille", "historyCleared": true })))
         .expect(1)
         .mount(&server)
         .await;
-    Mock::given(method("DELETE"))
-        .and(path("/api/v1/agent-packages/installed/ghost"))
-        .respond_with(refused(404, "package 'ghost' not found"))
+    Mock::given(method("POST"))
+        .and(path("/api/v1/packages/ghost/uninstall"))
+        .respond_with(refused(404, "`ghost` is not installed"))
         .expect(1)
         .mount(&server)
         .await;
     let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
 
-    // WHEN the attached arm uninstalls both
-    let removed = uninstall(&link, "veille").await;
-    let error = uninstall(&link, "ghost").await.unwrap_err();
+    // WHEN the attached arm uninstalls both, erasing the history of the first
+    let removed = uninstall::package(&link, "veille", None, Some(true)).await;
+    let error = uninstall::package(&link, "ghost", None, None)
+        .await
+        .unwrap_err();
 
-    // THEN the first is removed and the second refused with the daemon's text
-    assert!(removed.is_ok(), "{removed:?}");
-    assert_eq!(error, "package 'ghost' not found");
+    // THEN the first is removed with the choice, the second refused with the
+    // daemon's text
+    assert_eq!(removed.unwrap()["historyCleared"], true);
+    assert_eq!(error, "`ghost` is not installed");
 }
