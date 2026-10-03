@@ -23,11 +23,11 @@
     "provider-card-seed-provider-alpha-rules",
     "provider-delete-seed-provider-alpha-rules",
     "settings-nav-danger",
+    "settings-nav-developer",
     "settings-nav-llm",
     "settings-nav-model-hub",
     "settings-nav-permissions",
-    "settings-nav-profile",
-    "sidebar-mode-option-builder"
+    "settings-nav-profile"
   ],
   "steps": [
     {
@@ -200,17 +200,26 @@
       "label": "09-chat-after"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",

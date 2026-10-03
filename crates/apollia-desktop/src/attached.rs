@@ -36,7 +36,9 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// manager it holds. `list_model_cards` needs none either: it reads the model
 /// registry, the data directory and its `apollia.toml`, never the runtime.
 /// `get_companion_context` needs none: it answers from a table of help texts
-/// compiled into this binary.
+/// compiled into this binary. `get_resolved_setting` and `set_setting` need
+/// none: they read and write the `apollia.toml` of the data directory, never
+/// the runtime.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "chat_session_metrics",
     "create_chat_session",
@@ -164,6 +166,10 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Named settings of `apollia.toml`, read with their source and written
+    // key by key: the developer mode.
+    "get_resolved_setting",
+    "set_setting",
     // Plan mode: the default, the switch, the plan and its history, the soft
     // gate of a chat session and the gate of an orchestrated run.
     "approve_plan",
