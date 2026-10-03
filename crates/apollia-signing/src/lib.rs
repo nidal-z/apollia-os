@@ -35,6 +35,8 @@ mod signature_file;
 pub use digest_list::{sha256, DigestList};
 pub use error::SigningError;
 pub use key_file::{read_private_key_file, write_private_key_file};
-pub use key_storage::{load_signing_key, store_signing_key, SIGNING_SECRET_SERVICE};
+pub use key_storage::{
+    load_signing_key, store_signing_key, AUTHOR_KEY_LABEL, SIGNING_SECRET_SERVICE,
+};
 pub use keys::{sign, verify, PublicKey, Signature, SigningKeyPair, Verdict};
-pub use signature_file::{SignatureFile, SIGNATURE_FORMAT_VERSION};
+pub use signature_file::{validate_publisher, SignatureFile, SIGNATURE_FORMAT_VERSION};

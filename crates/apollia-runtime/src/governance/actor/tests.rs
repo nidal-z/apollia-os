@@ -236,6 +236,8 @@ fn test_record_without_journal_is_refused() {
     let recorded = governance.record(&GovernanceEvent::Uninstalled {
         agent_id: AGENT.into(),
         version: "1.0.0".into(),
+        memory_cleared: false,
+        history_cleared: false,
         actor: "user".into(),
     });
 

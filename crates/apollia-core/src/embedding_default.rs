@@ -171,13 +171,17 @@ mod tests {
         // WHEN the store opens it
         let store = EmbeddingDefaultStore::open(&path).unwrap();
 
-        // THEN the file is at version five, the table answers, and the row is kept
+        // THEN the file is at the current version, the table answers, and the
+        // row is kept
         assert_eq!(store.get().unwrap(), None);
         let version: i64 = store
             .conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 5);
+        assert_eq!(
+            version,
+            i64::from(crate::system_db::SYSTEM_DB_SCHEMA_VERSION)
+        );
         let backends: i64 = store
             .conn
             .query_row("SELECT count(*) FROM llm_backends", [], |row| row.get(0))

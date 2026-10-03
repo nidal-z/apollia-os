@@ -43,4 +43,5 @@ examples = [
 ]
 
 [agents.defaults]
+sources = ["profile"]
 autonomy = "assisted"

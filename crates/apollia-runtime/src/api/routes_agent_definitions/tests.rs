@@ -142,11 +142,12 @@ async fn test_list_and_read_resolved_agent() {
     assert_eq!(missing, StatusCode::NOT_FOUND);
 }
 
-// GIVEN a stored agent and a signed journal
+// GIVEN a stored agent with a model assigned, and a signed journal
 // WHEN its access is overridden, its mission overridden then removed, and the
 //      agent sent back to defaults
-// THEN each answer is the agent in force, and the journal of the agent holds
-//      one record per write, plus the access granted and revoked
+// THEN each answer is the agent in force, back to defaults its model assignment
+//      is gone too, and the journal of the agent holds one record per write,
+//      plus the access granted and revoked, plus the model removed
 #[tokio::test]
 async fn test_override_routes_write_and_journal() {
     // GIVEN
@@ -194,12 +195,13 @@ async fn test_override_routes_write_and_journal() {
     assert_eq!(reset, StatusCode::OK);
     assert_eq!(after_reset["access"], json!(["file_read"]));
     assert_eq!(after_reset["overridden"], json!([]));
-    let kinds: Vec<JournalEntryKind> = journal
-        .query_run(&governance_run_id("invoices"))
-        .await
-        .into_iter()
-        .map(|entry| entry.kind)
-        .collect();
+    assert_eq!(after_reset["model"], Value::Null);
+    let entries = journal.query_run(&governance_run_id("invoices")).await;
+    assert_eq!(
+        entries.last().map(|entry| entry.payload["field"].clone()),
+        Some(json!("model"))
+    );
+    let kinds: Vec<JournalEntryKind> = entries.into_iter().map(|entry| entry.kind).collect();
     assert_eq!(
         kinds,
         vec![
@@ -214,6 +216,8 @@ async fn test_override_routes_write_and_journal() {
             JournalEntryKind::AgentOverrideChanged,
             JournalEntryKind::AccessChanged,
             JournalEntryKind::AccessChanged,
+            // and the model assigned in system.db removed
+            JournalEntryKind::AgentOverrideChanged,
         ]
     );
 }
@@ -304,11 +308,12 @@ async fn test_chat_settings_are_the_overrides_of_apollia() {
 
     // WHEN
     for write in changes(&ChatConfigView::from_resolved(&before), &desired) {
-        let method = match write {
-            ConfigWrite::ClearMission | ConfigWrite::ClearAccess => "DELETE",
-            _ => "PUT",
+        let (method, body) = match &write {
+            ConfigWrite::SetMission(prompt) => ("PUT", Some(json!({ "value": prompt }))),
+            ConfigWrite::SetAccess(tools) => ("PUT", Some(json!({ "value": tools }))),
+            _ => ("DELETE", None),
         };
-        let (status, _) = call(state.clone(), method, &write.path(), write.override_body()).await;
+        let (status, _) = call(state.clone(), method, &write.path(), body).await;
         assert_eq!(status, StatusCode::OK);
     }
     let (read, after) = call(state, "GET", &definition_path(), None).await;

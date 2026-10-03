@@ -31,6 +31,14 @@ const UPLOAD_BOUNDARY: &str = "apollia-desktop-audio-5d1c";
 /// each finalist.
 const HUB_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// How long a request answered by a file may take: the runtime builds and
+/// signs the archive before it answers.
+const FILE_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Upper bound on a file read from the runtime: the largest `.apo` archive the
+/// format accepts.
+const MAX_FILE_BYTES: u64 = 256 * 1024 * 1024;
+
 /// How long the liveness request may take before the runtime counts as gone.
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -184,6 +192,38 @@ impl AttachedClient {
     ) -> Result<T, AttachedError> {
         self.send_json_within(self.http.post(self.url(path)).json(body), deadline)
             .await
+    }
+
+    /// `POST path` with a JSON body, for an answer that is a file: the value
+    /// of the `report_header` it carries, and its bytes, under
+    /// [`MAX_FILE_BYTES`].
+    pub(crate) async fn post_for_file(
+        &self,
+        path: &str,
+        body: &impl serde::Serialize,
+        report_header: &str,
+    ) -> Result<(Option<String>, Vec<u8>), AttachedError> {
+        let response = self
+            .http
+            .post(self.url(path))
+            .json(body)
+            .bearer_auth(&self.token)
+            .timeout(FILE_REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(AttachedError::Unreachable)?;
+        if !response.status().is_success() {
+            return Err(refusal(response).await);
+        }
+        let report = response
+            .headers()
+            .get(report_header)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned);
+        let bytes = apollia_core::net::read_capped_bytes(response, MAX_FILE_BYTES)
+            .await
+            .map_err(AttachedError::Body)?;
+        Ok((report, bytes))
     }
 
     /// `PUT path` with a JSON body, its JSON answer read as `T`.

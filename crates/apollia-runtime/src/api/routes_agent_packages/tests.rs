@@ -7,6 +7,7 @@ use tempfile::TempDir;
 
 use crate::api::server::AppState;
 use crate::api::test_support::{app_state, call, MockBackend, StemLoader};
+use crate::audit_journal::AuditJournalHandle;
 
 /// Writes a package folder `veille` with one agent, a cron trigger, and the
 /// Python dependencies `deps`.
@@ -226,10 +227,22 @@ async fn test_an_unknown_package_is_a_404_and_an_unreadable_store_a_500() {
 
 #[tokio::test]
 async fn test_a_package_is_uninstalled_and_a_name_that_is_a_path_refused() {
-    // GIVEN an installed package
+    // GIVEN an installed package, and the audit journal every uninstallation
+    // is recorded in
     let dir = TempDir::new().unwrap();
     let path = package(dir.path(), &[]);
-    let state = state(dir.path(), None);
+    let mut state = state(dir.path(), None);
+    let journal = AuditJournalHandle::open_with_key_bytes(
+        &dir.path().join("journal.db"),
+        b"agent-packages-journal-key-0001".to_vec(),
+    )
+    .await
+    .unwrap();
+    state.governance = Some(crate::governance::GovernanceHandle::detached(
+        crate::governance::GovernanceState::default(),
+        Some(journal.clone()),
+    ));
+    state.audit_journal = Some(journal);
     let (created, _) = call(
         state.clone(),
         "POST",

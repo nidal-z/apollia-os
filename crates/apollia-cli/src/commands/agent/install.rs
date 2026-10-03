@@ -638,22 +638,17 @@ fn trigger_def_to_row(def: &apollia_triggers::TriggerDefinition) -> TriggerDefin
         OnBusyPolicy::Queue { .. } | OnBusyPolicy::Block => OnBusy::Queue,
     };
 
+    let target = apollia_triggers::TargetColumns::from(&def.target);
     TriggerDefinitionRow {
         id: def.id.clone(),
-        agent: if def.agent.is_empty() {
-            None
-        } else {
-            Some(def.agent.clone())
-        },
+        agent: target.agent,
+        workflow: target.workflow,
+        workflow_inputs: target.workflow_inputs,
         enabled: def.enabled,
         on_busy,
         source_type,
         source_config,
-        input_template: if def.input_template.0.is_empty() {
-            None
-        } else {
-            Some(def.input_template.0.clone())
-        },
+        input_template: target.input_template,
         created_at: now_rfc3339(),
         updated_at: now_rfc3339(),
     }

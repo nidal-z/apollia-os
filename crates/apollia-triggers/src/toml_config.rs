@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::types::{
-    parse_interval, FileEventKind, InputTemplate, OnBusyPolicy, TriggerDefinition,
-    TriggerDefinitionError, TriggerSourceConfig,
+    parse_interval, FileEventKind, OnBusyPolicy, TriggerDefinition, TriggerDefinitionError,
+    TriggerSourceConfig, TriggerTarget,
 };
 
 // --- Error -------------------------------------------------------------------
@@ -139,11 +139,10 @@ fn validate_trigger(raw: &RawTrigger) -> Result<TriggerDefinition, TriggerTomlEr
 
     Ok(TriggerDefinition {
         id: raw.id.clone(),
-        agent: raw.agent.clone(),
+        target: TriggerTarget::agent(raw.agent.clone(), raw.input_template.clone()),
         enabled: raw.enabled,
         on_busy,
         source,
-        input_template: InputTemplate(raw.input_template.clone()),
     })
 }
 
@@ -433,6 +432,8 @@ secret = ""
         let def = crate::definition_repository::TriggerDefinitionRow {
             id: id.to_string(),
             agent: Some("rapport-agent".to_string()),
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: crate::definition_repository::OnBusy::Queue,
             source_type: "cron".to_string(),

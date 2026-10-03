@@ -6,6 +6,7 @@
 //! - `PUT    /api/v1/agent-definitions/{name}/overrides/{field}`, set an override
 //! - `DELETE /api/v1/agent-definitions/{name}/overrides/{field}`, remove an override
 //! - `DELETE /api/v1/agent-definitions/{name}/overrides`        , back to defaults
+//! - `POST   /api/v1/agent-definitions/{name}/export`           , the agent as a `.apo` package
 //!
 //! A resolved agent is its package definition, then the user's overrides
 //! field by field, with the model assigned to it in `system.db`. Every write
@@ -22,13 +23,13 @@ use apollia_tools::{
     AgentOrigin, AgentRepository, AgentRepositoryError, OverrideField, ResolvedAgent,
 };
 
-use crate::agents::overrides::{AgentOverrideError, OverrideWriter};
+use crate::agents::overrides::{record_model_change, AgentOverrideError, OverrideWriter};
 use crate::api::routes_llm::backends::map_backend_error;
 use crate::api::routes_llm::presets::AgentModelResponse;
 use crate::api::routes_llm::servers::{api_err, ApiError};
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
-use crate::governance::GovernanceHandle;
+use crate::governance::{GovernanceHandle, OverrideChange};
 
 /// Who the journal names for a change made through the API.
 const API_ACTOR: &str = "api";
@@ -371,15 +372,45 @@ pub async fn reset_agent_overrides<B: ExecutionBackend + Clone>(
     let fields = writer(&repo, &governance)
         .reset(&name)
         .map_err(override_error)?;
+    // The model assigned in `system.db` is not an override, but going back
+    // to defaults removes it with them, and records its removal.
+    let model_cleared = clear_model(&state, &governance, &name)?;
     tracing::event!(
         tracing::Level::INFO,
         agent = %name,
         removed = fields.len(),
+        model_cleared = model_cleared,
         "agents.override.reset"
     );
     let agent = resolved(&state, &repo, &name)?;
     drop(repo);
     Ok(Json(shown(&state, agent).await))
+}
+
+/// Removes the model assigned to `name`, recording the removal; `false` when
+/// none was assigned or no model store is open.
+fn clear_model<B: ExecutionBackend + Clone>(
+    state: &AppState<B>,
+    governance: &GovernanceHandle,
+    name: &str,
+) -> Result<bool, ApiError> {
+    let Some(llm) = state.llm_backend_repo.as_ref() else {
+        return Ok(false);
+    };
+    let cleared = {
+        let guard = llm.lock().map_err(|_| {
+            api_err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "repository lock poisoned",
+            )
+        })?;
+        guard.clear_agent_model(name).map_err(map_backend_error)?
+    };
+    if cleared {
+        record_model_change(governance, name, OverrideChange::Removed, API_ACTOR)
+            .map_err(|e| api_err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    }
+    Ok(cleared)
 }
 
 /// Routes of the stored agents.
@@ -401,7 +432,15 @@ pub fn agent_definition_routes<B: ExecutionBackend + Clone>() -> Router<AppState
             "/api/v1/agent-definitions/:name/overrides/:field",
             put(set_agent_override::<B>).delete(remove_agent_override::<B>),
         )
+        .route(
+            "/api/v1/agent-definitions/:name/export",
+            axum::routing::post(export::export_agent_definition::<B>),
+        )
 }
+
+pub mod export;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_export;

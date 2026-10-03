@@ -3,8 +3,10 @@
 //! `system.db` holds the LLM backend registry ([`crate::llm_backend`]), the
 //! inference servers ([`crate::inference_server`]), the model presets and the
 //! model of each agent ([`crate::model_preset`]), the STT configuration
-//! ([`crate::stt_config`]), and the default embeddings model
-//! ([`crate::embedding_default`]).
+//! ([`crate::stt_config`]), the default embeddings model
+//! ([`crate::embedding_default`]), the tokens of the compatible server
+//! ([`crate::server_token`]), and the last local model loaded by hand
+//! ([`crate::last_loaded_model`]).
 //! `PRAGMA user_version` belongs to the database file, not to a table, so the
 //! stores share one migration list: whichever opens first brings the whole
 //! file to the current version, and both refuse a file written by a newer
@@ -16,14 +18,15 @@ use crate::inference_server::{openai_api_base, DEFAULT_OLLAMA_ADDRESS};
 use crate::schema::{add_column_if_missing, Migration};
 
 /// Current schema version of `system.db`.
-pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 5;
+pub(crate) const SYSTEM_DB_SCHEMA_VERSION: u32 = 7;
 
 /// Numbered migration steps of `system.db`.
 ///
 /// Step `k` migrates the file from version `k` to `k + 1`; the list length
 /// always equals [`SYSTEM_DB_SCHEMA_VERSION`].
-pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] =
-    &[migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5];
+pub(crate) const SYSTEM_DB_MIGRATIONS: &[Migration] = &[
+    migrate_v1, migrate_v2, migrate_v3, migrate_v4, migrate_v5, migrate_v6, migrate_v7,
+];
 
 /// v1: the pre-versioning lineage of the file, replayed idempotently.
 ///
@@ -412,6 +415,55 @@ pub(crate) fn migrate_v5(conn: &Connection) -> Result<(), rusqlite::Error> {
             updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );",
     )
+}
+
+/// v6: the tokens of the compatible server.
+///
+/// One row per token, named by the person who created it. The value itself is
+/// never stored: `hash` is the hex SHA-256 of it, and `last_four` its last four
+/// characters, enough to recognise it in a list. A revoked token keeps its row,
+/// with `revoked_at` set, so the list still shows it. Two tokens in use never
+/// share a name, held by a partial unique index; a revoked token frees its
+/// name. Every statement is idempotent, so a replay changes nothing.
+pub(crate) fn migrate_v6(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS server_tokens (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            name         TEXT NOT NULL CHECK (length(trim(name)) > 0),
+            hash         TEXT NOT NULL UNIQUE CHECK (length(hash) = 64),
+            last_four    TEXT NOT NULL CHECK (length(last_four) = 4),
+            created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            last_used_at TEXT,
+            revoked_at   TEXT
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS server_tokens_one_active_name
+            ON server_tokens (name) WHERE revoked_at IS NULL;",
+    )
+}
+
+/// v7: the last local model loaded by hand, a singleton row.
+///
+/// `model_id` is the identifier the model index gives the model, and
+/// `load_json` the load settings it was loaded with, in the keys a preset's
+/// load settings use. Like a preset, the row never carries a system prompt.
+/// The statement is idempotent, so a replay changes nothing.
+pub(crate) fn migrate_v7(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let no_prompt = SYSTEM_PROMPT_KEYS
+        .iter()
+        .map(|key| format!("json_type(load_json, '$.{key}') IS NULL"))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    conn.execute_batch(&format!(
+        "CREATE TABLE IF NOT EXISTS last_loaded_model (
+            id        INTEGER PRIMARY KEY CHECK (id = 1),
+            model_id  TEXT NOT NULL CHECK (length(trim(model_id)) > 0),
+            load_json TEXT NOT NULL DEFAULT '{{}}',
+            loaded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            CHECK (json_valid(load_json) AND json_type(load_json) = 'object'),
+            CHECK ({no_prompt})
+        );"
+    ))
 }
 
 /// Keys a preset may never carry, in either settings column.

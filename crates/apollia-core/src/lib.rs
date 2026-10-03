@@ -26,6 +26,7 @@ pub mod events;
 pub mod hitl_payload;
 pub mod hitl_request;
 pub mod inference_server;
+pub mod last_loaded_model;
 pub mod llm_backend;
 pub mod manifest;
 pub mod mcp_health;
@@ -45,6 +46,7 @@ pub mod review;
 pub mod sandbox;
 pub mod schema;
 pub mod security_posture;
+pub mod server_token;
 pub mod session_metrics;
 pub mod stt_config;
 pub mod subprocess_env;
@@ -81,6 +83,7 @@ pub use hitl_payload::{
 };
 pub use hitl_request::{HitlRequest, ImpactLevel, RiskAnalysis};
 pub use inference_server::InferenceServer;
+pub use last_loaded_model::LastLoadedModel;
 pub use llm_backend::{LlmBackendConfig, LlmBackendError, LlmBackendRepository, LlmProvider};
 pub use manifest::{
     AgentManifest, AgentModelDefaults, AgentSkill, MemoryConfig, PackageRequestSettings,

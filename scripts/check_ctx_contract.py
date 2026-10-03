@@ -100,8 +100,6 @@ BRIDGE_SUBTREE = Path("crates/apollia-aip/src")
 CTX_MEMBERS_THE_PROTOCOL_DOES_NOT_PUBLISH = {
     "agent_name": "the name of the running agent, a bridge-side identity the "
     "protocol has never carried",
-    "user_context": "user memory injected in chat mode, read by the built-in "
-    "assistant and by nothing an agent author writes",
     "user_memory_writable": "a permission flag the runtime sets from the "
     "manifest, not a service",
     "log": "the low-level tracing hook; agents are told to use ctx.logger",

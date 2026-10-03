@@ -401,6 +401,7 @@ dependencies = [
  "pyo3",
  "reqwest 0.12.28",
  "scraper",
+ "semver",
  "serde",
  "serde_json",
  "tauri",

@@ -13,10 +13,10 @@ use crate::governance::GovernanceEvent;
 
 /// An MCP manager that records the servers it is given, refusing `refuse`.
 #[derive(Default)]
-struct FakeMcp {
-    refuse: Option<String>,
-    added: Mutex<Vec<McpServerConfig>>,
-    removed: Mutex<Vec<String>>,
+pub(super) struct FakeMcp {
+    pub(super) refuse: Option<String>,
+    pub(super) added: Mutex<Vec<McpServerConfig>>,
+    pub(super) removed: Mutex<Vec<String>>,
 }
 
 impl McpServerAdder for FakeMcp {
@@ -34,14 +34,14 @@ impl McpServerAdder for FakeMcp {
     }
 }
 
-fn options() -> InstallOptions {
+pub(super) fn options() -> InstallOptions {
     InstallOptions {
         actor: "test".into(),
         ..InstallOptions::default()
     }
 }
 
-async fn install_with(
+pub(super) async fn install_with(
     env: &Env,
     apo: &std::path::Path,
     options: &InstallOptions,

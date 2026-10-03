@@ -22,7 +22,9 @@
 //! ```
 //!
 //! The section is read at every launch, so a change applies to the next load
-//! without a restart. A refusal is a [`GuardrailRefusal`] carrying the estimate
+//! without a restart. A level or a ceiling the organisation policy fixes in
+//! its `[settings]` (`llm.guardrails.level`, `llm.guardrails.ceiling_gb`) wins
+//! over the file, see [`GuardrailPolicy::read_under`]. A refusal is a [`GuardrailRefusal`] carrying the estimate
 //! and the limit; a launch asked with [`LoadConsent::Confirmed`] goes past it
 //! and is logged as `llm.guardrail.bypassed`. A model whose footprint cannot be
 //! estimated (an unreadable file, an MLX folder without its `config.json`) is
@@ -30,11 +32,19 @@
 
 use std::path::Path;
 
+use apollia_core::config::PolicySettings;
 use apollia_llm::hardware::{CompatibilityBadge, HardwareProfile};
 use apollia_llm::recommend::{MemoryArchitecture, MemoryEstimate, OffloadPlan, RuntimeShape};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use utoipa::ToSchema;
+
+/// The setting that fixes the level, as `[settings]` of the organisation
+/// policy names it.
+pub const LEVEL_SETTING: &str = "llm.guardrails.level";
+
+/// The setting that fixes the ceiling, in gigabytes; `0` sets none.
+pub const CEILING_SETTING: &str = "llm.guardrails.ceiling_gb";
 
 /// Machine-readable code of a refusal on the wire.
 pub const GUARDRAIL_REFUSED_CODE: &str = "guardrail_refused";
@@ -151,6 +161,28 @@ impl GuardrailPolicy {
                 Self::default()
             }
         }
+    }
+
+    /// The policy in force now: [`read`](Self::read) from `path`, then the
+    /// level and the ceiling the organisation policy fixes in `imposed`, which
+    /// win over the file.
+    #[must_use]
+    pub fn read_under(path: Option<&Path>, imposed: &PolicySettings) -> Self {
+        let mut policy = Self::read(path);
+        if let Some(level) = imposed
+            .imposed(LEVEL_SETTING)
+            .and_then(serde_json::Value::as_str)
+            .and_then(GuardrailLevel::from_wire)
+        {
+            policy.level = level;
+        }
+        if let Some(gb) = imposed
+            .imposed(CEILING_SETTING)
+            .and_then(serde_json::Value::as_f64)
+        {
+            policy.ceiling_gb = (gb > 0.0).then_some(gb);
+        }
+        policy
     }
 
     /// The ceiling the `ceiling` level holds to: a positive, finite value, or
@@ -270,6 +302,16 @@ pub fn decide(policy: &GuardrailPolicy, estimate: &LoadEstimate) -> GuardrailVer
     }
 }
 
+/// The limit `policy` holds `estimate` to, in gigabytes: the ceiling of the
+/// `ceiling` level when it is usable, else what the machine can hold.
+#[must_use]
+pub fn budget_gb(policy: &GuardrailPolicy, estimate: &LoadEstimate) -> f64 {
+    match (policy.level, policy.usable_ceiling()) {
+        (GuardrailLevel::Ceiling, Some(ceiling)) => ceiling,
+        _ => estimate.capacity_gb,
+    }
+}
+
 /// A launch the guardrail refused.
 #[derive(Debug, Clone, PartialEq, Error)]
 #[error(
@@ -376,10 +418,7 @@ pub fn enforce(
         );
         return Ok(());
     };
-    let budget_gb = match (policy.level, policy.usable_ceiling()) {
-        (GuardrailLevel::Ceiling, Some(ceiling)) => ceiling,
-        _ => estimate.capacity_gb,
-    };
+    let budget_gb = budget_gb(policy, estimate);
     match decide(policy, estimate) {
         GuardrailVerdict::Allowed => Ok(()),
         GuardrailVerdict::Warned => {

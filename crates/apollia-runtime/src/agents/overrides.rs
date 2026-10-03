@@ -4,6 +4,11 @@
 //! [`GovernanceEvent::OverrideChanged`]; a change of the access list also
 //! records one [`GovernanceEvent::AccessChanged`] per tool granted or taken
 //! away, so the journal says who gave what to which agent.
+//!
+//! The model of an agent is not an override (it lives in `agent_model` of
+//! `system.db`), but its assignment and its removal are recorded the same way,
+//! under the field [`MODEL_FIELD`], so the history of an agent reads every
+//! change made on its sheet.
 
 use apollia_tools::{AgentRepository, AgentRepositoryError, OverrideField, ResolvedAgent};
 use serde_json::Value;
@@ -131,6 +136,28 @@ impl OverrideWriter<'_> {
         }
         Ok(())
     }
+}
+
+/// Field the journal names for the model assigned to an agent.
+pub const MODEL_FIELD: &str = "model";
+
+/// Records that the model assigned to `agent` was set or removed by `actor`.
+///
+/// # Errors
+///
+/// [`GovernanceError`] when the record cannot be written.
+pub fn record_model_change(
+    governance: &dyn GovernanceContract,
+    agent: &str,
+    change: OverrideChange,
+    actor: &str,
+) -> Result<(), GovernanceError> {
+    governance.record(&GovernanceEvent::OverrideChanged {
+        agent_id: agent.to_owned(),
+        field: MODEL_FIELD.to_owned(),
+        change,
+        actor: actor.to_owned(),
+    })
 }
 
 fn access_of(repo: &AgentRepository, agent: &str) -> Result<Vec<String>, AgentRepositoryError> {

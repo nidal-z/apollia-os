@@ -26,7 +26,8 @@
 //! the organisation policy read at boot, its `[connections]` lists naming a
 //! connection by the identifiers of [`AdmissionRequest`]; at every boot,
 //! [`ForbiddenConnections`] submits the existing connections to the same call
-//! and keeps out the ones it now refuses.
+//! and keeps out the ones it now refuses. [`InferenceGovernance`] answers, from
+//! the same policy, whether an inference server may be added or reached.
 //!
 //! [`access_upgrade`] runs, once at startup, the conversion of the rules
 //! persisted before standing consents, and journals every change it makes.
@@ -38,6 +39,7 @@ mod connection;
 mod contract;
 mod decision;
 mod forbidden;
+pub(crate) mod inference_policy;
 #[cfg(test)]
 mod no_policy;
 pub(crate) mod policy_admission;
@@ -57,6 +59,9 @@ pub use contract::{
 };
 pub use decision::{decide, GovernanceState, PolicyRefusals};
 pub use forbidden::{mailbox_refusal, ForbiddenConnections, FORBIDDEN_CONNECTION_REASON};
+pub use inference_policy::{
+    InferenceGovernance, REMOTE_SERVER_DENIED_REASON, SERVER_NOT_ALLOWED_REASON,
+};
 #[cfg(test)]
 pub use no_policy::NoPolicyGovernance;
 pub use policy_admission::{
