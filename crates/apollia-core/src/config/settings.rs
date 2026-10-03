@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::DesktopConfig;
+use super::{DesktopConfig, McpConfig, ServerConfig};
 
 /// Where the value of a resolved setting comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -144,6 +144,12 @@ fn defaults() -> serde_json::Map<String, Value> {
     // its keys unknown, never a wrong value.
     if let Ok(desktop) = serde_json::to_value(DesktopConfig::default()) {
         sections.insert("desktop".to_owned(), desktop);
+    }
+    if let Ok(mcp) = serde_json::to_value(McpConfig::default()) {
+        sections.insert("mcp".to_owned(), mcp);
+    }
+    if let Ok(server) = serde_json::to_value(ServerConfig::default()) {
+        sections.insert("server".to_owned(), server);
     }
     sections
 }
@@ -398,10 +404,12 @@ pub fn write_setting(
             })?;
     set_in_document(&mut document, key, to_toml(key, &value)?)?;
     let written = document.to_string();
-    DesktopConfig::from_toml_str(&written).map_err(|e| SettingError::InvalidValue {
+    let invalid = |e: toml::de::Error| SettingError::InvalidValue {
         key: key.to_owned(),
         reason: e.message().to_owned(),
-    })?;
+    };
+    DesktopConfig::from_toml_str(&written).map_err(invalid)?;
+    ServerConfig::from_toml_str(&written).map_err(invalid)?;
     write_atomically(path, &written)?;
     tracing::event!(tracing::Level::INFO, key = %key, "config.setting.written");
     Ok(ResolvedSetting {

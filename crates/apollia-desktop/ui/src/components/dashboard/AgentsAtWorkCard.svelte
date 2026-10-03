@@ -2,14 +2,14 @@
   /**
    * AgentsAtWorkCard - secondary bento card listing agents currently running.
    * Operator mode shows name + status; Builder mode adds the technical mono
-   * line via BuilderOnly. Each row exposes detail / logs via right-click.
+   * line via DeveloperOnly. Each row exposes detail / logs via right-click.
    */
   import { t } from "svelte-i18n";
   import { Sparkles, Eye, ScrollText } from "lucide-svelte";
   import type { AgentListItem } from "$lib/types";
   import { ListRow, StatusDot } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
-  import { BuilderOnly } from "$lib/components/shared";
+  import { DeveloperOnly } from "$lib/components/shared";
   import { ContextMenu, type ActionMenuItem } from "$lib/components/ui/context-menu";
   import { listNavigation } from "$lib/components/operator/listNavigation";
   import DashboardCardHeader from "./DashboardCardHeader.svelte";
@@ -81,14 +81,14 @@
               <span class="text-body-xs font-medium text-foreground truncate block">
                 {agent.name}
               </span>
-              <BuilderOnly>
+              <DeveloperOnly>
                 <span
                   class="text-caption font-mono text-muted-foreground/70 truncate block"
                   data-testid="dashboard-agent-tech-line"
                 >
                   {techLine(agent)}
                 </span>
-              </BuilderOnly>
+              </DeveloperOnly>
             </div>
             <StatusDot
               color={agent.runtime_status === "active"

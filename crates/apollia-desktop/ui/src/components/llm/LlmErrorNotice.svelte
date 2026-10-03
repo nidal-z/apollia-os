@@ -8,7 +8,7 @@
    */
   import { t } from "svelte-i18n";
   import type { HumanizedError } from "$lib/errors/humanize";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { ErrorBanner } from "$lib/components/operator";
   import { Button } from "$lib/components/ui/button";
   import { Disclosure } from "$lib/components/ui/disclosure";
@@ -22,7 +22,7 @@
 
   let { error, onretry, onOpenSettings, loading = false }: Props = $props();
 
-  const isBuilder = $derived($uiMode === "builder");
+  const isBuilder = $derived($developerMode);
 </script>
 
 <ErrorBanner

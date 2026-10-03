@@ -1,9 +1,9 @@
 {
-  "name": "nav-det (app chrome: sidebar nav + topbar + user menu + command palette, operator + builder, builder-cluster gating asserted)",
+  "name": "nav-det (app chrome: sidebar nav + topbar + user menu + command palette, developer mode off and on, its sidebar entries asserted)",
   "stopOnError": false,
   "notes": [
     "Code-verified against components/app/{Sidebar,Topbar,UserMenu}.svelte + ui/command/{Command,CommandItem}.svelte + keyboard/globalShortcuts.ts.",
-    "Builder cluster (nav-llm, nav-transcriptions, sidebar-builder-separator, sidebar-builder-cluster-label) renders only when uiMode === 'builder' (Sidebar.svelte {#if isBuilder}). In operator mode it is asserted ABSENT via waitGone.",
+    "With the developer mode off, nav-llm is listed for every user and the developer group (sidebar-developer-group: nav-transcriptions, nav-observability) is asserted ABSENT via waitGone; with the mode on, the group appears after the secondary entries (Sidebar.svelte visibleDeveloperNav).",
     "Command palette items carry interpolated ids `command-item-{action-id}` (CommandItem.svelte); the old exact `command-item` no longer exists, so a generic item is matched via testidPrefix.",
     "topbar-search click dispatches Cmd+K, which globalShortcuts.ts TOGGLES; a second click closes the palette.",
     "user-menu-about navigates to the About settings sub-page (UserMenu.goAbout -> navigateToSettings('about')); there is no About dialog, so the landing is asserted on about-section and there is nothing to close.",
@@ -165,15 +165,6 @@
     },
     {
       "kind": "click",
-      "testid": "nav-observability"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 8000
-    },
-    {
-      "kind": "click",
       "testid": "nav-integrations"
     },
     {
@@ -204,7 +195,7 @@
       "timeoutMs": 8000
     },
     {
-      "kind": "waitGone",
+      "kind": "waitFor",
       "testid": "nav-llm",
       "timeoutMs": 4000
     },
@@ -215,12 +206,17 @@
     },
     {
       "kind": "waitGone",
-      "testid": "sidebar-builder-separator",
+      "testid": "nav-observability",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-developer-group",
       "timeoutMs": 4000
     },
     {
       "kind": "screenshot",
-      "label": "03-operator-no-builder-cluster"
+      "label": "03-default-llm-without-transcriptions"
     },
     {
       "kind": "expect",
@@ -470,11 +466,6 @@
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-builder-separator",
-      "timeoutMs": 4000
-    },
-    {
-      "kind": "waitFor",
       "testid": "nav-llm",
       "timeoutMs": 4000
     },
@@ -484,8 +475,18 @@
       "timeoutMs": 4000
     },
     {
+      "kind": "waitFor",
+      "testid": "sidebar-developer-group",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-observability",
+      "timeoutMs": 4000
+    },
+    {
       "kind": "screenshot",
-      "label": "12-sidebar-builder-cluster"
+      "label": "12-sidebar-developer-entries"
     },
     {
       "kind": "click",
@@ -512,6 +513,19 @@
     {
       "kind": "screenshot",
       "label": "14-nav-transcriptions-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 8000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14b-nav-observability-developer"
     },
     {
       "kind": "click",
@@ -581,7 +595,17 @@
     },
     {
       "kind": "waitGone",
-      "testid": "sidebar-builder-separator",
+      "testid": "nav-transcriptions",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-observability",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-developer-group",
       "timeoutMs": 4000
     },
     {

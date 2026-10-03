@@ -1,13 +1,14 @@
 import { writable, derived, get, type Writable } from "svelte/store";
+import { DEFAULT_ROUTE } from "$lib/navigation/developerRoutes";
 import { openSettingsWindow, requestCloseSettingsWindow } from "$lib/stores/settingsWindow";
 
 /** Routes available in the desktop application. */
 export type Route = "dashboard" | "agents" | "tasks" | "chat" | "inbox" | "integrations" | "llm" | "automations" | "projects" | "memory" | "transcriptions" | "notifications" | "observability" | "settings" | "design" | "design-motion" | "design-empty-states" | "design-dark-mode";
 
-const screen = writable<Route>("dashboard");
+const screen = writable<Route>(DEFAULT_ROUTE);
 
 /**
- * Reactive store of the active route. Default = 'dashboard'.
+ * Reactive store of the active route, `DEFAULT_ROUTE` at launch.
  *
  * `settings` is an entry point, not a screen: the settings open in a window
  * above the current screen, which stays mounted underneath. Setting the route

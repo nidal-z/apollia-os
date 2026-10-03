@@ -4,7 +4,7 @@
   import { t } from "svelte-i18n";
   import { Brain, Plus, RefreshCw } from "lucide-svelte";
   import { llmBackends, connectionStatus } from "$lib/stores/sse";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { currentRoute } from "$lib/stores/navigation";
   import type { LlmBackendConfig } from "$lib/types";
   import type { HumanizedError } from "$lib/errors/humanize";
@@ -31,8 +31,8 @@
 
   const SKELETON_COUNT = 2;
 
-  const isOperator = $derived($uiMode === "operator");
-  const isBuilder = $derived($uiMode === "builder");
+  const isOperator = $derived(!$developerMode);
+  const isBuilder = $derived($developerMode);
 
   let dialogOpen = $state(false);
   let editingBackend = $state<LlmBackendConfig | null>(null);

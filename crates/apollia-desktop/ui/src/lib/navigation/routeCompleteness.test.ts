@@ -29,7 +29,9 @@ function mainSvelteRenderBranches(): string[] {
     path.join(uiSrc, "lib", "components", "app", "Main.svelte"),
     "utf8",
   );
-  const branches = [...source.matchAll(/\$currentRoute === "([\w-]+)"/g)].map((m) => m[1]);
+  // The branches compare the route the router shows, after the developer-mode
+  // guard, to each member.
+  const branches = [...source.matchAll(/shownRoute === "([\w-]+)"/g)].map((m) => m[1]);
   // `settings` is rendered as a window above the screen, mounted once in Main.
   if (source.includes("<SettingsWindow />")) branches.push("settings");
   return branches;

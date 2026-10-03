@@ -3,7 +3,7 @@
   import { t } from "svelte-i18n";
   import { formatCost } from "$lib/format";
   import type { LlmCostStatsResponse, LlmCostStatsRow } from "$lib/types";
-  import { uiMode } from "$lib/stores/mode";
+  import { developerMode } from "$lib/stores/developerMode";
   import { getLlmCostStats } from "$lib/ipc/llm";
   import { DataTable, type Column } from "$lib/components/ui/data-table";
   import LlmCostThreshold from "./LlmCostThreshold.svelte";
@@ -35,7 +35,7 @@
     return value.toString();
   }
 
-  const isOperator = $derived($uiMode === "operator");
+  const isOperator = $derived(!$developerMode);
   const totalCalls = $derived(rows.reduce((sum, r) => sum + r.call_count, 0));
   const totalTokens = $derived(rows.reduce((sum, r) => sum + r.total_tokens, 0));
   const totalCost = $derived(rows.reduce((sum, r) => sum + r.total_cost_usd, 0));

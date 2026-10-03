@@ -107,38 +107,20 @@ fn store_cached(url: String, preview: LinkPreview) {
     }
 }
 
-/// Check the `[ui].link_preview_enabled` flag in `apollia.toml`.
+/// Check the `[ui].link_preview_enabled` flag in `~/.apollia/apollia.toml`.
 ///
-/// Defaults to `false` (local-first, opt-in).  Lookup order matches
-/// `main.rs::load_apollia_config`: `~/.apollia/apollia.toml` → CWD →
-/// `~/.config/apollia/apollia.toml`.
+/// Defaults to `false` (local-first, opt-in).
 fn link_preview_enabled() -> bool {
-    let home = apollia_core::paths::home_dir();
-    let candidates: Vec<PathBuf> = [
-        home.as_ref()
-            .map(|h| apollia_core::paths::data_dir_under(h).join("apollia.toml")),
-        std::env::current_dir().ok().map(|d| d.join("apollia.toml")),
-        home.as_ref()
-            .map(|h| h.join(".config").join("apollia").join("apollia.toml")),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-
-    for path in candidates {
-        if let Ok(raw) = std::fs::read_to_string(&path) {
-            if let Ok(parsed) = toml::from_str::<toml::Value>(&raw) {
-                if let Some(flag) = parsed
-                    .get("ui")
-                    .and_then(|ui| ui.get("link_preview_enabled"))
-                    .and_then(|v| v.as_bool())
-                {
-                    return flag;
-                }
-            }
-        }
-    }
-    false
+    apollia_core::paths::config_file()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|raw| toml::from_str::<toml::Value>(&raw).ok())
+        .and_then(|parsed| {
+            parsed
+                .get("ui")
+                .and_then(|ui| ui.get("link_preview_enabled"))
+                .and_then(toml::Value::as_bool)
+        })
+        .unwrap_or(false)
 }
 
 /// Tauri command: fetch Open Graph metadata for a URL.

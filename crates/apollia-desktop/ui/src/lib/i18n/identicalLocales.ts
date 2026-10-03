@@ -160,7 +160,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent", // Agents
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
-  "nav.builder_cluster", // Inspection
   "nav.chat", // Chat
   "nav.notifications", // Notifications
   "nav.sidebar.chat", // Chat
@@ -206,6 +205,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.about.kv_version", // Version
   "settings.chat.conversations_title", // Conversations
   "settings.credential.absent", // Absent
+  "settings.developer.mcp.kind_agent", // Agent
+  "settings.developer.mcp.kind_workflow", // Workflow
   "settings.general.application_title", // Application
   "settings.general.interface_title", // Interface
   "settings.llm_backend.provider_local", // local

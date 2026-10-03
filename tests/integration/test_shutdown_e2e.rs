@@ -219,6 +219,7 @@ async fn test_shutdown_drains_active_tasks() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -336,6 +337,7 @@ async fn test_shutdown_stops_all_agents() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -443,6 +445,7 @@ async fn test_shutdown_broadcasts_requested_event() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     let api = APIServer::new(
         APIServerConfig {
@@ -572,6 +575,7 @@ async fn test_shutdown_drain_timeout_force_cancels() {
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     };
     let api = APIServer::new(
         APIServerConfig {
