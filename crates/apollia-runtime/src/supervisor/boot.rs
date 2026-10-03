@@ -107,10 +107,16 @@ impl Supervisor {
         if let Some(supervisor) = &llama_server_supervisor {
             Arc::clone(supervisor).spawn_supervision();
         }
+        // The MLX engine, on a Mac with Apple Silicon whose build carries it.
+        // An MLX model elsewhere is refused with its reason by the router.
+        let mlx_engine = crate::mlx_engine::MlxEngineSupervisor::for_this_machine();
+        if let Some(engine) = &mlx_engine {
+            Arc::clone(engine).spawn_supervision();
+        }
 
         // Phase 4 (pos 5): LlmRouter + LlmBackendRepository, loads backends from system.db
         let (llm_router, llm_backend_repo) = self
-            .start_llm_router(&system_db_path, &llama_server_supervisor)
+            .start_llm_router(&system_db_path, &llama_server_supervisor, &mlx_engine)
             .await;
 
         // Phase 4b: LlmCallRepository, an EventBus subscriber that persists LLM calls.
@@ -546,6 +552,7 @@ impl Supervisor {
             resilience_layer: Some(shared_resilience_layer.clone()),
             runner_proxy: runner_supervisor.as_ref().map(|s| s.proxy()),
             llama_server_supervisor: llama_server_supervisor.clone(),
+            mlx_engine: mlx_engine.clone(),
             secret_store: crate::inference_servers::default_store_opener(),
             batches,
             workflows: workflows.clone(),
@@ -672,6 +679,7 @@ impl Supervisor {
             project_repository,
             runner_supervisor,
             llama_server_supervisor,
+            mlx_engine,
             org_policy,
         })
     }
