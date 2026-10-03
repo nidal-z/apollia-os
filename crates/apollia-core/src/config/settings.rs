@@ -26,14 +26,20 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{DesktopConfig, LlmResidencyConfig, McpConfig, ModelsConfig, ServerConfig};
+use super::{
+    AuthorConfig, DesktopConfig, EnginesConfig, LlmResidencyConfig, McpConfig, ModelsConfig,
+    ServerConfig, ENGINE_LOG_LEVELS,
+};
 
 /// Wire names of the load guardrail levels, the values `llm.guardrails.level`
 /// accepts. The runtime holds its level enum to this list in a test.
 pub const GUARDRAIL_LEVELS: &[&str] = &["disabled", "lenient", "balanced", "strict", "ceiling"];
 
 /// Settings whose value is one of a closed list, by dotted key.
-const CHOICES: &[(&str, &[&str])] = &[("llm.guardrails.level", GUARDRAIL_LEVELS)];
+const CHOICES: &[(&str, &[&str])] = &[
+    ("llm.guardrails.level", GUARDRAIL_LEVELS),
+    ("engines.log_level", ENGINE_LOG_LEVELS),
+];
 
 /// Where the value of a resolved setting comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -150,8 +156,9 @@ pub enum SettingError {
 /// `models.registry_mirror_url`, `models.registry_enabled`), the import rule
 /// (`models.import.require_verified`) and the load guardrail
 /// (`llm.guardrails.level`, `llm.guardrails.ceiling_gb`, where `0` sets no
-/// ceiling), and the idle unload delay of a local model
-/// (`llm.residency.idle_unload_minutes`, where `0` never unloads).
+/// ceiling), the idle unload delay of a local model
+/// (`llm.residency.idle_unload_minutes`, where `0` never unloads), then the
+/// whole `[server]` and `[engines]` sections.
 fn defaults() -> serde_json::Map<String, Value> {
     let mut sections = serde_json::Map::new();
     // A struct of plain fields always serializes; a failure would only make
@@ -179,6 +186,12 @@ fn defaults() -> serde_json::Map<String, Value> {
     }
     if let Ok(server) = serde_json::to_value(ServerConfig::default()) {
         sections.insert("server".to_owned(), server);
+    }
+    if let Ok(engines) = serde_json::to_value(EnginesConfig::default()) {
+        sections.insert("engines".to_owned(), engines);
+    }
+    if let Ok(author) = serde_json::to_value(AuthorConfig::default()) {
+        sections.insert("author".to_owned(), author);
     }
     sections
 }
@@ -449,6 +462,7 @@ pub fn write_setting(
     };
     DesktopConfig::from_toml_str(&written).map_err(invalid)?;
     ServerConfig::from_toml_str(&written).map_err(invalid)?;
+    EnginesConfig::from_toml_str(&written).map_err(invalid)?;
     write_atomically(path, &written)?;
     tracing::event!(tracing::Level::INFO, key = %key, "config.setting.written");
     Ok(ResolvedSetting {

@@ -26,6 +26,7 @@ mod guard;
 mod load_settings;
 mod loaded;
 mod locate;
+mod log_level;
 mod ngl;
 mod parallel;
 mod projector;
@@ -46,7 +47,7 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -255,6 +256,9 @@ pub struct LlamaServerSupervisor {
     residency: std::sync::OnceLock<Arc<crate::residency::Residency>>,
     /// The guardrail settings the organisation policy fixes, over the file.
     imposed: apollia_core::config::PolicySettings,
+    /// Where each line the processes print goes besides tracing: the logs of
+    /// the compatible server, once it is started.
+    line_sink: OnceLock<crate::compat_server::ServerLogsHandle>,
 }
 
 impl LlamaServerSupervisor {
@@ -298,6 +302,7 @@ impl LlamaServerSupervisor {
             config_file,
             residency: std::sync::OnceLock::new(),
             imposed,
+            line_sink: OnceLock::new(),
         }))
     }
 
@@ -493,6 +498,7 @@ impl LlamaServerSupervisor {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            line_sink: OnceLock::new(),
         }
     }
 
@@ -524,6 +530,7 @@ impl LlamaServerSupervisor {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            line_sink: OnceLock::new(),
         })
     }
 
@@ -656,6 +663,12 @@ impl LlamaServerSupervisor {
         Ok(lease)
     }
 
+    /// Sends every line a process launched from now on prints to `logs` as
+    /// well as to tracing. Only the first call counts.
+    pub fn send_lines_to(&self, logs: crate::compat_server::ServerLogsHandle) {
+        let _ = self.line_sink.set(logs);
+    }
+
     /// Launch the binary with `args`, its output drained into tracing.
     fn spawn_child(&self, args: &[String]) -> Result<Child, LlamaServerError> {
         let mut server_cmd = Command::new(&self.bin_path);
@@ -677,10 +690,16 @@ impl LlamaServerSupervisor {
         // Drain the child's pipes into tracing so a load failure is visible and
         // the OS pipe buffer never fills (which would stall the load).
         if let Some(stdout) = child.stdout.take() {
-            tokio::spawn(drain_pipe(BufReader::new(stdout)));
+            tokio::spawn(drain_pipe(
+                BufReader::new(stdout),
+                self.line_sink.get().cloned(),
+            ));
         }
         if let Some(stderr) = child.stderr.take() {
-            tokio::spawn(drain_pipe(BufReader::new(stderr)));
+            tokio::spawn(drain_pipe(
+                BufReader::new(stderr),
+                self.line_sink.get().cloned(),
+            ));
         }
         Ok(child)
     }
@@ -732,12 +751,16 @@ pub(crate) fn pick_free_port() -> Result<u16, LlamaServerError> {
     Ok(port)
 }
 
-/// Forward a child pipe line-by-line into the daemon's tracing log.
+/// Forward a child pipe line-by-line into the daemon's tracing log, and into
+/// `sink`, the logs of the compatible server, when there is one.
 ///
 /// Uses lossy UTF-8 decoding and never stops on a decode error (llama.cpp can
 /// emit non-UTF-8 bytes): a stalled drain would fill the OS pipe buffer and
 /// block the server. Stops only on EOF or a read error (process gone).
-async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
+pub(crate) async fn drain_pipe<R: AsyncBufRead + Unpin>(
+    mut reader: R,
+    sink: Option<crate::compat_server::ServerLogsHandle>,
+) {
     let mut buf = Vec::with_capacity(256);
     loop {
         buf.clear();
@@ -747,6 +770,9 @@ async fn drain_pipe<R: AsyncBufRead + Unpin>(mut reader: R) {
                 let line = String::from_utf8_lossy(&buf);
                 let line = line.trim_end_matches(['\r', '\n']);
                 tracing::info!(target: "llama-server", line = %line, "llama.server.line");
+                if let Some(sink) = &sink {
+                    sink.engine_line(line);
+                }
                 // The placement facts are the lines an operator needs when the
                 // default filter drops the target above: where the model
                 // loaded, and how much of it.
@@ -795,6 +821,7 @@ mod test_support {
             config_file: None,
             residency: std::sync::OnceLock::new(),
             imposed: apollia_core::config::PolicySettings::none(),
+            line_sink: std::sync::OnceLock::new(),
         }
     }
 

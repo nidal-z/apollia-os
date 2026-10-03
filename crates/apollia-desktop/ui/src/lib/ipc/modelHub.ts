@@ -107,6 +107,8 @@ export interface DownloadProgress {
   speed_bps: number;
   dest_path: string;
   status: DownloadStatus;
+  /** Why the download stopped, in the runtime's words. Set on `failed` only. */
+  error?: string;
 }
 
 /** Which variant of a repository to download. */

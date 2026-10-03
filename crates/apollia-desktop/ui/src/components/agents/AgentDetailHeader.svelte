@@ -24,13 +24,19 @@
    */
   import { t } from "svelte-i18n";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
-  import { MessageSquare, RefreshCw, Sparkles, Trash2 } from "lucide-svelte";
+  import { MessageSquare, RefreshCw, Repeat, Sparkles, Trash2 } from "lucide-svelte";
   import { reportError } from "$lib/errors/reportError";
   import { DetailHeader, StatusDot } from "$lib/components/operator";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
+  import { developerMode } from "$lib/stores/developerMode";
+  import { addToast } from "$lib/components/ui/toast/store";
+  import CreateTriggerDialog from "../triggers/CreateTriggerDialog.svelte";
   import type { AgentActions } from "./useAgentActions.svelte";
+  import AdjustActions from "./sheet/AdjustActions.svelte";
+  import ExportAgent from "./sheet/ExportAgent.svelte";
+  import type { AgentAdjust } from "./sheet/useAgentAdjust.svelte";
   import type { AgentListItem } from "$lib/types";
   import {
     agentClassLabel,
@@ -52,6 +58,8 @@
     onArmUninstall: () => void;
     onDisarmUninstall: () => void;
     onStartChat: (name: string) => void;
+    /** The adjustment session of the sheet below the header. */
+    adjust: AgentAdjust;
   }
 
   let {
@@ -61,6 +69,7 @@
     onArmUninstall,
     onDisarmUninstall,
     onStartChat,
+    adjust,
   }: Props = $props();
 
   const toolCount = $derived(
@@ -68,6 +77,8 @@
   );
 
   let deleteMemory = $state(false);
+  /** The "Automate" dialog, prefilled with this agent as its target. */
+  let automating = $state(false);
   let updating = $state(false);
   /**
    * File picked for the replacement, held while the operator decides.
@@ -164,7 +175,9 @@
     </span>
   {/snippet}
   {#snippet actions()}
-    {#if confirmingUninstall}
+    {#if adjust.active}
+      <AdjustActions {adjust} />
+    {:else if confirmingUninstall}
       <div class="flex flex-col items-end gap-1.5">
         <span class="text-body-xs font-medium text-destructive">
           {$t("agents.uninstall_confirm_warning", { values: { name: agent.name } })}
@@ -242,6 +255,17 @@
           {$t("agents.uninstall")}
         </Button>
       {/if}
+      <ExportAgent name={agent.name} disabled={busy || updating} />
+      <AdjustActions {adjust} />
+      <Button
+        variant="outline"
+        size="sm"
+        onclick={() => (automating = true)}
+        data-testid="agent-automate-btn"
+      >
+        {#snippet icon()}<Repeat size={12} />{/snippet}
+        {$t("agents.automate")}
+      </Button>
       <Button
         variant="primary-solid"
         size="sm"
@@ -271,11 +295,21 @@
     {#if agentClassLabel(agent)}
       <Badge size="sm" variant="info">{agentClassLabel(agent)}</Badge>
     {/if}
-    {#if agent.execution_mode}
+    {#if $developerMode && agent.execution_mode}
       <Badge size="sm" variant="neutral">{agent.execution_mode}</Badge>
     {/if}
-    {#if agent.supports_a2a}
+    {#if $developerMode && agent.supports_a2a}
       <Badge size="sm" variant="info">A2A</Badge>
     {/if}
   {/snippet}
 </DetailHeader>
+
+<CreateTriggerDialog
+  open={automating}
+  target={{ kind: "agent", name: agent.name }}
+  onclose={() => (automating = false)}
+  oncreated={(id) => {
+    automating = false;
+    addToast($t("triggers.created_toast", { values: { id } }), "success");
+  }}
+/>

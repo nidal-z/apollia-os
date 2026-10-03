@@ -10,8 +10,37 @@ use chrono::Utc;
 
 use apollia_core::{AIPInput, AIPPart, RuntimeEvent, TaskId, TextPart};
 
-use crate::engine::{AgentQueue, QueuedTriggerEvent, TriggerEngine, TriggerEngineError};
-use crate::types::{OnBusyPolicy, TriggerEvent};
+use crate::engine::{
+    AgentQueue, QueuedTriggerEvent, TaskSubmitter, TriggerEngine, TriggerEngineError,
+};
+use crate::types::{
+    render_inputs, OnBusyPolicy, TriggerDefinition, TriggerEvent, TriggerPayload, TriggerTarget,
+};
+
+/// Starts the target of `def` on `payload` through `router`: the agent on its
+/// rendered message, or the workflow on its rendered inputs. Returns the task
+/// of the agent run, or the run of the workflow.
+async fn submit_target(
+    router: &dyn TaskSubmitter,
+    def: &TriggerDefinition,
+    payload: &TriggerPayload,
+) -> Result<TaskId, String> {
+    match &def.target {
+        TriggerTarget::Agent { agent, message } => {
+            let input = AIPInput {
+                parts: vec![AIPPart::Text(TextPart {
+                    text: message.render(payload),
+                })],
+            };
+            router.submit(agent, input).await
+        }
+        TriggerTarget::Workflow { workflow, inputs } => {
+            router
+                .submit_workflow(workflow, render_inputs(inputs, payload))
+                .await
+        }
+    }
+}
 
 impl TriggerEngine {
     /// Handles a `TriggerEvent`: delegates to `process_event` and ignores the result.
@@ -60,7 +89,7 @@ impl TriggerEngine {
         // Evaluate the OnBusyPolicy before submitting the task.
         match &def.on_busy {
             OnBusyPolicy::Skip => {
-                let pending = self.task_router.pending_count(&def.agent).await;
+                let pending = self.task_router.pending_count(def.target.name()).await;
                 if pending > 0 {
                     let reason = "agent busy, on_busy=skip".to_string();
                     let _ = self.event_bus.send(RuntimeEvent::TriggerSkipped {
@@ -77,7 +106,7 @@ impl TriggerEngine {
             }
             OnBusyPolicy::Queue { max_depth } => {
                 let max_depth = *max_depth;
-                let pending = self.task_router.pending_count(&def.agent).await;
+                let pending = self.task_router.pending_count(def.target.name()).await;
                 if pending > 0 {
                     let queued = QueuedTriggerEvent {
                         trigger_id: event.trigger_id.clone(),
@@ -86,12 +115,12 @@ impl TriggerEngine {
                     };
                     let queue = self
                         .agent_queues
-                        .entry(def.agent.clone())
+                        .entry(def.target.name().to_string())
                         .or_insert_with(|| AgentQueue::new(max_depth));
                     if queue.try_push(queued) {
                         tracing::info!(
                             trigger_id = %event.trigger_id,
-                            agent = %def.agent,
+                            target = %def.target.name(),
                             queue_depth = queue.len(),
                             "trigger.queued"
                         );
@@ -104,7 +133,7 @@ impl TriggerEngine {
                         });
                         tracing::warn!(
                             trigger_id = %event.trigger_id,
-                            agent = %def.agent,
+                            target = %def.target.name(),
                             max_depth,
                             reason = "the agent queue is full",
                             "trigger.dropped"
@@ -115,26 +144,21 @@ impl TriggerEngine {
                     }
                 }
                 // Agent free: drain the existing queue (FIFO) before submitting.
-                self.drain_agent_queue(&def.agent).await;
+                self.drain_agent_queue(def.target.name()).await;
             }
             OnBusyPolicy::Block => {
                 // Submit directly; async blocking is not implemented.
             }
         }
 
-        let text = def.input_template.render(&event.payload);
-        let input = AIPInput {
-            parts: vec![AIPPart::Text(TextPart { text })],
-        };
-
-        // 4. Submit the task and measure dispatch_ms.
+        // 4. Start the target and measure dispatch_ms.
         let dispatch_start = Instant::now();
-        match self.task_router.submit(&def.agent, input).await {
+        match submit_target(self.task_router.as_ref(), &def, &event.payload).await {
             Ok(task_id) => {
                 let dispatch_ms = dispatch_start.elapsed().as_millis() as i64;
                 let _ = self.event_bus.send(RuntimeEvent::TriggerFired {
                     trigger_id: event.trigger_id.clone(),
-                    agent: def.agent.clone(),
+                    agent: def.target.name().to_string(),
                     task_id: task_id.clone(),
                 });
                 self.persist_fired(&event, &task_id, dispatch_ms).await;
@@ -153,6 +177,7 @@ impl TriggerEngine {
                 self.persist_error(&event, &e).await;
                 tracing::error!(
                     trigger_id = %event.trigger_id,
+                    target_kind = def.target.kind(),
                     error = %e,
                     "trigger.task.submit.failed"
                 );
@@ -194,22 +219,18 @@ impl TriggerEngine {
                 );
                 continue;
             };
-            let text = def.input_template.render(&queued.payload);
-            let input = AIPInput {
-                parts: vec![AIPPart::Text(TextPart { text })],
-            };
             let dispatch_start = Instant::now();
-            match self.task_router.submit(&def.agent, input).await {
+            match submit_target(self.task_router.as_ref(), &def, &queued.payload).await {
                 Ok(task_id) => {
                     let dispatch_ms = dispatch_start.elapsed().as_millis() as i64;
                     let _ = self.event_bus.send(RuntimeEvent::TriggerFired {
                         trigger_id: queued.trigger_id.clone(),
-                        agent: def.agent.clone(),
+                        agent: def.target.name().to_string(),
                         task_id: task_id.clone(),
                     });
                     let event = TriggerEvent {
                         trigger_id: queued.trigger_id.clone(),
-                        agent: def.agent.clone(),
+                        target: def.target.name().to_string(),
                         payload: queued.payload,
                         fired_at: queued.queued_at,
                     };

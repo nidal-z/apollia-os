@@ -502,6 +502,12 @@ impl MlxEngineSupervisor {
         });
     }
 
+    /// A lease on the live process already serving `model_path`, marked as
+    /// just used; `None` when none does. Never launches anything.
+    pub async fn lease_resident(&self, model_path: &str) -> Option<ModelLease> {
+        self.touch_live_instance(model_path).await
+    }
+
     /// Every model with a live process, most recently used first.
     pub async fn loaded_models(&self) -> Vec<LoadedModel> {
         let mut instances = self.instances.lock().await;

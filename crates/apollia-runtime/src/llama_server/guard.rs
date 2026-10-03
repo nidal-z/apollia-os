@@ -10,11 +10,12 @@ use crate::residency::room::{plan_room, Room};
 
 use super::config::env_getter;
 use super::load_settings::{self, LoadSettings};
-use super::{ngl, parallel, projector, LlamaServerConfig, LlamaServerSupervisor};
+use super::{log_level, ngl, parallel, projector, LlamaServerConfig, LlamaServerSupervisor};
 
 impl LlamaServerSupervisor {
     /// The configuration `model_path` would be launched with at `n_ctx` under
-    /// `load`: the preset, then the environment, then the plans.
+    /// `load`: the engine log level of the settings, the preset, then the
+    /// environment, then the plans.
     pub(super) async fn launch_config(
         &self,
         model_path: String,
@@ -32,6 +33,15 @@ impl LlamaServerSupervisor {
         base.model_path = model_path;
         base.chat_template_file = template_file.map(|path| path.display().to_string());
         base.n_ctx = n_ctx;
+        // The engine log level of the settings, read at every load so a change
+        // applies to the next one; the environment still wins in `compose`.
+        let config_file = self.config_file.clone();
+        let imposed = self.imposed.clone();
+        let level =
+            tokio::task::spawn_blocking(move || log_level::read(config_file.as_deref(), &imposed))
+                .await
+                .unwrap_or_default();
+        log_level::apply(&mut base, level);
         // The preset, then the environment, then the plans: the slot count
         // first, since the offload plan sizes the cache those slots hold (see
         // `parallel` and `ngl` for why the literals were wrong). The window is

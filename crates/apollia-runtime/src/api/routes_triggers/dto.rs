@@ -14,15 +14,22 @@ use apollia_triggers::TriggerHistoryEntry;
 pub struct CreateTriggerRequest {
     /// Unique trigger identifier.
     pub id: String,
-    /// Target agent.
+    /// Target agent; exclusive with `workflow`.
     pub agent: Option<String>,
+    /// Target workflow, `<package>/<workflow>`; exclusive with `agent`.
+    #[serde(default)]
+    pub workflow: Option<String>,
+    /// For a workflow target, one text template per input field.
+    #[serde(default)]
+    #[schema(value_type = Option<Object>)]
+    pub workflow_inputs: Option<serde_json::Value>,
     /// Whether the trigger is active (default: `true`).
     pub enabled: Option<bool>,
     /// Policy when the agent is busy (default: `"queue"`).
     pub on_busy: Option<String>,
     /// Trigger source configuration.
     pub source: TriggerSourceInput,
-    /// Input message template.
+    /// The message of an agent target.
     pub input_template: Option<String>,
 }
 
@@ -40,15 +47,22 @@ pub struct TriggerSourceInput {
 /// Request body for `PUT /api/v1/triggers/:id`, trigger update.
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateTriggerRequest {
-    /// Target agent.
+    /// Target agent; exclusive with `workflow`.
     pub agent: Option<String>,
+    /// Target workflow, `<package>/<workflow>`; exclusive with `agent`.
+    #[serde(default)]
+    pub workflow: Option<String>,
+    /// For a workflow target, one text template per input field.
+    #[serde(default)]
+    #[schema(value_type = Option<Object>)]
+    pub workflow_inputs: Option<serde_json::Value>,
     /// Whether the trigger is active.
     pub enabled: Option<bool>,
     /// Policy when the agent is busy.
     pub on_busy: Option<String>,
     /// Trigger source configuration.
     pub source: TriggerSourceInput,
-    /// Input message template.
+    /// The message of an agent target.
     pub input_template: Option<String>,
 }
 
@@ -59,8 +73,15 @@ pub struct UpdateTriggerRequest {
 pub struct TriggerDefinitionResponse {
     /// Unique trigger identifier.
     pub id: String,
-    /// Target agent.
+    /// `"agent"` or `"workflow"`.
+    pub target_kind: String,
+    /// Target agent, for an agent target.
     pub agent: Option<String>,
+    /// Target workflow, for a workflow target.
+    pub workflow: Option<String>,
+    /// For a workflow target, one text template per input field.
+    #[schema(value_type = Option<Object>)]
+    pub workflow_inputs: Option<serde_json::Value>,
     /// Whether the trigger is active.
     pub enabled: bool,
     /// Policy when the agent is busy.
@@ -70,7 +91,7 @@ pub struct TriggerDefinitionResponse {
     /// Source JSON configuration.
     #[schema(value_type = Object)]
     pub source_config: serde_json::Value,
-    /// Input message template.
+    /// The message of an agent target.
     pub input_template: Option<String>,
     /// Creation timestamp (ISO 8601).
     pub created_at: String,

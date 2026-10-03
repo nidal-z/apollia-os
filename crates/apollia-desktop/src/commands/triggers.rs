@@ -14,8 +14,10 @@ use tauri::State;
 pub struct TriggerStatus {
     /// Trigger identifier.
     pub id: String,
-    /// Name of the target agent.
+    /// Name of the target: the agent, or the workflow `<package>/<workflow>`.
     pub agent: String,
+    /// `"agent"` or `"workflow"`.
+    pub target_kind: String,
     /// Source type: `"cron"` | `"interval"` | `"file_watch"` | `"webhook"` | `"oneshot"`.
     pub source_kind: String,
     /// Source configuration detail (e.g. cron expression, interval, path).
@@ -81,6 +83,11 @@ pub async fn list_triggers(state: State<'_, RuntimeLink>) -> Result<Vec<TriggerS
                 .get("agent")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
+                .to_string(),
+            target_kind: t
+                .get("target_kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("agent")
                 .to_string(),
             source_kind: t
                 .get("source_kind")
@@ -205,10 +212,14 @@ pub async fn get_trigger_logs(
 pub struct TriggerDefinitionView {
     /// Unique trigger identifier.
     pub id: String,
-    /// Target agent (mutually exclusive with `pipeline`).
+    /// `"agent"` or `"workflow"`.
+    pub target_kind: String,
+    /// Target agent (mutually exclusive with `workflow`).
     pub agent: Option<String>,
-    /// Target pipeline (mutually exclusive with `agent`).
-    pub pipeline: Option<String>,
+    /// Target workflow, `<package>/<workflow>` (mutually exclusive with `agent`).
+    pub workflow: Option<String>,
+    /// For a workflow target, one text template per input field.
+    pub workflow_inputs: Option<serde_json::Value>,
     /// Whether the trigger is active.
     pub enabled: bool,
     /// Policy when the agent is busy: `"queue"` or `"drop"`.
@@ -219,7 +230,7 @@ pub struct TriggerDefinitionView {
     pub source_config: serde_json::Value,
     /// Presence marker replacing the removed secret.
     pub has_secret: bool,
-    /// Input message template.
+    /// The message of an agent target.
     pub input_template: Option<String>,
     /// Creation timestamp (ISO 8601).
     pub created_at: String,
@@ -242,34 +253,42 @@ pub struct TriggerSourceInput {
 pub struct CreateTriggerRequest {
     /// Unique trigger identifier.
     pub id: String,
-    /// Target agent, mutually exclusive with `pipeline`.
+    /// Target agent, mutually exclusive with `workflow`.
     pub agent: Option<String>,
-    /// Target pipeline, mutually exclusive with `agent`.
-    pub pipeline: Option<String>,
+    /// Target workflow, `<package>/<workflow>`, mutually exclusive with `agent`.
+    #[serde(default)]
+    pub workflow: Option<String>,
+    /// For a workflow target, one text template per input field.
+    #[serde(default)]
+    pub workflow_inputs: Option<serde_json::Value>,
     /// Whether the trigger is active (default: `true`).
     pub enabled: Option<bool>,
     /// Policy when the agent is busy (default: `"queue"`).
     pub on_busy: Option<String>,
     /// Trigger source configuration.
     pub source: TriggerSourceInput,
-    /// Input message template.
+    /// The message of an agent target.
     pub input_template: Option<String>,
 }
 
 /// Request body for updating a trigger via `update_trigger`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateTriggerRequest {
-    /// Target agent, mutually exclusive with `pipeline`.
+    /// Target agent, mutually exclusive with `workflow`.
     pub agent: Option<String>,
-    /// Target pipeline, mutually exclusive with `agent`.
-    pub pipeline: Option<String>,
+    /// Target workflow, `<package>/<workflow>`, mutually exclusive with `agent`.
+    #[serde(default)]
+    pub workflow: Option<String>,
+    /// For a workflow target, one text template per input field.
+    #[serde(default)]
+    pub workflow_inputs: Option<serde_json::Value>,
     /// Whether the trigger is active.
     pub enabled: Option<bool>,
     /// Policy when the agent is busy.
     pub on_busy: Option<String>,
     /// Trigger source configuration.
     pub source: TriggerSourceInput,
-    /// Input message template.
+    /// The message of an agent target.
     pub input_template: Option<String>,
 }
 
@@ -351,11 +370,20 @@ fn parse_trigger_definition(json: &serde_json::Value) -> TriggerDefinitionView {
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string(),
+        target_kind: json
+            .get("target_kind")
+            .and_then(|v| v.as_str())
+            .unwrap_or("agent")
+            .to_string(),
         agent: json.get("agent").and_then(|v| v.as_str()).map(String::from),
-        pipeline: json
-            .get("pipeline")
+        workflow: json
+            .get("workflow")
             .and_then(|v| v.as_str())
             .map(String::from),
+        workflow_inputs: json
+            .get("workflow_inputs")
+            .filter(|v| !v.is_null())
+            .cloned(),
         enabled: json
             .get("enabled")
             .and_then(|v| v.as_bool())
@@ -465,6 +493,7 @@ mod tests {
         let status = TriggerStatus {
             id: "daily-report".to_string(),
             agent: "report-agent".to_string(),
+            target_kind: "agent".to_string(),
             source_kind: "cron".to_string(),
             source_config: "0 8 * * MON".to_string(),
             enabled: true,
@@ -479,6 +508,7 @@ mod tests {
         // THEN all fields are present and correct
         assert_eq!(json["id"], "daily-report");
         assert_eq!(json["agent"], "report-agent");
+        assert_eq!(json["target_kind"], "agent");
         assert_eq!(json["source_kind"], "cron");
         assert_eq!(json["source_config"], "0 8 * * MON");
         assert_eq!(json["enabled"], true);
@@ -492,7 +522,8 @@ mod tests {
         // GIVEN a TriggerStatus that never fired
         let status = TriggerStatus {
             id: "watcher".to_string(),
-            agent: "file-agent".to_string(),
+            agent: "invoices/ingest".to_string(),
+            target_kind: "workflow".to_string(),
             source_kind: "file_watch".to_string(),
             source_config: "/home/user/docs".to_string(),
             enabled: false,
@@ -571,8 +602,10 @@ mod tests {
         // GIVEN a TriggerDefinitionView with an agent target
         let view = TriggerDefinitionView {
             id: "daily-cron".to_string(),
+            target_kind: "agent".to_string(),
             agent: Some("report-agent".to_string()),
-            pipeline: None,
+            workflow: None,
+            workflow_inputs: None,
             enabled: true,
             on_busy: "queue".to_string(),
             source_type: "cron".to_string(),
@@ -589,7 +622,8 @@ mod tests {
         // THEN all fields are present and correct
         assert_eq!(json["id"], "daily-cron");
         assert_eq!(json["agent"], "report-agent");
-        assert!(json["pipeline"].is_null());
+        assert!(json["workflow"].is_null());
+        assert_eq!(json["target_kind"], "agent");
         assert_eq!(json["enabled"], true);
         assert_eq!(json["on_busy"], "queue");
         assert_eq!(json["source_type"], "cron");
@@ -599,12 +633,14 @@ mod tests {
     }
 
     #[test]
-    fn test_trigger_definition_view_serializes_pipeline_target() {
-        // GIVEN a TriggerDefinitionView with a pipeline target
+    fn test_trigger_definition_view_serializes_workflow_target() {
+        // GIVEN a TriggerDefinitionView with a workflow target
         let view = TriggerDefinitionView {
             id: "file-watcher".to_string(),
+            target_kind: "workflow".to_string(),
             agent: None,
-            pipeline: Some("ingestion-pipeline".to_string()),
+            workflow: Some("invoices/ingest".to_string()),
+            workflow_inputs: Some(serde_json::json!({"file": "{{path}}"})),
             enabled: false,
             on_busy: "drop".to_string(),
             source_type: "file_watch".to_string(),
@@ -618,9 +654,11 @@ mod tests {
         // WHEN serialized to JSON
         let json = serde_json::to_value(&view).expect("serialize");
 
-        // THEN pipeline is set, agent is null
+        // THEN the workflow and its inputs are set, agent is null
         assert!(json["agent"].is_null());
-        assert_eq!(json["pipeline"], "ingestion-pipeline");
+        assert_eq!(json["target_kind"], "workflow");
+        assert_eq!(json["workflow"], "invoices/ingest");
+        assert_eq!(json["workflow_inputs"]["file"], "{{path}}");
         assert_eq!(json["enabled"], false);
         assert!(json["input_template"].is_null());
     }
@@ -631,7 +669,8 @@ mod tests {
         let req = CreateTriggerRequest {
             id: "new-trigger".to_string(),
             agent: Some("my-agent".to_string()),
-            pipeline: None,
+            workflow: None,
+            workflow_inputs: None,
             enabled: Some(true),
             on_busy: Some("queue".to_string()),
             source: TriggerSourceInput {
@@ -656,7 +695,6 @@ mod tests {
         let api_json = serde_json::json!({
             "id": "t-abc",
             "agent": "test-agent",
-            "pipeline": null,
             "enabled": true,
             "on_busy": "drop",
             "source_type": "webhook",
@@ -672,13 +710,45 @@ mod tests {
         // THEN all fields are correctly mapped
         assert_eq!(view.id, "t-abc");
         assert_eq!(view.agent.as_deref(), Some("test-agent"));
-        assert!(view.pipeline.is_none());
+        assert!(view.workflow.is_none());
+        assert_eq!(view.target_kind, "agent");
         assert!(view.enabled);
         assert_eq!(view.on_busy, "drop");
         assert_eq!(view.source_type, "webhook");
         assert_eq!(
             view.input_template.as_deref(),
             Some("payload: {{trigger.payload}}")
+        );
+    }
+
+    #[test]
+    fn test_parse_trigger_definition_reads_a_workflow_target() {
+        // GIVEN an API response for a trigger on a workflow
+        let api_json = serde_json::json!({
+            "id": "weekly",
+            "target_kind": "workflow",
+            "agent": null,
+            "workflow": "reports/weekly",
+            "workflow_inputs": {"when": "{{fired_at}}"},
+            "enabled": true,
+            "on_busy": "queue",
+            "source_type": "interval",
+            "source_config": {"every": "1h"},
+            "input_template": null,
+            "created_at": "2026-10-03T10:00:00Z",
+            "updated_at": "2026-10-03T10:00:00Z"
+        });
+
+        // WHEN parsed
+        let view = parse_trigger_definition(&api_json);
+
+        // THEN the view carries the typed target and its inputs
+        assert_eq!(view.target_kind, "workflow");
+        assert!(view.agent.is_none());
+        assert_eq!(view.workflow.as_deref(), Some("reports/weekly"));
+        assert_eq!(
+            view.workflow_inputs,
+            Some(serde_json::json!({"when": "{{fired_at}}"}))
         );
     }
 

@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Unknown keys are refused, so `apollia-os config set desktop.<typo>` fails
 /// instead of writing a value nothing reads.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DesktopConfig {
     /// Shows the advanced surfaces of the application: technical identifiers,
@@ -28,6 +28,27 @@ pub struct DesktopConfig {
     /// default; the organization policy can impose it.
     #[serde(default)]
     pub update_channel: UpdateChannel,
+    /// Whether the application may install the runtime as a service of the
+    /// user's session ("Keep Apollia running without the application"). On by
+    /// default; the organization policy imposes `false` to forbid it. It is an
+    /// authorization only: whether the service is installed is what the OS
+    /// service manager reports, never a value of this file.
+    #[serde(default = "allowed")]
+    pub background_service_allowed: bool,
+}
+
+const fn allowed() -> bool {
+    true
+}
+
+impl Default for DesktopConfig {
+    fn default() -> Self {
+        Self {
+            developer_mode: false,
+            update_channel: UpdateChannel::default(),
+            background_service_allowed: allowed(),
+        }
+    }
 }
 
 /// The channel the desktop application reads its update manifest from.
@@ -68,6 +89,32 @@ impl DesktopConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_desktop_config_allows_the_background_service_by_default() {
+        // GIVEN a [desktop] section that does not name the authorization
+        let content = "[desktop]\ndeveloper_mode = true\n";
+
+        // WHEN the section is read, and when the defaults are taken
+        let read = DesktopConfig::from_toml_str(content).unwrap();
+        let default = DesktopConfig::default();
+
+        // THEN installing the service is allowed in both
+        assert!(read.background_service_allowed);
+        assert!(default.background_service_allowed);
+    }
+
+    #[test]
+    fn test_desktop_config_reads_a_forbidden_background_service() {
+        // GIVEN a [desktop] section that forbids the service
+        let content = "[desktop]\nbackground_service_allowed = false\n";
+
+        // WHEN the section is read
+        let desktop = DesktopConfig::from_toml_str(content).unwrap();
+
+        // THEN the authorization is off
+        assert!(!desktop.background_service_allowed);
+    }
 
     #[test]
     fn test_desktop_config_absent_section_loads_the_defaults() {
