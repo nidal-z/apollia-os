@@ -77,9 +77,11 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # their routes, then at 116 once the accounts of the native connectors and
 # their Drive folder were served by the daemon, then at 110 once the OAuth
 # clients of the connectors were served by the daemon, then at 103 once the plan
-# mode had its routes, then at 98 once the LLM engines were listed, tested and
-# reloaded, and the cost alert threshold read, through the daemon.
-EMBEDDED_ONLY_CEILING = 98
+# mode had its routes, then at 96 once the MCP secrets and registry had their
+# routes and the MCP sign-in was named a window command, then at 91 once the LLM
+# engines were listed, tested and reloaded, and the cost alert threshold read,
+# through the daemon.
+EMBEDDED_ONLY_CEILING = 91
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

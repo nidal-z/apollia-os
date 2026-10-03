@@ -203,6 +203,11 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "oauth_set_client_id",
     "oauth_set_client_secret",
     "oauth_test_client",
+    // MCP: the secret of a server, and the public registry joined with the
+    // servers installed.
+    "delete_mcp_secret",
+    "fetch_mcp_registry",
+    "store_mcp_secret",
     // LLM engines: the list, the test, the reload, the cost alert threshold.
     // The last ping of each engine stays in this window's memory, which
     // [`run`] manages in both modes.
@@ -281,6 +286,22 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "automation_finish",
         "ends the run driving this window in a development build",
+    ),
+    (
+        "list_mcp_enrichments",
+        "reads the connector labels compiled into this application",
+    ),
+    (
+        "mcp_oauth_discover",
+        "reads the sign-in metadata an MCP server publishes, for the wizard this window shows",
+    ),
+    (
+        "mcp_oauth_resolve_client_id",
+        "resolves the client id of the sign-in this window runs, from its own environment and build",
+    ),
+    (
+        "mcp_oauth_login",
+        "opens the browser of this machine and awaits the sign-in on its loopback; the token goes to the secret store the daemon reads",
     ),
 ];
 
