@@ -160,7 +160,6 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "memory.namespaces.cat_agent", // Agents
   "memory.namespaces.cat_agent_header", // Agents
   "memory.namespaces.title", // Namespaces
-  "nav.builder_cluster", // Inspection
   "nav.chat", // Chat
   "nav.notifications", // Notifications
   "nav.sidebar.chat", // Chat

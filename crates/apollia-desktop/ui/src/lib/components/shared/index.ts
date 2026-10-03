@@ -1,1 +1,1 @@
-export { default as BuilderOnly } from "./BuilderOnly.svelte";
+export { default as DeveloperOnly } from "./DeveloperOnly.svelte";

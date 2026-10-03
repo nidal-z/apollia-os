@@ -3,14 +3,14 @@
  *
  * Builds the groups that feed the `<CommandPalette>` component:
  *   - Recently used  (MRU, when the input is empty)
- *   - Pages          (navigation routes, persona-filtered)
- *   - Actions        (commands that do something, persona-filtered)
+ *   - Pages          (navigation routes, filtered by the developer mode)
+ *   - Actions        (commands that do something, filtered by the developer mode)
  *   - Sessions       (10 most recent chats)
  *   - Settings       (9 sub-routes under /settings)
  *   - Help           (shortcuts, about, docs, onboarding reset, quit)
  *
  * The result is a derived `paletteGroups` store, re-computed whenever
- * the underlying sources (actions, sessions, recency, persona) change.
+ * the underlying sources (actions, sessions, recency, developer mode) change.
  */
 import { derived, writable, type Readable } from "svelte/store";
 import { t } from "svelte-i18n";
@@ -18,7 +18,7 @@ import { get } from "svelte/store";
 import { MessageSquare, Settings as SettingsIcon } from "lucide-svelte";
 import type { CommandPaletteGroup } from "$lib/components/ui/command";
 import { commands, type CommandItem } from "$lib/stores/commandPalette";
-import { uiMode, type UIMode } from "$lib/stores/mode";
+import { developerMode } from "$lib/stores/developerMode";
 import { recentActionIds, touchRecentAction } from "$lib/stores/recentActionsStore";
 import { recentSessions, touchRecentSession } from "$lib/stores/recentSessionsStore";
 import { navigateTo } from "$lib/stores/navigation";
@@ -65,8 +65,12 @@ function actionToCommandItem(action: PaletteAction, group: string): CommandItem 
   };
 }
 
-function filterByPersona<T extends { persona?: UIMode }>(list: T[], mode: UIMode): T[] {
-  return list.filter((x) => !x.persona || x.persona === mode);
+/** Drops the technical actions while the developer mode is off. */
+export function filterByDeveloperMode<T extends { developer?: boolean }>(
+  list: T[],
+  developerModeOn: boolean,
+): T[] {
+  return list.filter((x) => developerModeOn || !x.developer);
 }
 
 function buildRecentGroup(
@@ -155,18 +159,17 @@ function buildExtraGroups(extras: CommandItem[]): CommandPaletteGroup[] {
   return groups;
 }
 
-/** Groups shown by the palette - reactive to stores + persona. */
+/** Groups shown by the palette - reactive to stores + developer mode. */
 export const paletteGroups: Readable<CommandPaletteGroup[]> = derived(
   [
     _actions,
-    uiMode,
+    developerMode,
     recentActionIds,
     recentSessions,
     commands,
   ],
-  ([$actions, $mode, $recentIds, $recentSessions, $extra]) => {
-    // Persona-filtered catalogue.
-    const visible = filterByPersona($actions, $mode);
+  ([$actions, $developerMode, $recentIds, $recentSessions, $extra]) => {
+    const visible = filterByDeveloperMode($actions, $developerMode);
 
     // Build the ordered sequence of candidate groups in one expression, then
     // filter out absent (null) buckets. Avoids multiple chained `push` calls.
