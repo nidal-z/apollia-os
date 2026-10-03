@@ -130,6 +130,28 @@ async fn test_a_namespace_that_names_a_path_is_refused_with_400() {
 }
 
 #[tokio::test]
+async fn test_a_memory_directory_that_cannot_be_read_is_refused_with_500() {
+    // GIVEN a daemon whose memory directory is a file, so it cannot be listed
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("memory"), b"not a directory").unwrap();
+    let state = app_state(
+        Arc::new(StemLoader { refusal: None }),
+        dir.path().to_path_buf(),
+    );
+
+    // WHEN a client lists the namespaces
+    let (listed, refusal) = call(state, "GET", "/api/v1/memory/namespaces", None).await;
+
+    // THEN the listing is refused with the reason, not an empty list
+    assert_eq!(listed, StatusCode::INTERNAL_SERVER_ERROR, "{refusal}");
+    let words = refusal["error"].as_str().unwrap();
+    assert!(
+        words.starts_with("failed to read memory directory: "),
+        "{words}"
+    );
+}
+
+#[tokio::test]
 async fn test_the_entries_recalled_during_a_turn_are_read_and_an_unknown_turn_has_none() {
     // GIVEN a turn during which an agent of the daemon recalled one entry
     let dir = TempDir::new().unwrap();

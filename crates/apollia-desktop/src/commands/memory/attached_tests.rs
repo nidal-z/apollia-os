@@ -144,15 +144,27 @@ async fn test_the_stats_of_a_conversation_are_read_from_the_daemon() {
 
 #[tokio::test]
 async fn test_a_refusal_of_the_daemon_is_shown_in_its_own_words() {
-    // GIVEN a daemon refusing a namespace that names a path, and a session it
-    // does not know
+    // GIVEN a daemon whose memory directory cannot be read, which refuses a
+    // namespace that names a path, refuses the token on the turn route, and
+    // does not know a session
     let server = MockServer::start().await;
     for (route, status, words) in [
+        (
+            "/api/v1/memory/namespaces",
+            500,
+            "failed to read memory directory: Not a directory (os error 20)",
+        ),
         (
             "/api/v1/memory/namespaces/..%2Fx/entries",
             400,
             "VALIDATION_ERROR: invalid memory namespace '../x'",
         ),
+        (
+            "/api/v1/memory/namespaces/..%2Fx/search",
+            400,
+            "VALIDATION_ERROR: invalid memory namespace '../x'",
+        ),
+        ("/api/v1/memory/injections/turn-1", 401, "invalid token"),
         (
             "/api/v1/sessions/ghost/stats",
             404,
@@ -164,17 +176,29 @@ async fn test_a_refusal_of_the_daemon_is_shown_in_its_own_words() {
             .respond_with(
                 ResponseTemplate::new(status).set_body_json(serde_json::json!({ "error": words })),
             )
+            .expect(1)
             .mount(&server)
             .await;
     }
     let link = attached(&server);
 
-    // WHEN the attached arm asks for each
+    // WHEN the attached arm of each of the five commands asks
+    let namespaces = namespaces_on(&link).await.unwrap_err();
     let entries = entries_on(&link, "../x".to_owned()).await.unwrap_err();
+    let results = search_on(&link, "../x".to_owned(), "budget".to_owned())
+        .await
+        .unwrap_err();
+    let injected = injected_on(&link, "turn-1".to_owned()).await.unwrap_err();
     let stats = stats_on(&link, "ghost".to_owned()).await.unwrap_err();
 
     // THEN the interface reads the daemon's words, not an unavailability
+    assert_eq!(
+        namespaces,
+        "failed to read memory directory: Not a directory (os error 20)"
+    );
     assert_eq!(entries, "VALIDATION_ERROR: invalid memory namespace '../x'");
+    assert_eq!(results, "VALIDATION_ERROR: invalid memory namespace '../x'");
+    assert_eq!(injected, "invalid token");
     assert_eq!(stats, "NOT_FOUND: Chat session not found: ghost");
 }
 
