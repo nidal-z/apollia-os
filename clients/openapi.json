@@ -2921,6 +2921,37 @@
         }
       }
     },
+    "/api/v1/factory-reset": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/factory-reset`: removes the daemon's whole data directory.",
+        "operationId": "factory_reset",
+        "responses": {
+          "200": {
+            "description": "Whether the data directory was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryRemoved"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The directory cannot be removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/governance/audit": {
       "get": {
         "tags": [
@@ -4181,6 +4212,28 @@
         }
       }
     },
+    "/api/v1/llm/cost-alert-threshold": {
+      "get": {
+        "tags": [
+          "llm"
+        ],
+        "summary": "Handler for `GET /api/v1/llm/cost-alert-threshold`.",
+        "description": "Reads the threshold of the router the runtime serves now, the one a reload\nswapped in. A runtime without a router has no threshold, which is an answer\nand not an error, as the desktop has always read it.",
+        "operationId": "get_cost_alert_threshold",
+        "responses": {
+          "200": {
+            "description": "The cost alert threshold of the live router",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostAlertThresholdResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/llm/costs": {
       "get": {
         "tags": [
@@ -4493,6 +4546,78 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HardwareResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/installed-models": {
+      "delete": {
+        "tags": [
+          "model_hub"
+        ],
+        "summary": "`DELETE /api/v1/llm/installed-models?path=...`",
+        "operationId": "delete_installed_model",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "description": "Absolute path of the installed model file",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file and its index entry are gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedInstalledModel"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The path resolves outside the models directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or no models directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "An LLM backend or the dictation engine uses the file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The file could not be removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -5599,6 +5724,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LlmStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/logs/clear": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/logs/clear`: removes the daemon's logs directory.",
+        "operationId": "clear_logs",
+        "responses": {
+          "200": {
+            "description": "Whether a logs directory was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryRemoved"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The directory cannot be removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
                 }
               }
             }
@@ -6843,6 +6999,37 @@
         }
       }
     },
+    "/api/v1/memory/wipe": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/memory/wipe`: removes every memory database of the daemon.",
+        "operationId": "clear_all_memories",
+        "responses": {
+          "200": {
+            "description": "How many databases were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryWiped"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The memory directory cannot be listed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications/channels": {
       "get": {
         "tags": [
@@ -7548,6 +7735,396 @@
           },
           "400": {
             "description": "Unknown provider",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "`GET /api/v1/onboarding`: the full state, `welcome` on first launch.",
+        "operationId": "get_onboarding_state",
+        "responses": {
+          "200": {
+            "description": "The onboarding state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The user memory did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/complete": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/onboarding/complete`: writes the flag that says the\nonboarding is complete.",
+        "operationId": "mark_onboarded",
+        "responses": {
+          "200": {
+            "description": "The flag is written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingMarked"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The flag cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/dismiss": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "`POST /api/v1/onboarding/dismiss`: marks the onboarding as skipped.",
+        "operationId": "dismiss_onboarding",
+        "responses": {
+          "200": {
+            "description": "The onboarding is skipped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingDismissed"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The user memory did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/finalize": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "`POST /api/v1/onboarding/finalize`: records the completion of the\nconversation without a model turn.",
+        "operationId": "finalize_onboarding_chat",
+        "responses": {
+          "200": {
+            "description": "The completion is recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingFinalized"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The agent's memory cannot be written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/finalized": {
+      "get": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "`GET /api/v1/onboarding/finalized`: whether the onboarding agent recorded\nits completion.",
+        "operationId": "check_onboarding_finalized",
+        "responses": {
+          "200": {
+            "description": "Whether the completion is recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingFinalized"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/phase": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "`POST /api/v1/onboarding/phase`: moves to the next phase.",
+        "operationId": "advance_onboarding_phase",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvancePhaseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The state after the move",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown phase",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The phase is out of sequence",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The user memory did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/profile": {
+      "put": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "`PUT /api/v1/onboarding/profile`: records the profile chosen.",
+        "operationId": "set_onboarding_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingProfileBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The state with its profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Neither operator nor builder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The user memory did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/reset": {
+      "post": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "`POST /api/v1/onboarding/reset`: removes the flag, the onboarding markers,\nthe visible profile and the onboarding agent's memory.",
+        "operationId": "reset_onboarding",
+        "responses": {
+          "200": {
+            "description": "How many profile entries were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingReset"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The profile store did not open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/resume": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "`POST /api/v1/onboarding/resume`: resumes the enrichment of the profile,\nkeeping what the agent already learnt.",
+        "operationId": "resume_onboarding",
+        "responses": {
+          "200": {
+            "description": "The conversation opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The onboarding agent is not installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The chat did not start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/onboarding/sessions": {
+      "post": {
+        "tags": [
+          "onboarding"
+        ],
+        "summary": "`POST /api/v1/onboarding/sessions`: opens a conversation with the\nonboarding agent, for the whole onboarding or one topic.",
+        "operationId": "trigger_onboarding",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerOnboardingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The conversation opened",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown topic or profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The onboarding agent is not installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The chat did not start",
             "content": {
               "application/json": {
                 "schema": {
@@ -10175,7 +10752,7 @@
           "stt"
         ],
         "summary": "`PUT /api/v1/stt/config`, update the persisted STT configuration.",
-        "description": "Accepts a JSON body of [`SttConfigRow`] (fields with `#[serde(default)]` may\nbe omitted, missing fields receive their default values). Replaces the\nsingleton row in `system.db` via an upsert.\n\nReturns `200 OK` with the updated configuration.\nReturns `503 Service Unavailable` when the config repository is unavailable.",
+        "description": "Accepts a JSON body of [`SttConfigRow`] (fields with `#[serde(default)]` may\nbe omitted, missing fields receive their default values). Replaces the\nsingleton row in `system.db` via an upsert.\n\nReturns `200 OK` with the updated configuration.\nReturns `400 Bad Request` for a language hint outside\n[`STT_LANGUAGES`](crate::stt::STT_LANGUAGES), with the message the desktop\nshows in both modes; nothing is persisted.\nReturns `503 Service Unavailable` when the config repository is unavailable.",
         "operationId": "update_stt_config",
         "requestBody": {
           "description": "Updated STT configuration (SttConfigRow); fields with defaults may be omitted",
@@ -10191,6 +10768,16 @@
         "responses": {
           "200": {
             "description": "Updated STT configuration"
+          },
+          "400": {
+            "description": "Unsupported language hint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
           },
           "500": {
             "description": "Database error",
@@ -10220,8 +10807,8 @@
         "tags": [
           "stt"
         ],
-        "summary": "`GET /api/v1/stt/models`, list available `.bin` model files.",
-        "description": "Scans `~/.apollia/models/` for `.bin` files and returns their name,\npath, and size. Returns an empty list if the directory does not exist.",
+        "summary": "`GET /api/v1/stt/models`, list available model files.",
+        "description": "Scans `~/.apollia/models/` for the extensions in\n[`MODEL_EXTENSIONS`](crate::stt::MODEL_EXTENSIONS) and returns their name,\npath, and size, the list the desktop shows in both modes. Returns an empty\nlist if the directory does not exist.",
         "operationId": "list_models",
         "responses": {
           "200": {
@@ -11169,6 +11756,223 @@
           },
           "500": {
             "description": "Database or query error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tool-credential-tests/{tool_name}": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "`POST /api/v1/tool-credential-tests/{tool_name}`: validates the tool's\ncredential with a live call. A missing or rejected key is an answer with\n`ok: false`, not an error.",
+        "operationId": "test_tool_credential",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "path",
+            "description": "Tool whose credential is tested",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The outcome of the live call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialTestView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The tool has no live test",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The credential store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tool-credentials": {
+      "get": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "`GET /api/v1/tool-credentials`: the stored credentials, values left out.",
+        "operationId": "list_tool_credentials",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "query",
+            "description": "Only the credentials of this tool.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The credentials, without their values",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CredentialEntryView"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The credential store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tool-credentials/{tool_name}/{key_name}": {
+      "put": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "`PUT /api/v1/tool-credentials/{tool_name}/{key_name}`: stores or replaces\none credential, encrypted.",
+        "operationId": "set_tool_credential",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "path",
+            "description": "Owning tool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key_name",
+            "in": "path",
+            "description": "Key name, e.g. brave.api_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCredentialBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The credential is stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredCredential"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Blank name or empty value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The credential store failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "`DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`: removes one\ncredential. Removing one that is not there is not an error.",
+        "operationId": "delete_tool_credential",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "path",
+            "description": "Owning tool",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key_name",
+            "in": "path",
+            "description": "Key name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whether a value was removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedCredential"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The credential store failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -12604,6 +13408,19 @@
             "type": "integer",
             "format": "int64",
             "description": "Id of the rule stored in `governance.db`."
+          }
+        }
+      },
+      "AdvancePhaseBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/onboarding/phase`.",
+        "required": [
+          "phase"
+        ],
+        "properties": {
+          "phase": {
+            "type": "string",
+            "description": "The phase to move to, in its snake_case name (`profile_choice`...)."
           }
         }
       },
@@ -14078,6 +14895,20 @@
           }
         }
       },
+      "CostAlertThresholdResponse": {
+        "type": "object",
+        "description": "Response body for `GET /api/v1/llm/cost-alert-threshold`.",
+        "properties": {
+          "threshold_usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The cost alert threshold of the live router in USD, `null` when none is\nset or no router is configured."
+          }
+        }
+      },
       "CostSummaryRow": {
         "type": "object",
         "description": "A single backend/model cost summary row.",
@@ -14419,6 +15250,65 @@
           }
         }
       },
+      "CredentialEntryView": {
+        "type": "object",
+        "description": "A credential as listed: its owner, its key name and its dates, never its\nvalue.",
+        "required": [
+          "tool_name",
+          "key_name",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "description": "Creation date, RFC 3339."
+          },
+          "key_name": {
+            "type": "string",
+            "description": "Logical key name (e.g. `brave.api_key`)."
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Date of the last actual use, if any."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Name of the owning tool."
+          }
+        }
+      },
+      "CredentialTestView": {
+        "type": "object",
+        "description": "Result of a live credential validation.",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Diagnostic message when `ok` is `false`."
+          },
+          "latency_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Measured round-trip latency in milliseconds.",
+            "minimum": 0
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "`true` if the call succeeded."
+          }
+        }
+      },
       "DailyCostEntry": {
         "type": "object",
         "description": "A single day+backend cost entry for the daily chart.",
@@ -14569,6 +15459,32 @@
           }
         }
       },
+      "DeletedCredential": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/tool-credentials/{tool_name}/{key_name}`.",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "boolean",
+            "description": "Whether a value was there to remove."
+          }
+        }
+      },
+      "DeletedInstalledModel": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/llm/installed-models`.",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "string",
+            "description": "The path removed, as it was asked for."
+          }
+        }
+      },
       "DeletedProfileEntry": {
         "type": "object",
         "description": "Answer of `DELETE /api/v1/profile/entries/{key}`.",
@@ -14625,6 +15541,19 @@
               "null"
             ],
             "description": "Identifier of the entry recommended for this machine."
+          }
+        }
+      },
+      "DirectoryRemoved": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/logs/clear` and `POST /api/v1/factory-reset`.",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "boolean",
+            "description": "Whether the directory existed and was removed."
           }
         }
       },
@@ -16181,6 +17110,20 @@
           }
         }
       },
+      "MemoryWiped": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/memory/wipe`.",
+        "required": [
+          "removed_databases"
+        ],
+        "properties": {
+          "removed_databases": {
+            "type": "integer",
+            "description": "How many memory databases were removed.",
+            "minimum": 0
+          }
+        }
+      },
       "MessageDto": {
         "type": "object",
         "description": "A single message in a multi-turn conversation request.\n\n`role` accepts `\"system\"`, `\"user\"`, `\"assistant\"`, or `\"tool\"`.",
@@ -16402,6 +17345,198 @@
           "ok": {
             "type": "boolean",
             "description": "Confirmation flag."
+          }
+        }
+      },
+      "OnboardingDismissed": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/onboarding/dismiss`.",
+        "required": [
+          "dismissed"
+        ],
+        "properties": {
+          "dismissed": {
+            "type": "boolean",
+            "description": "Always `true`: the onboarding is marked as skipped."
+          }
+        }
+      },
+      "OnboardingFinalized": {
+        "type": "object",
+        "description": "Answer of `GET /api/v1/onboarding/finalized` and\n`POST /api/v1/onboarding/finalize`.",
+        "required": [
+          "finalized"
+        ],
+        "properties": {
+          "finalized": {
+            "type": "boolean",
+            "description": "Whether the onboarding agent recorded its completion."
+          }
+        }
+      },
+      "OnboardingMarked": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/onboarding/complete`.",
+        "required": [
+          "onboarded"
+        ],
+        "properties": {
+          "onboarded": {
+            "type": "boolean",
+            "description": "Always `true`: the flag is written."
+          }
+        }
+      },
+      "OnboardingPhase": {
+        "type": "string",
+        "description": "The seven ordered phases of the onboarding flow.",
+        "enum": [
+          "welcome",
+          "profile_choice",
+          "ai_setup",
+          "acquaintance",
+          "guided_tour",
+          "graduation",
+          "done"
+        ]
+      },
+      "OnboardingProfileBody": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/onboarding/profile`.",
+        "required": [
+          "profile"
+        ],
+        "properties": {
+          "profile": {
+            "type": "string",
+            "description": "`operator` or `builder`."
+          }
+        }
+      },
+      "OnboardingReset": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/onboarding/reset`.",
+        "required": [
+          "removed_profile_entries"
+        ],
+        "properties": {
+          "removed_profile_entries": {
+            "type": "integer",
+            "description": "How many profile entries were removed.",
+            "minimum": 0
+          }
+        }
+      },
+      "OnboardingState": {
+        "type": "object",
+        "description": "Full onboarding state maintained server-side and persisted in UserMemory.",
+        "required": [
+          "phase",
+          "llm_configured",
+          "stt_configured",
+          "topics_covered",
+          "mandatory_complete",
+          "voice_enabled",
+          "skipped",
+          "completed",
+          "stats"
+        ],
+        "properties": {
+          "companion_session_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Session ID of the active Companion chat, if any."
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "`true` when the phase has reached `Done`."
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 timestamp when the phase reached `Done`."
+          },
+          "llm_configured": {
+            "type": "boolean",
+            "description": "`true` when at least one LLM backend has been configured."
+          },
+          "mandatory_complete": {
+            "type": "boolean",
+            "description": "`true` when the mandatory name/role fields have been collected."
+          },
+          "phase": {
+            "$ref": "#/components/schemas/OnboardingPhase",
+            "description": "Current phase of the onboarding flow."
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Chosen user profile (`\"operator\"` or `\"builder\"`); set during ProfileChoice."
+          },
+          "skipped": {
+            "type": "boolean",
+            "description": "`true` if the user explicitly skipped the onboarding."
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice)."
+          },
+          "stats": {
+            "$ref": "#/components/schemas/OnboardingStats",
+            "description": "Accumulated stats for the graduation screen."
+          },
+          "stt_configured": {
+            "type": "boolean",
+            "description": "`true` when the STT engine has been configured and tested."
+          },
+          "topics_covered": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Topics covered so far."
+          },
+          "voice_enabled": {
+            "type": "boolean",
+            "description": "`true` when the user has enabled voice commands."
+          }
+        }
+      },
+      "OnboardingStats": {
+        "type": "object",
+        "description": "Cumulative statistics accumulated over the full onboarding flow.",
+        "required": [
+          "total_time_sec",
+          "actions_completed",
+          "companion_questions"
+        ],
+        "properties": {
+          "actions_completed": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of discrete actions completed by the user.",
+            "minimum": 0
+          },
+          "companion_questions": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of questions asked to the AI Companion.",
+            "minimum": 0
+          },
+          "total_time_sec": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total time spent in the onboarding flow, in seconds.",
+            "minimum": 0
           }
         }
       },
@@ -17932,6 +19067,19 @@
           }
         }
       },
+      "SetCredentialBody": {
+        "type": "object",
+        "description": "Request body of `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`.",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "description": "Cleartext value, encrypted before it is written."
+          }
+        }
+      },
       "SetDefaultModelRequest": {
         "type": "object",
         "description": "Body of `PUT /api/v1/llm/default-model`.",
@@ -18326,6 +19474,24 @@
           "state": {
             "type": "string",
             "description": "Opaque value the provider returns with the code, to hand back to\n`complete`. Valid ten minutes, once."
+          }
+        }
+      },
+      "StoredCredential": {
+        "type": "object",
+        "description": "Answer of `PUT /api/v1/tool-credentials/{tool_name}/{key_name}`.",
+        "required": [
+          "tool_name",
+          "key_name"
+        ],
+        "properties": {
+          "key_name": {
+            "type": "string",
+            "description": "Key name stored."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Owning tool."
           }
         }
       },
@@ -19276,6 +20442,26 @@
           }
         }
       },
+      "TriggerOnboardingBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/onboarding/sessions`.",
+        "properties": {
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The profile the agent adapts its questions to, when one was chosen."
+          },
+          "topic": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One topic to run again; absent for a full onboarding."
+          }
+        }
+      },
       "TriggerPreview": {
         "type": "object",
         "description": "A trigger the package proposes. Installing does not arm it.",
@@ -19296,6 +20482,31 @@
           "target": {
             "type": "string",
             "description": "Agent or workflow it starts."
+          }
+        }
+      },
+      "TriggerResult": {
+        "type": "object",
+        "description": "Result of triggering an onboarding session.",
+        "required": [
+          "session_id",
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "`\"full\"` or `\"partial\"`."
+          },
+          "session_id": {
+            "type": "string",
+            "description": "Chat session identifier."
+          },
+          "topic": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Target topic when mode is `\"partial\"`."
           }
         }
       },
@@ -20104,6 +21315,10 @@
       "description": "The in-app companion and its guide session"
     },
     {
+      "name": "onboarding",
+      "description": "The onboarding: its phases, its profile and its conversation"
+    },
+    {
       "name": "memory",
       "description": "The memory of the agents, read and upkept per namespace"
     },
@@ -20114,6 +21329,10 @@
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
+    },
+    {
+      "name": "lifecycle",
+      "description": "Resets and erasures of the installation"
     }
   ]
 }

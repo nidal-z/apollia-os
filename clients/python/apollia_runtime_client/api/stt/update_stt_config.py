@@ -36,6 +36,11 @@ def _parse_response(
         response_200 = cast(Any, None)
         return response_200
 
+    if response.status_code == 400:
+        response_400 = ApiErrorBody.from_dict(response.json())
+
+        return response_400
+
     if response.status_code == 500:
         response_500 = ApiErrorBody.from_dict(response.json())
 
@@ -75,6 +80,9 @@ def sync_detailed(
     singleton row in `system.db` via an upsert.
 
     Returns `200 OK` with the updated configuration.
+    Returns `400 Bad Request` for a language hint outside
+    [`STT_LANGUAGES`](crate::stt::STT_LANGUAGES), with the message the desktop
+    shows in both modes; nothing is persisted.
     Returns `503 Service Unavailable` when the config repository is unavailable.
 
     Args:
@@ -111,6 +119,9 @@ def sync(
     singleton row in `system.db` via an upsert.
 
     Returns `200 OK` with the updated configuration.
+    Returns `400 Bad Request` for a language hint outside
+    [`STT_LANGUAGES`](crate::stt::STT_LANGUAGES), with the message the desktop
+    shows in both modes; nothing is persisted.
     Returns `503 Service Unavailable` when the config repository is unavailable.
 
     Args:
@@ -142,6 +153,9 @@ async def asyncio_detailed(
     singleton row in `system.db` via an upsert.
 
     Returns `200 OK` with the updated configuration.
+    Returns `400 Bad Request` for a language hint outside
+    [`STT_LANGUAGES`](crate::stt::STT_LANGUAGES), with the message the desktop
+    shows in both modes; nothing is persisted.
     Returns `503 Service Unavailable` when the config repository is unavailable.
 
     Args:
@@ -176,6 +190,9 @@ async def asyncio(
     singleton row in `system.db` via an upsert.
 
     Returns `200 OK` with the updated configuration.
+    Returns `400 Bad Request` for a language hint outside
+    [`STT_LANGUAGES`](crate::stt::STT_LANGUAGES), with the message the desktop
+    shows in both modes; nothing is persisted.
     Returns `503 Service Unavailable` when the config repository is unavailable.
 
     Args:

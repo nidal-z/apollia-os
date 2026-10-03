@@ -1,4 +1,4 @@
-//! The onboarding phase machine as the frontend sees it: the seven ordered
+//! The onboarding phase machine as the interface sees it: the seven ordered
 //! phases, the counters the graduation screen reads, and the refusals a wrong
 //! transition earns.
 
@@ -11,7 +11,7 @@ use super::VALID_PROFILES;
 // ---------------------------------------------------------------------------
 
 /// The seven ordered phases of the onboarding flow.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OnboardingPhase {
     /// Initial landing screen - shown on first launch.
@@ -32,7 +32,7 @@ pub enum OnboardingPhase {
 
 impl OnboardingPhase {
     /// Returns the lowercase snake_case string stored in UserMemory.
-    pub(super) fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Self::Welcome => "welcome",
             Self::ProfileChoice => "profile_choice",
@@ -47,7 +47,7 @@ impl OnboardingPhase {
     /// Parses a phase from its snake_case string representation.
     ///
     /// Returns `None` for unknown strings.
-    pub(super) fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "welcome" => Some(Self::Welcome),
             "profile_choice" => Some(Self::ProfileChoice),
@@ -62,7 +62,7 @@ impl OnboardingPhase {
 }
 
 /// Cumulative statistics accumulated over the full onboarding flow.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, utoipa::ToSchema)]
 pub struct OnboardingStats {
     /// Total time spent in the onboarding flow, in seconds.
     pub total_time_sec: u64,
@@ -73,7 +73,7 @@ pub struct OnboardingStats {
 }
 
 /// Full onboarding state maintained server-side and persisted in UserMemory.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct OnboardingState {
     /// Current phase of the onboarding flow.
     pub phase: OnboardingPhase,
@@ -148,7 +148,7 @@ impl OnboardingState {
 // ---------------------------------------------------------------------------
 
 /// Result of triggering an onboarding session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct TriggerResult {
     /// Chat session identifier.
     pub session_id: String,
@@ -213,6 +213,14 @@ pub enum OnboardingError {
     /// A UserMemory read or write operation failed.
     #[error("persistence error: {0}")]
     PersistenceError(String),
+
+    /// The requested phase is not one of the seven.
+    #[error("persistence error: unknown phase: {0}")]
+    UnknownPhase(String),
+
+    /// The onboarding agent's own memory could not be written.
+    #[error("{0}")]
+    AgentMemory(String),
 }
 
 // ---------------------------------------------------------------------------
@@ -525,22 +533,22 @@ mod tests {
         // THEN all phases roundtrip correctly
         for phase in &phases {
             let s = phase.as_str();
-            let recovered = OnboardingPhase::from_str(s);
+            let recovered = OnboardingPhase::parse(s);
             assert_eq!(
                 recovered.as_ref(),
                 Some(phase),
-                "phase {:?} should roundtrip via as_str/from_str",
+                "phase {:?} should roundtrip via as_str/parse",
                 phase
             );
         }
     }
 
     #[test]
-    fn test_phase_from_str_unknown_returns_none() {
+    fn test_phase_parse_unknown_returns_none() {
         // GIVEN an unknown phase string
         // WHEN parsing
         // THEN None is returned
-        assert!(OnboardingPhase::from_str("unknown_phase").is_none());
-        assert!(OnboardingPhase::from_str("").is_none());
+        assert!(OnboardingPhase::parse("unknown_phase").is_none());
+        assert!(OnboardingPhase::parse("").is_none());
     }
 }
