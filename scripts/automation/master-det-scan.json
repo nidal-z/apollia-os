@@ -397,16 +397,6 @@
     },
     {
       "kind": "click",
-      "testid": "nav-observability",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "app-main",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
       "testid": "nav-integrations",
       "timeoutMs": 3000
     },
@@ -446,6 +436,16 @@
     {
       "kind": "waitGone",
       "testid": "nav-transcriptions",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-observability",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-developer-group",
       "timeoutMs": 3000
     },
     {
@@ -719,6 +719,16 @@
       "timeoutMs": 3000
     },
     {
+      "kind": "waitFor",
+      "testid": "sidebar-developer-group",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-observability",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
       "label": "12-sidebar-developer-entries"
     },
@@ -749,6 +759,20 @@
     {
       "kind": "screenshot",
       "label": "14-nav-transcriptions-builder"
+    },
+    {
+      "kind": "click",
+      "testid": "nav-observability",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "14b-nav-observability-developer"
     },
     {
       "kind": "click",
@@ -823,6 +847,16 @@
     {
       "kind": "waitGone",
       "testid": "nav-transcriptions",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-observability",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "sidebar-developer-group",
       "timeoutMs": 3000
     },
     {
@@ -8271,26 +8305,18 @@
     },
     {
       "kind": "waitFor",
+      "testid": "inbox-page",
+      "contains": "All clear - no recent incidents.",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
       "testid": "inbox-activity-empty-cta",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "11d-activity-empty (list answered [] by the stub)"
-    },
-    {
-      "kind": "click",
-      "testid": "inbox-activity-empty-cta",
-      "timeoutMs": 2500
-    },
-    {
-      "kind": "waitFor",
-      "testid": "observability-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "screenshot",
-      "label": "11e-activity-empty-cta-landed-on-observability"
+      "label": "11d-activity-empty-mode-off (list answered [] by the stub, no link to Observability)"
     },
     {
       "kind": "goto",
@@ -8310,6 +8336,11 @@
       "kind": "waitFor",
       "testidPrefix": "activity-row",
       "nth": 0,
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "activity-row-see-logs",
       "timeoutMs": 3000
     },
     {
@@ -8385,6 +8416,59 @@
     {
       "kind": "screenshot",
       "label": "15-inbox-activity-builder"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "activity-row-see-logs",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "stubInvoke",
+      "command": "list_runtime_activity",
+      "resolve": [],
+      "once": true
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-pending",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-tab-activity",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-activity-empty-cta",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15a-activity-empty-developer (list answered [] by the stub)"
+    },
+    {
+      "kind": "click",
+      "testid": "inbox-activity-empty-cta",
+      "timeoutMs": 2500
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "15b-activity-empty-cta-landed-on-observability"
+    },
+    {
+      "kind": "goto",
+      "route": "inbox"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "inbox-page",
+      "timeoutMs": 3000
     },
     {
       "kind": "click",
@@ -12736,12 +12820,78 @@
     },
     {
       "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
       "testid": "observability-page",
       "timeoutMs": 3000
     },
     {
+      "kind": "waitGone",
+      "testid": "nav-observability",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-transcriptions",
+      "timeoutMs": 3000
+    },
+    {
       "kind": "screenshot",
-      "label": "01-observability-operator"
+      "label": "01-mode-off-observability-unreachable (the router lands on the default route)"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "observability"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "observability-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "sidebar-developer-group",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "nav-observability",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "01b-observability-developer-mode"
     },
     {
       "kind": "expect",
@@ -12761,7 +12911,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "02-operator-tabs-gated-3"
+      "label": "02-developer-tabs-gated-3"
     },
     {
       "kind": "click",
@@ -12790,7 +12940,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "03-operator-timeline-controls"
+      "label": "03-developer-timeline-controls"
     },
     {
       "kind": "waitFor",
@@ -12804,7 +12954,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04-operator-timeline-empty"
+      "label": "04-developer-timeline-empty"
     },
     {
       "kind": "waitFor",
@@ -12841,7 +12991,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04b-operator-task-timeline"
+      "label": "04b-developer-task-timeline"
     },
     {
       "kind": "selectOption",
@@ -12860,7 +13010,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04c-operator-task-timeline-other-task"
+      "label": "04c-developer-task-timeline-other-task"
     },
     {
       "kind": "click",
@@ -12874,7 +13024,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "04d-operator-timeline-back-to-window"
+      "label": "04d-developer-timeline-back-to-window"
     },
     {
       "kind": "click",
@@ -12897,7 +13047,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "05-operator-llm-costs"
+      "label": "05-developer-llm-costs"
     },
     {
       "kind": "waitFor",
@@ -12916,7 +13066,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "06-operator-llm-costs-data"
+      "label": "06-developer-llm-costs-data"
     },
     {
       "kind": "click",
@@ -12934,7 +13084,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "07-operator-audit-purpose"
+      "label": "07-developer-audit-purpose"
     },
     {
       "kind": "waitFor",
@@ -12954,7 +13104,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "08-operator-audit-trail-seeded"
+      "label": "08-developer-audit-trail-seeded"
     },
     {
       "kind": "selectOption",
@@ -12975,7 +13125,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "08a-operator-audit-filter-empty (tool+agent combination the seed leaves empty)"
+      "label": "08a-developer-audit-filter-empty (tool+agent combination the seed leaves empty)"
     },
     {
       "kind": "selectOption",
@@ -13016,35 +13166,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "08b-operator-audit-global-stats (journal-wide totals, not the loaded page)"
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
+      "label": "08b-developer-audit-global-stats (journal-wide totals, not the loaded page)"
     },
     {
       "kind": "goto",
@@ -13430,12 +13552,17 @@
     },
     {
       "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
       "testid": "observability-page",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "18-back-operator"
+      "label": "18-back-mode-off-redirected"
     },
     {
       "kind": "screenshot",
@@ -18176,6 +18303,57 @@
     },
     {
       "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "transcriptions-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
+      "testid": "nav-transcriptions",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "screenshot",
+      "label": "12d-mode-off-transcriptions-unreachable (the router lands on the default route)"
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-developer",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "sleep",
+      "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "transcriptions"
+    },
+    {
+      "kind": "waitFor",
       "testid": "transcriptions-page",
       "timeoutMs": 3000
     },
@@ -18209,7 +18387,7 @@
     },
     {
       "kind": "screenshot",
-      "label": "13-transcriptions-operator"
+      "label": "13-transcriptions-developer"
     },
     {
       "kind": "waitFor",
@@ -18382,34 +18560,6 @@
     },
     {
       "kind": "click",
-      "testid": "settings-nav-developer",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "waitFor",
-      "testid": "developer-mode-toggle",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
-      "testid": "developer-mode-on",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "sleep",
-      "ms": 800
-    },
-    {
-      "kind": "goto",
-      "route": "settings"
-    },
-    {
-      "kind": "waitFor",
-      "testid": "settings-page",
-      "timeoutMs": 3000
-    },
-    {
-      "kind": "click",
       "testid": "settings-nav-stt",
       "timeoutMs": 3000
     },
@@ -18478,12 +18628,17 @@
     },
     {
       "kind": "waitFor",
+      "testid": "dashboard-page",
+      "timeoutMs": 3000
+    },
+    {
+      "kind": "waitGone",
       "testid": "transcriptions-page",
       "timeoutMs": 3000
     },
     {
       "kind": "screenshot",
-      "label": "21-back-operator"
+      "label": "21-back-mode-off-redirected"
     },
     {
       "kind": "screenshot",
