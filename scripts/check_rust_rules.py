@@ -345,6 +345,10 @@ TIME_SENSITIVE_TEST_COUNTS: dict[str, int] = {
     # refuses after a stop" are only observable on a real port. One helper,
     # borrowed by the route and supervisor tests of the same server.
     "crates/apollia-runtime/src/compat_server/tests.rs": 1,
+    # The accept loop is the subject: the origin a request carries is read
+    # from the peer address of its connection, which only a real listener on
+    # every interface gives. One bound port, one test.
+    "crates/apollia-runtime/src/compat_server/lan_tests.rs": 1,
     "crates/apollia-runtime/src/hooks/executor.rs": 7,
     # The process is the subject: unloading a resident model has to stop its
     # child, and `kill -0` on the pid is the one observable left once the
