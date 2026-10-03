@@ -954,6 +954,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/factory-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/factory-reset`: removes the daemon's whole data directory. */
+        post: operations["factory_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/governance/audit": {
         parameters: {
             query?: never;
@@ -1807,6 +1824,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/local-ai/dictation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/local-ai/dictation`: makes a Whisper file the dictation model
+         *     and marks the onboarding progress as dictation-ready.
+         */
+        post: operations["setup_dictation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/llm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/local-ai/llm`: copies a GGUF file into the models folder and
+         *     makes it the `local` backend.
+         * @description The copy runs in its own task, so a client that stops waiting does not
+         *     leave half a model in the folder.
+         */
+        post: operations["setup_local_llm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/models/gguf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/local-ai/models/gguf`: the GGUF models already on disk,
+         *     largest first, each graded for this machine.
+         */
+        get: operations["scan_gguf_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/models/whisper": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/local-ai/models/whisper`: the Whisper models already on disk,
+         *     each graded for this machine.
+         */
+        get: operations["scan_whisper_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/local-ai/system`: memory, system and accelerator of the
+         *     machine the daemon runs on.
+         */
+        get: operations["get_local_ai_system"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/logs/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/logs/clear`: removes the daemon's logs directory. */
+        post: operations["clear_logs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/mailbox/stream": {
         parameters: {
             query?: never;
@@ -2320,6 +2456,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/memory/wipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/memory/wipe`: removes every memory database of the daemon. */
+        post: operations["clear_all_memories"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/channels": {
         parameters: {
             query?: never;
@@ -2559,6 +2712,194 @@ export interface paths {
          *     consent: present, well-formed, and its authorization server reachable.
          */
         post: operations["test_oauth_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/onboarding`: the full state, `welcome` on first launch. */
+        get: operations["get_onboarding_state"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/complete`: writes the flag that says the
+         *     onboarding is complete.
+         */
+        post: operations["mark_onboarded"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/onboarding/dismiss`: marks the onboarding as skipped. */
+        post: operations["dismiss_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/finalize`: records the completion of the
+         *     conversation without a model turn.
+         */
+        post: operations["finalize_onboarding_chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/finalized": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/onboarding/finalized`: whether the onboarding agent recorded
+         *     its completion.
+         */
+        get: operations["check_onboarding_finalized"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/phase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/onboarding/phase`: moves to the next phase. */
+        post: operations["advance_onboarding_phase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** `PUT /api/v1/onboarding/profile`: records the profile chosen. */
+        put: operations["set_onboarding_profile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/reset`: removes the flag, the onboarding markers,
+         *     the visible profile and the onboarding agent's memory.
+         */
+        post: operations["reset_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/resume`: resumes the enrichment of the profile,
+         *     keeping what the agent already learnt.
+         */
+        post: operations["resume_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/sessions`: opens a conversation with the
+         *     onboarding agent, for the whole onboarding or one topic.
+         */
+        post: operations["trigger_onboarding"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4387,6 +4728,11 @@ export interface components {
              */
             rule_id: number;
         };
+        /** @description Request body for `POST /api/v1/onboarding/phase`. */
+        AdvancePhaseBody: {
+            /** @description The phase to move to, in its snake_case name (`profile_choice`...). */
+            phase: string;
+        };
         /** @description Response body for agent list. */
         AgentListResponse: {
             /** @description All registered agents. */
@@ -5262,6 +5608,13 @@ export interface components {
             /** @description The key removed. */
             deleted: string;
         };
+        /** @description What the dictation setup did. */
+        DictationConfigured: {
+            /** @description The transcription language stored, `None` when none is set. */
+            language?: string | null;
+            /** @description The Whisper model file dictation now reads. */
+            model_path: string;
+        };
         /** @description The dictation category of the registry, and the entry for this machine. */
         DictationModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -5276,6 +5629,11 @@ export interface components {
             reason?: Record<string, never> | null;
             /** @description Identifier of the entry recommended for this machine. */
             recommended?: string | null;
+        };
+        /** @description Answer of `POST /api/v1/logs/clear` and `POST /api/v1/factory-reset`. */
+        DirectoryRemoved: {
+            /** @description Whether the directory existed and was removed. */
+            removed: boolean;
         };
         /** @description Answer of `DELETE /api/v1/permissions/proposals/{index}`. */
         DismissedProposal: {
@@ -5454,6 +5812,22 @@ export interface components {
         GeneratedTitle: {
             /** @description The title stored on the session. */
             title: string;
+        };
+        /** @description GGUF model file detected on the local filesystem. */
+        GgufModelInfo: {
+            /** @description Filename of the model. */
+            filename: string;
+            /** @description Absolute path to the model file. */
+            path: string;
+            /** @description Whether the memory estimator says this model fits this machine. */
+            recommended: boolean;
+            /**
+             * Format: int64
+             * @description File size in bytes.
+             */
+            size_bytes: number;
+            /** @description Human-readable file size (e.g. `"4.2 GB"`). */
+            size_human: string;
         };
         HardwareResponse: {
             accelerator: Record<string, never>;
@@ -5940,6 +6314,11 @@ export interface components {
              */
             score: number;
         };
+        /** @description Answer of `POST /api/v1/memory/wipe`. */
+        MemoryWiped: {
+            /** @description How many memory databases were removed. */
+            removed_databases: number;
+        };
         /**
          * @description A single message in a multi-turn conversation request.
          *
@@ -6060,6 +6439,86 @@ export interface components {
         OkResponse: {
             /** @description Confirmation flag. */
             ok: boolean;
+        };
+        /** @description Answer of `POST /api/v1/onboarding/dismiss`. */
+        OnboardingDismissed: {
+            /** @description Always `true`: the onboarding is marked as skipped. */
+            dismissed: boolean;
+        };
+        /**
+         * @description Answer of `GET /api/v1/onboarding/finalized` and
+         *     `POST /api/v1/onboarding/finalize`.
+         */
+        OnboardingFinalized: {
+            /** @description Whether the onboarding agent recorded its completion. */
+            finalized: boolean;
+        };
+        /** @description Answer of `POST /api/v1/onboarding/complete`. */
+        OnboardingMarked: {
+            /** @description Always `true`: the flag is written. */
+            onboarded: boolean;
+        };
+        /**
+         * @description The seven ordered phases of the onboarding flow.
+         * @enum {string}
+         */
+        OnboardingPhase: "welcome" | "profile_choice" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
+        /** @description Request body for `PUT /api/v1/onboarding/profile`. */
+        OnboardingProfileBody: {
+            /** @description `operator` or `builder`. */
+            profile: string;
+        };
+        /** @description Answer of `POST /api/v1/onboarding/reset`. */
+        OnboardingReset: {
+            /** @description How many profile entries were removed. */
+            removed_profile_entries: number;
+        };
+        /** @description Full onboarding state maintained server-side and persisted in UserMemory. */
+        OnboardingState: {
+            /** @description Session ID of the active Companion chat, if any. */
+            companion_session_id?: string | null;
+            /** @description `true` when the phase has reached `Done`. */
+            completed: boolean;
+            /** @description ISO 8601 timestamp when the phase reached `Done`. */
+            completed_at?: string | null;
+            /** @description `true` when at least one LLM backend has been configured. */
+            llm_configured: boolean;
+            /** @description `true` when the mandatory name/role fields have been collected. */
+            mandatory_complete: boolean;
+            /** @description Current phase of the onboarding flow. */
+            phase: components["schemas"]["OnboardingPhase"];
+            /** @description Chosen user profile (`"operator"` or `"builder"`); set during ProfileChoice. */
+            profile?: string | null;
+            /** @description `true` if the user explicitly skipped the onboarding. */
+            skipped: boolean;
+            /** @description ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice). */
+            started_at?: string | null;
+            /** @description Accumulated stats for the graduation screen. */
+            stats: components["schemas"]["OnboardingStats"];
+            /** @description `true` when the STT engine has been configured and tested. */
+            stt_configured: boolean;
+            /** @description Topics covered so far. */
+            topics_covered: string[];
+            /** @description `true` when the user has enabled voice commands. */
+            voice_enabled: boolean;
+        };
+        /** @description Cumulative statistics accumulated over the full onboarding flow. */
+        OnboardingStats: {
+            /**
+             * Format: int32
+             * @description Number of discrete actions completed by the user.
+             */
+            actions_completed: number;
+            /**
+             * Format: int32
+             * @description Number of questions asked to the AI Companion.
+             */
+            companion_questions: number;
+            /**
+             * Format: int64
+             * @description Total time spent in the onboarding flow, in seconds.
+             */
+            total_time_sec: number;
         };
         /**
          * @description Error body of the package routes: the message, and a stable code a client
@@ -6791,6 +7250,30 @@ export interface components {
             /** @description Plain-text value. */
             value: string;
         };
+        /** @description Request body for `POST /api/v1/local-ai/dictation`. */
+        SetupDictationBody: {
+            /** @description The language of the interface, stored only when none is set yet. */
+            language?: string | null;
+            /** @description Absolute path of the Whisper model file chosen. */
+            modelPath: string;
+        };
+        /** @description Request body for `POST /api/v1/local-ai/llm`. */
+        SetupLlmBody: {
+            /**
+             * Format: int32
+             * @description The context window chosen, in tokens; absent keeps the stored one.
+             */
+            contextWindow?: number | null;
+            /** @description Absolute path of the GGUF file chosen. */
+            ggufPath: string;
+        };
+        /** @description What the local language model setup did. */
+        SetupLlmResult: {
+            /** @description Absolute path where the model is stored. */
+            model_path: string;
+            /** @description Inferred quantization from the filename (e.g. `"q8_0"`, `"q4_k_m"`). */
+            quantization: string;
+        };
         /** @description Response body for the shutdown endpoint. */
         ShutdownResponse: {
             status: string;
@@ -6985,6 +7468,32 @@ export interface components {
              *     own dispatch picks the handler as before.
              */
             skill_id?: string | null;
+        };
+        /** @description System information used to compute model recommendations in the AI setup step. */
+        SystemInfo: {
+            /** @description CPU architecture identifier (e.g. `"aarch64"`, `"x86_64"`). */
+            arch: string;
+            /**
+             * Format: double
+             * @description Available RAM in gigabytes.
+             */
+            available_ram_gb: number;
+            /** @description Whether a GPU is available (basic heuristic). */
+            gpu_available: boolean;
+            /**
+             * Format: double
+             * @description The accelerator's dedicated memory in gigabytes, when the engine's
+             *     device list names one. `None` on a processor-only machine and on
+             *     platforms where the heuristic above answers without a device list.
+             */
+            gpu_vram_gb?: number | null;
+            /** @description Operating system identifier (e.g. `"macos"`, `"linux"`). */
+            os: string;
+            /**
+             * Format: double
+             * @description Total RAM in gigabytes.
+             */
+            total_ram_gb: number;
         };
         /** @description One entry in the task list. */
         TaskListItem: {
@@ -7336,6 +7845,13 @@ export interface components {
             /** @description Last-modified timestamp (ISO 8601). */
             updated_at: string;
         };
+        /** @description Request body for `POST /api/v1/onboarding/sessions`. */
+        TriggerOnboardingBody: {
+            /** @description The profile the agent adapts its questions to, when one was chosen. */
+            profile?: string | null;
+            /** @description One topic to run again; absent for a full onboarding. */
+            topic?: string | null;
+        };
         /** @description A trigger the package proposes. Installing does not arm it. */
         TriggerPreview: {
             /** @description Identifier. */
@@ -7344,6 +7860,15 @@ export interface components {
             source: string;
             /** @description Agent or workflow it starts. */
             target: string;
+        };
+        /** @description Result of triggering an onboarding session. */
+        TriggerResult: {
+            /** @description `"full"` or `"partial"`. */
+            mode: string;
+            /** @description Chat session identifier. */
+            session_id: string;
+            /** @description Target topic when mode is `"partial"`. */
+            topic?: string | null;
         };
         /** @description Trigger source description used in create/update requests. */
         TriggerSourceInput: Record<string, never> & {
@@ -7539,6 +8064,22 @@ export interface components {
              * @description Number of distinct runs covered by the global chain.
              */
             runs_checked: number;
+        };
+        /** @description Whisper GGML model file detected on the local filesystem. */
+        WhisperModelInfo: {
+            /** @description Filename of the model. */
+            filename: string;
+            /** @description Size variant parsed from the filename (`tiny`, `base`, `small`, `medium`, `large`). */
+            model_size: string;
+            /** @description Absolute path to the model file. */
+            path: string;
+            /** @description Whether the dictation verdict says this file fits this machine. */
+            recommended: boolean;
+            /**
+             * Format: int64
+             * @description File size in bytes.
+             */
+            size_bytes: number;
         };
         /** @description Error body of the workflow routes. */
         WorkflowErrorResponse: {
@@ -9855,6 +10396,35 @@ export interface operations {
             };
         };
     };
+    factory_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the data directory was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryRemoved"];
+                };
+            };
+            /** @description The directory cannot be removed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_governance_audit: {
         parameters: {
             query?: {
@@ -12036,6 +12606,161 @@ export interface operations {
             };
         };
     };
+    setup_dictation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupDictationBody"];
+            };
+        };
+        responses: {
+            /** @description The dictation model stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictationConfigured"];
+                };
+            };
+            /** @description The onboarding store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    setup_local_llm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupLlmBody"];
+            };
+        };
+        responses: {
+            /** @description Where the model is stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupLlmResult"];
+                };
+            };
+            /** @description No such file, or not a GGUF file */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    scan_gguf_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The GGUF files found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GgufModelInfo"][];
+                };
+            };
+        };
+    };
+    scan_whisper_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Whisper files found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhisperModelInfo"][];
+                };
+            };
+        };
+    };
+    get_local_ai_system: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What this machine can run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemInfo"];
+                };
+            };
+        };
+    };
+    clear_logs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether a logs directory was removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryRemoved"];
+                };
+            };
+            /** @description The directory cannot be removed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     stream_mailbox: {
         parameters: {
             query?: never;
@@ -13051,6 +13776,35 @@ export interface operations {
             };
         };
     };
+    clear_all_memories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many databases were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryWiped"];
+                };
+            };
+            /** @description The memory directory cannot be listed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     list_channels: {
         parameters: {
             query?: never;
@@ -13620,6 +14374,353 @@ export interface operations {
             };
             /** @description Unknown provider */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_onboarding_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The onboarding state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingState"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    mark_onboarded: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The flag is written */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingMarked"];
+                };
+            };
+            /** @description The flag cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    dismiss_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The onboarding is skipped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingDismissed"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    finalize_onboarding_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The completion is recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingFinalized"];
+                };
+            };
+            /** @description The agent's memory cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    check_onboarding_finalized: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the completion is recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingFinalized"];
+                };
+            };
+        };
+    };
+    advance_onboarding_phase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvancePhaseBody"];
+            };
+        };
+        responses: {
+            /** @description The state after the move */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingState"];
+                };
+            };
+            /** @description Unknown phase */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The phase is out of sequence */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_onboarding_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingProfileBody"];
+            };
+        };
+        responses: {
+            /** @description The state with its profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingState"];
+                };
+            };
+            /** @description Neither operator nor builder */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reset_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description How many profile entries were removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingReset"];
+                };
+            };
+            /** @description The profile store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    resume_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversation opened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerResult"];
+                };
+            };
+            /** @description The onboarding agent is not installed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat did not start */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    trigger_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TriggerOnboardingBody"];
+            };
+        };
+        responses: {
+            /** @description The conversation opened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerResult"];
+                };
+            };
+            /** @description Unknown topic or profile */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The onboarding agent is not installed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat did not start */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

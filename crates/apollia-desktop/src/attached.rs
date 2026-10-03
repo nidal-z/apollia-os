@@ -171,6 +171,25 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "memory_export_namespace",
     "memory_import_namespace",
     "purge_memory",
+    // The onboarding, over `/api/v1/onboarding`: its state and phases, the
+    // profile chosen, the conversation with its agent and its completion.
+    "advance_onboarding_phase",
+    "check_onboarding_finalized",
+    "dismiss_onboarding",
+    "finalize_onboarding_chat",
+    "get_onboarding_state",
+    "resume_onboarding",
+    "set_onboarding_profile",
+    "trigger_onboarding",
+    // Resets and erasures, over `/api/v1/onboarding/*`, `/api/v1/memory/wipe`,
+    // `/api/v1/logs/clear` and `/api/v1/factory-reset`. The flag, the memory,
+    // the logs and the data directory they erase are the daemon's: the
+    // window's process writes none of them.
+    "clear_all_memories",
+    "clear_logs",
+    "factory_reset",
+    "mark_onboarded",
+    "reset_onboarding",
     // Permissions: the rules the onboarding agent proposed, a rule written
     // from an approval card, and the answer to a request to touch a file.
     "add_permission_prefix_rule",
@@ -232,6 +251,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "list_stt_models",
     "reload_stt",
     "update_stt_config",
+    // The installation of the local AI at onboarding, over
+    // `/api/v1/local-ai/...`: the daemon describes its machine, scans its own
+    // folders, and copies and registers the models it will load.
+    "get_ai_setup_info",
+    "scan_for_gguf_models",
+    "scan_for_whisper_models",
+    "setup_local_llm",
+    "setup_whisper_model",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

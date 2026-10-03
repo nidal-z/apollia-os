@@ -13,6 +13,7 @@ from .access_preview import AccessPreview
 from .add_permission_rule_body import AddPermissionRuleBody
 from .added_access import AddedAccess
 from .added_permission_rule import AddedPermissionRule
+from .advance_phase_body import AdvancePhaseBody
 from .agent_list_response import AgentListResponse
 from .agent_message_dto import AgentMessageDto
 from .agent_message_dto_payload import AgentMessageDtoPayload
@@ -103,9 +104,11 @@ from .delete_server_response import DeleteServerResponse
 from .deleted_credential import DeletedCredential
 from .deleted_installed_model import DeletedInstalledModel
 from .deleted_profile_entry import DeletedProfileEntry
+from .dictation_configured import DictationConfigured
 from .dictation_models_response import DictationModelsResponse
 from .dictation_models_response_models_item import DictationModelsResponseModelsItem
 from .dictation_models_response_reason_type_0 import DictationModelsResponseReasonType0
+from .directory_removed import DirectoryRemoved
 from .dismissed_proposal import DismissedProposal
 from .drive_folder_status import DriveFolderStatus
 from .embedding_models_response import EmbeddingModelsResponse
@@ -137,6 +140,7 @@ from .fs_hitl_decision_body_type_3_decision import FsHitlDecisionBodyType3Decisi
 from .generate_title_body import GenerateTitleBody
 from .generated_title import GeneratedTitle
 from .get_model_card_response_200 import GetModelCardResponse200
+from .gguf_model_info import GgufModelInfo
 from .hardware_response import HardwareResponse
 from .hardware_response_accelerator import HardwareResponseAccelerator
 from .health_response import HealthResponse
@@ -184,6 +188,7 @@ from .memory_entry_view import MemoryEntryView
 from .memory_imported import MemoryImported
 from .memory_removed import MemoryRemoved
 from .memory_search_result_view import MemorySearchResultView
+from .memory_wiped import MemoryWiped
 from .message_dto import MessageDto
 from .model_cards_response import ModelCardsResponse
 from .model_cards_response_cards_item import ModelCardsResponseCardsItem
@@ -196,6 +201,14 @@ from .oauth_client_test_result import OauthClientTestResult
 from .oauth_client_value_body import OauthClientValueBody
 from .oauth_client_written import OauthClientWritten
 from .ok_response import OkResponse
+from .onboarding_dismissed import OnboardingDismissed
+from .onboarding_finalized import OnboardingFinalized
+from .onboarding_marked import OnboardingMarked
+from .onboarding_phase import OnboardingPhase
+from .onboarding_profile_body import OnboardingProfileBody
+from .onboarding_reset import OnboardingReset
+from .onboarding_state import OnboardingState
+from .onboarding_stats import OnboardingStats
 from .package_error_body import PackageErrorBody
 from .package_install_request import PackageInstallRequest
 from .package_notice_type_0 import PackageNoticeType0
@@ -276,6 +289,9 @@ from .set_override_request import SetOverrideRequest
 from .set_override_request_value import SetOverrideRequestValue
 from .set_plan_mode_request import SetPlanModeRequest
 from .set_profile_entry_body import SetProfileEntryBody
+from .setup_dictation_body import SetupDictationBody
+from .setup_llm_body import SetupLlmBody
+from .setup_llm_result import SetupLlmResult
 from .shutdown_response import ShutdownResponse
 from .sidechain_row import SidechainRow
 from .signature_preview import SignaturePreview
@@ -296,6 +312,7 @@ from .stt_status_response import SttStatusResponse
 from .submit_task_request import SubmitTaskRequest
 from .submit_task_request_input import SubmitTaskRequestInput
 from .submit_task_request_run_options import SubmitTaskRequestRunOptions
+from .system_info import SystemInfo
 from .task_list_item import TaskListItem
 from .task_list_item_payload_type_0 import TaskListItemPayloadType0
 from .task_list_response import TaskListResponse
@@ -344,7 +361,9 @@ from .transcriptions_list_response_transcriptions_item import (
 )
 from .trigger_definition_response import TriggerDefinitionResponse
 from .trigger_definition_response_source_config import TriggerDefinitionResponseSourceConfig
+from .trigger_onboarding_body import TriggerOnboardingBody
 from .trigger_preview import TriggerPreview
+from .trigger_result import TriggerResult
 from .trigger_source_input import TriggerSourceInput
 from .trust_key_request import TrustKeyRequest
 from .trusted_key_view import TrustedKeyView
@@ -365,6 +384,7 @@ from .user_profile_view import UserProfileView
 from .variant_update import VariantUpdate
 from .verify_chain_report import VerifyChainReport
 from .verify_journal_report import VerifyJournalReport
+from .whisper_model_info import WhisperModelInfo
 from .workflow_error_response import WorkflowErrorResponse
 from .workflow_launch import WorkflowLaunch
 from .workflow_launch_inputs import WorkflowLaunchInputs
@@ -390,6 +410,7 @@ __all__ = (
     "AddedAccess",
     "AddedPermissionRule",
     "AddPermissionRuleBody",
+    "AdvancePhaseBody",
     "AgentListResponse",
     "AgentMessageDto",
     "AgentMessageDtoPayload",
@@ -480,9 +501,11 @@ __all__ = (
     "DeletePresetResponse",
     "DeleteResponse",
     "DeleteServerResponse",
+    "DictationConfigured",
     "DictationModelsResponse",
     "DictationModelsResponseModelsItem",
     "DictationModelsResponseReasonType0",
+    "DirectoryRemoved",
     "DismissedProposal",
     "DriveFolderStatus",
     "EmbeddingModelsResponse",
@@ -514,6 +537,7 @@ __all__ = (
     "GeneratedTitle",
     "GenerateTitleBody",
     "GetModelCardResponse200",
+    "GgufModelInfo",
     "HardwareResponse",
     "HardwareResponseAccelerator",
     "HealthResponse",
@@ -561,6 +585,7 @@ __all__ = (
     "MemoryImported",
     "MemoryRemoved",
     "MemorySearchResultView",
+    "MemoryWiped",
     "MessageDto",
     "ModelCardsResponse",
     "ModelCardsResponseCardsItem",
@@ -573,6 +598,14 @@ __all__ = (
     "OauthClientValueBody",
     "OauthClientWritten",
     "OkResponse",
+    "OnboardingDismissed",
+    "OnboardingFinalized",
+    "OnboardingMarked",
+    "OnboardingPhase",
+    "OnboardingProfileBody",
+    "OnboardingReset",
+    "OnboardingState",
+    "OnboardingStats",
     "PackageErrorBody",
     "PackageInstallRequest",
     "PackageNoticeType0",
@@ -649,6 +682,9 @@ __all__ = (
     "SetOverrideRequestValue",
     "SetPlanModeRequest",
     "SetProfileEntryBody",
+    "SetupDictationBody",
+    "SetupLlmBody",
+    "SetupLlmResult",
     "ShutdownResponse",
     "SidechainRow",
     "SignaturePreview",
@@ -669,6 +705,7 @@ __all__ = (
     "SubmitTaskRequest",
     "SubmitTaskRequestInput",
     "SubmitTaskRequestRunOptions",
+    "SystemInfo",
     "TaskListItem",
     "TaskListItemPayloadType0",
     "TaskListResponse",
@@ -715,7 +752,9 @@ __all__ = (
     "TranscriptionsListResponseTranscriptionsItem",
     "TriggerDefinitionResponse",
     "TriggerDefinitionResponseSourceConfig",
+    "TriggerOnboardingBody",
     "TriggerPreview",
+    "TriggerResult",
     "TriggerSourceInput",
     "TrustedKeyView",
     "TrustKeyRequest",
@@ -736,6 +775,7 @@ __all__ = (
     "VariantUpdate",
     "VerifyChainReport",
     "VerifyJournalReport",
+    "WhisperModelInfo",
     "WorkflowErrorResponse",
     "WorkflowLaunch",
     "WorkflowLaunchInputs",
