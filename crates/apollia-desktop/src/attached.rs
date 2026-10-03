@@ -98,6 +98,14 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "test_mcp_connection",
     "test_mcp_live_server",
     "update_mcp_server_config",
+    // Agent packages installed from a folder, over
+    // `/api/v1/agent-packages/`. The preview and the install name the folder
+    // the window picked; the daemon listens on this machine and reads it.
+    "get_agent_package_detail",
+    "install_agent_package",
+    "list_agent_packages",
+    "preview_agent_package",
+    "uninstall_agent_package",
     // Connections.
     "list_connections",
     // Notifications and the activity feed.
@@ -233,6 +241,21 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "oauth_set_client_id",
     "oauth_set_client_secret",
     "oauth_test_client",
+    // Models: the hardware, the search, a model's card, the installed models
+    // and the recommendation, over `/api/v1/llm`.
+    "get_hardware_profile",
+    "get_hf_model",
+    "list_installed_models",
+    "recommend_models",
+    "search_hf_models",
+    // The installation of the local AI at onboarding, over
+    // `/api/v1/local-ai/...`: the daemon describes its machine, scans its own
+    // folders, and copies and registers the models it will load.
+    "get_ai_setup_info",
+    "scan_for_gguf_models",
+    "scan_for_whisper_models",
+    "setup_local_llm",
+    "setup_whisper_model",
     // MCP: the secret of a server, and the public registry joined with the
     // servers installed.
     "delete_mcp_secret",
@@ -569,6 +592,7 @@ pub(crate) fn run(port: u16, token: String, context: tauri::Context<tauri::Wry>)
             std::sync::Arc::new(tokio::sync::Mutex::new(apollia_llm::DownloadManager::new()))
                 as crate::commands::model_hub::SharedDownloadManager,
         )
+        .manage(std::sync::Arc::new(apollia_llm::HfModelTypeCache::new()))
         .manage(crate::commands::llm::LlmPingCache::default())
         .on_menu_event(|app, event| {
             if event.id().as_ref() == crate::tray::MENU_QUIT_APP {

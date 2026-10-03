@@ -11,6 +11,7 @@ pub mod agent_chat;
 pub mod agent_executor;
 pub mod builtin_agent;
 pub mod extractor;
+pub mod generation;
 pub mod manager;
 pub mod native_wrappers;
 pub mod plan_actor;

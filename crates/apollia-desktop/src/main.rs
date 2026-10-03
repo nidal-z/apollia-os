@@ -393,14 +393,6 @@ fn main() {
         )))
     };
 
-    // Open PackageRepository for Tauri IPC commands (same agents.db, WAL allows concurrent readers).
-    let pkg_repo: Arc<std::sync::Mutex<apollia_tools::PackageRepository>> = {
-        let db_path = apollia_data_dir.join(apollia_core::paths::DataFile::Agents.file_name());
-        Arc::new(std::sync::Mutex::new(or_exit(
-            apollia_tools::PackageRepository::open(&db_path),
-            "open agents.db for the package repository",
-        )))
-    };
     let agent_loader: Arc<dyn AgentLoader> = Arc::new(backend::AIPAgentLoader);
 
     let app = tauri::Builder::default()
@@ -417,7 +409,6 @@ fn main() {
         .manage(runtime_handle.clone())
         .manage(attached::RuntimeLink::Embedded(Box::new(runtime_handle.clone())))
         .manage(agent_repo)
-        .manage(pkg_repo)
         .manage(agent_loader)
         .manage(runtime_handle.event_sender.clone())
         .manage(llm_router_lock.clone())

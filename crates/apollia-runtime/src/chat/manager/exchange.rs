@@ -60,6 +60,7 @@ impl ChatSessionManager {
             message_id: message_id.clone(),
             started_at: now,
             run_id: run_id.clone(),
+            answer_id: Some(uuid::Uuid::new_v4().to_string()),
         });
         if let Err(e) = self
             .repository
@@ -238,6 +239,7 @@ impl ChatSessionManager {
                 message_id: user_message_id.to_string(),
                 started_at: now,
                 run_id: run_id.clone(),
+                answer_id: Some(uuid::Uuid::new_v4().to_string()),
             });
         }
         if let Err(e) = self

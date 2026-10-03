@@ -164,6 +164,9 @@ pub(in crate::chat::manager) struct LibreExchangeParams {
     /// Backend the session prefers (the free chat's stored choice), tried
     /// before the default at each call of the turn.
     pub(in crate::chat::manager) preferred_backend: Option<String>,
+    /// The turn the exchange answers: the identifier its answer is persisted
+    /// under.
+    pub(in crate::chat::manager) turn_id: Option<String>,
 }
 
 /// Resolved tool invoker plus the agent workspace path for a session.

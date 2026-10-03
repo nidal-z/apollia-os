@@ -65,6 +65,10 @@ impl ChatSessionManager {
             let history: Vec<ChatMessage> =
                 session.history[..session.history.len().saturating_sub(1)].to_vec();
             let session_plan_mode = session.plan_mode;
+            let turn_id = session
+                .active_exchange
+                .as_ref()
+                .and_then(|exchange| exchange.answer_id.clone());
             let session_plan_phase = session.plan_phase;
             let preferred_backend = match &declarative {
                 Some(agent) => agent.model.as_ref().map(|m| m.model_id.clone()),
@@ -221,6 +225,7 @@ impl ChatSessionManager {
                 cancel,
                 pending_injection,
                 preferred_backend,
+                turn_id,
             }));
         }
 

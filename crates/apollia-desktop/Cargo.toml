@@ -32,7 +32,6 @@ apollia-tools        = { workspace = true }
 apollia-workspace    = { workspace = true }
 apollia-permissions  = { workspace = true }
 apollia-aip      = { workspace = true }
-apollia-triggers = { workspace = true }
 apollia-oria     = { workspace = true }
 apollia-auth        = { workspace = true }
 dashmap             = { workspace = true }
@@ -60,7 +59,6 @@ tauri-plugin-notification = { workspace = true }
 tauri-plugin-global-shortcut = { workspace = true }
 tauri-plugin-opener = { workspace = true }
 tauri-plugin-updater = { workspace = true }
-sysinfo          = { workspace = true }
 arboard          = { workspace = true }
 enigo            = { workspace = true }
 hound            = { workspace = true }

@@ -172,6 +172,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent-packages/installed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/agent-packages/installed`: the installed packages. */
+        get: operations["list_agent_packages"];
+        put?: never;
+        /**
+         * `POST /api/v1/agent-packages/installed`: install a package folder.
+         * @description Python dependencies need `deps_confirmed`; without it the answer is a
+         *     `428` whose message is `DEPS_CONFIRMATION_REQUIRED:<count>:<list>`. The
+         *     agents installed take tasks at once, and the triggers written are loaded.
+         */
+        post: operations["install_agent_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-packages/installed/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/agent-packages/installed/{name}`: one installed package, its
+         *     manifest as recorded.
+         */
+        get: operations["get_agent_package"];
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,
+         *     its agents, their virtualenvs and its folder, best effort at each step.
+         */
+        delete: operations["uninstall_agent_package"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent-packages/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/agent-packages/preview`: what the package folder contains,
+         *     its agents, its triggers and its Python dependencies. Nothing is written;
+         *     a manifest that breaks an invariant answers a preview marked invalid.
+         */
+        post: operations["preview_agent_package"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agents": {
         parameters: {
             query?: never;
@@ -1618,7 +1686,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * `GET /api/v1/llm/installed-models`
+         * @description The installed models, from the model index, each marked when an LLM
+         *     backend or the dictation engine references it.
+         */
+        get: operations["list_installed_models"];
         put?: never;
         post?: never;
         /** `DELETE /api/v1/llm/installed-models?path=...` */
@@ -1749,6 +1822,30 @@ export interface paths {
          *     false claim about the operator's machine.
          */
         get: operations["recommend_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/llm/recommendations?limit=...&n_ctx=...&fits_only=...`
+         * @description The recommendation as the desktop shows it: the ranked list, or the
+         *     unreachable Hub and the empty ranking kept apart from it as a `status`,
+         *     each with the hardware and the editorial selection. Unlike
+         *     `GET /api/v1/llm/recommend`, an unreachable Hub is a `200` carrying the
+         *     selection, since the selection needs no network.
+         */
+        get: operations["get_recommendations"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1975,6 +2072,108 @@ export interface paths {
          *     Returns `{"backends": []}` if no `LlmRouter` is configured in `AppState`.
          */
         get: operations["get_llm_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/dictation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/local-ai/dictation`: makes a Whisper file the dictation model
+         *     and marks the onboarding progress as dictation-ready.
+         */
+        post: operations["setup_dictation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/llm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/local-ai/llm`: copies a GGUF file into the models folder and
+         *     makes it the `local` backend.
+         * @description The copy runs in its own task, so a client that stops waiting does not
+         *     leave half a model in the folder.
+         */
+        post: operations["setup_local_llm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/models/gguf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/local-ai/models/gguf`: the GGUF models already on disk,
+         *     largest first, each graded for this machine.
+         */
+        get: operations["scan_gguf_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/models/whisper": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/local-ai/models/whisper`: the Whisper models already on disk,
+         *     each graded for this machine.
+         */
+        get: operations["scan_whisper_models"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/local-ai/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/local-ai/system`: memory, system and accelerator of the
+         *     machine the daemon runs on.
+         */
+        get: operations["get_local_ai_system"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3844,6 +4043,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/turns/{turn_id}/llm-calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/sessions/{id}/turns/{turn_id}/llm-calls`. */
+        get: operations["get_turn_llm_calls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/workspace": {
         parameters: {
             query?: never;
@@ -4904,6 +5120,138 @@ export interface components {
          * @enum {string}
          */
         AgentOriginDto: "package" | "interface";
+        /** @description An agent of a package. */
+        AgentPackageAgent: {
+            /** @description Entry point, relative to the package folder. */
+            entry: string;
+            /** @description Agent name. */
+            name: string;
+            /** @description `director`, `worker` or `assistant`. */
+            role: string;
+        };
+        /** @description An installed package, in full. */
+        AgentPackageDetail: {
+            /** @description Its agents. */
+            agents: components["schemas"]["AgentPackageAgent"][];
+            /** @description Author from its manifest. */
+            author: string;
+            /** @description Description from its manifest. */
+            description: string;
+            /** @description When it was installed. */
+            installed_at: string;
+            /** @description The manifest as recorded. */
+            manifest: Record<string, never>;
+            /** @description Package name. */
+            name: string;
+            /** @description The folder is gone from the disk. */
+            root_missing: boolean;
+            /** @description Its folder. */
+            root_path: string;
+            /** @description When it was last written. */
+            updated_at: string;
+            /** @description Installed version. */
+            version: string;
+        };
+        /** @description Body of `POST /api/v1/agent-packages/installed`. */
+        AgentPackageInstallBody: {
+            /** @description The user accepted the Python dependencies the package installs. */
+            deps_confirmed?: boolean;
+            /** @description The package folder on this machine, the one holding `agent.toml`. */
+            path: string;
+            /** @description What the user gave each trigger, a webhook secret for now. */
+            trigger_configs?: components["schemas"]["AgentPackageTriggerConfig"][];
+        };
+        /** @description What an installation did. */
+        AgentPackageInstallReport: {
+            /** @description Agents recorded. */
+            agent_count: number;
+            /** @description Package name. */
+            name: string;
+            /** @description Triggers written. */
+            trigger_count: number;
+            /** @description Triggers refused, one line each. */
+            trigger_errors: string[];
+            /** @description Installed version. */
+            version: string;
+        };
+        /** @description An installed package in the listing. */
+        AgentPackageListItem: {
+            /** @description Number of agents. */
+            agent_count: number;
+            /** @description Its agents. */
+            agents: components["schemas"]["AgentPackageAgent"][];
+            /** @description Description from its manifest. */
+            description: string;
+            /** @description When it was installed. */
+            installed_at: string;
+            /** @description Package name. */
+            name: string;
+            /** @description The folder is gone from the disk. */
+            root_missing: boolean;
+            /** @description Its folder. */
+            root_path: string;
+            /** @description Installed version. */
+            version: string;
+        };
+        /** @description What a package folder contains, read without writing anything. */
+        AgentPackagePreview: {
+            /** @description Its agents; empty when the manifest is invalid. */
+            agents: components["schemas"]["AgentPackageAgent"][];
+            /** @description Author. */
+            author: string;
+            /** @description Description. */
+            description: string;
+            /** @description Why it does not, when it does not. */
+            error?: string | null;
+            /** @description Package name. */
+            name: string;
+            /** @description The Python dependencies it installs, every agent together. */
+            pip_packages: string[];
+            /** @description Number of triggers. */
+            trigger_count: number;
+            /** @description Its triggers; empty when the manifest is invalid. */
+            triggers: components["schemas"]["AgentPackageTrigger"][];
+            /** @description The manifest holds its invariants. */
+            valid: boolean;
+            /** @description Version. */
+            version: string;
+        };
+        /** @description Body of `POST /api/v1/agent-packages/preview`. */
+        AgentPackagePreviewBody: {
+            /** @description The package folder on this machine, the one holding `agent.toml`. */
+            path: string;
+        };
+        /** @description A trigger a package declares, as the preview shows it. */
+        AgentPackageTrigger: {
+            /** @description The agent it starts. */
+            agent: string;
+            /** @description Whether it starts enabled. */
+            enabled: boolean;
+            /** @description Interval (interval triggers). */
+            every?: string | null;
+            /** @description Trigger identifier. */
+            id: string;
+            /** @description A webhook without its secret: the user gives one at install. */
+            needs_config: boolean;
+            /** @description Watched path (file_watch triggers). */
+            path?: string | null;
+            /** @description Cron expression (cron triggers). */
+            schedule?: string | null;
+            /** @description `cron`, `interval`, `oneshot`, `file_watch` or `webhook`. */
+            source_type: string;
+        };
+        /** @description What the user gives a trigger at install, a webhook secret for now. */
+        AgentPackageTriggerConfig: {
+            /** @description Trigger identifier. */
+            id: string;
+            /** @description HMAC secret of a webhook. */
+            secret?: string | null;
+        };
+        /** @description Answer of `DELETE /api/v1/agent-packages/installed/{name}`. */
+        AgentPackageUninstalled: {
+            /** @description The package removed. */
+            uninstalled: string;
+        };
         /** @description One agent of the package. */
         AgentPreview: {
             /** @description Accesses the agent asks for, as governance resolves them. */
@@ -5766,6 +6114,13 @@ export interface components {
             /** @description The key removed. */
             deleted: string;
         };
+        /** @description What the dictation setup did. */
+        DictationConfigured: {
+            /** @description The transcription language stored, `None` when none is set. */
+            language?: string | null;
+            /** @description The Whisper model file dictation now reads. */
+            model_path: string;
+        };
         /** @description The dictation category of the registry, and the entry for this machine. */
         DictationModelsResponse: {
             /** @description The machine the recommendation was made for. */
@@ -5968,6 +6323,22 @@ export interface components {
         GeneratedTitle: {
             /** @description The title stored on the session. */
             title: string;
+        };
+        /** @description GGUF model file detected on the local filesystem. */
+        GgufModelInfo: {
+            /** @description Filename of the model. */
+            filename: string;
+            /** @description Absolute path to the model file. */
+            path: string;
+            /** @description Whether the memory estimator says this model fits this machine. */
+            recommended: boolean;
+            /**
+             * Format: int64
+             * @description File size in bytes.
+             */
+            size_bytes: number;
+            /** @description Human-readable file size (e.g. `"4.2 GB"`). */
+            size_human: string;
         };
         /** @description Global timeline event for display. */
         GlobalTimelineEvent: {
@@ -7492,6 +7863,30 @@ export interface components {
             /** @description Plain-text value. */
             value: string;
         };
+        /** @description Request body for `POST /api/v1/local-ai/dictation`. */
+        SetupDictationBody: {
+            /** @description The language of the interface, stored only when none is set yet. */
+            language?: string | null;
+            /** @description Absolute path of the Whisper model file chosen. */
+            modelPath: string;
+        };
+        /** @description Request body for `POST /api/v1/local-ai/llm`. */
+        SetupLlmBody: {
+            /**
+             * Format: int32
+             * @description The context window chosen, in tokens; absent keeps the stored one.
+             */
+            contextWindow?: number | null;
+            /** @description Absolute path of the GGUF file chosen. */
+            ggufPath: string;
+        };
+        /** @description What the local language model setup did. */
+        SetupLlmResult: {
+            /** @description Absolute path where the model is stored. */
+            model_path: string;
+            /** @description Inferred quantization from the filename (e.g. `"q8_0"`, `"q4_k_m"`). */
+            quantization: string;
+        };
         /** @description Response body for the shutdown endpoint. */
         ShutdownResponse: {
             status: string;
@@ -7686,6 +8081,32 @@ export interface components {
              *     own dispatch picks the handler as before.
              */
             skill_id?: string | null;
+        };
+        /** @description System information used to compute model recommendations in the AI setup step. */
+        SystemInfo: {
+            /** @description CPU architecture identifier (e.g. `"aarch64"`, `"x86_64"`). */
+            arch: string;
+            /**
+             * Format: double
+             * @description Available RAM in gigabytes.
+             */
+            available_ram_gb: number;
+            /** @description Whether a GPU is available (basic heuristic). */
+            gpu_available: boolean;
+            /**
+             * Format: double
+             * @description The accelerator's dedicated memory in gigabytes, when the engine's
+             *     device list names one. `None` on a processor-only machine and on
+             *     platforms where the heuristic above answers without a device list.
+             */
+            gpu_vram_gb?: number | null;
+            /** @description Operating system identifier (e.g. `"macos"`, `"linux"`). */
+            os: string;
+            /**
+             * Format: double
+             * @description Total RAM in gigabytes.
+             */
+            total_ram_gb: number;
         };
         /** @description One entry in the task list. */
         TaskListItem: {
@@ -8087,6 +8508,51 @@ export interface components {
             /** @description The public key, 64 hexadecimal characters. */
             publicKey: string;
         };
+        /** @description One model call of a turn. */
+        TurnLlmCall: {
+            /** @description Logical backend name. */
+            backend: string;
+            /**
+             * Format: int32
+             * @description Tokens generated.
+             */
+            completion_tokens?: number | null;
+            /**
+             * @description Why the call ended: `stop`, `tool_calls`, `length`, `error` or
+             *     `cancelled`.
+             */
+            finish_reason?: string | null;
+            /**
+             * Format: int64
+             * @description Time spent generating in milliseconds; `null` when not measured.
+             */
+            generation_ms?: number | null;
+            /**
+             * Format: int64
+             * @description Duration of the call in milliseconds, from dispatch to its last chunk.
+             */
+            latency_ms?: number | null;
+            /** @description Model identifier. */
+            model: string;
+            /**
+             * Format: int32
+             * @description Tokens read.
+             */
+            prompt_tokens?: number | null;
+            /**
+             * Format: int64
+             * @description Time to first token in milliseconds; `null` when not measured.
+             */
+            ttft_ms?: number | null;
+        };
+        /** @description Response body for `GET /api/v1/sessions/{id}/turns/{turn_id}/llm-calls`. */
+        TurnLlmCallsResponse: {
+            /**
+             * @description The calls, in the order they were made. Empty for a turn that made
+             *     none or that is unknown.
+             */
+            calls: components["schemas"]["TurnLlmCall"][];
+        };
         /** @description Request body for `POST /api/v1/llm/loaded-models/unload`. */
         UnloadModelRequest: {
             /** @description Path of the model to unload, as the list reports it. */
@@ -8263,6 +8729,22 @@ export interface components {
              * @description Number of distinct runs covered by the global chain.
              */
             runs_checked: number;
+        };
+        /** @description Whisper GGML model file detected on the local filesystem. */
+        WhisperModelInfo: {
+            /** @description Filename of the model. */
+            filename: string;
+            /** @description Size variant parsed from the filename (`tiny`, `base`, `small`, `medium`, `large`). */
+            model_size: string;
+            /** @description Absolute path to the model file. */
+            path: string;
+            /** @description Whether the dictation verdict says this file fits this machine. */
+            recommended: boolean;
+            /**
+             * Format: int64
+             * @description File size in bytes.
+             */
+            size_bytes: number;
         };
         /** @description Error body of the workflow routes. */
         WorkflowErrorResponse: {
@@ -8749,6 +9231,228 @@ export interface operations {
             };
             /** @description Audit journal not available */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    list_agent_packages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The installed packages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackageListItem"][];
+                };
+            };
+            /** @description agents.db cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    install_agent_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentPackageInstallBody"];
+            };
+        };
+        responses: {
+            /** @description Installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackageInstallReport"];
+                };
+            };
+            /** @description Invalid manifest, or a name that is a path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The copy, a virtualenv or an agent import failed; nothing is left */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The Python dependencies are not confirmed */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description agents.db refused a row */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_agent_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The package */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackageDetail"];
+                };
+            };
+            /** @description A name that is a path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No such package */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description agents.db cannot be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    uninstall_agent_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Package name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Uninstalled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackageUninstalled"];
+                };
+            };
+            /** @description A name that is a path */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Nothing of the package was found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description agents.db cannot be opened */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    preview_agent_package: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentPackagePreviewBody"];
+            };
+        };
+        responses: {
+            /** @description The preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPackagePreview"];
+                };
+            };
+            /** @description agent.toml cannot be read or parsed */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12227,6 +12931,33 @@ export interface operations {
             };
         };
     };
+    list_installed_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The installed models, sorted by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The model index can be neither read nor built */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     delete_installed_model: {
         parameters: {
             query: {
@@ -12622,6 +13353,51 @@ export interface operations {
             };
             /** @description HuggingFace unreachable, so there is no catalogue to rank */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_recommendations: {
+        parameters: {
+            query?: {
+                /** @description Maximum number of ranked models, at most 10 */
+                limit?: number;
+                /** @description Context window the cache is sized against */
+                n_ctx?: number;
+                /** @description Keep, in the editorial selection, only the sizes that fit this machine */
+                fits_only?: boolean;
+                /** @description HuggingFace token for gated models */
+                hf_token?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The outcome: status ok, unreachable or empty, with the hardware and the editorial selection */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A malformed query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The hardware probe or the shipped model table failed */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13134,6 +13910,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LlmStatusResponse"];
+                };
+            };
+        };
+    };
+    setup_dictation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupDictationBody"];
+            };
+        };
+        responses: {
+            /** @description The dictation model stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DictationConfigured"];
+                };
+            };
+            /** @description The onboarding store did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    setup_local_llm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupLlmBody"];
+            };
+        };
+        responses: {
+            /** @description Where the model is stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupLlmResult"];
+                };
+            };
+            /** @description No such file, or not a GGUF file */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    scan_gguf_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The GGUF files found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GgufModelInfo"][];
+                };
+            };
+        };
+    };
+    scan_whisper_models: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Whisper files found */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhisperModelInfo"][];
+                };
+            };
+        };
+    };
+    get_local_ai_system: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What this machine can run */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemInfo"];
                 };
             };
         };
@@ -17275,6 +18177,49 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_turn_llm_calls: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Conversation identifier */
+                id: string;
+                /** @description Identifier of the answer message of the turn */
+                turn_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The model calls of the turn, in order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnLlmCallsResponse"];
+                };
+            };
+            /** @description Query failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No LLM call repository configured */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -10,6 +10,7 @@
 //! - `Supervisor`, ordered startup + watchdog.
 
 pub mod a2a;
+pub mod agent_packages;
 pub mod agents;
 pub mod analyzers;
 pub mod api;
@@ -36,6 +37,7 @@ pub mod inference_servers;
 pub mod installed_models;
 pub mod llama_server;
 pub mod llm_timings;
+pub mod local_ai;
 pub mod local_engine;
 pub mod mailbox;
 pub mod memory_maintenance;
@@ -52,6 +54,7 @@ pub mod permission_rules;
 pub mod plan_approval;
 pub mod profile;
 pub mod projects;
+pub mod recommendation;
 pub mod registry;
 pub mod replay;
 pub mod router;

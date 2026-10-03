@@ -66,6 +66,11 @@ fn test_all_variants_exist_and_clone() {
             latency_ms: 250,
             cost_usd: Some(0.001),
             run_id: None,
+            session_id: None,
+            turn_id: None,
+            ttft_ms: None,
+            finish_reason: None,
+            generation_ms: None,
         },
         RuntimeEvent::LlmCallFailed {
             backend: "anthropic".into(),
