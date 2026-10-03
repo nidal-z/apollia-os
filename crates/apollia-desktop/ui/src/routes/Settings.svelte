@@ -19,6 +19,7 @@
     PlugZap,
     LifeBuoy,
     BadgeInfo,
+    Code,
   } from "lucide-svelte";
   import {
     settingsSubRoute,
@@ -65,6 +66,7 @@
     system: () => import("./settings/System.svelte"),
     shortcuts: () => import("./settings/Shortcuts.svelte"),
     observability: () => import("./settings/Observability.svelte"),
+    developer: () => import("./settings/Developer.svelte"),
     help: () => import("./settings/Help.svelte"),
     about: () => import("./settings/About.svelte"),
     danger: () => import("./settings/Danger.svelte"),
@@ -282,6 +284,7 @@
         { key: "system", labelKey: "settings.nav.system", icon: Info },
         { key: "shortcuts", labelKey: "settings.nav.shortcuts", icon: Keyboard },
         { key: "observability", labelKey: "settings.nav.observability", icon: Activity },
+        { key: "developer", labelKey: "settings.nav.developer", icon: Code },
       ],
     },
     {
@@ -318,6 +321,7 @@
     system: "settings.system.subtitle",
     shortcuts: "settings.shortcuts.subtitle",
     observability: "settings.observability.subtitle",
+    developer: "settings.developer.subtitle",
     help: "settings.help.subtitle",
     about: "settings.about.subtitle",
     danger: "settings.danger.subtitle",

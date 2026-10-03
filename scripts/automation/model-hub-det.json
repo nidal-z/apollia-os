@@ -6,9 +6,8 @@
     "model-load-more is played through the same stub: a once stub answers page 1 with next_cursor automation-page-2 so hasMore is true (ModelHub.svelte:165-167), the standing stub answers the load-more call with one card and a null cursor, so the button disappears and a third model-card- renders. The block sits after the live gibberish search, not before it: search() assigns searchResults only on success (ModelHub.svelte:165-169), so once the stub has put three cards on screen an offline or refused live search leaves them there and model-results-empty (ModelResults.svelte:74, results.length must be 0) can no longer render. The builder pass that follows remounts the route, which resets the stubbed results."
   ],
   "dynamicTestids": [
-    "settings-nav-model-hub",
-    "sidebar-mode-option-builder",
-    "sidebar-mode-option-operator"
+    "settings-nav-developer",
+    "settings-nav-model-hub"
   ],
   "steps": [
     {
@@ -27,17 +26,26 @@
       "timeoutMs": 30000
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
@@ -561,17 +569,26 @@
       "command": "search_hf_models"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-builder"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-on"
     },
     {
       "kind": "sleep",
@@ -608,21 +625,48 @@
       "label": "14-model-hub-builder"
     },
     {
-      "kind": "click",
-      "testid": "sidebar-mode-chip"
+      "kind": "goto",
+      "route": "settings"
     },
     {
       "kind": "waitFor",
-      "testid": "sidebar-mode-menu",
+      "testid": "settings-page",
       "timeoutMs": 4000
     },
     {
       "kind": "click",
-      "testid": "sidebar-mode-option-operator"
+      "testid": "settings-nav-developer"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "developer-mode-toggle",
+      "timeoutMs": 4000
+    },
+    {
+      "kind": "click",
+      "testid": "developer-mode-off"
     },
     {
       "kind": "sleep",
       "ms": 800
+    },
+    {
+      "kind": "goto",
+      "route": "settings"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "settings-page",
+      "timeoutMs": 15000
+    },
+    {
+      "kind": "click",
+      "testid": "settings-nav-model-hub"
+    },
+    {
+      "kind": "waitFor",
+      "testid": "model-hardware-card",
+      "timeoutMs": 20000
     },
     {
       "kind": "screenshot",
