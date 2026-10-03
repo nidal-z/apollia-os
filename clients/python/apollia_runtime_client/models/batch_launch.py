@@ -23,7 +23,8 @@ class BatchLaunch:
         agent (str): The agent every item is run by.
         source (SourceDescriptor): The source a batch reads its items from.
         concurrency (int | None | Unset): How many items run at once, 1 to 16; 1 when absent.
-        grants (list[str] | Unset): The accesses granted for the duration of the batch.
+        grants (list[str] | Unset): The sensitive accesses granted for the duration of the batch, by
+            their id as `GET /api/v1/batches/accesses` lists them.
         max_failures (int | None | Unset): How many failed items the batch tolerates; 10 when absent.
     """
 

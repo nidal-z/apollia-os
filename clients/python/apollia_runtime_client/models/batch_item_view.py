@@ -24,7 +24,8 @@ class BatchItemView:
         input_ (BatchItemViewInput):
         origin (str): Where it comes from inside the source.
         rank (int): Its position in the source, from 0.
-        status (str): `pending`, `running`, `completed`, `failed` or `canceled`.
+        status (str): `pending`, `running`, `completed`, `failed`, `canceled`, or `awaiting`
+            a decision on an access nobody granted.
         output (None | str | Unset):
         sources (BatchItemViewSourcesType0 | None | Unset):
         task_id (None | str | Unset): The task that ran it.

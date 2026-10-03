@@ -228,6 +228,26 @@ weight: the engine and its dependencies add about 150 MB to the macOS disk
 image, and they need macOS 14 or later, the floor of the MLX wheels at the
 pinned version. The Windows and Linux bundles do not carry it.
 
+Engines have an update channel of their own and do not follow the version of
+Apollia. The embedded engine serves every machine from the first launch; an
+accelerated build, CUDA on a machine with an NVIDIA card, is downloaded on
+demand, or imported from a disk without network, and the launcher then takes the
+newest installed build of that variant over the embedded one. Every download or
+import of an engine is preceded by the verification of a digest manifest
+signed in the minisign format with a dedicated distribution key. Each channel,
+stable or preview, publishes one such manifest, listing every engine archive
+with its SHA-256. The public half of that key is compiled into the binary and
+is the only key accepted. No archive is requested before the signature holds,
+an archive whose digest differs from the manifest is deleted, and a manifest
+older than the last one accepted on its channel is refused. A mirror can replace
+the address manifests and archives are fetched from; it cannot replace the key.
+Engine archives are read as zip only, the format already read for agent
+packages, and no other archive format is parsed. Upstream builds published as
+`.tar.gz`, those for macOS and Linux among them, are repackaged as zip by the
+release pipeline that publishes the manifest, and the manifest carries the
+digest of that zip. The MLX engine environment is listed in the same manifest
+and installed through the same verification.
+
 There is no dedicated cloud provider. A remote model is reached through one
 generic connection to an OpenAI-compatible server, at the address the
 organization designates: a self-hosted vLLM or LM Studio, or a gateway. Any

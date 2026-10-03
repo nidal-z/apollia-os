@@ -462,6 +462,17 @@ impl ChatSessionManagerHandle {
         reply_rx.await.ok().flatten()
     }
 
+    /// The metrics the metrics panel draws, in both modes of the desktop.
+    ///
+    /// A zero-filled record for the session when no exchange has completed yet
+    /// (or the session is unknown), so the panel renders empty values instead
+    /// of an error.
+    pub async fn session_metrics_or_empty(&self, session_id: SessionId) -> SessionMetrics {
+        self.get_session_metrics(session_id.clone())
+            .await
+            .unwrap_or_else(|| SessionMetrics::new(session_id))
+    }
+
     pub async fn shutdown(&self) {
         let _ = self.tx.send(ChatCommand::Shutdown).await;
     }

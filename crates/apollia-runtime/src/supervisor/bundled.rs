@@ -208,3 +208,51 @@ pub(in crate::supervisor) fn native_tool_descriptors() -> Vec<apollia_tools::Too
 
     descriptors
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use apollia_tools::{AgentAccess, AgentRepository, APOLLIA_AGENT_ID};
+
+    // GIVEN a fresh install: the built-in tools registered, no MCP server
+    //   connected, Apollia stored without any override
+    // WHEN the access of Apollia is read, then turned into tools
+    // THEN Apollia is offered exactly the reading family: reading the files
+    //   and notebooks granted, the MCP resources, the web search and the page
+    //   reading; nothing that writes, sends, runs code or reads an account
+    #[tokio::test]
+    async fn a_fresh_install_gives_apollia_the_reading_family_only() {
+        let registry = ToolRegistryHandle::start();
+        register_builtin_tools(&registry, &[]).await;
+        let dir = tempfile::tempdir().unwrap();
+        let repo = AgentRepository::open(&dir.path().join("agents.db")).unwrap();
+        let apollia = repo
+            .resolved(
+                APOLLIA_AGENT_ID,
+                None,
+                apollia_core::AutonomyLevel::Assisted,
+            )
+            .unwrap()
+            .unwrap();
+
+        #[allow(unused_mut)]
+        let mut expected = vec![
+            "file_glob",
+            "file_grep",
+            "file_list",
+            "file_read",
+            "mcp_resources_list",
+            "mcp_resources_read",
+            "notebook_read",
+        ];
+        #[cfg(feature = "web-read")]
+        expected.push("web_read");
+        #[cfg(feature = "web-search")]
+        expected.push("web_search");
+
+        let tools = AgentAccess::of(&apollia).tools(&registry).await;
+
+        assert_eq!(tools, expected);
+        registry.shutdown().await;
+    }
+}

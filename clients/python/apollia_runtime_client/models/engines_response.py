@@ -1,0 +1,134 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
+
+from attrs import define as _attrs_define
+from attrs import field as _attrs_field
+
+from ..models.engine_channel import EngineChannel
+from ..types import UNSET, Unset
+
+if TYPE_CHECKING:
+    from ..models.engine_entry import EngineEntry
+    from ..models.variant_update import VariantUpdate
+
+
+T = TypeVar("T", bound="EnginesResponse")
+
+
+@_attrs_define
+class EnginesResponse:
+    """Body of `GET /api/v1/engines`.
+
+    Attributes:
+        channel (EngineChannel): An update channel.
+        cuda_proposable (bool): True when an NVIDIA card is detected and no CUDA engine is installed.
+        engines (list[EngineEntry]): Engines embedded in the bundle, then installed ones.
+        updates (list[VariantUpdate]): Per variant offered by that manifest for this platform, whether a newer
+            build than the installed one exists. Empty until a manifest verified.
+        manifest_sequence (int | None | Unset): Sequence of the last verified manifest of that channel, if any.
+    """
+
+    channel: EngineChannel
+    cuda_proposable: bool
+    engines: list[EngineEntry]
+    updates: list[VariantUpdate]
+    manifest_sequence: int | None | Unset = UNSET
+    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        channel = self.channel.value
+
+        cuda_proposable = self.cuda_proposable
+
+        engines = []
+        for engines_item_data in self.engines:
+            engines_item = engines_item_data.to_dict()
+            engines.append(engines_item)
+
+        updates = []
+        for updates_item_data in self.updates:
+            updates_item = updates_item_data.to_dict()
+            updates.append(updates_item)
+
+        manifest_sequence: int | None | Unset
+        if isinstance(self.manifest_sequence, Unset):
+            manifest_sequence = UNSET
+        else:
+            manifest_sequence = self.manifest_sequence
+
+        field_dict: dict[str, Any] = {}
+        field_dict.update(self.additional_properties)
+        field_dict.update(
+            {
+                "channel": channel,
+                "cuda_proposable": cuda_proposable,
+                "engines": engines,
+                "updates": updates,
+            }
+        )
+        if manifest_sequence is not UNSET:
+            field_dict["manifest_sequence"] = manifest_sequence
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.engine_entry import EngineEntry
+        from ..models.variant_update import VariantUpdate
+
+        d = dict(src_dict)
+        channel = EngineChannel(d.pop("channel"))
+
+        cuda_proposable = d.pop("cuda_proposable")
+
+        engines = []
+        _engines = d.pop("engines")
+        for engines_item_data in _engines:
+            engines_item = EngineEntry.from_dict(engines_item_data)
+
+            engines.append(engines_item)
+
+        updates = []
+        _updates = d.pop("updates")
+        for updates_item_data in _updates:
+            updates_item = VariantUpdate.from_dict(updates_item_data)
+
+            updates.append(updates_item)
+
+        def _parse_manifest_sequence(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        manifest_sequence = _parse_manifest_sequence(d.pop("manifest_sequence", UNSET))
+
+        engines_response = cls(
+            channel=channel,
+            cuda_proposable=cuda_proposable,
+            engines=engines,
+            updates=updates,
+            manifest_sequence=manifest_sequence,
+        )
+
+        engines_response.additional_properties = d
+        return engines_response
+
+    @property
+    def additional_keys(self) -> list[str]:
+        return list(self.additional_properties.keys())
+
+    def __getitem__(self, key: str) -> Any:
+        return self.additional_properties[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self.additional_properties[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self.additional_properties[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.additional_properties

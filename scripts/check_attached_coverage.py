@@ -64,10 +64,23 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # the seam (models, MCP servers, connections, notifications, triggers, tools),
 # then at 168 once the commands of the window were named as such, then at 164
 # once the profile had its routes, then at 162 once the settings of the chat
-# became those of the Apollia agent, then at 155 once the reading side of the
-# Model Hub (hardware, search, cards, installed models, recommendation)
-# reached the daemon.
-EMBEDDED_ONLY_CEILING = 155
+# became those of the Apollia agent, then at 155 once the memory could be
+# cleared, purged, exported and imported through the daemon, then at 149 once
+# the conversations of the chat could be configured, renamed, named, erased and
+# linked to a project, then at 146 once the metrics of a conversation were read
+# from the daemon and its export and reveal named as window commands, then at
+# 141 once the memory was read through its routes, then at 136 once the chat
+# could play a turn again, decide on a tool call and read those decisions, then
+# at 131 once the proposed permission rules and the answers to a request to
+# touch a file had their routes, then at 123 once the tools, their
+# configuration, the permission rules and the audit of the tool governance had
+# their routes, then at 116 once the accounts of the native connectors and
+# their Drive folder were served by the daemon, then at 110 once the OAuth
+# clients of the connectors were served by the daemon, then at 103 once the plan
+# mode had its routes, then at 98 once the reading side of the Model Hub
+# (hardware, search, cards, installed models, recommendation) reached the
+# daemon.
+EMBEDDED_ONLY_CEILING = 98
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",

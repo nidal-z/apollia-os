@@ -36,11 +36,27 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// manager it holds. `list_model_cards` needs none either: it reads the model
 /// registry, the data directory and its `apollia.toml`, never the runtime.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
+    "chat_session_metrics",
     "create_chat_session",
     "get_chat_session",
     "list_chat_sessions",
     "pause_chat_session",
     "send_chat_message",
+    // The conversations as the list manages them: configure, rename, name,
+    // erase, link to a project, list by project.
+    "delete_chat_session",
+    "generate_chat_session_name",
+    "link_chat_to_project",
+    "list_chats_by_project",
+    "rename_chat_session",
+    "update_chat_session",
+    // The chat: a turn played again, a decision on a tool call, the history
+    // of those decisions, and the skills of the worker agents.
+    "authorize_chat_tool",
+    "edit_and_resend_chat_message",
+    "list_a2a_skills",
+    "list_chat_approval_history",
+    "regenerate_chat_response",
     // Agents: the registry and the install.
     "agent_status_snapshot",
     "install_agent",
@@ -122,10 +138,71 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "get_profile",
     "reset_user_profile",
     "set_profile_entry",
+    // Memory, read side: the namespaces, their entries, the search, the
+    // entries recalled during a turn, the statistics of a conversation.
+    "get_conversation_stats",
+    "get_injected_memory_entries",
+    "list_memory_entries",
+    "list_memory_namespaces",
+    "search_memory",
     // Models: the download of a whole variant from the Hub.
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Plan mode: the default, the switch, the plan and its history, the soft
+    // gate of a chat session and the gate of an orchestrated run.
+    "approve_plan",
+    "get_chat_plan",
+    "get_plan_mode_default",
+    "list_plan_mutations",
+    "reject_plan",
+    "set_plan_mode",
+    "submit_plan_decision",
+    // Memory upkeep, over `/api/v1/memory/namespaces/{namespace}/...`. The
+    // export and import files stay on the machine of the window; the daemon,
+    // which owns the memory, sends and receives their content.
+    "clear_memory",
+    "delete_memory_entry",
+    "memory_export_namespace",
+    "memory_import_namespace",
+    "purge_memory",
+    // Permissions: the rules the onboarding agent proposed, a rule written
+    // from an approval card, and the answer to a request to touch a file.
+    "add_permission_prefix_rule",
+    "apply_proposed_permission_rule",
+    "dismiss_proposed_permission_rule",
+    "list_proposed_permission_rules",
+    "respond_hitl_filesystem",
+    // Tool governance: the tools, their configuration, the permission rules
+    // and the audit, over `/api/v1/governance`.
+    "governance_get_tool_config",
+    "governance_list_audit",
+    "governance_list_permission_rules",
+    "governance_list_tools",
+    "governance_revoke_all_rules",
+    "governance_revoke_permission_rule",
+    "governance_set_tool_config",
+    "governance_set_tool_enabled",
+    // Accounts of the native connectors and their Drive folder, under
+    // `/api/v1/connectors/`. The window keeps the loopback listener and the
+    // browser of the consent; the daemon starts it, completes it and stores
+    // the token.
+    "oauth_complete_flow",
+    "oauth_disconnect",
+    "oauth_get_status",
+    "oauth_list_drive_folders",
+    "oauth_reset_drive_folder",
+    "oauth_set_drive_folder",
+    "oauth_start_flow",
+    // The OAuth clients of the connectors, over `/api/v1/oauth/clients`. The
+    // import reads the file the operator picked in this window and sends its
+    // text, so the daemon never needs a path of this machine.
+    "oauth_import_client_json",
+    "oauth_list_client_ids",
+    "oauth_set_api_key",
+    "oauth_set_client_id",
+    "oauth_set_client_secret",
+    "oauth_test_client",
     // Models: the hardware, the search, a model's card, the installed models
     // and the recommendation, over `/api/v1/llm`.
     "get_hardware_profile",
@@ -179,6 +256,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "open_config_in_editor",
         "opens the configuration file in the editor of this machine",
+    ),
+    (
+        "export_conversation",
+        "writes the conversation to the file chosen in this window's save dialog",
+    ),
+    (
+        "reveal_session_path",
+        "shows a file in the file manager of this machine, the session folder read from the runtime",
     ),
     (
         "automation_script",

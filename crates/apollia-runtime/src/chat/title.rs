@@ -1,10 +1,14 @@
-//! Automatic naming of a chat session: the prompt sent to the router, and the
-//! sanitising that turns a model answer into a title short enough for the list.
+//! Automatic naming of a chat session: the prompt sent to the router, the
+//! sanitising that turns a model answer into a title short enough for the
+//! list, and the rename that stores it. The desktop running the runtime in its
+//! own process and `POST /api/v1/sessions/{id}/title/generate` both call
+//! [`name_session`], so a conversation is named the same way in both modes.
 
-use apollia_runtime::embedded::RuntimeHandle;
-use tauri::State;
+use apollia_llm::types::ChatMessage as LlmChatMessage;
+use apollia_llm::{CompletionRequest, LlmRouter, ObservabilityConfig};
 
-use crate::SharedLlmRouter;
+use super::manager::ChatSessionManagerHandle;
+use super::types::ChatError;
 
 /// System prompt instructing the LLM to produce a short conversation title.
 const TITLE_PROMPT: &str = "Tu génères des titres courts pour des conversations à partir de la \
@@ -23,39 +27,77 @@ const TITLE_MAX_TOKENS: u32 = 1024;
 /// Maximum character length of the persisted title.
 const TITLE_MAX_CHARS: usize = 60;
 
-/// Generates a short title for a chat session from its first user message.
+/// Maximum character length of a title the user typed.
+const USER_TITLE_MAX_CHARS: usize = 100;
+
+/// Why a session could not be named or renamed.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum TitleError {
+    /// The title the user typed is blank.
+    #[error("title must not be empty")]
+    EmptyTitle,
+    /// The first message the title is drawn from is blank.
+    #[error("first_message must not be empty")]
+    EmptyMessage,
+    /// No inference server is configured.
+    #[error("no LLM router configured")]
+    NoRouter,
+    /// The completion failed.
+    #[error("LLM call failed: {0}")]
+    Llm(String),
+    /// The model answered nothing usable as a title.
+    #[error("LLM returned an empty title")]
+    EmptyAnswer,
+    /// The chat subsystem refused the rename.
+    #[error(transparent)]
+    Chat(#[from] ChatError),
+}
+
+/// Renames a session with a title the user typed: trimmed, refused when blank,
+/// capped at [`USER_TITLE_MAX_CHARS`] characters.
 ///
-/// Calls the configured LLM router with a dedicated prompt, sanitises the
-/// response (trim, strip surrounding quotes, drop trailing punctuation,
-/// truncate to [`TITLE_MAX_CHARS`]), then persists it via the existing
-/// `rename_session` path.
+/// # Errors
+///
+/// [`TitleError::EmptyTitle`] for a blank title, [`TitleError::Chat`] when the
+/// chat subsystem refuses the rename (an unknown session among others).
+pub async fn rename_session(
+    manager: &ChatSessionManagerHandle,
+    session_id: String,
+    title: &str,
+) -> Result<(), TitleError> {
+    let trimmed = title.trim();
+    if trimmed.is_empty() {
+        return Err(TitleError::EmptyTitle);
+    }
+    let cleaned: String = trimmed.chars().take(USER_TITLE_MAX_CHARS).collect();
+    Ok(manager.rename_session(session_id, cleaned).await?)
+}
+
+/// Generates a short title for a chat session from its first user message,
+/// and stores it.
+///
+/// Calls `llm` with a dedicated prompt, sanitises the response (trim, strip
+/// surrounding quotes, drop trailing punctuation, truncate to
+/// [`TITLE_MAX_CHARS`]), then persists it through the session rename.
 ///
 /// Returns the generated title.
-#[tauri::command]
-pub async fn generate_chat_session_name(
-    state: State<'_, RuntimeHandle>,
-    shared: State<'_, SharedLlmRouter>,
+///
+/// # Errors
+///
+/// [`TitleError::NoRouter`] without a router, [`TitleError::EmptyMessage`]
+/// for a blank message, [`TitleError::Llm`] when the completion fails,
+/// [`TitleError::EmptyAnswer`] when nothing usable comes back, and
+/// [`TitleError::Chat`] when the rename is refused.
+pub async fn name_session(
+    manager: &ChatSessionManagerHandle,
+    llm: Option<&LlmRouter>,
     session_id: String,
     first_message: String,
-) -> Result<String, String> {
-    use apollia_llm::types::ChatMessage as LlmChatMessage;
-    use apollia_llm::{CompletionRequest, ObservabilityConfig};
-
-    let manager = state
-        .chat_manager
-        .as_ref()
-        .ok_or_else(|| "chat subsystem not available".to_string())?;
-    // Use the live desktop router (rebuilt by reload_llm_from_db), not the
-    // boot-time RuntimeHandle snapshot, which stays None when the backend is
-    // configured after startup (e.g. during onboarding).
-    let llm = shared
-        .read()
-        .map_err(|e| format!("lock poisoned: {e}"))?
-        .clone()
-        .ok_or_else(|| "no LLM router configured".to_string())?;
-
+) -> Result<String, TitleError> {
+    let llm = llm.ok_or(TitleError::NoRouter)?;
     if first_message.trim().is_empty() {
-        return Err("first_message must not be empty".to_string());
+        return Err(TitleError::EmptyMessage);
     }
 
     let request = CompletionRequest {
@@ -70,17 +112,14 @@ pub async fn generate_chat_session_name(
     let response = llm
         .complete_with_observability(None, request, None, &obs)
         .await
-        .map_err(|e| format!("LLM call failed: {e}"))?;
+        .map_err(|e| TitleError::Llm(e.to_string()))?;
 
     let title = sanitize_session_title(&response.content);
     if title.is_empty() {
-        return Err("LLM returned an empty title".to_string());
+        return Err(TitleError::EmptyAnswer);
     }
 
-    manager
-        .rename_session(session_id, title.clone())
-        .await
-        .map_err(|e| e.to_string())?;
+    manager.rename_session(session_id, title.clone()).await?;
 
     Ok(title)
 }
