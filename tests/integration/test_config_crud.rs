@@ -165,6 +165,7 @@ async fn build_app_state_with_repos(
         secret_store: apollia_runtime::inference_servers::default_store_opener(),
         batches: None,
         workflows: None,
+        compat_server: None,
     }
 }
 
