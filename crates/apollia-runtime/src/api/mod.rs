@@ -44,6 +44,7 @@ pub mod routes_profile;
 pub mod routes_resilience;
 pub mod routes_review;
 pub mod routes_server;
+pub mod routes_sources;
 pub mod routes_sse;
 pub mod routes_stt;
 pub mod routes_tasks;

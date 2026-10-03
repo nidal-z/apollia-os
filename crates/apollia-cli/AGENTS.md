@@ -100,6 +100,14 @@ keyring, the connections and the governance, adds the MCP servers a package
 brings and journals the installation. The archive is sent by its absolute
 path; a missing file is refused before the runtime is reached.
 
+**`source`** (`list`, `create`, `delete`) reads and writes the registry of
+sources an agent may consult once checked: a folder, a file or a mailbox,
+which name what they point at with `--reference`, the profile, the memory, a
+code folder. Every leaf goes through the runtime, whose actor owns the
+registry in `system.db`; daemon off, each refuses with exit 2. An agent checks
+a source by naming its identifier in `agent set <agent> sources ...`, and the
+runtime refuses an identifier the registry does not hold.
+
 **`policy`** prepares the organisation policy on files alone (`keygen`,
 `init`, `sign`, `verify`, `show`) and never reaches the runtime: the policy is
 read by the runtime at startup, not served by it. No leaf writes into the
