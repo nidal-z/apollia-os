@@ -1579,6 +1579,59 @@
         }
       }
     },
+    "/api/v1/batches/accesses": {
+      "get": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`GET /api/v1/batches/accesses`: the sensitive accesses of an agent, those\na launch may grant for the duration of a batch.",
+        "description": "Reading is never listed: it runs without asking. An access that is not\n`grantable` (executing code, or an access nobody classified) is listed\ntoo: an item that reaches for it waits for a decision.",
+        "operationId": "batch_accesses",
+        "parameters": [
+          {
+            "name": "agent",
+            "in": "query",
+            "description": "The agent a batch would run.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sensitive accesses of the agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchAccessesView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An agent that cannot run a batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/batches/{id}": {
       "get": {
         "tags": [
@@ -1610,6 +1663,274 @@
           },
           "404": {
             "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/pause": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/pause`: no further item starts; those running\nend on their own. A paused batch stays paused across a restart.",
+        "operationId": "pause_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch, paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch is not running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/resume": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/resume`: a paused batch starts its items again.",
+        "operationId": "resume_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch, running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch is not paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/retry": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/retry`: the failed items, and those waiting for\nan access, run again from their input as read at launch. `grants` adds\naccesses granted for the rest of the batch.",
+        "operationId": "retry_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRetry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The batch, running again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A grant the agent cannot take",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No failed or waiting item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Batch engine unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{id}/stop": {
+      "post": {
+        "tags": [
+          "batches"
+        ],
+        "summary": "`POST /api/v1/batches/{id}/stop`: the running items are cancelled, the\npending ones are canceled without running, and the batch ends `stopped`.",
+        "operationId": "stop_batch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Batch id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The batch, stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The batch has already ended",
             "content": {
               "application/json": {
                 "schema": {
@@ -2016,6 +2337,284 @@
           },
           "503": {
             "description": "The provider's OAuth client is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "list_engines",
+        "responses": {
+          "200": {
+            "description": "Engines, channel and updates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnginesResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Store files unreadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/check": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "check_engines",
+        "responses": {
+          "200": {
+            "description": "Manifest verified, updates per variant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signature, channel, rollback or format refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The mirror could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/import": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "import_engines",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Engines verified and installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstalledResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No archive of this platform in the directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing or invalid signature, digest or archive refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/install": {
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "install_engine",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Engine verified and installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInstalledResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such package for this platform",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Signature, digest, rollback or archive refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The mirror could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/engines/settings": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "get_engine_settings",
+        "responses": {
+          "200": {
+            "description": "Engine store settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineSettingsBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Settings file unreadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "set_engine_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineSettingsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Settings saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineSettingsBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Base address is not http or https",
             "content": {
               "application/json": {
                 "schema": {
@@ -9904,6 +10503,53 @@
           }
         }
       },
+      "BatchAccess": {
+        "type": "object",
+        "description": "One sensitive access of the agent a batch runs.",
+        "required": [
+          "accessId",
+          "permits",
+          "family",
+          "grantable"
+        ],
+        "properties": {
+          "accessId": {
+            "type": "string",
+            "description": "The access, as the agent names it: a tool, or `mcp:<server>`."
+          },
+          "family": {
+            "type": "string",
+            "description": "Its action family: `read_personal`, `write_or_delete`, `send_external`,\n`execute_code` or `unclassified`."
+          },
+          "grantable": {
+            "type": "boolean",
+            "description": "Whether it can be granted for a batch. Executing code asks at every\ncall, and an unclassified access has no family to grant."
+          },
+          "permits": {
+            "type": "string",
+            "description": "What it lets the agent do."
+          }
+        }
+      },
+      "BatchAccessesView": {
+        "type": "object",
+        "description": "The sensitive accesses of an agent.",
+        "required": [
+          "agent",
+          "accesses"
+        ],
+        "properties": {
+          "accesses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchAccess"
+            }
+          },
+          "agent": {
+            "type": "string"
+          }
+        }
+      },
       "BatchDetailView": {
         "type": "object",
         "description": "A batch with its items.",
@@ -9973,7 +10619,7 @@
           },
           "status": {
             "type": "string",
-            "description": "`pending`, `running`, `completed`, `failed` or `canceled`."
+            "description": "`pending`, `running`, `completed`, `failed`, `canceled`, or `awaiting`\na decision on an access nobody granted."
           },
           "taskId": {
             "type": [
@@ -10010,7 +10656,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The accesses granted for the duration of the batch."
+            "description": "The sensitive accesses granted for the duration of the batch, by\ntheir id as `GET /api/v1/batches/accesses` lists them."
           },
           "maxFailures": {
             "type": [
@@ -10042,6 +10688,19 @@
           }
         }
       },
+      "BatchRetry": {
+        "type": "object",
+        "description": "What the failed items of a batch are run again with.",
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Accesses granted for the rest of the batch, on top of those granted\nat launch: an item that waited for one of them runs again with it."
+          }
+        }
+      },
       "BatchView": {
         "type": "object",
         "description": "A batch: what it was launched with, its state and its counters.",
@@ -10057,12 +10716,19 @@
           "completed",
           "failed",
           "canceled",
+          "awaiting",
           "createdAt",
           "updatedAt"
         ],
         "properties": {
           "agent": {
             "type": "string"
+          },
+          "awaiting": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Items waiting for an access to be granted.",
+            "minimum": 0
           },
           "batchId": {
             "type": "string"
@@ -10114,7 +10780,7 @@
           },
           "state": {
             "type": "string",
-            "description": "`running`, `completed` or `interrupted`."
+            "description": "`running`, `paused`, `completed`, `interrupted` or `stopped`."
           },
           "total": {
             "type": "integer",
@@ -11202,6 +11868,218 @@
               "null"
             ],
             "description": "Identifier of the entry recommended for this machine."
+          }
+        }
+      },
+      "EngineChannel": {
+        "type": "string",
+        "description": "An update channel.",
+        "enum": [
+          "stable",
+          "preview"
+        ]
+      },
+      "EngineCheckResponse": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/engines/check`.",
+        "required": [
+          "channel",
+          "manifest_sequence",
+          "updates"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/EngineChannel",
+            "description": "The channel checked."
+          },
+          "manifest_sequence": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sequence of the manifest just verified.",
+            "minimum": 0
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantUpdate"
+            },
+            "description": "Per variant, whether an update exists."
+          }
+        }
+      },
+      "EngineEntry": {
+        "type": "object",
+        "description": "One engine on this machine.",
+        "required": [
+          "engine",
+          "path",
+          "source"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine."
+          },
+          "path": {
+            "type": "string",
+            "description": "Where it lives."
+          },
+          "source": {
+            "$ref": "#/components/schemas/EngineSource",
+            "description": "Embedded, downloaded or imported."
+          },
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Upstream tag; unknown for an embedded engine."
+          },
+          "variant": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EngineVariant",
+                "description": "Variant; unknown for an embedded engine whose build is not stated."
+              }
+            ]
+          }
+        }
+      },
+      "EngineImportRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/engines/import`.",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory holding `engines.json`, `engines.json.minisig` and archives."
+          }
+        }
+      },
+      "EngineInstallRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/v1/engines/install`.",
+        "required": [
+          "engine",
+          "variant"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine to install."
+          },
+          "variant": {
+            "$ref": "#/components/schemas/EngineVariant",
+            "description": "Variant to install; its newest build on the channel is taken."
+          }
+        }
+      },
+      "EngineInstalledResponse": {
+        "type": "object",
+        "description": "Engines installed by a request.",
+        "required": [
+          "installed"
+        ],
+        "properties": {
+          "installed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngineEntry"
+            },
+            "description": "What was installed."
+          }
+        }
+      },
+      "EngineName": {
+        "type": "string",
+        "description": "An inference engine the store can hold.",
+        "enum": [
+          "llama-server",
+          "vllm-mlx"
+        ]
+      },
+      "EngineSettingsBody": {
+        "type": "object",
+        "description": "Body of the settings routes.",
+        "required": [
+          "channel",
+          "base_url"
+        ],
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "description": "Base address manifests and archives are fetched from."
+          },
+          "channel": {
+            "$ref": "#/components/schemas/EngineChannel",
+            "description": "The followed channel."
+          }
+        }
+      },
+      "EngineSource": {
+        "type": "string",
+        "description": "How an engine reached this machine.",
+        "enum": [
+          "embedded",
+          "downloaded",
+          "imported"
+        ]
+      },
+      "EngineVariant": {
+        "type": "string",
+        "description": "A build of an engine for one kind of hardware.",
+        "enum": [
+          "cuda",
+          "vulkan",
+          "cpu",
+          "metal"
+        ]
+      },
+      "EnginesResponse": {
+        "type": "object",
+        "description": "Body of `GET /api/v1/engines`.",
+        "required": [
+          "engines",
+          "channel",
+          "updates",
+          "cuda_proposable"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/EngineChannel",
+            "description": "The followed channel."
+          },
+          "cuda_proposable": {
+            "type": "boolean",
+            "description": "True when an NVIDIA card is detected and no CUDA engine is installed."
+          },
+          "engines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngineEntry"
+            },
+            "description": "Engines embedded in the bundle, then installed ones."
+          },
+          "manifest_sequence": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Sequence of the last verified manifest of that channel, if any.",
+            "minimum": 0
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VariantUpdate"
+            },
+            "description": "Per variant offered by that manifest for this platform, whether a newer\nbuild than the installed one exists. Empty until a manifest verified."
           }
         }
       },
@@ -15115,6 +15993,41 @@
           }
         }
       },
+      "VariantUpdate": {
+        "type": "object",
+        "description": "Whether a newer build of one engine variant exists on the channel.",
+        "required": [
+          "engine",
+          "variant",
+          "latest_tag",
+          "update_available"
+        ],
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/EngineName",
+            "description": "Engine."
+          },
+          "installed_tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Newest tag installed here, if any."
+          },
+          "latest_tag": {
+            "type": "string",
+            "description": "Newest tag the verified manifest offers."
+          },
+          "update_available": {
+            "type": "boolean",
+            "description": "True when a tag is installed and the manifest offers a newer one."
+          },
+          "variant": {
+            "$ref": "#/components/schemas/EngineVariant",
+            "description": "Variant."
+          }
+        }
+      },
       "VerifyChainReport": {
         "type": "object",
         "description": "Outcome of verifying a run's chain.",
@@ -15489,6 +16402,10 @@
     {
       "name": "model_hub",
       "description": "Hardware profiling and model registry"
+    },
+    {
+      "name": "engines",
+      "description": "Inference engines: channel, verified download and import"
     },
     {
       "name": "resilience",

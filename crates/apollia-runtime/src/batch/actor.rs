@@ -4,14 +4,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use apollia_core::batch_source::{SourceRegistry, SourceSpec};
+use apollia_core::{AgentId, RuntimeEvent};
 use apollia_tools::{BatchRow, NewBatch, TaskRepository};
 use tokio::sync::mpsc;
 use tracing::Level;
 
+use super::access::resolve_grants;
 use super::{
     BatchCommand, BatchError, BatchLaunch, ItemEnd, ItemRunner, ItemStatus, DEFAULT_CONCURRENCY,
     DEFAULT_MAX_FAILURES, ITEM_END_CAPACITY, MAX_CONCURRENCY,
 };
+use crate::eventbus::EventBusSender;
 
 /// The end of one item, as it comes back to the actor.
 struct ItemEnded {
@@ -21,22 +24,27 @@ struct ItemEnded {
 }
 
 /// A batch whose items are still running or pending.
-struct Active {
-    agent: String,
-    concurrency: u32,
-    max_failures: u32,
-    in_flight: u32,
-    interrupted: bool,
+pub(super) struct Active {
+    pub(super) agent: String,
+    pub(super) concurrency: u32,
+    pub(super) max_failures: u32,
+    pub(super) in_flight: u32,
+    /// Interrupted or stopped: no item starts again, and the batch ends once
+    /// those running have ended, in the state already recorded.
+    pub(super) interrupted: bool,
+    /// Paused: no item starts, and the batch does not end.
+    pub(super) paused: bool,
 }
 
 pub(super) struct BatchActor<R: ItemRunner> {
     commands: mpsc::Receiver<BatchCommand>,
     ends_tx: mpsc::Sender<ItemEnded>,
     ends: mpsc::Receiver<ItemEnded>,
-    repository: Arc<TaskRepository>,
+    pub(super) repository: Arc<TaskRepository>,
     sources: Arc<SourceRegistry>,
-    runner: Arc<R>,
-    active: HashMap<String, Active>,
+    pub(super) runner: Arc<R>,
+    pub(super) active: HashMap<String, Active>,
+    event_bus: EventBusSender,
 }
 
 impl<R: ItemRunner> BatchActor<R> {
@@ -45,6 +53,7 @@ impl<R: ItemRunner> BatchActor<R> {
         repository: Arc<TaskRepository>,
         sources: Arc<SourceRegistry>,
         runner: Arc<R>,
+        event_bus: EventBusSender,
     ) -> Self {
         let (ends_tx, ends) = mpsc::channel(ITEM_END_CAPACITY);
         Self {
@@ -55,6 +64,7 @@ impl<R: ItemRunner> BatchActor<R> {
             sources,
             runner,
             active: HashMap::new(),
+            event_bus,
         }
     }
 
@@ -65,6 +75,14 @@ impl<R: ItemRunner> BatchActor<R> {
                 command = self.commands.recv() => match command {
                     Some(BatchCommand::Launch { launch, reply }) => {
                         let _ = reply.send(self.launch(launch).await);
+                    }
+                    Some(BatchCommand::Control { batch_id, control, reply }) => {
+                        let _ = reply.send(self.control(&batch_id, control).await);
+                    }
+                    Some(BatchCommand::Accesses { agent, reply }) => {
+                        let _ = reply.send(
+                            self.runner.check(&agent).await.map_err(BatchError::Agent),
+                        );
                     }
                     None => break,
                 },
@@ -110,7 +128,7 @@ impl<R: ItemRunner> BatchActor<R> {
         }
     }
 
-    fn activate(&mut self, batch: &BatchRow) {
+    pub(super) fn activate(&mut self, batch: &BatchRow) {
         self.active.insert(
             batch.batch_id.clone(),
             Active {
@@ -119,6 +137,7 @@ impl<R: ItemRunner> BatchActor<R> {
                 max_failures: batch.max_failures,
                 in_flight: 0,
                 interrupted: false,
+                paused: batch.state == "paused",
             },
         );
     }
@@ -131,25 +150,39 @@ impl<R: ItemRunner> BatchActor<R> {
             )));
         }
         let max_failures = launch.max_failures.unwrap_or(DEFAULT_MAX_FAILURES);
-        self.runner
+        let sensitive = self
+            .runner
             .check(&launch.agent)
             .await
             .map_err(BatchError::Agent)?;
+        let grants = resolve_grants(&sensitive, &launch.grants)?;
         let items = self.read_items(&launch).await?;
         let source =
             serde_json::to_value(&launch.source).map_err(|e| BatchError::Invalid(e.to_string()))?;
-        let batch = self
+        let batch_id = uuid::Uuid::new_v4().to_string();
+        self.runner
+            .grant(&batch_id, &launch.agent, &grants)
+            .await
+            .map_err(BatchError::Invalid)?;
+        let created = self
             .repository
             .create_batch(NewBatch {
-                batch_id: uuid::Uuid::new_v4().to_string(),
+                batch_id: batch_id.clone(),
                 agent: launch.agent,
                 source,
-                grants: launch.grants,
+                grants: grants.into_iter().map(|g| g.access_id).collect(),
                 concurrency,
                 max_failures,
                 items,
             })
-            .await?;
+            .await;
+        let batch = match created {
+            Ok(batch) => batch,
+            Err(e) => {
+                let _ = self.runner.release(&batch_id).await;
+                return Err(e.into());
+            }
+        };
         tracing::event!(
             Level::INFO,
             batch_id = %batch.batch_id,
@@ -197,11 +230,14 @@ impl<R: ItemRunner> BatchActor<R> {
 
     /// Starts pending items while the batch has room, and ends it when
     /// nothing is left to run.
-    async fn advance(&mut self, batch_id: &str) {
+    pub(super) async fn advance(&mut self, batch_id: &str) {
         loop {
             let Some(active) = self.active.get(batch_id) else {
                 return;
             };
+            if active.paused {
+                return;
+            }
             if active.interrupted {
                 break;
             }
@@ -238,7 +274,7 @@ impl<R: ItemRunner> BatchActor<R> {
         rank: u64,
         input: &serde_json::Value,
     ) {
-        match self.runner.start(agent, input).await {
+        match self.runner.start(batch_id, agent, input).await {
             Ok(started) => {
                 if let Err(e) = self
                     .repository
@@ -256,6 +292,7 @@ impl<R: ItemRunner> BatchActor<R> {
                     let end = started.end.await.unwrap_or_else(|_| ItemEnd {
                         status: ItemStatus::Failed,
                         output: "the run was dropped".into(),
+                        awaiting: None,
                     });
                     let _ = ends
                         .send(ItemEnded {
@@ -271,6 +308,7 @@ impl<R: ItemRunner> BatchActor<R> {
                 let end = ItemEnd {
                     status: ItemStatus::Failed,
                     output: reason,
+                    awaiting: None,
                 };
                 self.record_end(batch_id, rank, &end).await;
             }
@@ -295,6 +333,16 @@ impl<R: ItemRunner> BatchActor<R> {
             status = end.status.as_str(),
             "batch.item.ended"
         );
+        if let (Some(access), Some(active)) = (&end.awaiting, self.active.get(batch_id)) {
+            let _ = self
+                .event_bus
+                .send(RuntimeEvent::BatchItemAwaitingApproval {
+                    batch_id: batch_id.to_string(),
+                    rank,
+                    agent_id: AgentId::from(active.agent.as_str()),
+                    access: access.clone(),
+                });
+        }
         let counted = self
             .repository
             .finish_batch_item(batch_id, rank, end.status.as_str(), &end.output)
@@ -333,11 +381,14 @@ impl<R: ItemRunner> BatchActor<R> {
         }
     }
 
-    async fn end_if_drained(&mut self, batch_id: &str) {
+    /// Ends a batch once none of its items runs: `completed` unless it was
+    /// interrupted or stopped, which is already recorded. Its consents are
+    /// withdrawn and its end is published with its counters.
+    pub(super) async fn end_if_drained(&mut self, batch_id: &str) {
         let Some(active) = self.active.get(batch_id) else {
             return;
         };
-        if active.in_flight > 0 {
+        if active.in_flight > 0 || active.paused {
             return;
         }
         if !active.interrupted {
@@ -346,6 +397,28 @@ impl<R: ItemRunner> BatchActor<R> {
             }
             tracing::event!(Level::INFO, batch_id, "batch.completed");
         }
+        let agent = active.agent.clone();
         self.active.remove(batch_id);
+        if let Err(reason) = self.runner.release(batch_id).await {
+            tracing::event!(Level::WARN, batch_id, reason = %reason, "batch.release.failed");
+        }
+        match self.repository.batch(batch_id).await {
+            Ok(Some(row)) => {
+                let _ = self.event_bus.send(RuntimeEvent::BatchEnded {
+                    batch_id: row.batch_id,
+                    agent_id: AgentId::from(agent.as_str()),
+                    state: row.state,
+                    total: row.total,
+                    completed: row.completed,
+                    failed: row.failed,
+                    canceled: row.canceled,
+                    awaiting: row.awaiting,
+                });
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::event!(Level::WARN, batch_id, error = %e, "batch.read.failed");
+            }
+        }
     }
 }

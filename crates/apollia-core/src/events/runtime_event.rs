@@ -461,6 +461,47 @@ pub enum RuntimeEvent {
         step_id: Option<String>,
     },
 
+    /// An item of a batch waits for a decision on an access nobody granted.
+    ///
+    /// Its agent reached for that access during the run, which stopped.
+    /// Emitted by the batch engine. The item waits for a decision rather than
+    /// failing, and the batch goes on with its other items; once the access is
+    /// granted, the item is run again from its input.
+    BatchItemAwaitingApproval {
+        /// The batch.
+        batch_id: String,
+        /// Position of the item in its source, from 0.
+        rank: u64,
+        /// Agent the batch runs.
+        agent_id: AgentId,
+        /// Access the agent reached for.
+        access: String,
+    },
+
+    /// A batch ended, with its successes and failures.
+    ///
+    /// Every item ran, the batch was interrupted past its failure threshold,
+    /// or it was stopped. Emitted by the batch engine once no item of the batch is running any
+    /// more, with the counters as they stand then.
+    BatchEnded {
+        /// The batch.
+        batch_id: String,
+        /// Agent the batch runs.
+        agent_id: AgentId,
+        /// `completed`, `interrupted` or `stopped`.
+        state: String,
+        /// Items of the batch.
+        total: u64,
+        /// Items that succeeded.
+        completed: u64,
+        /// Items that failed.
+        failed: u64,
+        /// Items canceled, or never run because the batch was stopped.
+        canceled: u64,
+        /// Items waiting for an access to be granted.
+        awaiting: u64,
+    },
+
     /// A task resumed after a HITL suspension.
     ///
     /// Emitted by the `ResumeHandler` after persisting the human decision to

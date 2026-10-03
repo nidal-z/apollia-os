@@ -23,6 +23,7 @@ pub mod connections;
 pub mod connectors_bridge;
 pub mod coordinator;
 pub mod embedded;
+pub mod engine_store;
 pub mod eventbus;
 pub mod governance;
 pub mod hooks;

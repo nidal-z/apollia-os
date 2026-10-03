@@ -27,10 +27,10 @@ the same commit as the command.
 | entity | `show`, `create`, `delete`, `list`, `rename`, `edit` |
 | config | `get`, `set`, `raw-config`, `set-default` |
 | relationship | `add`, `remove`, `link` |
-| lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel` |
+| lifecycle | `install`, `uninstall`, `enable`, `disable`, `start`, `stop`, `restart`, `reset`, `reload`, `update`, `revoke`, `login`, `logout`, `setup`, `init`, `resume`, `cancel`, `pause` |
 | maintenance | `clear`, `evict`, `purge`, `repair`, `forget` |
-| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `hardware`, `recommend`, `schema`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
-| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
+| report | `status`, `logs`, `stats`, `costs`, `report`, `journal`, `audit`, `pending`, `resolved`, `approvals`, `messages`, `skills`, `chats`, `accounts`, `accesses`, `hardware`, `recommend`, `schema`, `anchor`, `inspect`, `preview`, `trace`, `version`, `digest` |
+| action | `run`, `build`, `keygen`, `sign`, `test`, `fire`, `invoke`, `validate`, `verify`, `replay`, `retry`, `search`, `discover`, `download`, `transcribe`, `ping`, `chat`, `learn-procedure`, `seed-builtins`, `set-approval`, `revoke-approval`, `list-pending`, `doctor`, `onboard`, `review`, `guide`, `explain`, `do`, `completions` |
 | interchange | `export`, `import` |
 
 **One verb per intent.** `show` is the only entity-detail read (it absorbed
@@ -68,11 +68,16 @@ session whatever `HOME` says.
 
 If you add a new noun, document it here and in `docs/site/docs/reference/cli/`.
 
-**`batch`** (`run`, `status`, `list`) runs a stored agent without code on
-every item of a source, in the runtime. `run` returns once the items are
-recorded; each item is a task of its own, so `task list` shows them. The
-source is named by `--source-type` and `--source`; a type no reader serves is
-refused with exit 1, and no reader is registered yet.
+**`batch`** (`run`, `status`, `list`, `accesses`, `pause`, `resume`, `stop`,
+`retry`) runs a stored agent without code on every item of a source, in the
+runtime. `run` returns once the items are recorded; each item is a task of its
+own, so `task list` shows them. The source is named by `--source-type` and
+`--source`; a type no reader serves is refused with exit 1, and no reader is
+registered yet. `accesses` lists the sensitive accesses of an agent, which
+`run --grant` grants for the duration of the batch; an item that reaches for
+one not granted waits, and `retry` runs it again, with `--grant` if given,
+along with the failed items. A batch in the wrong state for a verb (resume a
+running batch, stop an ended one) is refused with exit 1.
 
 **`workflow`** (`run`, `status`, `logs`, `cancel`) runs a workflow of an
 installed package, named `<package>/<workflow>`, in the runtime. `run` takes

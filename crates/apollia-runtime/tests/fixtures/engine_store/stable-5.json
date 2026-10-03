@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "channel": "stable",
+  "sequence": 5,
+  "packages": [
+    {
+      "engine": "llama-server",
+      "tag": "b6000",
+      "variant": "cuda",
+      "platform": "linux-x64",
+      "size": 725,
+      "url": "llama-b6000-cuda.zip",
+      "sha256": "c8f2c2c371fd12d2cd7caa64a10d5dd35f9b7bc45d09f92f7abd58f4b7e01990"
+    },
+    {
+      "engine": "vllm-mlx",
+      "tag": "0.2.0",
+      "variant": "metal",
+      "platform": "macos-arm64",
+      "size": 417,
+      "url": "vllm-mlx-0.2.0-metal.zip",
+      "sha256": "0983bce6077b784140dae024cb6fd6e70839f77dad35da782b9003eb9f948c70"
+    }
+  ]
+}
