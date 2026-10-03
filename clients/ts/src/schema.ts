@@ -1789,7 +1789,68 @@ export interface paths {
         /** Handler for `GET /api/v1/llm/loaded-models`. */
         get: operations["list_loaded_models"];
         put?: never;
+        /**
+         * Handler for `POST /api/v1/llm/loaded-models`.
+         * @description Loads the model under the settings given, for this instance alone, over
+         *     its default preset; the instance then serves every request for the model.
+         *     A load the guardrail refuses is 409 with the estimate and the budget.
+         */
+        post: operations["load_model"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/loaded-models/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handler for `POST /api/v1/llm/loaded-models/estimate`. */
+        post: operations["estimate_model_load"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/loaded-models/last": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handler for `GET /api/v1/llm/loaded-models/last`. */
+        get: operations["get_last_loaded_model"];
+        put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/llm/loaded-models/last/reload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/llm/loaded-models/last/reload`.
+         * @description Loads the last model loaded by hand again, under the settings it was
+         *     loaded with.
+         */
+        post: operations["reload_last_loaded_model"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6675,6 +6736,11 @@ export interface components {
             /** @description Identifier of the submitted task. */
             task_id: string;
         };
+        /**
+         * @description How a model fits the machine.
+         * @enum {string}
+         */
+        FitDto: "fits" | "might_fit" | "too_large";
         /** @description Request body for `POST /api/v1/sessions/:id/fork`. */
         ForkSessionRequest: {
             /** @description Number of messages to copy from the parent (None = all). */
@@ -6748,6 +6814,19 @@ export interface components {
             /** @description ISO 8601 timestamp. */
             timestamp: string;
         };
+        /** @description The load guardrail's view of a load. */
+        GuardrailCheckDto: {
+            /**
+             * Format: double
+             * @description The limit it holds the load to, in gigabytes; absent without an
+             *     estimate.
+             */
+            budgetGb?: number | null;
+            /** @description The level in force, read from `apollia.toml` now. */
+            level: components["schemas"]["GuardrailLevel"];
+            /** @description What it makes of the estimate. `allowed` when there is no estimate. */
+            verdict: components["schemas"]["GuardrailVerdictDto"];
+        };
         /**
          * @description How strictly a launch is held to the machine's memory.
          * @enum {string}
@@ -6779,6 +6858,11 @@ export interface components {
             /** @description The model whose launch was refused. */
             model: string;
         };
+        /**
+         * @description What the load guardrail makes of a load.
+         * @enum {string}
+         */
+        GuardrailVerdictDto: "allowed" | "warned" | "refused";
         HardwareResponse: {
             accelerator: Record<string, never>;
             /** Format: double */
@@ -7137,6 +7221,18 @@ export interface components {
          * @enum {string}
          */
         JournalBreakReason: "global_seq_gap" | "global_prev_hash_mismatch" | "global_hash_mismatch" | "global_signature_invalid" | "unknown_signing_key" | "per_run_broken";
+        /** @description Response of `GET /api/v1/llm/loaded-models/last`. */
+        LastLoadedModelResponse: {
+            /**
+             * @description The settings it was loaded with, in the keys a preset's load settings
+             *     use.
+             */
+            load: Record<string, never>;
+            /** @description When it was loaded, RFC 3339. */
+            loadedAt: string;
+            /** @description The model, by the identifier the model index gives it. */
+            modelId: string;
+        };
         /** @description Request body for `PUT /api/v1/sessions/{id}/project`. */
         LinkProjectBody: {
             /** @description The project to link, `null` to unlink. */
@@ -7182,6 +7278,73 @@ export interface components {
              * @description Accumulated session cost in USD. `None` when no router is configured.
              */
             cost_usd?: number | null;
+        };
+        /** @description Response of `POST /api/v1/llm/loaded-models/estimate`. */
+        LoadEstimateResponse: {
+            /** @description Whether the load takes settings. `false` for an MLX model. */
+            configurable: boolean;
+            /** @description The engine that would serve it. */
+            engine: components["schemas"]["EngineName"];
+            /** @description What the load guardrail makes of it. */
+            guardrail: components["schemas"]["GuardrailCheckDto"];
+            memory?: null | components["schemas"]["MemoryEstimateDto"];
+            /** @description The model, as asked. */
+            modelId: string;
+            /** @description The file or folder that would be loaded. */
+            modelPath: string;
+            /**
+             * Format: int32
+             * @description Context window the process would be launched with.
+             */
+            nCtx: number;
+            /**
+             * Format: int32
+             * @description Layers it would place on the accelerator; absent for an MLX model.
+             */
+            nGpuLayers?: number | null;
+            /**
+             * Format: int32
+             * @description Layers the model has; absent when unknown.
+             */
+            totalLayers?: number | null;
+        };
+        /** @description Body of the estimate and of the load. */
+        LoadModelRequest: {
+            /**
+             * @description Advanced load settings, in the keys a preset's load settings use
+             *     (`n_threads`, `flash_attn`, `cache_type_k`...). Never a system prompt.
+             */
+            advanced?: Record<string, never>;
+            /** @description Load even when the load guardrail would refuse (load only). */
+            confirmed?: boolean;
+            /** @description The model, by the identifier the model index gives it. */
+            modelId: string;
+            /**
+             * Format: int32
+             * @description Context window in tokens; absent leaves the preset's, else the default.
+             */
+            nCtx?: number | null;
+            /**
+             * Format: int32
+             * @description Layers placed on the accelerator; absent leaves the preset's, else the
+             *     planned count.
+             */
+            nGpuLayers?: number | null;
+            /** @description Write these settings into the model's default preset (load only). */
+            remember?: boolean;
+        };
+        /** @description Response of a load by hand. */
+        LoadModelResponse: {
+            /** @description The instance now serving it. */
+            loaded: components["schemas"]["LoadedModelDto"];
+            /** @description The model, as asked. */
+            modelId: string;
+            /**
+             * Format: int64
+             * @description The default preset the settings were written into, when `remember`
+             *     was asked.
+             */
+            rememberedPresetId?: number | null;
         };
         /** @description One resident model. */
         LoadedModelDto: {
@@ -7362,6 +7525,31 @@ export interface components {
             /** @description Value or text content. */
             value: string;
         };
+        /** @description The memory a load would take. */
+        MemoryEstimateDto: {
+            /**
+             * Format: double
+             * @description What the machine can hold, in gigabytes.
+             */
+            capacityGb: number;
+            /** @description How the model fits the machine. */
+            fit: components["schemas"]["FitDto"];
+            /**
+             * Format: double
+             * @description On the accelerator, in gigabytes.
+             */
+            gpuGb: number;
+            /**
+             * @description Whether the cache was sized from the model's header rather than by a
+             *     proportional fallback.
+             */
+            kvCacheMeasured: boolean;
+            /**
+             * Format: double
+             * @description Weights, cache and engine overhead, in gigabytes.
+             */
+            totalGb: number;
+        };
         /** @description Answer of `POST /api/v1/memory/namespaces/{namespace}/import`. */
         MemoryImported: {
             /** @description How many entries went in. */
@@ -7506,9 +7694,9 @@ export interface components {
          *     a key, only their presence.
          */
         OauthClientIdStatus: {
-            /** @description Source for the resolved API key. Same semantics as `source`. */
+            /** @description Source for the resolved API key. Same semantics as `client_secret_source`. */
             api_key_source: string;
-            /** @description Same source semantics as `source` but for the secret. */
+            /** @description Source of the secret: `"env"`, `"store"` (the secret store), `"builtin"`, or `"none"`. */
             client_secret_source: string;
             /** @description Effective client id used at runtime. Empty string when no source is configured. */
             effective_client_id: string;
@@ -7983,6 +8171,11 @@ export interface components {
         RejectUserInputRequest: {
             /** @description Why the user declined to answer. */
             reason: string;
+        };
+        /** @description Body of `POST /api/v1/llm/loaded-models/last/reload`. */
+        ReloadLastRequest: {
+            /** @description Load even when the load guardrail would refuse. */
+            confirmed?: boolean;
         };
         /** @description Success response body for reload. */
         ReloadResponse: {
@@ -14109,6 +14302,206 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoadedModelsResponse"];
+                };
+            };
+        };
+    };
+    load_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadModelRequest"];
+            };
+        };
+        responses: {
+            /** @description Model loaded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadModelResponse"];
+                };
+            };
+            /** @description Not a model of the model index */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The load guardrail refused the model; confirm the load to go ahead */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailRefusedBody"];
+                };
+            };
+            /** @description Not a language model, an unknown setting, or a setting for an MLX model */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine runs this model, or the engine did not start */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    estimate_model_load: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadModelRequest"];
+            };
+        };
+        responses: {
+            /** @description What the load would take */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadEstimateResponse"];
+                };
+            };
+            /** @description Not a model of the model index */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Not a language model, an unknown setting, or a setting for an MLX model */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description No local engine runs this model, or no backend repository */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_last_loaded_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The last model loaded by hand */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LastLoadedModelResponse"];
+                };
+            };
+            /** @description No model was loaded by hand yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Backend repository not available */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    reload_last_loaded_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReloadLastRequest"];
+            };
+        };
+        responses: {
+            /** @description Model loaded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoadModelResponse"];
+                };
+            };
+            /** @description No model was loaded by hand yet, or it left the model index */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The load guardrail refused the model; confirm the load to go ahead */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuardrailRefusedBody"];
+                };
+            };
+            /** @description No local engine runs this model, or the engine did not start */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
                 };
             };
         };

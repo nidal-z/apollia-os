@@ -1,6 +1,6 @@
 //! The OAuth clients a connector needs before a browser window opens: the
-//! client id, the client secret and the API key of each provider, kept in
-//! `oauth-clients.toml` under the data directory.
+//! client id of each provider, kept in `oauth-clients.toml` under the data
+//! directory, and its client secret and API key, kept in the secret store.
 //!
 //! The desktop running the runtime in its own process calls these functions
 //! directly; a client of the daemon reaches the same functions through
@@ -8,14 +8,18 @@
 //! rows and refuse with the same words.
 //!
 //! Every value resolves through the same chain as the connectors that spend
-//! it: the runtime environment variable, then the file, then the value
-//! compiled into the build. A row reports which layer won, never a secret.
+//! it: the runtime environment variable, then the file (client id) or the
+//! secret store (client secret, API key), then the value compiled into the
+//! build. A row reports which layer won, never a secret.
 
 use std::path::{Path, PathBuf};
 
+use apollia_auth::oauth_client_secrets::{self, OauthClientSecret};
 use apollia_auth::oauth_clients_file::{self, OAUTH_CLIENTS_FILENAME};
-use apollia_auth::ConnectorProvider;
+use apollia_auth::{ConnectorProvider, SecretStore};
 use serde::{Deserialize, Serialize};
+
+use crate::inference_servers::SecretStoreOpener;
 
 /// The providers whose OAuth client the operator configures, in the order the
 /// settings list them.
@@ -37,6 +41,9 @@ pub enum OauthClientsError {
     /// The file could not be written.
     #[error("internal: {0}")]
     Write(#[source] std::io::Error),
+    /// The secret store could not be opened or refused the value.
+    #[error("secret store unavailable: {0}")]
+    Secrets(String),
 }
 
 /// One provider's OAuth client, as the settings draw it.
@@ -57,7 +64,7 @@ pub struct OauthClientIdStatus {
     pub override_client_id: Option<String>,
     /// True when a client secret resolves through any source.
     pub has_client_secret: bool,
-    /// Same source semantics as `source` but for the secret.
+    /// Source of the secret: `"env"`, `"store"` (the secret store), `"builtin"`, or `"none"`.
     pub client_secret_source: String,
     /// True when this provider needs a client secret (Google), false for a
     /// public client (Microsoft).
@@ -65,7 +72,7 @@ pub struct OauthClientIdStatus {
     /// True when an API key resolves through any source. Google Picker needs
     /// one; Microsoft entries leave this false.
     pub has_api_key: bool,
-    /// Source for the resolved API key. Same semantics as `source`.
+    /// Source for the resolved API key. Same semantics as `client_secret_source`.
     pub api_key_source: String,
     /// True when this provider needs an API key (Google, for Picker only).
     pub requires_api_key: bool,
@@ -135,18 +142,20 @@ fn process_env(name: &str) -> Option<String> {
     std::env::var(name).ok()
 }
 
-/// One value of the resolution chain and the layer that produced it.
+/// One value of the resolution chain and the layer that produced it:
+/// `stored` comes from `stored_layer`, the file or the secret store.
 fn resolve(
     env: &dyn Fn(&str) -> Option<String>,
     env_var: &str,
-    from_file: Option<String>,
+    stored: Option<String>,
+    stored_layer: &'static str,
     compiled: &str,
 ) -> (Option<String>, &'static str) {
     if let Some(value) = env(env_var).filter(|v| !v.is_empty()) {
         return (Some(value), "env");
     }
-    if let Some(value) = from_file {
-        return (Some(value), "file");
+    if let Some(value) = stored {
+        return (Some(value), stored_layer);
     }
     if !compiled.is_empty() {
         return (Some(compiled.to_owned()), "builtin");
@@ -154,10 +163,48 @@ fn resolve(
     (None, "none")
 }
 
+/// The stored `secret` of `provider`, or `None` when absent, when no store
+/// was opened, or when the store fails (logged).
+fn stored_secret(
+    secrets: Option<&dyn SecretStore>,
+    provider: ConnectorProvider,
+    secret: OauthClientSecret,
+) -> Option<String> {
+    let store = secrets?;
+    match oauth_client_secrets::load(store, provider.id(), secret) {
+        Ok(value) => value,
+        Err(e) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                provider = %provider.id(),
+                error = %e,
+                "runtime.oauth_clients.secret_unreadable"
+            );
+            None
+        }
+    }
+}
+
+/// The store `secrets` opens, or `None` (logged) when it cannot be opened.
+fn open_secrets(secrets: &SecretStoreOpener) -> Option<Box<dyn SecretStore>> {
+    match secrets() {
+        Ok(store) => Some(store),
+        Err(e) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %e,
+                "runtime.oauth_clients.secret_store_unavailable"
+            );
+            None
+        }
+    }
+}
+
 fn status_of(
     provider: ConnectorProvider,
     file: &Path,
     env: &dyn Fn(&str) -> Option<String>,
+    secrets: Option<&dyn SecretStore>,
 ) -> OauthClientIdStatus {
     let id = provider.id();
     let override_client_id = oauth_clients_file::lookup_client_id_at(file, id);
@@ -165,18 +212,21 @@ fn status_of(
         env,
         provider.client_id_env_var(),
         override_client_id.clone(),
+        "file",
         provider.default_client_id(),
     );
     let (secret, secret_source) = resolve(
         env,
         provider.client_secret_env_var(),
-        oauth_clients_file::lookup_client_secret_at(file, id),
+        stored_secret(secrets, provider, OauthClientSecret::ClientSecret),
+        "store",
         provider.default_client_secret(),
     );
     let (api_key, api_key_source) = resolve(
         env,
         provider.api_key_env_var(),
-        oauth_clients_file::lookup_api_key_at(file, id),
+        stored_secret(secrets, provider, OauthClientSecret::ApiKey),
+        "store",
         provider.default_api_key(),
     );
     OauthClientIdStatus {
@@ -193,40 +243,58 @@ fn status_of(
     }
 }
 
-/// The OAuth client of every provider, resolved against `file`.
-pub fn list_client_ids(file: &Path) -> Vec<OauthClientIdStatus> {
-    list_client_ids_with(file, &process_env)
+/// The OAuth client of every provider, resolved against `file` and the
+/// secret store `secrets` opens.
+pub fn list_client_ids(file: &Path, secrets: &SecretStoreOpener) -> Vec<OauthClientIdStatus> {
+    let store = open_secrets(secrets);
+    list_client_ids_with(file, &process_env, store.as_deref())
 }
 
 fn list_client_ids_with(
     file: &Path,
     env: &dyn Fn(&str) -> Option<String>,
+    secrets: Option<&dyn SecretStore>,
 ) -> Vec<OauthClientIdStatus> {
-    PROVIDERS.iter().map(|p| status_of(*p, file, env)).collect()
+    PROVIDERS
+        .iter()
+        .map(|p| status_of(*p, file, env, secrets))
+        .collect()
 }
 
-/// Writes one field of `provider_id`'s entry in `file`, trimmed. An empty
-/// value clears the override, so the chain falls back to the environment or
-/// the build. The file is created on demand, `0o600` on Unix.
+/// Writes one field of `provider_id`'s client, trimmed: the client id into
+/// `file`, the client secret and the API key into the secret store `secrets`
+/// opens, never into the file. An empty value clears it, so the chain falls
+/// back to the environment or the build. The file is created on demand,
+/// `0o600` on Unix.
 ///
 /// # Errors
 ///
 /// [`OauthClientsError::UnknownProvider`] for an unknown provider,
-/// [`OauthClientsError::Write`] when the file cannot be written.
+/// [`OauthClientsError::Write`] when the file cannot be written,
+/// [`OauthClientsError::Secrets`] when the secret store fails.
 pub fn set_field(
     file: &Path,
     provider_id: &str,
     field: OauthClientField,
     value: &str,
+    secrets: &SecretStoreOpener,
 ) -> Result<(), OauthClientsError> {
     let id = provider(provider_id)?.id();
     let value = value.trim();
-    let written = match field {
-        OauthClientField::ClientId => oauth_clients_file::set_client_id_at(file, id, value),
-        OauthClientField::ClientSecret => oauth_clients_file::set_client_secret_at(file, id, value),
-        OauthClientField::ApiKey => oauth_clients_file::set_api_key_at(file, id, value),
+    let secret = match field {
+        OauthClientField::ClientId => {
+            oauth_clients_file::set_client_id_at(file, id, value)
+                .map_err(OauthClientsError::Write)?;
+            None
+        }
+        OauthClientField::ClientSecret => Some(OauthClientSecret::ClientSecret),
+        OauthClientField::ApiKey => Some(OauthClientSecret::ApiKey),
     };
-    written.map_err(OauthClientsError::Write)?;
+    if let Some(secret) = secret {
+        let store = secrets().map_err(OauthClientsError::Secrets)?;
+        oauth_client_secrets::save(store.as_ref(), id, secret, value)
+            .map_err(|e| OauthClientsError::Secrets(e.to_string()))?;
+    }
     tracing::event!(
         tracing::Level::INFO,
         provider = %id,
@@ -276,8 +344,9 @@ fn local_check(
     provider: ConnectorProvider,
     file: &Path,
     env: &dyn Fn(&str) -> Option<String>,
+    secrets: Option<&dyn SecretStore>,
 ) -> Option<String> {
-    let status = status_of(provider, file, env);
+    let status = status_of(provider, file, env, secrets);
     if status.effective_client_id.trim().is_empty() {
         return Some("OAuth client id is not configured".to_string());
     }
@@ -303,9 +372,14 @@ fn local_check(
 pub async fn test_client(
     file: &Path,
     provider_id: &str,
+    secrets: &SecretStoreOpener,
 ) -> Result<OauthClientTestResult, OauthClientsError> {
     let provider = provider(provider_id)?;
-    if let Some(detail) = local_check(provider, file, &process_env) {
+    let local = {
+        let store = open_secrets(secrets);
+        local_check(provider, file, &process_env, store.as_deref())
+    };
+    if let Some(detail) = local {
         return Ok(OauthClientTestResult { ok: false, detail });
     }
     let client = match apollia_core::net::safe_client() {
@@ -369,8 +443,8 @@ fn parse_google_client_json(raw: &str) -> Result<(String, Option<String>), Oauth
     Ok((client_id, field("client_secret")))
 }
 
-/// Imports an OAuth client from the JSON text the provider's console exports,
-/// into `file`.
+/// Imports an OAuth client from the JSON text the provider's console exports:
+/// the client id into `file`, the secret into the secret store.
 ///
 /// Google only: Microsoft's portal shows the application id on screen and
 /// issues no secret for a public client, so there is no file to import. The
@@ -382,11 +456,13 @@ fn parse_google_client_json(raw: &str) -> Result<(String, Option<String>), Oauth
 /// [`OauthClientsError::UnknownProvider`] for an unknown provider,
 /// [`OauthClientsError::InvalidClientFile`] for Microsoft or a text that is
 /// not a Google client export, [`OauthClientsError::Write`] when the file
-/// cannot be written.
+/// cannot be written, [`OauthClientsError::Secrets`] when the secret store
+/// fails.
 pub fn import_client_json(
     file: &Path,
     provider_id: &str,
     client_json: &str,
+    secrets: &SecretStoreOpener,
 ) -> Result<(), OauthClientsError> {
     let provider = provider(provider_id)?;
     if provider != ConnectorProvider::Google {
@@ -399,11 +475,64 @@ pub fn import_client_json(
     if let Some(reason) = client_id_shape_error(provider, &client_id) {
         return Err(OauthClientsError::InvalidClientFile(reason));
     }
-    set_field(file, provider.id(), OauthClientField::ClientId, &client_id)?;
     if let Some(secret) = client_secret {
-        set_field(file, provider.id(), OauthClientField::ClientSecret, &secret)?;
+        set_field(
+            file,
+            provider.id(),
+            OauthClientField::ClientSecret,
+            &secret,
+            secrets,
+        )?;
     }
+    set_field(
+        file,
+        provider.id(),
+        OauthClientField::ClientId,
+        &client_id,
+        secrets,
+    )?;
     Ok(())
+}
+
+/// Startup step: moves the client secrets and API keys an earlier version
+/// wrote in clear in `file` into the secret store `secrets` opens, and
+/// rewrites the file with the client ids only. Returns how many values moved.
+///
+/// The store is opened only when the file holds a secret. A failure is
+/// logged and leaves the file as it was, so the next start replays it.
+pub(crate) fn migrate_file_secrets_at_startup(file: &Path, secrets: &SecretStoreOpener) -> usize {
+    let holds_secret = match oauth_clients_file::load_from(file) {
+        Ok(Some(f)) => [&f.google, &f.microsoft]
+            .iter()
+            .any(|e| !e.client_secret.trim().is_empty() || !e.api_key.trim().is_empty()),
+        Ok(None) => false,
+        Err(e) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %e,
+                "runtime.oauth_clients.migration.unreadable"
+            );
+            false
+        }
+    };
+    if !holds_secret {
+        return 0;
+    }
+    let moved = secrets().map_err(|e| e.to_string()).and_then(|store| {
+        oauth_client_secrets::migrate_file_secrets(file, store.as_ref()).map_err(|e| e.to_string())
+    });
+    match moved {
+        Ok(moved) => moved,
+        Err(e) => {
+            tracing::event!(
+                tracing::Level::WARN,
+                error = %e,
+                detail = "left in the file, retried at the next start",
+                "runtime.oauth_clients.migration.failed"
+            );
+            0
+        }
+    }
 }
 
 #[cfg(test)]

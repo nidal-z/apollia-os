@@ -73,6 +73,33 @@ pub struct LoadSettings {
     pub cache_type_v: Option<String>,
 }
 
+/// The keys [`LoadSettings::from_map`] reads, the vocabulary of a preset's
+/// load settings.
+pub const LOAD_KEYS: &[&str] = &[
+    "n_ctx",
+    "n_gpu_layers",
+    "n_threads",
+    "n_batch",
+    "n_ubatch",
+    "n_parallel",
+    "kv_unified",
+    "ctx_checkpoints",
+    "reasoning_budget",
+    "reasoning_budget_message",
+    "rope_freq_base",
+    "rope_freq_scale",
+    "kv_offload",
+    "mlock",
+    "mmap",
+    "seed",
+    "draft_model",
+    "spec_type",
+    "chat_template",
+    "flash_attn",
+    "cache_type_k",
+    "cache_type_v",
+];
+
 /// Read one key, dropping a value of the wrong shape with a warning.
 fn key<T: DeserializeOwned>(map: &Map<String, Value>, name: &str) -> Option<T> {
     let raw = map.get(name)?;
@@ -221,8 +248,14 @@ pub(super) fn compose(
 /// from `system_db` now. A missing file, no default preset or an unreadable
 /// one reads as no setting, with a warning for the last.
 pub(super) fn read_default(system_db: &Path, backend: &str) -> LoadSettings {
+    LoadSettings::from_map(&read_default_map(system_db, backend))
+}
+
+/// The load object of the default preset of the local model `backend`, as
+/// stored, read from `system_db` now. Empty as [`read_default`] reads none.
+pub(super) fn read_default_map(system_db: &Path, backend: &str) -> Map<String, Value> {
     if !system_db.exists() {
-        return LoadSettings::default();
+        return Map::new();
     }
     let read = apollia_core::LlmBackendRepository::open(system_db).and_then(|repo| {
         Ok(repo
@@ -231,8 +264,8 @@ pub(super) fn read_default(system_db: &Path, backend: &str) -> LoadSettings {
             .find(|p| p.is_model_default))
     });
     match read {
-        Ok(Some(preset)) => LoadSettings::from_map(&preset.load),
-        Ok(None) => LoadSettings::default(),
+        Ok(Some(preset)) => preset.load,
+        Ok(None) => Map::new(),
         Err(error) => {
             tracing::event!(
                 tracing::Level::WARN,
@@ -241,7 +274,7 @@ pub(super) fn read_default(system_db: &Path, backend: &str) -> LoadSettings {
                 detail = "the model loads without its preset",
                 "llama.server.preset.unreadable"
             );
-            LoadSettings::default()
+            Map::new()
         }
     }
 }

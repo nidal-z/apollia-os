@@ -2,6 +2,7 @@
 //!
 //! - `GET  /api/v1/llm/loaded-models`        , list the resident models
 //! - `POST /api/v1/llm/loaded-models/unload` , stop one, by model path
+//! - `POST /api/v1/llm/loaded-models`        , load one by hand, see [`super::load`]
 //!
 //! Both read every local engine: `llama-server` for GGUF models and `vllm-mlx`
 //! for MLX ones, each model naming the engine that serves it. Without any
@@ -219,7 +220,10 @@ pub async fn unload_loaded_model<B: ExecutionBackend + Clone>(
 /// Sub-router for the resident-model routes, merged into the LLM routes.
 pub fn loaded_model_routes<B: ExecutionBackend + Clone>() -> Router<AppState<B>> {
     Router::new()
-        .route("/api/v1/llm/loaded-models", get(list_loaded_models::<B>))
+        .route(
+            "/api/v1/llm/loaded-models",
+            get(list_loaded_models::<B>).post(super::load::load_model::<B>),
+        )
         .route(
             "/api/v1/llm/loaded-models/unload",
             post(unload_loaded_model::<B>),
