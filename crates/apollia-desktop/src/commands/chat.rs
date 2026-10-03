@@ -191,21 +191,28 @@ pub async fn get_chat_session(
 ///
 /// The backend accumulates metrics in-memory on each exchange. Returns a
 /// zero-filled default when no exchange has yet completed so the UI can
-/// render the panel with empty values instead of an error.
+/// render the panel with empty values instead of an error. Attached, the
+/// daemon answers the same record over [`metrics_path`].
 #[tauri::command]
 pub async fn chat_session_metrics(
-    state: State<'_, RuntimeHandle>,
+    link: State<'_, RuntimeLink>,
     session_id: String,
 ) -> Result<SessionMetrics, String> {
+    let state = match link.inner() {
+        RuntimeLink::Embedded(runtime) => runtime,
+        RuntimeLink::Attached(remote) => return Ok(remote.get(&metrics_path(&session_id)).await?),
+    };
     let manager = state
         .chat_manager
         .as_ref()
         .ok_or_else(|| "chat subsystem not available".to_string())?;
 
-    Ok(manager
-        .get_session_metrics(session_id.clone())
-        .await
-        .unwrap_or_else(|| SessionMetrics::new(session_id)))
+    Ok(manager.session_metrics_or_empty(session_id).await)
+}
+
+/// The daemon route of the metrics of `session_id`.
+pub(crate) fn metrics_path(session_id: &str) -> String {
+    format!("/api/v1/sessions/{}/metrics", segment(session_id))
 }
 
 /// Updates session configuration (instructions, tools, LLM provider).

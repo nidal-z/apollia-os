@@ -36,6 +36,7 @@ const RELAY_BUS_CAPACITY: usize = 1024;
 /// manager it holds. `list_model_cards` needs none either: it reads the model
 /// registry, the data directory and its `apollia.toml`, never the runtime.
 pub(crate) const ROUTED_COMMANDS: &[&str] = &[
+    "chat_session_metrics",
     "create_chat_session",
     "get_chat_session",
     "list_chat_sessions",
@@ -188,6 +189,14 @@ pub(crate) const WINDOW_COMMANDS: &[(&str, &str)] = &[
     (
         "open_config_in_editor",
         "opens the configuration file in the editor of this machine",
+    ),
+    (
+        "export_conversation",
+        "writes the conversation to the file chosen in this window's save dialog",
+    ),
+    (
+        "reveal_session_path",
+        "shows a file in the file manager of this machine, the session folder read from the runtime",
     ),
     (
         "automation_script",

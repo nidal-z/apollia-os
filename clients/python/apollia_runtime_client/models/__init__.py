@@ -218,6 +218,8 @@ from .server_models_response import ServerModelsResponse
 from .server_probe_error_response import ServerProbeErrorResponse
 from .server_response import ServerResponse
 from .servers_list_response import ServersListResponse
+from .session_metrics import SessionMetrics
+from .session_workspace import SessionWorkspace
 from .set_agent_model_request import SetAgentModelRequest
 from .set_approval_body import SetApprovalBody
 from .set_default_model_request import SetDefaultModelRequest
@@ -278,6 +280,7 @@ from .todo_read_response_items_item import TodoReadResponseItemsItem
 from .token_usage_response import TokenUsageResponse
 from .tool_list_response import ToolListResponse
 from .tool_list_response_tools_item import ToolListResponseToolsItem
+from .tool_stat_entry import ToolStatEntry
 from .trace_response import TraceResponse
 from .trace_response_events_item import TraceResponseEventsItem
 from .transcribe_audio_body import TranscribeAudioBody
@@ -536,6 +539,8 @@ __all__ = (
     "ServerProbeErrorResponse",
     "ServerResponse",
     "ServersListResponse",
+    "SessionMetrics",
+    "SessionWorkspace",
     "SetAgentModelRequest",
     "SetApprovalBody",
     "SetDefaultModelRequest",
@@ -596,6 +601,7 @@ __all__ = (
     "TokenUsageResponse",
     "ToolListResponse",
     "ToolListResponseToolsItem",
+    "ToolStatEntry",
     "TraceResponse",
     "TraceResponseEventsItem",
     "TranscribeAudioBody",

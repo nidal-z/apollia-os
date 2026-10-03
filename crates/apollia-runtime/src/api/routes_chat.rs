@@ -9,6 +9,8 @@
 //! - `POST   /api/v1/sessions/:id/authorize`  , resolve approval
 //! - `GET    /api/v1/sessions/:id/stream`     , SSE stream
 //! - `POST   /api/v1/sessions/:id/pause`      , pause the turn in flight
+//! - `GET    /api/v1/sessions/:id/metrics`    , the metrics panel
+//! - `GET    /api/v1/sessions/:id/workspace`  , the working directory
 
 use std::convert::Infallible;
 
@@ -30,6 +32,7 @@ use crate::coordinator::ExecutionBackend;
 
 pub mod conversations;
 pub mod pause;
+pub mod session_reads;
 mod sse;
 pub mod user_inputs;
 

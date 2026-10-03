@@ -215,6 +215,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_chat::conversations::erase_session,
         crate::api::routes_chat::conversations::link_session_project,
         crate::api::routes_chat::conversations::list_project_sessions,
+        crate::api::routes_chat::session_reads::get_session_metrics,
+        crate::api::routes_chat::session_reads::get_session_workspace,
         crate::api::routes_chat::get_session_todo,
         crate::api::routes_chat::resume_session,
         crate::api::routes_chat::fork_session,
@@ -360,6 +362,9 @@ impl ToSchema for RawWebhookBody {}
     ),
     components(schemas(
         ApiErrorBody,
+        crate::chat::SessionMetrics,
+        crate::chat::ToolStatEntry,
+        crate::api::routes_chat::session_reads::SessionWorkspace,
         crate::api::routes_packages::PackageErrorBody,
         crate::api::routes_packages::PackagePreviewRequest,
         crate::api::routes_packages::PackageInstallRequest,

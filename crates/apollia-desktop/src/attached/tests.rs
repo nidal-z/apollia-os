@@ -708,3 +708,122 @@ fn test_the_conversation_commands_pass_the_gate_attached() {
     // THEN none is refused
     assert!(refused.is_empty(), "refused: {refused:?}");
 }
+
+// ── The conversation: metrics, export, reveal ────────────────────────────
+
+#[tokio::test]
+async fn test_the_metrics_of_a_conversation_are_read_from_the_daemon_with_the_token() {
+    // GIVEN a daemon answering the metrics of one session, only to the token
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/sessions/s%201/metrics"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "session_id": "s 1", "prompt_tokens": 120, "completion_tokens": 30,
+            "cache_read_input_tokens": 0, "cache_write_input_tokens": 0,
+            "cost_usd": null, "budget_max_steps": 20, "steps_used": 2,
+            "context_window_tokens": 8192, "context_tokens_used": 150,
+            "tool_stats": [], "exchanges_count": 2, "started_at": null,
+            "updated_at": null, "active_duration_ms": 900, "llm_backend": null,
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the attached arm of the command reads them, the id encoded
+    let metrics: apollia_runtime::chat::SessionMetrics = client
+        .get(&crate::commands::chat::metrics_path("s 1"))
+        .await
+        .unwrap();
+
+    // THEN the record is the one the metrics panel draws, and the command
+    // passes the gate
+    assert_eq!(metrics.session_id, "s 1");
+    assert_eq!(metrics.prompt_tokens, 120);
+    assert_eq!(metrics.exchanges_count, 2);
+    assert!(gate(LinkMode::Attached, "chat_session_metrics").is_ok());
+}
+
+#[tokio::test]
+async fn test_a_refusal_of_the_metrics_by_the_daemon_shows_its_own_message() {
+    // GIVEN a daemon whose chat subsystem did not start
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/sessions/s-1/metrics"))
+        .respond_with(
+            ResponseTemplate::new(503)
+                .set_body_json(serde_json::json!({ "error": "chat subsystem not available" })),
+        )
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the metrics are read
+    let error = client
+        .get::<apollia_runtime::chat::SessionMetrics>(&crate::commands::chat::metrics_path("s-1"))
+        .await
+        .unwrap_err();
+
+    // THEN the error carries the daemon's words, as the embedded mode says them
+    assert!(matches!(error, AttachedError::Refused { status: 503, .. }));
+    assert_eq!(
+        error.for_display(UiLocale::En),
+        "chat subsystem not available"
+    );
+}
+
+#[tokio::test]
+async fn test_the_folder_a_relative_path_is_revealed_against_comes_from_the_daemon() {
+    // GIVEN a daemon resolving the working directory of one session, and not
+    // of another
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/sessions/s-1/workspace"))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({ "workspace": "/srv/projet" })),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/sessions/s-2/workspace"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "workspace": null })),
+        )
+        .mount(&server)
+        .await;
+    let client = AttachedClient::new(server.uri(), TOKEN).unwrap();
+
+    // WHEN the reveal command asks the daemon for each folder
+    let known = crate::commands::chat::export::daemon_workspace(&client, "s-1")
+        .await
+        .unwrap();
+    let unknown = crate::commands::chat::export::daemon_workspace(&client, "s-2")
+        .await
+        .unwrap();
+
+    // THEN the first is the daemon's folder, the second leaves the raw path
+    assert_eq!(known, Some(std::path::PathBuf::from("/srv/projet")));
+    assert_eq!(unknown, None);
+}
+
+#[test]
+fn test_the_export_and_the_reveal_run_attached_as_window_commands() {
+    // GIVEN the two commands acting on files of the machine carrying the window
+    let commands = ["export_conversation", "reveal_session_path"];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|name| gate(LinkMode::Attached, name).is_err())
+        .collect();
+
+    // THEN none is refused, and both are window commands, not routed ones
+    assert!(refused.is_empty(), "refused: {refused:?}");
+    for name in commands {
+        assert!(WINDOW_COMMANDS.iter().any(|(window, _)| *window == name));
+        assert!(!ROUTED_COMMANDS.contains(&name));
+    }
+}
