@@ -73,7 +73,42 @@ impl StdioTransport {
         envs: HashMap<String, String>,
         max_response_bytes: u64,
     ) -> Result<Self, TransportError> {
-        let mut command_builder = Command::new(command);
+        let engines_root = super::node::default_engines_root();
+        let (builder, envs) =
+            Self::command_for(server_name, command, args, envs, engines_root.as_deref())?;
+        Self::spawn_command(server_name, builder, envs, max_response_bytes)
+    }
+
+    /// The command that launches `command`: as configured, or, for `node` and
+    /// `npx`, the `node` of the engine store at `engines_root` by its absolute
+    /// path, with its directory first on the child's `PATH`.
+    ///
+    /// # Errors
+    ///
+    /// [`TransportError::NodeRequired`] when `command` is `node` or `npx` and
+    /// the store holds no Node.js.
+    fn command_for(
+        server_name: &str,
+        command: &str,
+        args: &[String],
+        envs: HashMap<String, String>,
+        engines_root: Option<&std::path::Path>,
+    ) -> Result<(Command, HashMap<String, String>), TransportError> {
+        let (program, args, envs) = match super::node::resolve(command, args, engines_root)? {
+            Some(launch) => {
+                tracing::event!(
+                    tracing::Level::INFO,
+                    server = %server_name,
+                    command = %command,
+                    node = %launch.program.display(),
+                    "mcp.stdio.node.resolved"
+                );
+                let envs = super::node::with_node_on_path(envs, &launch.bin_dir);
+                (launch.program.into_os_string(), launch.args, envs)
+            }
+            None => (command.into(), args.to_vec(), envs),
+        };
+        let mut command_builder = Command::new(program);
         command_builder.args(args);
         // Before the operator's own environment, so an explicit PYTHONHOME in
         // the server config still wins. What is stripped here is the ambient
@@ -83,6 +118,15 @@ impl StdioTransport {
         // One console window per configured server otherwise, on Windows, for
         // the whole life of the session.
         apollia_core::subprocess_window::hide_console_async(&mut command_builder);
+        Ok((command_builder, envs))
+    }
+
+    fn spawn_command(
+        server_name: &str,
+        mut command_builder: Command,
+        envs: HashMap<String, String>,
+        max_response_bytes: u64,
+    ) -> Result<Self, TransportError> {
         let mut child = command_builder
             .envs(envs)
             .stdin(Stdio::piped())
@@ -333,6 +377,61 @@ mod tests {
         );
         // THEN spawn returns SpawnFailed
         assert!(matches!(result, Err(TransportError::SpawnFailed(_))));
+    }
+
+    #[tokio::test]
+    async fn test_npx_without_store_node_is_node_required_not_a_spawn_failure() {
+        // GIVEN an engine store that holds no Node.js
+        let dir = tempfile::tempdir().unwrap();
+
+        // WHEN an `npx` server is spawned against it
+        let result = StdioTransport::command_for(
+            "test",
+            "npx",
+            &["-y".to_string(), "@scope/server".to_string()],
+            HashMap::new(),
+            Some(dir.path()),
+        );
+
+        // THEN the launch is refused with the typed error, nothing was spawned
+        assert!(matches!(
+            result,
+            Err(TransportError::NodeRequired { ref command }) if command == "npx"
+        ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_npx_server_runs_on_the_store_node() {
+        // GIVEN a store whose `node` is a link to `cat`, and whose npm carries
+        // an `npx-cli.js` holding one JSON-RPC line
+        let dir = tempfile::tempdir().unwrap();
+        let prefix = dir
+            .path()
+            .join("nodejs/v22.11.0/cpu/node-v22.11.0-linux-x64");
+        std::fs::create_dir_all(prefix.join("bin")).unwrap();
+        let node = prefix.join("bin/node");
+        std::os::unix::fs::symlink("/bin/cat", &node).unwrap();
+        let cli = prefix.join("lib/node_modules/npm/bin/npx-cli.js");
+        std::fs::create_dir_all(cli.parent().unwrap()).unwrap();
+        std::fs::write(&cli, "{\"id\":1}\n").unwrap();
+        std::fs::write(
+            dir.path().join("nodejs/v22.11.0/cpu/.apollia-engine.json"),
+            "{}",
+        )
+        .unwrap();
+
+        // WHEN an `npx` server is spawned against that store
+        let (builder, envs) =
+            StdioTransport::command_for("test", "npx", &[], HashMap::new(), Some(dir.path()))
+                .expect("the store node must resolve");
+        let transport = StdioTransport::spawn_command("test", builder, envs, TEST_CAP)
+            .expect("the store node must spawn");
+
+        // THEN the store's `node` ran the store's `npx-cli.js`: its line is
+        //      what the server answers
+        assert_eq!(transport.recv().await.unwrap(), r#"{"id":1}"#);
+        transport.shutdown().await.unwrap();
     }
 
     #[tokio::test]

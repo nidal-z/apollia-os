@@ -329,6 +329,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_engines::check_engines,
         crate::api::routes_engines::install_engine,
         crate::api::routes_engines::import_engines,
+        crate::api::routes_engines::node_runtime_state,
+        crate::api::routes_engines::ensure_node_runtime,
         crate::api::routes_model_hub::embeddings::list_embedding_models,
         crate::api::routes_model_hub::dictation::list_dictation_models,
         crate::api::routes_model_hub::installed::delete_installed_model,

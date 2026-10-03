@@ -2988,6 +2988,64 @@
         }
       }
     },
+    "/api/v1/engines/nodejs": {
+      "get": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "node_runtime_state",
+        "responses": {
+          "200": {
+            "description": "Where Node.js stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeRuntimeState"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "engines"
+        ],
+        "operationId": "ensure_node_runtime",
+        "responses": {
+          "200": {
+            "description": "Node.js ready, or its download started or running; a failure is read from the state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeRuntimeState"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Settings file unreadable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "This build carries no distribution key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/engines/settings": {
       "get": {
         "tags": [
@@ -16164,7 +16222,8 @@
         "description": "An inference engine the store can hold.",
         "enum": [
           "llama-server",
-          "vllm-mlx"
+          "vllm-mlx",
+          "nodejs"
         ]
       },
       "EngineSettingsBody": {
@@ -17710,6 +17769,100 @@
             "description": "The cards, in display order."
           }
         }
+      },
+      "NodeRuntimeState": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Not installed, and no download running.",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "absent"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Being downloaded.",
+            "required": [
+              "received",
+              "total",
+              "state"
+            ],
+            "properties": {
+              "received": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Bytes of the archive received so far.",
+                "minimum": 0
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "downloading"
+                ]
+              },
+              "total": {
+                "type": "integer",
+                "format": "int64",
+                "description": "Size of the archive the verified manifest states; 0 until the\nmanifest is verified.",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Installed and verified.",
+            "required": [
+              "tag",
+              "path",
+              "state"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "Directory it was extracted into."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ready"
+                ]
+              },
+              "tag": {
+                "type": "string",
+                "description": "Release tag, `v22.11.0`."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "The last download failed; asking for Node.js again retries it.",
+            "required": [
+              "error",
+              "state"
+            ],
+            "properties": {
+              "error": {
+                "type": "string",
+                "description": "Why, readable as is."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Where Node.js stands on this machine."
       },
       "OauthClientIdStatus": {
         "type": "object",

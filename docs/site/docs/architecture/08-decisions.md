@@ -329,6 +329,20 @@ runtime.
 Servers requiring OAuth go through a dedicated flow with its own, smaller
 response cap.
 
+Node.js is not shipped with Apollia, which keeps principle 2 (zero external
+dependency): nothing has to be installed on the machine beforehand. A pinned
+LTS release of Node.js is published in the signed digest manifest of the engine
+channel, the manifest signed in the minisign format with Apollia's dedicated
+distribution key (see [Local inference](#local-inference)), and it is
+downloaded the first time a server launched by `node` or `npx` needs it: the
+manifest signature is verified before any archive is requested, then the
+archive digest, then the archive is extracted into the engine store. Such a
+server then runs on that Node.js by its absolute path, never through the
+`PATH`; while none is installed, its launch fails with a typed "Node.js
+required" error. A machine without network imports Node.js from a disk,
+through the same verification. The npm packages of the servers install from a
+lockfile carrying an integrity digest for each package.
+
 ## Connectors {#connectors}
 
 Google and Microsoft connectors authenticate through OAuth2 with PKCE. No
