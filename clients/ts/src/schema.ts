@@ -2565,6 +2565,154 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /api/v1/onboarding`: the full state, `welcome` on first launch. */
+        get: operations["get_onboarding_state"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/onboarding/dismiss`: marks the onboarding as skipped. */
+        post: operations["dismiss_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/finalize`: records the completion of the
+         *     conversation without a model turn.
+         */
+        post: operations["finalize_onboarding_chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/finalized": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /api/v1/onboarding/finalized`: whether the onboarding agent recorded
+         *     its completion.
+         */
+        get: operations["check_onboarding_finalized"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/phase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /api/v1/onboarding/phase`: moves to the next phase. */
+        post: operations["advance_onboarding_phase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** `PUT /api/v1/onboarding/profile`: records the profile chosen. */
+        put: operations["set_onboarding_profile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/resume`: resumes the enrichment of the profile,
+         *     keeping what the agent already learnt.
+         */
+        post: operations["resume_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /api/v1/onboarding/sessions`: opens a conversation with the
+         *     onboarding agent, for the whole onboarding or one topic.
+         */
+        post: operations["trigger_onboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/packages/install": {
         parameters: {
             query?: never;
@@ -4387,6 +4535,11 @@ export interface components {
              */
             rule_id: number;
         };
+        /** @description Request body for `POST /api/v1/onboarding/phase`. */
+        AdvancePhaseBody: {
+            /** @description The phase to move to, in its snake_case name (`profile_choice`...). */
+            phase: string;
+        };
         /** @description Response body for agent list. */
         AgentListResponse: {
             /** @description All registered agents. */
@@ -6056,6 +6209,76 @@ export interface components {
             /** @description Confirmation flag. */
             ok: boolean;
         };
+        /** @description Answer of `POST /api/v1/onboarding/dismiss`. */
+        OnboardingDismissed: {
+            /** @description Always `true`: the onboarding is marked as skipped. */
+            dismissed: boolean;
+        };
+        /**
+         * @description Answer of `GET /api/v1/onboarding/finalized` and
+         *     `POST /api/v1/onboarding/finalize`.
+         */
+        OnboardingFinalized: {
+            /** @description Whether the onboarding agent recorded its completion. */
+            finalized: boolean;
+        };
+        /**
+         * @description The seven ordered phases of the onboarding flow.
+         * @enum {string}
+         */
+        OnboardingPhase: "welcome" | "profile_choice" | "ai_setup" | "acquaintance" | "guided_tour" | "graduation" | "done";
+        /** @description Request body for `PUT /api/v1/onboarding/profile`. */
+        OnboardingProfileBody: {
+            /** @description `operator` or `builder`. */
+            profile: string;
+        };
+        /** @description Full onboarding state maintained server-side and persisted in UserMemory. */
+        OnboardingState: {
+            /** @description Session ID of the active Companion chat, if any. */
+            companion_session_id?: string | null;
+            /** @description `true` when the phase has reached `Done`. */
+            completed: boolean;
+            /** @description ISO 8601 timestamp when the phase reached `Done`. */
+            completed_at?: string | null;
+            /** @description `true` when at least one LLM backend has been configured. */
+            llm_configured: boolean;
+            /** @description `true` when the mandatory name/role fields have been collected. */
+            mandatory_complete: boolean;
+            /** @description Current phase of the onboarding flow. */
+            phase: components["schemas"]["OnboardingPhase"];
+            /** @description Chosen user profile (`"operator"` or `"builder"`); set during ProfileChoice. */
+            profile?: string | null;
+            /** @description `true` if the user explicitly skipped the onboarding. */
+            skipped: boolean;
+            /** @description ISO 8601 timestamp of the first phase transition (Welcome → ProfileChoice). */
+            started_at?: string | null;
+            /** @description Accumulated stats for the graduation screen. */
+            stats: components["schemas"]["OnboardingStats"];
+            /** @description `true` when the STT engine has been configured and tested. */
+            stt_configured: boolean;
+            /** @description Topics covered so far. */
+            topics_covered: string[];
+            /** @description `true` when the user has enabled voice commands. */
+            voice_enabled: boolean;
+        };
+        /** @description Cumulative statistics accumulated over the full onboarding flow. */
+        OnboardingStats: {
+            /**
+             * Format: int32
+             * @description Number of discrete actions completed by the user.
+             */
+            actions_completed: number;
+            /**
+             * Format: int32
+             * @description Number of questions asked to the AI Companion.
+             */
+            companion_questions: number;
+            /**
+             * Format: int64
+             * @description Total time spent in the onboarding flow, in seconds.
+             */
+            total_time_sec: number;
+        };
         /**
          * @description Error body of the package routes: the message, and a stable code a client
          *     can act on.
@@ -7329,6 +7552,13 @@ export interface components {
             /** @description Last-modified timestamp (ISO 8601). */
             updated_at: string;
         };
+        /** @description Request body for `POST /api/v1/onboarding/sessions`. */
+        TriggerOnboardingBody: {
+            /** @description The profile the agent adapts its questions to, when one was chosen. */
+            profile?: string | null;
+            /** @description One topic to run again; absent for a full onboarding. */
+            topic?: string | null;
+        };
         /** @description A trigger the package proposes. Installing does not arm it. */
         TriggerPreview: {
             /** @description Identifier. */
@@ -7337,6 +7567,15 @@ export interface components {
             source: string;
             /** @description Agent or workflow it starts. */
             target: string;
+        };
+        /** @description Result of triggering an onboarding session. */
+        TriggerResult: {
+            /** @description `"full"` or `"partial"`. */
+            mode: string;
+            /** @description Chat session identifier. */
+            session_id: string;
+            /** @description Target topic when mode is `"partial"`. */
+            topic?: string | null;
         };
         /** @description Trigger source description used in create/update requests. */
         TriggerSourceInput: Record<string, never> & {
@@ -13613,6 +13852,295 @@ export interface operations {
             };
             /** @description Unknown provider */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    get_onboarding_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The onboarding state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingState"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    dismiss_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The onboarding is skipped */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingDismissed"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    finalize_onboarding_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The completion is recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingFinalized"];
+                };
+            };
+            /** @description The agent's memory cannot be written */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    check_onboarding_finalized: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether the completion is recorded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingFinalized"];
+                };
+            };
+        };
+    };
+    advance_onboarding_phase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvancePhaseBody"];
+            };
+        };
+        responses: {
+            /** @description The state after the move */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingState"];
+                };
+            };
+            /** @description Unknown phase */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The phase is out of sequence */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    set_onboarding_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingProfileBody"];
+            };
+        };
+        responses: {
+            /** @description The state with its profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingState"];
+                };
+            };
+            /** @description Neither operator nor builder */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The user memory did not open */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    resume_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The conversation opened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerResult"];
+                };
+            };
+            /** @description The onboarding agent is not installed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat did not start */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    trigger_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TriggerOnboardingBody"];
+            };
+        };
+        responses: {
+            /** @description The conversation opened */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerResult"];
+                };
+            };
+            /** @description Unknown topic or profile */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The onboarding agent is not installed */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The chat did not start */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

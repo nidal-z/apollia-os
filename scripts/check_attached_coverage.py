@@ -83,8 +83,9 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # downloads, the import and the removal of a model served the daemon, then at 83
 # once the LLM engines were listed, tested and reloaded, and the cost alert
 # threshold read, through the daemon, then at 78 once the settings, the status
-# and the models of the dictation were served by the daemon.
-EMBEDDED_ONLY_CEILING = 78
+# and the models of the dictation were served by the daemon, then at 70 once the
+# onboarding had its routes.
+EMBEDDED_ONLY_CEILING = 70
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",
