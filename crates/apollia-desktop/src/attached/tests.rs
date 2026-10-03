@@ -561,3 +561,94 @@ async fn test_the_daemon_profile_reads_as_the_page_draws_it_and_an_entry_is_put_
     assert_eq!(stored.value, "tableur");
     assert!(gate(LinkMode::Attached, "set_profile_entry").is_ok());
 }
+
+// ── The model hub: downloads, import, removal ───────────────────────────
+
+#[tokio::test]
+async fn test_an_installed_model_is_removed_on_the_daemon_with_the_token() {
+    // GIVEN a daemon that removes an installed model, answering only the
+    // token, and a path holding a space
+    let server = MockServer::start().await;
+    let file = "/Users/nadia/.apollia/models/Qwen 3 8B.gguf";
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/llm/installed-models"))
+        .and(query_param("path", file))
+        .and(header("authorization", format!("Bearer {TOKEN}").as_str()))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "deleted": file })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the command removes it through the seam
+    let outcome =
+        crate::commands::model_hub::delete_installed_through(&link, file.to_owned()).await;
+
+    // THEN the daemon received the removal of that exact path, and the
+    // command succeeds
+    assert_eq!(outcome, Ok(()));
+}
+
+#[tokio::test]
+async fn test_a_removal_the_daemon_refuses_shows_its_own_words() {
+    // GIVEN a daemon refusing the removal of a model a backend uses
+    let server = MockServer::start().await;
+    let words = "model is in use by LLM backend 'local'; change or remove that configuration first";
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/llm/installed-models"))
+        .respond_with(
+            ResponseTemplate::new(409).set_body_json(serde_json::json!({ "error": words })),
+        )
+        .mount(&server)
+        .await;
+    let link = RuntimeLink::Attached(AttachedClient::new(server.uri(), TOKEN).unwrap());
+
+    // WHEN the command asks for the removal
+    let outcome = crate::commands::model_hub::delete_installed_through(
+        &link,
+        "/Users/nadia/.apollia/models/qwen3-8b.gguf".to_owned(),
+    )
+    .await;
+
+    // THEN the interface reads the daemon's words, not an unavailability
+    assert_eq!(outcome, Err(words.to_owned()));
+}
+
+#[test]
+fn test_the_downloads_the_import_and_the_removal_of_a_model_pass_the_gate_attached() {
+    // GIVEN the commands the model hub opens a download, a cancellation, an
+    // import and a removal with
+    let commands = [
+        "start_model_download",
+        "cancel_model_download",
+        "import_model_file",
+        "delete_installed_model",
+    ];
+
+    // WHEN each is gated while attached
+    let refused: Vec<&str> = commands
+        .into_iter()
+        .filter(|command| gate(LinkMode::Attached, command).is_err())
+        .collect();
+
+    // THEN none is refused: the removal reaches the daemon, the other three
+    // belong to this window and say why
+    assert!(refused.is_empty(), "refused: {refused:?}");
+    assert!(ROUTED_COMMANDS.contains(&"delete_installed_model"));
+    for name in [
+        "start_model_download",
+        "cancel_model_download",
+        "import_model_file",
+    ] {
+        let reason = WINDOW_COMMANDS
+            .iter()
+            .find(|(window, _)| *window == name)
+            .map(|(_, reason)| *reason);
+        assert!(
+            reason.is_some_and(|r| r.contains("this")),
+            "{name}: {reason:?}"
+        );
+    }
+}
