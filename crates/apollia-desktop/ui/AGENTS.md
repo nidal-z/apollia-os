@@ -311,6 +311,10 @@ Rules :
   per id, same ids in both), `developer_mode`, `chat_steps_panel`, `banned` (terms
   kept out outside developer mode), `banned_synonyms` (`assistant` for agent),
   `permitted_formats` and `exemptions`. Use those words; never ban a word inline.
+- `scripts/check_ui_vocabulary.py` holds both catalogues to that list. A text
+  of the developer mode goes under the `dev.` namespace, rendered from a file
+  that reads `developerMode`; `exemptions` only descends, so remove a key from
+  it in the change that rewrites its text.
 
 ---
 
