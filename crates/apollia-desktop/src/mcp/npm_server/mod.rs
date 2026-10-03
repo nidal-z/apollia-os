@@ -97,7 +97,7 @@ pub enum NpmServerError {
         reason: String,
     },
     /// The engine store holds no Node.js, or one without npm.
-    #[error("Node.js is required to install '{0}' and is not installed")]
+    #[error("installing '{0}' requires Node.js, which is not installed")]
     NodeRequired(String),
     /// npm refused or failed the installation (a digest mismatch lands here).
     #[error("failed to install '{package}': {stderr}")]
