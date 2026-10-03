@@ -19,12 +19,14 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
+use crate::agent_packages::check_name;
 use crate::agent_packages::{
     self, AgentPackageDetail, AgentPackageError, AgentPackageInstallReport, AgentPackageListItem,
     AgentPackagePreview, AgentPackageTriggerConfig, InstallRequest,
 };
 use crate::api::openapi::ApiErrorBody;
 use crate::api::routes_agents::{start_agent, StartAgentRequest};
+use crate::api::routes_packages::uninstall::UninstallRequest;
 use crate::api::server::AppState;
 use crate::coordinator::{DynBackend, ExecutionBackend};
 
@@ -217,8 +219,11 @@ pub(crate) async fn install_agent_package<B: ExecutionBackend + Clone + From<Dyn
     Ok((StatusCode::CREATED, Json(installed.report)))
 }
 
-/// `DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package,
-/// its agents, their virtualenvs and its folder, best effort at each step.
+/// `DELETE /api/v1/agent-packages/installed/{name}`: uninstall a package
+/// on the path the command line and `POST /api/v1/packages/{name}/uninstall`
+/// take: its agents with their overrides, model and triggers, its
+/// environments and its folder, recorded in the audit journal. The memory
+/// and the history of its agents are kept.
 #[utoipa::path(
     delete,
     path = "/api/v1/agent-packages/installed/{name}",
@@ -227,23 +232,24 @@ pub(crate) async fn install_agent_package<B: ExecutionBackend + Clone + From<Dyn
     responses(
         (status = 200, description = "Uninstalled", body = AgentPackageUninstalled),
         (status = 400, description = "A name that is a path", body = ApiErrorBody),
-        (status = 404, description = "Nothing of the package was found", body = ApiErrorBody),
-        (status = 500, description = "agents.db cannot be opened", body = ApiErrorBody),
+        (status = 403, description = "The package carries Apollia", body = ApiErrorBody),
+        (status = 404, description = "No such package", body = ApiErrorBody),
+        (status = 500, description = "Store or journal failure", body = ApiErrorBody),
+        (status = 503, description = "No audit journal", body = ApiErrorBody),
     )
 )]
 pub(crate) async fn uninstall_agent_package<B: ExecutionBackend + Clone>(
     State(state): State<AppState<B>>,
     Path(name): Path<String>,
 ) -> Result<Json<AgentPackageUninstalled>, ApiError> {
-    agent_packages::uninstall(
-        &state.data_dir,
-        &state.registry_handle,
-        &state.router_handle,
-        &state.event_sender,
+    check_name(&name).map_err(refusal)?;
+    let _report = crate::api::routes_packages::uninstall::package(
+        &state,
         &name,
+        &UninstallRequest::default(),
     )
     .await
-    .map_err(refusal)?;
+    .map_err(|(status, Json(body))| (status, Json(ApiErrorBody { error: body.error })))?;
     Ok(Json(AgentPackageUninstalled { uninstalled: name }))
 }
 

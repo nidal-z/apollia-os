@@ -375,6 +375,28 @@ fn event_to_record(event: RuntimeEvent, obs: &ObservabilityConfig) -> Option<Run
             })
         }
 
+        RuntimeEvent::ProfileRead {
+            task_id: Some(task_id),
+            agent_id,
+            profile_id,
+            read_at,
+        } => Some(RuntimeEventRecord {
+            event_id: uuid::Uuid::now_v7().to_string(),
+            task_id: task_id.to_string(),
+            agent_id: agent_id.to_string(),
+            parent_event_id: None,
+            correlation_id: None,
+            step_num: None,
+            kind: "profile_read".to_string(),
+            payload_json: serde_json::json!({
+                "profile_id": profile_id,
+                "read_at": read_at,
+            })
+            .to_string(),
+            ts: now_iso,
+            created_at_unix: now_unix,
+        }),
+
         RuntimeEvent::Thought {
             task_id,
             agent_id,
@@ -858,6 +880,39 @@ mod tests {
         assert_eq!(rows[0].agent_id, "agent-smoke");
         assert!(rows[0].payload_json.contains("research tool unavailable"));
         assert!(rows[0].payload_json.contains("\"level\":\"warn\""));
+    }
+
+    #[tokio::test]
+    async fn a_profile_read_shows_in_the_trace_of_its_task() {
+        // GIVEN a read of the profile inside a task and one outside any task
+        let events = vec![
+            RuntimeEvent::ProfileRead {
+                task_id: Some("task-profile".into()),
+                agent_id: "cours".into(),
+                profile_id: "profile-formateur".into(),
+                read_at: "2026-10-03T09:00:00Z".into(),
+            },
+            RuntimeEvent::ProfileRead {
+                task_id: None,
+                agent_id: "cours".into(),
+                profile_id: "profile-formateur".into(),
+                read_at: "2026-10-03T09:00:01Z".into(),
+            },
+        ];
+
+        // WHEN both reach the persistor
+        let rows = rows_for(ObservabilityConfig::default(), "task-profile", events).await;
+
+        // THEN the task's trace holds one profile read naming the agent, the profile and the time
+        let reads: Vec<_> = rows.iter().filter(|r| r.kind == "profile_read").collect();
+        assert_eq!(reads.len(), 1, "{rows:?}");
+        assert_eq!(reads[0].agent_id, "cours");
+        assert!(reads[0]
+            .payload_json
+            .contains("\"profile_id\":\"profile-formateur\""));
+        assert!(reads[0]
+            .payload_json
+            .contains("\"read_at\":\"2026-10-03T09:00:00Z\""));
     }
 
     // ── Capture switches ──────────────────────────────────────────────────

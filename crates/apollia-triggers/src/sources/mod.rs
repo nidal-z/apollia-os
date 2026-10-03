@@ -57,7 +57,7 @@ pub fn spawn_source(def: TriggerDefinition, tx: mpsc::Sender<TriggerEvent>) -> J
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{parse_interval, InputTemplate, OnBusyPolicy, TriggerDefinitionError};
+    use crate::types::{parse_interval, OnBusyPolicy, TriggerDefinitionError};
     use std::time::Duration;
 
     // --- parse_interval --------------------------------------------------
@@ -106,13 +106,12 @@ mod tests {
         let (tx, _rx) = mpsc::channel(4);
         let def = TriggerDefinition {
             id: "wh".into(),
-            agent: "a".into(),
+            target: crate::types::TriggerTarget::agent("a", "{{body}}"),
             enabled: true,
             on_busy: OnBusyPolicy::Skip,
             source: TriggerSourceConfig::Webhook {
                 secret: "s3cr3t".into(),
             },
-            input_template: InputTemplate("{{body}}".into()),
         };
         // WHEN / THEN does not panic, returns a handle that finishes quickly
         let handle = spawn_source(def, tx);

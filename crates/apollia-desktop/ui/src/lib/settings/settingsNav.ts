@@ -28,6 +28,8 @@ export type SettingsNavEntry = {
   key: SettingsSubRoute;
   labelKey: string;
   icon: typeof Palette;
+  /** Id of the catalogue shortcut that opens this section, shown in the column. */
+  shortcutId?: string;
 };
 
 export type SettingsNavCluster = {
@@ -56,8 +58,18 @@ export const SETTINGS_NAV: SettingsNavCluster[] = [
   {
     labelKey: "settings.nav.cluster_system",
     entries: [
-      { key: "engines", labelKey: "settings.nav.engines", icon: Activity },
-      { key: "hardware", labelKey: "settings.nav.hardware", icon: HardDrive },
+      {
+        key: "engines",
+        labelKey: "settings.nav.engines",
+        icon: Activity,
+        shortcutId: "settings.engines",
+      },
+      {
+        key: "hardware",
+        labelKey: "settings.nav.hardware",
+        icon: HardDrive,
+        shortcutId: "settings.hardware",
+      },
     ],
   },
 ];

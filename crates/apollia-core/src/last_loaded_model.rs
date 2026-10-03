@@ -3,7 +3,7 @@
 //! One row: the identifier the model index gives the model, and the load
 //! settings it was loaded with, so "reload the last model" brings back the
 //! same model under the same settings after a restart. Only a load that
-//! succeeded is written. The table is created by `system_db::migrate_v6`.
+//! succeeded is written. The table is created by `system_db::migrate_v7`.
 
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -161,17 +161,17 @@ mod tests {
     }
 
     #[test]
-    fn test_a_file_at_version_five_gains_the_table_and_keeps_its_rows() {
-        // GIVEN a system.db written by a binary at schema version five, with a
+    fn test_a_file_at_version_six_gains_the_table_and_keeps_its_rows() {
+        // GIVEN a system.db written by a binary at schema version six, with a
         // default embeddings model
         let dir = tempfile::TempDir::new().unwrap();
         let path = dir.path().join("system.db");
         {
             let conn = rusqlite::Connection::open(&path).unwrap();
-            for step in &crate::system_db::SYSTEM_DB_MIGRATIONS[..5] {
+            for step in &crate::system_db::SYSTEM_DB_MIGRATIONS[..6] {
                 step(&conn).unwrap();
             }
-            conn.pragma_update(None, "user_version", 5).unwrap();
+            conn.pragma_update(None, "user_version", 6).unwrap();
             conn.execute(
                 "INSERT INTO embedding_default (id, model_id) VALUES (1, 'e5')",
                 [],
@@ -182,13 +182,13 @@ mod tests {
         // WHEN the repository opens it
         let repo = LlmBackendRepository::open(&path).unwrap();
 
-        // THEN the file is at version six, the table answers, and the row is kept
+        // THEN the file is at version seven, the table answers, and the row is kept
         assert_eq!(repo.last_loaded_model().unwrap(), None);
         let conn = repo.conn.borrow();
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
         let kept: String = conn
             .query_row("SELECT model_id FROM embedding_default", [], |row| {
                 row.get(0)

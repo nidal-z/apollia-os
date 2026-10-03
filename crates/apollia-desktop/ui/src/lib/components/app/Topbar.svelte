@@ -2,7 +2,7 @@
   /**
    * Topbar - V3 Operator cockpit header.
    *
-   *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [Activity] [Settings] [UserMenu]
+   *   [Mobile menu] [Breadcrumb] ··· [Command bar] ··· [Agents-at-work] [Downloads] [Activity] [Settings] [UserMenu]
    */
   import { t } from "svelte-i18n";
   import { Menu, Search, ShieldCheck, Settings as SettingsIcon } from "lucide-svelte";
@@ -13,6 +13,7 @@
   import { OperatorBreadcrumb } from "$lib/components/layout";
   import { StatusDot } from "$lib/components/operator";
   import UserMenu from "./UserMenu.svelte";
+  import DownloadsPanel from "./DownloadsPanel.svelte";
 
   function toggleSearch() {
     // The store the shortcut drives, not a synthetic keystroke: the button
@@ -82,6 +83,8 @@
         {$t("topbar.agents_at_work", { values: { count: agentsAtWork } })}
       </span>
     {/if}
+
+    <DownloadsPanel />
 
     <button
       type="button"

@@ -448,3 +448,59 @@ async fn test_reload_keeps_routing_and_reaches_running_agents() {
         Some("gone".to_string())
     );
 }
+
+// GIVEN a runtime with a signed journal
+// WHEN the model of `mail` is assigned, then removed, then removed again
+// THEN the history of `mail` holds the model set then removed, and the second
+//      removal, which changed nothing, is not recorded
+#[tokio::test]
+async fn test_agent_model_assignment_is_recorded_in_the_history_of_the_agent() {
+    use crate::audit_journal::AuditJournalHandle;
+    use crate::governance::governance_run_id;
+
+    // GIVEN
+    let dir = tempfile::tempdir().unwrap();
+    let mut state = state_with_repo(&dir);
+    let journal = AuditJournalHandle::open_with_key_bytes(
+        &dir.path().join("journal.db"),
+        b"agent-model-journal-key-00000001".to_vec(),
+    )
+    .await
+    .unwrap();
+    state.audit_journal = Some(journal.clone());
+    let uri = "/api/v1/llm/agents/mail/model";
+
+    // WHEN
+    let (set, _) = call(
+        state.clone(),
+        "PUT",
+        uri,
+        Some(json!({"model_source": "local", "model_id": "local"})),
+    )
+    .await;
+    let (cleared, _) = call(state.clone(), "DELETE", uri, None).await;
+    let (again, _) = call(state, "DELETE", uri, None).await;
+
+    // THEN
+    assert_eq!(set, StatusCode::OK);
+    assert_eq!(cleared, StatusCode::OK);
+    assert_eq!(again, StatusCode::OK);
+    let records: Vec<(Value, Value)> = journal
+        .query_run(&governance_run_id("mail"))
+        .await
+        .into_iter()
+        .map(|entry| {
+            (
+                entry.payload["field"].clone(),
+                entry.payload["change"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        records,
+        vec![
+            (json!("model"), json!("set")),
+            (json!("model"), json!("removed")),
+        ]
+    );
+}

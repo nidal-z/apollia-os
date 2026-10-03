@@ -105,6 +105,7 @@ examples = [
 
 [agents.defaults]
 access = ["pkg:onboarding-agent/propose_profile"]
+sources = ["profile"]
 autonomy = "assisted"
 
 # Written by `python -m apollia describe` from the code; edits here are replaced.

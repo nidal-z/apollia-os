@@ -123,7 +123,7 @@ impl FileWatchTrigger {
             // the watcher is kept alive inside the blocking closure.
             let source = def.source.clone();
             let trigger_id = def.id.clone();
-            let agent = def.agent.clone();
+            let agent = def.target.name().to_string();
 
             tokio::task::spawn_blocking(move || {
                 let _watcher = watcher; // kept alive until the closure ends
@@ -206,7 +206,7 @@ fn forward_event(
     }
     let trigger_event = TriggerEvent {
         trigger_id: ctx.trigger_id.to_owned(),
-        agent: ctx.agent.to_owned(),
+        target: ctx.agent.to_owned(),
         payload,
         fired_at: chrono::Utc::now(),
     };
@@ -372,13 +372,13 @@ fn expand_tilde(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{InputTemplate, OnBusyPolicy};
+    use crate::types::OnBusyPolicy;
     use tempfile::TempDir;
 
     fn make_file_watch_def(dir: &std::path::Path, events: Vec<FileEventKind>) -> TriggerDefinition {
         TriggerDefinition {
             id: "file-test".into(),
-            agent: "file-agent".into(),
+            target: crate::types::TriggerTarget::agent("file-agent", "{{filename}}"),
             enabled: true,
             on_busy: OnBusyPolicy::Queue { max_depth: 10 },
             source: TriggerSourceConfig::FileWatch {
@@ -388,7 +388,6 @@ mod tests {
                 follow_symlinks: false,
                 exclude_patterns: vec![],
             },
-            input_template: InputTemplate("{{filename}}".into()),
         }
     }
 

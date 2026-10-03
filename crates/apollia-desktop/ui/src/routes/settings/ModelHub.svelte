@@ -10,8 +10,6 @@
   import { onMount, onDestroy } from "svelte";
   import { locale, t } from "svelte-i18n";
   import type { UnlistenFn } from "@tauri-apps/api/event";
-  import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
-  import { homeDir, join as pathJoin } from "@tauri-apps/api/path";
   import { addToast } from "$lib/components/ui/toast";
   import ConfirmDialog from "$lib/components/ui/dialog/ConfirmDialog.svelte";
   import { reportError } from "$lib/errors/reportError";
@@ -20,7 +18,6 @@
   import HardwareCard from "../../components/settings/model-hub/HardwareCard.svelte";
   import InstalledModelsCard from "../../components/settings/model-hub/InstalledModelsCard.svelte";
   import ActiveDownloadsCard from "../../components/settings/model-hub/ActiveDownloadsCard.svelte";
-  import HfTokenForm from "../../components/settings/model-hub/HfTokenForm.svelte";
   import ModelFilterBar from "../../components/settings/model-hub/ModelFilterBar.svelte";
   import ModelResults from "../../components/settings/model-hub/ModelResults.svelte";
   import {
@@ -38,6 +35,8 @@
     type DownloadProgress,
     type InstalledModel,
   } from "$lib/ipc/modelHub";
+  import { getHfToken } from "$lib/ipc/modelsFolder";
+  import { setSettingsSubRoute } from "$lib/router";
   import {
     isBlockingIssue,
     licenseTypeOf,
@@ -67,8 +66,10 @@
 
   let activeDownloads = $state<Map<string, DownloadProgress>>(new Map());
 
-  let hfToken = $state("");
-  let showTokenForm = $state(false);
+  // The Hugging Face token lives in General, kept in the secret store; the
+  // shell reads it for every request to the Hub, so this page only knows
+  // whether one is stored.
+  let tokenStored = $state(false);
 
   let sortBy = $state("downloads");
   let langFilter = $state("");
@@ -81,10 +82,6 @@
   let installedLoading = $state(true);
   let deleteTarget = $state<InstalledModel | null>(null);
   let deleting = $state(false);
-
-  // `null` keeps the backend's own default (`~/.apollia/models`); a masterised
-  // Windows profile with a constrained `C:` drive is the reason this exists.
-  let destDir = $state<string | null>(null);
 
   let unlisten: UnlistenFn | null = null;
 
@@ -109,6 +106,9 @@
     // Opening the catalogue refreshes the signed model cards and keeps a copy,
     // which is what a download then writes next to the model.
     listModelCards($locale ?? "en").catch((e) => reportError(e, { surface: "toast" }));
+    getHfToken()
+      .then((token) => (tokenStored = token !== null))
+      .catch((e) => reportError(e, { surface: "toast" }));
     await loadHardware();
     await loadInstalledModels();
     await search();
@@ -169,7 +169,7 @@
         pipeline_tag: "text-generation",
         language: langFilter || null,
         next_cursor: append ? nextCursor : null,
-        hf_token: hfToken || null,
+        hf_token: null,
       });
       searchResults = append ? [...searchResults, ...result.models] : result.models;
       nextCursor = result.next_cursor;
@@ -191,7 +191,7 @@
     modelDetail = null;
     modelDetailLoading = true;
     try {
-      modelDetail = await getHfModel(repoId, hfToken || null);
+      modelDetail = await getHfModel(repoId, null);
     } catch (e) {
       reportError(e, { surface: "toast" });
       expandedModel = null;
@@ -200,24 +200,16 @@
     }
   }
 
-  async function defaultModelsDir(): Promise<string> {
-    return pathJoin(await homeDir(), ".apollia", "models");
-  }
-
-  async function chooseDestDir(): Promise<void> {
-    const selected = await openFilePicker({
-      directory: true,
-      defaultPath: destDir ?? (await defaultModelsDir()),
-    });
-    if (!selected) return;
-    destDir = typeof selected === "string" ? selected : (selected as { path: string }).path;
+  function openTokenSettings(): void {
+    setSettingsSubRoute("general");
   }
 
   async function downloadGroup(group: GgufGroup): Promise<void> {
     const card = modelDetail ?? searchResults.find((m) => m.repo_id === expandedModel);
     if (!card) return;
-    if (card.gated && !hfToken) {
-      showTokenForm = true;
+    if (card.gated && !tokenStored) {
+      addToast($t("settings.model_hub.token.needed"), "info");
+      openTokenSettings();
       return;
     }
     const first = group.files[0];
@@ -226,8 +218,8 @@
       await startVariantDownload({
         repo_id: card.repo_id,
         selector: { kind: "gguf", file: first.filename },
-        hf_token: hfToken || null,
-        dest_dir: destDir,
+        hf_token: null,
+        dest_dir: null,
       });
       addToast($t("settings.model_hub.downloads.downloading_toast", { values: { filename: group.fullName } }), "info");
     } catch (e) {
@@ -284,16 +276,10 @@
     models={installedModels}
     loading={installedLoading}
     onRequestDelete={(m) => (deleteTarget = m)}
-    {destDir}
-    onChooseDestDir={chooseDestDir}
   />
 
   {#if downloadList.length > 0}
     <ActiveDownloadsCard downloads={downloadList} onCancel={cancelDownload} />
-  {/if}
-
-  {#if showTokenForm}
-    <HfTokenForm bind:token={hfToken} onDone={() => (showTokenForm = false)} />
   {/if}
 
   <ModelFilterBar
@@ -305,11 +291,11 @@
     bind:gatedFilter
     bind:showIncompatible
     {searching}
-    tokenSet={hfToken.length > 0}
+    tokenSet={tokenStored}
     filteredCount={filteredResults.length}
     totalCount={searchResults.length}
     onSearch={() => search()}
-    onToggleToken={() => (showTokenForm = !showTokenForm)}
+    onToggleToken={openTokenSettings}
   />
 
   <ModelResults
