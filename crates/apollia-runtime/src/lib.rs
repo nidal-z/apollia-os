@@ -49,6 +49,7 @@ pub mod shutdown;
 pub mod stt;
 pub mod supervisor;
 pub mod timeout_watcher;
+pub mod tool_governance;
 pub mod workflows;
 
 #[cfg(test)]

@@ -126,6 +126,16 @@ pub(crate) const ROUTED_COMMANDS: &[&str] = &[
     "start_variant_download",
     // Models: the signed cards of the catalogue, read when it opens.
     "list_model_cards",
+    // Tool governance: the tools, their configuration, the permission rules
+    // and the audit, over `/api/v1/governance`.
+    "governance_get_tool_config",
+    "governance_list_audit",
+    "governance_list_permission_rules",
+    "governance_list_tools",
+    "governance_revoke_all_rules",
+    "governance_revoke_permission_rule",
+    "governance_set_tool_config",
+    "governance_set_tool_enabled",
 ];
 
 /// The commands that belong to the window, not to the runtime: they read no

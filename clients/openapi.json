@@ -1983,6 +1983,529 @@
         }
       }
     },
+    "/api/v1/governance/audit": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/audit`: the permission decisions, most recent first.",
+        "operationId": "list_governance_audit",
+        "parameters": [
+          {
+            "name": "tool_name",
+            "in": "query",
+            "description": "Tool name to filter on.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 100 when absent.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Entries to skip.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The audit entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntryDto"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/rules": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/rules`: the `agent` and `global` permission rules.",
+        "operationId": "list_governance_rules",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "Scope to filter on: `\"agent\"` or `\"global\"`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tool_name",
+            "in": "query",
+            "description": "Tool name to filter on.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The matching rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionRuleDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/rules/revoke-all": {
+      "post": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`POST /api/v1/governance/rules/revoke-all`: revokes every rule of one\nscope, `global` when none is named.",
+        "operationId": "revoke_all_governance_rules",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeAllBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How many rules were removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedRules"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/rules/{id}": {
+      "delete": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`DELETE /api/v1/governance/rules/{id}`: revokes one rule.",
+        "operationId": "revoke_governance_rule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Rule identifier",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rule is gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedRule"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No rule has this identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the deletion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/tools": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/tools`: every native tool with its flag,\nconfiguration, credential names and active backend.",
+        "operationId": "list_governance_tools",
+        "responses": {
+          "200": {
+            "description": "The native tools",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ToolStatusDto"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/tools/{name}/config": {
+      "get": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`GET /api/v1/governance/tools/{name}/config`: the configuration of one tool.",
+        "operationId": "get_governance_tool_config",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Tool name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The configuration, null when none is stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolConfigBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tool name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`PUT /api/v1/governance/tools/{name}/config`: stores the configuration of\none tool.",
+        "operationId": "set_governance_tool_config",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Tool name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolConfigBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The configuration as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolConfigBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tool name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/governance/tools/{name}/enabled": {
+      "put": {
+        "tags": [
+          "governance"
+        ],
+        "summary": "`PUT /api/v1/governance/tools/{name}/enabled`: enables or disables one tool.",
+        "operationId": "set_governance_tool_enabled",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Tool name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolEnabledBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The flag as stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolEnabledBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty tool name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The governance database refused the write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The runtime has no data directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "tags": [
@@ -9361,6 +9884,64 @@
           }
         }
       },
+      "AuditEntryDto": {
+        "type": "object",
+        "description": "Entry in the immutable audit log of permission decisions.",
+        "required": [
+          "id",
+          "tool_name",
+          "decision",
+          "decided_at"
+        ],
+        "properties": {
+          "agent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the agent behind the invocation, if provided."
+          },
+          "decided_at": {
+            "type": "string",
+            "description": "Decision date in ISO 8601 format."
+          },
+          "decision": {
+            "type": "string",
+            "description": "Serialized decision (e.g. `\"AutoAllowedSafeList\"`)."
+          },
+          "first_arg": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "First argument extracted from the invocation, when available."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Auto-incremented identifier."
+          },
+          "rule_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Identifier of the rule that triggered the decision, when applicable."
+          },
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Scope of the rule that decided, when relevant."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Name of the invoked tool."
+          }
+        }
+      },
       "AuditEventResponse": {
         "type": "object",
         "description": "A single audit event as returned by the API.",
@@ -12257,6 +12838,68 @@
           }
         }
       },
+      "PermissionRuleDto": {
+        "type": "object",
+        "description": "One permission rule, as the permissions page draws it.",
+        "required": [
+          "id",
+          "tool_name",
+          "action",
+          "scope",
+          "created_at"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Applied action (`\"allow\"` or `\"deny\"`)."
+          },
+          "agent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Agent identifier, for `agent` rules."
+          },
+          "arg_prefix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional argument prefix."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601 creation date."
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Author of the rule (`None` means a human operator)."
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601 expiration date, if any."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Identifier of the persisted rule."
+          },
+          "scope": {
+            "type": "string",
+            "description": "Rule scope (`\"agent\"`, `\"global\"`)."
+          },
+          "tool_name": {
+            "type": "string",
+            "description": "Name of the targeted tool."
+          }
+        }
+      },
       "PingRequest": {
         "type": "object",
         "description": "Request body for `POST /api/v1/llm/ping`.",
@@ -12857,6 +13500,48 @@
           "task_id": {
             "type": "string",
             "description": "Identifier of the resumed task."
+          }
+        }
+      },
+      "RevokeAllBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/governance/rules/revoke-all`.",
+        "properties": {
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Scope to clear, `\"agent\"` or `\"global\"`; `global` when absent."
+          }
+        }
+      },
+      "RevokedRule": {
+        "type": "object",
+        "description": "Answer of `DELETE /api/v1/governance/rules/{id}`.",
+        "required": [
+          "revoked"
+        ],
+        "properties": {
+          "revoked": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The identifier of the rule removed."
+          }
+        }
+      },
+      "RevokedRules": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/governance/rules/revoke-all`.",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many rules were removed.",
+            "minimum": 0
           }
         }
       },
@@ -14152,6 +14837,32 @@
           }
         }
       },
+      "ToolConfigBody": {
+        "type": "object",
+        "description": "Request and answer body of `/api/v1/governance/tools/{name}/config`.",
+        "properties": {
+          "config": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Tool-specific JSON configuration, `null` when none is stored."
+          }
+        }
+      },
+      "ToolEnabledBody": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/governance/tools/{name}/enabled`.",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "`true` to enable the tool, `false` to disable it."
+          }
+        }
+      },
       "ToolListResponse": {
         "type": "object",
         "description": "Response body for `GET /api/v1/tools`.",
@@ -14165,6 +14876,46 @@
               "type": "object"
             },
             "description": "All descriptors currently registered in the tool catalogue."
+          }
+        }
+      },
+      "ToolStatusDto": {
+        "type": "object",
+        "description": "State of a native tool as displayed by the tools page.",
+        "required": [
+          "name",
+          "enabled",
+          "credential_keys"
+        ],
+        "properties": {
+          "active_backend": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Backend actually used by the tool when applicable\n(e.g. `\"duckduckgo\"` or `\"brave\"` for `web_search`)."
+          },
+          "config": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Tool-specific JSON configuration, or `null`."
+          },
+          "credential_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of the credentials configured for this tool (values are never\nreturned)."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "`true` when the tool is active."
+          },
+          "name": {
+            "type": "string",
+            "description": "Canonical tool name (e.g. `bash_executor`)."
           }
         }
       },
@@ -14981,7 +15732,7 @@
     },
     {
       "name": "governance",
-      "description": "Approvals, hooks, plan cache"
+      "description": "Approvals, hooks, plan cache, native tools and their permission rules"
     },
     {
       "name": "tools",
