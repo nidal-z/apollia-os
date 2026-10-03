@@ -6734,6 +6734,41 @@
         }
       }
     },
+    "/api/v1/projects/{id}/sessions": {
+      "get": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a\nproject.",
+        "operationId": "list_project_sessions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Project id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session list"
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/resilience/reset/{tool}": {
       "post": {
         "tags": [
@@ -7062,6 +7097,59 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PATCH /api/v1/sessions/{id}`, change the configuration.",
+        "operationId": "update_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session updated"
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/sessions/{id}/authorize": {
@@ -7151,6 +7239,51 @@
         "responses": {
           "200": {
             "description": "Child session list"
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/erase": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/erase`, delete the session and\nevery message it holds.",
+        "operationId": "erase_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session erased"
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
           },
           "503": {
             "description": "Chat subsystem unavailable",
@@ -7338,6 +7471,61 @@
         }
       }
     },
+    "/api/v1/sessions/{id}/project": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a\nproject or, with `null`, unlink it.",
+        "operationId": "link_session_project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkProjectBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Link stored"
+          },
+          "404": {
+            "description": "Session or project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}/resume": {
       "post": {
         "tags": [
@@ -7426,6 +7614,153 @@
           },
           "503": {
             "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/title": {
+      "put": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `PUT /api/v1/sessions/{id}/title`, rename.",
+        "operationId": "rename_chat_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameSessionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session renamed"
+          },
+          "400": {
+            "description": "Blank title",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}/title/generate": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Handler for `POST /api/v1/sessions/{id}/title/generate`, name the session\nfrom its first message with the configured model.",
+        "operationId": "generate_session_title",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateTitleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The title stored on the session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedTitle"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Blank message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The model failed or answered no title",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Chat subsystem or inference server unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -12063,6 +12398,32 @@
           }
         }
       },
+      "GenerateTitleBody": {
+        "type": "object",
+        "description": "Request body for `POST /api/v1/sessions/{id}/title/generate`.",
+        "required": [
+          "first_message"
+        ],
+        "properties": {
+          "first_message": {
+            "type": "string",
+            "description": "The first user message the title is drawn from."
+          }
+        }
+      },
+      "GeneratedTitle": {
+        "type": "object",
+        "description": "Answer of `POST /api/v1/sessions/{id}/title/generate`.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The title stored on the session."
+          }
+        }
+      },
       "HardwareResponse": {
         "type": "object",
         "required": [
@@ -12761,6 +13122,19 @@
           "unknown_signing_key",
           "per_run_broken"
         ]
+      },
+      "LinkProjectBody": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/sessions/{id}/project`.",
+        "properties": {
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The project to link, `null` to unlink."
+          }
+        }
       },
       "LlmBackendResponse": {
         "type": "object",
@@ -13826,6 +14200,19 @@
           "reaches_running_agents": {
             "type": "boolean",
             "description": "Whether the rebuilt router reaches agents that are already running.\n\n`true`: the router this one replaces is superseded by it, and an agent\nstarted before the reload reads the router in force at each call\n(`LlmRouter::latest`), so it picks the reload up without a restart.\nKept in the response so a client that warned about the opposite can\ntell the two runtimes apart."
+          }
+        }
+      },
+      "RenameSessionBody": {
+        "type": "object",
+        "description": "Request body for `PUT /api/v1/sessions/{id}/title`.",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The title, trimmed and capped at 100 characters."
           }
         }
       },
@@ -15784,6 +16171,36 @@
           }
         }
       },
+      "UpdateSessionBody": {
+        "type": "object",
+        "description": "Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its\nvalue.",
+        "properties": {
+          "llm_backend": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Inference server of the session."
+          },
+          "system_prompt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New system prompt."
+          },
+          "tools": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "New list of tools available in the session."
+          }
+        }
+      },
       "UpdateTriggerRequest": {
         "type": "object",
         "description": "Request body for `PUT /api/v1/triggers/:id`, trigger update.",
@@ -16305,10 +16722,6 @@
     {
       "name": "webhooks",
       "description": "Inbound webhooks"
-    },
-    {
-      "name": "packages",
-      "description": "Package preview, installation, and trusted publisher keys"
     }
   ]
 }

@@ -2324,6 +2324,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Handler for `GET /api/v1/projects/{id}/sessions`, the sessions of a
+         *     project.
+         */
+        get: operations["list_project_sessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resilience/reset/{tool}": {
         parameters: {
             query?: never;
@@ -2428,7 +2448,8 @@ export interface paths {
         delete: operations["close_session"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Handler for `PATCH /api/v1/sessions/{id}`, change the configuration. */
+        patch: operations["update_session"];
         trace?: never;
     };
     "/api/v1/sessions/{id}/authorize": {
@@ -2462,6 +2483,26 @@ export interface paths {
         get: operations["list_session_children"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/erase`, delete the session and
+         *     every message it holds.
+         */
+        post: operations["erase_session"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2524,6 +2565,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{id}/project": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Handler for `PUT /api/v1/sessions/{id}/project`, link the session to a
+         *     project or, with `null`, unlink it.
+         */
+        put: operations["link_session_project"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{id}/resume": {
         parameters: {
             query?: never;
@@ -2560,6 +2621,43 @@ export interface paths {
         get: operations["stream_session"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Handler for `PUT /api/v1/sessions/{id}/title`, rename. */
+        put: operations["rename_chat_session"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{id}/title/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Handler for `POST /api/v1/sessions/{id}/title/generate`, name the session
+         *     from its first message with the configured model.
+         */
+        post: operations["generate_session_title"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4359,6 +4457,16 @@ export interface components {
             /** @description Number of messages to copy from the parent (None = all). */
             up_to_index?: number | null;
         };
+        /** @description Request body for `POST /api/v1/sessions/{id}/title/generate`. */
+        GenerateTitleBody: {
+            /** @description The first user message the title is drawn from. */
+            first_message: string;
+        };
+        /** @description Answer of `POST /api/v1/sessions/{id}/title/generate`. */
+        GeneratedTitle: {
+            /** @description The title stored on the session. */
+            title: string;
+        };
         HardwareResponse: {
             accelerator: Record<string, never>;
             /** Format: double */
@@ -4659,6 +4767,11 @@ export interface components {
          * @enum {string}
          */
         JournalBreakReason: "global_seq_gap" | "global_prev_hash_mismatch" | "global_hash_mismatch" | "global_signature_invalid" | "unknown_signing_key" | "per_run_broken";
+        /** @description Request body for `PUT /api/v1/sessions/{id}/project`. */
+        LinkProjectBody: {
+            /** @description The project to link, `null` to unlink. */
+            project_id?: string | null;
+        };
         /** @description Response body for a single backend. */
         LlmBackendResponse: {
             /** @description Provider-specific configuration. */
@@ -5118,6 +5231,11 @@ export interface components {
              *     tell the two runtimes apart.
              */
             reaches_running_agents: boolean;
+        };
+        /** @description Request body for `PUT /api/v1/sessions/{id}/title`. */
+        RenameSessionBody: {
+            /** @description The title, trimmed and capped at 100 characters. */
+            title: string;
         };
         /** @description A connection the package requires. */
         RequiredConnectionPreview: {
@@ -5957,6 +6075,18 @@ export interface components {
             name: string;
             /** @description Request settings. Unknown fields, a system prompt among them, are refused. */
             request?: Record<string, never>;
+        };
+        /**
+         * @description Request body for `PATCH /api/v1/sessions/{id}`. An absent field keeps its
+         *     value.
+         */
+        UpdateSessionBody: {
+            /** @description Inference server of the session. */
+            llm_backend?: string | null;
+            /** @description New system prompt. */
+            system_prompt?: string | null;
+            /** @description New list of tools available in the session. */
+            tools?: string[] | null;
         };
         /** @description Request body for `PUT /api/v1/triggers/:id`, trigger update. */
         UpdateTriggerRequest: {
@@ -11580,6 +11710,36 @@ export interface operations {
             };
         };
     };
+    list_project_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     reset_breaker: {
         parameters: {
             query?: never;
@@ -11867,6 +12027,49 @@ export interface operations {
             };
         };
     };
+    update_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSessionBody"];
+            };
+        };
+        responses: {
+            /** @description Session updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     authorize_tool: {
         parameters: {
             query?: never;
@@ -11937,6 +12140,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    erase_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session erased */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
             };
             /** @description Chat subsystem unavailable */
             503: {
@@ -12085,6 +12327,49 @@ export interface operations {
             };
         };
     };
+    link_session_project: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkProjectBody"];
+            };
+        };
+        responses: {
+            /** @description Link stored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session or project not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
     resume_session: {
         parameters: {
             query?: never;
@@ -12155,6 +12440,121 @@ export interface operations {
                 };
             };
             /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    rename_chat_session: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameSessionBody"];
+            };
+        };
+        responses: {
+            /** @description Session renamed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Blank title */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+        };
+    };
+    generate_session_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Session id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateTitleBody"];
+            };
+        };
+        responses: {
+            /** @description The title stored on the session */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneratedTitle"];
+                };
+            };
+            /** @description Blank message */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Session not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description The model failed or answered no title */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorBody"];
+                };
+            };
+            /** @description Chat subsystem or inference server unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

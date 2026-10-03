@@ -65,8 +65,10 @@ WINDOW_ENTRY = re.compile(r'\(\s*"([A-Za-z_]\w*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,?
 # then at 168 once the commands of the window were named as such, then at 164
 # once the profile had its routes, then at 162 once the settings of the chat
 # became those of the Apollia agent, then at 155 once the memory could be
-# cleared, purged, exported and imported through the daemon.
-EMBEDDED_ONLY_CEILING = 155
+# cleared, purged, exported and imported through the daemon, then at 149 once
+# the conversations of the chat could be configured, renamed, named, erased and
+# linked to a project.
+EMBEDDED_ONLY_CEILING = 149
 
 ROUTED_CONST = re.compile(
     r"\bconst\s+ROUTED_COMMANDS\s*:\s*&\[&str\]\s*=\s*&\[(?P<body>.*?)\];",
