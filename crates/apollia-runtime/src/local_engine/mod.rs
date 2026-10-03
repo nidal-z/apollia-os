@@ -18,9 +18,11 @@
 //! instead of failing on a folder `llama-server` cannot open.
 
 mod backend;
+pub mod guardrails;
 mod rows;
 
 pub use backend::LocalModelBackend;
+pub use guardrails::{GuardrailRefusal, LoadConsent};
 pub use rows::{local_row_for, row_name};
 
 use std::future::Future;
@@ -36,7 +38,9 @@ use futures::Stream;
 use thiserror::Error;
 
 use crate::engine_store::Engine;
-use crate::llama_server::{LlamaServerSupervisor, LoadedModel, ModelLease, UnloadError};
+use crate::llama_server::{
+    LlamaServerError, LlamaServerSupervisor, LoadedModel, ModelLease, UnloadError,
+};
 use crate::mlx_engine::MlxEngineSupervisor;
 
 /// Why a local engine could not serve a model.
@@ -60,6 +64,9 @@ pub enum LocalEngineError {
     /// An MLX model on a Mac whose build carries no MLX engine.
     #[error("the MLX engine is not installed on this machine; download a GGUF model instead")]
     MlxEngineMissing,
+    /// The load guardrail refused the model, and the user did not confirm.
+    #[error(transparent)]
+    GuardrailRefused(#[from] GuardrailRefusal),
 }
 
 /// What a local engine supervisor offers to the rest of the runtime.
@@ -79,11 +86,15 @@ pub trait LocalEngine: Send + Sync + 'static {
     fn launch_window(&self, backend: &str, requested: Option<u32>) -> u32;
 
     /// Make `model_path` servable and return a lease on the process serving it.
+    ///
+    /// A launch is first held to the load guardrail; `consent` says whether
+    /// the user confirmed a launch the guardrail would refuse.
     fn ensure_model(
         &self,
         backend: &str,
         model_path: String,
         n_ctx: Option<u32>,
+        consent: LoadConsent,
     ) -> impl Future<Output = Result<ModelLease, LocalEngineError>> + Send;
 
     /// Every resident model, most recently used first.
@@ -126,12 +137,18 @@ impl LocalEngine for LlamaServerSupervisor {
         backend: &str,
         model_path: String,
         n_ctx: Option<u32>,
+        consent: LoadConsent,
     ) -> Result<ModelLease, LocalEngineError> {
-        LlamaServerSupervisor::ensure_model(self, backend, model_path, n_ctx)
+        LlamaServerSupervisor::ensure_model(self, backend, model_path, n_ctx, consent)
             .await
-            .map_err(|e| LocalEngineError::Launch {
-                engine: Engine::LlamaServer.as_str(),
-                reason: e.to_string(),
+            .map_err(|e| match e {
+                LlamaServerError::GuardrailRefused(refusal) => {
+                    LocalEngineError::GuardrailRefused(refusal)
+                }
+                other => LocalEngineError::Launch {
+                    engine: Engine::LlamaServer.as_str(),
+                    reason: other.to_string(),
+                },
             })
     }
 

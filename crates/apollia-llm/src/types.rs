@@ -584,6 +584,27 @@ pub enum LlmError {
     #[error("cancelled by caller")]
     Cancelled,
 
+    /// A local engine refused to load the model: its estimated footprint is
+    /// over what the load guardrail allows on this machine. Not retryable; a
+    /// load the user confirms goes past it.
+    #[error(
+        "backend '{backend}': loading {model} was refused by the {level} load guardrail: it \
+         needs an estimated {estimated_gb:.1} GB and this machine allows {budget_gb:.1} GB; \
+         confirm the load to go ahead"
+    )]
+    LoadRefused {
+        /// Backend name.
+        backend: String,
+        /// The model whose load was refused, as the engine was asked for it.
+        model: String,
+        /// Wire name of the guardrail level that refused it.
+        level: String,
+        /// The estimated footprint, in gigabytes.
+        estimated_gb: f64,
+        /// The limit the level holds to, in gigabytes.
+        budget_gb: f64,
+    },
+
     /// The `[llm.routing]` section is missing from `apollia.toml`.
     ///
     /// Fatal at startup (fail fast). Add `precise` and `fast` under
@@ -1103,6 +1124,13 @@ mod tests {
             LlmError::ServiceUnavailable,
             LlmError::Unauthorized,
             LlmError::Cancelled,
+            LlmError::LoadRefused {
+                backend: "local".into(),
+                model: "big.gguf".into(),
+                level: "strict".into(),
+                estimated_gb: 18.3,
+                budget_gb: 12.0,
+            },
             LlmError::ConfigConflict {
                 backend: "local".into(),
                 reason: "mutuellement exclusifs".into(),

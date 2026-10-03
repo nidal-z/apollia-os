@@ -622,6 +622,8 @@ impl ToSchema for RawWebhookBody {}
         crate::api::routes_llm::backends::SetDefaultResponse,
         crate::api::routes_llm::backends::ReloadRouterResponse,
         crate::api::routes_llm::loaded::LoadedModelDto,
+        crate::local_engine::guardrails::GuardrailRefusedBody,
+        crate::local_engine::guardrails::GuardrailLevel,
         crate::api::routes_llm::loaded::LoadedModelsResponse,
         crate::api::routes_llm::loaded::UnloadModelRequest,
         crate::api::routes_llm::loaded::UnloadModelResponse,

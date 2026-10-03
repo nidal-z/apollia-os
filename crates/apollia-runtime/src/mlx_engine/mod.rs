@@ -16,7 +16,7 @@ mod locate;
 
 pub use locate::{locate, MlxLaunch, ENV_ENGINE_DIR, ENV_PYTHON};
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -29,7 +29,8 @@ use tokio::sync::Mutex;
 
 use crate::engine_store::Engine;
 use crate::llama_server::{LoadedModel, ModelLease, UnloadError};
-use crate::local_engine::{LocalEngine, LocalEngineError};
+use crate::local_engine::guardrails::{self, GuardrailPolicy, LoadEstimate};
+use crate::local_engine::{LoadConsent, LocalEngine, LocalEngineError};
 
 /// Context window, in tokens, for a backend that asks for none. `vllm-mlx`
 /// grows its cache on demand rather than reserving a window, so this is the
@@ -144,22 +145,29 @@ pub struct MlxEngineSupervisor {
     /// two processes for one model.
     respawn_lock: Mutex<()>,
     shutting_down: AtomicBool,
+    /// `apollia.toml`, whose `[llm.guardrails]` is read at every launch.
+    /// `None` holds every launch to the default level.
+    config_file: Option<PathBuf>,
 }
 
 impl MlxEngineSupervisor {
-    /// A supervisor that starts processes with `launch`, without starting any.
+    /// A supervisor that starts processes with `launch`, without starting any,
+    /// and holds them to the load guardrail of `config_file`, `apollia.toml`.
     /// Call [`spawn_supervision`](Self::spawn_supervision) for the respawns.
     #[must_use]
-    pub fn new(launch: MlxLaunch) -> Arc<Self> {
-        Arc::new(Self::with_timing(launch, Timing::default()))
+    pub fn new(launch: MlxLaunch, config_file: Option<PathBuf>) -> Arc<Self> {
+        let mut engine = Self::with_timing(launch, Timing::default());
+        engine.config_file = config_file;
+        Arc::new(engine)
     }
 
-    /// The engine of this installation, on a Mac with Apple Silicon only.
+    /// The engine of this installation, on a Mac with Apple Silicon only,
+    /// holding its launches to the guardrail of `config_file`.
     ///
     /// `None` elsewhere, and when the build carries no engine: an MLX model is
     /// then refused with its reason by the router factory.
     #[must_use]
-    pub fn for_this_machine() -> Option<Arc<Self>> {
+    pub fn for_this_machine(config_file: Option<PathBuf>) -> Option<Arc<Self>> {
         if !crate::local_engine::is_apple_silicon() {
             return None;
         }
@@ -171,7 +179,7 @@ impl MlxEngineSupervisor {
         let launch = locate(exe_dir.as_deref(), store_root.as_deref(), |var| {
             std::env::var(var).ok()
         })?;
-        Some(Self::new(launch))
+        Some(Self::new(launch, config_file))
     }
 
     fn with_timing(launch: MlxLaunch, timing: Timing) -> Self {
@@ -182,6 +190,7 @@ impl MlxEngineSupervisor {
             tick: AtomicU64::new(0),
             respawn_lock: Mutex::new(()),
             shutting_down: AtomicBool::new(false),
+            config_file: None,
         }
     }
 
@@ -245,22 +254,62 @@ impl MlxEngineSupervisor {
 
     /// Make `model_path` servable and return a lease on its process.
     ///
+    /// A launch is first held to the load guardrail, before the resident model
+    /// is stopped to make room; `consent` says whether the user confirmed a
+    /// launch the guardrail would refuse.
+    ///
     /// # Errors
     ///
-    /// [`LocalEngineError::Launch`] when the process cannot be started or
-    /// never answers `/health`.
+    /// [`LocalEngineError::GuardrailRefused`] when the guardrail refuses the
+    /// model and the user did not confirm; [`LocalEngineError::Launch`] when
+    /// the process cannot be started or never answers `/health`.
     pub async fn ensure_model(
         &self,
         model_path: String,
         n_ctx: Option<u32>,
+        consent: LoadConsent,
     ) -> Result<ModelLease, LocalEngineError> {
         let _guard = self.respawn_lock.lock().await;
         if let Some(lease) = self.touch_live_instance(&model_path).await {
             return Ok(lease);
         }
-        self.evict_until_below_ceiling().await;
         let n_ctx = Self::window(&model_path, n_ctx);
+        self.admit(&model_path, n_ctx, consent).await?;
+        self.evict_until_below_ceiling().await;
         self.spawn_instance(model_path, n_ctx).await
+    }
+
+    /// Hold the launch of `model_path` at `n_ctx` to the guardrail in force
+    /// now, read from `apollia.toml` at every call. One sequence, as served.
+    async fn admit(
+        &self,
+        model_path: &str,
+        n_ctx: u32,
+        consent: LoadConsent,
+    ) -> Result<(), LocalEngineError> {
+        let config_file = self.config_file.clone();
+        let model_path = model_path.to_owned();
+        let judged = tokio::task::spawn_blocking(move || {
+            let policy = GuardrailPolicy::read(config_file.as_deref());
+            if policy.level == guardrails::GuardrailLevel::Disabled {
+                return Ok(());
+            }
+            let shape = apollia_llm::recommend::RuntimeShape {
+                n_ctx,
+                n_parallel: 1,
+                ..apollia_llm::recommend::RuntimeShape::default()
+            };
+            let estimate = LoadEstimate::mlx(
+                Path::new(&model_path),
+                &shape,
+                &apollia_llm::hardware::detect(),
+            );
+            guardrails::enforce(&policy, estimate.as_ref(), consent, &model_path)
+        })
+        .await;
+        // A panicked estimate is no estimate: the launch goes ahead, as for a
+        // folder without its configuration.
+        judged.unwrap_or(Ok(())).map_err(LocalEngineError::from)
     }
 
     /// Launch a process for `model_path` and wait until it is healthy.
@@ -535,8 +584,9 @@ impl LocalEngine for MlxEngineSupervisor {
         _backend: &str,
         model_path: String,
         n_ctx: Option<u32>,
+        consent: LoadConsent,
     ) -> Result<ModelLease, LocalEngineError> {
-        MlxEngineSupervisor::ensure_model(self, model_path, n_ctx).await
+        MlxEngineSupervisor::ensure_model(self, model_path, n_ctx, consent).await
     }
 
     async fn loaded_models(&self) -> Vec<LoadedModel> {

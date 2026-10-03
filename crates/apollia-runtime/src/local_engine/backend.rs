@@ -25,8 +25,28 @@ use futures::{Stream, StreamExt};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use super::LocalEngine;
+use super::{LoadConsent, LocalEngine, LocalEngineError};
 use crate::llama_server::ModelLease;
+
+/// The error a call reports when the engine could not serve the model.
+///
+/// A guardrail refusal keeps its figures, so the API answers it as such
+/// rather than as an unreachable backend.
+fn engine_error(backend: &str, error: LocalEngineError) -> LlmError {
+    match error {
+        LocalEngineError::GuardrailRefused(refusal) => LlmError::LoadRefused {
+            backend: backend.to_owned(),
+            model: refusal.model,
+            level: refusal.level.as_str().to_owned(),
+            estimated_gb: refusal.estimated_gb,
+            budget_gb: refusal.budget_gb,
+        },
+        other => LlmError::BackendUnavailable {
+            backend: backend.to_owned(),
+            reason: other.to_string(),
+        },
+    }
+}
 
 /// `CompletionModel` backed by a local engine.
 pub struct LocalModelBackend<E: LocalEngine> {
@@ -88,12 +108,14 @@ impl<E: LocalEngine> LocalModelBackend<E> {
     async fn ready_client(&self) -> Result<(Arc<OpenAICompatibleClient>, ModelLease), LlmError> {
         let lease = self
             .supervisor
-            .ensure_model(&self.backend_name, self.model_path.clone(), self.n_ctx)
+            .ensure_model(
+                &self.backend_name,
+                self.model_path.clone(),
+                self.n_ctx,
+                LoadConsent::Unconfirmed,
+            )
             .await
-            .map_err(|e| LlmError::BackendUnavailable {
-                backend: self.backend_name.clone(),
-                reason: e.to_string(),
-            })?;
+            .map_err(|e| engine_error(&self.backend_name, e))?;
         self.launched_n_ctx.store(lease.n_ctx(), Ordering::Relaxed);
         let base = lease.base_url().to_owned();
 

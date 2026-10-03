@@ -98,10 +98,19 @@ impl Supervisor {
             .config
             .data_dir
             .join(apollia_core::paths::DataFile::System.file_name());
+        // `apollia.toml`, whose `[llm.guardrails]` both engines read at every
+        // launch: the file the runtime was started with, else the one in its
+        // data directory.
+        let guardrails_file = self
+            .config
+            .config_path
+            .clone()
+            .unwrap_or_else(|| self.config.data_dir.join("apollia.toml"));
         let llama_server_supervisor = crate::llama_server::LlamaServerSupervisor::new(
             crate::llama_server::LlamaServerConfig::default(),
             Some(system_db_path.clone()),
             Some(event_sender.clone()),
+            Some(guardrails_file.clone()),
         )
         .ok();
         if let Some(supervisor) = &llama_server_supervisor {
@@ -109,7 +118,8 @@ impl Supervisor {
         }
         // The MLX engine, on a Mac with Apple Silicon whose build carries it.
         // An MLX model elsewhere is refused with its reason by the router.
-        let mlx_engine = crate::mlx_engine::MlxEngineSupervisor::for_this_machine();
+        let mlx_engine =
+            crate::mlx_engine::MlxEngineSupervisor::for_this_machine(Some(guardrails_file));
         if let Some(engine) = &mlx_engine {
             Arc::clone(engine).spawn_supervision();
         }

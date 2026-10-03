@@ -29,6 +29,7 @@ use apollia_llm::{BackendInfo, ChatMessage, CompletionRequest};
 
 use crate::api::server::AppState;
 use crate::coordinator::ExecutionBackend;
+use crate::local_engine::guardrails::{GuardrailRefusedBody, GUARDRAIL_REFUSED_CODE};
 
 pub mod backends;
 pub mod costs;
@@ -316,6 +317,7 @@ pub async fn ping_llm_backend<B: ExecutionBackend + Clone>(
     request_body = ChatRequest,
     responses(
         (status = 200, description = "Completion result", body = ChatResponse),
+        (status = 409, description = "A local model the load guardrail refused; confirm the load to go ahead", body = crate::local_engine::guardrails::GuardrailRefusedBody),
         (status = 503, description = "No router configured or backend call failed", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -374,9 +376,19 @@ pub async fn llm_chat<B: ExecutionBackend + Clone>(
 /// A structured-output failure is the caller's to fix, not the backend's to
 /// retry: a schema no grammar can express and an answer the schema refuses are
 /// both 422, where an unreachable backend stays 503. Collapsing the three into
-/// one status is what made a malformed schema look like an outage.
+/// one status is what made a malformed schema look like an outage. A local
+/// model the load guardrail refused is 409 with [`GuardrailRefusedBody`]: the
+/// estimate and the budget, for the interface to word in its own language.
 fn llm_error_response(err: apollia_llm::LlmError) -> (StatusCode, Json<serde_json::Value>) {
     use apollia_llm::LlmError;
+    if let Some(refused) = GuardrailRefusedBody::from_llm_error(&err) {
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::to_value(refused).unwrap_or_else(
+                |_| serde_json::json!({"error": err.to_string(), "code": GUARDRAIL_REFUSED_CODE}),
+            )),
+        );
+    }
     let status = match &err {
         LlmError::StructuredOutputUnavailable { .. }
         | LlmError::StructuredOutputUnsupported { .. }
@@ -432,6 +444,7 @@ fn validated_value(
     responses(
         (status = 200, description = "Completion result", body = ChatResponse),
         (status = 400, description = "Unknown message role", body = crate::api::openapi::ApiErrorBody),
+        (status = 409, description = "A local model the load guardrail refused; confirm the load to go ahead", body = crate::local_engine::guardrails::GuardrailRefusedBody),
         (status = 503, description = "No router configured or backend call failed", body = crate::api::openapi::ApiErrorBody),
     )
 )]
@@ -831,6 +844,88 @@ pub mod tests {
         // says the request is the thing to fix rather than the backend
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(json["path"], "$.count");
+    }
+
+    /// A local backend whose load guardrail refuses its model, as the local
+    /// engine backend reports it.
+    struct RefusedLoadModel;
+
+    #[async_trait::async_trait]
+    impl apollia_llm::CompletionModel for RefusedLoadModel {
+        async fn complete(
+            &self,
+            _req: apollia_llm::CompletionRequest,
+        ) -> Result<apollia_llm::CompletionResponse, apollia_llm::LlmError> {
+            Err(apollia_llm::LlmError::LoadRefused {
+                backend: "local".to_owned(),
+                model: "/models/big.gguf".to_owned(),
+                level: "strict".to_owned(),
+                estimated_gb: 18.3,
+                budget_gb: 12.0,
+            })
+        }
+
+        async fn stream(
+            &self,
+            _req: apollia_llm::CompletionRequest,
+        ) -> Result<
+            Pin<
+                Box<
+                    dyn futures::Stream<
+                            Item = Result<apollia_llm::StreamChunk, apollia_llm::LlmError>,
+                        > + Send,
+                >,
+            >,
+            apollia_llm::LlmError,
+        > {
+            Err(apollia_llm::LlmError::InferenceError("not used".into()))
+        }
+
+        fn is_available(&self) -> bool {
+            true
+        }
+
+        fn backend_name(&self) -> &str {
+            "local"
+        }
+
+        fn model_id(&self) -> &str {
+            "big"
+        }
+    }
+
+    #[tokio::test]
+    async fn a_load_the_guardrail_refuses_answers_its_typed_body() {
+        // GIVEN a router whose local backend is refused by the load guardrail
+        let state = test_app_state_no_llm();
+        let model: Arc<dyn apollia_llm::CompletionModel> = Arc::new(RefusedLoadModel);
+        let mut backends = std::collections::HashMap::new();
+        backends.insert("local".to_owned(), model);
+        *state.llm_router.write().await =
+            Some(Arc::new(LlmRouter::with_backends(backends, "local")));
+
+        // WHEN a chat call reaches it
+        let (status, json) = post_chat(
+            state,
+            serde_json::json!({"prompt": "bonjour", "backend": "local"}),
+        )
+        .await;
+
+        // THEN the answer is the guardrail body: its code, its level, the
+        // estimate and the budget, for an interface to word in French or in
+        // English, beside the English sentence
+        assert_eq!(status, StatusCode::CONFLICT);
+        assert_eq!(json["code"], "guardrail_refused");
+        assert_eq!(json["model"], "/models/big.gguf");
+        assert_eq!(json["level"], "strict");
+        assert_eq!(json["estimatedGb"], 18.3);
+        assert_eq!(json["budgetGb"], 12.0);
+        assert!(
+            json["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("18.3 GB")),
+            "{json}"
+        );
     }
 
     #[tokio::test]
