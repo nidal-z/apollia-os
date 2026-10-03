@@ -206,6 +206,8 @@ export const IDENTICAL_BY_DECISION: string[] = [
   "settings.about.kv_version", // Version
   "settings.appearance.options_title", // Options
   "settings.credential.absent", // Absent
+  "settings.developer.mcp.kind_agent", // Agent
+  "settings.developer.mcp.kind_workflow", // Workflow
   "settings.llm_backend.provider_local", // local
   "settings.llm_dialog.field_endpoint", // Endpoint
   "settings.model_hub.detail.param_max_tokens", // max tokens

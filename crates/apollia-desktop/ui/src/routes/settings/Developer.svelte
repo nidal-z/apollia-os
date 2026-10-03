@@ -25,6 +25,8 @@
   import SettingsSubPage from "../../components/settings/SettingsSubPage.svelte";
   import SettingsSection from "../../components/settings/SettingsSection.svelte";
   import SettingsFieldRow from "../../components/settings/SettingsFieldRow.svelte";
+  import McpServerSection from "../../components/settings/developer/McpServerSection.svelte";
+  import { mcpSectionVisible } from "../../components/settings/developer/mcpServer";
 
   const locked = $derived($developerModeSource === "policy");
 
@@ -99,4 +101,8 @@
       {/snippet}
     </SettingsFieldRow>
   </SettingsSection>
+
+  {#if mcpSectionVisible($developerMode)}
+    <McpServerSection />
+  {/if}
 </SettingsSubPage>

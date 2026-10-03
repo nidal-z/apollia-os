@@ -3135,7 +3135,24 @@
       "mode_hint": "Shows the technical views (Transcriptions, Observability, Memory) and the advanced settings below.",
       "mode_off": "Off",
       "mode_on": "On",
-      "write_failed": "The developer mode could not be saved."
+      "write_failed": "The developer mode could not be saved.",
+      "mcp": {
+        "title": "Apollia as an MCP server",
+        "switch_label": "Expose Apollia as an MCP server",
+        "switch_hint": "An MCP client (Claude Desktop, a code editor) calls the checked agents and workflows as tools.",
+        "write_failed": "The MCP server setting could not be saved.",
+        "items_label": "Exposed agents and workflows",
+        "items_hint": "Check what an MCP client may call.",
+        "items_empty": "No agent or workflow installed yet. The ones you install from the Library will appear here, ready to check.",
+        "items_failed": "The agents and workflows could not be read: {error}",
+        "expose_failed": "{name} could not be updated.",
+        "kind_agent": "Agent",
+        "kind_workflow": "Workflow",
+        "config_label": "Paste into the configuration of the MCP client",
+        "copy": "Copy",
+        "copied": "Copied",
+        "copy_failed": "The configuration could not be copied."
+      }
     }
   },
   "onboarding": {
