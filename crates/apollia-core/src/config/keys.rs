@@ -188,8 +188,9 @@ pub const KEYS: &[ConfigKey] = &[
     locked(key("desktop.background_service_allowed", Boolean, Some("true"), Reloadable, "Allow the application to install the engine as a service of the user's session.")),
     // [server]
     locked(key("server.enabled", Boolean, Some("false"), Restart, "Start the compatible server (OpenAI and Anthropic formats) with the engine.")),
-    locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server, on the loopback interface.")),
+    locked(key("server.port", Integer, Some("7772"), Restart, "TCP port of the compatible server.")),
     locked(key("server.require_auth", Boolean, Some("false"), Restart, "Require a token of the compatible server on every request; read when the listener opens.")),
+    locked(key("server.serve_on_lan", Boolean, Some("false"), Restart, "Open the compatible server to the local network, on every interface; the native API stays on the loopback interface. Read when the listener opens.")),
     // [engines]
     locked(key("engines.log_level", Enum(&["error", "warning", "info", "debug"]), Some("\"debug\""), Reloadable, "Log level of the local engine, applied when a model is next loaded.")),
     // [author]
