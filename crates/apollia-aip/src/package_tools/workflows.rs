@@ -37,7 +37,22 @@ use crate::context::RuntimeContext;
 /// `workflows` reach the engine; `_apollia_step_hook` is what the SDK's
 /// `ctx.step` reports through, and is absent from any other context, so a
 /// workflow run under a test double reports nothing.
-const WORKFLOW_CODE: &std::ffi::CStr = c"import json
+///
+/// A workflow receives a date input as a `datetime.date`, so the inputs it
+/// hands to another workflow and the value it returns may hold one: `to_json`
+/// writes it back as `YYYY-MM-DD`, the form the runtime reads.
+const WORKFLOW_CODE: &std::ffi::CStr = c"import datetime
+import json
+
+
+def _plain(value):
+    if isinstance(value, datetime.date):
+        return value.isoformat()
+    raise TypeError(f'{type(value).__name__} is not JSON serializable')
+
+
+def to_json(value):
+    return json.dumps(value, default=_plain)
 
 
 class _Agents:
@@ -53,7 +68,7 @@ class _Workflows:
         self._services = services
 
     async def run(self, workflow_id, inputs):
-        answer = await self._services.run_workflow(workflow_id, json.dumps(inputs))
+        answer = await self._services.run_workflow(workflow_id, to_json(inputs))
         return json.loads(answer)
 
 
@@ -354,7 +369,8 @@ fn run_in_python(
         .import("asyncio")
         .and_then(|asyncio| asyncio.call_method1("run", (coroutine,)))
         .map_err(fail)?;
-    json.call_method1("dumps", (result,))
+    workflow_helpers(py)
+        .and_then(|h| h.call_method1("to_json", (result,)))
         .and_then(|text| text.extract::<String>())
         .map_err(|e| format!("{id}: the workflow returned no JSON value: {e}"))
 }
